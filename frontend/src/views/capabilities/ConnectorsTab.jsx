@@ -582,28 +582,6 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
           </button>
         </div>
 
-        {filter !== 'mcp' && (
-          <div className="connector-search-input-wrap">
-            <Search size={14} className="text-dim shrink-0" />
-            <input
-              type="text"
-              placeholder="Search 500+ apps (Telegram, Slack, GitHub…)"
-              value={query}
-              onChange={(e) => setQuery?.(e.target.value)}
-            />
-            {query && (
-              <button
-                type="button"
-                className="text-dim hover:text-ink cursor-pointer ml-1 p-0.5"
-                onClick={() => setQuery?.('')}
-                aria-label="Clear search"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-        )}
-
         <div className="connectors-top-actions">
           {configured ? (
             <button
@@ -885,14 +863,14 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
       {/* Filter: All or Connected Grid */}
       {filter !== 'mcp' && (
-        <section className="connectors-grid">
+        <section className="connector-marketplace-section">
           {cards === null ? (
-            <div className="col-span-full py-16 flex flex-col items-center justify-center gap-2 text-dim text-sm">
+            <div className="py-16 flex flex-col items-center justify-center gap-2 text-dim text-sm">
               <Loader2 size={20} className="animate-spin" />
               <span>Loading apps marketplace catalog…</span>
             </div>
           ) : visible.length === 0 ? (
-            <div className="col-span-full py-16 flex flex-col items-center justify-center text-center text-dim text-sm">
+            <div className="py-16 flex flex-col items-center justify-center text-center text-dim text-sm">
               <div className="font-medium text-ink text-base">
                 {filter === 'connected' ? 'No apps connected yet' : 'No apps match your search'}
               </div>
@@ -907,46 +885,48 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               {visible.map(renderCardTile)}
             </div>
           ) : (
-            sortedCategories.map((cat) => {
-              const categoryCards = categorized[cat] || []
-              const isExpanded = Boolean(expandedCategories[cat] || effectiveSearch)
-              const shownCards = isExpanded ? categoryCards : categoryCards.slice(0, 6)
-              const hasMore = categoryCards.length > 6 && !effectiveSearch
+            <div className="connector-categories-container">
+              {sortedCategories.map((cat) => {
+                const categoryCards = categorized[cat] || []
+                const isExpanded = Boolean(expandedCategories[cat] || effectiveSearch)
+                const shownCards = isExpanded ? categoryCards : categoryCards.slice(0, 6)
+                const hasMore = categoryCards.length > 6 && !effectiveSearch
 
-              return (
-                <div key={cat} className="connector-category-section">
-                  <div className="connector-category-header">
-                    <div className="connector-category-title">
-                      <span>{cat}</span>
-                      <span className="connector-category-count">{categoryCards.length}</span>
+                return (
+                  <div key={cat} className="connector-category-section">
+                    <div className="connector-category-header">
+                      <div className="connector-category-title">
+                        <span>{cat}</span>
+                        <span className="connector-category-count">{categoryCards.length}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="connectors-grid">
-                    {shownCards.map(renderCardTile)}
-                  </div>
-                  {hasMore && (
-                    <div className="connector-view-more-wrap">
-                      <button
-                        type="button"
-                        className="connector-view-more-btn"
-                        onClick={() =>
-                          setExpandedCategories((prev) => ({
-                            ...prev,
-                            [cat]: !prev[cat],
-                          }))
-                        }
-                      >
-                        <span>
-                          {expandedCategories[cat]
-                            ? 'Show fewer'
-                            : `View ${categoryCards.length - 6} more`}
-                        </span>
-                      </button>
+                    <div className="connectors-grid">
+                      {shownCards.map(renderCardTile)}
                     </div>
-                  )}
-                </div>
-              )
-            })
+                    {hasMore && (
+                      <div className="connector-view-more-wrap">
+                        <button
+                          type="button"
+                          className="connector-view-more-btn"
+                          onClick={() =>
+                            setExpandedCategories((prev) => ({
+                              ...prev,
+                              [cat]: !prev[cat],
+                            }))
+                          }
+                        >
+                          <span>
+                            {expandedCategories[cat]
+                              ? 'Show fewer'
+                              : `View ${categoryCards.length - 6} more`}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </section>
       )}
