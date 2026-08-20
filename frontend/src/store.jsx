@@ -647,7 +647,20 @@ export function AppProvider({ children }) {
   const refreshHealth = useCallback(async () => {
     try {
       const h = await api.health()
-      setHealth(h)
+      setHealth((prev) => {
+        if (!prev) return h
+        if (
+          prev.phase === h.phase &&
+          prev.tools === h.tools &&
+          prev.skills === h.skills &&
+          prev.running === h.running &&
+          prev.error === h.error &&
+          prev.version === h.version
+        ) {
+          return prev
+        }
+        return h
+      })
       setHealthError(null)
       return h
     } catch (err) {
@@ -659,7 +672,16 @@ export function AppProvider({ children }) {
   const refreshConvs = useCallback(async () => {
     try {
       const rows = await api.conversations()
-      setConversations(rows)
+      setConversations((prev) => {
+        if (prev && prev.length === rows.length) {
+          const unchanged = prev.every((p, i) => {
+            const r = rows[i]
+            return p.id === r.id && p.updated_at === r.updated_at && p.title === r.title
+          })
+          if (unchanged) return prev
+        }
+        return rows
+      })
       return rows
     } catch (err) {
       setHealthError(err.message)
@@ -739,7 +761,12 @@ export function AppProvider({ children }) {
   const refreshCaps = useCallback(async (scope = activeId) => {
     try {
       const next = await api.capabilities(scope || null)
-      setCaps(next)
+      setCaps((prev) => {
+        if (prev && JSON.stringify(prev) === JSON.stringify(next)) {
+          return prev
+        }
+        return next
+      })
       return next
     } catch {
       return null

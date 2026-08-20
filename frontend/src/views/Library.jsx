@@ -47,6 +47,7 @@ export default function Library() {
 
   // Filter & layout state
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedKinds, setSelectedKinds] = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
   const [selectedTags, setSelectedTags] = useState([])
@@ -89,7 +90,7 @@ export default function Library() {
     const token = ++loadToken.current
     try {
       const data = await api.library({
-        q: query,
+        q: debouncedQuery,
         kind: selectedKinds.join(','),
         category: selectedCategories.join(','),
         tag: selectedTags.join(','),
@@ -136,7 +137,15 @@ export default function Library() {
       setError(err.message)
       setLoaded(true)
     }
-  }, [query, selectedKinds, selectedCategories, selectedTags, order])
+  }, [debouncedQuery, selectedKinds, selectedCategories, selectedTags, order])
+
+  // Debounce search query to eliminate typing stutter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 180)
+    return () => clearTimeout(timer)
+  }, [query])
 
   // Sync params with URL state
   useEffect(() => {
@@ -156,13 +165,13 @@ export default function Library() {
   // Update URL params when filters change
   useEffect(() => {
     const next = new URLSearchParams()
-    if (query) next.set('q', query)
+    if (debouncedQuery) next.set('q', debouncedQuery)
     if (selectedKinds.length) next.set('kind', selectedKinds.join(','))
     if (selectedCategories.length) next.set('category', selectedCategories.join(','))
     if (selectedTags.length) next.set('tag', selectedTags.join(','))
     if (selectedRatings.length) next.set('rating', selectedRatings.join(','))
     setParams(next, { replace: true })
-  }, [query, selectedKinds, selectedCategories, selectedTags, selectedRatings, setParams])
+  }, [debouncedQuery, selectedKinds, selectedCategories, selectedTags, selectedRatings, setParams])
 
   // Trigger data load
   useEffect(() => {
@@ -427,6 +436,7 @@ export default function Library() {
     setSelectedTags([])
     setSelectedRatings([])
     setQuery('')
+    setDebouncedQuery('')
   }, [])
 
   const total = useMemo(

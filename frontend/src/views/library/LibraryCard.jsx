@@ -450,14 +450,6 @@ function LibraryCardComponent({
               </div>
             ) : (
               <>
-                {/* Blurred ambient backdrop — fills container edge-to-edge so the contained foreground image never shows a void */}
-                <img
-                  className="lib-card-media-backdrop"
-                  src={currentImageUrl}
-                  alt=""
-                  aria-hidden="true"
-                  loading="lazy"
-                />
                 <img
                   className="lib-card-media-img"
                   src={currentImageUrl}

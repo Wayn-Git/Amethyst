@@ -126,9 +126,9 @@ export default function LibraryGrid({
                       isFeatured={variant === 'wide'}
                       busy={busyId === item.id}
                       onSelect={onSelect}
-                      onReindex={() => onReindex?.(item)}
-                      onEnrich={() => onEnrich?.(item)}
-                      onDelete={() => onDelete?.(item)}
+                      onReindex={onReindex}
+                      onEnrich={onEnrich}
+                      onDelete={onDelete}
                       onTagClick={onTagClick}
                     />
                   </motion.div>

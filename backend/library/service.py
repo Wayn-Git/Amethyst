@@ -159,7 +159,7 @@ def _json_dict(raw) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def as_dict(row) -> dict:
+def as_dict(row, *, include_content: bool = True) -> dict:
     """One item, as the interface and the model both see it."""
     from backend.library.enrich import infer_category
 
@@ -218,15 +218,25 @@ def as_dict(row) -> dict:
 
     if text_p and text_p.is_file():
         data["text_path"] = str(text_p)
-        try:
-            raw = text_p.read_text(encoding="utf-8", errors="replace")
-            data["content"] = raw
-            if not data.get("excerpt"):
+        if include_content:
+            try:
+                raw = text_p.read_text(encoding="utf-8", errors="replace")
+                data["content"] = raw
+                if not data.get("excerpt"):
+                    from backend.library.enrich import body_of
+                    body, _ = body_of(raw)
+                    data["excerpt"] = body.strip()[:1000]
+            except Exception:
+                pass
+        elif not data.get("excerpt") and not data.get("summary"):
+            try:
+                with text_p.open("r", encoding="utf-8", errors="replace") as f:
+                    raw_head = f.read(2048)
                 from backend.library.enrich import body_of
-                body, _ = body_of(raw)
+                body, _ = body_of(raw_head)
                 data["excerpt"] = body.strip()[:1000]
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     # 2. Fallback & resolution for thumbnail path
     thumb_p = Path(data["thumbnail_path"]) if data.get("thumbnail_path") else None
@@ -1787,6 +1797,7 @@ class LibraryService:
         order: str = "desc",
         limit: int = 50,
         offset: int = 0,
+        include_content: bool = False,
     ) -> list[dict]:
         # The store does the filtering.
         #
@@ -1799,7 +1810,7 @@ class LibraryService:
             rows = self.store.list(
                 kind=kind, tag=tag, order=order, limit=limit, offset=offset
             )
-            return [as_dict(row) for row in rows]
+            return [as_dict(row, include_content=include_content) for row in rows]
 
         # A category filter has to find what `as_dict` *calls* an item, not
         # only what the column stores. Items filed as null or 'general' get an
@@ -1820,7 +1831,7 @@ class LibraryService:
             if row["id"] in seen:
                 continue
             seen.add(row["id"])
-            item = as_dict(row)
+            item = as_dict(row, include_content=include_content)
             if item.get("category") == category:
                 items.append(item)
         reverse = str(order).lower() != "asc"
@@ -1842,18 +1853,18 @@ class LibraryService:
             for name, n in self.store.category_counts().items()
             if name and name != "general"
         }
-        # The unfiled rows are the only ones that need Python. `as_dict` infers
-        # a category for an item stored as null or 'general', so counting the
-        # stored column alone would disagree with what the same items say when
-        # they are listed -- the interface would show a chip labelled with a
-        # number that no filter reproduces. Bounded to the unfiled subset
-        # rather than the whole table.
+        # The unfiled rows are the only ones that need Python. `infer_category`
+        # infers a category for an item stored as null or 'general', computed
+        # directly from row columns in-memory without hitting disk for text files.
         unfiled = self.store.conn.execute(
-            "SELECT * FROM library_items WHERE category IS NULL OR category = ''"
+            "SELECT kind, tags, resources FROM library_items WHERE category IS NULL OR category = ''"
             " OR category = 'general'"
         ).fetchall()
+        from backend.library.enrich import infer_category
         for row in unfiled:
-            name = as_dict(row).get("category") or "general"
+            tags = _json_list(row["tags"])
+            resources = _json_list(row["resources"])
+            name = infer_category(resources, tags, kind=row["kind"] or "") or "general"
             counts[name] = counts.get(name, 0) + 1
         return counts
 

@@ -59,9 +59,9 @@ export default function LibraryListView({
                 item={item}
                 busy={busyId === item.id}
                 onSelect={onSelect}
-                onReindex={() => onReindex(item)}
-                onEnrich={() => onEnrich(item)}
-                onDelete={() => onDelete(item)}
+                onReindex={onReindex}
+                onEnrich={onEnrich}
+                onDelete={onDelete}
                 onTagClick={onTagClick}
               />
             ))}

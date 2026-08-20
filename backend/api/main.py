@@ -7406,10 +7406,6 @@ async def list_library(
 ) -> dict[str, Any]:
     from backend.library.service import LibraryService
 
-    with contextlib.suppress(Exception):
-        _instagram.nudge()
-        _library.nudge()
-
     service = LibraryService()
     limit = max(1, min(limit, 500))
     # Comma-delimited values are intentional: choices within one facet are OR,
@@ -7627,10 +7623,13 @@ async def library_thumbnail(item_id: int) -> FileResponse:
             mime, _ = mimetypes.guess_type(str(alt_cand))
             return FileResponse(alt_cand, media_type=mime or "image/jpeg")
 
-    # If missing or not yet downloaded, try on-demand fetch once
+    # If missing or not yet downloaded, try on-demand fetch once with a short timeout
     if row["url"]:
         service = LibraryService(store)
-        fetched = await service.fetch_thumbnail_for_item(item_id)
+        try:
+            fetched = await asyncio.wait_for(service.fetch_thumbnail_for_item(item_id), timeout=3.0)
+        except Exception:
+            fetched = False
         if fetched:
             row = store.get(item_id)
             if row and row["thumbnail_path"]:
