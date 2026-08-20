@@ -252,7 +252,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | lib.ask | Ask-your-library Q&A | lib, llm | v2 | [x] |
 | lib.readlater | Read-later queue with summaries | lib, llm | v2 | [x] |
 | lib.highlights | Highlights from articles | lib | v2 | [x] |
-| lib.daily | Daily note or journal prompt | lib | v2 | [ ] |
+| lib.daily | Daily note or journal prompt | lib | v2 | [x] |
 | lib.collections | Collections and tags | lib | v2 | [ ] |
 | lib.flashcards | Flashcards due (spaced repetition) | lib, llm | Later | [ ] |
 | lib.graph | Linked-notes graph | lib | Later | [ ] |

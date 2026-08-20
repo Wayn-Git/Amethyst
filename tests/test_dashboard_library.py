@@ -306,3 +306,50 @@ async def test_highlights_are_gated_notes_linked_to_articles(db, monkeypatch):
         draft(
             "lib.highlights", "add", HighlightInput(title="No source", text="Quote", source_id=999)
         )
+
+
+async def test_daily_note_reuses_today_and_never_needs_a_model(db, monkeypatch):
+    import asyncio
+    from pathlib import Path
+
+    from backend.dashboard.items import decide, local_now
+    from backend.dashboard.library import DailyInput, draft
+    from backend.dashboard.search import item
+    from backend.retrieval.indexer import Indexer
+
+    async def index(*args, **kwargs):
+        return 0
+
+    monkeypatch.setattr(Indexer, "index_file", index)
+
+    def no_enrichment(*args):
+        raise AssertionError("Daily note must not invoke enrichment")
+
+    monkeypatch.setattr(LibraryService, "_enrich_later", no_enrichment)
+    data = await provide("lib.daily")
+    day = local_now().date().isoformat()
+    assert data["day"] == day and data["prompt"] and data["items"] == []
+    body = DailyInput(day=day)
+    denied = draft("lib.daily", "create", body)
+    await decide("lib.daily", denied["draft_id"], False)
+    assert db.execute("SELECT count(*) FROM library_items").fetchone()[0] == 0
+    first = draft("lib.daily", "create", body)
+    second = draft("lib.daily", "create", body)
+    await asyncio.gather(
+        decide("lib.daily", first["draft_id"], True), decide("lib.daily", second["draft_id"], True)
+    )
+    notes = db.execute("SELECT * FROM library_items").fetchall()
+    assert len(notes) == 1
+    assert Path(notes[0]["text_path"]).read_text() == f"# {day}\n\n## Notes\n"
+    assert (await provide("lib.daily"))["items"][0]["id"] == notes[0]["id"]
+    assert "## Notes" in item("library", notes[0]["id"])["detail"]
+
+
+def test_daily_rejects_a_different_calendar_day(db):
+    import pytest
+    from fastapi import HTTPException
+
+    from backend.dashboard.library import DailyInput, draft
+    with pytest.raises(HTTPException) as error:
+        draft("lib.daily", "create", DailyInput(day="2000-01-01"))
+    assert error.value.status_code == 409

@@ -120,3 +120,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 lib.ask: cached async Library retrieval; local/free model selects validated verbatim note passages, with source links and an offline extractive fallback; focused backend/UI checks passed.
 - 2026-10-25 lib.readlater: Library URL queue, gated saves, async local/free summaries in the widget cache, and audited page fetches including redirects; backend/UI checks passed. Existing reader lint findings remain outside these edits.
 - 2026-10-25 lib.highlights: pasted highlights saved as gated Library notes with durable article references; source-change checks and backend/UI tests passed.
+- 2026-10-25 lib.daily: deterministic prompts, gated per-day Library note creation with concurrent reuse and a model-free scaffold, and source-note opening; backend/UI checks passed.

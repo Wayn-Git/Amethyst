@@ -13,6 +13,14 @@ from backend.dashboard.store import cache_read, settings_read
 from backend.db.connection import get_connection
 from backend.library.service import LibraryService
 
+DAILY_PROMPTS = (
+    "What mattered to you today?",
+    "What did you learn today?",
+    "What would you like to make time for tomorrow?",
+    "What are you grateful for today?",
+)
+_DAILY_LOCK = asyncio.Lock()
+
 
 def display(item):
     return {key: item.get(key) for key in ("id", "title", "kind", "updated_at", "excerpt")}
@@ -22,6 +30,14 @@ async def provide(widget_id):
     if widget_id == "lib.capture":
         return {"items": []}
     library = LibraryService()
+    if widget_id == "lib.daily":
+        day = local_now().date()
+        note = library.store.by_source_ref(f"daily:{day.isoformat()}")
+        return {
+            "day": day.isoformat(),
+            "prompt": DAILY_PROMPTS[day.toordinal() % len(DAILY_PROMPTS)],
+            "items": [display(dict(note))] if note else [],
+        }
     if widget_id == "lib.highlights":
         from backend.library.service import as_dict
 
@@ -232,6 +248,10 @@ class LibraryInput(StrictModel):
 def draft(widget_id, action, body):
     from urllib.parse import urlparse
 
+    if widget_id == "lib.daily" and action == "create":
+        if body.day != local_now().date().isoformat():
+            raise HTTPException(409, "The day changed; refresh before creating a note")
+        return save_draft(widget_id, action, body, body.model_dump(mode="json"))
     if widget_id == "lib.highlights" and action == "add":
         if not body.title.strip() or not body.text.strip():
             raise HTTPException(422, "Highlight title and text are required")
@@ -250,6 +270,17 @@ def draft(widget_id, action, body):
 
 async def apply(widget_id, action, body):
     library = LibraryService()
+    if widget_id == "lib.daily" and action == "create":
+        if body["day"] != local_now().date().isoformat():
+            raise HTTPException(409, "The day changed; review a new draft")
+        async with _DAILY_LOCK:
+            ref = f"daily:{body['day']}"
+            if library.store.by_source_ref(ref) is None:
+                captured = await library.log_manual(title=body["day"], text="## Notes")
+                if not captured.item.get("text_path"):
+                    raise HTTPException(500, "Daily note could not be saved to the vault")
+                library.store.update(captured.item["id"], source_ref=ref)
+        return
     if widget_id == "lib.highlights" and action == "add":
         source = library.store.get(body["source_id"])
         if source is None or dict(source) != body["expected_source"]:
@@ -278,4 +309,8 @@ class HighlightInput(StrictModel):
     source_id: int = Field(gt=0)
 
 
-INPUTS = {"lib.readlater": LibraryInput, "lib.highlights": HighlightInput}
+class DailyInput(StrictModel):
+    day: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+INPUTS = {"lib.readlater": LibraryInput, "lib.highlights": HighlightInput, "lib.daily": DailyInput}

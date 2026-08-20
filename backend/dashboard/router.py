@@ -207,7 +207,7 @@ class DraftDecision(StrictModel):
 async def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
-        if widget_id in ("lib.readlater", "lib.highlights"):
+        if widget_id in ("lib.readlater", "lib.highlights", "lib.daily"):
             from backend.dashboard.library import INPUTS
             from backend.dashboard.library import draft as library_draft
 

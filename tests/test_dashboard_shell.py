@@ -72,6 +72,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "agent.running",
         "lib.readlater",
         "lib.highlights",
+        "lib.daily",
         "lib.ask",
         "lib.inbox",
         "lib.dupes",

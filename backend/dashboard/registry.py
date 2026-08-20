@@ -360,6 +360,11 @@ MANIFESTS = [
         "tier": "v2",
         "actions": [dict(id="add", label="Add highlight", gate=True)],
     },
+    {
+        **library_manifest("lib.daily", "Daily note"),
+        "tier": "v2",
+        "actions": [dict(id="create", label="Create today's note", gate=True)],
+    },
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     {

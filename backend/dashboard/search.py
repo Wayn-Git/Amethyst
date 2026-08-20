@@ -70,8 +70,11 @@ def item(source, item_id):
     row = get_connection().execute(f"SELECT * FROM {table} WHERE id=?", (item_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "Source item no longer exists")
-    return {
-        "title": row["title"],
-        "widget_id": source,
-        "detail": (row["notes"] or row["summary"] or "") if source == "library" else row["status"],
-    }
+    if source == "library":
+        from backend.library.service import as_dict
+
+        saved = as_dict(row)
+        detail = saved.get("content") or row["notes"] or row["summary"] or ""
+    else:
+        detail = row["status"]
+    return {"title": row["title"], "widget_id": source, "detail": detail}

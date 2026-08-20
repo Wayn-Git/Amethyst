@@ -118,6 +118,14 @@ try {
     await card.getByText('Same url: Original fixture', { exact: true }).waitFor()
     assert.equal(await card.getByRole('button', { name: /delete|merge/i }).count(), 0)
   }
+  if (widgets.includes('lib.daily')) {
+    const card = page.locator('[data-widget="lib.daily"]')
+    await card.getByRole('button', { name: "Review create today's note", exact: true }).click()
+    await card.getByRole('button', { name: 'Reject create', exact: true }).click()
+    await card.getByRole('button', { name: "Review create today's note", exact: true }).click()
+    await card.getByRole('button', { name: 'Approve create', exact: true }).click()
+    await card.getByRole('link', { name: "Open today's note", exact: true }).waitFor()
+  }
   if (widgets.includes('lib.highlights')) {
     const card = page.locator('[data-widget="lib.highlights"]')
     await card.getByLabel('Highlight title', { exact: true }).fill('Highlight UI fixture')
