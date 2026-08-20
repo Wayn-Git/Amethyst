@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import WidgetFrame, { WidgetBoundary } from './WidgetFrame.jsx'
 import { DashboardContext } from './context.js'
 import { cached, remember, request } from './api.js'
@@ -11,6 +12,8 @@ import Sync from './widgets/Sync.jsx'
 import Shortcuts from './widgets/Shortcuts.jsx'
 import NeedsYou from './NeedsYou.jsx'
 import SourceItem from './SourceItem.jsx'
+import FocusTimer from './widgets/FocusTimer.jsx'
+import ProgressGauge from './widgets/ProgressGauge.jsx'
 import './home.css'
 
 export default function Home() {
@@ -103,6 +106,11 @@ export default function Home() {
   const content = homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id) && !NEED_WIDGETS.includes(w.id))
   const main = content.filter(w => w.id.startsWith('agent.') || w.size === 'l')
   const side = content.filter(w => !main.includes(w))
+  const todayTasksPos = homePositions.find(w => w.id === 'task.today')
+  const agendaPos = homePositions.find(w => w.id === 'task.agenda')
+  const streamSide = side.filter(w => w.id !== 'task.today' && w.id !== 'task.agenda')
+  const todayItems = records['task.today']?.payload?.items || []
+  const completedTasks = todayItems.filter(item => item.completed || item.status === 'done' || item.state === 'done').length
   const requestedSystem = SYSTEM_WIDGETS.includes(requested) && manifests.find(m => m.id === requested)
   const settingsId = drawer?.settingsId || (drawer === null && requestedSystem ? requested : null)
   useEffect(() => {
@@ -122,15 +130,84 @@ export default function Home() {
       setDrawer({ type: 'closed' })
     }
   }
-  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, removeWidget, now, openWidget }}><div className="view widget-home"><header className="home-heading"><div><time className="home-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</time><h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1></div><button className="home-capture" onClick={() => setOverlay('palette')}>Capture or search… <kbd>⌘K / Ctrl+K</kbd></button><div className="widget-buttons"><button onClick={() => setEditing(!editing)}>{editing ? 'Finish editing' : 'Edit layout'}</button><button className="home-primary" onClick={() => setDrawer({ type: 'add' })}>Add widget</button><button onClick={() => setDrawer({ type: 'settings' })}>Home settings</button></div></header>
+  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, removeWidget, now, openWidget }}><div className="view widget-home"><header className="home-heading"><div className="home-greeting"><span className="home-eyebrow">TODAY</span><time className="home-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</time><h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1><p>Your day, a little more in focus.</p></div><button className="home-capture" onClick={() => setOverlay('palette')}><Icon name="search" size={20} /><span>Capture a thought or find anything</span><kbd>⌘K / Ctrl+K</kbd></button><div className="widget-buttons"><button onClick={() => setEditing(!editing)}><Icon name={editing ? 'check-simple' : 'grid'} size={17} />{editing ? 'Finish editing' : 'Edit layout'}</button><button className="home-primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={18} />Add widget</button><button onClick={() => setDrawer({ type: 'settings' })}><Icon name="settings" size={17} />Home settings</button></div></header>
     <SourceItem />
     {error && <p role="alert">{error} {entries.length ? 'Using saved shell data where available.' : ''}<button onClick={() => window.location.reload()}>Retry Home</button></p>}
     <p role="status" className="home-save-status">{dragging ? 'Release to place. Escape cancels.' : saveState}</p>
     {entries.filter(e => !e.enabled).map(e => <p key={e.manifest.id} role="alert">{e.manifest.title}: {e.error}</p>)}
     {!loaded && !layout.widgets.length && <p role="status">Loading layout…</p>}
     <div ref={grid}>
-      <div className="home-glance">{glance.map(p => renderWidget(p, false, true))}</div>
-      {editing ? <div className="home-grid">{homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p))}</div> : <div className="home-columns"><div className="home-column">{needs.length > 0 && <NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} />}{main.map(p => renderWidget(p))}</div><div className="home-column">{side.map(p => <section key={p.id} aria-label={{ 'task.today': 'Today', 'dev.prs': 'Dev', 'lib.resurface': 'Library', 'feed.news': 'Feed' }[p.id]}>{renderWidget(p)}</section>)}</div></div>}
+      <div className="home-glance" aria-label="At a glance">{glance.map(p => renderWidget(p, false, true))}</div>
+      {editing ? (
+        <div className="home-grid">{homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p))}</div>
+      ) : (
+        <div className="bento-sections">
+          {(todayTasksPos || agendaPos) && (
+            <section className="bento-section" aria-label="Today's focus">
+              <div className="bento-section-header">
+                <h2 className="bento-section-title"><Icon name="tasks" size={20} />Today’s Focus</h2>
+                <span className="bento-section-desc">Active momentum & day overview</span>
+              </div>
+              <div className="bento-focus-grid">
+                <div className="bento-col-4">
+                  <ProgressGauge completed={completedTasks} total={todayItems.length} />
+                </div>
+                <div className="bento-col-4">
+                  <FocusTimer />
+                </div>
+                <div className="bento-col-4">
+                  {agendaPos ? renderWidget(agendaPos) : (
+                    <article className="bento-gauge-card" aria-label="Daily Schedule">
+                      <header className="bento-card-header">
+                        <span className="bento-badge">Schedule</span>
+                        <span className="bento-card-sub">Calendar</span>
+                      </header>
+                      <div className="bento-gauge-body">
+                        <strong className="bento-gauge-status">Calendar Sync</strong>
+                        <p className="bento-gauge-hint">All scheduled events sync automatically with connected calendars.</p>
+                      </div>
+                    </article>
+                  )}
+                </div>
+                {todayTasksPos && (
+                  <div className="bento-col-12">
+                    <section aria-label="Today">
+                      {renderWidget(todayTasksPos)}
+                    </section>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {needs.length > 0 && (
+            <section className="bento-section" aria-label="Priority triage">
+              <div className="bento-section-header">
+                <h2 className="bento-section-title"><Icon name="mail" size={20} />Needs Attention</h2>
+                <span className="bento-section-desc">Cross-source priority triage</span>
+              </div>
+              <NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} />
+            </section>
+          )}
+
+          {(main.length > 0 || streamSide.length > 0) && (
+            <section className="bento-section" aria-label="Intelligence and streams">
+              <div className="bento-section-header">
+                <h2 className="bento-section-title"><Icon name="sparkle" size={20} />Intelligence & Activity</h2>
+                <span className="bento-section-desc">Agent activity, dev pipelines & library</span>
+              </div>
+              <div className="bento-streams-grid">
+                {main.map(p => renderWidget(p))}
+                {streamSide.map(p => (
+                  <section key={p.id} aria-label={{ 'dev.prs': 'Dev', 'lib.resurface': 'Library', 'feed.news': 'Feed' }[p.id] || p.id}>
+                    {renderWidget(p)}
+                  </section>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
     </div>
     {loaded && !homePositions.length && <p>No widgets selected. Use Add widget to choose one.</p>}
     {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" onClose={closeDrawer}><div className="home-settings"><section id="home-dash.sync" tabIndex={-1}><h3>Refresh status</h3><Sync /></section><section id="home-dash.quiet" tabIndex={-1}><h3>Quiet hours</h3><Quiet /></section><section id="home-dash.shortcuts" tabIndex={-1}><h3>Keyboard shortcuts</h3><Shortcuts data={{ shortcuts: [['⌘K / Ctrl+K', 'Search and capture'], ['Alt+R', 'Refresh Home'], ['Alt+E', 'Edit layout'], ['Alt+Q', 'Snooze refresh for one hour'], ['Arrow keys on move handle', 'Move widget'], ['Escape', 'Close drawer or cancel drag']] }} /></section><section id="home-dash.gallery" tabIndex={-1}><h3>Widget gallery</h3><Gallery /></section></div></Drawer>}
