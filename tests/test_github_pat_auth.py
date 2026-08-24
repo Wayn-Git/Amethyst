@@ -46,3 +46,30 @@ def test_github_missing_credentials_resolved_by_pat(monkeypatch):
     monkeypatch.setattr("backend.mcp.commands.get_secret", pat_resolver)
     assert cmd.missing_credentials(config) == []
     assert cmd.is_signed_in(config) is True
+
+
+def test_set_mcp_api_key_endpoint(monkeypatch):
+    """Verify POST /api/mcp/servers/github/api-key stores secret and updates config."""
+    from starlette.testclient import TestClient
+    from backend.api.main import app
+
+    client = TestClient(app)
+    saved_secrets = {}
+    monkeypatch.setattr(
+        "backend.secrets.set_secret",
+        lambda ref, val: saved_secrets.__setitem__(ref, val),
+    )
+    monkeypatch.setattr("backend.mcp.commands.add_from_catalogue", lambda name: None)
+    monkeypatch.setattr("backend.mcp.config.load_servers", lambda: {})
+    monkeypatch.setattr("backend.mcp.config.save_servers", lambda s: None)
+
+    resp = client.post(
+        "/api/mcp/servers/github/api-key",
+        json={"api_key": "ghp_direct_pat_test_token_999"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "stored"
+    assert data["name"] == "github"
+    assert data["api_key_ref"] == "amethyst-mcp/github.api_key"
+    assert saved_secrets["amethyst-mcp/github.api_key"] == "ghp_direct_pat_test_token_999"
