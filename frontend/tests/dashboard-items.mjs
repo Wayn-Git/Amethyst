@@ -118,6 +118,19 @@ try {
     await card.getByText('Same url: Original fixture', { exact: true }).waitFor()
     assert.equal(await card.getByRole('button', { name: /delete|merge/i }).count(), 0)
   }
+  if (widgets.includes('lib.highlights')) {
+    const card = page.locator('[data-widget="lib.highlights"]')
+    await card.getByLabel('Highlight title', { exact: true }).fill('Highlight UI fixture')
+    await card.getByLabel('Highlight text', { exact: true }).fill('Pasted passage fixture')
+    await card.getByLabel('Source article', { exact: true }).selectOption({ label: 'Article source fixture' })
+    await card.getByRole('button', { name: 'Review highlight', exact: true }).click()
+    await card.getByRole('button', { name: 'Reject save', exact: true }).click()
+    assert.equal(await card.getByRole('link', { name: 'Highlight UI fixture', exact: true }).count(), 0)
+    await card.getByRole('button', { name: 'Review highlight', exact: true }).click()
+    await card.getByRole('button', { name: 'Approve save', exact: true }).click()
+    await card.getByRole('link', { name: 'Highlight UI fixture', exact: true }).waitFor()
+    await card.getByRole('link', { name: 'Article source fixture', exact: true }).waitFor()
+  }
   if (widgets.includes('lib.readlater')) {
     const card = page.locator('[data-widget="lib.readlater"]')
     await card.getByLabel('Article title', { exact: true }).fill('URL fixture')

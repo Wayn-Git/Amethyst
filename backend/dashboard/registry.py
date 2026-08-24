@@ -355,6 +355,11 @@ MANIFESTS = [
         "actions": [dict(id="add", label="Save URL", gate=True)],
         "source": [{"type": "library"}, {"type": "llm"}],
     },
+    {
+        **library_manifest("lib.highlights", "Article highlights"),
+        "tier": "v2",
+        "actions": [dict(id="add", label="Add highlight", gate=True)],
+    },
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     {

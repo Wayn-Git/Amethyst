@@ -22,6 +22,31 @@ async def provide(widget_id):
     if widget_id == "lib.capture":
         return {"items": []}
     library = LibraryService()
+    if widget_id == "lib.highlights":
+        from backend.library.service import as_dict
+
+        rows = get_connection().execute(
+            "SELECT * FROM library_items WHERE kind='note' AND source_ref LIKE 'highlight:%' "
+            "ORDER BY id DESC LIMIT 20"
+        )
+        items = []
+        for row in rows:
+            note = as_dict(row)
+            source_id = int(note["source_ref"].split(":")[1])
+            source = library.store.get(source_id)
+            items.append(
+                {
+                    **display(note),
+                    "text": note.get("content"),
+                    "source_id": source_id,
+                    "source_url": source["url"] if source else None,
+                    "source_title": source["title"] if source else "Source article removed",
+                }
+            )
+        articles = get_connection().execute(
+            "SELECT id,title FROM library_items WHERE kind='article' ORDER BY id DESC LIMIT 100"
+        )
+        return {"items": items, "articles": [dict(row) for row in articles]}
     if widget_id == "lib.readlater":
         return await readlater(library)
     if widget_id == "lib.ask":
@@ -207,6 +232,15 @@ class LibraryInput(StrictModel):
 def draft(widget_id, action, body):
     from urllib.parse import urlparse
 
+    if widget_id == "lib.highlights" and action == "add":
+        if not body.title.strip() or not body.text.strip():
+            raise HTTPException(422, "Highlight title and text are required")
+        source = LibraryService().store.get(body.source_id)
+        if source is None or source["kind"] != "article":
+            raise HTTPException(404, "Source article not found")
+        payload = body.model_dump(mode="json")
+        payload["expected_source"] = dict(source)
+        return save_draft(widget_id, action, body, payload)
     if widget_id != "lib.readlater" or action != "add":
         raise HTTPException(404, "Unknown Library action")
     if not body.title.strip() or urlparse(body.url).scheme not in ("http", "https"):
@@ -216,8 +250,32 @@ def draft(widget_id, action, body):
 
 async def apply(widget_id, action, body):
     library = LibraryService()
+    if widget_id == "lib.highlights" and action == "add":
+        source = library.store.get(body["source_id"])
+        if source is None or dict(source) != body["expected_source"]:
+            raise HTTPException(409, "Source article changed; review a new draft")
+        captured = await library.log_manual(
+            title=body["title"],
+            text=body["text"],
+            notes=f"Source article: {source['id']} — {source['title']}\nURL: {source['url'] or ''}",
+        )
+        if not captured.item.get("text_path"):
+            raise HTTPException(500, "Highlight could not be saved to the vault")
+        library.store.update(
+            captured.item["id"], source_ref=f"highlight:{source['id']}:{captured.item['id']}"
+        )
+        return
     if widget_id == "lib.readlater" and action == "add":
         if library.store.by_url(body["url"]) is None:
             await library.log_manual(title=body["title"], kind="article", url=body["url"])
         return
     raise HTTPException(404, "Unknown Library action")
+
+
+class HighlightInput(StrictModel):
+    title: str = Field(min_length=1, max_length=400)
+    text: str = Field(min_length=1, max_length=20000)
+    source_id: int = Field(gt=0)
+
+
+INPUTS = {"lib.readlater": LibraryInput, "lib.highlights": HighlightInput}

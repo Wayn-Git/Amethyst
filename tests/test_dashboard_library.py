@@ -264,3 +264,45 @@ async def test_readlater_audits_redirects_and_reuses_cached_summary(db, monkeypa
         ).fetchone()[0]
         == 2
     )
+
+
+async def test_highlights_are_gated_notes_linked_to_articles(db, monkeypatch):
+    from pathlib import Path
+
+    import pytest
+    from fastapi import HTTPException
+
+    from backend.dashboard.items import decide
+    from backend.dashboard.library import HighlightInput, draft
+    from backend.library.store import LibraryStore
+    from backend.retrieval.indexer import Indexer
+
+    async def index(*args, **kwargs):
+        return 0
+
+    monkeypatch.setattr(Indexer, "index_file", index)
+    store = LibraryStore(db)
+    article = store.create(kind="article", title="Source fixture", url="https://example.com/source")
+    body = HighlightInput(title="Highlight fixture", text="Quoted passage", source_id=article)
+    pending = draft("lib.highlights", "add", body)
+    await decide("lib.highlights", pending["draft_id"], False)
+    assert db.execute("SELECT count(*) FROM library_items WHERE kind='note'").fetchone()[0] == 0
+    pending = draft("lib.highlights", "add", body)
+    await decide("lib.highlights", pending["draft_id"], True)
+    note = db.execute("SELECT * FROM library_items WHERE kind='note'").fetchone()
+    assert note["source_ref"] == f"highlight:{article}:{note['id']}"
+    assert note["url"] is None
+    assert "https://example.com/source" in note["notes"]
+    assert "Quoted passage" in Path(note["text_path"]).read_text()
+    data = await provide("lib.highlights")
+    assert data["items"][0]["source_id"] == article
+    assert data["articles"] == [{"id": article, "title": "Source fixture"}]
+    pending = draft("lib.highlights", "add", body)
+    store.update(article, title="Changed")
+    with pytest.raises(HTTPException) as error:
+        await decide("lib.highlights", pending["draft_id"], True)
+    assert error.value.status_code == 409
+    with pytest.raises(HTTPException):
+        draft(
+            "lib.highlights", "add", HighlightInput(title="No source", text="Quote", source_id=999)
+        )
