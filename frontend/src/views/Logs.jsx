@@ -3,7 +3,8 @@ import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api, copyText, fmtTime, prettyJSON } from '../api.js'
-import { SkeletonRows, default as Skeleton } from '../components/Skeleton.jsx'
+import Skeleton from '../components/Skeleton.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 import Table from '../components/ui/Table.jsx'
@@ -98,6 +99,28 @@ function LogCard({ row, onCopy }) {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+function LogCardSkeleton({ index = 0 }) {
+  const toolW = [115, 145, 95, 130, 105, 160][index % 6]
+  const argW = ['82%', '65%', '90%', '74%'][index % 4]
+  return (
+    <div className="log-card is-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <div className="log-card-head" style={{ pointerEvents: 'none' }}>
+        <Skeleton w={toolW} h={14} r={4} />
+        <Skeleton w={45} h={16} r={99} />
+        <Icon name="chevron" size={12} className="log-card-caret" style={{ opacity: 0.3 }} />
+      </div>
+      <div className="log-card-meta">
+        <Skeleton w={52} h={11} r={3} />
+        <Skeleton w={70} h={11} r={3} />
+        <Skeleton w={48} h={11} r={3} />
+      </div>
+      <div style={{ marginTop: 6 }}>
+        <AsciiSkeleton variant="scan" lines={1} widths={[argW]} />
+      </div>
     </div>
   )
 }
@@ -258,7 +281,11 @@ export default function Logs() {
 
         {!loaded && (
           compact ? (
-            <div className="card card-pad" data-enter><SkeletonRows rows={8} controls={1} /></div>
+            <div className="log-cards is-skeleton" data-enter aria-hidden="true">
+              {Array.from({ length: 6 }, (_, i) => (
+                <LogCardSkeleton key={i} index={i} />
+              ))}
+            </div>
           ) : (
             <div className="card log-table-wrap" data-enter aria-hidden="true">
               <Table>

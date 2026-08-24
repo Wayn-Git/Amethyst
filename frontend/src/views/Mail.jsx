@@ -5,7 +5,8 @@ import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api } from '../api.js'
 import { MOD_LABEL } from '../keys.js'
-import { SkeletonRows, SkeletonMessage } from '../components/Skeleton.jsx'
+import Skeleton from '../components/Skeleton.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 
 /* Mail, as a place rather than as fifteen tools.
 
@@ -179,6 +180,47 @@ function MailPanel({ thread, rows, account, compact }) {
 
       <ThreadLibrary thread={thread} />
     </SidePanel>
+  )
+}
+
+function MailRowSkeleton({ index = 0 }) {
+  const fromW = [110, 135, 95, 125, 105, 140][index % 6]
+  const subjectW = ['65%', '82%', '50%', '74%', '58%', '88%'][index % 6]
+  const snippetW = ['88%', '75%', '92%', '80%', '68%', '85%'][index % 6]
+  return (
+    <div className="server-row mail-row is-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <div className="mail-open" style={{ pointerEvents: 'none' }}>
+        <div className="mail-line" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Skeleton w={fromW} h={13} r={4} />
+          <Skeleton w={44} h={10} r={3} />
+        </div>
+        <div className="server-name mail-subject" style={{ margin: '4px 0' }}>
+          <AsciiSkeleton variant="scan" lines={1} widths={[subjectW]} />
+        </div>
+        <div className="server-target mail-snippet">
+          <Skeleton w={snippetW} h={11} r={3} />
+        </div>
+      </div>
+      <div className="task-actions">
+        <span className="icon-btn task-star" style={{ opacity: 0.25, pointerEvents: 'none' }}>
+          <Icon name="star" size={14} />
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function MailThreadSkeleton() {
+  return (
+    <article className="mail-message is-skeleton" aria-hidden="true">
+      <div className="mail-line" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Skeleton w={140} h={13} r={4} />
+        <Skeleton w={50} h={10} r={3} />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <AsciiSkeleton variant="scan" lines={3} widths={['94%', '82%', '65%']} />
+      </div>
+    </article>
   )
 }
 
@@ -380,7 +422,13 @@ export default function Mail() {
                 )}
               </div>
 
-              {!loaded && <SkeletonRows rows={6} controls={2} />}
+              {!loaded && (
+                <div className="mail-list-skeleton" aria-hidden="true">
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <MailRowSkeleton key={i} index={i} />
+                  ))}
+                </div>
+              )}
 
               {loaded && error && (
                 <div className="empty-state" style={{ padding: 18 }}>
@@ -476,7 +524,7 @@ export default function Mail() {
 
                     {isOpen && (
                       <div className="mail-thread">
-                        {!thread && <SkeletonMessage lines={3} />}
+                        {!thread && <MailThreadSkeleton />}
                         {thread?.messages?.map((message) => (
                           <article key={message.id} className="mail-message">
                             <div className="mail-line">

@@ -645,6 +645,12 @@
   background: var(--accent-soft, rgba(113, 50, 245, 0.04));
 }
 
+.task-item-card.is-skeleton {
+  cursor: default;
+  border-color: var(--hairline);
+  background: var(--surface-subtle, rgba(255, 255, 255, 0.015));
+}
+
 .task-item-shell {
   display: flex;
   align-items: center;

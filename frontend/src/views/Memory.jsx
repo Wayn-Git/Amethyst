@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Icon from '../components/Icon.jsx'
 import Badge from '../components/ui/Badge.jsx'
-import { SkeletonCard } from '../components/Skeleton.jsx'
+import Skeleton from '../components/Skeleton.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 import { useApp } from '../store.jsx'
@@ -206,6 +207,39 @@ function FormattedFactText({ text = '', searchQuery = '', onCopyCode }) {
 
 // ==========================================
 // 4. MAIN MEMORY COMPONENT
+function MemoryCardSkeleton({ index = 0 }) {
+  const catW = [70, 90, 60, 80, 75, 85][index % 6]
+  const factLines = [
+    ['92%', '68%'],
+    ['85%', '54%'],
+    ['96%', '74%'],
+    ['88%', '62%'],
+  ][index % 4]
+  return (
+    <div className="mem-card is-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+        <div
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 3,
+            border: '1.5px solid var(--hairline-strong)',
+            marginTop: '4px',
+            opacity: 0.35,
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="mem-card-head" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Skeleton w={catW} h={18} r={99} />
+            <Skeleton w={32} h={11} r={3} />
+          </div>
+          <AsciiSkeleton variant="scan" lines={factLines.length} widths={factLines} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ==========================================
 export default function Memory() {
   const rootRef = useRef(null)
@@ -637,7 +671,13 @@ export default function Memory() {
         </div>
 
         {/* Loading State */}
-        {loading && !state && <SkeletonCard rows={6} controls={1} icon={false} />}
+        {loading && !state && (
+          <div className="mem-list is-skeleton" aria-hidden="true">
+            {Array.from({ length: 5 }, (_, i) => (
+              <MemoryCardSkeleton key={i} index={i} />
+            ))}
+          </div>
+        )}
 
         {/* Error State */}
         {!loading && error && facts.length === 0 && <ErrorState message={error} onRetry={load} />}

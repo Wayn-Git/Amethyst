@@ -5,7 +5,8 @@ import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api } from '../api.js'
 import { confirm } from '../components/ui/confirmStore.js'
-import { SkeletonRows } from '../components/Skeleton.jsx'
+import Skeleton from '../components/Skeleton.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 import './tasks.css'
 
 /* Smart Buckets configuration */
@@ -861,6 +862,81 @@ function BoardCard({ task, busy, onPatch, onSelect }) {
   )
 }
 
+function TaskItemSkeleton({ index = 0 }) {
+  const widths = ['54%', '68%', '42%', '60%', '76%', '48%', '58%', '65%']
+  const w = widths[index % widths.length]
+  return (
+    <div className="task-item-card is-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <div className="task-item-shell">
+        <div className="task-check-disc" style={{ pointerEvents: 'none', opacity: 0.35 }} />
+        <div className="task-item-core">
+          <div className="task-item-title-row">
+            <AsciiSkeleton variant="scan" lines={1} widths={[w]} />
+          </div>
+        </div>
+        <div className="task-item-indicators">
+          <span className="task-star-btn" style={{ pointerEvents: 'none', opacity: 0.2 }}>
+            <Icon name="star" size={13} />
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TasksListSkeleton({ rows = 8 }) {
+  return (
+    <div className="tasks-content-flow" aria-hidden="true">
+      <div className="tasks-sections-stack">
+        <div className="tasks-section-group">
+          <div className="tasks-list-cards-wrap">
+            {Array.from({ length: rows }, (_, i) => (
+              <TaskItemSkeleton key={i} index={i} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TasksBoardSkeleton() {
+  const columns = ['To Do', 'In Progress', 'Completed']
+  return (
+    <div className="tasks-board-grid" aria-hidden="true">
+      {columns.map((label, c) => (
+        <div className="tasks-board-col" key={c}>
+          <div className="tasks-col-head">
+            <div className="tasks-col-title-group">
+              <span className={`tasks-col-dot${c === 1 ? ' is-prog' : c === 2 ? ' is-done' : ''}`} />
+              <span>{label}</span>
+            </div>
+            <span className="tasks-col-count">—</span>
+          </div>
+          <div className="tasks-col-cards-flow">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="tasks-board-card is-skeleton" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                <div className="tasks-board-card-top">
+                  <div className="task-check-disc" style={{ opacity: 0.35 }} />
+                  <span className="task-star-btn" style={{ opacity: 0.2 }}>
+                    <Icon name="star" size={13} />
+                  </span>
+                </div>
+                <div style={{ margin: '8px 0 6px' }}>
+                  <AsciiSkeleton variant="scan" lines={1} widths={[`${60 + ((i * 14) % 30)}%`]} />
+                </div>
+                <div className="tasks-board-card-meta">
+                  <Skeleton w={50} h={11} r={3} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* =========================================================================
    Empty State Component (Context-aware, inspiring, zero void)
    ========================================================================= */
@@ -1601,7 +1677,7 @@ export default function Tasks() {
           </form>
         )}
 
-        {!loaded && <SkeletonRows rows={8} controls={2} />}
+        {!loaded && (viewMode === 'board' ? <TasksBoardSkeleton /> : <TasksListSkeleton rows={8} />)}
 
         {loaded && error && (
           <div className="tasks-empty-container">

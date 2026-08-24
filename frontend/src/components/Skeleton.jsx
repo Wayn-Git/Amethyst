@@ -251,26 +251,38 @@ export function SkeletonLibraryGrid({ cards = 9, variant = 'dither' }) {
 }
 
 /** A whole view's worth: the header, then its body. */
-export function SkeletonView({ rows = 5, aside = false, variant = 'dither' }) {
+export function SkeletonView({ rows = 6, aside = false, variant = 'dither' }) {
   return (
-    <div className="view">
+    <div className="view" aria-hidden="true">
       <div className={`view-inner${aside ? ' view-inner--wide' : ''}`}>
-        <header className="vheader">
+        <header className="vheader" style={{ marginBottom: 24 }}>
           <div className="skel-stack" style={{ gap: 10 }}>
-            <Skeleton w={132} h={20} r={7} variant={variant} />
-            <Skeleton w={320} h={10} variant={variant} />
+            <Skeleton w={140} h={22} r={6} variant={variant} />
+            <Skeleton w={280} h={12} r={4} variant={variant} />
           </div>
         </header>
-        {aside ? (
-          <div className="task-layout">
-            <nav className="skel-rail" aria-hidden="true">
-              {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} w="100%" h={30} r={9} variant={variant} />)}
-            </nav>
-            <section><SkeletonCard rows={rows} variant={variant} /></section>
-          </div>
-        ) : (
-          <SkeletonCard rows={rows} variant={variant} />
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {Array.from({ length: rows }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '10px 14px',
+                borderRadius: 7,
+                border: '1px solid var(--hairline)',
+                background: 'var(--surface-subtle, rgba(255, 255, 255, 0.015))',
+              }}
+            >
+              <Skeleton w={16} h={16} r={99} rounded variant={variant} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <AsciiSkeleton variant="scan" lines={1} widths={[`${48 + ((i * 13) % 36)}%`]} />
+              </div>
+              <Skeleton w={14} h={14} r={4} variant={variant} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
