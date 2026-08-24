@@ -18,11 +18,11 @@ case "$OS" in
     LATEST_JSON=$(curl -fsSL "https://api.github.com/repos/wayn-wayn/amethyst/releases/latest" 2>/dev/null || echo "")
 
     if [ -z "$LATEST_JSON" ]; then
-      DOWNLOAD_URL="https://github.com/wayn-wayn/amethyst/releases/latest/download/Amethyst-0.1.0.AppImage"
+      DOWNLOAD_URL="https://github.com/wayn-wayn/amethyst/releases/latest/download/Amethyst-0.1.1.AppImage"
     else
       DOWNLOAD_URL=$(echo "$LATEST_JSON" | grep -o 'https://[^"]*AppImage' | head -n 1 || echo "")
       if [ -z "$DOWNLOAD_URL" ]; then
-        DOWNLOAD_URL="https://github.com/wayn-wayn/amethyst/releases/latest/download/Amethyst-0.1.0.AppImage"
+        DOWNLOAD_URL="https://github.com/wayn-wayn/amethyst/releases/latest/download/Amethyst-0.1.1.AppImage"
       fi
     fi
 
@@ -55,9 +55,9 @@ EOF
     echo "==> Detected macOS ($ARCH). Fetching latest release info..."
     LATEST_JSON=$(curl -fsSL "https://api.github.com/repos/wayn-wayn/amethyst/releases/latest" 2>/dev/null || echo "")
     if [ "$ARCH" = "arm64" ]; then
-      DMG_NAME="Amethyst-0.1.0-arm64.dmg"
+      DMG_NAME="Amethyst-0.1.1-arm64.dmg"
     else
-      DMG_NAME="Amethyst-0.1.0.dmg"
+      DMG_NAME="Amethyst-0.1.1.dmg"
     fi
     DOWNLOAD_URL="https://github.com/wayn-wayn/amethyst/releases/latest/download/${DMG_NAME}"
     if [ -n "$LATEST_JSON" ]; then
