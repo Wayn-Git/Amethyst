@@ -108,15 +108,17 @@ li:hover .widget-row-menu summary, li:focus-within .widget-row-menu summary { op
 .home-tile .widget-content { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
 .home-tile .widget-content > p { margin-top: auto; }
 .glance-caption { display: block; color: var(--home-muted); font: var(--text-xs)/1.5 var(--home-mono-font); margin-bottom: var(--space-xs); }
-.home-tile[data-widget="glance.clock"] { background: linear-gradient(140deg, var(--canvas) 20%, color-mix(in srgb, var(--accent) 19%, var(--canvas))); }
-.glance-clock-face { position: relative; padding-top: var(--space-lg); }
+.home-tile[data-widget="glance.clock"] { background: linear-gradient(140deg, var(--canvas) 20%, color-mix(in srgb, var(--accent) 19%, var(--canvas))); position: relative; overflow: hidden; }
+.glance-clock-face { position: relative; padding-top: var(--space-lg); z-index: 1; }
+.glance-dot-mesh { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.12; color: var(--accent); pointer-events: none; z-index: 0; }
 .glance-clock-face .home-clock { font-size: clamp(var(--text-3xl), 3.2vw, var(--text-display)); margin-bottom: var(--space-md); white-space: nowrap; }
 .widget-content .home-ascii { position: absolute; z-index: -1; right: calc(-1 * var(--space-xs)); bottom: var(--space-4xl); margin: 0; white-space: pre; font: var(--text-xs)/1.2 var(--home-mono-font); color: var(--accent); opacity: .22; pointer-events: none; user-select: none; }
-.home-tile[data-widget="glance.weather"] { background: linear-gradient(165deg, var(--canvas), var(--surface)); }
+.home-tile[data-widget="glance.weather"] { background: linear-gradient(165deg, var(--canvas), color-mix(in srgb, var(--accent) 8%, var(--surface))); }
 .glance-weather-face > svg, .glance-setup > svg { color: var(--home-ink); margin-bottom: var(--space-lg); }
 .glance-weather-face .glance-value { font-size: var(--text-display); }
 .glance-unit { font-size: var(--text-xl); font-weight: 400; color: var(--home-muted); }
 .glance-setup button { display: inline-flex; align-items: center; gap: var(--space-md); margin-top: var(--space-md); }
+.glance-alert-pill { display: inline-block; font: 500 11px/1.4 var(--home-mono-font); background: color-mix(in srgb, var(--warn) 18%, var(--canvas)); color: var(--warn); border-radius: 4px; padding: 2px 6px; margin-top: 4px; }
 .glance-event-face, .glance-music-face { display: grid; gap: var(--space-lg); }
 .glance-event-face .glance-value, .glance-music-face .glance-value { font-size: var(--text-xl); line-height: 1.35; }
 .glance-date { width: 64px; text-align: center; border: 1px solid var(--hairline-strong); border-radius: var(--radius-lg); overflow: hidden; background: var(--canvas); }
@@ -124,6 +126,13 @@ li:hover .widget-row-menu summary, li:focus-within .widget-row-menu summary { op
 .glance-date b { display: block; padding: var(--space-xs); font: 600 var(--text-3xl)/1 var(--home-heading-font); }
 .glance-record { width: 80px; aspect-ratio: 1; display: grid; place-items: center; border-radius: 50%; color: var(--home-ink); background: repeating-radial-gradient(circle, var(--canvas) 0 5px, var(--hairline) 6px 7px); border: 1px solid var(--hairline-strong); }
 .glance-record svg { box-sizing: content-box; padding: var(--space-md); border-radius: 50%; background: var(--surface); }
+.glance-soundwave { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; margin-left: 6px; vertical-align: middle; }
+.glance-soundwave span { width: 2.5px; background: var(--accent); border-radius: 2px; animation: glance-wave 0.9s ease-in-out infinite alternate; }
+.glance-soundwave span:nth-child(1) { height: 35%; animation-delay: 0.1s; }
+.glance-soundwave span:nth-child(2) { height: 95%; animation-delay: 0.3s; }
+.glance-soundwave span:nth-child(3) { height: 60%; animation-delay: 0.2s; }
+.glance-soundwave span:nth-child(4) { height: 100%; animation-delay: 0.4s; }
+@keyframes glance-wave { 0% { height: 25%; } 100% { height: 100%; } }
 .glance-offline-art { color: var(--home-muted); margin-block: var(--space-xs) var(--space-xl); }
 .home-needs { border-color: var(--hairline-strong); }
 .home-needs .widget-list > li { align-items: flex-start; flex-wrap: nowrap; gap: var(--space-lg); padding-block: var(--space-xl); }

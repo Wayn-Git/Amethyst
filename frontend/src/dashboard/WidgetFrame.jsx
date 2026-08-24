@@ -6,6 +6,11 @@ import Drawer from './Drawer.jsx'
 import { useDashboard } from './context.js'
 import { previewRows, freshness } from './layout.js'
 
+const ICONS = {
+  'glance.clock': 'clock', 'glance.weather': 'cloud', 'glance.next-event': 'calendar', 'glance.music': 'music',
+  agent: 'sparkle', task: 'tasks', dev: 'github', lib: 'bookmark', feed: 'globe', sys: 'settings', need: 'mail', comm: 'mail',
+}
+
 export class WidgetBoundary extends Component {
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
@@ -39,17 +44,67 @@ export function ConnectionRow({ manifest, remove, label }) {
   return <div className="widget-connection">{label && <span>{label}</span>}<a href="/capabilities">Connect {source}</a><button onClick={remove} aria-label={`Dismiss ${manifest.title}`} title={`Dismiss ${manifest.title}`}><span aria-hidden="true">×</span></button></div>
 }
 
-export function WidgetHeader({ title, count, source, data, now, children }) {
+export function WidgetHeader({ title, count, source, data, now, icon, children }) {
   const synced = data.synced_at ? `Last synced ${new Date(data.synced_at).toLocaleString()}` : 'Not synced yet'
-  return <header className="widget-header"><div className="widget-title"><h2>{title}</h2>{count > 0 && <span className="widget-chip">{count}</span>}{source && <span className="widget-source">{source}</span>}</div><div className="widget-actions"><span className="widget-freshness" title={synced} aria-label={synced}>{freshness(data.synced_at, now)}</span>{['stale', 'error'].includes(data.state) && <span className={`widget-chip state-${data.state}`} title={data.error || ''}>{data.state === 'stale' ? 'Stale data.' : 'Error'}</span>}{children}</div></header>
+  return <header className="widget-header"><div className="widget-title">{icon && <span className="widget-heading-icon"><Icon name={icon} size={20} /></span>}<h2>{title}</h2>{count > 0 && <span className="widget-chip">{count}</span>}{source && <span className="widget-source">{source}</span>}</div><div className="widget-actions"><span className="widget-freshness" title={synced} aria-label={synced}>{freshness(data.synced_at, now)}</span>{['stale', 'error'].includes(data.state) && <span className={`widget-chip state-${data.state}`} title={data.error || ''}>{data.state === 'stale' ? 'Stale data.' : 'Error'}</span>}{children}</div></header>
 }
 
 function Glance({ manifest, data, now, settings }) {
   const item = data?.items?.[0]
-  if (manifest.id === 'glance.clock') return <><time className="home-clock" dateTime={now.toISOString()}>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time><p>{Intl.DateTimeFormat().resolvedOptions().timeZone}</p></>
-  if (manifest.id === 'glance.weather') return data?.set_location ? <button onClick={settings}>Set location</button> : <><strong className="glance-value">{data?.temperature ?? 'Unavailable'} °C</strong><p>{data?.timezone}</p></>
-  if (manifest.id === 'glance.next-event') return <><strong className="glance-value">{item?.title || 'No upcoming event'}</strong><p>{item?.start && new Date(item.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></>
-  return <><strong className="glance-value">{item?.title || 'Nothing playing'}</strong><p>{item?.artists?.join(', ') || 'Now playing'}</p></>
+  if (manifest.id === 'glance.clock') return <div className="glance-clock-face">
+    <svg className="glance-dot-mesh" aria-hidden="true" width="100%" height="100%">
+      <defs>
+        <pattern id="glance-clock-dots" width="16" height="16" patternUnits="userSpaceOnUse">
+          <circle cx="2" cy="2" r="1.5" fill="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#glance-clock-dots)" />
+    </svg>
+    <pre className="home-ascii" aria-hidden="true">{`       . : .
+    .  : | :  .
+  .  / .-+-. \u005c  .
+ - -  /     \u005c  - -
+  .  |       |  .
+ - -  \u005c     /  - -
+  .  \u005c '-+-' /  .
+    '  : | :  '
+       ' : '`}</pre>
+    <span className="glance-caption">Local time</span>
+    <time className="home-clock" dateTime={now.toISOString()}>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+    <p>{Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' ')}</p>
+  </div>
+
+  if (manifest.id === 'glance.weather') return data?.set_location ? <div className="glance-setup"><Icon name="cloud" size={40} /><p>Weather, where you are.</p><button onClick={settings}>Set location<Icon name="arrow-up-right" size={16} /></button></div> : <div className="glance-weather-face">
+    <Icon name="cloud" size={38} />
+    <strong className="glance-value">{data?.temperature ?? 'Unavailable'}<span className="glance-unit"> °C</span></strong>
+    <p>{data?.timezone?.replaceAll('_', ' ')}</p>
+    {data?.rain_alert && <p className="glance-alert-pill">Rain likely in the next 12 hours</p>}
+  </div>
+
+  if (manifest.id === 'glance.next-event') return <div className="glance-event-face">
+    {item?.start && <div className="glance-date" aria-hidden="true">
+      <span>{new Date(item.start).toLocaleDateString([], { month: 'short' })}</span>
+      <b>{new Date(item.start).getDate()}</b>
+    </div>}
+    <div>
+      <span className="glance-caption">Up next</span>
+      <strong className="glance-value">{item?.title || 'No upcoming event'}</strong>
+      <p>{item?.start && new Date(item.start).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
+    </div>
+  </div>
+
+  return <div className="glance-music-face">
+    <div className="glance-record" aria-hidden="true">
+      <Icon name="music" size={24} />
+    </div>
+    <div>
+      <span className="glance-caption">Now playing
+        {item?.title && <span className="glance-soundwave" aria-hidden="true"><span /><span /><span /><span /></span>}
+      </span>
+      <strong className="glance-value">{item?.title || 'Nothing playing'}</strong>
+      <p>{item?.artists?.join(', ') || 'Play something on your connected account.'}</p>
+    </div>
+  </div>
 }
 
 export default function WidgetFrame({ manifest, position, quiet, refreshVersion, onData, editing, move, resize, grip, tile = false, full = false }) {
@@ -65,12 +120,12 @@ export default function WidgetFrame({ manifest, position, quiet, refreshVersion,
   const settings = () => { if (full) return; openWidget(manifest.id) }
   const content = payload => <WidgetBoundary key={retry} resetKey={JSON.stringify(data.payload)} id={manifest.id} onRetry={() => { setRetry(n => n + 1); refresh() }}><WidgetState data={data} empty={manifest.empty} disconnected={manifest.id === 'task.agenda'} editable={['agent.brief', 'agent.next'].includes(manifest.id) || manifest.id.startsWith('task.') || ['feed.news', 'feed.rss', 'need.mentions', 'need.inbox', 'comm.templates', 'comm.tone', 'need.waiting', 'need.drafts', 'lib.capture', 'lib.search', 'dev.appeal', 'dev.recovery', 'dev.backup', 'dev.unpushed'].includes(manifest.id)}><Suspense fallback={<Skeleton />}>{Content ? <Content data={payload} refresh={refresh} widgetId={manifest.id} /> : <p role="alert">Widget component unavailable.</p>}</Suspense></WidgetState></WidgetBoundary>
   return <article className={`home-widget${tile ? ' home-tile' : ''}${data.state === 'not-connected' ? ' is-disconnected' : ''}`} data-widget={manifest.id} data-size={position.size} aria-label={manifest.title}>
-    <WidgetHeader title={manifest.title} count={preview.count} source={sourceManaged ? `${data.payload.items.some(item => item.editable) ? 'local · ' : ''}connected source` : source} data={data} now={now}>
+    <WidgetHeader icon={ICONS[manifest.id] || ICONS[manifest.id.split('.')[0]]} title={manifest.title} count={preview.count} source={sourceManaged ? `${data.payload.items.some(item => item.editable) ? 'local · ' : ''}connected source` : source} data={data} now={now}>
       {editing && <button {...grip('move', manifest.id)} onKeyDown={event => { if (['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) { event.preventDefault(); move(manifest.id, ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1) } }} aria-label={`Move ${manifest.title}`} title="Drag to move; arrow keys also work"><Icon name="grid" size={18} /></button>}
       <button className="widget-refresh" disabled={busy || data.refreshing} onClick={refresh} aria-label={`Refresh ${manifest.title}`}><Icon name="refresh" size={18} /></button>
       <details className="widget-menu"><summary aria-label={`Menu ${manifest.title}`}>···</summary><div><button disabled={busy || data.refreshing} onClick={refresh}>Refresh</button>{!full && <button onClick={settings}>Settings</button>}{!full && <button onClick={event => { event.currentTarget.closest('details').open = false; setEditing(true) }}>Size</button>}{added && <button onClick={() => removeWidget(manifest.id)}>Remove</button>}</div></details>
     </WidgetHeader>
-    <div className="widget-content">{data.state === 'not-connected' && !full ? <ConnectionRow manifest={manifest} remove={() => removeWidget(manifest.id)} /> : tile && !full && !['loading', 'error'].includes(data.state) ? <Glance manifest={manifest} data={data.payload} now={now} settings={settings} /> : content(full ? data.payload : preview.payload)}{data.state === 'empty' && !tile && !full && <button onClick={settings}>Open widget</button>}{data.state === 'error' && <button disabled={busy} onClick={refresh}>Retry</button>}</div>
+    <div className="widget-content">{data.state === 'not-connected' && !full ? <>{tile && <div className="glance-offline-art" aria-hidden="true"><Icon name={manifest.id === 'glance.music' ? 'music' : 'calendar'} size={40} /></div>}<ConnectionRow manifest={manifest} remove={() => removeWidget(manifest.id)} /></> : tile && !full && !['loading', 'error'].includes(data.state) ? <Glance manifest={manifest} data={data.payload} now={now} settings={settings} /> : content(full ? data.payload : preview.payload)}{data.state === 'empty' && !tile && !full && <button onClick={settings}>Open widget</button>}{data.state === 'error' && <button disabled={busy} onClick={refresh}>Retry</button>}</div>
     {!full && preview.count > 5 && <button className="widget-show-all" onClick={() => setExpanded(true)}>Show all ({preview.count})</button>}
     {editing && <div className="widget-edit"><label>Size<select aria-label={`Size ${manifest.title}`} value={position.size} onChange={e => resize(manifest.id, { size: e.target.value })}>{manifest.sizes.map(size => <option key={size} value={size}>{size.toUpperCase()}</option>)}</select></label><label>Height<input aria-label={`Height ${manifest.title}`} type="number" min={2} max={8} value={position.height} onChange={e => resize(manifest.id, { height: Math.max(2, Math.min(8, Number(e.target.value) || 2)) })} /></label><button {...grip('resize', manifest.id)} aria-label={`Resize ${manifest.title}`} title="Drag to resize; size and height fields also work"><Icon name="expand" size={18} /></button></div>}
     {expanded && <Drawer title={manifest.title} onClose={() => setExpanded(false)}>{content(data.payload)}</Drawer>}
