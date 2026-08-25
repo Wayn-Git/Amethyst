@@ -118,3 +118,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 glance.travel: home-location settings, next located event, audited read-only Maps duration with shared minimal cache and honest setup/unavailable states; catalogue verified at https://docs.composio.dev/toolkits/google_maps (actual slug google_maps, GOOGLE_MAPS_GET_ROUTE); mocked fixed-clock and functional UI tests pass. Calendar stop prevents in-flight data restoration. Live accounts not tested; existing unrelated lint findings excluded.
 
 - 2026-10-25 lib.ask: cached async Library retrieval; local/free model selects validated verbatim note passages, with source links and an offline extractive fallback; focused backend/UI checks passed.
+- 2026-10-25 lib.readlater: Library URL queue, gated saves, async local/free summaries in the widget cache, and audited page fetches including redirects; backend/UI checks passed. Existing reader lint findings remain outside these edits.

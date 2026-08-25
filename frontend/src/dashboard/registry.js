@@ -54,6 +54,7 @@ export const WIDGETS = {
   'task.agenda': lazy(() => import('./widgets/Agenda.jsx')),
   'lib.resurface': lazy(() => import('./widgets/Library.jsx')),
   'lib.capture': lazy(() => import('./widgets/Capture.jsx')),
+  'lib.readlater': lazy(() => import('./widgets/ReadLater.jsx')),
   'lib.ask': lazy(() => import('./widgets/LibraryAsk.jsx')),
   'lib.search': lazy(() => import('./widgets/LibrarySearch.jsx')),
   'lib.recent': lazy(() => import('./widgets/Library.jsx')),

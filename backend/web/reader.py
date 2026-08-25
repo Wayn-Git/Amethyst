@@ -702,7 +702,9 @@ async def _get_following_redirects(
     raise FetchError(f"{url} redirected more than {MAX_REDIRECTS} times")
 
 
-async def fetch_readable(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> FetchedPage:
+async def fetch_readable(
+    url: str, *, timeout: float = DEFAULT_TIMEOUT, request_hook=None
+) -> FetchedPage:
     """Fetch a URL and return its text and whatever it says about itself.
 
     Raises `UnsafeURL` for a private address at any hop, and `FetchError` for
@@ -715,7 +717,10 @@ async def fetch_readable(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> Fetch
         url = f"https://{url}"
 
     try:
-        async with httpx.AsyncClient(follow_redirects=False, timeout=timeout) as client:
+        async with httpx.AsyncClient(
+            follow_redirects=False, timeout=timeout,
+            event_hooks={"request": [request_hook]} if request_hook else None,
+        ) as client:
             response = await _get_following_redirects(client, url, timeout=timeout)
     except UnsafeURL:
         raise

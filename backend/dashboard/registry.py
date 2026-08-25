@@ -344,7 +344,17 @@ MANIFESTS = [
     library_manifest("lib.search", "Library search"),
     library_manifest("lib.recent", "Recently edited notes"),
     library_manifest("lib.dupes", "Duplicates found"),
-    {**library_manifest("lib.ask", "Ask your library"), "tier": "v2"},
+    {
+        **library_manifest("lib.ask", "Ask your library"),
+        "tier": "v2",
+        "source": [{"type": "library"}, {"type": "llm"}],
+    },
+    {
+        **library_manifest("lib.readlater", "Read later"),
+        "tier": "v2",
+        "actions": [dict(id="add", label="Save URL", gate=True)],
+        "source": [{"type": "library"}, {"type": "llm"}],
+    },
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     {

@@ -185,3 +185,82 @@ async def test_ask_rejects_unsourced_model_text(db, monkeypatch):
     monkeypatch.setattr("backend.workers.llm.ask", ask)
     with pytest.raises(ValueError, match="unsourced"):
         await provide("lib.ask")
+
+
+async def test_readlater_reviews_url_and_rejects_replay(db, monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    from backend.dashboard.items import decide
+    from backend.dashboard.library import LibraryInput, draft
+    from backend.retrieval.indexer import Indexer
+
+    async def index(*args, **kwargs):
+        return 0
+
+    monkeypatch.setattr(Indexer, "index_file", index)
+    body = LibraryInput(title="Article fixture", url="https://example.com/story")
+    pending = draft("lib.readlater", "add", body)
+    assert db.execute("SELECT count(*) FROM library_items").fetchone()[0] == 0
+    await decide("lib.readlater", pending["draft_id"], False)
+    assert db.execute("SELECT count(*) FROM library_items").fetchone()[0] == 0
+    pending = draft("lib.readlater", "add", body)
+    await decide("lib.readlater", pending["draft_id"], True)
+    assert db.execute("SELECT url FROM library_items").fetchone()[0] == body.url
+    with pytest.raises(HTTPException):
+        await decide("lib.readlater", pending["draft_id"], True)
+    with pytest.raises(HTTPException):
+        draft("lib.readlater", "add", LibraryInput(title="bad", url="file:///etc/passwd"))
+
+
+async def test_readlater_audits_redirects_and_reuses_cached_summary(db, monkeypatch):
+    import httpx
+
+    from backend.dashboard.store import cache_write
+    from backend.library.store import LibraryStore
+    from backend.web import reader
+
+    store = LibraryStore(db)
+    item_id = store.create(kind="article", title="Fixture", url="https://example.com/start")
+
+    async def safe(*args):
+        pass
+
+    monkeypatch.setattr(reader, "check_url_async", safe)
+
+    def handle(request):
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "/finish"})
+        return httpx.Response(200, text="A saved article about growing spring seeds.")
+
+    client = httpx.AsyncClient
+    monkeypatch.setattr(
+        reader.httpx,
+        "AsyncClient",
+        lambda **kw: client(transport=httpx.MockTransport(handle), **kw),
+    )
+
+    async def ask(*args, **kwargs):
+        return {
+            "text": __import__("json").dumps(
+                {"summaries": [{"id": item_id, "summary": "Grow spring seeds."}]}
+            )
+        }
+
+    monkeypatch.setattr("backend.workers.llm.ask", ask)
+    payload = await provide("lib.readlater")
+    assert payload["items"][0]["summary"] == "Grow spring seeds."
+    assert (
+        db.execute(
+            "SELECT count(*) FROM execution_logs WHERE tool_name='dashboard_page_fetch'"
+        ).fetchone()[0]
+        == 2
+    )
+    cache_write("lib.readlater", payload, "ok")
+    assert await provide("lib.readlater") == payload
+    assert (
+        db.execute(
+            "SELECT count(*) FROM execution_logs WHERE tool_name='dashboard_page_fetch'"
+        ).fetchone()[0]
+        == 2
+    )

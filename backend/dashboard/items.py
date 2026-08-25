@@ -260,12 +260,18 @@ async def decide(widget_id, draft_id, approved):
             )
             if not claimed.rowcount:
                 raise HTTPException(409, "Draft already decided")
-            if allowed and widget_id != "lib.capture":
+            if allowed and widget_id not in ("lib.capture", "lib.readlater"):
                 apply(conn, widget_id, action, body)
                 conn.execute(
                     "UPDATE widget_cache SET state='stale' WHERE widget_id LIKE 'task.%' "
                     "OR widget_id LIKE 'need.%' OR widget_id LIKE 'dev.%'"
                 )
+        if allowed and widget_id == "lib.readlater":
+            from backend.dashboard.library import apply as library_apply
+
+            await library_apply(widget_id, action, body)
+            with transaction() as conn:
+                conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id LIKE 'lib.%'")
         if allowed and widget_id == "lib.capture":
             from backend.library.service import LibraryService
 

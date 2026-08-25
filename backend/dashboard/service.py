@@ -190,7 +190,14 @@ async def refresh(widget_id):
                 PROVIDERS[widget_id](widget_id),
                 timeout=60
                 if widget_id
-                in ("agent.brief", "agent.next", "comm.thread-summary", "comm.newsletters", "lib.ask")
+                in (
+                    "agent.brief",
+                    "agent.next",
+                    "comm.thread-summary",
+                    "comm.newsletters",
+                    "lib.ask",
+                    "lib.readlater",
+                )
                 else 10,
             )
             sources = REGISTRY[widget_id]["manifest"]["source"]

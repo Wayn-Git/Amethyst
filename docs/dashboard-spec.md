@@ -250,7 +250,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | lib.recent | Recently edited notes | lib | MVP | [x] |
 | lib.dupes | Duplicates found | lib (dedup) | MVP | [x] |
 | lib.ask | Ask-your-library Q&A | lib, llm | v2 | [x] |
-| lib.readlater | Read-later queue with summaries | lib, llm | v2 | [ ] |
+| lib.readlater | Read-later queue with summaries | lib, llm | v2 | [x] |
 | lib.highlights | Highlights from articles | lib | v2 | [ ] |
 | lib.daily | Daily note or journal prompt | lib | v2 | [ ] |
 | lib.collections | Collections and tags | lib | v2 | [ ] |

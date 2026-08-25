@@ -118,6 +118,14 @@ try {
     await card.getByText('Same url: Original fixture', { exact: true }).waitFor()
     assert.equal(await card.getByRole('button', { name: /delete|merge/i }).count(), 0)
   }
+  if (widgets.includes('lib.readlater')) {
+    const card = page.locator('[data-widget="lib.readlater"]')
+    await card.getByLabel('Article title', { exact: true }).fill('URL fixture')
+    await card.getByLabel('Article URL', { exact: true }).fill('https://example.com/fixture')
+    await card.getByRole('button', { name: 'Review URL', exact: true }).click()
+    await card.getByRole('button', { name: 'Reject save', exact: true }).click()
+    await card.getByRole('button', { name: 'Review URL', exact: true }).waitFor()
+  }
   if (widgets.includes('lib.ask')) {
     const card = page.locator('[data-widget="lib.ask"]')
     await card.getByLabel('Ask your notes', { exact: true }).fill('')
