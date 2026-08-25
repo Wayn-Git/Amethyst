@@ -1968,7 +1968,7 @@ export default function LibraryDetailModal({
                       <div className="lib-synthesis-header">
                         <div className="lib-synthesis-title-wrap">
                           <div className="lib-synthesis-icon-badge lib-synthesis-icon-badge--spinning">
-                            <span className="lib-card-spinner" />
+                            <AsciiSkeleton variant="dither" width={14} height={14} circle />
                           </div>
                           <span className="lib-synthesis-heading">Synthesizing Insights & Extracting Entities</span>
                         </div>

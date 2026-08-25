@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 import { api } from '../../api.js'
 import * as remote from '../../lib/sync/remote.js'
 import * as syncClient from '../../lib/sync/client.js'
@@ -222,7 +223,7 @@ export default function RemoteAgent() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="pair-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
+              <AsciiSkeleton variant="dither" width={12} height={12} circle />
               <span>{phase}…</span>
             </div>
             <button

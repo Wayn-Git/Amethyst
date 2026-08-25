@@ -753,7 +753,7 @@ function LibraryCardComponent({
         {isLiveProcessing ? (
           <div className="lib-card-processing-status">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="lib-card-spinner" />
+              <AsciiSkeleton variant="dither" width={12} height={12} circle />
               <span style={{ fontWeight: 600 }}>
                 {isOptimistic
                   ? 'Saving to library...'

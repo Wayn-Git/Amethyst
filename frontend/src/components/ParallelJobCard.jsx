@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Component } from 'react'
 import Icon from './Icon.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 import { JsonViewer } from './arc/json-viewer/json-viewer'
 import { CodeBlock } from './arc/code-block/code-block'
 
@@ -112,7 +113,7 @@ function ParallelJobCard({ call, running }) {
                   <div className="parallel-node-indicator">
                     {node.status === 'ok' && <Icon name="check" size={11} />}
                     {node.status === 'failed' && <Icon name="alert" size={11} />}
-                    {node.status !== 'ok' && node.status !== 'failed' && <div className="parallel-node-spinner" />}
+                    {node.status !== 'ok' && node.status !== 'failed' && <AsciiSkeleton variant="dither" width={11} height={11} circle />}
                   </div>
                   <span className="parallel-node-id">{node.id}</span>
                   <span className="parallel-node-task">{node.task}</span>

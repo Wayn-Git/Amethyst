@@ -15,6 +15,7 @@ import {
   Sliders,
 } from 'lucide-react'
 import { copyText, api } from '../api.js'
+import { AsciiSkeleton } from 'ascii-reveal'
 import { MOD_LABEL } from '../keys.js'
 
 export function cleanAiTransformOutput(result, originalText = '') {
@@ -428,7 +429,7 @@ export default function SelectionActionMenu({
         {mode === 'thinking' && (
           <div className="selection-menu-content">
             <span className="selection-menu-thinking">
-              <span className="selection-menu-spinner" />
+              <AsciiSkeleton variant="dither" width={13} height={13} circle />
               <span>{busyLabel}</span>
             </span>
           </div>
