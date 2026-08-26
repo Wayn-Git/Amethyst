@@ -1,5 +1,6 @@
 import Icon from '../../Icon.jsx'
 import { copyText, openUrl } from '../../../api.js'
+import { AsciiSkeleton } from 'ascii-reveal'
 import LoadMoreSentinel from '../LoadMoreSentinel.jsx'
 
 export default function WebResultsView({
@@ -17,9 +18,12 @@ export default function WebResultsView({
 }) {
   if (loading && results.length === 0) {
     return (
-      <div className="damon-loading-state">
-        <div className="damon-spinner" />
-        <span>Searching the web…</span>
+      <div className="damon-loading-state" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '24px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: 13 }}>
+          <AsciiSkeleton variant="dither" width={16} height={16} circle />
+          <span>Searching the web…</span>
+        </div>
+        <AsciiSkeleton variant="scan" lines={3} widths={['82%', '96%', '70%']} />
       </div>
     )
   }

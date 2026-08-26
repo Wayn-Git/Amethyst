@@ -1,4 +1,5 @@
 import Icon from './Icon.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 
 /* Miniature visual mockups for uploaded file types matching Image 2 */
 function CsvMiniPreview() {
@@ -86,8 +87,8 @@ export default function DocumentCardsTray({ attachments = [], uploadingCount = 0
         {/* In-progress uploading cards (Matching Image 2 left card) */}
         {Array.from({ length: uploadingCount }).map((_, i) => (
           <div className="doc-card doc-card--uploading" key={`uploading-${i}`}>
-            <div className="doc-card-preview doc-card-preview--loading">
-              <div className="doc-spinner" />
+            <div className="doc-card-preview doc-card-preview--loading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <AsciiSkeleton variant="dither" width="100%" height="100%" rows={3} />
             </div>
             <div className="doc-card-info">
               <span className="doc-card-status">Uploading...</span>

@@ -1,4 +1,5 @@
 import Icon from '../../Icon.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 
 export default function GitHubResultsView({
   results = [],
@@ -8,9 +9,12 @@ export default function GitHubResultsView({
 }) {
   if (loading && results.length === 0) {
     return (
-      <div className="damon-loading-state">
-        <div className="damon-spinner" />
-        <span>Searching GitHub…</span>
+      <div className="damon-loading-state" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '24px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: 13 }}>
+          <AsciiSkeleton variant="dither" width={16} height={16} circle />
+          <span>Searching GitHub…</span>
+        </div>
+        <AsciiSkeleton variant="scan" lines={3} widths={['78%', '94%', '62%']} />
       </div>
     )
   }

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { AsciiSkeleton } from 'ascii-reveal'
 
 /* A bottom-of-list sentinel that asks for the next page when scrolled into view.
  *
@@ -27,7 +28,7 @@ export default function LoadMoreSentinel({ hasMore, loading, onLoadMore, label =
   if (!hasMore && !loading) return null
   return (
     <div ref={ref} className="damon-load-more" aria-live="polite">
-      {loading && <div className="damon-spinner" />}
+      {loading && <AsciiSkeleton variant="dither" width={14} height={14} circle />}
       {loading && <span>{label}</span>}
     </div>
   )

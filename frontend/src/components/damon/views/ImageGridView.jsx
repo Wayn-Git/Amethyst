@@ -1,5 +1,6 @@
 import Icon from '../../Icon.jsx'
 import { copyText } from '../../../api.js'
+import { AsciiSkeleton } from 'ascii-reveal'
 
 export default function ImageGridView({
   results = [],
@@ -10,9 +11,12 @@ export default function ImageGridView({
 }) {
   if (loading && results.length === 0) {
     return (
-      <div className="damon-loading-state">
-        <div className="damon-spinner" />
-        <span>Searching images…</span>
+      <div className="damon-loading-state" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '24px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: 13 }}>
+          <AsciiSkeleton variant="dither" width={16} height={16} circle />
+          <span>Searching images…</span>
+        </div>
+        <AsciiSkeleton variant="dither" width="100%" height={120} rows={6} />
       </div>
     )
   }

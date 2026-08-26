@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import Icon from '../components/Icon.jsx'
 import QrScanner from '../components/QrScanner.jsx'
+import { AsciiSkeleton } from 'ascii-reveal'
 import * as syncClient from '../lib/sync/client.js'
 
 /** Whether a scan is possible here at all.
@@ -193,7 +194,9 @@ export default function Pair({ onPaired, onDesktop }) {
     return (
       <Shell>
         <div className="pair-state">
-          <div className="pair-spinner" aria-hidden="true" />
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '8px 0 16px' }} aria-hidden="true">
+            <AsciiSkeleton variant="scan" circle width={44} height={44} />
+          </div>
           <h1>Pairing with your PC…</h1>
           <p className="pair-sub">
             Waiting for approval on your computer. Look at your PC screen to review and approve this connection.

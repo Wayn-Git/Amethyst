@@ -1,5 +1,6 @@
 import Icon from '../../Icon.jsx'
 import { copyText } from '../../../api.js'
+import { AsciiSkeleton } from 'ascii-reveal'
 import LoadMoreSentinel from '../LoadMoreSentinel.jsx'
 
 export default function YouTubeBentoView({
@@ -35,9 +36,12 @@ export default function YouTubeBentoView({
     return (
       <>
       {sortBar}
-      <div className="damon-loading-state">
-        <div className="damon-spinner" />
-        <span>Searching YouTube videos…</span>
+      <div className="damon-loading-state" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '24px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: 13 }}>
+          <AsciiSkeleton variant="dither" width={16} height={16} circle />
+          <span>Searching YouTube videos…</span>
+        </div>
+        <AsciiSkeleton variant="scan" rows={4} width="100%" height={90} />
       </div>
       </>
     )

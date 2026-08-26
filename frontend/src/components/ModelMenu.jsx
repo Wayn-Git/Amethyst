@@ -7,6 +7,7 @@ import { api } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import { useMenuFit } from '../hooks/useMenuFit.js'
 import { FadeScrollArea, SmoothInput } from './ui/skiper/index.js'
+import { AsciiSkeleton } from 'ascii-reveal'
 import { safeStorage } from '../lib/storage.js'
 
 const RECENT_MODELS_KEY = 'amethyst.recent-models'
@@ -309,7 +310,10 @@ export default function ModelMenu({
         <div className="model-menu-main">
            <FadeScrollArea className="model-menu-list" fadeHeight={16}>
             {loading && Object.keys(modelMap).length === 0 && (
-              <div className="model-menu-loading">Loading models…</div>
+              <div className="model-menu-loading" style={{ padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Loading models…</span>
+                <AsciiSkeleton variant="scan" lines={3} widths={['80%', '65%', '90%']} />
+              </div>
             )}
 
             {groupedModels.length === 0 && !loading && (

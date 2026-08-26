@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import { SkeletonText } from '../components/Skeleton.jsx'
 import { useApp } from '../store.jsx'
 import { api } from '../api.js'
 import { safeStorage } from '../lib/storage.js'
@@ -51,7 +52,13 @@ function useSource(loader, interval = 60000) {
 }
 
 function SourceNotice({ source, empty, children }) {
-  if (source.loading && source.data === null) return <p className="day-empty" role="status">Loading {children || 'items'}…</p>
+  if (source.loading && source.data === null) {
+    return (
+      <div className="day-empty" role="status" style={{ padding: '8px 0', border: 'none' }}>
+        <SkeletonText lines={2} />
+      </div>
+    )
+  }
   return <>
     {source.error && <div className="day-notice" role="status"><Icon name="warning" size={17} /><span>{source.data !== null ? 'Showing the last available data. ' : ''}{source.error}</span><button onClick={source.load}>Retry</button></div>}
     {!source.error && !source.data?.length && empty && <p className="day-empty">{empty}</p>}
