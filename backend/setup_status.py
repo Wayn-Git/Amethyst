@@ -136,6 +136,25 @@ def check_composio() -> dict[str, Any]:
     }
 
 
+def check_browser_status() -> dict[str, Any]:
+    """Check browser profile availability and whether user has enabled capture."""
+    from backend.config import load_browser
+
+    settings = load_browser()
+    has_profile = False
+    try:
+        from backend.browser.places import find_profile
+
+        find_profile(settings.profile_dir or None)
+        has_profile = True
+    except Exception:
+        pass
+    return {
+        "available": has_profile,
+        "enabled": settings.enabled,
+    }
+
+
 def check_setup_completion() -> dict[str, Any]:
     """Read onboarding completion timestamp and schema version from app_settings."""
     try:
@@ -256,6 +275,7 @@ async def get_setup_status(
         "ollama": ollama_info,
         "runtimes": runtimes_info,
         "composio": composio_info,
+        "browser": check_browser_status(),
         "connectors": {
             "awaiting_sign_in": awaiting_sign_in,
             "active_tools": active_tools_count if active_tools_count is not None else 0,

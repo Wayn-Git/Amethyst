@@ -54,36 +54,35 @@ def auto_setup() -> list[str]:
 
 
 def _browser_watcher() -> str | None:
-    """The bookmark watcher, on when a browser profile is there to read."""
+    """The bookmark watcher, on when consented in app_settings and a profile is found."""
     from backend.browser.places import find_profile
     from backend.config import load_browser, save_browser
+    from backend.db.connection import get_connection
 
     settings = load_browser()
     if settings.enabled:
         return None
-    # A user who switched this off has a reason, and a reboot must not take it
-    # back -- so the choice is made once, by absence of the setting, rather
-    # than by "is it currently off". Fresh machines have no row; an off
-    # machine has one saying 0.
-    from backend.db.connection import get_connection
 
+    # Browser history & bookmarks reading is a privacy choice that requires consent (R15, P19).
+    # On fresh machines, row is None -> Do NOT auto-enable.
+    # When user opts in during setup or settings, row is '1' -> Enable.
     try:
         row = get_connection().execute(
             "SELECT value FROM app_settings WHERE key = 'browser.enabled'"
         ).fetchone()
     except Exception:
         row = None
-    if row is not None:
+
+    if row is None or str(row[0]).strip().lower() not in ("1", "true"):
         return None
+
     try:
         find_profile(settings.profile_dir or None)
     except Exception:
-        # No Firefox-family profile on this machine. Not an error, and not a
-        # reason to say anything -- the user will find out from
-        # `amethyst bookmarks status` when they go looking.
         return None
+
     save_browser({"enabled": True})
-    return "browser capture on: a Firefox-family profile is on this machine"
+    return "browser capture on: consented in settings and a Firefox-family profile is on this machine"
 
 
 def _x_reader() -> str | None:
