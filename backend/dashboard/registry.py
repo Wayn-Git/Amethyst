@@ -344,6 +344,7 @@ MANIFESTS = [
     library_manifest("lib.search", "Library search"),
     library_manifest("lib.recent", "Recently edited notes"),
     library_manifest("lib.dupes", "Duplicates found"),
+    {**library_manifest("lib.ask", "Ask your library"), "tier": "v2"},
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     {

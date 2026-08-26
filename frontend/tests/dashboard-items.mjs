@@ -118,6 +118,12 @@ try {
     await card.getByText('Same url: Original fixture', { exact: true }).waitFor()
     assert.equal(await card.getByRole('button', { name: /delete|merge/i }).count(), 0)
   }
+  if (widgets.includes('lib.ask')) {
+    const card = page.locator('[data-widget="lib.ask"]')
+    await card.getByLabel('Ask your notes', { exact: true }).fill('')
+    await card.getByRole('button', { name: 'Ask', exact: true }).click()
+    await card.getByText('not in your notes', { exact: true }).waitFor()
+  }
   if (widgets.includes('lib.search')) {
     const card = page.locator('[data-widget="lib.search"]')
     await card.getByText('Search result fixture', { exact: true }).waitFor()

@@ -141,3 +141,47 @@ async def test_duplicates_reuse_library_identity_lookups(db):
         ref_old: ref_latest,
     }
     assert db.execute("SELECT count(*) FROM library_items").fetchone()[0] == 5
+
+
+async def test_ask_is_grounded_in_retrieved_notes(db, monkeypatch):
+    from backend.dashboard.store import settings_write
+
+    settings_write("lib.ask", {"query": "seeds"})
+
+    async def search(self, *args, **kwargs):
+        return [
+            {"id": 1, "kind": "note", "title": "Garden", "excerpt": "Sow in spring."},
+            {"id": 2, "kind": "article", "excerpt": "Excluded"},
+        ]
+
+    monkeypatch.setattr(LibraryService, "search", search)
+
+    async def ask(*args, **kwargs):
+        assert kwargs["paid_ok"] is False
+        return {"text": '{"quotes": [{"id": 1, "text": "Sow in spring."}]}'}
+
+    monkeypatch.setattr("backend.workers.llm.ask", ask)
+    result = await provide("lib.ask")
+    assert result["answer"] == "Sow in spring."
+    assert [x["id"] for x in result["items"]] == [1]
+    settings_write("lib.ask", {"query": ""})
+    assert (await provide("lib.ask"))["answer"] == "not in your notes"
+
+
+async def test_ask_rejects_unsourced_model_text(db, monkeypatch):
+    import pytest
+
+    from backend.dashboard.store import settings_write
+
+    settings_write("lib.ask", {"query": "seeds"})
+
+    async def search(*args, **kwargs):
+        return [{"id": 1, "kind": "note", "excerpt": "Sow in spring."}]
+
+    async def ask(*args, **kwargs):
+        return {"text": '{"quotes": [{"id": 1, "text": "Invented"}]}'}
+
+    monkeypatch.setattr(LibraryService, "search", search)
+    monkeypatch.setattr("backend.workers.llm.ask", ask)
+    with pytest.raises(ValueError, match="unsourced"):
+        await provide("lib.ask")

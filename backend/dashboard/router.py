@@ -164,7 +164,7 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
             value = AgendaSettings.model_validate(body).model_dump()
         elif widget_id in ("dev.backup", "dev.unpushed"):
             value = RepoSettings.model_validate(body).model_dump()
-        elif widget_id == "lib.search":
+        elif widget_id in ("lib.search", "lib.ask"):
             value = SearchSettings.model_validate(body).model_dump()
         elif widget_id == "glance.clock":
             value = ClockSettings.model_validate(body).model_dump()
