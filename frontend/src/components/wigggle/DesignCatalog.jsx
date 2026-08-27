@@ -3,6 +3,7 @@ import { Component, lazy, Suspense, useState } from 'react'
 import { Button } from '../ui/bento/index.jsx'
 import { useDashboard } from '../../dashboard/context.js'
 import { catalog, CATEGORIES, targetsForDesign, designSize } from './designs.js'
+import DesignSetup from './DesignSetup.jsx'
 import './wigggle.css'
 
 const modules = import.meta.glob('./vendor/registry/default/widgets/*/*/*.tsx')
@@ -16,6 +17,7 @@ class SampleBoundary extends Component {
 export default function DesignCatalog() {
   const { manifests, layout, addWidget, resize } = useDashboard()
   const [category, setCategory] = useState('clock')
+  const [setup, setSetup] = useState(null)
   const designs = catalog.filter(design => design.category === category)
   return <div className="wigggle-catalog">
     <div className="wigggle-catalog-heading"><h3>Wigggle UI</h3><span>92 designs · 8 categories</span><p>Design samples contain example data. Apply a design to use your existing widget’s data and controls.</p></div>
@@ -28,9 +30,10 @@ export default function DesignCatalog() {
         <div className="wigggle-apply">{targets.length ? targets.map(manifest => {
           const added = layout.widgets.some(item => item.id === manifest.id)
           return <Button key={manifest.id} size="small" onClick={() => added ? resize(manifest.id, { size: designSize(design, manifest), design: design.id }) : addWidget(manifest.id, designSize(design, manifest), design.id)}>{added ? 'Apply to' : 'Add'} {manifest.title}</Button>
-        }) : <p>No compatible live source or controls are available for this design. Sample only.</p>}</div>
+        }) : <p>Live integration unavailable. Open setup to see what is missing.</p>}<Button size="small" variant="ghost" onClick={() => setSetup(design)}>Setup & status</Button></div>
       </section>
     })}</div>
     <a href="https://wigggle-ui.vercel.app/" target="_blank" rel="noreferrer">Wigggle UI · MIT license</a>
+    {setup && <DesignSetup key={setup.id} design={setup} onClose={() => setSetup(null)} />}
   </div>
 }

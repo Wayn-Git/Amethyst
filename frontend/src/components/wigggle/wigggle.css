@@ -149,3 +149,13 @@
   --color-vercel-teal: var(--tile-positive);
   --color-vercel-pink: var(--tile-urgent);
 }
+.widget-setup-screen { display: grid; gap: var(--ui-space-4); color: var(--ui-text); font: var(--tile-body); min-width: 0; }
+.widget-setup-screen h3 { font: var(--tile-title); margin: 0; }
+.widget-setup-screen :is(p,ol,ul) { margin: 0; }
+.widget-setup-screen :is(ol,ul) { padding-inline-start: var(--ui-space-5); display: grid; gap: var(--ui-space-3); }
+.widget-setup-status { display: grid; gap: var(--ui-space-2); padding: var(--ui-space-4); background: var(--ui-raised); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); overflow-wrap: anywhere; }
+.widget-setup-status strong { font: var(--tile-title); }
+.widget-setup-status :is(p,small) { color: var(--ui-muted); }
+.widget-setup-connection { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ui-space-2); }
+.widget-setup-screen .widget-buttons { display: flex; flex-wrap: wrap; gap: var(--ui-space-2); }
+.widget-setup-screen button { min-height: 44px; }
