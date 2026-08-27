@@ -346,6 +346,14 @@ MANIFESTS = [
     library_manifest("lib.dupes", "Duplicates found"),
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
+    {
+        **planning_manifest("glance.travel", "Travel time to next event"),
+        "group": "glance",
+        "source": [
+            {"type": "composio", "toolkit": "googlecalendar"},
+            {"type": "composio", "toolkit": "google_maps"},
+        ],
+    },
     agenda_manifest(),
     planning_manifest("task.plan", "Proposed day plan"),
     planning_manifest("task.free", "Free-slot finder"),

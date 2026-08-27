@@ -185,7 +185,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | glance.air | Air quality | api | MVP | [x] |
 | glance.next-event | Next event with countdown | cmp:googlecalendar | MVP | [x] |
 | glance.music | Now playing and last played | cmp:spotify | MVP | [x] |
-| glance.travel | Travel time to next event | cmp:googlemaps | v2 | [ ] |
+| glance.travel | Travel time to next event | cmp:googlemaps | v2 | [x] |
 | glance.listen-stats | Listening stats | cmp:spotify | v2 | [ ] |
 
 ### 6.3 Needs you

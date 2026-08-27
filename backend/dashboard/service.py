@@ -98,6 +98,10 @@ async def local_provider(widget_id):
         from backend.dashboard.developer import provide
 
         return await provide(widget_id)
+    if widget_id == "glance.travel":
+        from backend.dashboard.travel import provide
+
+        return await provide(widget_id)
     if widget_id == "glance.next-event":
         from backend.dashboard.agenda import next_event
 
@@ -189,6 +193,11 @@ async def refresh(widget_id):
                 in ("agent.brief", "agent.next", "comm.thread-summary", "comm.newsletters")
                 else 10,
             )
+            sources = REGISTRY[widget_id]["manifest"]["source"]
+            sources = sources if isinstance(sources, list) else [sources]
+            if any(source.get("toolkit") == "googlecalendar" for source in sources):
+                if not access_enabled("task.agenda"):
+                    raise SourceUnavailable
             cache_write(
                 widget_id,
                 payload,
@@ -221,7 +230,15 @@ async def refresh(widget_id):
         cache_write(widget_id, None, "not-connected")
     except Exception:
         if (
-            widget_id in ("task.agenda", "task.plan", "task.free", "task.conflicts", "task.risk")
+            widget_id
+            in (
+                "task.agenda",
+                "task.plan",
+                "task.free",
+                "task.conflicts",
+                "task.risk",
+                "glance.travel",
+            )
             and not access_enabled()
         ):
             cache_write(widget_id, None, "not-connected")
@@ -271,7 +288,7 @@ def schedule(widget_id, background_tasks, force=False):
         sources = REGISTRY[widget_id]["manifest"]["source"]
         for source in sources if isinstance(sources, list) else [sources]:
             toolkit = source.get("toolkit")
-            if toolkit in ("github", "slack", "googlecalendar"):
+            if toolkit in ("github", "slack", "googlecalendar", "google_maps"):
                 read_cache.invalidate_domain("calendar" if toolkit == "googlecalendar" else toolkit)
         if widget_id == "glance.next-event":
             cached = cache_read("task.agenda")

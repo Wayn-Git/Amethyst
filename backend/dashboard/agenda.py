@@ -7,12 +7,14 @@ from backend.dashboard.connectors import read
 from backend.dashboard.store import settings_read
 
 
-async def provide(widget_id, *, now=None, range_end=None):
+async def provide(widget_id, *, now=None, range_end=None, future=False):
     timezone = str(now.tzinfo) if now else settings_read("dash.quiet").get("timezone", "UTC")
     zone = ZoneInfo(timezone)
     now = now or datetime.now(zone)
     start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     end = range_end or start + timedelta(days=7)
+    if future:
+        start, end = now, None
     value = await read(
         widget_id,
         "googlecalendar",
@@ -20,7 +22,7 @@ async def provide(widget_id, *, now=None, range_end=None):
         {
             "calendar_id": "primary",
             "time_min": start.isoformat(),
-            "time_max": end.isoformat(),
+            **({"time_max": end.isoformat()} if end else {"order_by": "startTime"}),
             "single_events": True,
             "max_results": 100,
         },
@@ -50,7 +52,7 @@ async def provide(widget_id, *, now=None, range_end=None):
             finishes = finishes.replace(tzinfo=ZoneInfo(ends.get("timeZone", timezone)))
         if finishes <= begins:
             raise ValueError("Invalid event interval")
-        if begins >= end or finishes <= start:
+        if (end and begins >= end) or finishes <= start:
             continue
         title = row.get("summary") or "Untitled event"
         if not isinstance(row.get("id"), str) or not isinstance(title, str):
@@ -62,6 +64,7 @@ async def provide(widget_id, *, now=None, range_end=None):
                 "start": begins.isoformat(),
                 "end": finishes.isoformat(),
                 "all_day": all_day,
+                "location": row.get("location") if isinstance(row.get("location"), str) else None,
                 "transparent": row.get("transparency") == "transparent",
             }
         )

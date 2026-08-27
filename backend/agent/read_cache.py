@@ -29,24 +29,26 @@ def normalize_cache_args(arguments: dict[str, Any] | None) -> str:
         return str(sorted(arguments.items()))
 
 
-WRITE_KEYWORDS = frozenset({
-    "create",
-    "insert",
-    "update",
-    "delete",
-    "remove",
-    "patch",
-    "send",
-    "compose",
-    "reply",
-    "forward",
-    "draft",
-    "trash",
-    "cancel",
-    "edit",
-    "modify",
-    "add",
-})
+WRITE_KEYWORDS = frozenset(
+    {
+        "create",
+        "insert",
+        "update",
+        "delete",
+        "remove",
+        "patch",
+        "send",
+        "compose",
+        "reply",
+        "forward",
+        "draft",
+        "trash",
+        "cancel",
+        "edit",
+        "modify",
+        "add",
+    }
+)
 
 
 def detect_tool_domain(tool_name: str) -> str | None:
@@ -56,6 +58,8 @@ def detect_tool_domain(tool_name: str) -> str | None:
         return "github"
     if lower.startswith(("slack_", "dashboard_slack_")):
         return "slack"
+    if lower.startswith("dashboard_google_maps_"):
+        return "google_maps"
     if "calendar" in lower:
         return "calendar"
     if "gmail" in lower or "email" in lower or "mail" in lower:
@@ -98,7 +102,7 @@ class ReadCache:
         if is_mutation_tool(tool_name):
             return None
         domain = detect_tool_domain(tool_name)
-        if domain in ("github", "slack"):
+        if domain in ("github", "slack", "google_maps"):
             return 60 if tool_name.lower().startswith("dashboard_") else None
         if domain == "calendar":
             return agent_config.calendar_cache_ttl

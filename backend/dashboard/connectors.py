@@ -23,6 +23,7 @@ from backend.tools.base import RiskLevel, ToolContext, ToolSource
 
 # Explicit machine-reader capabilities exclude router/proxy tools and nested writes.
 READ_TOOLS = {
+    "google_maps": {"GOOGLE_MAPS_GET_ROUTE"},
     "spotify": {"SPOTIFY_GET_CURRENTLY_PLAYING_TRACK", "SPOTIFY_GET_RECENTLY_PLAYED_TRACKS"},
     "googlecalendar": {"GOOGLECALENDAR_FIND_EVENT"},
     "gmail": {"GMAIL_FETCH_EMAILS"},
@@ -203,7 +204,7 @@ async def _read(widget_id, toolkit, slug, arguments):
             cache_args = {**arguments, "dashboard_home": str(paths().db)}
             cached = (
                 read_cache.get("dashboard_" + slug, cache_args)
-                if toolkit in ("gmail", "github", "slack", "googlecalendar")
+                if toolkit in ("gmail", "github", "slack", "googlecalendar", "google_maps")
                 else None
             )
             result = None if cached else await tool.handler(arguments, context)
@@ -249,7 +250,7 @@ async def _read(widget_id, toolkit, slug, arguments):
                     ]
                 }
                 read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
-            if toolkit in ("github", "slack", "googlecalendar") and not cached:
+            if toolkit in ("github", "slack", "googlecalendar", "google_maps") and not cached:
                 from backend.dashboard.remote import project
 
                 value = project(slug, value, arguments)

@@ -22,9 +22,12 @@ from backend.tools.registry import ToolRegistry
 
 
 def test_fast_lane_config_structure():
-    expected_toolkits = {"googlecalendar", "gmail", "github", "slack", "notion"}
+    expected_toolkits = {"googlecalendar", "gmail", "github", "slack", "notion", "google_maps"}
     assert set(FAST_LANE_CONFIG.keys()) == expected_toolkits
     for tk, slugs in FAST_LANE_CONFIG.items():
+        if tk == "google_maps":
+            assert set(slugs) == {"GOOGLE_MAPS_GET_ROUTE"}
+            continue
         assert len(slugs) == 5 + len(
             set(DASHBOARD_READ_SCHEMAS.get(tk, {})) - {
                 "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION"

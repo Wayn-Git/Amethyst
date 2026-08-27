@@ -99,6 +99,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "task.free",
         "task.conflicts",
         "task.risk",
+        "glance.travel",
         "glance.next-event",
         "task.today",
         "task.backlog",

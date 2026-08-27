@@ -840,8 +840,12 @@ def _validate_consumer_key(key: str) -> tuple[bool, str | None]:
         log.warning("Composio consumer key probe failed: %s", exc)
 #: The ~5 most-used tool slugs per popular toolkit and their essential optional parameters.
 FAST_LANE_CONFIG: dict[str, dict[str, list[str]]] = {
+    "google_maps": {"GOOGLE_MAPS_GET_ROUTE": ["travel_mode", "field_mask"]},
     "googlecalendar": {
-        "GOOGLECALENDAR_FIND_EVENT": ["query", "calendar_id", "time_min", "time_max", "max_results", "single_events"],
+        "GOOGLECALENDAR_FIND_EVENT": [
+            "query", "calendar_id", "time_min", "time_max",
+            "max_results", "single_events", "order_by",
+        ],
         "GOOGLECALENDAR_CREATE_EVENT": ["summary", "start_datetime", "end_datetime", "calendar_id", "description", "location", "attendees"],
         "GOOGLECALENDAR_UPDATE_EVENT": ["event_id", "calendar_id", "summary", "start_datetime", "end_datetime", "description"],
         "GOOGLECALENDAR_DELETE_EVENT": ["event_id", "calendar_id"],
@@ -985,6 +989,21 @@ def trim_composio_tool_schema(
 
 
 STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
+    "google_maps": [{
+        "slug": "GOOGLE_MAPS_GET_ROUTE",
+        "name": "Get Route",
+        "description": "Read a driving route duration between two addresses.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "origin_address": {"type": "string"},
+                "destination_address": {"type": "string"},
+                "travel_mode": {"type": "string", "enum": ["DRIVE"]},
+                "field_mask": {"type": "string"},
+            },
+            "required": ["origin_address", "destination_address"],
+        },
+    }],
     "googlecalendar": [
         {
             "slug": "GOOGLECALENDAR_FIND_EVENT",
@@ -1003,6 +1022,7 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
                     "time_min": {"type": "string", "description": "Lower bound for event start time (RFC3339 / ISO 8601 string, e.g. '2026-10-20T00:00:00Z'). Defaults to current time."},
                     "time_max": {"type": "string", "description": "Upper bound for event start time (RFC3339 / ISO 8601 string). Defaults to 7 days from now."},
                     "max_results": {"type": "integer", "description": "Maximum number of events to return (default 10). Do not paginate.", "default": 10},
+                    "order_by": {"type": "string", "enum": ["startTime", "updated"]},
                     "single_events": {"type": "boolean", "description": "Whether to expand recurring events into instances.", "default": True},
                 },
                 "required": [],
@@ -1419,6 +1439,7 @@ for _toolkit, _readers in DASHBOARD_READ_SCHEMAS.items():
 # Reviewed read capabilities; toolkit-prefixed names have no generic risk prefix.
 PINNED_READ_ONLY_SLUGS = frozenset(
     {
+        "GOOGLE_MAPS_GET_ROUTE",
         "GOOGLECALENDAR_FIND_EVENT",
         "GMAIL_FETCH_EMAILS",
         "SLACK_SEARCH_MESSAGES",

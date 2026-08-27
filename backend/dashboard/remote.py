@@ -11,6 +11,21 @@ def mentions(body):
 def project(slug, value, arguments=None):
     if isinstance(value, dict):
         value = value.get("data", value)
+    if slug == "GOOGLE_MAPS_GET_ROUTE":
+        import math
+
+        routes = value.get("routes")
+        if not isinstance(routes, list):
+            raise ValueError("Invalid routes response")
+        if not routes:
+            return {"duration_seconds": None}
+        duration = routes[0].get("duration")
+        if not isinstance(duration, str) or not re.fullmatch(r"\d+(?:\.\d+)?s", duration):
+            raise ValueError("Invalid route duration")
+        seconds = float(duration[:-1])
+        if not math.isfinite(seconds):
+            raise ValueError("Invalid route duration")
+        return {"duration_seconds": seconds}
     if slug == "GOOGLECALENDAR_FIND_EVENT":
         rows = value if isinstance(value, list) else value.get("items", value.get("events"))
         if not isinstance(rows, list):
@@ -18,7 +33,9 @@ def project(slug, value, arguments=None):
         items = []
         for row in rows:
             item = {
-                key: row[key] for key in ("id", "summary", "status", "transparency") if key in row
+                key: row[key]
+                for key in ("id", "summary", "status", "transparency", "location")
+                if key in row
             }
             for key in ("start", "end"):
                 if key in row:

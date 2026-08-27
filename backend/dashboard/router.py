@@ -146,11 +146,20 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
             "comm.newsletters",
         ):
             value = MailSettings.model_validate(body).model_dump()
-        elif widget_id in ("task.plan", "task.free", "task.conflicts", "task.risk"):
+        elif widget_id in (
+            "task.plan",
+            "task.free",
+            "task.conflicts",
+            "task.risk",
+        ):
             from backend.dashboard.planning import PlanningSettings
 
             value = PlanningSettings.model_validate(body).model_dump()
             settings_write("task.free", value)
+        elif widget_id == "glance.travel":
+            from backend.dashboard.travel import TravelSettings
+
+            value = TravelSettings.model_validate(body).model_dump()
         elif widget_id == "task.agenda":
             value = AgendaSettings.model_validate(body).model_dump()
         elif widget_id in ("dev.backup", "dev.unpushed"):
@@ -167,7 +176,7 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
         raise HTTPException(422, str(exc)) from exc
     settings_write(widget_id, value)
     if widget_id in ("task.plan", "task.free", "task.conflicts", "task.risk"):
-        for dependent in ("task.plan", "task.free", "task.conflicts", "task.risk"):
+        for dependent in ("task.plan", "task.free", "task.conflicts", "task.risk", "glance.travel"):
             cache_write(dependent, None, "loading")
     if widget_id == "task.agenda" and not value["enabled"]:
         cache_write(widget_id, None, "not-connected")
@@ -175,8 +184,13 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
         from backend.agent.read_cache import read_cache
 
         read_cache.invalidate_domain("calendar")
-        for dependent in ("task.plan", "task.free", "task.conflicts", "task.risk"):
+        for dependent in ("task.plan", "task.free", "task.conflicts", "task.risk", "glance.travel"):
             cache_write(dependent, None, "not-connected")
+    if widget_id == "glance.travel":
+        from backend.agent.read_cache import read_cache
+
+        read_cache.invalidate_domain("google_maps")
+        cache_write(widget_id, None, "loading" if value["enabled"] else "not-connected")
     if widget_id == "glance.weather":
         cache_write("glance.weather", None, "loading")
         cache_write("glance.sun", None, "loading")
