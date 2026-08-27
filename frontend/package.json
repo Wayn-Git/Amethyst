@@ -33,6 +33,7 @@
     "@untitledui/icons": "^0.0.23",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "ascii-reveal": "file:vendor/ascii-reveal",
     "blobatar": "^2.7.0",
     "chart.js": "^4.5.1",
     "class-variance-authority": "^0.7.1",

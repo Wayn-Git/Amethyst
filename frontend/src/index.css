@@ -12805,38 +12805,29 @@ a.text-reveal-wrap {
    contrast that still reads as absent rather than empty. A page of forty
    pulsing rectangles is close to the worst case that rule exists for. */
 
+:root {
+  --ascii-skeleton: var(--text-dim, rgba(255, 255, 255, 0.35));
+  --ascii-font: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  --ascii-accent: var(--brand, #c084fc);
+}
+
+[data-theme-mode='light'],
+:root:not(.dark) {
+  --ascii-skeleton: var(--text-dim, rgba(0, 0, 0, 0.35));
+}
+
 .skel {
-  display: block;
+  display: inline-block;
   position: relative;
   overflow: hidden;
   flex: none;
-  background-color: rgba(255, 255, 255, 0.04);
-  background-image: linear-gradient(
-    110deg,
-    rgba(255, 255, 255, 0.04) 30%,
-    rgba(255, 255, 255, 0.11) 50%,
-    rgba(255, 255, 255, 0.04) 70%
-  );
-  background-size: 200% 100%;
-  animation: boneyard-shimmer 2s linear infinite;
+  background-color: transparent;
+  line-height: 1;
 }
 
-[data-theme-mode='light'] .skel,
-:root:not(.dark) .skel {
-  background-color: rgba(0, 0, 0, 0.04);
-  background-image: linear-gradient(
-    110deg,
-    rgba(0, 0, 0, 0.04) 30%,
-    rgba(0, 0, 0, 0.09) 50%,
-    rgba(0, 0, 0, 0.04) 70%
-  );
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skel {
-    animation: none;
-    background-image: none;
-  }
+.skel .ars {
+  width: 100%;
+  height: 100%;
 }
 
 .skel-stack { display: flex; flex-direction: column; gap: 8px; }

@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useMemo, useCallback } from 'react'
+import { AsciiSkeleton } from 'ascii-reveal'
 import Icon from '../../components/Icon.jsx'
 import ModelMenu from '../../components/ModelMenu.jsx'
 import AiProviderIcon from '../../components/AiProviderIcon.jsx'
@@ -1974,9 +1975,7 @@ export default function LibraryDetailModal({
                         <span className="lib-synthesis-model-pill">Processing</span>
                       </div>
                       <div className="lib-synthesis-generating-skel">
-                        <div className="lib-skel" style={{ width: '96%', height: 11, borderRadius: 4 }} />
-                        <div className="lib-skel" style={{ width: '84%', height: 11, borderRadius: 4 }} />
-                        <div className="lib-skel" style={{ width: '70%', height: 11, borderRadius: 4 }} />
+                        <AsciiSkeleton variant="scan" lines={3} widths={['96%', '84%', '70%']} />
                       </div>
                       <p className="lib-synthesis-generating-hint">
                         Transcribing speech with Whisper and extracting referenced websites, tools, and taxonomy...

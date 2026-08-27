@@ -1,4 +1,5 @@
 import { memo, useMemo, useRef, useState, useCallback } from 'react'
+import { AsciiSkeleton } from 'ascii-reveal'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
 import { getRatingTier } from './ratingUtils.js'
@@ -764,8 +765,7 @@ function LibraryCardComponent({
               </span>
             </div>
             <div className="lib-card-skel-lines">
-              <span className="lib-skel" style={{ width: '90%', height: 8 }} />
-              <span className="lib-skel" style={{ width: '65%', height: 8 }} />
+              <AsciiSkeleton variant="scan" lines={2} widths={['90%', '65%']} />
             </div>
           </div>
         ) : deduplicatedSummary ? (

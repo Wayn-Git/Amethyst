@@ -1,0 +1,86 @@
+{
+  "name": "ascii-reveal",
+  "version": "0.3.0",
+  "description": "A loading effect for React that decodes text, images and cards into place through a character grid.",
+  "license": "MIT",
+  "author": "Quan Hoang",
+  "homepage": "https://quanhoangindex.github.io/ascii-reveal/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quanhoangindex/ascii-reveal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/quanhoangindex/ascii-reveal/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./core": {
+      "import": {
+        "types": "./dist/core.d.ts",
+        "default": "./dist/core.js"
+      },
+      "require": {
+        "types": "./dist/core.d.cts",
+        "default": "./dist/core.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "react",
+    "ascii",
+    "loading",
+    "reveal",
+    "animation",
+    "skeleton",
+    "text-scramble",
+    "motion"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "demo": "npm --prefix demo run dev",
+    "prepublishOnly": "npm run build",
+    "test": "node test/smoke.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=17",
+    "react-dom": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "playwright": "^1.56.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3"
+  }
+}

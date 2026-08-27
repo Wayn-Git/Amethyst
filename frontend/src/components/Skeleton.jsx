@@ -1,59 +1,127 @@
 import { useEffect, useState } from 'react'
+import { AsciiSkeleton } from 'ascii-reveal'
 import Icon from './Icon.jsx'
 import BrandMark from './BrandMark.jsx'
 
 /* The frame the interface draws while it is waiting for its first answer.
+   Rendered with ASCII skeletons that paint immediately and sweep a fine dither band. */
 
-   Two different waits, and they deserve different treatment.
+export default function Skeleton({
+  w = '100%',
+  h = 12,
+  r = 6,
+  rounded = false,
+  style,
+  className = '',
+  variant = 'dither',
+  animate = true,
+}) {
+  const isCircle = rounded || (typeof r === 'number' && r >= 99)
+  const numericHeight = typeof h === 'number' ? h : (parseInt(h, 10) || 12)
+  const isBlock = numericHeight > 22
 
-   The ordinary one is a request in flight against a backend that is already up:
-   under a second, and what belongs there is the *shape* of what is coming, so
-   the page does not jump when it arrives. That is `Skeleton` and the helpers
-   below it — blocks the size of the rows they stand in for.
+  if (isCircle) {
+    return (
+      <span
+        className={`skel skel--circle ${className}`.trim()}
+        aria-hidden="true"
+        style={{
+          width: w,
+          height: h,
+          borderRadius: 9999,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          verticalAlign: 'middle',
+          ...style,
+        }}
+      >
+        <AsciiSkeleton
+          variant={variant}
+          width={w}
+          height={h}
+          circle
+          animate={animate}
+        />
+      </span>
+    )
+  }
 
-   The other is a container that was stopped for want of traffic and is booting.
-   That is tens of seconds, and a shimmering rectangle for tens of seconds reads
-   as a hang. So `BootScreen` says what is happening and counts, which is the
-   difference between "this is broken" and "this is nearly ready".
+  if (isBlock) {
+    const rows = Math.max(2, Math.round(numericHeight / 14))
+    return (
+      <span
+        className={`skel skel--block ${className}`.trim()}
+        aria-hidden="true"
+        style={{
+          width: w,
+          height: h,
+          borderRadius: r,
+          display: 'block',
+          overflow: 'hidden',
+          ...style,
+        }}
+      >
+        <AsciiSkeleton
+          variant={variant}
+          width={w}
+          height={h}
+          rows={rows}
+          animate={animate}
+        />
+      </span>
+    )
+  }
 
-   Nothing here animates under `prefers-reduced-motion` — a page of pulsing
-   blocks is exactly the kind of thing that rule exists for. */
-
-export default function Skeleton({ w = '100%', h = 12, r = 6, rounded = false, style, className = '' }) {
-  const radius = rounded ? 9999 : r
   return (
     <span
-      className={`skel ${className}`.trim()}
+      className={`skel skel--line ${className}`.trim()}
       aria-hidden="true"
-      style={{ width: w, height: h, borderRadius: radius, ...style }}
-    />
+      style={{
+        width: w,
+        height: h,
+        borderRadius: r,
+        display: 'inline-block',
+        verticalAlign: 'middle',
+        overflow: 'hidden',
+        lineHeight: 1,
+        ...style,
+      }}
+    >
+      <AsciiSkeleton
+        variant={variant}
+        lines={1}
+        widths={[w]}
+        animate={animate}
+      />
+    </span>
   )
 }
 
 /** A paragraph's worth. The last line is short, because real ones are. */
-export function SkeletonText({ lines = 3, gap = 8 }) {
+export function SkeletonText({ lines = 3, gap = 8, variant = 'dither' }) {
+  const widths = Array.from({ length: lines }, (_, i) => (i === lines - 1 ? '58%' : `${88 - (i % 3) * 9}%`))
   return (
-    <div className="skel-stack" style={{ gap }}>
-      {Array.from({ length: lines }, (_, i) => (
-        <Skeleton key={i} w={i === lines - 1 ? '58%' : `${88 - (i % 3) * 9}%`} h={11} />
-      ))}
+    <div className="skel-stack" style={{ gap }} aria-hidden="true">
+      <AsciiSkeleton variant={variant} lines={lines} widths={widths} />
     </div>
   )
 }
 
 /** Standing in for task or server rows — an optional icon/disc, title and meta, action controls. */
-export function SkeletonRows({ rows = 4, controls = 2, icon = true }) {
+export function SkeletonRows({ rows = 4, controls = 2, icon = true, variant = 'dither' }) {
   return (
     <div className="skel-rows" aria-hidden="true">
       {Array.from({ length: rows }, (_, i) => (
         <div className="skel-row" key={i}>
-          {icon && <Skeleton w={18} h={18} r={99} />}
+          {icon && <Skeleton w={18} h={18} r={99} rounded variant={variant} />}
           <div className="skel-row-text">
-            <Skeleton w={`${48 + ((i * 13) % 32)}%`} h={13} r={4} />
-            <Skeleton w={`${26 + ((i * 17) % 24)}%`} h={10} r={4} />
+            <Skeleton w={`${48 + ((i * 13) % 32)}%`} h={13} r={4} variant={variant} />
+            <Skeleton w={`${26 + ((i * 17) % 24)}%`} h={10} r={4} variant={variant} />
           </div>
           {Array.from({ length: controls }, (_, c) => (
-            <Skeleton key={c} w={controls === 1 ? 52 : 20} h={controls === 1 ? 26 : 20} r={6} />
+            <Skeleton key={c} w={controls === 1 ? 52 : 20} h={controls === 1 ? 26 : 20} r={6} variant={variant} />
           ))}
         </div>
       ))}
@@ -62,17 +130,17 @@ export function SkeletonRows({ rows = 4, controls = 2, icon = true }) {
 }
 
 /** A card with a title and some rows in it, for a view built out of cards. */
-export function SkeletonCard({ title = true, rows = 3, controls = 2, icon = true }) {
+export function SkeletonCard({ title = true, rows = 3, controls = 2, icon = true, variant = 'dither' }) {
   return (
     <div className="card card-pad" aria-hidden="true">
-      {title && <Skeleton w={140} h={11} style={{ marginBottom: 14 }} />}
-      <SkeletonRows rows={rows} controls={controls} icon={icon} />
+      {title && <Skeleton w={140} h={11} variant={variant} style={{ marginBottom: 14 }} />}
+      <SkeletonRows rows={rows} controls={controls} icon={icon} variant={variant} />
     </div>
   )
 }
 
 /** Table rows matching tabular lists like Automations, Runs, and Logs. */
-export function SkeletonTable({ rows = 5, cols = ['30%', '25%', '15%', '10%'] }) {
+export function SkeletonTable({ rows = 5, cols = ['30%', '25%', '15%', '10%'], variant = 'dither' }) {
   return (
     <div className="skel-table-wrap" aria-hidden="true" style={{ width: '100%' }}>
       {Array.from({ length: rows }, (_, i) => (
@@ -93,6 +161,7 @@ export function SkeletonTable({ rows = 5, cols = ['30%', '25%', '15%', '10%'] })
               w={colW}
               h={c === 0 ? 14 : 11}
               r={4}
+              variant={variant}
               style={{ flexShrink: c === 0 ? 0 : 1 }}
             />
           ))}
@@ -103,41 +172,42 @@ export function SkeletonTable({ rows = 5, cols = ['30%', '25%', '15%', '10%'] })
 }
 
 /** Thread message preview with sender and multiline text. */
-export function SkeletonMessage({ lines = 3 }) {
+export function SkeletonMessage({ lines = 3, variant = 'dither' }) {
+  const widths = ['95%']
+  if (lines > 1) widths.push('82%')
+  if (lines > 2) widths.push('64%')
   return (
     <div className="skel-stack" style={{ gap: 10, padding: '12px 0' }} aria-hidden="true">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Skeleton w={140} h={13} r={4} />
-        <Skeleton w={60} h={10} r={3} />
+        <Skeleton w={140} h={13} r={4} variant={variant} />
+        <Skeleton w={60} h={10} r={3} variant={variant} />
       </div>
-      <Skeleton w="95%" h={12} r={3} />
-      {lines > 1 && <Skeleton w="82%" h={12} r={3} />}
-      {lines > 2 && <Skeleton w="64%" h={12} r={3} />}
+      <AsciiSkeleton variant={variant} lines={widths.length} widths={widths} />
     </div>
   )
 }
 
 /** The grid of cards the skills and catalogue pages are made of. */
-export function SkeletonGrid({ cards = 6 }) {
+export function SkeletonGrid({ cards = 6, variant = 'dither' }) {
   return (
     <div className="dir-grid" aria-hidden="true">
       {Array.from({ length: cards }, (_, i) => (
         <div className="dcard" key={i} style={{ pointerEvents: 'none', userSelect: 'none' }}>
           <div className="dcard-top">
-            <Skeleton w={34} h={34} r={8} />
+            <Skeleton w={34} h={34} r={8} variant={variant} />
             <div className="dcard-heading">
-              <Skeleton w={`${46 + ((i * 13) % 26)}%`} h={14} r={4} />
-              <Skeleton w={`${28 + ((i * 11) % 22)}%`} h={11} r={4} />
+              <Skeleton w={`${46 + ((i * 13) % 26)}%`} h={14} r={4} variant={variant} />
+              <Skeleton w={`${28 + ((i * 11) % 22)}%`} h={11} r={4} variant={variant} />
             </div>
-            <Skeleton w={30} h={30} r={99} />
+            <Skeleton w={30} h={30} r={99} rounded variant={variant} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '4px 0 2px' }}>
-            <Skeleton w="92%" h={11} r={4} />
-            <Skeleton w={`${65 + ((i * 9) % 25)}%`} h={11} r={4} />
+            <Skeleton w="92%" h={11} r={4} variant={variant} />
+            <Skeleton w={`${65 + ((i * 9) % 25)}%`} h={11} r={4} variant={variant} />
           </div>
           <div className="dcard-badges" style={{ marginTop: 4 }}>
-            <Skeleton w={52} h={18} r={99} />
-            {i % 2 === 0 && <Skeleton w={44} h={18} r={99} />}
+            <Skeleton w={52} h={18} r={99} rounded variant={variant} />
+            {i % 2 === 0 && <Skeleton w={44} h={18} r={99} rounded variant={variant} />}
           </div>
         </div>
       ))}
@@ -146,60 +216,60 @@ export function SkeletonGrid({ cards = 6 }) {
 }
 
 /** One bento library card: media, source line, title, excerpt lines. */
-export function SkeletonLibraryCard({ tall = false } = {}) {
+export function SkeletonLibraryCard({ tall = false, variant = 'dither' } = {}) {
   return (
     <div className={`skel-lib-card ${tall ? 'sm:row-span-2' : ''}`} aria-hidden="true">
       <div
         className="skel-lib-media"
-        style={tall ? { aspectRatio: '9 / 14', maxHeight: 380 } : { aspectRatio: '16 / 10' }}
-      />
+        style={tall ? { aspectRatio: '9 / 14', maxHeight: 380, overflow: 'hidden' } : { aspectRatio: '16 / 10', overflow: 'hidden' }}
+      >
+        <AsciiSkeleton variant={variant} width="100%" height="100%" rows={tall ? 16 : 9} />
+      </div>
       <div className="skel-lib-body">
-        <div className="skel-lib-source">
-          <Skeleton w={14} h={14} r={4} />
-          <Skeleton w={76} h={10} r={3} />
+        <div className="skel-lib-source" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Skeleton w={14} h={14} r={4} variant={variant} />
+          <Skeleton w={76} h={10} r={3} variant={variant} />
         </div>
-        <Skeleton w="88%" h={14} r={4} />
-        <Skeleton w="100%" h={11} r={3} />
-        <Skeleton w="72%" h={11} r={3} />
+        <AsciiSkeleton variant={variant} lines={3} widths={['88%', '100%', '72%']} />
       </div>
       <div className="skel-lib-foot">
-        <Skeleton w={64} h={11} r={3} />
+        <Skeleton w={64} h={11} r={3} variant={variant} />
       </div>
     </div>
   )
 }
 
 /** The bento column layout the library grid is made of. */
-export function SkeletonLibraryGrid({ cards = 9 }) {
+export function SkeletonLibraryGrid({ cards = 9, variant = 'dither' }) {
   return (
     <div className="skel-lib-grid lib-bento-grid" aria-hidden="true">
       {Array.from({ length: cards }, (_, i) => (
-        <SkeletonLibraryCard key={i} tall={i % 3 === 1} />
+        <SkeletonLibraryCard key={i} tall={i % 3 === 1} variant={variant} />
       ))}
     </div>
   )
 }
 
 /** A whole view's worth: the header, then its body. */
-export function SkeletonView({ rows = 5, aside = false }) {
+export function SkeletonView({ rows = 5, aside = false, variant = 'dither' }) {
   return (
     <div className="view">
       <div className={`view-inner${aside ? ' view-inner--wide' : ''}`}>
         <header className="vheader">
           <div className="skel-stack" style={{ gap: 10 }}>
-            <Skeleton w={132} h={20} r={7} />
-            <Skeleton w={320} h={10} />
+            <Skeleton w={132} h={20} r={7} variant={variant} />
+            <Skeleton w={320} h={10} variant={variant} />
           </div>
         </header>
         {aside ? (
           <div className="task-layout">
             <nav className="skel-rail" aria-hidden="true">
-              {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} w="100%" h={30} r={9} />)}
+              {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} w="100%" h={30} r={9} variant={variant} />)}
             </nav>
-            <section><SkeletonCard rows={rows} /></section>
+            <section><SkeletonCard rows={rows} variant={variant} /></section>
           </div>
         ) : (
-          <SkeletonCard rows={rows} />
+          <SkeletonCard rows={rows} variant={variant} />
         )}
       </div>
     </div>
