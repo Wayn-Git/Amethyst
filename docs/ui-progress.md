@@ -5,15 +5,17 @@ Branch: ui-redesign. Shipped inventory: 80 widgets. Updated 2026-10-27.
 - [x] Phase 0: reference atlas with measurements and explicit assumptions.
 - [x] Phase 1: all 80 manifest IDs mapped; inventory/snapshot/registry check passes.
 - [x] Phase 2: shared controls and field patterns; native validation/submission retained.
-- [ ] Phase 3: final per-group captures and verification receipts below.
+- [x] Phase 3: all ten groups captured and verified; receipts below.
 - [x] Phase 4: Home, Library, Coding Agents, Skills, Connectors and Settings reviewed with isolated empty fixtures.
-- [ ] Phase 5: final all-state contrast, responsiveness and production-exclusion checks in progress.
+- [x] Phase 5: fixture sweep, app-wide control lint and production build/exclusion checks complete; limits below.
 
 Implementation is applied to all 80 shipped widgets. Final checks cover all manifest sizes, six states, nine themes, 360–2560 px, keyboard controls, reduced motion, draft approval/rejection, pin sandboxing and Home drag/resize/undo. The product-wide JSX raw-control rule is now an error; primitive implementations remain exempt. A syntax audit verified all props and native submit defaults for 1,187 migrated controls across 136 product files. No navigation routes or backend contracts were changed.
 
 Common implementation commits: 6f8e400 (atlas/map), 08d0609 (controls/gallery), cc22029 (widget adoption, combined by the concurrent workflow), 7859870 (product control enforcement). Existing concurrent commits are preserved; group-specific commits below record completion evidence rather than rewriting that history.
 
-Remaining verification: finish captures and expanded contrast sweep, update group receipts, final build/exclusion check. Known fidelity and validation limits are in ui-open-questions.md. No live account/OAuth or hardware profiling is claimed.
+Final proof: all 80 IDs and 169 manifest sizes; six states; all nine themes; widths 360, 390, 768, 1024, 1440 and 2560. All ten reference captures pass in Paper/Graphite at 1440/390. The computed-text AA audit passes across all six states and nine themes. Home interactions, reference actions, primitives, pin sandbox checks, foundation controls, product-page review and Library static-render tests pass. Production build passes and emitted JavaScript contains no gallery route, sample fixture copy or mock transport strings. App-wide lint has no errors; existing warnings remain.
+
+No further implementation is queued. Exact collage geometry, zero layout shift for arbitrary live text, live account/OAuth, native menu rendering and hardware profiling are not claimed; see ui-open-questions.md. These limits remain explicit rather than marking unshipped features or backend integrations done. Contact sheets and machine-readable reports are local, gitignored files in ui-review/.
 
 ## Group completion receipts
 

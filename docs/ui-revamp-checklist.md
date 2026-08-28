@@ -10,7 +10,7 @@
 - [x] IconBadge, Initials, SplitTile, Skeleton, EmptyState, ConnectTile, ErrorState, Toast.
 - [x] Button, IconButton, Input, Select, Checkbox, Switch, Segmented, Menu, Tooltip, Kbd.
 - [x] Dev-only /dev/ui with labelled samples, tones/sizes, interactive and disabled/loading states.
-- [x] Raw native-control lint warnings.
+- [x] Raw native-control lint errors outside primitive implementations.
 - [x] Text design-system specification.
 
 ## Session 2 Home structure
@@ -37,22 +37,22 @@
 ## Later sessions — existing implementations require target review
 
 - [x] Home header/date/greeting/capture; existing navigation integration.
-- [ ] Glance strip; Needs you; Agent activity; Today; Dev; Library; Feed sections.
+- [x] Glance strip; Needs you; Agent activity; Today; Dev; Library; Feed sections.
 - [x] Home grid adoption, edit/drag/resize/collapse, persistence/undo.
 - [x] Add widget drawer: distinct icons, descriptions, categories, search, Add/Added.
 - [x] Home settings drawer: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
-- [ ] Show all/detail drawer; widget settings; source connection panels.
+- [x] Show all/detail drawer; widget settings; source connection panels.
 - [ ] Command palette; confirmation dialogs; menus; tooltips; global toast host.
-- [ ] All forms/buttons adopt foundation controls; verify keyboard and loading states.
+- [x] All forms/buttons adopt foundation controls; verify keyboard and loading states.
 - [x] Air quality structured display; sunrise/sunset honest numbers; travel form.
-- [ ] Stale chips; source note once; lighter widget chrome; violet primary buttons.
-- [ ] Real-number-only data visuals; no decorative/fake charts.
-- [ ] Mobile reading order, no nested scrolling, bounded previews, refresh stability.
+- [x] Stale chips; source note once; lighter widget chrome; violet primary buttons.
+- [x] Real-number-only data visuals; no decorative/fake charts.
+- [x] Mobile reading order, no nested scrolling, bounded previews, refresh stability.
 - [ ] Hardware frame-time profiling.
 
 ## Widget ownership
 
-Pilot widget visuals are checked below; remaining IDs still await adoption of `docs/ui-widget-patterns.md`.
+All 80 shipped widget visuals are verified below; unshipped IDs remain outside this UI-only scope.
 
 - [x] `agent.audit` — reference adoption verified; ui-review/agent-contact-sheet.png.
 - [x] `agent.brief` — reference adoption verified; ui-review/agent-contact-sheet.png.
@@ -216,3 +216,15 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [x] Supported compact defaults, wide sunrise/sunset presentation, optional Fit widgets with preserved order and Undo.
 - [x] Glance and integrated Home checks; served production browser proof across nine themes, mobile and reduced motion; no screenshots.
 - [ ] Live OS geolocation and live connector requests were not exercised; tests use fixtures.
+
+
+## 2026-10-27 reference sweep
+
+- [x] All 80 shipped IDs, all manifest sizes and six states captured in the dev-only gallery.
+- [x] Ten group contact sheets and Paper/Graphite desktop/mobile comparisons.
+- [x] Nine themes × six widths; no fixture page/tile overflow or internal scroll; reduced motion.
+- [x] Visible fixture text AA contrast in every state and theme; inherited dark/accent text fixed.
+- [x] Product-wide primitives, native submission preserved, raw-control lint errors.
+- [x] Production build and fixture/transport exclusion.
+- [ ] Pixel-identical collage geometry and zero shift for arbitrary live payloads: desktop translation and variable content growth remain documented in ui-open-questions.md.
+- [ ] Live connectors, OAuth, OS controls and hardware frame profiling: not exercised.
