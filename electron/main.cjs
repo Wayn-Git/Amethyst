@@ -4,7 +4,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 
-const PORT = parseInt(process.env.AMETHYST_PORT || '8000', 10);
+let activePort = parseInt(process.env.AMETHYST_PORT || '8000', 10);
 const IS_DEV = process.env.ELECTRON_DEV === '1' || !app.isPackaged;
 
 let mainWindow = null;
@@ -30,12 +30,31 @@ if (!gotTheLock) {
   });
 }
 
-function probeApiPing() {
+function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const net = require('net');
+    const server = net.createServer();
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+    server.once('listening', () => {
+      server.close();
+      resolve(false);
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+function probeApiPing(port = activePort) {
   return new Promise((resolve) => {
     const req = http.get(
       {
         host: '127.0.0.1',
-        port: PORT,
+        port: port,
         path: '/api/ping',
         timeout: 1000,
       },
@@ -64,6 +83,30 @@ function probeApiPing() {
   });
 }
 
+async function findAvailablePort(startPort = 8000) {
+  let port = startPort;
+  while (port < startPort + 50) {
+    const inUse = await isPortInUse(port);
+    if (!inUse) return port;
+    port++;
+  }
+  return startPort;
+}
+
+function getBackendCwd() {
+  if (app.isPackaged) {
+    const userData = app.getPath('userData');
+    const fs = require('fs');
+    if (!fs.existsSync(userData)) {
+      try {
+        fs.mkdirSync(userData, { recursive: true });
+      } catch {}
+    }
+    return userData;
+  }
+  return path.join(__dirname, '..');
+}
+
 function resolveBackendExecutable() {
   if (app.isPackaged) {
     const binaryName = process.platform === 'win32' ? 'amethyst-backend.exe' : 'amethyst-backend';
@@ -75,24 +118,34 @@ function resolveBackendExecutable() {
   return pythonBin;
 }
 
-function spawnBackend() {
+function spawnBackend(port = activePort) {
   const execPath = resolveBackendExecutable();
-  console.log('[Amethyst Supervisor] Spawning backend using:', execPath);
+  console.log('[Amethyst Supervisor] Spawning backend using:', execPath, 'on port', port);
+
+  // Ensure executable permissions on Linux / macOS for packaged binary
+  if (app.isPackaged && process.platform !== 'win32') {
+    try {
+      const fs = require('fs');
+      fs.chmodSync(execPath, 0o755);
+    } catch (e) {
+      console.warn('[Amethyst Supervisor] Could not chmod backend binary:', e);
+    }
+  }
 
   let args = [];
   if (!app.isPackaged) {
-    args = ['-m', 'backend.cli', 'serve', '--port', PORT.toString()];
+    args = ['-m', 'backend.cli', 'serve', '--port', port.toString()];
   } else {
-    args = ['serve', '--port', PORT.toString()];
+    args = ['serve', '--port', port.toString()];
   }
 
   try {
     backendProcess = spawn(execPath, args, {
-      cwd: path.join(__dirname, '..'),
+      cwd: getBackendCwd(),
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        AMETHYST_PORT: PORT.toString(),
+        AMETHYST_PORT: port.toString(),
         AMETHYST_HOST: '127.0.0.1',
         AMETHYST_DESKTOP: '1',
       },
@@ -202,7 +255,7 @@ function createMainWindow() {
     },
   });
 
-  const targetUrl = IS_DEV ? 'http://127.0.0.1:5173' : `http://127.0.0.1:${PORT}`;
+  const targetUrl = IS_DEV ? 'http://127.0.0.1:5173' : `http://127.0.0.1:${activePort}`;
   console.log('[Amethyst Supervisor] Loading Main Window:', targetUrl);
   mainWindow.loadURL(targetUrl);
 
@@ -313,15 +366,33 @@ async function bootSupervisor() {
   let attempts = 0;
   const maxAttempts = 60; // 30 seconds
 
-  // Check if backend already running
-  const alreadyUp = await probeApiPing();
-  if (!alreadyUp) {
-    spawnBackend();
+  // 1. Check if backend is already running on port 8000, 8001, or custom env port
+  const candidatePorts = [
+    parseInt(process.env.AMETHYST_PORT || '8000', 10),
+    8000,
+    8001,
+  ];
+  const uniqueCandidates = [...new Set(candidatePorts)];
+
+  let backendRunning = false;
+  for (const p of uniqueCandidates) {
+    if (await probeApiPing(p)) {
+      activePort = p;
+      backendRunning = true;
+      console.log(`[Amethyst Supervisor] Connected to existing backend on port ${activePort}`);
+      break;
+    }
+  }
+
+  // 2. If no backend is running, pick an available port and spawn
+  if (!backendRunning) {
+    activePort = await findAvailablePort(parseInt(process.env.AMETHYST_PORT || '8000', 10));
+    spawnBackend(activePort);
   }
 
   pingInterval = setInterval(async () => {
     attempts++;
-    const isUp = await probeApiPing();
+    const isUp = await probeApiPing(activePort);
     if (isUp) {
       clearInterval(pingInterval);
       pingInterval = null;
