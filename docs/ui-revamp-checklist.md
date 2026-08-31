@@ -54,22 +54,22 @@
 
 Pilot widget visuals are checked below; remaining IDs still await adoption of `docs/ui-widget-patterns.md`.
 
-- [ ] `agent.audit` — bento adoption pending.
-- [ ] `agent.brief` — bento adoption pending.
-- [ ] `agent.delegated` — bento adoption pending.
-- [ ] `agent.errors` — bento adoption pending.
-- [x] `agent.feed` — session 4 pilot; see ui-widget-patterns.md.
-- [ ] `agent.jobs` — bento adoption pending.
-- [ ] `agent.knows` — bento adoption pending.
-- [ ] `agent.next` — bento adoption pending.
+- [x] `agent.audit` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.brief` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.delegated` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.errors` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.feed` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.jobs` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.knows` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.next` — reference adoption verified; ui-review/agent-contact-sheet.png.
 - [ ] `agent.prompts` — bento adoption pending.
-- [ ] `agent.research` — bento adoption pending.
-- [ ] `agent.rules` — bento adoption pending.
-- [ ] `agent.running` — bento adoption pending.
-- [ ] `agent.skills` — bento adoption pending.
+- [x] `agent.research` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.rules` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.running` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.skills` — reference adoption verified; ui-review/agent-contact-sheet.png.
 - [ ] `agent.suggest` — bento adoption pending.
-- [ ] `agent.usage` — bento adoption pending.
-- [ ] `agent.watchers` — bento adoption pending.
+- [x] `agent.usage` — reference adoption verified; ui-review/agent-contact-sheet.png.
+- [x] `agent.watchers` — reference adoption verified; ui-review/agent-contact-sheet.png.
 - [ ] `agent.weekly` — bento adoption pending.
 - [x] `comm.contacts` — reference adoption verified; ui-review/communication-contact-sheet.png.
 - [ ] `comm.meeting` — no shipped widget/provider; requires separate feature scope.
