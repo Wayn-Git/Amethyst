@@ -154,7 +154,7 @@ export default function ImageResizerTool() {
           }}
           onClick={() => fileInputRef.current?.click()}
         >
-          <div className="fc-dropzone-core py-14">
+          <div className="fc-dropzone-core">
             <input
               ref={fileInputRef}
               type="file"
@@ -167,16 +167,36 @@ export default function ImageResizerTool() {
                 }
               }}
             />
-            <div className="fc-drop-icon-box">
+            <div className="fc-drop-featured-icon">
               <Icon name="image" size={26} />
             </div>
-            <div className="fc-drop-prompt">
-              <span className="fc-drop-main-text">
-                Drop your image here, or <span>browse from computer</span>
-              </span>
-              <span className="fc-drop-sub-text">
-                Supports JPG, PNG, WebP, AVIF, GIF, TIFF, BMP · Private & 100% local processing
-              </span>
+            <div className="fc-drop-prompt-group">
+              <h2 className="fc-drop-heading">
+                {isDragging ? 'Release to resize image' : 'Drop your image here, or click to browse'}
+              </h2>
+              <p className="fc-drop-subtext">
+                Lossless resizing, format transcoding, and WebP compression · 100% on-device
+              </p>
+            </div>
+            <div className="fc-drop-format-tags">
+              {['JPG', 'PNG', 'WEBP', 'AVIF', 'GIF', 'TIFF', 'BMP'].map((fmt) => (
+                <span key={fmt} className="fc-format-tag-pill">.{fmt}</span>
+              ))}
+            </div>
+            <div className="fc-drop-action-row">
+              <button
+                type="button"
+                className="fc-btn fc-btn-primary fc-btn-pill"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  fileInputRef.current?.click()
+                }}
+              >
+                <span>Select Image</span>
+                <span className="fc-btn-icon-bubble">
+                  <Icon name="arrow-right" size={13} />
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -184,7 +204,7 @@ export default function ImageResizerTool() {
         <div className="fc-tool-grid">
           {/* Left Panel: Resizing and Quality Controls */}
           <div className="fc-tool-panel">
-            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--fc-border)]">
               <div className="fc-panel-title">Resizer & Compressor Settings</div>
               <button
                 type="button"
@@ -202,7 +222,7 @@ export default function ImageResizerTool() {
 
             {/* Resize Mode Selector */}
             <div className="flex flex-col gap-2 mt-4">
-              <label className="text-xs font-semibold text-slate-300">Resize By</label>
+              <label className="text-xs font-semibold text-[var(--fc-text)]">Resize By</label>
               <div className="fc-mode-tabs">
                 {[
                   { id: 'dimensions', label: 'Dimensions (px)' },
@@ -226,7 +246,7 @@ export default function ImageResizerTool() {
               <div className="flex flex-col gap-3 mt-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-slate-300">Width (px)</label>
+                    <label className="text-xs font-medium text-[var(--fc-text-dim)]">Width (px)</label>
                     <input
                       type="number"
                       min="1"
@@ -236,7 +256,7 @@ export default function ImageResizerTool() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-slate-300">Height (px)</label>
+                    <label className="text-xs font-medium text-[var(--fc-text-dim)]">Height (px)</label>
                     <input
                       type="number"
                       min="1"
@@ -247,12 +267,12 @@ export default function ImageResizerTool() {
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 mt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-[var(--fc-text)] mt-1">
                   <input
                     type="checkbox"
                     checked={lockAspectRatio}
                     onChange={(e) => setLockAspectRatio(e.target.checked)}
-                    className="rounded accent-[var(--accent)]"
+                    className="rounded accent-[var(--fc-accent)]"
                   />
                   <span>Lock Aspect Ratio ({origDimensions.width}×{origDimensions.height})</span>
                 </label>
@@ -262,9 +282,9 @@ export default function ImageResizerTool() {
             {/* Mode: Percentage */}
             {mode === 'percentage' && (
               <div className="flex flex-col gap-3 mt-4">
-                <div className="flex items-center justify-between text-xs text-slate-300">
+                <div className="flex items-center justify-between text-xs text-[var(--fc-text)]">
                   <span>Scale Percentage</span>
-                  <span className="font-mono font-semibold text-[var(--accent)]">{percentage}%</span>
+                  <span className="font-mono font-semibold text-[var(--fc-accent)]">{percentage}%</span>
                 </div>
                 <input
                   type="range"
@@ -282,8 +302,8 @@ export default function ImageResizerTool() {
                       type="button"
                       className={`px-2.5 py-1 text-xs rounded-md border font-mono transition ${
                         percentage === pct
-                          ? 'bg-[var(--accent)] border-[var(--accent-line)] text-white'
-                          : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                          ? 'bg-[var(--fc-accent)] border-[var(--fc-accent-line)] text-white'
+                          : 'bg-[var(--fc-surface-2)] border-[var(--fc-border)] text-[var(--fc-text)] hover:bg-[var(--fc-surface-3)]'
                       }`}
                       onClick={() => setPercentage(pct)}
                     >
@@ -297,7 +317,7 @@ export default function ImageResizerTool() {
             {/* Mode: Presets */}
             {mode === 'preset' && (
               <div className="flex flex-col gap-2 mt-4">
-                <label className="text-xs font-medium text-slate-300">Standard Sizes</label>
+                <label className="text-xs font-medium text-[var(--fc-text-dim)]">Standard Sizes</label>
                 <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
                   {PRESETS.map((p) => (
                     <button
@@ -305,8 +325,8 @@ export default function ImageResizerTool() {
                       type="button"
                       className={`text-left p-2 rounded-lg text-xs border transition ${
                         width === p.width && height === p.height
-                          ? 'bg-[var(--accent-wash)] border-[var(--accent-soft)] text-[var(--accent)]'
-                          : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'
+                          ? 'bg-[var(--fc-accent-wash)] border-[var(--fc-accent-soft)] text-[var(--fc-accent)]'
+                          : 'bg-[var(--fc-surface-2)] border-[var(--fc-border)] text-[var(--fc-text)] hover:bg-[var(--fc-surface-3)]'
                       }`}
                       onClick={() => applyPreset(p)}
                     >
@@ -318,10 +338,10 @@ export default function ImageResizerTool() {
             )}
 
             {/* Quality & Output Format */}
-            <div className="flex flex-col gap-3 mt-5 pt-4 border-t border-white/5">
+            <div className="flex flex-col gap-3 mt-5 pt-4 border-t border-[var(--fc-border)]">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-slate-300">Output Format</label>
+                  <label className="text-xs font-medium text-[var(--fc-text-dim)]">Output Format</label>
                   <select
                     className="fc-select font-mono uppercase"
                     value={targetFormat}
@@ -337,9 +357,9 @@ export default function ImageResizerTool() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-xs font-medium text-slate-300">
+                  <div className="flex items-center justify-between text-xs font-medium text-[var(--fc-text)]">
                     <span>Quality</span>
-                    <span className="font-mono text-[var(--accent)]">{quality}%</span>
+                    <span className="font-mono text-[var(--fc-accent)]">{quality}%</span>
                   </div>
                   <input
                     type="range"
@@ -355,7 +375,7 @@ export default function ImageResizerTool() {
               {/* Rotation & Grayscale */}
               <div className="grid grid-cols-2 gap-3 mt-1">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-slate-300">Rotation</label>
+                  <label className="text-xs font-medium text-[var(--fc-text-dim)]">Rotation</label>
                   <select
                     className="fc-select"
                     value={rotateAngle}
@@ -369,12 +389,12 @@ export default function ImageResizerTool() {
                 </div>
 
                 <div className="flex items-end pb-1.5">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-[var(--fc-text)]">
                     <input
                       type="checkbox"
                       checked={grayscale}
                       onChange={(e) => setGrayscale(e.target.checked)}
-                      className="rounded accent-[var(--accent)]"
+                      className="rounded accent-[var(--fc-accent)]"
                     />
                     <span>Convert to Grayscale</span>
                   </label>
@@ -398,7 +418,7 @@ export default function ImageResizerTool() {
           <div className="fc-tool-panel flex flex-col justify-between">
             <div>
               <div className="fc-panel-title mb-3">Image Preview</div>
-              <div className="p-3 rounded-xl bg-black/30 border border-white/5 flex flex-col items-center justify-center min-h-[260px] overflow-hidden">
+              <div className="p-3 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] flex flex-col items-center justify-center min-h-[260px] overflow-hidden">
                 {filePreview && (
                   <img
                     src={filePreview}
@@ -408,8 +428,8 @@ export default function ImageResizerTool() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between text-xs text-slate-400 mt-3 px-1">
-                <span>{file.name}</span>
+              <div className="flex items-center justify-between text-xs text-[var(--fc-text-faint)] mt-3 px-1">
+                <span className="font-semibold text-[var(--fc-text)]">{file.name}</span>
                 <span className="font-mono">
                   {origDimensions.width}×{origDimensions.height} px · {formatBytes(file.size)}
                 </span>
@@ -433,12 +453,12 @@ export default function ImageResizerTool() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-slate-300">
+                <div className="flex items-center justify-between text-xs text-[var(--fc-text)]">
                   <span>New file size:</span>
                   <div className="flex items-center gap-2 font-mono">
                     <span className="font-semibold text-emerald-400">{formatBytes(result.size)}</span>
                     {file.size > 0 && (
-                      <span className="text-slate-400">
+                      <span className="text-[var(--fc-text-dim)]">
                         ({Math.round(((result.size - file.size) / file.size) * 100)}%)
                       </span>
                     )}

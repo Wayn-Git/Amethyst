@@ -82,10 +82,10 @@ export default function TimeZoneTool() {
   return (
     <div className="fc-tool-workspace">
       {/* Top Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-slate-900/60 border border-slate-800 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] shadow-sm mb-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Date & Time</span>
+            <span className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">Date & Time</span>
             <input
               type="datetime-local"
               className="fc-input font-mono w-60"
@@ -95,7 +95,7 @@ export default function TimeZoneTool() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Base Timezone</span>
+            <span className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">Base Timezone</span>
             <select
               className="fc-select w-64"
               value={baseZone}
@@ -131,26 +131,26 @@ export default function TimeZoneTool() {
               key={zone.id}
               className={`p-4 rounded-xl border transition flex flex-col justify-between gap-2 ${
                 isBase
-                  ? 'bg-[var(--accent-wash)] border-[var(--accent-soft)] shadow-sm'
-                  : 'bg-slate-900/40 border-slate-800/80 hover:bg-slate-800/40'
+                  ? 'bg-[var(--fc-accent-wash)] border-[var(--fc-accent-soft)] shadow-sm'
+                  : 'bg-[var(--fc-surface)] border-[var(--fc-border)] hover:bg-[var(--fc-surface-hover)] shadow-xs'
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="font-semibold text-white text-base flex items-center gap-1.5">
+                  <div className="font-semibold text-[var(--fc-text)] text-base flex items-center gap-1.5">
                     <span>{zone.city}</span>
                     {isBase && (
-                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-[var(--accent-wash)] text-[var(--accent)] border border-[var(--accent-soft)]">
+                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-[var(--fc-accent-wash)] text-[var(--fc-accent)] border border-[var(--fc-accent-soft)]">
                         Base
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-slate-400">{zone.region}</div>
+                  <div className="text-xs text-[var(--fc-text-dim)]">{zone.region}</div>
                 </div>
 
                 <span
                   className={`p-1.5 rounded-lg text-sm ${
-                    isDay ? 'bg-amber-500/10 text-amber-400' : 'bg-indigo-500/10 text-indigo-400'
+                    isDay ? 'bg-amber-500/15 text-amber-500' : 'bg-indigo-500/15 text-indigo-400'
                   }`}
                   title={isDay ? 'Daytime' : 'Nighttime'}
                 >
@@ -159,10 +159,10 @@ export default function TimeZoneTool() {
               </div>
 
               <div className="mt-2">
-                <div className="text-2xl font-bold font-mono text-white tracking-tight">
+                <div className="text-2xl font-bold font-mono text-[var(--fc-text)] tracking-tight">
                   {timeStr}
                 </div>
-                <div className="text-xs text-slate-400 mt-0.5">{dateStr}</div>
+                <div className="text-xs text-[var(--fc-text-dim)] mt-0.5">{dateStr}</div>
               </div>
             </div>
           )

@@ -105,7 +105,7 @@ export default function OcrTool() {
               className="fc-dropzone-shell cursor-pointer mb-4"
               onClick={() => fileInputRef.current?.click()}
             >
-              <div className="fc-dropzone-core py-10">
+              <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -118,19 +118,23 @@ export default function OcrTool() {
                     }
                   }}
                 />
-                <Icon name="type" size={28} className="text-[var(--accent)]" />
-                <span className="text-sm font-semibold text-white">
-                  {file ? file.name : 'Upload Image or Document'}
-                </span>
-                <span className="text-xs text-slate-400">
-                  PDF, DOCX, XLSX, PNG, JPG up to 500 MB
-                </span>
+                <div className="fc-drop-featured-icon">
+                  <Icon name="type" size={24} />
+                </div>
+                <div className="flex flex-col items-center text-center gap-1">
+                  <span className="text-sm font-semibold text-[var(--fc-text)]">
+                    {file ? file.name : 'Upload or drop document / image'}
+                  </span>
+                  <span className="text-xs text-[var(--fc-text-faint)]">
+                    PDF, DOCX, XLSX, PNG, JPG up to 500 MB · On-device OCR
+                  </span>
+                </div>
               </div>
             </div>
 
             {file && (
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 text-xs mb-4">
-                <span className="truncate max-w-[220px] font-semibold text-white">{file.name}</span>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-xs mb-4">
+                <span className="truncate max-w-[220px] font-semibold text-[var(--fc-text)]">{file.name}</span>
                 <button
                   type="button"
                   className="fc-btn fc-btn-danger-ghost text-xs"
@@ -146,7 +150,7 @@ export default function OcrTool() {
             )}
 
             {filePreview && (
-              <div className="p-2 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center max-h-48 overflow-hidden">
+              <div className="p-2 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] flex items-center justify-center max-h-48 overflow-hidden">
                 <img src={filePreview} alt="Preview" className="max-h-44 object-contain rounded" />
               </div>
             )}
@@ -166,7 +170,7 @@ export default function OcrTool() {
         {/* Right Panel: Extracted Output */}
         <div className="fc-tool-panel flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--fc-border)]">
               <div className="fc-panel-title">Extracted Text</div>
               {extractedText && (
                 <div className="flex items-center gap-2">
@@ -191,7 +195,7 @@ export default function OcrTool() {
             </div>
 
             {/* Metrics Row */}
-            <div className="flex items-center gap-4 py-2.5 text-xs text-slate-400 font-mono border-b border-white/5 mb-3">
+            <div className="flex items-center gap-4 py-2.5 text-xs text-[var(--fc-text-dim)] font-mono border-b border-[var(--fc-border)] mb-3">
               <span>{wordCount} words</span>
               <span>·</span>
               <span>{charCount} characters</span>
@@ -203,7 +207,7 @@ export default function OcrTool() {
             <div className="relative">
               {loading && (
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center rounded-xl z-10">
-                  <div className="flex items-center gap-2 text-[var(--accent)] text-sm font-semibold">
+                  <div className="flex items-center gap-2 text-[var(--fc-accent)] text-sm font-semibold">
                     <span className="fc-local-dot animate-ping" />
                     <span>Extracting readable text…</span>
                   </div>
@@ -212,7 +216,7 @@ export default function OcrTool() {
               <textarea
                 readOnly
                 rows={14}
-                className="fc-textarea font-mono text-xs leading-relaxed w-full bg-black/30"
+                className="fc-textarea font-mono text-xs leading-relaxed w-full"
                 placeholder="Extracted document or image text will appear here automatically…"
                 value={extractedText}
               />

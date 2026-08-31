@@ -189,7 +189,7 @@ export default function VideoToolsTool() {
               className="fc-dropzone-shell cursor-pointer mb-4"
               onClick={() => fileInputRef.current?.click()}
             >
-              <div className="fc-dropzone-core py-10">
+              <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -202,22 +202,26 @@ export default function VideoToolsTool() {
                     }
                   }}
                 />
-                <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={28} className="text-[var(--accent)]" />
-                <span className="text-sm font-semibold text-white">
-                  {activeTab === 'audio-converter' ? 'Choose Audio File' : 'Choose Video or Audio File'}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {activeTab === 'audio-converter' ? 'MP3, WAV, AAC, FLAC, OGG' : 'MP4, WebM, MKV, MOV, AVI up to 500 MB'}
-                </span>
+                <div className="fc-drop-featured-icon">
+                  <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={24} />
+                </div>
+                <div className="flex flex-col items-center text-center gap-1">
+                  <span className="text-sm font-semibold text-[var(--fc-text)]">
+                    {activeTab === 'audio-converter' ? 'Choose or drop audio file' : 'Choose or drop media file'}
+                  </span>
+                  <span className="text-xs text-[var(--fc-text-faint)]">
+                    {activeTab === 'audio-converter' ? 'MP3, WAV, AAC, FLAC, OGG' : 'MP4, WebM, MKV, MOV, AVI up to 500 MB'}
+                  </span>
+                </div>
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-xs">
                 <div className="flex items-center gap-2 truncate">
-                  <Icon name={file.type.startsWith('audio/') ? 'speaker' : 'video'} size={18} className="text-[var(--accent)]" />
-                  <span className="font-semibold text-white truncate max-w-[200px]">{file.name}</span>
-                  <span className="text-slate-400 font-mono">({formatBytes(file.size)})</span>
+                  <Icon name={file.type.startsWith('audio/') ? 'speaker' : 'video'} size={18} className="text-[var(--fc-accent)]" />
+                  <span className="font-semibold text-[var(--fc-text)] truncate max-w-[200px]">{file.name}</span>
+                  <span className="text-[var(--fc-text-dim)] font-mono">({formatBytes(file.size)})</span>
                 </div>
                 <button
                   type="button"
@@ -235,7 +239,7 @@ export default function VideoToolsTool() {
               {/* Form Options */}
               {activeTab === 'convert-video' && (
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Target Video Format</label>
+                  <label className="text-xs font-semibold text-[var(--fc-text)]">Target Video Format</label>
                   <select
                     className="fc-select font-mono uppercase"
                     value={targetVideoFmt}
@@ -252,7 +256,7 @@ export default function VideoToolsTool() {
 
               {activeTab === 'to-gif' && (
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Frame Rate (FPS)</label>
+                  <label className="text-xs font-semibold text-[var(--fc-text)]">Frame Rate (FPS)</label>
                   <select
                     className="fc-select font-mono"
                     value={gifFps}
@@ -268,7 +272,7 @@ export default function VideoToolsTool() {
               {activeTab === 'extract-audio' && (
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Audio Format</label>
+                    <label className="text-xs font-semibold text-[var(--fc-text)]">Audio Format</label>
                     <select
                       className="fc-select font-mono uppercase"
                       value={audioFmt}
@@ -293,7 +297,7 @@ export default function VideoToolsTool() {
               {activeTab === 'compress-video' && (
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Compression Preset</label>
+                    <label className="text-xs font-semibold text-[var(--fc-text)]">Compression Preset</label>
                     <select
                       className="fc-select font-mono"
                       value={compressLevel}
@@ -304,7 +308,7 @@ export default function VideoToolsTool() {
                       <option value="light">Light Compression (CRF 23 - Highest Quality)</option>
                     </select>
                   </div>
-                  <p className="text-[11px] text-slate-400 leading-normal">
+                  <p className="text-[11px] text-[var(--fc-text-faint)] leading-normal">
                     Re-encodes with H.264 CRF constant rate factor for maximum space savings.
                   </p>
                 </div>
@@ -312,7 +316,7 @@ export default function VideoToolsTool() {
 
               {activeTab === 'audio-converter' && (
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Convert Audio To</label>
+                  <label className="text-xs font-semibold text-[var(--fc-text)]">Convert Audio To</label>
                   <select
                     className="fc-select font-mono uppercase"
                     value={targetAudioFmt}
@@ -351,20 +355,20 @@ export default function VideoToolsTool() {
                 className="w-full max-h-56 rounded-xl bg-black object-contain shadow-md"
               />
             ) : thumbnailUrl ? (
-              <div className="relative rounded-xl overflow-hidden bg-black/40 border border-white/10 flex flex-col items-center">
+              <div className="relative rounded-xl overflow-hidden bg-[var(--fc-surface-2)] border border-[var(--fc-border)] flex flex-col items-center">
                 <img
                   src={thumbnailUrl}
                   alt="Video Frame Preview"
                   className="w-full max-h-56 object-contain"
                 />
-                <div className="absolute bottom-2 left-2 right-2 px-2.5 py-1 bg-black/75 backdrop-blur-xs rounded text-[11px] text-slate-300 flex items-center justify-between">
+                <div className="absolute bottom-2 left-2 right-2 px-2.5 py-1 bg-black/75 backdrop-blur-xs rounded text-[11px] text-white flex items-center justify-between">
                   <span>Frame preview</span>
-                  <span className="font-mono uppercase text-[10px] text-[var(--accent)] font-semibold">.{file?.name.split('.').pop()}</span>
+                  <span className="font-mono uppercase text-[10px] text-[var(--fc-accent)] font-semibold">.{file?.name.split('.').pop()}</span>
                 </div>
               </div>
             ) : (
-              <div className="p-8 rounded-xl bg-black/30 border border-white/5 flex flex-col items-center justify-center text-center text-slate-400 gap-2">
-                <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={36} className="text-[var(--accent)] opacity-60" />
+              <div className="p-8 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] flex flex-col items-center justify-center text-center text-[var(--fc-text-dim)] gap-2">
+                <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={36} className="text-[var(--fc-accent)] opacity-60" />
                 <span className="text-xs">Upload media to see live preview</span>
               </div>
             )}
@@ -386,7 +390,7 @@ export default function VideoToolsTool() {
                 <Icon name="check-circle" size={18} />
                 <span className="truncate">{result.filename}</span>
               </div>
-              <div className="text-xs text-slate-300 font-mono">
+              <div className="text-xs text-[var(--fc-text)] font-mono">
                 Size: {formatBytes(result.size)} · Completed in {(result.elapsed_ms / 1000).toFixed(2)}s
               </div>
               <a
