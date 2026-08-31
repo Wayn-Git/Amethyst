@@ -35,6 +35,11 @@ const NOTIFICATION_OPTIONS = [
   { value: 'off', label: 'Off' },
 ]
 
+const RESULTS_TO_OPTIONS = [
+  { value: 'new', label: 'A new thread each run' },
+  { value: 'dedicated', label: 'One dedicated results thread' },
+]
+
 function describeInterval(minutes) {
   const found = INTERVAL_PRESETS.find((e) => e.minutes === minutes)
   if (found) return found.label
@@ -130,6 +135,46 @@ function ActionsEditor({ actions, grantable, onChange }) {
   )
 }
 
+/** Where a run's report lands, and whether it remembers the previous run.
+    Shared by the new and edit modals so the wording cannot drift. `pinned` is
+    set when the destination is a conversation the automation was born in from
+    chat: shown, but not the page's to change. */
+function ResultsEditor({ rememberBefore, onRememberChange, resultsTo, onResultsToChange, pinned }) {
+  const value = pinned
+    ? resultsTo
+    : (RESULTS_TO_OPTIONS.some((o) => o.value === resultsTo) ? resultsTo : 'new')
+  return (
+    <div className="auto-modal-section">
+      <label className="auto-modal-label">Results</label>
+      <select
+        value={value}
+        onChange={(e) => onResultsToChange(e.target.value)}
+        className="auto-notification-select"
+        disabled={pinned}
+      >
+        {pinned ? (
+          <option value={resultsTo}>This conversation (from chat)</option>
+        ) : (
+          RESULTS_TO_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))
+        )}
+      </select>
+      <label className="auto-results-item">
+        <input
+          type="checkbox"
+          checked={rememberBefore}
+          onChange={(e) => onRememberChange(e.target.checked)}
+        />
+        <span className="auto-results-item-label">Remember the last run</span>
+        <span className="auto-results-item-hint">
+          The next run starts with the previous run's answer as background — it can pick up where things left off.
+        </span>
+      </label>
+    </div>
+  )
+}
+
 /** Modal for creating a new automation. Supports both blank creation
     and creation from a template. */
 export default function NewAutomationModal({ template, onClose, onCreated }) {
@@ -142,6 +187,8 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
   const [weeklyDay, setWeeklyDay] = useState(template?.weekly_day ?? 0)
   const [intervalMinutes, setIntervalMinutes] = useState(template?.every_minutes || 60)
   const [notification, setNotification] = useState(template?.notification || 'app')
+  const [rememberBefore, setRememberBefore] = useState(Boolean(template?.remember_before))
+  const [resultsTo, setResultsTo] = useState(template?.results_to || 'new')
   const [timezone, setTimezone] = useState(browserTimezone() || '')
   const [actions, setActions] = useState(template?.actions || [])
   const [grantable, setGrantable] = useState(null)
@@ -177,6 +224,8 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
         description: description.trim() || null,
         timezone: timezone || null,
         actions: actions.length > 0 ? actions : null,
+        remember_before: rememberBefore,
+        results_to: resultsTo,
       }
 
       if (scheduleType === 'interval') {
@@ -207,7 +256,7 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
     } finally {
       setBusy(false)
     }
-  }, [name, description, prompt, scheduleType, dailyTime, weeklyDay, intervalMinutes, notification, recipientEmail, timezone, actions, template, ready, toast, onCreated])
+  }, [name, description, prompt, scheduleType, dailyTime, weeklyDay, intervalMinutes, notification, rememberBefore, resultsTo, recipientEmail, timezone, actions, template, ready, toast, onCreated])
 
   return (
     <motion.div
@@ -332,6 +381,13 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
             onChange={setActions}
           />
 
+          <ResultsEditor
+            rememberBefore={rememberBefore}
+            onRememberChange={setRememberBefore}
+            resultsTo={resultsTo}
+            onResultsToChange={setResultsTo}
+          />
+
           <div className="auto-modal-section">
             <label className="auto-modal-label">Notification</label>
             <select
@@ -376,4 +432,4 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
   )
 }
 
-export { formatSchedule, describeInterval, INTERVAL_PRESETS, WEEKDAYS, NOTIFICATION_OPTIONS, ActionsEditor }
+export { formatSchedule, describeInterval, INTERVAL_PRESETS, WEEKDAYS, NOTIFICATION_OPTIONS, RESULTS_TO_OPTIONS, ActionsEditor, ResultsEditor }
