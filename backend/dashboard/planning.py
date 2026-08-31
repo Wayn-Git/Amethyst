@@ -151,6 +151,33 @@ async def provide(widget_id):
                         "detail": f"No free slot on deadline day: {row['due'].isoformat()}",
                     }
                 )
+    if widget_id == "task.risk":
+        for row in deadlines(now.tzinfo):
+            due = row["due"]
+            work = [task for task in pending if task["due"] and task["due"] <= due]
+            known = sum(max(0, task["duration_estimate_minutes"] or 0) for task in work)
+            unknown = row["id"].startswith("deadline:") or any(
+                not task["duration_estimate_minutes"] or task["duration_estimate_minutes"] <= 0
+                for task in work
+            )
+            capacity = sum(
+                max(0, (min(end, due) - start).total_seconds()) / 60
+                for start, end in slots
+                if start < due
+            )
+            risk = "high" if due < now or known > capacity else "unknown" if unknown else "fits"
+            items.append(
+                {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "risk": risk,
+                    "detail": (
+                        f"{risk}: {known:g} estimated task minutes due by "
+                        f"{due.isoformat()} / {capacity:g} free minutes"
+                        + ("; missing estimates" if unknown else "")
+                    ),
+                }
+            )
     if widget_id == "task.plan":
         today = [
             row

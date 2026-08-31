@@ -155,3 +155,25 @@ async def test_conflicts_overlap_touching_and_deadline_days(db, fixed):
     assert value["items"][0]["detail"] == "Overlapping events"
     assert value["items"][1]["detail"].startswith("No free slot on deadline day")
     assert calls[0]["time_max"] == "2026-11-03T00:00:00+05:30"
+
+
+async def test_risk_cumulative_capacity_unknown_and_overdue(db, fixed):
+    db.executemany(
+        "INSERT INTO tasks(title,due_at,duration_estimate_minutes) VALUES(?,?,?)",
+        [
+            ("fits", "2026-10-26T10:00:00+05:30", 60),
+            ("too much", "2026-10-26T11:00:00+05:30", 90),
+            ("unknown", "2026-10-27T17:00:00+05:30", None),
+        ],
+    )
+    db.commit()
+    rows = {row["title"]: row for row in (await planning.provide("task.risk"))["items"]}
+    assert rows["fits"]["risk"] == "fits"
+    assert rows["too much"]["risk"] == "high"
+    assert rows["unknown"]["risk"] == "unknown"
+    assert "150 estimated task minutes" in rows["too much"]["detail"]
+    db.execute("INSERT INTO tasks(title,due_at) VALUES('overdue','2026-10-25T17:00:00+05:30')")
+    db.commit()
+    rows = {row["title"]: row for row in (await planning.provide("task.risk"))["items"]}
+    assert rows["overdue"]["risk"] == "high"
+    assert rows["fits"]["risk"] == "unknown"

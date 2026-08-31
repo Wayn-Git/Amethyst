@@ -77,9 +77,6 @@ async def data(widget_id: str, background_tasks: BackgroundTasks):
 @router.post("/widgets/{widget_id}/refresh")
 async def refresh_widget(widget_id: str, background_tasks: BackgroundTasks):
     enabled(widget_id)
-    if widget_id in ("task.plan", "task.free", "task.conflicts"):
-        for dependent in ("task.plan", "task.free", "task.conflicts"):
-            cache_write(dependent, None, "loading")
     schedule(widget_id, background_tasks, force=True)
     return read_data(widget_id)
 
@@ -149,7 +146,7 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
             "comm.newsletters",
         ):
             value = MailSettings.model_validate(body).model_dump()
-        elif widget_id in ("task.plan", "task.free", "task.conflicts"):
+        elif widget_id in ("task.plan", "task.free", "task.conflicts", "task.risk"):
             from backend.dashboard.planning import PlanningSettings
 
             value = PlanningSettings.model_validate(body).model_dump()
@@ -169,13 +166,16 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
     except (ValueError, ZoneInfoNotFoundError) as exc:
         raise HTTPException(422, str(exc)) from exc
     settings_write(widget_id, value)
+    if widget_id in ("task.plan", "task.free", "task.conflicts", "task.risk"):
+        for dependent in ("task.plan", "task.free", "task.conflicts", "task.risk"):
+            cache_write(dependent, None, "loading")
     if widget_id == "task.agenda" and not value["enabled"]:
         cache_write(widget_id, None, "not-connected")
         cache_write("glance.next-event", None, "not-connected")
         from backend.agent.read_cache import read_cache
 
         read_cache.invalidate_domain("calendar")
-        for dependent in ("task.plan", "task.free", "task.conflicts"):
+        for dependent in ("task.plan", "task.free", "task.conflicts", "task.risk"):
             cache_write(dependent, None, "not-connected")
     if widget_id == "glance.weather":
         cache_write("glance.weather", None, "loading")

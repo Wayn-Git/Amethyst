@@ -102,7 +102,7 @@ async def local_provider(widget_id):
         from backend.dashboard.agenda import next_event
 
         return await next_event()
-    if widget_id in ("task.plan", "task.free", "task.conflicts"):
+    if widget_id in ("task.plan", "task.free", "task.conflicts", "task.risk"):
         from backend.dashboard.planning import provide
 
         return await provide(widget_id)
@@ -221,7 +221,7 @@ async def refresh(widget_id):
         cache_write(widget_id, None, "not-connected")
     except Exception:
         if (
-            widget_id in ("task.agenda", "task.plan", "task.free", "task.conflicts")
+            widget_id in ("task.agenda", "task.plan", "task.free", "task.conflicts", "task.risk")
             and not access_enabled()
         ):
             cache_write(widget_id, None, "not-connected")
