@@ -90,18 +90,18 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `dash.skill-widgets` — bento adoption pending.
 - [ ] `dash.sync` — bento adoption pending.
 - [ ] `dash.theme-mode` — bento adoption pending.
-- [ ] `dev.appeal` — bento adoption pending.
-- [ ] `dev.backup` — bento adoption pending.
-- [ ] `dev.ci` — bento adoption pending.
-- [ ] `dev.issues` — bento adoption pending.
-- [x] `dev.prs` — session 4 pilot; see ui-widget-patterns.md.
-- [ ] `dev.recovery` — bento adoption pending.
+- [x] `dev.appeal` — reference adoption verified; ui-review/developer-contact-sheet.png.
+- [x] `dev.backup` — reference adoption verified; ui-review/developer-contact-sheet.png.
+- [x] `dev.ci` — reference adoption verified; ui-review/developer-contact-sheet.png.
+- [x] `dev.issues` — reference adoption verified; ui-review/developer-contact-sheet.png.
+- [x] `dev.prs` — reference adoption verified; ui-review/developer-contact-sheet.png.
+- [x] `dev.recovery` — reference adoption verified; ui-review/developer-contact-sheet.png.
 - [ ] `dev.release` — bento adoption pending.
 - [ ] `dev.security` — bento adoption pending.
 - [ ] `dev.services` — bento adoption pending.
 - [ ] `dev.streak` — bento adoption pending.
 - [ ] `dev.team` — bento adoption pending.
-- [ ] `dev.unpushed` — bento adoption pending.
+- [x] `dev.unpushed` — reference adoption verified; ui-review/developer-contact-sheet.png.
 - [ ] `feed.arxiv` — bento adoption pending.
 - [ ] `feed.events` — bento adoption pending.
 - [ ] `feed.markets` — bento adoption pending.
