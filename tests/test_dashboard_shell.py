@@ -97,6 +97,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "task.agenda",
         "task.plan",
         "task.free",
+        "task.conflicts",
         "glance.next-event",
         "task.today",
         "task.backlog",

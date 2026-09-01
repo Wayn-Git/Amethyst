@@ -113,3 +113,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 
 - 2026-10-25 task.plan: deterministic, estimate-based proposals in user-set working hours; read-only Composio calendar/shared cache, fixed-clock and functional UI tests. No model needed.
 - 2026-10-25 task.free: saved working days/hours/timezone, merged busy intervals and all-day blocking, transparent-event exclusion, shared calendar cache and dependent-data deletion; fixed-clock tests pass.
+- 2026-10-25 task.conflicts: overlapping busy events and deadline days without free slots, user timezone and deadline-horizon calendar reads; fixed-clock mocked Composio tests pass.

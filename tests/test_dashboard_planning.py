@@ -129,3 +129,29 @@ async def test_free_requires_settings_and_calendar_access(db, fixed):
     settings_write("task.agenda", {"enabled": False})
     with pytest.raises(SourceUnavailable):
         await planning.provide("task.free")
+
+
+async def test_conflicts_overlap_touching_and_deadline_days(db, fixed):
+    payload, calls, _ = fixed
+    payload["items"] = [
+        {
+            "id": key,
+            "summary": key,
+            "start": {"dateTime": f"2026-10-26T{start}:00+05:30"},
+            "end": {"dateTime": f"2026-10-26T{end}:00+05:30"},
+        }
+        for key, start, end in [
+            ("a", "10:00", "12:00"),
+            ("b", "11:00", "13:00"),
+            ("touch", "13:00", "14:00"),
+        ]
+    ] + [{"id": "day", "start": {"date": "2026-11-02"}, "end": {"date": "2026-11-03"}}]
+    db.execute(
+        "INSERT INTO deadlines(title,due_at) VALUES('Due fixture','2026-11-02T17:00:00+05:30')"
+    )
+    db.commit()
+    value = await planning.provide("task.conflicts")
+    assert len(value["items"]) == 2
+    assert value["items"][0]["detail"] == "Overlapping events"
+    assert value["items"][1]["detail"].startswith("No free slot on deadline day")
+    assert calls[0]["time_max"] == "2026-11-03T00:00:00+05:30"

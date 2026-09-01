@@ -44,7 +44,16 @@ async def context(widget_id):
     settings = PlanningSettings.model_validate(settings)
     zone = ZoneInfo(settings.timezone)
     now = clock(zone)
-    calendar = await agenda.provide(widget_id, now=now)
+    end = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + timedelta(days=7)
+    if widget_id in ("task.conflicts", "task.risk"):
+        for row in deadlines(zone):
+            end = max(
+                end,
+                (row["due"] + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0),
+            )
+    calendar = await agenda.provide(widget_id, now=now, range_end=end)
     # Incomplete calendars must never be presented as free capacity.
     if calendar["limited"]:
         raise ValueError("Calendar is incomplete")
@@ -54,7 +63,6 @@ async def context(widget_id):
         if not event.get("transparent")
     ]
     slots = []
-    end = date_time(calendar["week_start"], zone) + timedelta(days=7)
     day = now.date()
     while day < end.date():
         if day.weekday() in settings.days:
@@ -85,6 +93,17 @@ def tasks(zone):
     return rows
 
 
+def deadlines(zone):
+    result = [{**row, "id": f"task:{row['id']}"} for row in tasks(zone) if row["due"]]
+    for row in get_connection().execute(
+        "SELECT id,title,due_at FROM deadlines WHERE status='todo' ORDER BY due_at,id"
+    ):
+        result.append(
+            {**dict(row), "id": f"deadline:{row['id']}", "due": date_time(row["due_at"], zone)}
+        )
+    return sorted(result, key=lambda row: (row["due"], row["id"]))
+
+
 async def provide(widget_id):
     value = await context(widget_id)
     if value is None:
@@ -106,6 +125,32 @@ async def provide(widget_id):
             }
             for start, end in slots
         ]
+    if widget_id == "task.conflicts":
+        ordered = sorted(events, key=lambda event: event["begin"])
+        for index, event in enumerate(ordered):
+            for other in ordered[index + 1 :]:
+                if other["begin"] >= event["finish"]:
+                    break
+                if min(event["finish"], other["finish"]) <= now:
+                    continue
+                items.append(
+                    {
+                        "id": f"event:{event['id']}:{other['id']}",
+                        "title": f"{event['title']} / {other['title']}",
+                        "detail": "Overlapping events",
+                        "start": max(event["begin"], other["begin"]).isoformat(),
+                        "end": min(event["finish"], other["finish"]).isoformat(),
+                    }
+                )
+        for row in deadlines(now.tzinfo):
+            if row["due"] >= now and not any(a.date() == row["due"].date() for a, _ in slots):
+                items.append(
+                    {
+                        "id": row["id"],
+                        "title": row["title"],
+                        "detail": f"No free slot on deadline day: {row['due'].isoformat()}",
+                    }
+                )
     if widget_id == "task.plan":
         today = [
             row
@@ -149,5 +194,8 @@ async def provide(widget_id):
     return {
         "items": items,
         "timezone": str(now.tzinfo),
-        "message": "Current week only. Calendar read-only.",
+        "message": (
+            "Calendar read-only. Free slots and proposals cover the current week; "
+            "conflicts cover deadline days."
+        ),
     }

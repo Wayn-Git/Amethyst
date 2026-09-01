@@ -272,7 +272,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | task.goals | Goals | local | v2 | [ ] |
 | task.free | Free-slot finder | cmp:googlecalendar | v2 | [x] |
 | task.kanban | Mini kanban per project | local | v2 | [ ] |
-| task.conflicts | Calendar conflict detector | cmp:googlecalendar | v2 | [ ] |
+| task.conflicts | Calendar conflict detector | cmp:googlecalendar | v2 | [x] |
 | task.risk | Deadline risk warning | local, llm | v2 | [ ] |
 
 ### 6.8 Developer

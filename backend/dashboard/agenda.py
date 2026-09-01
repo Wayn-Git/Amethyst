@@ -7,12 +7,12 @@ from backend.dashboard.connectors import read
 from backend.dashboard.store import settings_read
 
 
-async def provide(widget_id, *, now=None):
+async def provide(widget_id, *, now=None, range_end=None):
     timezone = str(now.tzinfo) if now else settings_read("dash.quiet").get("timezone", "UTC")
     zone = ZoneInfo(timezone)
     now = now or datetime.now(zone)
     start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    end = start + timedelta(days=7)
+    end = range_end or start + timedelta(days=7)
     value = await read(
         widget_id,
         "googlecalendar",

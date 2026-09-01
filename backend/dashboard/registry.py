@@ -349,6 +349,7 @@ MANIFESTS = [
     agenda_manifest(),
     planning_manifest("task.plan", "Proposed day plan"),
     planning_manifest("task.free", "Free-slot finder"),
+    planning_manifest("task.conflicts", "Calendar conflicts"),
     {
         **agenda_manifest(),
         "id": "glance.next-event",
