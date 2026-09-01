@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
 import Skeleton from '../Skeleton.jsx'
+import { modalOverlayVariants, modalContentVariants } from '../../motion.js'
 import { api } from '../../api.js'
 
 function formatDuration(ms) {
@@ -41,8 +43,19 @@ export default function RunDetailModal({ runId, onClose }) {
   }, [runId])
 
   return (
-    <div className="auto-modal-overlay" onClick={onClose}>
-      <div className="auto-modal auto-modal--wide" onClick={(e) => e.stopPropagation()} data-enter>
+    <motion.div
+      className="auto-modal-overlay"
+      variants={modalOverlayVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      onClick={onClose}
+    >
+      <motion.div
+        className="auto-modal auto-modal--wide"
+        variants={modalContentVariants}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="auto-modal-head">
           <div className="auto-modal-head-left">
@@ -172,7 +185,7 @@ export default function RunDetailModal({ runId, onClose }) {
             </>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

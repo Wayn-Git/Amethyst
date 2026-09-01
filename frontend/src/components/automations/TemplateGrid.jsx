@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
 import Button from '../ui/Button.jsx'
 import { api } from '../../api.js'
@@ -48,9 +49,11 @@ export default function TemplateGrid({ onSelect }) {
         </div>
       </div>
       <div className="auto-template-grid">
-        {filtered.map((template) => (
-          <TemplateCard key={template.id} template={template} actionsList={actionsList} onSelect={onSelect} />
-        ))}
+        <AnimatePresence mode="popLayout">
+          {filtered.map((template) => (
+            <TemplateCard key={template.id} template={template} actionsList={actionsList} onSelect={onSelect} />
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -63,7 +66,15 @@ function TemplateCard({ template, actionsList, onSelect }) {
   })
 
   return (
-    <div className="auto-template-card">
+    <motion.div
+      className="auto-template-card"
+      layout
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.2 }}
+      whileHover={{ y: -2 }}
+    >
       <div className="auto-template-card-head">
         <span className={`auto-template-icon auto-template-icon--${template.category}`}>
           <Icon name={template.icon || 'zap'} size={16} />
@@ -78,27 +89,29 @@ function TemplateCard({ template, actionsList, onSelect }) {
       </div>
       <h4 className="auto-template-name">{template.name}</h4>
       <p className="auto-template-desc">{template.description}</p>
-      <div className="auto-template-meta">
-        <Icon name="clock" size={11} />
-        <span>
-          {template.schedule_type === 'daily_at' && `Daily at ${template.daily_at_time}`}
-          {template.schedule_type === 'weekly_at' && `Weekly at ${template.daily_at_time}`}
-          {template.schedule_type === 'interval' && `Every ${template.every_minutes}m`}
-        </span>
+      <div className="auto-template-footer">
+        <div className="auto-template-meta">
+          <Icon name="clock" size={11} />
+          <span>
+            {template.schedule_type === 'daily_at' && `Daily at ${template.daily_at_time}`}
+            {template.schedule_type === 'weekly_at' && `Weekly at ${template.daily_at_time}`}
+            {template.schedule_type === 'interval' && `Every ${template.every_minutes}m`}
+          </span>
+        </div>
+        {unavailableIntegrations.map((req) => (
+          <div key={req} className="auto-template-warning">
+            <Icon name="warning" size={11} />
+            <span>{req.charAt(0).toUpperCase() + req.slice(1)} not connected</span>
+          </div>
+        ))}
+        {template.actions && template.actions.length > 0 && (
+          <div className="auto-template-tags">
+            {template.actions.map(act => (
+              <span key={act} className="auto-template-tag">{act}</span>
+            ))}
+          </div>
+        )}
       </div>
-      {unavailableIntegrations.map((req) => (
-        <div key={req} className="auto-template-warning">
-          <Icon name="warning" size={11} />
-          <span>{req.charAt(0).toUpperCase() + req.slice(1)} not connected</span>
-        </div>
-      ))}
-      {template.actions && template.actions.length > 0 && (
-        <div className="auto-template-tags">
-          {template.actions.map(act => (
-            <span key={act} className="auto-template-tag">{act}</span>
-          ))}
-        </div>
-      )}
-    </div>
+    </motion.div>
   )
 }

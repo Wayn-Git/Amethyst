@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
@@ -7,6 +8,13 @@ import { SkeletonCard, default as Skeleton } from '../components/Skeleton.jsx'
 import Button from '../components/ui/Button.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '../components/ui/dropdown-menu.tsx'
 import RunHistoryChart from '../components/automations/RunHistoryChart.jsx'
 import TemplateGrid from '../components/automations/TemplateGrid.jsx'
 import NewAutomationModal from '../components/automations/NewAutomationModal.jsx'
@@ -122,21 +130,6 @@ function StatsCards({ rows, stats }) {
 
 /** Automations list row with actions. */
 function AutomationRow({ auto, busy: _busy, onAction, onEdit }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef(null)
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!menuOpen) return undefined
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuOpen])
-
   return (
     <div className={`auto-table-row${auto.enabled ? '' : ' is-off'}`}>
       <div className="auto-table-cell auto-table-cell--name">
@@ -156,7 +149,7 @@ function AutomationRow({ auto, busy: _busy, onAction, onEdit }) {
       </div>
       <div className="auto-table-cell auto-table-cell--status">
         <span className={`auto-status-badge auto-status-badge--${auto.last_status || 'none'}`}>
-          {auto.last_status === 'running' && <Icon name="clock" size={10} />}
+          {auto.last_status === 'running' && <Icon name="clock" size={10} className="auto-spin-icon" />}
           {auto.last_status === 'ok' && <Icon name="check" size={10} />}
           {auto.last_status === 'error' && <Icon name="x" size={10} />}
           {auto.last_status === 'blocked' && <Icon name="warning" size={10} />}
@@ -165,33 +158,33 @@ function AutomationRow({ auto, busy: _busy, onAction, onEdit }) {
         </span>
       </div>
       <div className="auto-table-cell auto-table-cell--actions">
-        <div className="auto-actions-menu-wrapper" ref={menuRef}>
-          <button
-            type="button"
+        <DropdownMenu>
+          <DropdownMenuTrigger
             className="icon-btn"
-            onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Actions"
           >
             <Icon name="dots" size={14} />
-          </button>
-          {menuOpen && (
-            <div className="auto-actions-menu">
-              <button type="button" onClick={() => { setMenuOpen(false); onEdit(auto) }}>
-                <Icon name="edit" size={12} /> Edit
-              </button>
-              <button type="button" onClick={() => { setMenuOpen(false); onAction(auto, 'toggle') }}>
-                <Icon name={auto.enabled ? 'pause' : 'play'} size={12} />
-                {auto.enabled ? 'Pause' : 'Resume'}
-              </button>
-              <button type="button" onClick={() => { setMenuOpen(false); onAction(auto, 'run') }}>
-                <Icon name="play" size={12} /> Run now
-              </button>
-              <button type="button" className="danger" onClick={() => { setMenuOpen(false); onAction(auto, 'delete') }}>
-                <Icon name="trash" size={12} /> Delete
-              </button>
-            </div>
-          )}
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom" sideOffset={4}>
+            <DropdownMenuItem onClick={() => onEdit(auto)}>
+              <Icon name="edit" size={12} />
+              <span>Edit</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAction(auto, 'toggle')}>
+              <Icon name={auto.enabled ? 'pause' : 'play'} size={12} />
+              <span>{auto.enabled ? 'Pause' : 'Resume'}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAction(auto, 'run')}>
+              <Icon name="play" size={12} />
+              <span>Run now</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => onAction(auto, 'delete')}>
+              <Icon name="trash" size={12} />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   )
@@ -426,104 +419,137 @@ export default function Automations() {
         {/* Scheduler status banner */}
         <SchedulerBanner scheduler={scheduler} />
 
-        {tab === 'automations' && (
-          <>
-            {/* Stats summary cards */}
-            {loaded && rows.length > 0 && (
-              <StatsCards rows={rows} stats={stats} />
-            )}
+        <AnimatePresence mode="wait">
+          {tab === 'automations' && (
+            <motion.div
+              key="tab-automations"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+            >
+              {/* Stats summary cards */}
+              {loaded && rows.length > 0 && (
+                <StatsCards rows={rows} stats={stats} />
+              )}
 
-            {/* Run History Chart */}
-            {loaded && rows.length > 0 && (
-              <RunHistoryChart stats={stats} totalRuns={totalRuns} />
-            )}
+              {/* Run History Chart */}
+              {loaded && rows.length > 0 && (
+                <RunHistoryChart stats={stats} totalRuns={totalRuns} />
+              )}
 
-            {/* Automation List */}
-            {!loaded && (
-              <div className="auto-table" aria-hidden="true">
-                <div className="auto-table-head">
-                  <span>Automation</span>
-                  <span>Schedule</span>
-                  <span>Next run</span>
-                  <span>Status</span>
-                  <span></span>
-                </div>
-                {Array.from({ length: 3 }, (_, i) => (
-                  <div key={i} className="auto-table-row" style={{ pointerEvents: 'none' }}>
-                    <div className="auto-table-cell auto-table-cell--name">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-                        <Skeleton w={16} h={16} r={4} />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <Skeleton w={140} h={14} r={4} />
-                          <Skeleton w={200} h={11} r={3} />
+              {/* Automation List */}
+              {!loaded && (
+                <div className="auto-table" aria-hidden="true">
+                  <div className="auto-table-head">
+                    <span>Automation</span>
+                    <span>Schedule</span>
+                    <span>Next run</span>
+                    <span>Status</span>
+                    <span></span>
+                  </div>
+                  {Array.from({ length: 3 }, (_, i) => (
+                    <div key={i} className="auto-table-row" style={{ pointerEvents: 'none' }}>
+                      <div className="auto-table-cell auto-table-cell--name">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                          <Skeleton w={16} h={16} r={4} />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <Skeleton w={140} h={14} r={4} />
+                            <Skeleton w={200} h={11} r={3} />
+                          </div>
                         </div>
                       </div>
+                      <div className="auto-table-cell"><Skeleton w={80} h={12} r={4} /></div>
+                      <div className="auto-table-cell"><Skeleton w={65} h={12} r={4} /></div>
+                      <div className="auto-table-cell"><Skeleton w={40} h={18} r={99} /></div>
+                      <div className="auto-table-cell auto-table-cell--actions"><Skeleton w={24} h={24} r={6} /></div>
                     </div>
-                    <div className="auto-table-cell"><Skeleton w={80} h={12} r={4} /></div>
-                    <div className="auto-table-cell"><Skeleton w={65} h={12} r={4} /></div>
-                    <div className="auto-table-cell"><Skeleton w={40} h={18} r={99} /></div>
-                    <div className="auto-table-cell auto-table-cell--actions"><Skeleton w={24} h={24} r={6} /></div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {loaded && error && <ErrorState message={error} onRetry={load} />}
-            {loaded && !error && rows.length === 0 && !showNew && (
-              <EmptyState icon="clock">
-                Nothing runs on its own yet. Create an automation or pick a template below.
-              </EmptyState>
-            )}
-
-            {loaded && rows.length > 0 && (
-              <div className="auto-table" data-enter>
-                <div className="auto-table-head">
-                  <span>Automation</span>
-                  <span>Schedule</span>
-                  <span>Next run</span>
-                  <span>Status</span>
-                  <span></span>
+                  ))}
                 </div>
-                {rows.map((auto) => (
-                  <AutomationRow
-                    key={auto.id}
-                    auto={auto}
-                    busy={busy}
-                    onAction={act}
-                    onEdit={setEditAuto}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+              )}
+              {loaded && error && <ErrorState message={error} onRetry={load} />}
+              {loaded && !error && rows.length === 0 && !showNew && (
+                <EmptyState icon="clock">
+                  Nothing runs on its own yet. Create an automation or pick a template below.
+                </EmptyState>
+              )}
 
-        {tab === 'runs' && <RunsTab onSelectRun={setSelectedRunId} />}
+              {loaded && rows.length > 0 && (
+                <div className="auto-table" data-enter>
+                  <div className="auto-table-head">
+                    <span>Automation</span>
+                    <span>Schedule</span>
+                    <span>Next run</span>
+                    <span>Status</span>
+                    <span></span>
+                  </div>
+                  {rows.map((auto) => (
+                    <AutomationRow
+                      key={auto.id}
+                      auto={auto}
+                      busy={busy}
+                      onAction={act}
+                      onEdit={setEditAuto}
+                    />
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
 
-        {tab === 'templates' && <TemplateGrid onSelect={handleNewFromTemplate} />}
+          {tab === 'runs' && (
+            <motion.div
+              key="tab-runs"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+            >
+              <RunsTab onSelectRun={setSelectedRunId} />
+            </motion.div>
+          )}
+
+          {tab === 'templates' && (
+            <motion.div
+              key="tab-templates"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+            >
+              <TemplateGrid onSelect={handleNewFromTemplate} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Modals */}
-        {showNew && (
-          <NewAutomationModal
-            template={newTemplate}
-            onClose={() => { setShowNew(false); setNewTemplate(null) }}
-            onCreated={handleCreated}
-          />
-        )}
-        {editAuto && (
-          <EditAutomationModal
-            automation={editAuto}
-            onClose={() => setEditAuto(null)}
-            onSaved={handleEditSaved}
-            onDeleted={handleEditDeleted}
-            onSelectRun={setSelectedRunId}
-          />
-        )}
-        {selectedRunId && (
-          <RunDetailModal
-            runId={selectedRunId}
-            onClose={() => setSelectedRunId(null)}
-          />
-        )}
+        <AnimatePresence>
+          {showNew && (
+            <NewAutomationModal
+              key="modal-new"
+              template={newTemplate}
+              onClose={() => { setShowNew(false); setNewTemplate(null) }}
+              onCreated={handleCreated}
+            />
+          )}
+          {editAuto && (
+            <EditAutomationModal
+              key={`modal-edit-${editAuto.id}`}
+              automation={editAuto}
+              onClose={() => setEditAuto(null)}
+              onSaved={handleEditSaved}
+              onDeleted={handleEditDeleted}
+              onSelectRun={setSelectedRunId}
+            />
+          )}
+          {selectedRunId && (
+            <RunDetailModal
+              key={`modal-run-${selectedRunId}`}
+              runId={selectedRunId}
+              onClose={() => setSelectedRunId(null)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

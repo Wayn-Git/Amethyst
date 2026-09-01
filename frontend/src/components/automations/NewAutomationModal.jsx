@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
+import Skeleton from '../Skeleton.jsx'
 import Button from '../ui/Button.jsx'
 import Field from '../ui/Field.jsx'
+import { modalOverlayVariants, modalContentVariants } from '../../motion.js'
 import { useApp } from '../../store.jsx'
 import { api } from '../../api.js'
 
@@ -62,6 +65,20 @@ function browserTimezone() {
 
 /** Actions/Grants editor — which tools an automation may use unattended. */
 function ActionsEditor({ actions, grantable, onChange }) {
+  if (grantable === null) {
+    return (
+      <div className="auto-modal-section">
+        <label className="auto-modal-label">Actions</label>
+        <p className="auto-actions-hint">
+          Tools this automation may use without asking. Read-only tools are always allowed.
+        </p>
+        <div className="auto-actions-loading">
+          <Skeleton w="40%" h={12} r={3} />
+          <Skeleton w="100%" h={48} r={6} />
+        </div>
+      </div>
+    )
+  }
   if (!grantable || grantable.length === 0) return null
 
   // Group by integration/group
@@ -179,10 +196,24 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
   }, [name, description, prompt, scheduleType, dailyTime, weeklyDay, intervalMinutes, notification, timezone, actions, template, ready, toast, onCreated])
 
   return (
-    <div className="auto-modal-overlay" onClick={onClose}>
-      <div className="auto-modal auto-modal--wide" onClick={(e) => e.stopPropagation()} data-enter>
+    <motion.div
+      className="auto-modal-overlay"
+      variants={modalOverlayVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      onClick={onClose}
+    >
+      <motion.div
+        className="auto-modal auto-modal--wide"
+        variants={modalContentVariants}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="auto-modal-head">
-          <h2>New Automation</h2>
+          <div className="auto-modal-head-title">
+            <Icon name="zap" size={16} className="auto-modal-head-icon" />
+            <h2>{template ? `New: ${template.name}` : 'New Automation'}</h2>
+          </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             <Icon name="x" size={16} />
           </button>
@@ -307,8 +338,8 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
             {busy ? 'Saving...' : 'Save'}
           </Button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
