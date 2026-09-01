@@ -10,7 +10,7 @@ export default function Mail({ data, refresh, widgetId }) {
     catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   return <div><p>Gmail via Composio · up to 100 messages. Only short snippets are retained.</p>
-    {widgetId === 'need.inbox' && <><button disabled={busy} onClick={() => model(!data?.ranked)}>{data?.ranked ? 'Use unread and recent' : 'Rank with model'}</button>
+    {widgetId === 'need.inbox' && <><button disabled={busy} onClick={() => model(!data?.model_enabled)}>{data?.model_enabled ? 'Use unread and recent' : 'Rank with model'}</button>
     {(busy) && <p role="status">Generating…</p>}{error && <p role="alert">{error}</p>}
     {!data?.ranked && <p>Unread, then recent; model ranking is off or unavailable.</p>}
     </>}

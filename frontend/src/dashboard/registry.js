@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'comm.tone': lazy(() => import('./widgets/Tone.jsx')),
   'comm.unread': lazy(() => import('./widgets/Mail.jsx')),
   'need.waiting': lazy(() => import('./widgets/Waiting.jsx')),
   'need.drafts': lazy(() => import('./widgets/MailDrafts.jsx')),

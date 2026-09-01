@@ -245,3 +245,53 @@ async def test_unread_groups_addresses_without_mutating_mail(db, monkeypatch):
     result = await mail.provide("comm.unread")
     assert len(result["items"]) == 2
     assert [row["id"] for row in result["items"][0]["items"]] == ["2", "1"]
+
+
+@pytest.mark.parametrize("tone", ["short", "formal", "friendly"])
+async def test_tone_rewrite_requires_review_and_preserves_original(db, monkeypatch, tone):
+    from backend.dashboard.items import decide
+    from backend.dashboard.mail import MailInput, ToneInput, draft, draft_row, rewrite
+
+    db.execute(
+        "INSERT INTO dashboard_mail_drafts(recipient,subject,text,updated_at) "
+        "VALUES('a@example.com','Subject','Original','2026-10-24')"
+    )
+    db.commit()
+
+    async def generate(prompt):
+        assert tone in prompt and "Original" in prompt
+        return "Rewritten fixture"
+
+    monkeypatch.setattr(mail, "generate", generate)
+    result = await rewrite(ToneInput(id=1, tone=tone))
+    assert draft_row(1)["text"] == "Original"
+    pending = draft("comm.tone", "rewrite", MailInput(**result))
+    await decide("comm.tone", pending["draft_id"], False)
+    assert draft_row(1)["text"] == "Original"
+    pending = draft("comm.tone", "rewrite", MailInput(**result))
+    await decide("comm.tone", pending["draft_id"], True)
+    assert draft_row(1)["text"] == "Rewritten fixture"
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException, match="409"):
+        draft("comm.tone", "rewrite", MailInput(**result))
+
+
+async def test_tone_model_off_keeps_draft(db, monkeypatch):
+    from fastapi import HTTPException
+
+    from backend.dashboard.mail import ToneInput, rewrite
+
+    db.execute(
+        "INSERT INTO dashboard_mail_drafts(recipient,subject,text,updated_at) "
+        "VALUES('a@example.com','Subject','Original','2026-10-24')"
+    )
+    db.commit()
+
+    async def generate(prompt):
+        return ""
+
+    monkeypatch.setattr(mail, "generate", generate)
+    with pytest.raises(HTTPException, match="503"):
+        await rewrite(ToneInput(id=1, tone="short"))
+    assert db.execute("SELECT text FROM dashboard_mail_drafts").fetchone()[0] == "Original"

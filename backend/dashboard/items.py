@@ -299,7 +299,7 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
-    if widget_id in ("need.drafts", "need.waiting"):
+    if widget_id in ("need.drafts", "need.waiting", "comm.tone"):
         from backend.dashboard.mail import apply as apply_mail
 
         return apply_mail(conn, widget_id, action, body)

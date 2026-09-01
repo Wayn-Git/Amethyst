@@ -124,6 +124,14 @@ def mail_manifest(widget_id, title):
         requires=["connector:gmail"],
         empty="No mail needs a reply.",
     )
+    if widget_id == "comm.tone":
+        value.update(
+            group="communication",
+            source=[{"type": "local"}, {"type": "llm"}],
+            requires=[],
+            empty="Save a local mail draft to rewrite its tone.",
+            actions=[dict(id="rewrite", label="Rewrite", gate=True)],
+        )
     if widget_id == "comm.unread":
         value.update(
             group="communication",
@@ -151,6 +159,7 @@ MANIFESTS = [
     mail_manifest("need.drafts", "Mail drafts to approve"),
     mail_manifest("need.waiting", "Waiting on replies"),
     mail_manifest("comm.unread", "Unread by person"),
+    mail_manifest("comm.tone", "Reply tone picker"),
     system_manifest("sys.connectors", "Connector health and reconnect"),
     system_manifest("sys.model", "Active model", "director"),
     system_manifest("sys.notify", "Notification center"),
