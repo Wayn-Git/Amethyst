@@ -630,6 +630,11 @@ export default function LibraryDetailModal({
     const cleanDomain = domain || item.site || ''
     const appMatch = app && cleanDomain.toLowerCase().includes(app.toLowerCase())
 
+    const rawAuthor = (item.author || '').trim()
+    const cleanAuthor = rawAuthor.replace(/^@/, '').trim()
+    const isSingleHandle = /^[a-zA-Z0-9_.-]+$/.test(cleanAuthor) && !cleanAuthor.includes(' ') && !cleanAuthor.includes('|')
+    const formattedAuthor = cleanAuthor ? (isSingleHandle ? `@${cleanAuthor}` : cleanAuthor) : null
+
     if (app && (appMatch || !cleanDomain)) {
       return {
         platformName: APP_NAMES[app] || (app.charAt(0).toUpperCase() + app.slice(1)),
@@ -640,7 +645,7 @@ export default function LibraryDetailModal({
               app === 'spotify' ? 'music' :
               app === 'github' ? 'code' :
               app === 'x' ? 'chat' : KIND_ICON[item.kind] || 'link',
-        author: item.author ? `@${item.author.replace(/^@/, '')}` : null,
+        author: formattedAuthor,
         showFavicon: Boolean(favicon),
       }
     }
@@ -648,7 +653,7 @@ export default function LibraryDetailModal({
     return {
       platformName: cleanDomain || (item.kind || 'resource').toUpperCase(),
       icon: KIND_ICON[item.kind] || 'link',
-      author: item.author || null,
+      author: formattedAuthor,
       showFavicon: Boolean(favicon),
     }
   }, [item, app, domain, favicon])
@@ -690,8 +695,9 @@ export default function LibraryDetailModal({
     return (ent && typeof ent === 'object') ? ent : null
   }, [item?.entity])
 
+  const cleanAuthor = useMemo(() => (item?.author || '').replace(/^@/, '').trim(), [item?.author])
   const displayTitle = entity?.title || item?.title || 'Untitled Resource'
-  const displaySubtitle = entity?.subtitle || (item?.author ? `By ${item.author}` : (domain || sourceInfo.platformName))
+  const displaySubtitle = entity?.subtitle || (cleanAuthor ? `By ${cleanAuthor}` : (domain || sourceInfo.platformName))
   const displayRating = entity?.rating || null
 
   // Author avatar if available from resources
@@ -727,7 +733,7 @@ export default function LibraryDetailModal({
         primaryIcon = 'code'
       } else if (cat === 'paper' || host.includes('arxiv')) {
         primaryLabel = 'Read Paper'
-        primaryIcon = 'file-text'
+        primaryIcon = 'file'
       } else if (kind === 'music' || cat === 'music' || host.includes('spotify') || host.includes('soundcloud') || host.includes('bandcamp')) {
         primaryLabel = 'Listen on Spotify'
         primaryIcon = 'music'
@@ -760,9 +766,12 @@ export default function LibraryDetailModal({
     const attrs = []
     const kind = (item?.kind || '').toLowerCase()
     const cat = (item?.category || '').toLowerCase()
+    const isSocialMedia = (sourceInfo.platformName || '').toLowerCase().includes('instagram') ||
+                          (sourceInfo.platformName || '').toLowerCase().includes('tiktok') ||
+                          (sourceInfo.platformName || '').toLowerCase().includes('threads')
 
     if (item?.author) {
-      attrs.push({ key: 'Author / Creator', value: item.author })
+      attrs.push({ key: 'Author / Creator', value: cleanAuthor || item.author })
     }
     if (sourceInfo.platformName && sourceInfo.platformName !== 'Resource') {
       attrs.push({ key: 'Platform', value: sourceInfo.platformName })
@@ -770,17 +779,21 @@ export default function LibraryDetailModal({
     if (duration) {
       attrs.push({ key: 'Duration', value: duration })
     }
-    if (cat && cat !== 'general') {
-      attrs.push({ key: 'Category', value: cat.charAt(0).toUpperCase() + cat.slice(1) })
-    } else if (kind) {
-      attrs.push({ key: 'Format', value: kind.charAt(0).toUpperCase() + kind.slice(1) })
+    const categoryLabel = cat && cat !== 'general'
+      ? (cat === 'movie' && (item?.is_reel || isSocialMedia)
+          ? 'Film Clip'
+          : (cat.charAt(0).toUpperCase() + cat.slice(1)))
+      : (kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : null)
+
+    if (categoryLabel) {
+      attrs.push({ key: 'Content Type', value: categoryLabel })
     }
     if (dateFull) {
       attrs.push({ key: 'Captured', value: dateFull })
     }
-    attrs.push({ key: 'Index Status', value: item?.indexed ? 'Vector indexed' : 'Archive' })
+    attrs.push({ key: 'Knowledge Index', value: item?.indexed ? 'Vector indexed (Semantic search)' : 'Archive storage' })
     return attrs
-  }, [entity?.attributes, item?.author, sourceInfo.platformName, duration, item?.category, item?.kind, dateFull, item?.indexed])
+  }, [entity?.attributes, item?.author, cleanAuthor, sourceInfo.platformName, duration, item?.category, item?.kind, dateFull, item?.indexed, item?.is_reel])
 
   // Keyboard navigation: left/right to move through slides or items, escape to close
   useEffect(() => {
@@ -1280,57 +1293,62 @@ export default function LibraryDetailModal({
               </div>
             )}
 
-            {/* Author / Creator Context Card */}
-            {(item.url || item.author || sourceInfo.author || authorAvatarUrl) && item.kind !== 'note' && (
-              <div className="lib-author-card">
-                <div className="lib-author-card-left">
-                  <div className="lib-author-card-avatar">
-                    {authorAvatarUrl ? (
-                      <img src={authorAvatarUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                    ) : favicon ? (
-                      <img src={favicon} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                    ) : (
-                      <span>{(item.author || sourceInfo.platformName || 'A').charAt(0).toUpperCase()}</span>
-                    )}
+            {/* Unified Creator & Caption Context Card */}
+            {(item.url || item.author || sourceInfo.author || authorAvatarUrl || caption || item.excerpt) && item.kind !== 'note' && (
+              <div className="lib-creator-card">
+                <div className="lib-creator-card-header">
+                  <div className="lib-creator-card-left">
+                    <div className="lib-creator-avatar">
+                      {authorAvatarUrl ? (
+                        <img src={authorAvatarUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                      ) : favicon ? (
+                        <img src={favicon} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                      ) : (
+                        <span>{(cleanAuthor || sourceInfo.platformName || 'A').charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="lib-creator-info">
+                      <span className="lib-creator-name" title={sourceInfo.author || cleanAuthor || 'Creator'}>
+                        {sourceInfo.author || cleanAuthor || 'Creator'}
+                      </span>
+                      <span className="lib-creator-platform">
+                        {sourceInfo.platformName}
+                      </span>
+                    </div>
                   </div>
-                  <div className="lib-author-card-info">
-                    <span className="lib-author-card-handle">
-                      {sourceInfo.author || (item.author ? `@${item.author.replace(/^@/, '')}` : (domain || 'Author'))}
-                    </span>
-                    <span className="lib-author-card-platform">
-                      {sourceInfo.platformName}
-                    </span>
-                  </div>
+
+                  {item.url && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="lib-creator-open-btn"
+                      title={`Open on ${sourceInfo.platformName}`}
+                    >
+                      <span>Open</span>
+                      <Icon name="arrow-up-right" size={12} />
+                    </a>
+                  )}
                 </div>
 
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="lib-author-card-btn"
-                    title={`Open on ${sourceInfo.platformName}`}
-                  >
-                    <span>Open ↗</span>
-                  </a>
-                )}
-              </div>
-            )}
-
-            {/* Expandable Caption Preview */}
-            {(caption || item.excerpt) && (
-              <div className="lib-author-caption-card">
-                <p className={`lib-author-caption-text ${!isCaptionExpanded ? 'lib-author-caption-text--clamped' : ''}`}>
-                  {caption || item.excerpt}
-                </p>
-                {(caption || item.excerpt).length > 90 && (
-                  <button
-                    type="button"
-                    className="lib-author-caption-toggle"
-                    onClick={() => setIsCaptionExpanded((v) => !v)}
-                  >
-                    <span>{isCaptionExpanded ? 'Less ⌃' : 'More ⌄'}</span>
-                  </button>
+                {(caption || item.excerpt) && (
+                  <>
+                    <div className="lib-creator-divider" />
+                    <div className="lib-creator-caption-box">
+                      <p className={`lib-creator-caption-text ${!isCaptionExpanded ? 'lib-creator-caption-text--clamped' : ''}`}>
+                        {caption || item.excerpt}
+                      </p>
+                      {(caption || item.excerpt).length > 90 && (
+                        <button
+                          type="button"
+                          className="lib-creator-caption-toggle"
+                          onClick={() => setIsCaptionExpanded((v) => !v)}
+                        >
+                          <span>{isCaptionExpanded ? 'Show less ⌃' : 'Show more ⌄'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -1361,7 +1379,11 @@ export default function LibraryDetailModal({
                   <div className="lib-detail-subtitle">
                     <span>{displaySubtitle}</span>
                     {item?.category && item.category !== 'general' && (
-                      <span className="lib-detail-category-badge">{item.category}</span>
+                      <span className="lib-detail-category-badge">
+                        {item.category === 'movie' && (item?.is_reel || (sourceInfo.platformName || '').toLowerCase().includes('instagram') || (sourceInfo.platformName || '').toLowerCase().includes('tiktok'))
+                          ? 'Film Clip'
+                          : item.category}
+                      </span>
                     )}
                   </div>
                 )}
@@ -1373,10 +1395,10 @@ export default function LibraryDetailModal({
                   <Icon name="calendar" size={12} />
                   <span>Captured {dateFull || 'Undated'}</span>
                 </div>
-                {item.author && (
+                {cleanAuthor && !displaySubtitle?.includes(cleanAuthor) && (
                   <div className="lib-page-meta-item">
                     <Icon name="user" size={12} />
-                    <span>By {item.author}</span>
+                    <span>By {cleanAuthor}</span>
                   </div>
                 )}
                 {duration && (
@@ -1453,7 +1475,7 @@ export default function LibraryDetailModal({
                   className={`lib-studio-tab-btn ${activeTab === 'content' ? 'lib-studio-tab-btn--active' : ''}`}
                   onClick={() => setActiveTab('content')}
                 >
-                  <Icon name="file-text" size={13} />
+                  <Icon name="file" size={13} />
                   <span>Content & Transcripts</span>
                   {contentCount > 0 && (
                     <span className="lib-studio-tab-badge">{contentCount}</span>
@@ -1482,7 +1504,9 @@ export default function LibraryDetailModal({
                     <span className="lib-page-significance-title">Significance</span>
                     <div className="lib-page-stars-track">
                       {[1, 2, 3, 4, 5].map((star) => {
-                        const isFilled = (hoveredStar ?? rating ?? 0) >= star
+                        const effectiveRating = hoveredStar ?? rating ?? 0
+                        const isFilled = effectiveRating >= star
+                        const activeStarColor = effectiveRating > 0 ? (RATING_TIERS[effectiveRating]?.color || '#f59e0b') : '#f59e0b'
                         return (
                           <motion.button
                             key={star}
@@ -1500,7 +1524,7 @@ export default function LibraryDetailModal({
                               size={15}
                               filled={isFilled}
                               style={{
-                                color: isFilled ? (RATING_TIERS[star]?.color || '#f59e0b') : 'var(--hairline-strong)',
+                                color: isFilled ? activeStarColor : 'var(--hairline-strong)',
                                 transition: 'color 120ms ease, transform 120ms ease',
                               }}
                             />
@@ -1508,9 +1532,22 @@ export default function LibraryDetailModal({
                         )
                       })}
                     </div>
-                    <span className="lib-page-significance-tier">
-                      {displayedTier ? displayedTier.label : 'Unrated'}
-                    </span>
+                    {displayedTier ? (
+                      <span
+                        className="lib-page-significance-tier"
+                        style={{
+                          color: (hoveredStar ?? rating) ? (RATING_TIERS[hoveredStar ?? rating]?.color || '#f59e0b') : 'var(--text-faint)',
+                          background: (hoveredStar ?? rating) ? `${RATING_TIERS[hoveredStar ?? rating]?.color || '#f59e0b'}18` : 'transparent',
+                          border: `1px solid ${(hoveredStar ?? rating) ? `${RATING_TIERS[hoveredStar ?? rating]?.color || '#f59e0b'}33` : 'transparent'}`,
+                        }}
+                      >
+                        {displayedTier.label}
+                      </span>
+                    ) : (
+                      <span className="lib-page-significance-tier lib-page-significance-tier--unrated">
+                        Unrated
+                      </span>
+                    )}
 
                     {rating && (
                       <button
@@ -1554,6 +1591,9 @@ export default function LibraryDetailModal({
                             <Icon name="spark" size={13} />
                           </div>
                           <span className="lib-synthesis-heading">Key insights and synthesis</span>
+                        </div>
+
+                        <div className="lib-synthesis-actions">
                           <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
                             <button
                               type="button"
@@ -1584,9 +1624,7 @@ export default function LibraryDetailModal({
                               </div>
                             )}
                           </div>
-                        </div>
 
-                        <div className="lib-synthesis-actions">
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.92 }}
@@ -1623,6 +1661,9 @@ export default function LibraryDetailModal({
                             <Icon name="spark" size={13} />
                           </div>
                           <span className="lib-synthesis-heading">AI Synthesis Pending</span>
+                        </div>
+
+                        <div className="lib-synthesis-actions">
                           <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
                             <button
                               type="button"
@@ -1653,10 +1694,11 @@ export default function LibraryDetailModal({
                               </div>
                             )}
                           </div>
+
+                          {isLlmFailure && (
+                            <span className="lib-detail-warning-tag">Offline during capture</span>
+                          )}
                         </div>
-                        {isLlmFailure && (
-                          <span className="lib-detail-warning-tag">Offline during capture</span>
-                        )}
                       </div>
 
                       <div className="lib-synthesis-pending-content">
