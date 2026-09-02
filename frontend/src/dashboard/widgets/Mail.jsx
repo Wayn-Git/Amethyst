@@ -10,9 +10,10 @@ export default function Mail({ data, refresh, widgetId }) {
     catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   return <div><p>Gmail via Composio · up to 100 messages. Only short snippets are retained.</p>
-    <button disabled={busy} onClick={() => model(!data?.ranked)}>{data?.ranked ? 'Use unread and recent' : 'Rank with model'}</button>
+    {widgetId === 'need.inbox' && <><button disabled={busy} onClick={() => model(!data?.ranked)}>{data?.ranked ? 'Use unread and recent' : 'Rank with model'}</button>
     {(busy) && <p role="status">Generating…</p>}{error && <p role="alert">{error}</p>}
     {!data?.ranked && <p>Unread, then recent; model ranking is off or unavailable.</p>}
-    <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}><div><strong>{item.subject}</strong><p>{item.from} · {item.date}</p><p>{item.snippet}</p>{item.reason && <p>Why: {item.reason}</p>}</div></li>)}</ul>
+    </>}
+    {widgetId === 'comm.unread' ? <ul className="widget-list">{(data?.items || []).map(group => <li key={group.id}><div><strong>{group.from} · {group.items.length} unread</strong><ul>{group.items.map(item => <li key={item.id}><div><strong>{item.subject}</strong><p>{item.date}</p><p>{item.snippet}</p></div></li>)}</ul></div></li>)}</ul> : <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}><div><strong>{item.subject}</strong><p>{item.from} · {item.date}</p><p>{item.snippet}</p>{item.reason && <p>Why: {item.reason}</p>}</div></li>)}</ul>}
   </div>
 }

@@ -3,7 +3,7 @@
 import json
 import re
 from datetime import UTC, datetime, timedelta
-from email.utils import parsedate_to_datetime
+from email.utils import parseaddr, parsedate_to_datetime
 
 from fastapi import HTTPException
 from pydantic import Field, field_validator
@@ -49,6 +49,15 @@ async def generate(prompt):
 
 
 async def provide(widget_id):
+    if widget_id == "comm.unread":
+        rows = await messages(widget_id, "in:inbox is:unread")
+        groups = {}
+        for row in sorted(rows, key=lambda r: mail_date(r["date"]), reverse=True):
+            sender = parseaddr(row["from"])[1].lower() or row["from"]
+            group = groups.setdefault(sender, {"id": sender, "from": row["from"], "items": []})
+            group["items"].append(row)
+        return {"items": list(groups.values()), "limited": len(rows) >= 100}
+
     if widget_id == "need.waiting":
         return await waiting(widget_id)
 

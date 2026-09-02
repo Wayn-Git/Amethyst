@@ -124,6 +124,12 @@ def mail_manifest(widget_id, title):
         requires=["connector:gmail"],
         empty="No mail needs a reply.",
     )
+    if widget_id == "comm.unread":
+        value.update(
+            group="communication",
+            source={"type": "composio", "toolkit": "gmail"},
+            empty="No unread mail.",
+        )
     if widget_id == "need.waiting":
         value.update(
             empty="No unanswered mail or manual items.",
@@ -144,6 +150,7 @@ MANIFESTS = [
     mail_manifest("need.inbox", "Priority inbox"),
     mail_manifest("need.drafts", "Mail drafts to approve"),
     mail_manifest("need.waiting", "Waiting on replies"),
+    mail_manifest("comm.unread", "Unread by person"),
     system_manifest("sys.connectors", "Connector health and reconnect"),
     system_manifest("sys.model", "Active model", "director"),
     system_manifest("sys.notify", "Notification center"),

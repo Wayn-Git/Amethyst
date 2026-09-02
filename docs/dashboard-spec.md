@@ -209,7 +209,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 |---|---|---|---|---|
 | comm.tone | Reply tone picker (short, formal, friendly) | llm | MVP | [ ] |
 | comm.templates | Draft templates | local | MVP | [ ] |
-| comm.unread | Unread digest by person | cmp:gmail | MVP | [ ] |
+| comm.unread | Unread digest by person | cmp:gmail | MVP | [x] |
 | comm.thread-summary | Long-thread summaries | cmp:gmail, cmp:slack, llm | v2 | [ ] |
 | comm.schedule-send | Scheduled send queue | cmp:gmail, gate | v2 | [ ] |
 | comm.newsletters | Newsletter digest and unsubscribe suggestions | cmp:gmail, llm | v2 | [ ] |

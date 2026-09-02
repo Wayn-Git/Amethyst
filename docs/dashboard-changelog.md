@@ -60,3 +60,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 2026-10-24 — need.drafts: local SQLite drafts, full review/edit, single-use gate requests and changed-row checks; sending disabled (Gmail read-only). Local source replaces proposed Gmail drafts. Backend and browser checks pass.
 
 2026-10-24 — need.waiting: latest sent/reply thread comparison, 3-day configurable delay, gated manual items and local nudge drafts; bounded to 100 sent/received messages over 90 days, stated in UI. Backend and browser checks pass.
+
+2026-10-24 — comm.unread: unread Gmail grouped by normalized sender, recent snippets and explicit 100-message limit; shared read-only cache, mocked backend and browser checks pass.

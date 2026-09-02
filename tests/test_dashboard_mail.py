@@ -212,3 +212,36 @@ async def test_waiting_manual_when_gmail_off(db, monkeypatch):
     db.commit()
     result = await mail.provide("need.waiting")
     assert not result["connected"] and result["items"][0]["subject"] == "Manual"
+
+
+async def test_unread_groups_addresses_without_mutating_mail(db, monkeypatch):
+    async def messages(widget_id, query):
+        assert widget_id == "comm.unread" and query == "in:inbox is:unread"
+        return [
+            {
+                "id": "1",
+                "from": "Person <PERSON@example.com>",
+                "subject": "One",
+                "date": "2026-10-20",
+                "snippet": "first",
+            },
+            {
+                "id": "2",
+                "from": "person@example.com",
+                "subject": "Two",
+                "date": "2026-10-24",
+                "snippet": "second",
+            },
+            {
+                "id": "3",
+                "from": "other@example.com",
+                "subject": "Three",
+                "date": "2026-10-21",
+                "snippet": "third",
+            },
+        ]
+
+    monkeypatch.setattr(mail, "messages", messages)
+    result = await mail.provide("comm.unread")
+    assert len(result["items"]) == 2
+    assert [row["id"] for row in result["items"][0]["items"]] == ["2", "1"]
