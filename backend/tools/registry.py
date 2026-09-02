@@ -76,7 +76,11 @@ class ToolRegistry:
         return list(self._tools.values())
 
     def schemas(
-        self, *, hidden_servers: set[str] | None = None, read_only: bool = False
+        self,
+        *,
+        hidden_servers: set[str] | None = None,
+        read_only: bool = False,
+        priority_servers: set[str] | None = None,
     ) -> list[ToolSchema]:
         """What the model sees. Source is deliberately invisible here.
 
@@ -91,13 +95,30 @@ class ToolRegistry:
         without asking" -- the permission gate has trusted that judgement since
         it shipped -- so gating on it covers a connector's tools on the day it
         is added rather than on the day someone remembers to update a list.
+
+        `priority_servers` names the connectors that are connected and signed in
+        right now, and moves their tools up the list: after the builtins PSOK is
+        built on, ahead of the tools of connectors that are merely configured. A
+        soft signal only -- nothing is withheld and nothing is renamed, so the
+        model still cannot tell a builtin from an MCP tool (ADR-0005) -- but
+        position is read, and it decides which tools survive `cap_tools` on a
+        provider with a ceiling.
         """
         hidden = hidden_servers or set()
-        return [
-            ToolSchema(name=t.name, description=t.description, parameters=t.parameters)
+        ready = priority_servers or set()
+        offered = [
+            t
             for t in self._tools.values()
             if not (t.server_name and t.server_name in hidden)
             and not (read_only and t.risk is not RiskLevel.LOW)
+        ]
+        if ready:
+            offered.sort(
+                key=lambda t: 0 if not t.server_name else (1 if t.server_name in ready else 2)
+            )
+        return [
+            ToolSchema(name=t.name, description=t.description, parameters=t.parameters)
+            for t in offered
         ]
 
     async def dispatch(
