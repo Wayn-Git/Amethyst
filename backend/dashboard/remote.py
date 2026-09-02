@@ -17,7 +17,9 @@ def project(slug, value, arguments=None):
             raise ValueError("Invalid calendar response")
         items = []
         for row in rows:
-            item = {key: row[key] for key in ("id", "summary", "status") if key in row}
+            item = {
+                key: row[key] for key in ("id", "summary", "status", "transparency") if key in row
+            }
             for key in ("start", "end"):
                 if key in row:
                     when = row[key]

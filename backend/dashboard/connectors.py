@@ -166,7 +166,11 @@ async def _read(widget_id, toolkit, slug, arguments):
         ):
             raise RuntimeError("Connector reader must be read-only")
         current = state(toolkit)
-        if not access_enabled(widget_id) or not composio_service.is_configured():
+        if (
+            not access_enabled(widget_id)
+            or (toolkit == "googlecalendar" and not access_enabled("task.agenda"))
+            or not composio_service.is_configured()
+        ):
             raise SourceUnavailable
         if (
             toolkit not in composio_service.get_enabled_toolkits()
@@ -252,7 +256,11 @@ async def _read(widget_id, toolkit, slug, arguments):
                 read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
         except Exception as exc:
             raise failed(toolkit, exc) from None
-        if not access_enabled(widget_id) or composio_service.is_reauth_required(toolkit):
+        if (
+            not access_enabled(widget_id)
+            or (toolkit == "googlecalendar" and not access_enabled("task.agenda"))
+            or composio_service.is_reauth_required(toolkit)
+        ):
             raise SourceUnavailable
         with transaction() as conn:
             conn.execute(

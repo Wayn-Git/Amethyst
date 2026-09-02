@@ -92,3 +92,40 @@ def test_plan_settings_and_no_calendar_write(db):
             == 422
         )
         assert client.post("/api/widgets/task.plan/actions/add", json={}).status_code == 404
+
+
+async def test_free_merges_overlaps_all_day_and_transparent(db, fixed):
+    payload, calls, _ = fixed
+
+    def event(key, start, end, **extra):
+        return {"id": key, "start": {"dateTime": start}, "end": {"dateTime": end}, **extra}
+
+    payload["items"] = [
+        event("a", "2026-10-26T10:00:00+05:30", "2026-10-26T12:00:00+05:30"),
+        event("b", "2026-10-26T11:00:00+05:30", "2026-10-26T13:00:00+05:30"),
+        event(
+            "transparent",
+            "2026-10-26T14:00:00+05:30",
+            "2026-10-26T16:00:00+05:30",
+            transparency="transparent",
+        ),
+        {"id": "day", "start": {"date": "2026-10-27"}, "end": {"date": "2026-10-28"}},
+    ]
+    result = await planning.provide("task.free")
+    slots = result["items"]
+    assert slots[0]["end"] == "2026-10-26T10:00:00+05:30"
+    assert slots[1]["start"] == "2026-10-26T13:00:00+05:30"
+    assert slots[1]["end"] == "2026-10-26T17:00:00+05:30"
+    assert not any(slot["start"].startswith("2026-10-27") for slot in slots)
+    await planning.provide("task.plan")
+    assert len(calls) == 1
+
+
+async def test_free_requires_settings_and_calendar_access(db, fixed):
+    from backend.dashboard.connectors import SourceUnavailable
+
+    settings_write("task.free", {})
+    assert (await planning.provide("task.free"))["set_hours"]
+    settings_write("task.agenda", {"enabled": False})
+    with pytest.raises(SourceUnavailable):
+        await planning.provide("task.free")

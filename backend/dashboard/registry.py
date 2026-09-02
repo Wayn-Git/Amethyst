@@ -348,6 +348,7 @@ MANIFESTS = [
     need_manifest("need.snoozed", "Snoozed items returning today"),
     agenda_manifest(),
     planning_manifest("task.plan", "Proposed day plan"),
+    planning_manifest("task.free", "Free-slot finder"),
     {
         **agenda_manifest(),
         "id": "glance.next-event",

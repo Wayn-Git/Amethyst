@@ -96,6 +96,16 @@ async def provide(widget_id):
     now, events, slots = value
     items = []
     pending = tasks(now.tzinfo)
+    if widget_id == "task.free":
+        items = [
+            {
+                "id": start.isoformat(),
+                "title": "Free slot",
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+            }
+            for start, end in slots
+        ]
     if widget_id == "task.plan":
         today = [
             row

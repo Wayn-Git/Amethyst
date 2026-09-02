@@ -102,7 +102,7 @@ async def local_provider(widget_id):
         from backend.dashboard.agenda import next_event
 
         return await next_event()
-    if widget_id in ("task.plan",):
+    if widget_id in ("task.plan", "task.free"):
         from backend.dashboard.planning import provide
 
         return await provide(widget_id)
@@ -220,7 +220,7 @@ async def refresh(widget_id):
         RETRY_AFTER[(str(paths().db), widget_id)] = time.monotonic() + interval
         cache_write(widget_id, None, "not-connected")
     except Exception:
-        if widget_id == "task.agenda" and not access_enabled():
+        if widget_id in ("task.agenda", "task.plan", "task.free") and not access_enabled():
             cache_write(widget_id, None, "not-connected")
             return
         cache_write(

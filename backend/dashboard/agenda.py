@@ -62,6 +62,7 @@ async def provide(widget_id, *, now=None):
                 "start": begins.isoformat(),
                 "end": finishes.isoformat(),
                 "all_day": all_day,
+                "transparent": row.get("transparency") == "transparent",
             }
         )
     items.sort(key=lambda item: (datetime.fromisoformat(item["start"]), item["id"]))
