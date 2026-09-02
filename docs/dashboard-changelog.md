@@ -228,3 +228,13 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `need.approvals`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `need.overdue`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `need.snoozed`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+
+## 2026-10-27 — communication reference verification
+
+- `comm.thread-summary`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `comm.newsletters`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `comm.contacts`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `comm.reachout`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `comm.unread`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `comm.tone`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `comm.templates`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.

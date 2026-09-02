@@ -71,15 +71,15 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `agent.usage` — bento adoption pending.
 - [ ] `agent.watchers` — bento adoption pending.
 - [ ] `agent.weekly` — bento adoption pending.
-- [x] `comm.contacts` — group adoption; see ui-widget-patterns.md.
+- [x] `comm.contacts` — reference adoption verified; ui-review/communication-contact-sheet.png.
 - [ ] `comm.meeting` — no shipped widget/provider; requires separate feature scope.
-- [x] `comm.newsletters` — group adoption; see ui-widget-patterns.md.
-- [x] `comm.reachout` — group adoption; see ui-widget-patterns.md.
+- [x] `comm.newsletters` — reference adoption verified; ui-review/communication-contact-sheet.png.
+- [x] `comm.reachout` — reference adoption verified; ui-review/communication-contact-sheet.png.
 - [ ] `comm.schedule-send` — no shipped widget/provider; requires backend and permission scope.
-- [x] `comm.templates` — group adoption; see ui-widget-patterns.md.
-- [x] `comm.thread-summary` — group adoption; see ui-widget-patterns.md.
-- [x] `comm.tone` — group adoption; see ui-widget-patterns.md.
-- [x] `comm.unread` — group adoption; see ui-widget-patterns.md.
+- [x] `comm.templates` — reference adoption verified; ui-review/communication-contact-sheet.png.
+- [x] `comm.thread-summary` — reference adoption verified; ui-review/communication-contact-sheet.png.
+- [x] `comm.tone` — reference adoption verified; ui-review/communication-contact-sheet.png.
+- [x] `comm.unread` — reference adoption verified; ui-review/communication-contact-sheet.png.
 - [ ] `dash.gallery` — bento adoption pending.
 - [ ] `dash.modes` — bento adoption pending.
 - [ ] `dash.palette` — bento adoption pending.

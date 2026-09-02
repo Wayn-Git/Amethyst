@@ -20,3 +20,5 @@ Remaining verification: finish captures and expanded contrast sweep, update grou
 - [x] **glance** — 7 IDs / 18 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/glance-contact-sheet.png`.
 
 - [x] **needs-you** — 9 IDs / 18 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/needs-you-contact-sheet.png`.
+
+- [x] **communication** — 7 IDs / 14 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/communication-contact-sheet.png`.
