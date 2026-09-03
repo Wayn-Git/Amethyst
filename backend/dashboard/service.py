@@ -102,6 +102,10 @@ async def local_provider(widget_id):
         from backend.dashboard.agenda import next_event
 
         return await next_event()
+    if widget_id in ("task.plan",):
+        from backend.dashboard.planning import provide
+
+        return await provide(widget_id)
     if widget_id == "task.agenda":
         from backend.dashboard.agenda import provide
 

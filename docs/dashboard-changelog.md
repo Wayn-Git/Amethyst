@@ -110,3 +110,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25: agent.rules — audited reviewed per-tool rules in existing gate, write always-allow rejected, scheduled writes require fresh approval; permission/backend/UI tests passed.
 - 2026-10-25: agent.usage — Director token/latency totals over the recent session, exact cached cloud rate estimates only, honest unavailable values; 97 focused backend tests and six widget UI checks passed.
 - 2026-10-25: agent.research — trace the reviewed Library save separately and link results through the supported Library title filter; eight focused backend tests and all six UI checks passed.
+
+- 2026-10-25 task.plan: deterministic, estimate-based proposals in user-set working hours; read-only Composio calendar/shared cache, fixed-clock and functional UI tests. No model needed.

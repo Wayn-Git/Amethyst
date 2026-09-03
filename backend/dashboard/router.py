@@ -146,6 +146,11 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
             "comm.newsletters",
         ):
             value = MailSettings.model_validate(body).model_dump()
+        elif widget_id == "task.plan":
+            from backend.dashboard.planning import PlanningSettings
+
+            value = PlanningSettings.model_validate(body).model_dump()
+            settings_write("task.free", value)
         elif widget_id == "task.agenda":
             value = AgendaSettings.model_validate(body).model_dump()
         elif widget_id in ("dev.backup", "dev.unpushed"):
@@ -322,9 +327,11 @@ def delegated_trace(run_id: int):
 
     from backend.db.connection import get_connection
 
-    row = get_connection().execute(
-        "SELECT trace_json FROM dashboard_job_traces WHERE run_id=?", (run_id,)
-    ).fetchone()
+    row = (
+        get_connection()
+        .execute("SELECT trace_json FROM dashboard_job_traces WHERE run_id=?", (run_id,))
+        .fetchone()
+    )
     if row is None:
         raise HTTPException(404, "Trace not available yet")
     return json.loads(row["trace_json"])

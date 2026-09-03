@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'task.plan': lazy(() => import('./widgets/Planning.jsx')),
   'dash.pin': lazy(() => import('./widgets/Pins.jsx')),
   'dash.palette': lazy(() => import('./widgets/Palette.jsx')),
   'agent.next': lazy(() => import('./widgets/Insights.jsx')),

@@ -70,6 +70,13 @@ def agenda_manifest():
     return value
 
 
+def planning_manifest(widget_id, title):
+    value = agenda_manifest()
+    value.update(id=widget_id, title=title, tier="v2", empty="No items.")
+    value["source"] = [{"type": "local"}, {"type": "composio", "toolkit": "googlecalendar"}]
+    return value
+
+
 def developer_manifest(widget_id, title, source="local"):
     value = manifest(widget_id, title, ["m", "l"])
     value.update(group="developer", source={"type": source}, empty="No items.")
@@ -340,6 +347,7 @@ MANIFESTS = [
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     agenda_manifest(),
+    planning_manifest("task.plan", "Proposed day plan"),
     {
         **agenda_manifest(),
         "id": "glance.next-event",
