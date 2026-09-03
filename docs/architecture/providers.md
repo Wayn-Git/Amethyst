@@ -216,7 +216,7 @@ already-200 body, intermittently, **after** tokens have moved — precisely the
 case the guard excluded. A mid-answer failure could then only be retried on the
 provider that had just failed, and once `max_resumes` ran out the turn died
 holding half a sentence with healthy providers still in the chain. Now the
-provider that was talking gets its two resumes first, and only then does the
+provider that was talking gets its four resumes first, and only then does the
 chain move on, carrying the partial.
 
 ### When the chain is exhausted

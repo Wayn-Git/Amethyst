@@ -152,10 +152,10 @@ async def test_the_resumed_call_is_told_what_was_already_said(db, workspace, str
 async def test_a_capped_resume_moves_to_the_next_provider_and_keeps_every_fragment(
     db, workspace, streaming
 ):
-    """Three failures in a row is a provider that is down, not a blip -- so the
+    """Five failures in a row is a provider that is down, not a blip -- so the
     resumes stop and the *chain* continues the answer instead.
 
-    Two rules meet here. The cap holds: the provider that was talking gets two
+    Two rules meet here. The cap holds: the provider that was talking gets four
     resumes and no more, or a provider failing in a loop keeps the turn alive
     forever. What changed is what happens next. The turn used to die at that
     point, holding half a sentence, with healthy providers still in the chain
@@ -174,7 +174,9 @@ async def test_a_capped_resume_moves_to_the_next_provider_and_keeps_every_fragme
         [text("one "), mid_stream_failure()],
         [text("two "), mid_stream_failure()],
         [text("three "), mid_stream_failure()],
-        [text("four"), done("one two three four")],
+        [text("four "), mid_stream_failure()],
+        [text("five "), mid_stream_failure()],
+        [text("six"), done("one two three four five six")],
     )
 
     events, cid = await run(workspace)
@@ -183,7 +185,7 @@ async def test_a_capped_resume_moves_to_the_next_provider_and_keeps_every_fragme
     assistant = [m for m in MessageRepository().history(cid) if m.role == "assistant"]
     assert assistant, "nothing of the answer was kept"
     kept = assistant[-1].content
-    for fragment in ("one", "two", "three"):
+    for fragment in ("one", "two", "three", "four", "five"):
         assert fragment in kept, f"{fragment!r} reached the screen and was then lost"
 
 

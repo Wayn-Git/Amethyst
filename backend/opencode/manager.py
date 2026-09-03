@@ -341,7 +341,17 @@ class OpenCodeManager:
         self._proxy_server: asyncio.Server | None = None
         self._process: asyncio.subprocess.Process | None = None
         self._monitor_task: asyncio.Task | None = None
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+
+    @property
+    def lock(self) -> asyncio.Lock:
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+        if self._lock is None or (current_loop and getattr(self._lock, "_loop", None) not in (None, current_loop)):
+            self._lock = asyncio.Lock()
+        return self._lock
 
     # -- public properties ---------------------------------------------------
 
@@ -363,7 +373,7 @@ class OpenCodeManager:
 
     async def start(self) -> None:
         """Spawn ``opencode web`` and wait until it is healthy."""
-        async with self._lock:
+        async with self.lock:
             if self.is_running:
                 return
 
@@ -459,7 +469,7 @@ class OpenCodeManager:
 
     async def stop(self) -> None:
         """Gracefully shut down the opencode process and proxy."""
-        async with self._lock:
+        async with self.lock:
             if self._proxy_server:
                 self._proxy_server.close()
                 try:
@@ -483,7 +493,7 @@ class OpenCodeManager:
                 await asyncio.wait_for(
                     self._process.wait(), timeout=_SHUTDOWN_TIMEOUT
                 )
-            except asyncio.TimeoutError:
+            except (asyncio.TimeoutError, RuntimeError, Exception):
                 await self._kill()
             if self._monitor_task and not self._monitor_task.done():
                 self._monitor_task.cancel()
@@ -522,8 +532,9 @@ class OpenCodeManager:
 
     async def _wait_healthy(self) -> bool:
         """Poll the health endpoint until it responds or we time out."""
-        deadline = asyncio.get_event_loop().time() + _STARTUP_TIMEOUT
-        while asyncio.get_event_loop().time() < deadline:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _STARTUP_TIMEOUT
+        while loop.time() < deadline:
             if self._process and self._process.returncode is not None:
                 return False
             if await self.health_check():
@@ -537,7 +548,10 @@ class OpenCodeManager:
                 self._process.kill()
             except ProcessLookupError:
                 pass
-            await self._process.wait()
+            try:
+                await self._process.wait()
+            except Exception:
+                pass
 
     async def _monitor(self) -> None:
         """Read stderr and detect unexpected exits."""

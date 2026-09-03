@@ -627,7 +627,7 @@ async def test_a_failure_after_the_first_token_is_continued_by_the_next_provider
     out the turn died holding half a sentence with two healthy providers still
     sitting in the chain.
 
-    The resumes still come first -- the provider that was talking gets its two
+    The resumes still come first -- the provider that was talking gets its four
     tries before anyone else is asked -- and only then does the chain move on.
 
     Mutation check: restore `not streamed_text` in `can_hand_over`.
@@ -666,13 +666,13 @@ async def test_a_failure_after_the_first_token_is_continued_by_the_next_provider
     events = [e async for e in Director(_registry(), stream=True, memory=False).run(cid, "hi")]
 
     assert events[-1].type == "done", "the turn finished instead of dying mid-sentence"
-    assert dying.calls == 3, "the provider that was talking gets its two resumes first"
+    assert dying.calls == 5, "the provider that was talking gets its four resumes first"
     assert never.calls == 1, "then the next provider is asked to continue it"
 
     # What already reached the user is never withdrawn, and the hand-over is
     # announced as a continuation rather than as somebody else answering.
     deltas = [e.data["text"] for e in events if e.type == "assistant_delta"]
-    assert deltas[:3] == ["half an ans"] * 3, "what reached the user stays"
+    assert deltas[:5] == ["half an ans"] * 5, "what reached the user stays"
     warning = next(e for e in events if e.type == "warning")
     assert "continuing with" in warning.data["message"]
 
@@ -774,7 +774,7 @@ async def test_a_provider_that_only_ever_falters_still_gives_up(db, monkeypatch)
     ]
 
     assert [e.type for e in events][-1] != "done"
-    assert hopeless.failures <= 4, "it must not retry forever"
+    assert hopeless.failures <= 6, "it must not retry forever"
 
 
 async def test_extraction_uses_the_model_that_answered_not_the_one_that_failed(db, monkeypatch):
