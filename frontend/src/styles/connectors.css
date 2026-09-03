@@ -2007,6 +2007,286 @@
   text-align: center;
 }
 
+/* ── Main Directory View (ChatGPT style) ── */
+.plugin-directory-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  width: 100%;
+  padding-bottom: 4rem;
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.plugin-directory-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.plugin-directory-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.plugin-directory-main-title {
+  font-size: calc(26px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.plugin-directory-main-subtitle {
+  font-size: calc(14px * var(--text-scale, 1));
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.plugin-directory-actions-block {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.plugin-directory-search-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-inputs);
+  padding: 0.45rem 0.85rem;
+  min-width: 240px;
+  transition: border-color 140ms ease;
+}
+
+.plugin-directory-search-pill:focus-within {
+  border-color: var(--accent);
+}
+
+.plugin-directory-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: calc(13px * var(--text-scale, 1));
+  color: var(--text);
+  width: 100%;
+}
+
+.plugin-directory-plus-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 120ms var(--ease-out, ease);
+}
+
+.plugin-directory-plus-btn:hover {
+  background: var(--raised);
+  border-color: rgba(var(--tint), 0.15);
+}
+
+.plugin-directory-plus-btn:active {
+  transform: scale(0.96);
+}
+
+.plugin-filter-pills-row {
+  display: flex;
+  align-items: center;
+  margin-top: -0.5rem;
+}
+
+/* Installed strip */
+.plugin-installed-strip-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.plugin-installed-strip-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: calc(13.5px * var(--text-scale, 1));
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  align-self: flex-start;
+  transition: color 120ms ease;
+}
+
+.plugin-installed-strip-header:hover {
+  color: var(--accent);
+}
+
+.plugin-installed-icons-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding: 0.25rem 0;
+  scrollbar-width: none;
+}
+
+.plugin-installed-icon-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 9px;
+  transition: transform 120ms ease;
+}
+
+.plugin-installed-icon-btn:hover {
+  transform: translateY(-2px);
+}
+
+.plugin-installed-icon-btn:active {
+  transform: scale(0.96);
+}
+
+/* Sections */
+.plugin-directory-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.plugin-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plugin-section-title {
+  font-size: calc(15px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* Category Bridge Row */
+.plugin-category-bridge-row {
+  display: flex;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.plugin-category-bridge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-buttons);
+  transition: background 120ms ease;
+}
+
+.plugin-category-bridge-btn:hover {
+  background: rgba(var(--tint), 0.05);
+}
+
+.plugin-bridge-mini-icons {
+  display: flex;
+  align-items: center;
+}
+
+.plugin-bridge-mini-icon-wrap {
+  margin-right: -8px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px var(--canvas);
+}
+
+.plugin-bridge-text {
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 500;
+  color: var(--text-dim);
+  transition: color 120ms ease;
+  margin-left: 0.65rem;
+}
+
+.plugin-category-bridge-btn:hover .plugin-bridge-text {
+  color: var(--text);
+}
+
+/* Browse by Category chips */
+.plugin-directory-categories-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.plugin-category-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.plugin-category-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-buttons);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  font-size: calc(12.5px * var(--text-scale, 1));
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.plugin-category-chip-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.plugin-category-chip-btn:active {
+  transform: scale(0.97);
+}
+
+/* MCP & Search states */
+.plugin-directory-mcp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.plugin-directory-search-results-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.plugin-empty-search-state,
+.plugin-empty-installed-state {
+  padding: 3.5rem 1rem;
+  text-align: center;
+}
+
+
 
 
 
