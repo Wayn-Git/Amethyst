@@ -40,6 +40,7 @@ def test_registry_contains_shipped_local_widgets(client):
     assert {entry["manifest"]["id"] for entry in response["widgets"]} == {
         "need.inbox",
         "need.drafts",
+        "need.waiting",
         "agent.feed",
         "need.decisions",
         "need.approvals",

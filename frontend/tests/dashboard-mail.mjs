@@ -28,8 +28,12 @@ try {
     await widget.getByRole('button', { name: 'Approve', exact: true }).click()
     await widget.getByRole('button', { name: 'Approve local change', exact: true }).waitFor()
     assert.equal(await widget.getByRole('button', { name: 'Send (send scope disabled)' }).isDisabled(), true)
+  } else if (id === 'need.waiting') {
+    await widget.getByRole('button', { name: 'Draft nudge', exact: true }).click()
+    await widget.getByLabel('Nudge recipient', { exact: true }).fill('recipient@example.com')
+    assert.equal(await widget.getByLabel('Nudge text', { exact: true }).inputValue(), 'Following up on Fixture subject.')
   } else await widget.getByText('Why: Direct question').waitFor()
-  assert.equal(await widget.getByText('Fixture snippet').count(), 1)
+  if (id !== 'need.waiting') assert.equal(await widget.getByText('Fixture snippet').count(), 1)
   assert.equal(calls.some(path => /composio|send/.test(path)), false)
   console.log(`${id}: passed`)
 } finally { await browser.close() }

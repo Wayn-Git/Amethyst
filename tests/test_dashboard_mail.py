@@ -146,3 +146,69 @@ async def test_local_drafts_gate_and_changed_row(db, monkeypatch):
         await decide("need.drafts", pending["draft_id"], True)
     with pytest.raises(HTTPException):
         draft("need.drafts", "send", MailInput(id=item["id"]))
+
+
+async def test_waiting_reply_rules_manual_and_nudge(db, monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    from backend.dashboard.items import decide
+    from backend.dashboard.mail import MailInput, draft
+    from backend.dashboard.store import cache_write
+
+    now = datetime.now(UTC)
+    old = (now - timedelta(days=5)).isoformat()
+
+    async def messages(widget_id, query):
+        if query.startswith("in:sent"):
+            return [
+                {"id": "s1", "thread_id": "t1", "date": old, "subject": "Waiting"},
+                {"id": "s2", "thread_id": "t2", "date": old, "subject": "Answered"},
+                {"id": "s3", "thread_id": "t3", "date": now.isoformat(), "subject": "New"},
+                {"id": "s4", "thread_id": "t1", "date": old, "subject": "Waiting"},
+            ]
+        return [{"id": "r2", "thread_id": "t2", "date": now.isoformat()}]
+
+    monkeypatch.setattr(mail, "messages", messages)
+    result = await mail.provide("need.waiting")
+    assert [r["id"] for r in result["items"]] == ["mail:s1"]
+    pending = draft(
+        "need.waiting",
+        "add",
+        MailInput(title="Manual", recipient="person@example.com", sent_at=now - timedelta(days=4)),
+    )
+    await decide("need.waiting", pending["draft_id"], True)
+    result = await mail.provide("need.waiting")
+    assert len(result["items"]) == 2
+    cache_write("need.waiting", result, "ok")
+    nudge = draft(
+        "need.waiting",
+        "nudge",
+        MailInput(
+            reference="mail:s1",
+            recipient="person@example.com",
+            subject="Waiting",
+            text="Checking in.",
+        ),
+    )
+    assert db.execute("SELECT COUNT(*) FROM dashboard_mail_drafts").fetchone()[0] == 0
+    await decide("need.waiting", nudge["draft_id"], True)
+    assert db.execute("SELECT status FROM dashboard_mail_drafts").fetchone()[0] == "draft"
+    manual = next(r for r in result["items"] if r.get("manual_id"))
+    completed = draft("need.waiting", "complete", MailInput(id=manual["manual_id"]))
+    await decide("need.waiting", completed["draft_id"], True)
+    settings_write("need.waiting", {"days": 7})
+    assert (await mail.provide("need.waiting"))["items"] == []
+
+
+async def test_waiting_manual_when_gmail_off(db, monkeypatch):
+    async def offline(*args):
+        raise connectors.SourceUnavailable()
+
+    monkeypatch.setattr(mail, "messages", offline)
+    db.execute(
+        "INSERT INTO dashboard_mail_waiting(title,recipient,sent_at,updated_at) "
+        "VALUES('Manual','a@example.com','2026-01-01T00:00:00Z','2026-01-01')"
+    )
+    db.commit()
+    result = await mail.provide("need.waiting")
+    assert not result["connected"] and result["items"][0]["subject"] == "Manual"

@@ -77,6 +77,10 @@ class AgendaSettings(StrictModel):
     enabled: bool
 
 
+class WaitingSettings(StrictModel):
+    days: int = Field(default=3, ge=1, le=90)
+
+
 class MailSettings(StrictModel):
     model_enabled: bool = False
 
@@ -97,6 +101,8 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 if date.tzinfo is None:
                     raise ValueError("Snooze requires a timezone")
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
+        elif widget_id == "need.waiting":
+            value = WaitingSettings.model_validate(body).model_dump()
         elif widget_id == "need.inbox":
             value = MailSettings.model_validate(body).model_dump()
         elif widget_id == "task.agenda":
@@ -128,7 +134,7 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
-        if widget_id == "need.drafts":
+        if widget_id in ("need.drafts", "need.waiting"):
             from backend.dashboard.mail import MailInput
             from backend.dashboard.mail import draft as mail_draft
 

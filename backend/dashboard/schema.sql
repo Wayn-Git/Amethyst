@@ -80,3 +80,12 @@ CREATE TABLE IF NOT EXISTS dashboard_mail_drafts (
     status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','approved')),
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_mail_waiting (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    completed INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);

@@ -2,7 +2,7 @@
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 
 from fastapi import HTTPException
@@ -11,7 +11,7 @@ from pydantic import Field, field_validator
 from backend.dashboard import connectors
 from backend.dashboard.items import save_draft
 from backend.dashboard.models import StrictModel
-from backend.dashboard.store import settings_read, stamp
+from backend.dashboard.store import cache_read, settings_read, stamp
 from backend.db.connection import get_connection
 
 
@@ -49,6 +49,9 @@ async def generate(prompt):
 
 
 async def provide(widget_id):
+    if widget_id == "need.waiting":
+        return await waiting(widget_id)
+
     if widget_id == "need.drafts":
         return {
             "items": [
@@ -87,6 +90,10 @@ async def provide(widget_id):
 
 
 class MailInput(StrictModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    sent_at: datetime | None = None
+    reference: str | None = Field(default=None, max_length=500)
+
     id: int | None = Field(default=None, gt=0)
     recipient: str | None = Field(default=None, min_length=3, max_length=320)
     subject: str | None = Field(default=None, min_length=1, max_length=500)
@@ -121,6 +128,10 @@ def draft_row(item_id):
 
 
 def draft(widget_id, action, body):
+    if widget_id == "need.waiting":
+        return waiting_draft(action, body)
+    if any((body.title, body.sent_at, body.reference)):
+        raise HTTPException(422, "Unexpected draft fields")
     if widget_id != "need.drafts" or action not in ("add", "edit", "approve"):
         raise HTTPException(404, "Unknown mail action; Gmail sending is disabled")
     payload = body.model_dump(mode="json")
@@ -142,6 +153,8 @@ def draft(widget_id, action, body):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "need.waiting":
+        return apply_waiting(conn, action, body)
     if widget_id != "need.drafts":
         raise HTTPException(404, "Unknown mail widget")
     if body["id"] is not None:
@@ -169,3 +182,130 @@ def apply(conn, widget_id, action, body):
     else:
         raise HTTPException(404, "Sending is disabled")
     conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id='need.drafts'")
+
+
+async def waiting(widget_id):
+    days = settings_read(widget_id).get("days", 3)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    manual = [
+        dict(row)
+        for row in get_connection().execute(
+            "SELECT * FROM dashboard_mail_waiting WHERE completed=0 ORDER BY sent_at,id"
+        )
+    ]
+    items = [
+        {
+            "id": "manual:" + str(row["id"]),
+            "manual_id": row["id"],
+            "subject": row["title"],
+            "recipient": row["recipient"],
+            "date": row["sent_at"],
+            "source": "manual",
+        }
+        for row in manual
+        if mail_date(row["sent_at"]) <= cutoff
+    ]
+    connected = True
+    try:
+        sent = await messages(widget_id, "in:sent -in:drafts newer_than:90d")
+        received = await messages(widget_id, "-in:sent -in:drafts newer_than:90d")
+        latest_sent, latest_reply = {}, {}
+        for rows, latest in ((sent, latest_sent), (received, latest_reply)):
+            for row in rows:
+                thread = row.get("thread_id") or row["id"]
+                if thread not in latest or mail_date(row["date"]) > mail_date(
+                    latest[thread]["date"]
+                ):
+                    latest[thread] = row
+        for thread, row in latest_sent.items():
+            when = mail_date(row["date"])
+            if when == datetime.min.replace(tzinfo=UTC) or when > cutoff:
+                continue
+            reply = latest_reply.get(thread)
+            if reply and mail_date(reply["date"]) > when:
+                continue
+            items.append({**row, "id": "mail:" + row["id"], "source": "Gmail"})
+    except connectors.SourceUnavailable:
+        connected = False
+    items.sort(key=lambda row: mail_date(row["date"]))
+    return {
+        "items": items,
+        "days": days,
+        "connected": connected,
+        "limited": True,
+        "window_days": 90,
+    }
+
+
+def waiting_draft(action, body):
+    payload = body.model_dump(mode="json")
+    if action == "add":
+        if (
+            body.id
+            or body.reference
+            or body.subject
+            or body.text
+            or not body.title
+            or not body.title.strip()
+            or not body.recipient
+            or not body.sent_at
+            or body.sent_at.tzinfo is None
+            or body.sent_at > datetime.now(UTC)
+        ):
+            raise HTTPException(422, "Title, recipient and a past sent date with timezone required")
+    elif action == "complete":
+        if not body.id or any(
+            (body.title, body.recipient, body.sent_at, body.reference, body.subject, body.text)
+        ):
+            raise HTTPException(422, "Specify only the manual item id")
+        row = (
+            get_connection()
+            .execute("SELECT * FROM dashboard_mail_waiting WHERE id=? AND completed=0", (body.id,))
+            .fetchone()
+        )
+        if row is None:
+            raise HTTPException(404, "Waiting item no longer exists")
+        payload["expected"] = dict(row)
+    elif action == "nudge":
+        if (
+            body.id
+            or body.title
+            or body.sent_at
+            or not all((body.reference, body.recipient, body.subject, body.text))
+        ):
+            raise HTTPException(422, "Reference, recipient, subject and draft text required")
+        rows = (cache_read("need.waiting")["payload"] or {}).get("items", [])
+        if not any(row["id"] == body.reference for row in rows):
+            raise HTTPException(409, "Refresh the waiting item before drafting a nudge")
+    else:
+        raise HTTPException(404, "Unknown waiting action")
+    return save_draft("need.waiting", action, body, payload)
+
+
+def apply_waiting(conn, action, body):
+    if action == "add":
+        conn.execute(
+            "INSERT INTO dashboard_mail_waiting(title,recipient,sent_at,updated_at) "
+            "VALUES(?,?,?,?)",
+            (body["title"], body["recipient"], body["sent_at"], stamp()),
+        )
+    elif action == "complete":
+        row = conn.execute(
+            "SELECT * FROM dashboard_mail_waiting WHERE id=?", (body["id"],)
+        ).fetchone()
+        if row is None or dict(row) != body["expected"]:
+            raise HTTPException(409, "Waiting item changed. Review a new request.")
+        conn.execute(
+            "UPDATE dashboard_mail_waiting SET completed=1,updated_at=? WHERE id=?",
+            (stamp(), body["id"]),
+        )
+    elif action == "nudge":
+        conn.execute(
+            "INSERT INTO dashboard_mail_drafts(recipient,subject,text,updated_at) VALUES(?,?,?,?)",
+            (body["recipient"], body["subject"], body["text"], stamp()),
+        )
+    else:
+        raise HTTPException(404, "Unknown waiting action")
+    conn.execute(
+        "UPDATE widget_cache SET state='stale' WHERE widget_id IN ('need.waiting','need.drafts')"
+    )
