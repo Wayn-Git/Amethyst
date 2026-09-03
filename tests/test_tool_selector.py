@@ -78,6 +78,14 @@ def test_it_fails_open_rather_than_hiding_tools():
     assert select_tools([], "anything") == ([], 0)
 
 
+def test_image_request_gets_search_images_and_not_shell_command():
+    all_schemas = _schemas() + [_S("search_images")]
+    kept, _ = select_tools(all_schemas, "get me 20 pictures of jason")
+    names = _names(kept)
+    assert "search_images" in names
+    assert "run_shell_command" not in names
+
+
 # ------------------------------------------------- system prompt is built once
 
 
