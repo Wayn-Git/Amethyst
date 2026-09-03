@@ -1281,7 +1281,7 @@ export default function LibraryDetailModal({
             )}
 
             {/* Author / Creator Context Card */}
-            {(item.author || sourceInfo.author || authorAvatarUrl) && (
+            {(item.url || item.author || sourceInfo.author || authorAvatarUrl) && item.kind !== 'note' && (
               <div className="lib-author-card">
                 <div className="lib-author-card-left">
                   <div className="lib-author-card-avatar">
