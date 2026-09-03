@@ -255,3 +255,17 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `agent.research`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `agent.delegated`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `agent.jobs`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+
+## 2026-10-27 — library reference verification
+
+- `lib.inbox`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.resurface`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.capture`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.search`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.recent`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.dupes`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.ask`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.readlater`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.highlights`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.daily`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `lib.collections`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
