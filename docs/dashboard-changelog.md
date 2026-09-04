@@ -295,3 +295,8 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `dev.recovery`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `dev.unpushed`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `dev.backup`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+
+## 2026-10-27 — feed reference verification
+
+- `feed.news`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `feed.rss`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.

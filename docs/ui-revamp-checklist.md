@@ -105,10 +105,10 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `feed.arxiv` — bento adoption pending.
 - [ ] `feed.events` — bento adoption pending.
 - [ ] `feed.markets` — bento adoption pending.
-- [ ] `feed.news` — bento adoption pending.
+- [x] `feed.news` — reference adoption verified; ui-review/feed-contact-sheet.png.
 - [ ] `feed.podcasts` — bento adoption pending.
 - [ ] `feed.releases` — bento adoption pending.
-- [ ] `feed.rss` — bento adoption pending.
+- [x] `feed.rss` — reference adoption verified; ui-review/feed-contact-sheet.png.
 - [ ] `feed.social` — bento adoption pending.
 - [ ] `feed.sports` — bento adoption pending.
 - [ ] `feed.watchlater` — bento adoption pending.
