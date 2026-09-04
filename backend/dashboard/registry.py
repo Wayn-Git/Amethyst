@@ -124,12 +124,20 @@ def mail_manifest(widget_id, title):
         requires=["connector:gmail"],
         empty="No mail needs a reply.",
     )
+    if widget_id == "need.drafts":
+        value.update(
+            source={"type": "local"},
+            requires=[],
+            empty="No drafts waiting.",
+            actions=[dict(id=a, label=a.title(), gate=True) for a in ("add", "edit", "approve")],
+        )
     return value
 
 
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     mail_manifest("need.inbox", "Priority inbox"),
+    mail_manifest("need.drafts", "Mail drafts to approve"),
     system_manifest("sys.connectors", "Connector health and reconnect"),
     system_manifest("sys.model", "Active model", "director"),
     system_manifest("sys.notify", "Notification center"),

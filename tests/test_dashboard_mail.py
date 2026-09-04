@@ -115,3 +115,34 @@ async def test_shared_gmail_cache_excludes_bodies(db, monkeypatch):
     assert "SECRET" not in str(read_cache._cache)
     with pytest.raises(RuntimeError, match="read-only"):
         await connectors.read("need.inbox", "gmail", "GMAIL_SEND_EMAIL", {})
+
+
+async def test_local_drafts_gate_and_changed_row(db, monkeypatch):
+    from fastapi import HTTPException
+
+    from backend.dashboard.items import decide
+    from backend.dashboard.mail import MailInput, draft, draft_row
+
+    body = MailInput(recipient="test@example.com", subject="Fixture", text="Local body" * 100)
+    pending = draft("need.drafts", "add", body)
+    assert (await mail.provide("need.drafts"))["items"] == []
+    await decide("need.drafts", pending["draft_id"], False)
+    assert (await mail.provide("need.drafts"))["items"] == []
+    pending = draft("need.drafts", "add", body)
+    await decide("need.drafts", pending["draft_id"], True)
+    item = (await mail.provide("need.drafts"))["items"][0]
+    assert len(item["snippet"]) == 300 and "text" not in item
+    assert draft_row(item["id"])["text"] == body.text
+    approved = draft("need.drafts", "approve", MailInput(id=item["id"]))
+    assert draft_row(item["id"])["status"] == "draft"
+    await decide("need.drafts", approved["draft_id"], True)
+    assert draft_row(item["id"])["status"] == "approved"
+    with pytest.raises(HTTPException):
+        await decide("need.drafts", approved["draft_id"], True)
+    pending = draft("need.drafts", "edit", body.model_copy(update={"id": item["id"]}))
+    db.execute("UPDATE dashboard_mail_drafts SET text='Changed'")
+    db.commit()
+    with pytest.raises(HTTPException, match="409"):
+        await decide("need.drafts", pending["draft_id"], True)
+    with pytest.raises(HTTPException):
+        draft("need.drafts", "send", MailInput(id=item["id"]))

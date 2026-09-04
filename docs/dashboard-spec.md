@@ -193,7 +193,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
 | need.inbox | Priority inbox (mails that need a reply) | cmp:gmail, llm | MVP | [x] |
-| need.drafts | Mail drafts to approve | cmp:gmail, llm, gate | MVP | [ ] |
+| need.drafts | Mail drafts to approve | cmp:gmail, llm, gate | MVP | [x] |
 | need.waiting | Waiting on (sent, no answer) with nudge drafts | cmp:gmail, local, llm | MVP | [ ] |
 | need.overdue | Overdue items | local | MVP | [x] |
 | need.mentions | Unanswered mentions | cmp:slack, cmp:github | MVP | [ ] |

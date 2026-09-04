@@ -56,3 +56,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-24: sys.connectors adds health and scoped Connect Links atop the agenda/appeal reader, existing SWR cache and manifest polling; audited reads, auth expiry, connector backoff/circuits and write-gate regressions covered. 85 targeted backend tests, connector UI and changed-code lint pass; GitLab confirmed, live OAuth/local SDK delivery unverified.
 
 2026-10-24 — need.inbox: read-only Gmail, shared projected cache, optional ranking with reasons and unread/recent fallback; mocked backend and browser checks pass.
+
+2026-10-24 — need.drafts: local SQLite drafts, full review/edit, single-use gate requests and changed-row checks; sending disabled (Gmail read-only). Local source replaces proposed Gmail drafts. Backend and browser checks pass.

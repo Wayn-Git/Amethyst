@@ -70,3 +70,13 @@ CREATE TABLE IF NOT EXISTS dashboard_connector_health (
     reconnect_started TEXT,
     account_id TEXT
 );
+
+-- User-authored drafts are local records, never Gmail draft objects.
+CREATE TABLE IF NOT EXISTS dashboard_mail_drafts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    text TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','approved')),
+    updated_at TEXT NOT NULL
+);

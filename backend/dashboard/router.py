@@ -128,6 +128,11 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "need.drafts":
+            from backend.dashboard.mail import MailInput
+            from backend.dashboard.mail import draft as mail_draft
+
+            return mail_draft(widget_id, action, MailInput.model_validate(body))
         if widget_id == "sys.model":
             from backend.dashboard.system import ModelInput, model_draft
 
@@ -168,3 +173,10 @@ async def connector_connect(toolkit: str):
         raise HTTPException(422, "Read-only connection is not available for this toolkit") from exc
     except Exception as exc:
         raise HTTPException(503, "Could not create Connect Link. Check Composio settings.") from exc
+
+
+@router.get("/widgets/need.drafts/mail/{item_id}")
+def review_mail(item_id: int):
+    from backend.dashboard.mail import draft_row
+
+    return draft_row(item_id)
