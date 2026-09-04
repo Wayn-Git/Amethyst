@@ -1899,5 +1899,114 @@
   margin: 0;
 }
 
+/* ── Category View (ChatGPT style) ── */
+.plugin-category-view-root {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-bottom: 4rem;
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.plugin-category-top-nav {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.plugin-category-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.plugin-category-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 260px;
+  flex: 1;
+}
+
+.plugin-category-title {
+  font-size: calc(24px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.plugin-category-subtitle {
+  font-size: calc(13.5px * var(--text-scale, 1));
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.plugin-category-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-inputs);
+  padding: 0.4rem 0.85rem;
+  min-width: 260px;
+  transition: border-color 140ms ease;
+}
+
+.plugin-category-search-box:focus-within {
+  border-color: var(--accent);
+}
+
+.plugin-category-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: calc(13px * var(--text-scale, 1));
+  color: var(--text);
+  width: 100%;
+}
+
+.plugin-clear-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.plugin-clear-search-btn:hover {
+  color: var(--text);
+}
+
+.plugin-two-col-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .plugin-two-col-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.plugin-empty-category {
+  padding: 3.5rem 1rem;
+  text-align: center;
+}
+
+
 
 
