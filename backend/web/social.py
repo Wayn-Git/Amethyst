@@ -101,8 +101,12 @@ READERS: tuple[Reader, ...] = (
         source="x",
         binary="twitter",
         hosts=("x.com", "twitter.com", "mobile.twitter.com"),
-        read=("twitter", "thread", "{url}"),
-        search=("twitter", "search", "{query}", "--limit", "{limit}"),
+        # twitter-cli 0.8.5 has no `thread` command -- `tweet` takes a URL or
+        # a bare id and prints the post with its replies, which is the same
+        # thing under the name it actually shipped with. `--compact` is the
+        # LLM-friendly output its own help recommends.
+        read=("twitter", "--compact", "tweet", "{url}"),
+        search=("twitter", "--compact", "search", "{query}", "-n", "{limit}"),
         package="twitter-cli",
         sign_in=(
             "store the two cookies from a signed-in browser with:"

@@ -260,6 +260,15 @@ _browser = BrowserRunner()
 async def _lifespan(_: FastAPI):
     paths().ensure()
     get_connection()
+    # First, and deliberately before any runner starts: features that switch
+    # themselves on when their inputs already exist (backend/runtime/autostart).
+    # Running it first means the bookmark watcher starts its first tick already
+    # enabled rather than idling one poll behind. It says what it changed in the
+    # log, once, and never asks -- see that module for what it will not touch.
+    from backend.runtime.autostart import auto_setup
+
+    for note in auto_setup():
+        log.info("auto-setup: %s", note)
     # Automations run while this process is up, and only while it is up. A
     # separate daemon would keep them running with nothing able to answer a
     # permission prompt, which is a worse promise than "they run while PSOK is

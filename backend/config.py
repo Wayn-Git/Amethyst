@@ -1008,13 +1008,41 @@ def save_social(patch: dict) -> SocialSettings:
 
 def allow_source(source: str, *, allowed: bool = True) -> SocialSettings:
     """Turn one site on or off. The button behind "read reddit as me"."""
+    from backend.db.connection import get_connection
+
     current = list(load_social().allow)
     source = str(source).strip().lower()
     if allowed and source and source not in current:
         current.append(source)
     elif not allowed and source in current:
         current.remove(source)
+    # A deny is recorded as its own fact, not only as absence from the list,
+    # because absence is also the never-had-an-opinion state. The auto-setup
+    # in backend/runtime/autostart.py enables a reader only where no opinion
+    # exists; without this marker a deny would look identical to fresh on the
+    # next boot, and the machine would re-enable what the user just refused.
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES ('social.denied', ?)"
+        " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+        " updated_at = datetime('now')",
+        (source,),
+    )
+    conn.commit()
     return save_social({"allow": current})
+
+
+def source_denied(source: str) -> bool:
+    """Whether this source was explicitly refused, as opposed to never allowed."""
+    try:
+        from backend.db.connection import get_connection
+
+        row = get_connection().execute(
+            "SELECT value FROM app_settings WHERE key = 'social.denied'"
+        ).fetchone()
+    except Exception:
+        return False
+    return bool(row) and str(source).strip().lower() == str(row["value"]).strip().lower()
 
 
 #: Embedding models this machine can probably reach, by provider, best first.
