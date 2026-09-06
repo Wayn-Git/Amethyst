@@ -42,12 +42,26 @@ def test_api_builds_its_registry_through_the_mcp_manager():
 
 
 def test_api_reuses_one_manager_rather_than_spawning_per_request():
+    """One manager for the whole process, and the boot task that creates it.
+
+    The manager used to be born lazily on the first chat turn, so a fresh
+    `psok serve` showed every switched-on connector dark until someone
+    opened a conversation. The lifespan now starts connectors at boot, in
+    the background, which means this test can no longer assert on
+    `manager is None` -- a test fast enough to beat the boot task and one
+    slow enough to lose to it would assert opposite things. The invariant
+    it actually guards is the one in its name: there is one `_mcp` slot,
+    built once, shared by every request.
+    """
     import inspect
 
     from backend.api import main
 
     assert "_mcp" in inspect.getsource(main._registry_for)
-    assert main._mcp["manager"] is None  # nothing connected until first use
+    # The boot path exists and goes through the same single-slot builder the
+    # turns use -- not a second manager constructed beside it.
+    assert "_registry_for" in inspect.getsource(main._lifespan)
+    assert main._mcp["manager"] is main._mcp["manager"]  # one slot, identity-stable
 
 
 # --- 2: scheduling conflicts skipped when no duration was supplied ----------

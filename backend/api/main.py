@@ -278,12 +278,36 @@ async def _lifespan(_: FastAPI):
     _instagram.start()
     # Fifth. A no-op on every tick until someone switches the browser on.
     _browser.start()
+    # Sixth, and first to be stopped after the browser: connectors.
+
+    # Switched-on connectors start at boot rather than on the first turn.
+    # The manager used to be built lazily by the first chat request, so on a
+    # fresh `psok serve` every connector sat dark -- "starting", "not
+    # running" -- until somebody opened a conversation or pressed Connect,
+    # and the Connectors page showed nothing working for the whole first
+    # session. Starting here means the page tells the truth from the first
+    # render, and `reconciled_once` (which the lifecycle reads) flips when
+    # this pass completes rather than when a manager object merely exists.
+    #
+    # Background, not awaited: stdio servers take seconds each, and the
+    # app should answer /api/ping while they come up. The unconnected
+    # rows read `starting` in the meantime, which is exactly what that
+    # state exists to say.
+    async def _start_connectors() -> None:
+        try:
+            await _registry_for(None)
+        except Exception:
+            log.exception("the boot-time connector start failed")
+
+    _boot_connectors = asyncio.create_task(_start_connectors())
     yield
     await _browser.stop()
     await _instagram.stop()
     await _journal.stop()
     await _reminders.stop()
     await _runner.stop()
+    with contextlib.suppress(asyncio.CancelledError):
+        await _boot_connectors
     if _mcp["manager"] is not None:
         await _mcp["manager"].shutdown()
     await close_clients()
