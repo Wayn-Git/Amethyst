@@ -1,0 +1,19 @@
+{
+  "name": "psok-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Always-on receiver for PSOK's Instagram webhook and phone shares.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "schema": "wrangler d1 execute psok-relay --remote --file=./schema.sql",
+    "schema:local": "wrangler d1 execute psok-relay --local --file=./schema.sql",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260904.1",
+    "typescript": "^5.6.0",
+    "wrangler": "4.129.0"
+  }
+}
