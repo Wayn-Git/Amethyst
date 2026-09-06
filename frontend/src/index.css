@@ -766,6 +766,32 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 .composer:focus-within {
   border-color: var(--hairline-strong);
+  /* The focus ring is the accent, which is to say it is ink. A shadow ring
+     rather than a border change so nothing inside shifts by a pixel while
+     the field is being used. */
+  box-shadow: 0 0 0 3px var(--focus-ring), 0 1px 2px rgb(var(--shade) / 0.04);
+}
+
+/* Draft metadata: mono, faint, and right -- the trailing edge of a document
+   rather than a toolbar. Fades in with the first word; no transform, so a
+   draft being typed never moves anything under the typist. */
+.composer-draft-meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-lg);
+  padding: 0 var(--space-md) var(--space-xs);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  animation: draft-meta-in 200ms var(--ease-out);
+}
+@keyframes draft-meta-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-draft-meta { animation-duration: 0.01ms; }
 }
 
 .composer-bar { display: flex; align-items: center; gap: 6px; }
@@ -5203,40 +5229,72 @@ textarea.lib-input { width: 100%; margin-top: var(--space-sm); resize: vertical;
 
 .wb-panel {
   grid-column: 4;
-  width: 360px;
+  width: 372px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-left: 1px solid var(--hairline);
   background: var(--canvas);
+  position: relative;
 }
 /* Nothing to show and nothing to reserve. The column is `auto`, so a hidden
    panel takes the working column's width with it. */
 .wb-panel:empty { display: none; }
 .wb--panel-hidden .wb-panel { display: none; }
 
+/* The inner wrapper is what animates. The column itself keeps its layout
+   box so the grid never re-measures mid-entrance; a translate on the child
+   is the whole entrance, which is why the column's neighbours do not shift. */
+.wb-panel-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
 .wb-panel-head {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   flex: none;
-  height: var(--bar-h);
-  padding: 0 var(--space-md) 0 var(--space-lg);
+  min-height: var(--bar-h);
+  padding: var(--space-xs) var(--space-md) var(--space-xs) var(--space-lg);
   border-bottom: 1px solid var(--hairline);
+}
+
+/* Eyebrow over title: which view owns this panel. Two lines make the head a
+   small hierarchy rather than a flat label -- the editorial move, and the
+   reason the title can stay display-weight without shouting. */
+.wb-panel-heading { display: grid; gap: 1px; min-width: 0; }
+.wb-panel-eyebrow {
+  font-size: var(--text-3xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wb-panel-title {
   font-family: var(--font-display);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wb-panel-count {
-  padding: 1px 7px;
+  padding: 1px 8px;
   border-radius: var(--r-pill);
   background: rgb(var(--tint) / 0.06);
   color: var(--text-dim);
   font-size: var(--text-2xs);
-  font-weight: 500;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: transform var(--press) var(--ease-out);
 }
 .wb-panel-head .icon-btn { margin-left: auto; }
 
@@ -5246,15 +5304,34 @@ textarea.lib-input { width: 100%; margin-top: var(--space-sm); resize: vertical;
   overflow-y: auto;
   display: grid;
   align-content: start;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg) var(--space-2xl);
+  gap: var(--space-md);
+  padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+  /* An arriving panel's contents are animated by GSAP (motion.js); this is
+     the pre-JS floor so a no-JS flash is a settled panel, never a pile of
+     invisible children. */
+  opacity: 1;
+}
+
+/* A hairline-guided scroll: the body tells you it continues without a
+   chrome-y scrollbar shadow. Space is cheaper than decoration. */
+.wb-panel-body::-webkit-scrollbar { width: 8px; }
+.wb-panel-body::-webkit-scrollbar-thumb {
+  background: rgb(var(--tint) / 0.08);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 .wb-panel-empty {
-  padding: var(--space-md) 0;
+  padding: var(--space-xl) var(--space-xs);
   color: var(--text-faint);
   font-size: var(--text-xs);
   line-height: var(--leading-relaxed);
+  /* The empty state is a statement, not an apology: it names what will fill
+     this space, so the panel reads as waiting rather than broken. */
+  border: 1px dashed var(--hairline);
+  border-radius: var(--r-md);
+  text-align: left;
 }
 
 .wb-panel-foot {
@@ -5266,6 +5343,7 @@ textarea.lib-input { width: 100%; margin-top: var(--space-sm); resize: vertical;
   border-top: 1px solid var(--hairline);
   color: var(--text-faint);
   font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
 }
 .wb-panel-foot .mono { margin-left: auto; color: var(--text-dim); }
 
@@ -5277,16 +5355,27 @@ textarea.lib-input { width: 100%; margin-top: var(--space-sm); resize: vertical;
 /* The Mail panel: the same slot, different contents. Everything here is
    display-only, so the styles follow the panel's own idiom -- small type,
    hairlines between the sections -- rather than inventing a second panel
-   look. */
-.mail-panel-who { display: grid; gap: 2px; }
+   look. The sender's name is the one display-weight element in the body:
+   a thread panel is about a person, and the hierarchy should say so. */
+.mail-panel-who { display: grid; gap: 3px; }
+.mail-panel-who .mail-panel-sub:first-child {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .mail-panel-sub {
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-faint);
-  margin-top: var(--space-sm);
+  margin-top: var(--space-lg);
 }
-.mail-panel-who .mail-panel-sub:first-child { margin-top: 0; }
 .mail-panel-address { font-size: var(--text-xs); color: var(--text-dim); }
 .mail-panel-meta { font-size: var(--text-2xs); color: var(--text-faint); }
 .mail-panel-history { display: grid; gap: 4px; }
@@ -5298,6 +5387,7 @@ textarea.lib-input { width: 100%; margin-top: var(--space-sm); resize: vertical;
   font-size: var(--text-xs);
   color: var(--text-dim);
   min-width: 0;
+  padding: var(--space-3xs) 0;
 }
 .mail-panel-lib-item span:first-of-type {
   overflow: hidden;

@@ -154,7 +154,7 @@ function MailPanel({ thread, rows, account, compact }) {
   )
 
   return (
-    <SidePanel title="Thread" closeLabel="Hide the thread panel">
+    <SidePanel title="Thread" eyebrow="Mail" count={thread.messages?.length || 0} closeLabel="Hide the thread panel">
       <div className="mail-panel-who">
         <div className="mail-panel-sub">{who.name}</div>
         {who.address && <div className="mail-panel-address">{who.address}</div>}

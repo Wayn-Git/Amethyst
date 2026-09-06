@@ -85,3 +85,47 @@ export function staggerIn(els, { each = 0.04, y = 6 } = {}) {
     clearProps: 'transform',
   })
 }
+
+/** The panel's own entrance, the one piece of motion that is about the panel
+ *  rather than what is inside it.
+ *
+ *  A panel appearing is a *column* appearing, which moves everything beside
+ *  it; the vestibular-safe read of that is to animate the column and not its
+ *  contents. Under reduced motion the whole thing is a 12ms opacity settle:
+ *  the panel still arrives (teleporting a column into existence is its own
+ *  disorientation) but nothing moves.
+ */
+export function panelIn(el) {
+  if (!el) return
+  if (REDUCED) {
+    gsap.fromTo(el, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.012, clearProps: 'all' })
+    return
+  }
+  gsap.fromTo(
+    el,
+    { autoAlpha: 0, x: 16 },
+    { autoAlpha: 1, x: 0, duration: 0.34, ease: 'expo.out', clearProps: 'transform' },
+  )
+}
+
+/** A count that changed, seen to change. Text scale, not layout: the element
+ *  is inline and reflowing it would shove the whole header row. */
+export function pulseCount(el) {
+  if (!el || REDUCED) return
+  gsap.fromTo(
+    el,
+    { scale: 1 },
+    { scale: 1.18, duration: 0.14, ease: 'out', yoyo: true, repeat: 1, clearProps: 'transform' },
+  )
+}
+
+/** Live-streaming content: fade a fresh block in without moving it. Streaming
+ *  already implies change; moving it too is the double that reads as jitter. */
+export function streamIn(el) {
+  if (!el) return
+  if (REDUCED) {
+    gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.012, clearProps: 'all' })
+    return
+  }
+  gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: 'power1.out', clearProps: 'opacity' })
+}

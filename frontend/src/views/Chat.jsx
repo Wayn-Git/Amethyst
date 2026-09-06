@@ -453,9 +453,11 @@ function RunPanel({ steps, live, liveReasoning, running, onClose, totals }) {
   return (
     <SidePanel
       title="Steps"
+      eyebrow="Chat"
       count={steps.length}
       onClose={onClose}
       closeLabel="Hide the steps panel"
+      live
       footer={
         totals && (
           <>
@@ -1337,6 +1339,20 @@ export default function Chat() {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
           }}
         />
+
+        {/* Draft metadata: the draft is a document, so it carries its own
+            facts -- words, and the only honest estimate of the reply's length.
+            Appears only while there is a draft; mono, because these are
+            machine facts, not prose. */}
+        {input.trim() && turnState !== 'running' && (
+          <div className="composer-draft-meta" aria-hidden="true">
+            <span>{input.trim().split(/\s+/).length} words</span>
+            {(() => {
+              const lines = Math.max(1, Math.ceil(input.length / 80))
+              return <span>~{lines * 2}s of reply</span>
+            })()}
+          </div>
+        )}
 
         <div className="composer-bar">
           <button
