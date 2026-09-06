@@ -7,7 +7,9 @@ from backend.media.audio import MediaError, _run, ffmpeg_missing
 
 log = logging.getLogger(__name__)
 
-async def extract_frames(source: Path, destination_dir: Path, count: int = 3, *, timeout: float = 60.0) -> list[Path]:
+async def extract_frames(
+    source: Path, destination_dir: Path, count: int = 3, *, timeout: float = 60.0
+) -> list[Path]:
     """Extract a specified number of frames from a video file.
     
     Frames are evenly spaced across the video duration.

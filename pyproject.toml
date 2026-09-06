@@ -23,6 +23,23 @@ providers = [
 vector = [
     "sqlite-vec>=0.1.6",
 ]
+# Opening an Instagram permalink. Optional because it is the fallback route: the
+# Meta API is the right one and needs none of this. See backend/media/reel.py for
+# what that fallback costs.
+reels = [
+    "yt-dlp>=2026.8",
+]
+# Reading and writing the documents that are not text -- PDF, Word, Excel,
+# PowerPoint. Optional because the index and every tool still work without them:
+# reading falls back to pdftotext for PDF and to a zip reader for PowerPoint, and
+# anything with no route left says so by name. Writing has no fallback -- there is
+# no honest way to author a .docx without a library that understands one.
+documents = [
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+    "python-pptx>=1.0",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

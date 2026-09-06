@@ -73,7 +73,25 @@ def _to_anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str | None, 
                 )
             out.append({"role": "assistant", "content": blocks})
             continue
-        out.append({"role": role, "content": m.get("content") or ""})
+        content = m.get("content") or ""
+        if isinstance(content, list):
+            formatted = []
+            for b in content:
+                if b.get("type") == "text":
+                    formatted.append({"type": "text", "text": b.get("text", "")})
+                elif b.get("type") == "image":
+                    mime = b.get("media_type", "image/jpeg")
+                    formatted.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": mime,
+                            "data": b.get("data")
+                        }
+                    })
+            out.append({"role": role, "content": formatted})
+        else:
+            out.append({"role": role, "content": content})
     return system, out
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import shutil
 import sys
 from pathlib import Path
 
@@ -90,6 +91,27 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     registry = build_default_registry()
     print(f"tools:     {len(registry.list())} registered")
 
+    # Retrieval is quietly the biggest thing that can be broken without saying
+    # so: with no embedder reachable, every search falls back to keywords and
+    # the vault looks indexed while answering nothing. Reported here because
+    # this is the page somebody reads when something feels wrong.
+    from backend.retrieval.embeddings import Embedder, configured_embedders
+    from backend.retrieval.indexer import Indexer
+
+    embedder = Embedder()
+    stats = Indexer().stats()
+    print(
+        f"retrieval: {embedder.provider}:{embedder.model},"
+        f" {stats['documents']} documents, {stats['chunks']} chunks"
+    )
+    if embedder.provider == "ollama" and shutil.which("ollama") is None:
+        others = [n for n in configured_embedders() if n != "ollama"]
+        print("           ! Ollama is not installed, so nothing can be embedded.")
+        if others:
+            names = ", ".join(others)
+            print(f"             {names} are configured and can.")
+            print("             Point PSOK at one: psok embeddings detect --set")
+
     skills, errors = scan()
     print(f"skills:    {len(skills)} loaded, {len(errors)} invalid")
     for err in errors:
@@ -143,6 +165,16 @@ def cmd_doctor(_: argparse.Namespace) -> int:
                " -- reels will be saved with a title only")
         )
         print(f"           ffmpeg: {'yes' if ffmpeg_missing() is None else 'MISSING'}")
+        # The difference between "capture works" and "capture works while this
+        # machine is closed" is one line, and it is worth one line here.
+        from backend.instagram import relay as ig_relay
+
+        if settings.relay_enabled and ig_relay.configured():
+            print(f"           relay: {settings.relay_url} -- deliveries survive this")
+            print("           machine being off, and are taken on the next poll.")
+        else:
+            print("           relay: none. Meta delivers straight here, so a closed")
+            print("           lid is a failed delivery. See docs/deployment.md.")
         print("           This endpoint is reachable from the internet by design.")
         print("           Its only authentication is Meta's signature on each delivery.")
     elif any(creds.values()):
@@ -883,6 +915,191 @@ def cmd_share_token(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_embeddings(args: argparse.Namespace) -> int:
+    """Which model turns text into vectors, and whether it answers."""
+    import asyncio
+
+    from backend.config import clear_embeddings, load_embeddings, save_embeddings
+    from backend.db.connection import get_connection
+    from backend.retrieval import store
+    from backend.retrieval.embeddings import Embedder, available, detect
+    from backend.retrieval.indexer import Indexer
+
+    action = args.action
+
+    if action == "status":
+        chosen = load_embeddings()
+        print(f"configured: {':'.join(chosen) if chosen else 'nothing -- using the local default'}")
+        embedder = Embedder()
+        print(f"in use:     {embedder.provider}:{embedder.model}")
+        built = store.indexed_embedding_model(get_connection())
+        print(f"index built by: {':'.join(built) if built else 'nothing indexed yet'}")
+        if built and chosen and tuple(built) != tuple(chosen):
+            print("  the index was built by a different model; re-index to use the new one")
+        stats = Indexer().stats()
+        print(f"index:      {stats['documents']} documents, {stats['chunks']} chunks")
+        ok, detail = asyncio.run(available(embedder.provider, embedder.model))
+        print(f"reachable:  {'yes -- ' + detail if ok else 'no'}")
+        if not ok:
+            print(f"  {detail}")
+            print("  try: psok embeddings detect")
+        return 0
+
+    if action == "detect":
+        found = asyncio.run(detect())
+        if not found:
+            print("no configured provider answered an embedding request.")
+            print("Install Ollama (ollama pull nomic-embed-text), or add a provider that embeds.")
+            return 1
+        for provider, model, dims in found:
+            print(f"  {provider:12} {model:34} {dims} dimensions")
+        if args.set:
+            provider, model, _ = found[0]
+            save_embeddings(provider, model)
+            print(f"\nset to {provider}:{model}.")
+            print("Re-index to rebuild the vectors: psok index <path>")
+        else:
+            first = found[0]
+            print(f"\nto use the first: psok embeddings set {first[0]} {first[1]}")
+        return 0
+
+    if action == "clear":
+        clear_embeddings()
+        print("back to the local default (Ollama). Re-index to rebuild the vectors.")
+        return 0
+
+    # set
+    ok, detail = asyncio.run(available(args.provider, args.model))
+    if not ok and not args.force:
+        print(f"{args.provider}:{args.model} did not answer: {detail}")
+        print("Pass --force to set it anyway.")
+        return 1
+    save_embeddings(args.provider, args.model)
+    print(f"embeddings: {args.provider}:{args.model}" + (f" -- {detail}" if ok else ""))
+    built = store.indexed_embedding_model(get_connection())
+    if built and tuple(built) != (args.provider, args.model):
+        # Two models' vectors are not comparable, and the search side already
+        # queries with whichever built the index -- so the old index is stale
+        # rather than wrong. Saying so is the difference between "no results"
+        # and "no results, and here is why".
+        print(
+            f"the index was built by {':'.join(built)}; it stays stale until you"
+            " re-index: psok index <path>"
+        )
+    return 0
+
+
+def cmd_social(args: argparse.Namespace) -> int:
+    """Which sites PSOK may read as you, and the credentials that let it."""
+    from backend.config import allow_source, load_social, save_social
+    from backend.secrets import CredentialError, set_secret
+    from backend.web.social import READERS, missing
+
+    action = args.action
+
+    if action == "status":
+        settings = load_social()
+        print(f"allowed:   {', '.join(settings.allow) or 'nothing yet'}")
+        rendering = "r.jina.ai when a page gives up nothing" if settings.reader_fallback else "off"
+        print(f"renderer:  {rendering}")
+        for reader in READERS:
+            state = missing(reader) or "ready"
+            mark = "on " if settings.allows(reader.source) else "off"
+            print(f"  [{mark}] {reader.source:8} {state}")
+        return 0
+
+    if action in {"allow", "deny"}:
+        settings = allow_source(args.source, allowed=action == "allow")
+        print(f"allowed: {', '.join(settings.allow) or 'nothing'}")
+        if action == "allow":
+            reader = next((r for r in READERS if r.source == args.source), None)
+            if reader is not None:
+                problem = missing(reader)
+                print(problem if problem else f"{reader.binary} is ready")
+        return 0
+
+    if action == "renderer":
+        settings = save_social({"reader_fallback": args.state == "on"})
+        print(f"page renderer: {'on' if settings.reader_fallback else 'off'}")
+        return 0
+
+    # credentials
+    stored = 0
+    for value, ref, label in (
+        (args.x_auth_token, "psok/x_auth_token", "X auth_token"),
+        (args.x_ct0, "psok/x_ct0", "X ct0"),
+    ):
+        if not value:
+            continue
+        try:
+            set_secret(ref, value)
+        except CredentialError as exc:
+            print(f"could not store {label}: {exc}")
+            return 1
+        stored += 1
+        print(f"stored {label}")
+    if not stored:
+        print("nothing to store. Pass --x-auth-token and --x-ct0, read out of a"
+              " signed-in browser's cookies for x.com.")
+        return 1
+    return 0
+
+
+def cmd_bookmarks(args: argparse.Namespace) -> int:
+    """Capture browser bookmarks into the library, and say what is there."""
+    import asyncio
+
+    from backend.browser.places import PlacesError, counts, find_profile
+    from backend.browser.service import BookmarkIngest
+    from backend.config import load_browser, save_browser
+
+    action = args.action
+
+    if action in {"enable", "disable"}:
+        settings = save_browser({"enabled": action == "enable"})
+        print(f"browser capture is {'on' if settings.enabled else 'off'}")
+        return 0
+
+    if action == "profile":
+        if args.path:
+            save_browser({"profile_dir": args.path})
+        try:
+            found = find_profile(load_browser().profile_dir or None)
+        except PlacesError as exc:
+            print(exc)
+            return 1
+        print(found)
+        return 0
+
+    settings = load_browser()
+    if action == "status":
+        print(f"enabled:   {settings.enabled}")
+        print(f"every:     {settings.poll_seconds}s")
+        print(f"enrich:    {settings.enrich}")
+        try:
+            profile = find_profile(settings.profile_dir or None)
+        except PlacesError as exc:
+            print(f"profile:   {exc}")
+            return 0
+        print(f"profile:   {profile}")
+        found = counts(profile)
+        print(
+            f"holds:     {found['bookmarks']} bookmarks, {found['pages']} pages,"
+            f" {found['visits']} visits"
+        )
+        return 0
+
+    # sync
+    if not settings.enabled:
+        print("browser capture is off. Turn it on with: psok bookmarks enable")
+        return 1
+    report = asyncio.run(BookmarkIngest().sync(enrich=not args.no_enrich))
+    print(report.summary())
+    for failure in report.failed:
+        print(f"  {failure}")
+    return 1 if report.unavailable else 0
+
+
 def cmd_instagram(args: argparse.Namespace) -> int:
     """Set up, inspect and exercise Instagram capture."""
     import asyncio
@@ -966,11 +1183,69 @@ def cmd_instagram(args: argparse.Namespace) -> int:
         print(f"event {args.id} is queued again; it runs on the next tick")
         return 0
 
+    if action == "relay":
+        return _relay(args, asyncio)
+
     if action == "send-sample":
         return _send_sample(args, _json, asyncio)
 
     print(f"unknown action '{action}'")
     return 2
+
+
+def _relay(args: argparse.Namespace, asyncio) -> int:
+    """Point this machine at its relay, or ask the relay what it is holding."""
+    from backend.config import load_instagram, save_instagram
+    from backend.instagram import relay
+    from backend.secrets import CredentialError
+
+    patch: dict = {}
+    if args.forget:
+        relay.clear_token()
+        save_instagram({"relay_url": "", "relay_enabled": False})
+        print("forgotten. Meta now has nowhere to deliver to but this machine.")
+        return 0
+    if args.url:
+        url = args.url.strip().rstrip("/")
+        if not url.startswith("https://"):
+            # The access token travels this link in both directions.
+            print("the relay URL has to be https")
+            return 1
+        patch["relay_url"] = url
+    if args.token:
+        try:
+            relay.set_token(args.token)
+        except CredentialError as exc:
+            print(f"could not store the token: {exc}")
+            return 1
+    if args.on:
+        patch["relay_enabled"] = True
+    if args.off:
+        patch["relay_enabled"] = False
+    if patch:
+        save_instagram(patch)
+
+    settings = load_instagram()
+    if patch.get("relay_enabled") and not relay.configured():
+        print("the relay needs both a URL and a token before it can be used")
+        return 1
+
+    if args.sync:
+        result = asyncio.run(relay.RelayPoller().sync())
+        if not result.get("synced"):
+            print(result.get("error") or result.get("note") or "the relay was not asked")
+            return 1
+        print(f"took {result['pulled']}, acknowledged {result['acked']},"
+              f" {result['queued']} still waiting there")
+        return 0
+
+    print(f"url:     {settings.relay_url or 'not set'}")
+    print(f"token:   {'set' if relay.token() else 'not set'}")
+    print(f"polling: {settings.relay_enabled}")
+    if not (settings.relay_enabled and relay.configured()):
+        print("\nwithout it, Meta delivers straight to this machine -- which only")
+        print("works while it is awake and reachable. See docs/deployment.md.")
+    return 0
 
 
 #: Sample deliveries, in the shapes Meta actually sends. Shared with the tests so
@@ -1035,7 +1310,20 @@ def _send_sample(args: argparse.Namespace, _json, asyncio) -> int:
 
     raw = _json.dumps(_sample_body(args.route)).encode()
     digest = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
-    url = args.url.rstrip("/") + "/api/instagram/webhook"
+    if args.relay:
+        # The whole path Meta will take: the relay verifies the signature with
+        # its own copy of the app secret, queues the delivery, and this machine
+        # collects it on the next sync. A mismatch between the two copies of the
+        # app secret shows up here as a 403 rather than as silence weeks later.
+        from backend.config import load_instagram
+
+        base = load_instagram().relay_url
+        if not base:
+            print("no relay is configured. Set one with: psok instagram relay --url ...")
+            return 1
+        url = base.rstrip("/") + "/ig/webhook"
+    else:
+        url = args.url.rstrip("/") + "/api/instagram/webhook"
     try:
         response = httpx.post(
             url,
@@ -1050,6 +1338,8 @@ def _send_sample(args: argparse.Namespace, _json, asyncio) -> int:
         print(f"could not reach {url}: {exc}")
         return 1
     print(f"HTTP {response.status_code} {response.text[:200]}")
+    if args.relay:
+        print("now collect it with: psok instagram relay --sync")
     print("watch it with: psok instagram queue")
     return 0
 
@@ -1195,6 +1485,46 @@ def main(argv: list[str] | None = None) -> int:
         func=cmd_doctor
     )
 
+    emb = sub.add_parser("embeddings", help="which model turns text into vectors")
+    em = emb.add_subparsers(dest="action", required=True)
+    em.add_parser("status", help="what is configured, reachable, and what built the index")
+    found = em.add_parser("detect", help="probe configured providers for one that embeds")
+    found.add_argument("--set", action="store_true", help="use the first one that answers")
+    setter = em.add_parser("set", help="name the embedding provider and model")
+    setter.add_argument("provider")
+    setter.add_argument("model")
+    setter.add_argument("--force", action="store_true", help="set it even if it does not answer")
+    em.add_parser("clear", help="go back to the local default")
+    emb.set_defaults(func=cmd_embeddings)
+
+    soc = sub.add_parser("social", help="read Reddit and X through a signed-in reader")
+    sc = soc.add_subparsers(dest="action", required=True)
+    sc.add_parser("status", help="which sites are allowed, and whether their readers work")
+    allow = sc.add_parser("allow", help="let PSOK read a site as you")
+    allow.add_argument("source", help="reddit or x")
+    deny = sc.add_parser("deny", help="stop reading a site")
+    deny.add_argument("source", help="reddit or x")
+    renderer = sc.add_parser("renderer", help="send pages that give up nothing to r.jina.ai")
+    renderer.add_argument("state", choices=("on", "off"))
+    creds = sc.add_parser("credentials", help="store the cookies X's reader needs")
+    creds.add_argument("--x-auth-token", help="the auth_token cookie from x.com")
+    creds.add_argument("--x-ct0", help="the ct0 cookie from x.com")
+    soc.set_defaults(func=cmd_social)
+
+    marks = sub.add_parser("bookmarks", help="capture browser bookmarks into the library")
+    bm = marks.add_subparsers(dest="action", required=True)
+    bm.add_parser("status", help="what is set up, and what the browser holds")
+    sync = bm.add_parser("sync", help="capture bookmarks the library has not seen")
+    sync.add_argument(
+        "--no-enrich", action="store_true", help="skip the summary and tags model call"
+    )
+    bm.add_parser("enable", help="start watching for new bookmarks")
+    bm.add_parser("disable", help="stop watching")
+    which = bm.add_parser("profile", help="show or set which browser profile is read")
+    which.add_argument(
+        "path", nargs="?", help="the profile directory; omit to show the current one"
+    )
+
     instagram = sub.add_parser("instagram", help="capture reels sent to an Instagram account")
     ig = instagram.add_subparsers(dest="action", required=True)
     ig.add_parser("status", help="what is set up, and what is waiting")
@@ -1219,6 +1549,20 @@ def main(argv: list[str] | None = None) -> int:
         "--route", default="dm-reel", choices=["dm-reel", "dm-link", "mention", "unsupported"]
     )
     sample.add_argument("--url", default="http://127.0.0.1:8000")
+    sample.add_argument(
+        "--relay", action="store_true",
+        help="post at the relay instead, exercising the whole path Meta will take"
+    )
+    rly = ig.add_parser(
+        "relay", help="the always-on receiver that catches deliveries while this machine is off"
+    )
+    rly.add_argument("--url", help="https://psok-relay.<you>.workers.dev")
+    rly.add_argument("--token", help="the RELAY_TOKEN the Worker was deployed with")
+    rly.add_argument("--on", action="store_true", help="start polling it")
+    rly.add_argument("--off", action="store_true", help="stop polling it")
+    rly.add_argument("--forget", action="store_true", help="drop the URL and the token")
+    rly.add_argument("--sync", action="store_true", help="go and look now")
+    marks.set_defaults(func=cmd_bookmarks)
     instagram.set_defaults(func=cmd_instagram)
 
     token = sub.add_parser(
@@ -1291,7 +1635,10 @@ def main(argv: list[str] | None = None) -> int:
     index = sub.add_parser("index", help="index a folder of notes for retrieval")
     index.add_argument("path", nargs="?", help="folder to index")
     index.add_argument("--status", action="store_true", help="report what is indexed")
-    index.add_argument("--provider", default="ollama", help="embedding provider")
+    # No default: `Embedder(None)` means "whatever `psok embeddings` configured",
+    # and hard-coding ollama here made the setting look ignored -- the flag was
+    # always passed, so it always won.
+    index.add_argument("--provider", help="embedding provider (default: the configured one)")
     index.add_argument("--model", help="embedding model")
     index.add_argument("--no-prune", action="store_true", help="keep entries for deleted files")
     index.set_defaults(func=cmd_index)

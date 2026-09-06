@@ -390,6 +390,9 @@ export const api = {
   updateInstagram: (patch) => j('/instagram/settings', json('PATCH', patch)),
   allowInstagramSender: (id) => j(`/instagram/senders/${encodeURIComponent(id)}`, json('POST')),
   denyInstagramSender: (id) => j(`/instagram/senders/${encodeURIComponent(id)}`, json('DELETE')),
+  setInstagramRelay: (body) => j('/instagram/relay', json('PUT', body)),
+  clearInstagramRelay: () => j('/instagram/relay', json('DELETE')),
+  syncInstagramRelay: () => j('/instagram/relay/sync', json('POST')),
   instagramEvents: () => j('/instagram/events'),
   retryInstagramEvent: (id) => j(`/instagram/events/${id}/retry`, json('POST')),
 

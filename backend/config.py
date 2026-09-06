@@ -275,6 +275,12 @@ def load_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
     return out
 
 
+#: Ollama's default embedding model. Named here as well as in
+#: `retrieval/embeddings.py` so `EMBEDDING_CANDIDATES` above does not import the
+#: retrieval package -- config is imported by everything, including it.
+DEFAULT_LOCAL_EMBED_MODEL = "nomic-embed-text"
+
+
 def load_memory_model(path: Path | None = None) -> tuple[str, str] | None:
     """The model that extracts long-term facts, if the user named one.
 
@@ -604,6 +610,10 @@ DEFAULT_MAX_VIDEO_MB = 200
 DEFAULT_MAX_DURATION_SECONDS = 900
 DEFAULT_MEDIA_BUDGET_MB = 2000
 
+#: How often the bookmark watcher looks. Five minutes: a bookmark is not urgent,
+#: and the read copies a database the browser is writing to.
+DEFAULT_BROWSER_POLL_SECONDS = 300
+
 _INSTAGRAM_SETTINGS = {
     "enabled": ("instagram.enabled", False),
     "owner_ig_id": ("instagram.owner_ig_id", ""),
@@ -616,6 +626,9 @@ _INSTAGRAM_SETTINGS = {
     "enrich": ("instagram.enrich", True),
     "reply_on_save": ("instagram.reply_on_save", False),
     "token_expires_on": ("instagram.token_expires_on", ""),
+    "relay_url": ("instagram.relay_url", ""),
+    "relay_enabled": ("instagram.relay_enabled", False),
+    "cookies_from_browser": ("instagram.cookies_from_browser", ""),
 }
 
 MENTION_SOURCES = ("allowlist", "anyone")
@@ -648,6 +661,15 @@ class InstagramSettings:
     #: assumed -- even though it is what makes the loop feel alive.
     reply_on_save: bool = False
     token_expires_on: str = ""
+    #: Where the always-on receiver lives, scheme and host, no trailing slash.
+    #: Empty means Meta posts straight at this machine, which only works while
+    #: it is awake and reachable -- see docs/deployment.md.
+    relay_url: str = ""
+    relay_enabled: bool = False
+    #: Which browser on this machine yt-dlp reads a session out of when it
+    #: opens an Instagram permalink. Empty means anonymous, which Instagram
+    #: mostly refuses now. Read at fetch time; never copied anywhere.
+    cookies_from_browser: str = ""
 
     def allows(self, sender_id: str | None) -> bool:
         return bool(sender_id) and sender_id in self.allow_senders
@@ -665,6 +687,9 @@ class InstagramSettings:
             "enrich": self.enrich,
             "reply_on_save": self.reply_on_save,
             "token_expires_on": self.token_expires_on,
+            "relay_url": self.relay_url,
+            "relay_enabled": self.relay_enabled,
+            "cookies_from_browser": self.cookies_from_browser,
         }
 
 
@@ -751,6 +776,326 @@ def allow_sender(igsid: str, *, allowed: bool = True) -> InstagramSettings:
     elif not allowed and igsid in current:
         current.remove(igsid)
     return save_instagram({"allow_senders": current})
+
+
+_BROWSER_SETTINGS = {
+    "enabled": ("browser.enabled", False),
+    "profile_dir": ("browser.profile_dir", ""),
+    "poll_seconds": ("browser.poll_seconds", DEFAULT_BROWSER_POLL_SECONDS),
+    "enrich": ("browser.enrich", True),
+}
+
+_BROWSER_BOUNDS = {"poll_seconds": (30, 86_400)}
+
+
+@dataclass(frozen=True)
+class BrowserSettings:
+    """How PSOK reads the browser on this machine.
+
+    Off by default, and deliberately: `places.sqlite` holds every page the user
+    has ever visited, and a personal OS reading that without being asked is not
+    a feature.
+    """
+
+    enabled: bool = False
+    #: The Firefox-family profile directory. Empty means "find it", which is
+    #: right on a machine with one browser and wrong on a machine with four --
+    #: so it is a setting rather than only a search.
+    profile_dir: str = ""
+    poll_seconds: int = DEFAULT_BROWSER_POLL_SECONDS
+    #: Summarise and tag each new bookmark. A bookmark arrives a few times a
+    #: week, so one model call each is nothing; the switch exists for whoever
+    #: bookmarks a hundred links an afternoon.
+    enrich: bool = True
+
+    def as_dict(self) -> dict:
+        return {
+            "enabled": self.enabled,
+            "profile_dir": self.profile_dir,
+            "poll_seconds": self.poll_seconds,
+            "enrich": self.enrich,
+        }
+
+
+def load_browser() -> BrowserSettings:
+    """How browser capture is configured. Never raises; a bad row falls back."""
+    try:
+        from backend.db.connection import get_connection
+
+        keys = [key for key, _ in _BROWSER_SETTINGS.values()]
+        placeholders = ",".join("?" * len(keys))
+        rows = get_connection().execute(
+            f"SELECT key, value FROM app_settings WHERE key IN ({placeholders})", keys
+        ).fetchall()
+        stored = {row["key"]: row["value"] for row in rows}
+    except Exception:
+        return BrowserSettings()
+
+    values: dict[str, object] = {}
+    for field_name, (key, default) in _BROWSER_SETTINGS.items():
+        raw = stored.get(key)
+        if raw is None:
+            values[field_name] = default
+        elif isinstance(default, bool):
+            values[field_name] = raw == "1"
+        elif isinstance(default, int):
+            low, high = _BROWSER_BOUNDS.get(field_name, (1, 100_000))
+            values[field_name] = _clamp_int(raw, default, low, high)
+        else:
+            values[field_name] = raw
+    return BrowserSettings(**values)  # type: ignore[arg-type]
+
+
+def save_browser(patch: dict) -> BrowserSettings:
+    """Persist only the fields given. Returns the whole thing, as stored."""
+    from backend.db.connection import get_connection
+
+    conn = get_connection()
+    for field_name, (key, default) in _BROWSER_SETTINGS.items():
+        if field_name not in patch or patch[field_name] is None:
+            continue
+        raw = patch[field_name]
+        if isinstance(default, bool):
+            value = "1" if raw else "0"
+        elif isinstance(default, int):
+            low, high = _BROWSER_BOUNDS.get(field_name, (1, 100_000))
+            value = str(_clamp_int(raw, default, low, high))
+        else:
+            value = str(raw).strip()
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            (key, value),
+        )
+    conn.commit()
+    return load_browser()
+
+
+_SOCIAL_SETTINGS = {
+    "allow": ("social.allow", "[]"),
+    "reader_fallback": ("social.reader_fallback", True),
+}
+
+_LIBRARY_SETTINGS = {
+    "auto_enrich": ("library.auto_enrich", True),
+}
+
+
+@dataclass(frozen=True)
+class LibrarySettings:
+    """Library behaviour that is a preference rather than a fact.
+
+    `auto_enrich` covers the captures that arrive without a person attached --
+    a phone share through the relay, mostly -- where nothing else would ever
+    schedule the summary. Default on, because an unsummarised share is half a
+    capture; switchable off, because it is an LLM call per link and a machine
+    with no provider configured should not spend one per share.
+    """
+
+    auto_enrich: bool = True
+
+    def as_dict(self) -> dict:
+        return {"auto_enrich": self.auto_enrich}
+
+
+def load_library() -> LibrarySettings:
+    """Library preferences. Never raises; a bad row falls back."""
+    try:
+        from backend.db.connection import get_connection
+
+        keys = [key for key, _ in _LIBRARY_SETTINGS.values()]
+        placeholders = ",".join("?" * len(keys))
+        rows = get_connection().execute(
+            f"SELECT key, value FROM app_settings WHERE key IN ({placeholders})", keys
+        ).fetchall()
+        stored = {row["key"]: row["value"] for row in rows}
+    except Exception:
+        return LibrarySettings()
+
+    raw = stored.get("library.auto_enrich")
+    return LibrarySettings(auto_enrich=(raw != "0") if raw is not None else True)
+
+
+def save_library(patch: dict) -> LibrarySettings:
+    """Persist only the fields given. Returns the whole thing, as stored."""
+    from backend.db.connection import get_connection
+
+    conn = get_connection()
+    if "auto_enrich" in patch and patch["auto_enrich"] is not None:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            ("library.auto_enrich", "1" if patch["auto_enrich"] else "0"),
+        )
+        conn.commit()
+    return load_library()
+
+
+@dataclass(frozen=True)
+class SocialSettings:
+    """Which sites PSOK may read as the signed-in user, and how pages are rendered.
+
+    `allow` is empty by default and that is the design: the readers behind it
+    carry a real session, so "read reddit" and "browse anywhere as me" are
+    different permissions and only the user can tell them apart. Same shape as
+    the Instagram sender allowlist, for the same reason.
+    """
+
+    allow: tuple[str, ...] = ()
+    #: Send a page PSOK could not read itself through r.jina.ai, which renders
+    #: JavaScript and returns markdown. It is a third party: the URL, and
+    #: therefore the fact that this machine read it, leaves here. Only pages the
+    #: ordinary fetch already failed on are sent.
+    reader_fallback: bool = True
+
+    def allows(self, source: str) -> bool:
+        return source in self.allow
+
+    def as_dict(self) -> dict:
+        return {"allow": list(self.allow), "reader_fallback": self.reader_fallback}
+
+
+def load_social() -> SocialSettings:
+    """Which sites may be read as you. Never raises; a bad row falls back."""
+    try:
+        from backend.db.connection import get_connection
+
+        keys = [key for key, _ in _SOCIAL_SETTINGS.values()]
+        placeholders = ",".join("?" * len(keys))
+        rows = get_connection().execute(
+            f"SELECT key, value FROM app_settings WHERE key IN ({placeholders})", keys
+        ).fetchall()
+        stored = {row["key"]: row["value"] for row in rows}
+    except Exception:
+        return SocialSettings()
+
+    raw = stored.get("social.allow")
+    try:
+        allow = tuple(str(v) for v in json.loads(raw)) if raw else ()
+    except (ValueError, TypeError):
+        allow = ()
+    fallback = stored.get("social.reader_fallback")
+    return SocialSettings(
+        allow=allow,
+        reader_fallback=True if fallback is None else fallback == "1",
+    )
+
+
+def save_social(patch: dict) -> SocialSettings:
+    """Persist only the fields given. Returns the whole thing, as stored."""
+    from backend.db.connection import get_connection
+
+    conn = get_connection()
+    if patch.get("allow") is not None:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('social.allow', ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            (json.dumps([str(v).strip().lower() for v in patch["allow"] if str(v).strip()]),),
+        )
+    if patch.get("reader_fallback") is not None:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('social.reader_fallback', ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            ("1" if patch["reader_fallback"] else "0",),
+        )
+    conn.commit()
+    return load_social()
+
+
+def allow_source(source: str, *, allowed: bool = True) -> SocialSettings:
+    """Turn one site on or off. The button behind "read reddit as me"."""
+    current = list(load_social().allow)
+    source = str(source).strip().lower()
+    if allowed and source and source not in current:
+        current.append(source)
+    elif not allowed and source in current:
+        current.remove(source)
+    return save_social({"allow": current})
+
+
+#: Embedding models this machine can probably reach, by provider, best first.
+#: Not a registry of everything that exists -- it decides what `detect` *tries*,
+#: and a provider missing from it is still usable by naming its model by hand.
+#: Measured 2026-09-05: Cloudflare Workers AI and OpenRouter answered; NVIDIA's
+#: /embeddings is gone (HTTP 410) and Groq, Cerebras and llm7 serve none.
+EMBEDDING_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "ollama": (DEFAULT_LOCAL_EMBED_MODEL,),
+    "cloudflare": ("@cf/baai/bge-base-en-v1.5", "@cf/baai/bge-m3"),
+    "openai": ("text-embedding-3-small",),
+    "openrouter": ("text-embedding-3-small",),
+    "google": ("text-embedding-004",),
+}
+
+
+def load_embeddings(path: Path | None = None) -> tuple[str, str] | None:
+    """The embedder the user chose, or None for the local default.
+
+    Sits in providers.yaml beside `memory:` and `tiers:`, because it names a
+    provider and a model and that is what the file is for. Its own row rather
+    than a tier: embedding is not a conversational role, it runs over every
+    document rather than every turn, and the right model for it is almost never
+    the right model for anything else.
+
+        embeddings:
+          provider: cloudflare
+          model: "@cf/baai/bge-base-en-v1.5"
+    """
+    p = path or paths().providers_yaml
+    if not p.exists():
+        return None
+    try:
+        raw = yaml.safe_load(p.read_text()) or {}
+    except yaml.YAMLError:
+        return None
+    entry = raw.get("embeddings") or {}
+    provider, model = entry.get("provider"), entry.get("model")
+    if not provider or not model:
+        return None
+    return str(provider), str(model)
+
+
+def save_embeddings(provider: str, model: str, path: Path | None = None) -> None:
+    """Name the embedder, leaving the rest of providers.yaml alone.
+
+    Changing this invalidates the index: vectors from two models occupy
+    unrelated spaces, and comparing them returns plausible nonsense rather than
+    an error. `store.ensure_indexes` drops the vector table when the dimensions
+    change, and `SearchService` queries with whichever model actually built the
+    index -- so the failure mode is a stale index, not silent nonsense. The
+    caller is expected to re-index; `psok embeddings set` says so.
+    """
+    provider = (provider or "").strip()
+    model = (model or "").strip()
+    if not provider or not model:
+        raise ValueError("an embedding provider and model are both needed")
+
+    p = path or paths().providers_yaml
+    raw = {}
+    if p.exists():
+        try:
+            raw = yaml.safe_load(p.read_text()) or {}
+        except yaml.YAMLError:
+            raw = {}
+    raw["embeddings"] = {"provider": provider, "model": model}
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
+
+
+def clear_embeddings(path: Path | None = None) -> None:
+    """Go back to the local default."""
+    p = path or paths().providers_yaml
+    if not p.exists():
+        return
+    try:
+        raw = yaml.safe_load(p.read_text()) or {}
+    except yaml.YAMLError:
+        return
+    if raw.pop("embeddings", None) is not None:
+        p.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
 
 
 #: Which provider turns speech into text. In providers.yaml beside `tiers:`

@@ -45,40 +45,135 @@ BACKGROUND_FALLBACK_LINKS = 4
 
 MAX_TAGS = 8
 MAX_RESOURCES = 12
-RESOURCE_TYPES = ("place", "product", "book", "tool", "recipe", "person", "link", "other")
+
+CATEGORIES = ("movie", "travel", "food", "tool", "book", "general")
+
+RESOURCE_TYPES = (
+    "movie",
+    "show",
+    "travel",
+    "destination",
+    "food",
+    "restaurant",
+    "cafe",
+    "recipe",
+    "tool",
+    "product",
+    "book",
+    "place",
+    "person",
+    "link",
+    "other",
+)
 
 #: Text sources that are somebody's actual words. Anything else cannot be
 #: enriched, by definition.
-REAL_TEXT_SOURCES = ("caption", "transcript", "page", "notes")
+REAL_TEXT_SOURCES = (
+    "caption",
+    "transcript",
+    "caption and transcript",
+    "visual content",
+    "caption and visual content",
+    "slide analysis",
+    "caption and slide analysis",
+    "page",
+    "notes",
+)
 
 PROMPT = """\
 You are describing one thing the user saved, using only the text below.
 
 Reply with JSON and nothing else:
 
-{"summary": "...", "tags": ["..."], "resources": [{"type": "...", "name": "...",
- "detail": "...", "url": "..."}]}
+{"category": "movie|travel|food|tool|book|general",
+ "summary": "...",
+ "tags": ["..."],
+ "resources": [{"type": "...", "name": "...", "detail": "...", "url": "..."}]}
 
 Rules:
-- Everything you write must be supported by the text you were given. You cannot \
-see a video and you are not being asked to. You are describing words that were \
-actually said or written.
+- category: one of movie|travel|food|tool|book|general. Pick:
+  - "movie" for films, cinema, tv shows, anime, documentaries, streaming watchlists.
+  - "travel" for travel spots, vacation destinations, cities, sights, trip itineraries.
+  - "food" for restaurants, cafes, street food, dishes to try, recipes, dining spots.
+  - "tool" for software, developer tools, AI apps, SaaS, hardware, tech utilities.
+  - "book" for books, reading lists, literature, papers.
+  - "general" for other topics.
 - summary: two to four sentences on what this is about, in plain language. No \
 preamble, no "this video discusses".
 - tags: three to eight lowercase topic words. Nouns, not sentences. Only topics \
 the text is actually about.
-- resources: concrete things the text names that the user could go and find -- a \
-place, a product, a book, a tool, a recipe, a person, a link. `type` is one of \
-place|product|book|tool|recipe|person|link|other. `detail` is what the text said \
-about it, in ten words or fewer. `url` only when the text contains one.
+- resources: concrete named things the text names that the user could go and find or watch:
+  - movie/show: title, platform/genre, why to watch.
+  - travel/destination: city/country, spot name, best to visit.
+  - food/restaurant/cafe/recipe: dish name, restaurant/cafe, cuisine.
+  - tool/product: app name, utility, hardware.
+  - book: title, author.
+  - place/person/link/other.
+  `type` must be one of movie|show|travel|destination|food|restaurant|cafe|\
+recipe|tool|product|book|place|person|link|other.
+  `detail` is key information in ten words or fewer. `url` only when the text contains one.
 - An empty list is the right answer when the text names nothing. Padding a list \
 with things that were not mentioned is the main failure mode here.
 - If the text is too thin to say anything true about, reply \
-{"summary": null, "tags": [], "resources": []}."""
+{"category": "general", "summary": null, "tags": [], "resources": []}."""
+
+
+def infer_category(
+    resources: list[dict] | tuple[dict, ...],
+    tags: list[str] | tuple[str, ...],
+    kind: str = "",
+) -> str:
+    """Derive primary category from resources, details, tags, or item kind.
+
+    Ordered by how strongly each source says it: a resource's own `type`
+    beats a word in its detail, which beats a tag, which beats the item's
+    kind. Plain sets and membership rather than cleverness, because this
+    runs on every library read (`as_dict`) and must never be the reason one
+    is slow.
+    """
+    # (category, resource types, words looked for in the detail)
+    by_resource = (
+        ("movie", ("movie", "show", "film", "series"),
+         ("film", "movie", "cinema", "tv series", "documentary")),
+        ("travel", ("travel", "destination", "spot"),
+         ("destination", "hotel", "visit", "trip", "city", "tourist")),
+        ("food", ("food", "restaurant", "cafe", "recipe", "dish"),
+         ("restaurant", "cafe", "recipe", "dish", "cuisine", "food")),
+        ("tool", ("tool",), ("software", "app", "tool", "saas", "platform")),
+        ("book", ("book",), ("book", "novel", "author")),
+    )
+    for r in resources:
+        rtype = str(r.get("type") or "").lower()
+        detail = str(r.get("detail") or "").lower()
+        for category, types, words in by_resource:
+            if rtype in types or any(w in detail for w in words):
+                return category
+
+    # (category, tags)
+    by_tag = (
+        ("movie", ("movie", "movies", "film", "films", "cinema", "netflix",
+                   "series", "tv", "show", "shows", "science fiction")),
+        ("travel", ("travel", "destination", "trip", "hotel", "explore",
+                    "vacation", "tourism", "city", "places")),
+        ("food", ("food", "restaurant", "cafe", "recipe", "dining", "dish",
+                  "cooking", "dessert", "coffee")),
+        ("tool", ("tool", "tools", "software", "ai", "saas", "tech", "app",
+                  "startup", "code")),
+        ("book", ("book", "books", "reading", "author", "paper", "literature")),
+    )
+    tag_set = {t.lower() for t in tags}
+    for category, wanted in by_tag:
+        if any(t in tag_set for t in wanted):
+            return category
+
+    if kind == "book":
+        return "book"
+    return "general"
 
 
 @dataclass(frozen=True)
 class Enrichment:
+    category: str = "general"
     summary: str | None = None
     tags: tuple[str, ...] = ()
     resources: tuple[dict, ...] = ()
@@ -116,11 +211,7 @@ def _clean_resource(entry: object) -> dict | None:
 
 
 def parse_enrichment(text: str) -> Enrichment | None:
-    """Read the model's reply, keeping only what is the right shape.
-
-    Built like `memory/service.py:parse_diff`: a model that wanders off the
-    format costs the tags, never the item.
-    """
+    """Read the model's reply, keeping only what is the right shape."""
     body = (text or "").strip()
     if not body:
         return None
@@ -155,7 +246,11 @@ def parse_enrichment(text: str) -> Enrichment | None:
         if cleaned:
             resources.append(cleaned)
 
+    raw_cat = str(data.get("category") or "").strip().lower()
+    category = raw_cat if raw_cat in CATEGORIES else infer_category(resources, tags)
+
     return Enrichment(
+        category=category,
         summary=summary,
         tags=tuple(tags[:MAX_TAGS]),
         resources=tuple(resources[:MAX_RESOURCES]),
@@ -318,7 +413,7 @@ def render_markdown(
 #: The headings `render_markdown` writes a body under. Knowing them is what lets
 #: the source text be read back out of a file that has already been enriched --
 #: without it, re-enriching would summarise the previous summary.
-BODY_HEADINGS = ("Transcript", "Caption", "Text", "Notes")
+BODY_HEADINGS = ("Transcript", "Caption", "Caption and Transcript", "Text", "Notes")
 
 _HEADING = re.compile(rf"^## ({'|'.join(BODY_HEADINGS)})\s*$", re.MULTILINE)
 

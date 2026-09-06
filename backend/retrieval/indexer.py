@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from backend.db.connection import get_connection
+from backend.documents import ExtractionError, extract
 from backend.retrieval import store
 from backend.retrieval.chunking import chunk_markdown, file_hash
 from backend.retrieval.embeddings import Embedder, EmbeddingError
@@ -49,7 +50,11 @@ TEXT_EXTENSIONS = {
     ".sql",
     ".html",
     ".css",
+    ".csv",
 }
+#: Kept separate from TEXT_EXTENSIONS rather than merged into it, because the
+#: size cap has to differ: two megabytes is a large note and a small report.
+DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx"}
 SKIP_DIRECTORIES = {
     ".git",
     ".venv",
@@ -65,6 +70,14 @@ SKIP_DIRECTORIES = {
     "target",
 }
 MAX_FILE_BYTES = 2_000_000
+#: The cap for a binary document. PyMuPDF's cost tracks page count rather than
+#: bytes -- the megabytes in a big PDF are images, which are skipped -- so the
+#: text-file limit would exclude exactly the long reports worth indexing.
+MAX_DOCUMENT_BYTES = 25_000_000
+#: One file yielding more chunks than this is worth a line in the log: it is a
+#: few hundred embeddings from a single document, and an index that took an hour
+#: should say which file took it.
+LOUD_CHUNK_COUNT = 500
 
 
 @dataclass
@@ -76,6 +89,10 @@ class IndexReport:
     chunks_added: int = 0
     chunks_deleted: int = 0
     errors: list[str] = field(default_factory=list)
+    #: Files PSOK could not read, which is not the same as files that went
+    #: wrong. A folder of scanned PDFs would otherwise fill `errors` with two
+    #: hundred entries and make a working index look broken.
+    skipped: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
         parts = [
@@ -88,6 +105,8 @@ class IndexReport:
         parts.append(f"{self.chunks_added} chunks embedded")
         if self.chunks_deleted:
             parts.append(f"{self.chunks_deleted} chunks dropped")
+        if self.skipped:
+            parts.append(f"{len(self.skipped)} skipped (nothing readable in them)")
         if self.errors:
             parts.append(f"{len(self.errors)} errors")
         return ", ".join(parts)
@@ -105,10 +124,12 @@ def discover(root: Path) -> list[Path]:
             continue
         if path.name.startswith("."):
             continue
-        if path.suffix.lower() not in TEXT_EXTENSIONS:
+        suffix = path.suffix.lower()
+        if suffix not in TEXT_EXTENSIONS and suffix not in DOCUMENT_EXTENSIONS:
             continue
+        limit = MAX_DOCUMENT_BYTES if suffix in DOCUMENT_EXTENSIONS else MAX_FILE_BYTES
         try:
-            if path.stat().st_size > MAX_FILE_BYTES:
+            if path.stat().st_size > limit:
                 continue
         except OSError:
             continue
@@ -179,11 +200,25 @@ class Indexer:
             report.unchanged += 1
             return 0
 
-        text = raw.decode("utf-8", errors="replace")
+        # Extraction happens *after* the content-hash early return above, and
+        # the order is the design. A file whose bytes have not changed is never
+        # opened by a document library, so re-scanning a folder of PDFs still
+        # costs a read and a hash. Hashing the extracted text instead would mean
+        # extracting everything on every scan to discover nothing changed.
+        if path.suffix.lower() in DOCUMENT_EXTENSIONS:
+            try:
+                text = await extract(path)
+            except ExtractionError as exc:
+                report.skipped.append(f"{path}: {exc}")
+                return 0
+        else:
+            text = raw.decode("utf-8", errors="replace")
         chunks = chunk_markdown(text)
         if not chunks:
             report.unchanged += 1
             return 0
+        if len(chunks) > LOUD_CHUNK_COUNT:
+            log.info("%s is %d chunks; embedding it will take a while", path.name, len(chunks))
 
         if existing:
             document_id = existing["id"]
@@ -309,3 +344,20 @@ class Indexer:
         documents = self.conn.execute("SELECT COUNT(*) AS n FROM documents").fetchone()["n"]
         chunks = self.conn.execute("SELECT COUNT(*) AS n FROM document_chunks").fetchone()["n"]
         return {"documents": documents, "chunks": chunks}
+
+
+def mark_stale_best_effort(path: str | Path) -> None:
+    """Flag a document for re-indexing after PSOK itself wrote to it.
+
+    Lives here rather than in one of the tool modules because both the
+    filesystem tools and the document authoring tools need it, and reaching
+    across `builtin/` for a private helper is how two copies start.
+
+    The filesystem is the source of truth, so an edit the agent makes must
+    invalidate the index immediately rather than waiting on a watcher -- but
+    indexing is best-effort, and a write must never fail because of it.
+    """
+    try:
+        Indexer().mark_stale(path)
+    except Exception:
+        pass

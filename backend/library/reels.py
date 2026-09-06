@@ -27,14 +27,12 @@ from pathlib import Path
 
 from backend.config import InstagramSettings, load_instagram
 from backend.library.store import media_path, thumbnail_path
-from backend.media.audio import MediaError, extract_audio, ffmpeg_missing, probe_duration
+from backend.media.audio import extract_audio, ffmpeg_missing, probe_duration
 from backend.media.download import DownloadError, fetch_to
 from backend.media.reel import Reel, ReelError, fetch_reel, is_reel_url, yt_dlp_missing
 from backend.runtime.transcribe import (
-    TranscriptionUnavailable,
     resolve_transcriber,
     transcribe,
-    unavailable_reason,
 )
 
 log = logging.getLogger(__name__)
@@ -251,7 +249,10 @@ class ReelCapture:
             return ""
 
         if not reel.has_text:
-            return "the audio carried no speech and visual extraction found no text, so there is no content"
+            return (
+                "the audio carried no speech and visual extraction found no"
+                " text, so there is no content"
+            )
         return ""
 
     async def _process_slides(self, item_id: int, reel: Reel) -> str:
@@ -260,6 +261,7 @@ class ReelCapture:
             return ""
 
         import httpx
+
         from backend.runtime.vision import extract_visual_text
 
         slide_images: list[bytes] = []

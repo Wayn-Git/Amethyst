@@ -92,12 +92,31 @@ def _to_contents(messages: list[dict[str, Any]]) -> tuple[str | None, list[dict]
                 )
             contents.append({"role": "model", "parts": parts})
             continue
-        contents.append(
-            {
+        content = m.get("content") or ""
+        if isinstance(content, list):
+            parts = []
+            for b in content:
+                if b.get("type") == "text":
+                    parts.append({"text": b.get("text", "")})
+                elif b.get("type") == "image":
+                    mime = b.get("media_type", "image/jpeg")
+                    parts.append({
+                        "inlineData": {
+                            "mimeType": mime,
+                            "data": b.get("data")
+                        }
+                    })
+            contents.append({
                 "role": "model" if role == "assistant" else "user",
-                "parts": [{"text": m.get("content") or ""}],
-            }
-        )
+                "parts": parts
+            })
+        else:
+            contents.append(
+                {
+                    "role": "model" if role == "assistant" else "user",
+                    "parts": [{"text": content}],
+                }
+            )
     return system, contents
 
 

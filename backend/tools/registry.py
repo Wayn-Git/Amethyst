@@ -248,12 +248,15 @@ def build_default_registry(
     workspace_root: str | None = None,
 ) -> ToolRegistry:
     from backend.tools.builtin import (
+        authoring,
+        browser,
         convert,
         desktop,
         documents,
         filesystem,
         library,
         shell,
+        social,
         tasks,
         web,
     )
@@ -267,6 +270,9 @@ def build_default_registry(
     registry.register_all(library.tools())
     registry.register_all(web.tools())
     registry.register_all(convert.tools())
+    registry.register_all(authoring.tools())
+    registry.register_all(browser.tools())
+    registry.register_all(social.tools())
     return registry
 
 

@@ -18,7 +18,21 @@ from backend.db.connection import get_connection
 #: What a library item can be. Not a CHECK constraint -- SQLite cannot alter one
 #: in place, and this list will grow. The service validates against it and names
 #: the accepted values in the error.
-KINDS = ("article", "book", "video", "podcast", "newsletter", "paper", "note", "other")
+#:
+#: `post` is a social post -- an X/Twitter status, a Reddit thread: a thing
+#: with an author and a short body, which is neither an article nor a note
+#: (a note is the user's own words).
+KINDS = (
+    "article",
+    "book",
+    "video",
+    "podcast",
+    "newsletter",
+    "paper",
+    "post",
+    "note",
+    "other",
+)
 
 #: Longest slug in a filename, leaving room for the id prefix and the extension
 #: inside the 255-byte limit every filesystem in play here shares.
@@ -27,6 +41,7 @@ MAX_SLUG_CHARS = 80
 _UPDATABLE = frozenset(
     {
         "kind",
+        "category",
         "title",
         "url",
         "author",
@@ -110,12 +125,21 @@ def media_path(item_id: int, suffix: str) -> Path:
 class LibraryStore:
     def __init__(self, conn: sqlite3.Connection | None = None):
         self.conn = conn or get_connection()
+        self._ensure_columns()
+
+    def _ensure_columns(self) -> None:
+        try:
+            self.conn.execute("ALTER TABLE library_items ADD COLUMN category TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
     def create(
         self,
         *,
         kind: str,
         title: str,
+        category: str | None = None,
         url: str | None = None,
         author: str | None = None,
         site: str | None = None,
@@ -126,12 +150,13 @@ class LibraryStore:
         source_ref: str | None = None,
     ) -> int:
         cursor = self.conn.execute(
-            "INSERT INTO library_items (kind, title, url, author, site, published_on,"
+            "INSERT INTO library_items (kind, title, category, url, author, site, published_on,"
             " consumed_on, notes, rating, source_ref, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 kind,
                 title,
+                category,
                 url,
                 author,
                 site,
@@ -193,6 +218,7 @@ class LibraryStore:
         self,
         *,
         kind: str | None = None,
+        category: str | None = None,
         since: str | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -203,6 +229,9 @@ class LibraryStore:
         if kind:
             where.append("kind = ?")
             params.append(kind)
+        if category:
+            where.append("category = ?")
+            params.append(category)
         if since:
             where.append("consumed_on >= ?")
             params.append(since)
@@ -230,6 +259,13 @@ class LibraryStore:
             "SELECT kind, COUNT(*) AS n FROM library_items GROUP BY kind"
         ).fetchall()
         return {row["kind"]: row["n"] for row in rows}
+
+    def category_counts(self) -> dict[str, int]:
+        rows = self.conn.execute(
+            "SELECT category, COUNT(*) AS n FROM library_items"
+            " WHERE category IS NOT NULL GROUP BY category"
+        ).fetchall()
+        return {row["category"]: row["n"] for row in rows}
 
     def delete(self, item_id: int) -> bool:
         cursor = self.conn.execute("DELETE FROM library_items WHERE id = ?", (item_id,))

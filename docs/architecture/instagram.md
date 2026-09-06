@@ -138,8 +138,50 @@ runner checks once a day and refreshes at 14 days remaining; once lapsed there i
 no automatic recovery, so it is surfaced in `psok doctor`, in the panel, and as a
 desktop notification before that happens.
 
-Nothing arrives while PSOK is shut. Same rule as automations, for the same
-reason.
+## The relay, and why the obvious deployment is wrong
+
+Nothing arrives while PSOK is shut -- but unlike automations, that is not a
+delay. **Meta does not queue for a webhook that fails.** It retries, and after
+sustained failure it disables the subscription. A laptop with the lid shut is not
+a slow endpoint, it is a down one, so pointing Meta at one means being silently
+unsubscribed with every later reel gone and nothing saying so.
+
+`relay/` is a Cloudflare Worker holding a D1 queue. It answers Meta's 200, keeps
+the delivery, sends a receipt while this machine is away, and refreshes the
+60-day token on a daily cron -- the one job that genuinely cannot live here,
+since a token that lapses during an absence cannot be refreshed at all.
+
+`backend/instagram/relay.py` collects from it on a fifteen-second poll, ahead of
+the drain in the same tick. A relayed delivery and a direct one land in the same
+table by the same call; nothing in the processing pipeline knows the difference.
+
+**It is always on and it is never trusted.** The relay stores the exact bytes
+Meta sent and the exact `X-Hub-Signature-256` header, and `_take_delivery`
+verifies that signature again here. That is why raw bytes are relayed rather
+than a parsed object: a parsed object cannot be checked. A compromised relay can
+lose a reel; it cannot invent one.
+
+Two details that look like oversights and are not:
+
+- **The freshness window is not re-applied to a relayed row.** A delivery that
+  sat at the relay for two days is exactly the case this exists for. Replay is
+  already impossible twice over -- `body_hash` is UNIQUE there and
+  `delivery_key` is UNIQUE here -- so a fifteen-minute clock would silently
+  discard everything the relay caught. `tests/test_instagram_relay.py` guards it.
+- **Rows are acknowledged on the *next* call, not this one.** A crash between
+  taking a row and acknowledging it leaves the row there, which re-delivers it,
+  which `enqueue` drops on the UNIQUE key. Losing a reel is unrecoverable; taking
+  one twice costs nothing.
+
+What the relay is told, on every poll: the access token, the share token, the
+allowlist and `reply_on_save`. The allowlist matters most -- without it the relay
+would answer "got it" to a stranger whose reel it then discards, which is a lie
+and a write to a social account on their behalf. The receipt is also withheld
+whenever this machine has synced in the last two minutes, so a running laptop
+sends the real `Saved: {title}` and there is no double message.
+
+`relay/README.md` is the setup. `docs/deployment.md` has where it sits relative
+to everything else.
 
 ## Trying it without Meta
 
@@ -152,4 +194,9 @@ psok instagram queue
 ```
 
 `send-sample` shares its fixtures with the tests, so the manual loop and the
-suite cannot drift apart.
+suite cannot drift apart. By hand, sign with `printf '%s' | openssl dgst -sha256
+-hmac` -- not `echo`, whose trailing newline changes the HMAC and is why most
+hand-made signature tests fail.
+
+With a relay deployed, `psok instagram relay --sync` collects immediately rather
+than waiting for the poll.

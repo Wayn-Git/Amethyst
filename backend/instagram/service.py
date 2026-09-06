@@ -314,6 +314,25 @@ class IngestService:
                 )
             audio = await self._extract_audio(video, media_path(item_id, ".audio"))
             result = await self._transcribe(audio)
+            
+            visual_text = None
+            if not result.text:
+                import shutil
+                import tempfile
+
+                from backend.media.vision import extract_frames
+                from backend.runtime.vision import extract_visual_text
+                
+                frames_dir = Path(tempfile.mkdtemp(prefix="psok-vision-"))
+                try:
+                    frames = await extract_frames(video, frames_dir)
+                    frame_bytes = [f.read_bytes() for f in frames]
+                    visual_text = await extract_visual_text(frame_bytes)
+                except Exception as exc:
+                    log.warning("visual extraction failed for library item %s: %s", item_id, exc)
+                finally:
+                    shutil.rmtree(frames_dir, ignore_errors=True)
+                    
         except MediaError as exc:
             return str(exc)
         except TranscriptionUnavailable as exc:
@@ -334,9 +353,28 @@ class IngestService:
             if duration is not None:
                 self.library.store.update(item_id, duration_seconds=int(duration))
 
-        if not result.text:
-            return "the audio carried no speech, so there is no transcript"
-        await self.library.replace_text(item_id, result.text, text_source="transcript")
+        if not result.text and not visual_text:
+            return (
+                "the audio carried no speech and visual extraction found no text,"
+                " so there is no transcript"
+            )
+            
+        existing = self.library.store.get(item_id)
+        existing_text = ""
+        has_caption = False
+        if existing and existing["text_path"]:
+            from backend.library.enrich import body_of
+            existing_text, _ = body_of(Path(existing["text_path"]).read_text(encoding="utf-8"))
+            has_caption = existing["text_source"] == "caption"
+
+        final_extracted_text = result.text or visual_text
+        if has_caption and existing_text:
+            new_text = f"{existing_text}\n\n{final_extracted_text}"
+            source = "caption and transcript"
+        else:
+            new_text = final_extracted_text
+            source = "transcript"
+        await self.library.replace_text(item_id, new_text, text_source=source)
         return ""
 
     async def _maybe_reply(

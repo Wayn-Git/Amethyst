@@ -138,8 +138,8 @@ def verify_signature(header: str | None, raw: bytes) -> bool:
     -- so a signature computed over anything but the original bytes is a check
     that passes when it should fail and fails when it should pass.
     """
-    secret = app_secret()
-    if not secret:
+    raw_secret = app_secret()
+    if not raw_secret:
         return False
     now = time.monotonic()
     if _throttled(now):
@@ -151,9 +151,12 @@ def verify_signature(header: str | None, raw: bytes) -> bool:
         _failures.append(now)
         return False
 
-    expected = hmac.new(secret.encode("utf-8"), raw, hashlib.sha256).hexdigest()
-    if hmac.compare_digest(digest.strip(), expected):
-        return True
+    secrets = [s.strip() for s in raw_secret.split(",") if s.strip()]
+    for secret in secrets:
+        expected = hmac.new(secret.encode("utf-8"), raw, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(digest.strip(), expected):
+            return True
+
     _failures.append(now)
     log.warning("instagram webhook refused: signature did not match")
     return False
@@ -161,9 +164,10 @@ def verify_signature(header: str | None, raw: bytes) -> bool:
 
 def appsecret_proof(token: str) -> str | None:
     """Graph's proof-of-secret, so a stolen access token alone is not enough."""
-    secret = app_secret()
-    if not secret:
+    raw_secret = app_secret()
+    if not raw_secret:
         return None
+    secret = raw_secret.split(",")[0].strip()
     return hmac.new(secret.encode("utf-8"), token.encode("utf-8"), hashlib.sha256).hexdigest()
 
 

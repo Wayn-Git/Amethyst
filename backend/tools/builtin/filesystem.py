@@ -8,9 +8,37 @@ import re
 from pathlib import Path
 from typing import Any
 
+from backend.documents import EXTRACTABLE, ExtractionError, extract, missing_reader
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
 
 MAX_READ_BYTES = 400_000
+#: The cap for a binary document, applied to the file on disk. Larger than
+#: MAX_READ_BYTES because bytes on disk say nothing about how much text a
+#: document holds -- a 3MB PDF is twelve pages of prose and a 3MB note is not a
+#: note. Sized to clear the 32MB attachment cap in api/main.py, so anything the
+#: composer accepted can be read back.
+MAX_DOCUMENT_BYTES = 40_000_000
+
+#: Extracted markdown, keyed by (path, mtime, size). `view_file` takes `offset`
+#: and `limit`, which invites paging, and paging a 300-page PDF a hundred lines
+#: at a time would re-extract the whole thing on every call. Keyed on mtime and
+#: size rather than the path alone so an edit invalidates the entry rather than
+#: serving the document as it used to be.
+_EXTRACTED: dict[tuple[str, int, int], str] = {}
+_EXTRACT_CACHE_SIZE = 8
+
+
+async def _extracted(path: Path) -> str:
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    cached = _EXTRACTED.get(key)
+    if cached is not None:
+        return cached
+    text = await extract(path)
+    if len(_EXTRACTED) >= _EXTRACT_CACHE_SIZE:
+        _EXTRACTED.pop(next(iter(_EXTRACTED)))
+    _EXTRACTED[key] = text
+    return text
 
 
 def _root(context: ToolContext, override: str | None = None) -> Path:
@@ -37,12 +65,43 @@ async def view_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         return ToolResult.error(f"no such file: {path}")
     if path.is_dir():
         return ToolResult.error(f"{path} is a directory; use list_files")
-    if path.stat().st_size > MAX_READ_BYTES:
-        return ToolResult.error(f"{path} is too large to read ({path.stat().st_size} bytes)")
-    try:
-        text = path.read_text(errors="replace")
-    except OSError as exc:
-        return ToolResult.error(f"cannot read {path}: {exc}")
+
+    # A PDF read as text is mojibake, and the model has no way to know a path is
+    # binary before opening it -- `list_files` returns names. So the routing
+    # happens here rather than in a second tool the model would have to choose
+    # between. The refusal is asked for before the size check because a named
+    # "that needs python-docx" costs nothing and reading 40MB to find out costs
+    # 40MB.
+    document = path.suffix.lower() in EXTRACTABLE
+    if document:
+        refusal = missing_reader(path.suffix)
+        if refusal:
+            return ToolResult.error(refusal)
+
+    size = path.stat().st_size
+    cap = MAX_DOCUMENT_BYTES if document else MAX_READ_BYTES
+    if size > cap:
+        return ToolResult.error(f"{path} is too large to read ({size} bytes)")
+
+    if document:
+        try:
+            text = await _extracted(path)
+        except ExtractionError as exc:
+            return ToolResult.error(str(exc))
+        if len(text) > MAX_READ_BYTES:
+            # The cap that matters for an extracted document is characters, not
+            # bytes on disk, and truncation is said out loud rather than left
+            # for the model to notice that a report stops mid-sentence.
+            text = (
+                text[:MAX_READ_BYTES]
+                + f"\n\n[truncated at {MAX_READ_BYTES:,} characters;"
+                " search_documents finds a passage in the rest]"
+            )
+    else:
+        try:
+            text = path.read_text(errors="replace")
+        except OSError as exc:
+            return ToolResult.error(f"cannot read {path}: {exc}")
 
     offset = int(args.get("offset") or 0)
     limit = args.get("limit")
@@ -92,9 +151,17 @@ async def grep_files(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     max_results = int(args.get("max_results") or 200)
 
     hits: list[str] = []
+    skipped = 0
     targets = [root] if root.is_file() else sorted(root.rglob("*"))
     for candidate in targets:
         if not candidate.is_file():
+            continue
+        if candidate.suffix.lower() in EXTRACTABLE:
+            # Extracting every PDF in a tree to run one regex over it is the
+            # wrong cost, and reading one as text produces matches inside
+            # compressed bytes that mean nothing. Counted rather than silent, so
+            # "no matches" cannot mean "the answer was in a PDF I skipped".
+            skipped += 1
             continue
         # Only hidden components *below* the search root matter. Checking the
         # absolute path skipped every file when the root itself lived under a
@@ -115,21 +182,28 @@ async def grep_files(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
                         return ToolResult.ok("\n".join(hits) + "\n[result limit reached]")
         except (OSError, UnicodeDecodeError):
             continue
-    return ToolResult.ok("\n".join(hits) or "no matches")
+
+    out = "\n".join(hits) or "no matches"
+    if skipped:
+        noun = "document" if skipped == 1 else "documents"
+        out += (
+            f"\n[skipped {skipped} binary {noun}; search_documents indexes those,"
+            " or view_file reads one]"
+        )
+    return ToolResult.ok(out)
 
 
 def _invalidate_index(path: Path) -> None:
-    """Mark a document stale after PSOK itself edits it.
+    """Tell retrieval a file PSOK just wrote is stale.
 
-    The filesystem is the source of truth, so an edit the agent makes must
-    invalidate the index immediately rather than waiting on a watcher.
+    The real work is `indexer.mark_stale_best_effort`, shared with the document
+    authoring tools. Imported inside the call rather than at module scope so a
+    filesystem tool never drags the embedder and the vector extension in behind
+    it -- reading a file must not depend on retrieval being importable.
     """
-    try:
-        from backend.retrieval.indexer import Indexer
+    from backend.retrieval.indexer import mark_stale_best_effort
 
-        Indexer().mark_stale(path)
-    except Exception:
-        pass  # indexing is best-effort; never fail a write because of it
+    mark_stale_best_effort(path)
 
 
 async def write_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
@@ -189,7 +263,10 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
     return [
         Tool(
             name="view_file",
-            description="Read a text file. Returns line-numbered content.",
+            description="Read a file and return its line-numbered content. Text and"
+            " code files are read directly; PDF, Word (.docx), Excel (.xlsx) and"
+            " PowerPoint (.pptx) are extracted to markdown first, keeping page"
+            " numbers, sheet names and slide numbers so a passage can be cited.",
             parameters={
                 "type": "object",
                 "properties": {

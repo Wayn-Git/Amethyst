@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from backend.config import load_providers
+from backend.config import EMBEDDING_CANDIDATES, load_embeddings, load_providers
 from backend.runtime.failures import FailureKind
 from backend.runtime.http import ProviderHTTPError, post_json
 from backend.secrets import resolve_api_key
@@ -43,7 +43,21 @@ class EmbeddingError(RuntimeError):
 
 
 class Embedder:
-    def __init__(self, provider: str = "ollama", model: str | None = None):
+    def __init__(self, provider: str | None = None, model: str | None = None):
+        """No arguments means "whatever the user configured", not "Ollama".
+
+        It used to mean Ollama unconditionally, and on a machine without Ollama
+        that made the whole index unreachable while a perfectly good embedding
+        endpoint sat configured in providers.yaml. The explicit-argument path is
+        unchanged, so `psok index --provider x` still overrides everything.
+        """
+        if provider is None:
+            configured = load_embeddings()
+            if configured:
+                provider, configured_model = configured
+                model = model or configured_model
+            else:
+                provider = "ollama"
         self.provider = provider
         self.model = model or DEFAULT_LOCAL_MODEL
 
@@ -92,20 +106,35 @@ class Embedder:
             # raiser already knew the shape of. The kind says it outright.
             if exc.kind is FailureKind.UNREACHABLE:
                 _UNREACHABLE.add(url)
-            raise EmbeddingError(
-                f"could not reach Ollama at {native}. Is it running, and has"
-                f" '{self.model}' been pulled? (ollama pull {self.model}). {exc}"
-            ) from exc
+            raise EmbeddingError(self._ollama_missing(native, exc)) from exc
         except Exception as exc:
-            raise EmbeddingError(
-                f"could not reach Ollama at {native}. Is it running, and has"
-                f" '{self.model}' been pulled? (ollama pull {self.model}). {exc}"
-            ) from exc
+            raise EmbeddingError(self._ollama_missing(native, exc)) from exc
 
         embeddings = data.get("embeddings")
         if not embeddings:
             raise EmbeddingError(f"Ollama returned no embeddings for model '{self.model}'")
         return embeddings
+
+    def _ollama_missing(self, native: str, exc: object) -> str:
+        """Say what is wrong, and name a way out this machine actually has.
+
+        "Install Ollama" is the right advice on a machine with nothing else and
+        the wrong advice on one with a working embedding endpoint already in
+        providers.yaml -- which is how the whole index stayed empty here while a
+        Cloudflare key sat configured. So the alternative is named when there is
+        one, and only then.
+        """
+        message = (
+            f"could not reach Ollama at {native}. Is it running, and has"
+            f" '{self.model}' been pulled? (ollama pull {self.model}). {exc}"
+        )
+        others = [name for name in configured_embedders() if name != "ollama"]
+        if others:
+            message += (
+                f"\n\nThis machine has {', '.join(others)} configured, which can embed"
+                " without Ollama. Point PSOK at one with: psok embeddings detect"
+            )
+        return message
 
     async def _embed_openai_compatible(
         self, batch: list[str], base_url: str, config
@@ -127,6 +156,40 @@ class Embedder:
         if not rows:
             raise EmbeddingError(f"'{self.provider}' returned no embeddings")
         return [row["embedding"] for row in rows]
+
+
+def configured_embedders() -> list[str]:
+    """Providers that are configured here and might serve embeddings.
+
+    "Might": the only proof is a request, which `psok embeddings detect` makes.
+    This is for the sentence a failure prints, where naming a candidate is more
+    use than naming none.
+    """
+    configured = load_providers()
+    return [name for name in EMBEDDING_CANDIDATES if name in configured]
+
+
+async def detect() -> list[tuple[str, str, int]]:
+    """Probe every candidate and return the ones that answered, best first.
+
+    A request rather than a capability table, because the tables go stale: NVIDIA
+    served embeddings until it did not, and now answers 410 to the same endpoint
+    the docs still describe.
+    """
+    found: list[tuple[str, str, int]] = []
+    configured = load_providers()
+    for provider, models in EMBEDDING_CANDIDATES.items():
+        if provider != "ollama" and provider not in configured:
+            continue
+        for model in models:
+            try:
+                vector = await Embedder(provider, model).embed_one("probe")
+            except Exception:
+                continue
+            if vector:
+                found.append((provider, model, len(vector)))
+                break  # one working model per provider is enough to offer it
+    return found
 
 
 async def available(provider: str = "ollama", model: str | None = None) -> tuple[bool, str]:

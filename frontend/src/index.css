@@ -3008,6 +3008,12 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 .set-row > span:last-child:not(:first-child) { color: var(--text-dim); font-size: 12.5px; }
 .set-row-tail { display: flex; align-items: center; gap: 8px; }
 .set-sub { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-faint); }
+/* A row whose control is a form rather than a switch: the two fields and the
+   button need the full width, so the row stops being a line and becomes a
+   block instead of squeezing three inputs into a tail. */
+.set-row--stack { flex-direction: column; align-items: stretch; }
+.lib-relay-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.lib-relay-form .lib-input { flex: 1; min-width: 200px; }
 .set-ok { color: var(--live); }
 .set-bad { color: var(--stop); }
 
@@ -5267,6 +5273,59 @@ textarea.lib-input { width: 100%; margin-top: var(--space-sm); resize: vertical;
    width games it was playing in the middle of a transcript. */
 .wb-panel-body .tool-card { margin: 0; }
 .wb-panel-body .reasoning { margin: 0; }
+
+/* The Mail panel: the same slot, different contents. Everything here is
+   display-only, so the styles follow the panel's own idiom -- small type,
+   hairlines between the sections -- rather than inventing a second panel
+   look. */
+.mail-panel-who { display: grid; gap: 2px; }
+.mail-panel-sub {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin-top: var(--space-sm);
+}
+.mail-panel-who .mail-panel-sub:first-child { margin-top: 0; }
+.mail-panel-address { font-size: var(--text-xs); color: var(--text-dim); }
+.mail-panel-meta { font-size: var(--text-2xs); color: var(--text-faint); }
+.mail-panel-history { display: grid; gap: 4px; }
+.mail-panel-lib { display: grid; gap: 4px; }
+.mail-panel-lib-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  min-width: 0;
+}
+.mail-panel-lib-item span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-panel-lib-item .mail-when { margin-left: auto; flex: none; color: var(--text-faint); }
+
+/* The unread badge on the mailbox rail. A count, not a pulse: it is the same
+   number Gmail states about the label, and it goes away when read. Uses the
+   stop palette because "unread mail" is the one count worth noticing, and a
+   neutral badge reads as decoration. */
+.mail-unread-badge {
+  margin-left: auto;
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill, 9px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--stop);
+  border: 1px solid var(--stop-line);
+  background: var(--stop-soft);
+}
 
 /* -------------------------------------------------------- narrower windows
 

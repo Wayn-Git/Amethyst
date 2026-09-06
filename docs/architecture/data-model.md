@@ -94,6 +94,25 @@ chunks_fts                -- FTS5 virtual table
 
 Content hashing at the chunk level is Khoj's incremental-indexing pattern and PSOK adopts it directly: hash each chunk, diff against stored hashes for that document, embed only what changed, delete what disappeared. Re-scanning an unchanged vault costs a hash comparison.
 
+**What gets indexed.** Text and code by extension (`indexer.TEXT_EXTENSIONS`, capped at 2MB), plus PDF, DOCX, XLSX and PPTX (`indexer.DOCUMENT_EXTENSIONS`, capped at 25MB because a document's megabytes are images and its cost tracks page count). Binary documents are turned into markdown by `backend/documents/` **after** the content-hash early return, so an unchanged PDF is never opened by a document library and a re-scan still costs a read and a hash. `file_type` needed no change — it already stores `path.suffix`. `heading_path` is what carries structure across: `Page 12` for a PDF, `Sheet: Budget` for a workbook, `Slide 3` for a deck, the real outline for a Word file, so `SearchHit.label` prints `report.pdf > Page 12` unmodified.
+
+**Which model builds it.** Embeddings default to Ollama (ADR-0013's local-first
+posture) and are otherwise named by an `embeddings:` block in providers.yaml,
+beside `memory:` and `tiers:` -- `psok embeddings detect --set` probes the
+configured providers and writes it. This matters more than it looks: with no
+embedder reachable, every search silently falls back to keywords and a vault
+that looks indexed answers nothing. `psok doctor` reports it for that reason.
+
+Changing the model does not corrupt anything, and the reason is worth keeping:
+`store.record_embedding_model` writes down which model built the index and
+`SearchService` queries with *that* one, so a switch leaves the index **stale**
+rather than silently comparing vectors from two unrelated spaces. Dimensions
+differing (768 for bge-base, 1024 for bge-m3, 1536 for text-embedding-3-small)
+makes `ensure_indexes` drop and rebuild the vector table. Re-index after a
+change.
+
+A document PSOK cannot read — a scan with no text layer — lands in `IndexReport.skipped` rather than `errors`, because the file is fine and `errors` should keep meaning that something went wrong.
+
 The separate `chunks_fts` table is the concrete upgrade over Khoj's ILIKE filtering. See [retrieval](#retrieval-notes) below.
 
 ### Tasks and calendar

@@ -559,3 +559,91 @@ async def test_search_can_be_narrowed_to_one_source(db, workspace):
         "attention residue", source="library"
     )
     assert [h.label for h in library_only] == ["Deep Work"]
+
+
+# ------------------------------------------------------- binary documents
+
+
+def _pdf(path, pages):
+    from tests.test_documents import _pdf as build
+
+    return build(path, pages)
+
+
+async def test_discover_finds_documents_under_a_larger_cap_than_text(db, vault):
+    """Two megabytes is a large note and a small report -- a PDF's megabytes are
+    images, and PyMuPDF's cost tracks page count rather than bytes, so the text
+    cap would exclude exactly the long documents worth indexing.
+
+    Mutation check: use MAX_FILE_BYTES for documents too.
+    """
+    from backend.retrieval.indexer import MAX_FILE_BYTES
+
+    path = _pdf(vault / "notes" / "report.pdf", ["Findings"])
+    path.write_bytes(path.read_bytes() + b"\n%% " + b"x" * (MAX_FILE_BYTES + 1))
+    (vault / "notes" / "big.md").write_text("x" * (MAX_FILE_BYTES + 1))
+
+    found = {p.name for p in discover(vault)}
+    assert "report.pdf" in found
+    assert "big.md" not in found, "the text cap still applies to text"
+
+
+async def test_reindexing_a_pdf_does_no_extraction_or_embedding_work(db, vault):
+    """The content hash is taken over the raw bytes and checked *before* anything
+    is extracted, so re-scanning a folder of PDFs costs a read and a hash.
+    Hashing the extracted text instead would mean extracting every file on every
+    scan to discover that nothing changed.
+
+    Mutation check: move extraction above the early return in `index_file`.
+    """
+    _pdf(vault / "notes" / "report.pdf", ["Gradient descent converges"])
+    embedder = FakeEmbedder()
+    indexer = Indexer(embedder, conn=db)
+
+    first = await indexer.index_vault(vault)
+    assert first.indexed == 3
+    after_first = embedder.calls
+
+    second = await indexer.index_vault(vault)
+    assert second.unchanged == 3
+    assert second.chunks_added == 0
+    assert embedder.calls == after_first, "an unchanged PDF must not be re-embedded"
+
+
+async def test_a_search_hit_in_a_pdf_names_its_page(db, vault):
+    """The payoff for every extractor emitting markdown: `## Page 2` becomes the
+    heading path, and `SearchHit.label` composes `report.pdf > Page 2` with no
+    change to search, the store or the schema.
+
+    Mutation check: emit the page number as body text rather than a heading.
+    """
+    _pdf(vault / "notes" / "report.pdf", ["Nothing useful", "Zebrafish telemetry results"])
+    embedder = FakeEmbedder()
+    await Indexer(embedder, conn=db).index_vault(vault)
+
+    hits = await SearchService(embedder, conn=db).search("Zebrafish telemetry", limit=5)
+    labels = [hit.label for hit in hits]
+    assert any(label == "report.pdf > Page 2" for label in labels), labels
+
+
+async def test_a_scanned_pdf_is_skipped_rather_than_counted_as_an_error(db, vault):
+    """A folder of scans would otherwise fill `errors` with two hundred entries
+    and make a working index look broken. The file is fine; PSOK just cannot read
+    it without OCR, and `errors` should keep meaning "went wrong".
+
+    Mutation check: append to `report.errors` instead of `report.skipped`.
+    """
+    pymupdf = pytest.importorskip("pymupdf")
+    document = pymupdf.open()
+    page = document.new_page()
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 50, 50))
+    pixmap.clear_with(200)
+    page.insert_image(pymupdf.Rect(0, 0, 200, 200), pixmap=pixmap)
+    document.save(vault / "notes" / "scan.pdf")
+    document.close()
+
+    report = await Indexer(FakeEmbedder(), conn=db).index_vault(vault)
+    assert len(report.skipped) == 1
+    assert "tesseract" in report.skipped[0]
+    assert not report.errors
+    assert "1 skipped" in report.summary()

@@ -30,6 +30,7 @@ from backend.automation import (
     AutomationRepository,
     AutomationRunner,
 )
+from backend.browser.runner import BrowserRunner
 from backend.config import configured_providers, load_tiers, paths
 from backend.db.connection import get_connection
 from backend.db.repositories import (
@@ -248,6 +249,12 @@ _journal = JournalRunner()
 # download is not a reminder.
 _instagram = InstagramRunner()
 
+# The bookmark watcher. A fifth, and the cheapest: it copies a SQLite file every
+# few minutes and usually finds nothing new. Separate anyway, because capturing
+# a bookmark fetches a page and summarises it, and that is minutes of work the
+# other loops should not be waiting behind.
+_browser = BrowserRunner()
+
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
@@ -269,7 +276,10 @@ async def _lifespan(_: FastAPI):
     _journal.start()
     # Fourth, and stopped first: it holds the longest-running work.
     _instagram.start()
+    # Fifth. A no-op on every tick until someone switches the browser on.
+    _browser.start()
     yield
+    await _browser.stop()
     await _instagram.stop()
     await _journal.stop()
     await _reminders.stop()
@@ -1501,6 +1511,7 @@ def mcp_servers(accounts: bool = False) -> list[dict[str, Any]]:
     anything else asking cannot reach different conclusions from the same five
     fields, which is what they were doing.
     """
+    from backend.capabilities import CapabilityService, Kind
     from backend.mcp import commands as mcp
     from backend.mcp.lifecycle import state_of
     from backend.mcp.oauth import PENDING
@@ -1508,11 +1519,21 @@ def mcp_servers(accounts: bool = False) -> list[dict[str, Any]]:
     rows = mcp.status(with_accounts=accounts)
     manager = _mcp["manager"]
     live = manager.state() if manager is not None else {}
-    reconciled = manager is not None
+    reconciled = manager is not None and manager.reconciled_once
     synced = _synced_sources()
+    capabilities = CapabilityService()
 
     for row in rows:
         name = row["name"]
+        # `enabled` from the same source `reconcile` obeys, not from mcp.yaml.
+        # The two disagreed: a connector enabled in YAML with no capability
+        # row (connectors default to off there) passed the `off` check, had no
+        # error and no live tools -- and because a manager object existed,
+        # `reconciled` was true, so every fresh server read "failed to start"
+        # until someone pressed Connect. The capability row is the truth; a
+        # connector that is on in YAML but off in `capability_state` now
+        # renders as `off` with a Connect action, which is what it is.
+        row["enabled"] = capabilities.is_enabled(Kind.CONNECTOR, name)
         p = PENDING.get(name)
         row["lifecycle"] = state_of(
             row,
@@ -1908,13 +1929,33 @@ def mcp_pending_authorizations() -> list[dict[str, Any]]:
     # sign-in lands by a route the watcher did not see -- another window, a
     # server-side flow that completed after its deadline, a stale entry across a
     # reconnect. Cheap to check, and it makes the list self-correcting.
+    #
+    # Token presence alone is not "signed in", though: an expired, revoked or
+    # half-written token passes `has_tokens`, and flipping the card to done on
+    # that basis is what let GitHub read "connected" without anyone ever
+    # authenticating. Where the connector publishes an identity endpoint, the
+    # token has to work there too. A 401 drops the stale token so the next
+    # render offers Sign in rather than a connection that dies on first use.
     servers = load_servers()
     for pending_name, pending in list(PENDING.items()):
         if pending.status != "waiting":
             continue
         config = servers.get(pending_name)
-        if config is not None and mcp.is_signed_in(config) is True:
-            pending.finish("done", f"signed in to {pending_name}")
+        if config is None or mcp.is_signed_in(config) is not True:
+            continue
+        valid = mcp.identity_valid(pending_name)
+        if valid is False:
+            mcp.sign_out(pending_name)
+            pending.finish("failed", f"the sign-in to {pending_name} did not stick; try again")
+            continue
+        # Name the account when the provider says who it is. "Connected to
+        # github" alone is what let an unauthenticated connector read as
+        # signed-in -- the account is the fact the user actually wants.
+        who = mcp.account(pending_name)
+        pending.finish(
+            "done",
+            f"signed in to {pending_name} as {who}" if who else f"signed in to {pending_name}",
+        )
 
     return [
         {
@@ -2415,12 +2456,36 @@ async def upload_attachment(file: UploadFile) -> dict[str, Any]:
                 raise HTTPException(413, "attachments are limited to 32MB")
             out.write(chunk)
 
+    await _index_attachment(target, name)
     return {
         "name": name,
         "path": str(target),
         "bytes": size,
         "content_type": file.content_type,
     }
+
+
+async def _index_attachment(target: Path, name: str) -> None:
+    """Make an uploaded file findable, not just readable.
+
+    The composer already tells the agent to read the file it just carried in, so
+    this is not about the current turn. It is about the next week: a contract
+    dropped into a conversation on Monday is invisible to `search_documents` on
+    Friday unless something indexes it. `library/service.py` does the same thing
+    for captured pages, with the same `require_embeddings=False` -- an
+    unreachable embedder should leave the file findable by keyword rather than
+    fail an upload the user watched succeed.
+    """
+    from backend.retrieval.indexer import DOCUMENT_EXTENSIONS, TEXT_EXTENSIONS, Indexer
+
+    if target.suffix.lower() not in TEXT_EXTENSIONS | DOCUMENT_EXTENSIONS:
+        return
+    try:
+        await Indexer().index_file(
+            target, source="attachment", title=name, require_embeddings=False
+        )
+    except Exception as exc:  # indexing is best-effort; the upload already worked
+        log.info("could not index attachment %s: %s", name, exc)
 
 
 # ------------------------------------------------------------------ tasks
@@ -2956,6 +3021,7 @@ class LibraryBody(BaseModel):
     url: str | None = None
     title: str | None = None
     kind: str | None = None
+    category: str | None = None
     author: str | None = None
     notes: str | None = None
     text: str | None = None
@@ -2966,6 +3032,7 @@ class LibraryBody(BaseModel):
 class LibraryPatch(BaseModel):
     title: str | None = None
     kind: str | None = None
+    category: str | None = None
     author: str | None = None
     notes: str | None = None
     consumed_on: str | None = None
@@ -2978,7 +3045,11 @@ class LibraryPatch(BaseModel):
 
 @app.get("/api/library")
 async def list_library(
-    q: str | None = None, kind: str | None = None, limit: int = 50, offset: int = 0
+    q: str | None = None,
+    kind: str | None = None,
+    category: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
 ) -> dict[str, Any]:
     from backend.library.service import LibraryService
 
@@ -2986,9 +3057,18 @@ async def list_library(
     limit = max(1, min(limit, 200))
     if q and q.strip():
         items = await service.search(q, limit=limit)
+        if kind:
+            items = [it for it in items if it.get("kind") == kind]
+        if category:
+            items = [it for it in items if it.get("category") == category]
     else:
-        items = service.recent(kind=kind, limit=limit, offset=offset)
-    return {"items": items, "counts": service.counts(), "query": q or ""}
+        items = service.recent(kind=kind, category=category, limit=limit, offset=offset)
+    return {
+        "items": items,
+        "counts": service.counts(),
+        "category_counts": service.category_counts(),
+        "query": q or "",
+    }
 
 
 @app.post("/api/library", status_code=201)
@@ -3001,6 +3081,7 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
             captured = await service.capture_url(
                 body.url,
                 kind=body.kind,
+                category=body.category,
                 consumed_on=body.consumed_on,
                 notes=body.notes,
                 title=body.title,
@@ -3009,6 +3090,7 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
             captured = await service.log_manual(
                 title=body.title or "",
                 kind=body.kind or "note",
+                category=body.category,
                 text=body.text,
                 author=body.author,
                 notes=body.notes,
@@ -3188,8 +3270,17 @@ class InstagramCredentials(BaseModel):
     expires_in_days: int | None = None
 
 
+class InstagramRelay(BaseModel):
+    """Where the always-on receiver is, and what this machine presents to it."""
+
+    url: str | None = None
+    token: str | None = None
+    enabled: bool | None = None
+
+
 class InstagramPatch(BaseModel):
     enabled: bool | None = None
+    cookies_from_browser: str | None = None
     owner_ig_id: str | None = None
     mentions_from: str | None = None
     keep_video: bool | None = None
@@ -3305,6 +3396,44 @@ def instagram_status() -> dict[str, Any]:
             {"provider": transcriber[0].name, "model": transcriber[1]} if transcriber else None
         ),
         "ffmpeg": ffmpeg_missing() is None,
+        "relay": _relay_status(),
+        "reels": _reel_status(),
+    }
+
+
+def _reel_status() -> dict[str, Any]:
+    """Whether a pasted Instagram link can be opened, and what it needs.
+
+    Separate from the API route on purpose: they answer different questions and
+    can each be working while the other is not.
+    """
+    from backend.config import load_instagram
+    from backend.media.reel import BROWSERS, yt_dlp_missing
+
+    missing = yt_dlp_missing()
+    browser = load_instagram().cookies_from_browser
+    return {
+        "available": missing is None,
+        "reason": missing,
+        "cookies_from_browser": browser,
+        "browsers": list(BROWSERS),
+        # Instagram serves a login wall to anonymous requests, so without a
+        # browser session this route mostly returns a note instead of a reel.
+        "ready": missing is None and bool(browser),
+    }
+
+
+def _relay_status() -> dict[str, Any]:
+    """Whether capture survives this machine being off, and nothing secret."""
+    from backend.config import load_instagram
+    from backend.instagram import relay
+
+    settings = load_instagram()
+    return {
+        "url": settings.relay_url,
+        "enabled": settings.relay_enabled,
+        "token": bool(relay.token()),
+        "ready": settings.relay_enabled and relay.configured(),
     }
 
 
@@ -3354,6 +3483,13 @@ def patch_instagram_settings(body: InstagramPatch) -> dict[str, Any]:
     from backend.instagram import signature
 
     patch = body.model_dump(exclude_none=True)
+    if "cookies_from_browser" in patch:
+        from backend.media.reel import BROWSERS
+
+        value = (patch["cookies_from_browser"] or "").strip().lower()
+        if value and value not in BROWSERS:
+            raise HTTPException(400, f"browser must be one of: {', '.join(BROWSERS)}")
+        patch["cookies_from_browser"] = value
     if "mentions_from" in patch and patch["mentions_from"] not in MENTION_SOURCES:
         raise HTTPException(400, f"mentions_from must be one of: {', '.join(MENTION_SOURCES)}")
     if patch.get("enabled") and not signature.configured():
@@ -3362,6 +3498,60 @@ def patch_instagram_settings(body: InstagramPatch) -> dict[str, Any]:
         )
     save_instagram(patch)
     return instagram_status()
+
+
+@app.put("/api/instagram/relay")
+def put_instagram_relay(body: InstagramRelay) -> dict[str, Any]:
+    """Point this machine at its relay. The token goes to the keychain, not here.
+
+    Switching the relay on does not change what the local webhook accepts. Both
+    paths reach the same queue and dedupe against the same UNIQUE key, so running
+    both during a changeover saves nothing twice.
+    """
+    from backend.config import load_instagram, save_instagram
+    from backend.instagram import relay
+    from backend.secrets import CredentialError
+
+    patch: dict[str, Any] = {}
+    if body.url is not None:
+        url = body.url.strip().rstrip("/")
+        if url and not url.startswith("https://"):
+            # It carries the access token in both directions. Plain HTTP is not a
+            # setting to be talked out of.
+            raise HTTPException(400, "the relay URL has to be https")
+        patch["relay_url"] = url
+    if body.token:
+        try:
+            relay.set_token(body.token)
+        except CredentialError as exc:
+            raise HTTPException(503, str(exc)) from exc
+    if body.enabled is not None:
+        patch["relay_enabled"] = body.enabled
+    if patch.get("relay_enabled") and not (
+        patch.get("relay_url", load_instagram().relay_url) and relay.token()
+    ):
+        raise HTTPException(400, "the relay needs both a URL and a token before it can be used")
+    if patch:
+        save_instagram(patch)
+    return instagram_status()
+
+
+@app.delete("/api/instagram/relay")
+def delete_instagram_relay() -> dict[str, Any]:
+    from backend.config import save_instagram
+    from backend.instagram import relay
+
+    relay.clear_token()
+    save_instagram({"relay_url": "", "relay_enabled": False})
+    return instagram_status()
+
+
+@app.post("/api/instagram/relay/sync")
+async def sync_instagram_relay() -> dict[str, Any]:
+    """Go and look now, rather than at the next fifteen-second poll."""
+    result = await _instagram.sync_relay()
+    _instagram.nudge()
+    return result
 
 
 @app.post("/api/instagram/senders/{igsid}")
@@ -3398,6 +3588,77 @@ def retry_instagram_event(event_id: int) -> dict[str, Any]:
         raise HTTPException(404, f"no instagram event {event_id}")
     _instagram.nudge()
     return {"status": "queued", "id": event_id}
+
+
+# --------------------------------------------------------------- browser
+#
+# Reading the browser's own bookmarks and history, off until switched on. See
+# backend/browser/places.py for why the database is copied before it is read.
+
+
+@app.get("/api/browser")
+def browser_status() -> dict[str, Any]:
+    """Settings, plus what is actually in the profile -- measured, not claimed."""
+    from backend.browser.places import PlacesError, counts, find_profile
+    from backend.config import load_browser
+
+    settings = load_browser()
+    payload: dict[str, Any] = {
+        "settings": settings.as_dict(),
+        "profile": None,
+        "counts": None,
+        "problem": None,
+        "last_sync": None,
+    }
+    try:
+        profile = find_profile(settings.profile_dir or None)
+        payload["profile"] = str(profile)
+        payload["counts"] = counts(profile)
+    except PlacesError as exc:
+        # A machine with no Firefox-family browser is an ordinary state, not a
+        # failure: the page should say so rather than show an error banner.
+        payload["problem"] = str(exc)
+
+    if _browser.last is not None:
+        payload["last_sync"] = {
+            "summary": _browser.last.summary(),
+            "captured": _browser.last.captured,
+            "failed": _browser.last.failed,
+        }
+    return payload
+
+
+@app.patch("/api/browser")
+def update_browser(patch: dict[str, Any]) -> dict[str, Any]:
+    from backend.config import save_browser
+
+    saved = save_browser(patch)
+    if saved.enabled:
+        # Switching it on should do something visible now, not in five minutes.
+        _browser.nudge()
+    return saved.as_dict()
+
+
+@app.post("/api/browser/sync")
+async def sync_bookmarks() -> dict[str, Any]:
+    """Capture new bookmarks now. The button behind "I just bookmarked that"."""
+    from backend.browser.service import BookmarkIngest
+    from backend.config import load_browser
+
+    if not load_browser().enabled:
+        raise HTTPException(400, "browser capture is switched off")
+
+    report = await BookmarkIngest().sync()
+    _browser.last = report
+    return {
+        "summary": report.summary(),
+        "seen": report.seen,
+        "captured": report.captured,
+        "already": report.already,
+        "enriched": report.enriched,
+        "failed": report.failed,
+        "unavailable": report.unavailable,
+    }
 
 
 # --------------------------------------------------------------- journal
