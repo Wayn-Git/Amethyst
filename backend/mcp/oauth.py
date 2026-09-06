@@ -17,6 +17,7 @@ credentials can be seeded into storage, which makes the SDK skip registration.
 from __future__ import annotations
 
 import asyncio
+import os
 import threading
 import webbrowser
 from dataclasses import dataclass, field
@@ -40,6 +41,22 @@ from backend.secrets import delete_secret, get_secret, set_secret
 CALLBACK_HOST = "127.0.0.1"
 CALLBACK_PORT = 33418
 REDIRECT_URI = f"http://{CALLBACK_HOST}:{CALLBACK_PORT}/oauth/callback"
+
+# Where the callback server *listens*, as distinct from where the provider is
+# told to send the browser. They are the same address everywhere except inside
+# a container under bridge networking: there, the browser is on the host and
+# resolves 127.0.0.1 to the host's loopback, Docker forwards that in, and a
+# server bound to the container's own loopback never sees it.
+#
+# REDIRECT_URI is not derived from this and must not be -- it is registered
+# with the provider, and changing it fails the exchange. Only the bind moves.
+#
+# Opt-in, because binding the callback to 127.0.0.1 is a security property:
+# for the seconds this listener is up it will hand an authorization code to
+# whoever connects. Widening that is a decision the operator makes knowingly,
+# which is why it is an environment variable set by docker-compose.bridge.yml
+# and never a default.
+CALLBACK_BIND = os.environ.get("PSOK_OAUTH_CALLBACK_BIND", "").strip() or CALLBACK_HOST
 CLIENT_NAME = "PSOK"
 
 # How long a person gets to finish at the provider. Every deadline in the
@@ -298,10 +315,10 @@ async def _wait_for_callback(timeout: float = CALLBACK_TIMEOUT_SECONDS) -> Autho
     "another PSOK sign-in may already be in progress".
     """
     try:
-        server = HTTPServer((CALLBACK_HOST, CALLBACK_PORT), _CallbackHandler)
+        server = HTTPServer((CALLBACK_BIND, CALLBACK_PORT), _CallbackHandler)
     except OSError as exc:
         raise CallbackPortUnavailable(
-            f"cannot listen on {CALLBACK_HOST}:{CALLBACK_PORT} for the OAuth redirect"
+            f"cannot listen on {CALLBACK_BIND}:{CALLBACK_PORT} for the OAuth redirect"
             f" ({exc}). Another PSOK sign-in may already be in progress, or another"
             f" program holds the port. Close it and try again."
         ) from exc
