@@ -294,3 +294,38 @@ library of everything read and watched (`backend/library/`).
 Worth keeping as a measuring stick: the ambition was *query anything you have
 ever consumed and get an answer straight away*, which is a retrieval quality
 bar, not a feature list.
+
+## Harvested from NEXT-SESSION.md, 6 September 2026
+
+The session file is gone; these are the parts that are still owed and not
+recorded anywhere else.
+
+**Google Calendar is not mirrored into `calendar_events`.** The calendar the
+agent writes is a table; Google Calendar is MCP tools. The two never meet, so
+Today's schedule is empty on a machine whose events all live in Google — the
+single biggest gap in Today being useful. Closing it means a pull that runs on
+the same loop the journal already has, not a connector tool the agent has to
+remember to call.
+
+**`calendar_events` uses a `T` separator while `tasks` uses a space**, and both
+are compared by SQLite as strings. `backend/journal/signals.py` respects the
+difference, and both writers document it, but a proper
+`_normalise_calendar_timestamps` migration is still owed — every new consumer
+has to know a trap that a migration would delete.
+
+**Long-audio chunking for transcription is explicitly out of scope for v1.**
+Anything over ~15 minutes is refused with a stated reason rather than
+truncated. Chunked transcription with per-chunk timestamps is the honest fix
+when it comes up for real.
+
+**The Instagram token lasts 60 days and refreshes only while still valid.**
+The runner handles the refresh at 14 days remaining, and the relay's cron does
+it while the laptop is closed; once lapsed there is no automatic recovery,
+only a re-paste by hand. A lapse is a setup event, not a bug.
+
+**A model can vanish from a tier without leaving the catalogue.**
+`nvidia/nemotron-3-ultra-550b-a55b` was listed by `/v1/models` and 404'd on
+`chat/completions` for the rest of its life. The default was switched and 130
+conversations repointed by hand; nothing in code notices a listing that lies.
+A health probe that fires one real completion per tier, occasionally, would
+notice for us.

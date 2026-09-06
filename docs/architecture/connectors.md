@@ -171,8 +171,8 @@ can sign in"`, and adding a connector that needs nothing answered
 
 Five entries, each `uvx workspace-mcp --single-user --tools <one service>`, over
 one Google account: five processes sharing one OAuth client, one credentials
-directory and one callback port. That sharing produced two of the traps in
-handover.md — `sign_out` deleting the CSRF store the other four were mid-flow
+directory and one callback port. That sharing produced two of the traps above —
+`sign_out` deleting the CSRF store the other four were mid-flow
 against, and a port race that `WORKSPACE_MCP_PORT_FALLBACK_COUNT: "0"` correctly
 turns into a loud failure. One process told to serve five tool sets has neither,
 and is what `workspace-mcp` was built for.
@@ -235,3 +235,40 @@ Safety properties, in the order they matter:
 - **Blocking the turn while a connector finishes setting up.** The withheld
   tools plus a stated reason is the whole mechanism; waiting is what Phase 4's
   latency work removed.
+
+## Why Google sign-in expires weekly, and why that cannot be fixed cheaply
+
+This is the answer to the most-reported symptom in the system, recorded here
+because it outlived the document that first carried it.
+
+**The fact.** Google expires a test user's consent seven days after it is
+given — not the access token, the *grant*, so the refresh token stops working
+too and the connector goes from working to signed-out with nothing in between.
+That expiry, not a PSOK bug, is what "Google signed itself out again" is.
+
+**Why the app is in Testing at all.** Publishing to production would remove the
+seven-day cap. Publishing was attempted (2026-08-29) and **Google refuses**,
+verbatim: *"Your app's OAuth configuration is incomplete. You must enter the
+missing information to proceed. Please visit the Branding page to finish
+configuring your app."* Google's own help pages describe the home page /
+privacy policy / terms fields as *verification* requirements and the console
+marks none of them with a required asterisk — the console enforces them at
+publish anyway.
+
+**Why the fields cannot simply be filled.** Each URL must sit on an
+**Authorized domain**, which needs Search Console ownership, and `*.vercel.app`
+and `*.github.io` are public suffixes that cannot be verified. Unblocking this
+starts with buying a domain and hosting three pages on it.
+
+**The blocked second door.** Gmail scopes are *restricted* under Google's
+policy: an app requesting them in production needs a CASA security assessment,
+which is a paid third-party audit. Even with a domain, Gmail access in
+production is not a formality.
+
+**What is actually true meanwhile:** test-user sign-in, renewed roughly weekly.
+`grant_lifetime_days` on the Google catalogue entries and the age warning in
+the connector's row exist precisely so the expiry is announced rather than
+discovered by a failed tool call. A shared PSOK client id
+(`PSOK_DEFAULT_GOOGLE_*`) would make setup zero for the owner and change
+nothing for anyone else — the 100-test-user cap and the seven-day grant are
+properties of the app, not of who registered it.
