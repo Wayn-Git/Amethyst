@@ -228,7 +228,12 @@ def reject_implausible_credential(name: str, key: str, value: str) -> None:
 
 
 def _write_credentials_file(
-    name: str, entry: cat.CatalogueEntry, client_id: str, client_secret: str | None
+    name: str,
+    entry: cat.CatalogueEntry,
+    client_id: str,
+    client_secret: str | None,
+    *,
+    store_secret: bool = True,
 ) -> None:
     """Put the client where a server that reads a JSON file will find it.
 
@@ -242,6 +247,13 @@ def _write_credentials_file(
     file. The file itself is unavoidable -- the server has no other input -- so
     it is written 0600 and the sign-in tokens the server later adds to it stay
     under the same mode.
+
+    `store_secret=False` writes the file without claiming the keychain, and is
+    for a default app registration rather than the user's own. If a default
+    landed in the keychain, `credential_is_set` would report it as a value the
+    user had entered, and `_guard_stored_credential` would then refuse to let
+    them replace it -- locking someone out of their own connector with a
+    credential they never typed.
     """
     path = Path(entry.credentials_file or "").expanduser()
     keys = entry.credentials_file_keys
@@ -252,9 +264,9 @@ def _write_credentials_file(
         except ValueError:
             existing = {}
 
-    if client_secret:
+    if client_secret and store_secret:
         set_secret(f"psok-mcp/{name}.client_secret", client_secret)
-    else:
+    elif not client_secret:
         client_secret = get_secret(f"psok-mcp/{name}.client_secret")
 
     existing[keys["client_id"]] = client_id
@@ -266,6 +278,36 @@ def _write_credentials_file(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(existing, indent=2))
     path.chmod(0o600)
+
+
+def ensure_default_credentials(name: str) -> None:
+    """Materialise a default app registration for a server that reads a file.
+
+    The environment route needs nothing like this -- `resolved_env` fills the
+    variables as the process is spawned. A server reading its own JSON file
+    reads no environment at all, so the default has to exist on disk before it
+    starts, which means someone has to write it.
+
+    Never overwrites. A file that already carries a client id holds either the
+    user's own credential or a default written on an earlier run, and in both
+    cases it is already right.
+    """
+    config = load_servers().get(name)
+    if config is None:
+        return
+    entry = entry_for(config)
+    if entry is None or not entry.credentials_file:
+        return
+
+    path = Path(entry.credentials_file).expanduser()
+    key = entry.credentials_file_keys.get("client_id", "clientId")
+    if _json_key_present(path, key):
+        return
+
+    client_id, client_secret = cat.default_client(entry)
+    if not client_id:
+        return
+    _write_credentials_file(name, entry, client_id, client_secret, store_secret=False)
 
 
 class CredentialLocked(ValueError):
@@ -1071,6 +1113,11 @@ async def login(
         # stuck at "authenticating" for a server that no longer exists.
         return _finish(name, "failed", f"no server named '{name}' in mcp.yaml")
 
+    # Before anything spawns. A server that reads its credentials from a file
+    # needs the default on disk first; one that reads the environment gets it
+    # from `resolved_env` at spawn time and needs nothing here.
+    ensure_default_credentials(name)
+
     kind = auth_kind(config)
     if kind == "none":
         # `/api/mcp/servers/{name}/login` plants a "waiting" placeholder in
@@ -1229,20 +1276,109 @@ def _identity_of(url: str, field: str, token: str) -> str | None:
     return answer
 
 
+#: Validity answers, and when they expire. A poll every three seconds must not
+#: be a poll of the provider every three seconds -- see `identity_valid`.
+_VALIDITY_CACHE: dict[str, tuple[bool, float]] = {}
+VALIDITY_TTL_SECONDS = 60.0
+
+
+def identity_valid(name: str) -> bool | None:
+    """Whether the stored token still works at the provider, or None if unknown.
+
+    `is_signed_in` answers "is there a token", which is the cheap question --
+    and for a while it was the whole answer, so a revoked or half-written token
+    read "connected" forever. This is the check that catches it: one call to
+    the connector's own identity endpoint, cached for VALIDITY_TTL_SECONDS so
+    the connectors poll does not hammer GitHub.
+
+    None, not False, when nothing can be checked (no entry, no identity
+    endpoint, no token): a connector whose validity is unknowable from here is
+    not thereby invalid.
+    """
+    import time as _time
+
+    config = load_servers().get(name)
+    if config is None:
+        return None
+    entry = entry_for(config)
+    if entry is None or not entry.identity_url:
+        return None
+    token = get_secret(token_ref(name))
+    if not token:
+        return None
+
+    now = _time.monotonic()
+    cached = _VALIDITY_CACHE.get(name)
+    if cached is not None and cached[1] > now:
+        return cached[0]
+
+    try:
+        import httpx2
+
+        response = httpx2.get(
+            entry.identity_url,
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            timeout=5.0,
+        )
+        valid = response.status_code == 200
+    except Exception as exc:
+        log.debug("validity lookup for %s failed: %s", name, exc)
+        return None  # unreachable is not invalid; the next poll tries again
+    _VALIDITY_CACHE[name] = (valid, now + VALIDITY_TTL_SECONDS)
+    return valid
+
+
+def _client_source(config: ServerConfig, entry: cat.CatalogueEntry | None) -> str | None:
+    """`"user"`, `"default"` or None -- whose app registration a sign-in uses.
+
+    A user credential is whatever the user put in `mcp.yaml`'s env (directly or
+    as a keychain reference) or, for a credentials-file server, a file the user
+    wrote -- the same stores `resolved_env` reads before it falls to a default.
+    """
+    if entry is None:
+        return None
+    if entry.client_id_env and any(
+        key in config.env for key in (entry.client_id_env, entry.client_secret_env) if key
+    ):
+        return "user"
+    if entry.credentials_file and entry.credentials_file_keys:
+        path = Path(entry.credentials_file).expanduser()
+        key = entry.credentials_file_keys.get("client_id", "clientId")
+        if _json_key_present(path, key):
+            return "user"
+    if entry.api_key_ref:
+        return None
+    default_id, _ = cat.default_client(entry)
+    return "default" if default_id else None
+
+
 def missing_credentials(config: ServerConfig) -> list[str]:
     """What this server needs before its sign-in can even begin."""
     entry = entry_for(config)
     if entry is None or auth_kind(config) != "setup":
         return []
+    default_id, _ = cat.default_client(entry)
     if entry.credentials_file:
         # A server reading a JSON file has nothing in `env` to check, so the
         # question is whether the client id has reached that file yet.
         path = Path(entry.credentials_file).expanduser()
         key = entry.credentials_file_keys.get("client_id", "clientId")
-        return [] if _json_key_present(path, key) else ["a client id and secret"]
+        if _json_key_present(path, key):
+            return []
+        # A default has not been written to the file yet -- that happens at
+        # sign-in, in `ensure_default_credentials` -- but it exists, so asking
+        # the user for a credential PSOK already has would be a lie.
+        return [] if default_id else ["a client id and secret"]
     if entry.api_key_ref:
+        # Never defaulted, and this is deliberate. These are metered per-user
+        # keys: a shared one spends the owner's quota on somebody else's
+        # searches, and running out presents as "search is broken".
         return [] if get_secret(config.api_key_ref or entry.api_key_ref) else ["an API key"]
     wanted = [v for v in (entry.client_id_env, entry.client_secret_env) if v]
+    # `resolved_env` fills the default pair only when the user has set neither,
+    # so the same all-or-nothing rule decides whether anything is still missing.
+    if default_id and not any(key in config.env for key in wanted):
+        return []
     return [key for key in wanted if key not in config.env]
 
 
@@ -1312,6 +1448,14 @@ def status(*, with_accounts: bool = False) -> list[dict]:
                 # when it prints a filename as an address.
                 "accounts": account_count(config),
                 "account": account(name) if with_accounts and signed_in else None,
+                # Whose app registration the sign-in will use. The distinction
+                # the interface owes a friend: "Using PSOK's shared app
+                # registration -- you are signing in with your own account" is a
+                # different sentence from "register an app", and without this
+                # field there is no way to tell them apart. `user` is set by the
+                # presence of a credential the user entered, not by absence of
+                # the default -- precedence lives in `resolved_env`.
+                "client_source": _client_source(config, entry),
                 # Kept for older callers; `signed_in` is the one to read.
                 "authorized": signed_in,
                 "source": str(config.source),

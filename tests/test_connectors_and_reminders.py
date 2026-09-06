@@ -173,6 +173,60 @@ def test_finished_authorizations_are_pruned_but_waiting_ones_are_not():
 
     prune_finished()
     assert "live" in PENDING, "an in-flight sign-in must never be dropped"
+
+
+def test_a_waiting_card_flips_to_done_only_when_the_token_works(client, psok_home, monkeypatch):
+    """The GitHub-that-claimed-connected bug.
+
+    A blob in the keychain passed `has_tokens`, and the pending-card self-heal
+    flipped it to done on that basis alone -- so an expired, revoked or
+    half-written token read "Connected to github" without anyone ever
+    authenticating. Now a `waiting` card reaches `done` only through a 200
+    from the provider, and a 401 drops the stale token back to `sign_in`.
+
+    Mutation check: delete the `identity_valid` call and a dead token passes.
+    """
+    from backend.mcp import commands as mcp
+    from backend.mcp.oauth import PENDING, PendingAuthorization
+
+    PENDING.clear()
+    mcp_commands._VALIDITY_CACHE.clear()
+
+    mcp.add_from_catalogue("github")
+
+    from backend.secrets import set_secret
+
+    set_secret(mcp_commands.token_ref("github"), json.dumps({"access_token": "stale"}))
+    pending = PendingAuthorization(server_name="github", authorization_url="https://x/")
+    PENDING["github"] = pending
+
+    class Refused:
+        status_code = 401
+
+    class OK:
+        status_code = 200
+
+        def json(self):
+            return {"login": "wayne"}
+
+    import httpx2
+
+    monkeypatch.setattr(httpx2, "get", lambda *a, **k: Refused())
+    client.get("/api/mcp/authorizations").json()
+
+    assert pending.status == "failed", "a revoked token must not read as signed in"
+    assert mcp.has_tokens("github") is False, "the stale token must be dropped"
+
+    set_secret(mcp_commands.token_ref("github"), json.dumps({"access_token": "fresh"}))
+    pending = PendingAuthorization(server_name="github", authorization_url="https://x/")
+    PENDING["github"] = pending
+    mcp_commands._VALIDITY_CACHE.clear()
+    monkeypatch.setattr(httpx2, "get", lambda *a, **k: OK())
+    client.get("/api/mcp/authorizations").json()
+
+    assert pending.status == "done"
+    assert "wayne" in pending.message, "the card should name the account"
+    PENDING.clear()
     assert "stale" not in PENDING
     PENDING.clear()
 

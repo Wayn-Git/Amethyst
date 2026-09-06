@@ -183,6 +183,35 @@ class ServerConfig:
                     continue
                 value = secret
             resolved[key] = value
+
+        # A default app registration, where the user has supplied none.
+        #
+        # Precedence needs no comparison: the loop above has already written
+        # every user value into `resolved`, so `not in resolved` is exactly the
+        # "there is no user value" case -- including a keychain reference that
+        # resolved to nothing and hit the `continue`. A default can never
+        # overwrite something the user set.
+        #
+        # This belongs here rather than at the call sites because there are two
+        # of them: client.py spawns the server to use it, and commands.py
+        # spawns it again to sign in. Filling only one produces a connector
+        # that connects and then cannot authenticate.
+        entry = _catalogue_entry(self)
+        if entry is not None:
+            from backend.mcp.catalogue import default_client
+
+            client_id, client_secret = default_client(entry)
+            # All or nothing. A client id and its secret are one credential,
+            # and mixing halves is worse than supplying neither: the user's own
+            # id beside PSOK's secret is a pair no provider has ever issued,
+            # and it fails at the token exchange with a message about the
+            # client rather than about the mix-up.
+            wanted = [k for k in (entry.client_id_env, entry.client_secret_env) if k]
+            if client_id and wanted and not any(k in resolved for k in wanted):
+                resolved[entry.client_id_env] = client_id
+                if client_secret and entry.client_secret_env:
+                    resolved[entry.client_secret_env] = client_secret
+
         return {**os.environ, **resolved}
 
     def to_dict(self) -> dict[str, Any]:
@@ -294,6 +323,20 @@ def _fill_catalogue_env(config: ServerConfig) -> None:
         return
     for key, value in (entry.env or {}).items():
         config.env.setdefault(key, value)
+
+
+def _catalogue_entry(config: ServerConfig):
+    """The catalogue entry this server was copied from, if it still exists.
+
+    Same guard as `_fill_catalogue_env`: only a bundled server is a copy of a
+    catalogue entry. One the user added by hand is theirs, and PSOK has no
+    business filling anything into it.
+    """
+    if config.source is not Source.BUNDLED or not config.catalogue_id:
+        return None
+    from backend.mcp import catalogue as cat
+
+    return cat.get(config.catalogue_id)
 
 
 def save_servers(servers: dict[str, ServerConfig], path: Path | None = None) -> None:

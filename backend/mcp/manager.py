@@ -129,6 +129,14 @@ class MCPManager:
         # connector shrug off a transient error -- see `is_ready`.
         self.ready_since: dict[str, float] = {}
         self.hard_failures: dict[str, int] = {}
+        # Whether one full reconcile pass has ever completed. Existing merely
+        # used to mean "the manager object exists", but the manager is created
+        # lazily on the first turn and stdio servers take seconds to spawn --
+        # so in that window every row read "failed / Not running" when the
+        # honest answer was "not started yet". This is the signal `state_of`
+        # actually wants: until it is true, an unconnected server reports
+        # `starting` rather than `failed`.
+        self.reconciled_once = False
 
     def _hold_off(self, name: str) -> None:
         """Back a failed server off, rather than writing it off.
@@ -271,7 +279,14 @@ class MCPManager:
                 f"'{config.name}' has not been signed in to. Open it in Connectors"
                 " and press Connect."
             )
-            self.errors[config.name] = message
+            # Not recorded in self.errors, and this is the fix. A sign-in
+            # state is not a connection error: non-interactive boots used to
+            # write it as one, and the string then flowed live.error ->
+            # lifecycle -> "failed to start" -- for a connector nobody had
+            # tried to start, on a server where the correct rendering is a
+            # Sign in button. `state_of` already gets this right from
+            # `signed_in is False`; recording an error here was the only thing
+            # that overrode it.
             raise OAuthRequired(message)
 
         await self.disconnect_server(config.name)
@@ -460,6 +475,7 @@ class MCPManager:
                 return config.name, str(exc)
 
         settled = await asyncio.gather(*(one(config) for config in wanted))
+        self.reconciled_once = True
         return dict(settled)
 
     def state(self) -> dict[str, dict[str, Any]]:
@@ -543,6 +559,7 @@ class MCPManager:
                     results[name] = await self.connect_server(config, interactive=False)
                 except Exception as exc:
                     results[name] = str(exc)
+        self.reconciled_once = True
         return results
 
     async def shutdown(self) -> None:

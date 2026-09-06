@@ -388,17 +388,33 @@ async def seed_preregistered_client(config: ServerConfig) -> None:
 
     Needed for providers like GitHub that support PKCE but publish no dynamic
     registration endpoint.
+
+    A default app registration fills the same slot when the user has not
+    registered one -- user first, always. The value comes from the environment
+    rather than `resolved_env` because this seeds the *stored* client, not the
+    spawned process: writing a default into the keychain's client slot here is
+    the OAuth path's equivalent of `ensure_default_credentials` writing the
+    credentials file, and the tokens the flow later mints stay per-install
+    either way.
     """
-    if not config.oauth_client_id:
-        return
+    from backend.mcp.catalogue import default_client
+    from backend.mcp.catalogue import get as catalogue_get
+
+    client_id = config.oauth_client_id
+    default_secret = None
+    if not client_id:
+        entry = catalogue_get(config.catalogue_id or "")
+        client_id, default_secret = default_client(entry)
+        if not client_id:
+            return
     storage = KeychainTokenStorage(config.name)
     if await storage.get_client_info():
         return
 
     secret = get_secret(config.oauth_client_secret_ref) if config.oauth_client_secret_ref else None
     info = OAuthClientInformationFull(
-        client_id=config.oauth_client_id,
-        client_secret=secret,
+        client_id=client_id,
+        client_secret=secret or default_secret,
         client_name=CLIENT_NAME,
         redirect_uris=[REDIRECT_URI],
         grant_types=["authorization_code", "refresh_token"],

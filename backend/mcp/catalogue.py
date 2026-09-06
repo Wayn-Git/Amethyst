@@ -13,6 +13,7 @@ edit or delete afterwards.
 from __future__ import annotations
 
 import enum
+import os
 from dataclasses import dataclass, field
 
 from backend.mcp.config import ServerConfig, Source, Transport
@@ -54,6 +55,23 @@ class CatalogueEntry:
     # reported success.
     client_id_env: str | None = None
     client_secret_env: str | None = None
+    # The NAME of an environment variable carrying a client id PSOK supplies
+    # when the user has not supplied one of their own -- never the value. The
+    # repository is public, and a committed client secret is a leaked one.
+    #
+    # What is shared here is the app *registration*, which identifies the
+    # software. It is not an account: whoever runs this still signs in with
+    # their own Google or Spotify account, their tokens land in their own
+    # keychain, and no credential of the person who filled these in is
+    # reachable. `tests/test_docker_context.py` asserts these stay names.
+    #
+    # Ship the mechanism, and think hard before shipping a default. A shared
+    # Google client removes setup for its owner and changes nothing for anyone
+    # else: an app in Testing needs every user added by email in the Cloud
+    # console, and the grant -- refresh token included -- dies after
+    # GOOGLE_TESTING_GRANT_DAYS. See .env.example for the full accounting.
+    default_client_id_env: str | None = None
+    default_client_secret_env: str | None = None
     # Some read neither: they want a JSON file of their own. Same idea as the
     # two variables above -- put the credentials where this server actually
     # looks -- with the file's path and the keys it expects. The keychain stays
@@ -110,8 +128,8 @@ class CatalogueEntry:
     # given, whatever the refresh token says. Publishing to production removes
     # the cap and needs Branding fields that need a verified domain, so until a
     # domain exists this is a fact of life to be announced rather than a bug to
-    # be fixed -- see docs/handover.md. A connector that says nothing here
-    # is one whose sign-in lasts until it does not.
+    # be fixed -- see docs/architecture/connectors.md. A connector that says
+    # nothing here is one whose sign-in lasts until it does not.
     grant_lifetime_days: int | None = None
 
     def to_server_config(self, name: str | None = None) -> ServerConfig:
@@ -169,8 +187,8 @@ GOOGLE_APPS: list[tuple[str, str, str, str]] = [
 #: access token, the *grant*, so the refresh token stops working too and the
 #: connector goes from working to signed-out with nothing in between. It is not
 #: a PSOK bug and there is no fix from this side while publishing is blocked
-#: (see docs/handover.md), so the connector says how old its sign-in is and
-#: offers to renew it before a tool call discovers the problem.
+#: (see docs/architecture/connectors.md), so the connector says how old its
+#: sign-in is and offers to renew it before a tool call discovers the problem.
 GOOGLE_TESTING_GRANT_DAYS = 7
 
 GOOGLE_SETUP_HINT = (
@@ -255,6 +273,8 @@ def _google_apps() -> list[CatalogueEntry]:
                 homepage="https://github.com/taylorwilsdon/google_workspace_mcp",
                 client_id_env="GOOGLE_OAUTH_CLIENT_ID",
                 client_secret_env="GOOGLE_OAUTH_CLIENT_SECRET",
+                default_client_id_env="PSOK_DEFAULT_GOOGLE_CLIENT_ID",
+                default_client_secret_env="PSOK_DEFAULT_GOOGLE_CLIENT_SECRET",
                 auth_tool="start_google_auth",
                 credentials_path="~/.google_workspace_mcp/credentials",
                 shares_account_with="google",
@@ -284,6 +304,8 @@ def _google_merged() -> CatalogueEntry:
         homepage="https://github.com/taylorwilsdon/google_workspace_mcp",
         client_id_env="GOOGLE_OAUTH_CLIENT_ID",
         client_secret_env="GOOGLE_OAUTH_CLIENT_SECRET",
+        default_client_id_env="PSOK_DEFAULT_GOOGLE_CLIENT_ID",
+        default_client_secret_env="PSOK_DEFAULT_GOOGLE_CLIENT_SECRET",
         auth_tool="start_google_auth",
         credentials_path="~/.google_workspace_mcp/credentials",
         shares_account_with="google",
@@ -478,6 +500,8 @@ CATALOGUE: list[CatalogueEntry] = [
         # This server reads no environment at all -- verified against its own
         # `getConfigFilePath`, which prefers ~/.spotify-mcp/config.json.
         credentials_file="~/.spotify-mcp/config.json",
+        default_client_id_env="PSOK_DEFAULT_SPOTIFY_CLIENT_ID",
+        default_client_secret_env="PSOK_DEFAULT_SPOTIFY_CLIENT_SECRET",
         credentials_file_keys={
             "client_id": "clientId",
             "client_secret": "clientSecret",
@@ -548,6 +572,23 @@ CATALOGUE_BY_ID = {entry.id: entry for entry in CATALOGUE}
 
 def get(entry_id: str) -> CatalogueEntry | None:
     return CATALOGUE_BY_ID.get(entry_id)
+
+
+def default_client(entry: CatalogueEntry | None) -> tuple[str | None, str | None]:
+    """The app registration PSOK ships with, if the environment carries one.
+
+    Returns `(None, None)` unless the *id* is present, never a secret on its
+    own. A half-configured default is worse than none: the id is what the
+    provider matches, so a secret without one would be handed to a flow that
+    then fails at the provider with a message about an unknown client.
+    """
+    if entry is None:
+        return (None, None)
+    client_id = os.environ.get(entry.default_client_id_env or "", "").strip() or None
+    if not client_id:
+        return (None, None)
+    secret = os.environ.get(entry.default_client_secret_env or "", "").strip() or None
+    return (client_id, secret)
 
 
 def by_category() -> dict[str, list[CatalogueEntry]]:
