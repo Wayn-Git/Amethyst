@@ -113,6 +113,35 @@ It goes only to senders on the allowlist. Answering "got it" to a stranger whose
 reel is then discarded would be a lie *and* a write to a social account on their
 behalf.
 
+## Troubleshooting
+
+**`POST /share` answers 404 "no such endpoint".** The share token has not
+reached the relay yet: it is pushed on the first `/sync`, which is every fifteen
+seconds while your machine is on — so this means either that the machine has not
+synced once since you set the share token, or that the relay settings are off
+(`psok instagram relay --sync` forces one now). The endpoint exists; it 404s
+until then so it does not announce itself half-configured.
+
+**A shortcut or share target gets `400 Bad Request`.** The body must carry a
+URL somewhere. All of these work:
+
+```bash
+# JSON
+curl -X POST https://…/share -H "Authorization: Bearer $SHARE_TOKEN" \
+     -H 'content-type: application/json' -d '{"url":"https://example.com"}'
+# query parameter — the shape an Android shortcut's HTTP action finds easiest
+curl -X POST "https://…/share?url=https://example.com" -H "Authorization: Bearer $SHARE_TOKEN"
+# bare URL as text/plain — what a share target that "shares text" sends
+curl -X POST https://…/share -H "Authorization: Bearer $SHARE_TOKEN" \
+     -H 'content-type: text/plain' -d 'https://example.com'
+# form fields
+curl -X POST https://…/share -H "Authorization: Bearer $SHARE_TOKEN" \
+     -d 'url=https://example.com'
+```
+
+The 400 names what arrived (`a text/plain body of 0 bytes`), so the failure is
+readable from the toast that shows it.
+
 ## What is in D1, stated plainly
 
 Queued raw deliveries (minutes, then deleted), your Instagram access token, your

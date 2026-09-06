@@ -317,17 +317,38 @@ async def test_nothing_happens_when_the_relay_is_switched_off(psok_home):
 
 
 @pytest.mark.asyncio
-async def test_nothing_is_pulled_without_the_credentials_to_verify_it(psok_home):
-    """Pulling what cannot be checked would only mean deleting it at the relay
-    unread, which is worse than leaving it there."""
+async def test_a_delivery_without_instagram_credentials_is_held_not_dropped(psok_home):
+    """The old contract refused the whole sync when the Instagram credentials
+    were incomplete, which held phone *shares* hostage to a setup they have
+    nothing to do with -- the "it never arrived" bug. The new one: the sync
+    runs, a share still lands, and only the delivery that needs the app secret
+    waits at the relay for a sync that can verify it."""
     relay.set_token(RELAY_TOKEN)
     save_instagram({"relay_url": RELAY_URL, "relay_enabled": True})
-    fake = FakeRelay()
 
-    result = await relay.RelayPoller(fake).sync()
+    from backend import share as share_module
 
-    assert result["synced"] is False
-    assert fake.calls == []
+    real_share_token = share_module.rotate()
+    body = json.dumps({"url": "https://example.com/a", "kind": None,
+                       "note": None, "token": real_share_token}).encode()
+    share_row = row(body, row_id=1, sig=None, kind="share")
+    delivery_row = row(b"not-signed-by-anyone", row_id=2, sig="sha=bad", kind="delivery")
+    captured: list[str] = []
+
+    class FakeLibrary:
+        async def capture_url(self, url, **_):
+            captured.append(url)
+
+    fake = FakeRelay({"deliveries": [delivery_row, share_row]})
+    poller = relay.RelayPoller(fake, library=FakeLibrary())
+    result = await poller.sync()
+
+    assert result["synced"] is True
+    assert captured == ["https://example.com/a"]
+    # The delivery is held, so it is not in the poller's next ack -- the row
+    # survives at the relay, which is what "held, not dropped" means in code.
+    assert poller._pending_ack == [1]
+    assert result["pulled"] == 1
 
 
 def test_configured_needs_both_a_url_and_a_token(psok_home):

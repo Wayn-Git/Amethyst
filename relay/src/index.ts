@@ -239,8 +239,13 @@ async function handshake(url: URL, env: Env): Promise<Response> {
 	const mode = url.searchParams.get('hub.mode');
 	const token = url.searchParams.get('hub.verify_token') ?? '';
 	const challenge = url.searchParams.get('hub.challenge');
-	await setState(env, 'last_verify_token_received', token);
 	if (mode !== 'subscribe' || !challenge) {
+		return new Response('no', { status: 403 });
+	}
+	if (!sameSecret(token, env.VERIFY_TOKEN)) {
+		// Meta's dashboard shows this as "the handshake was refused", which is
+		// the truth; anything looser here would let a stranger confirm the
+		// subscription was live with a token they guessed.
 		return new Response('no', { status: 403 });
 	}
 	return new Response(challenge, { headers: { 'content-type': 'text/plain' } });
@@ -326,6 +331,12 @@ function senderOf(text: string): string | null {
  * check it again with `share.check` rather than taking this Worker's word for
  * it. That costs nothing: the share token is already in D1, because the check
  * cannot happen here without it.
+ *
+ * The body is read four ways because the senders genuinely differ: curl sends
+ * JSON, an Android shortcut's HTTP action sends form fields, and some share
+ * targets send the bare URL as text/plain with no fields at all. The 400s this
+ * used to return named neither the shape it got nor the one it wanted, so a
+ * shortcut that failed looked like an endpoint that did not exist.
  */
 async function share(request: Request, env: Env): Promise<Response> {
 	const stored = await getState(env, 'share_token');
@@ -337,13 +348,41 @@ async function share(request: Request, env: Env): Promise<Response> {
 
 	const raw = await request.arrayBuffer();
 	if (raw.byteLength > MAX_BODY_BYTES) return json({ error: 'too large' }, 413);
-	let payload: { url?: string; kind?: string; note?: string };
-	try {
-		payload = JSON.parse(new TextDecoder().decode(raw));
-	} catch {
-		return json({ error: 'that body is not JSON' }, 400);
+	const text = new TextDecoder().decode(raw);
+	const type = (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+	let payload: { url?: string; kind?: string; note?: string } = {};
+	if (type === 'application/x-www-form-urlencoded') {
+		const fields = new URLSearchParams(text);
+		payload = { url: fields.get('url') ?? undefined, kind: fields.get('kind') ?? undefined,
+		            note: fields.get('note') ?? undefined };
+	} else if (type === 'application/json') {
+		try {
+			payload = JSON.parse(text) ?? {};
+		} catch {
+			return json({ error: 'that body is not JSON' }, 400);
+		}
+	} else {
+		// text/plain -- and anything unlabelled, because share targets that
+		// send the bare URL often send no content-type at all. What arrives is
+		// either the URL by itself or "url\nnote-ish text"; the first line that
+		// looks like a URL is the URL.
+		const candidate = text
+			.split(/\r?\n/)
+			.map((line) => line.trim())
+			.find((line) => /^[a-z][a-z0-9+.-]*:\/\//i.test(line));
+		payload = { url: candidate };
 	}
-	if (!payload.url) return json({ error: 'a url is required' }, 400);
+	const url = new URL(request.url);
+	payload.url = payload.url || url.searchParams.get('url') || undefined;
+	if (!payload.url) {
+		// Self-diagnosing on purpose: "400 Bad Request" in a toast names
+		// nothing. This says what arrived, so the next failure is readable
+		// from the phone that produced it.
+		return json(
+			{ error: `a url is required; got a ${type || 'no'} content-type body of ${raw.byteLength} bytes` },
+			400,
+		);
+	}
 	if ((await queueDepth(env)) >= MAX_QUEUED) return json({ status: 'backlogged' }, 503);
 
 	const body = JSON.stringify({
@@ -572,20 +611,6 @@ export default {
 		const url = new URL(request.url);
 		const path = url.pathname.replace(/\/+$/, '') || '/';
 
-		if (path !== '/sync') {
-			try {
-				const headerMap: Record<string, string> = {};
-				for (const [k, v] of request.headers.entries()) headerMap[k] = v;
-				await env.DB.prepare(
-					'INSERT INTO hits (method, path, headers, created_at) VALUES (?, ?, ?, ?)'
-				)
-					.bind(request.method, url.pathname, JSON.stringify(headerMap), new Date().toISOString())
-					.run();
-			} catch (e) {
-				console.error('Failed to log hit:', e);
-			}
-		}
-
 		// Deliberately says nothing about queue depth, credentials or whether the
 		// laptop is around. Anyone can reach this, and it answers before the
 		// configuration check so a half-deployed relay can still be pinged.
@@ -607,7 +632,6 @@ export default {
 		}
 
 		if (path === '/ig/webhook') {
-			await setState(env, 'last_webhook_hit', `${request.method} ${new Date().toISOString()}`);
 			if (request.method === 'GET') return await handshake(url, env);
 			if (request.method === 'POST') return delivery(request, env, ctx);
 			return json({ error: 'method not allowed' }, 405);

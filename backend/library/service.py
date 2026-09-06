@@ -20,6 +20,7 @@ because an item with no text and no explanation is indistinguishable from a bug.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -30,11 +31,19 @@ from urllib.parse import urlparse
 from backend.db.connection import get_connection
 from backend.library.store import KINDS, LibraryStore, text_path
 from backend.mcp.ssrf import UnsafeURL, check_url_async
+from backend.media.reel import is_reel_url
 from backend.retrieval import store as index_store
 from backend.retrieval.embeddings import forget_unreachable
 from backend.retrieval.indexer import Indexer
 from backend.retrieval.search import SearchService
-from backend.web.reader import FetchError, fetch_readable, is_youtube, youtube_oembed
+from backend.web.reader import (
+    FetchError,
+    fetch_readable,
+    is_x_post,
+    is_youtube,
+    x_oembed,
+    youtube_oembed,
+)
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +59,12 @@ _KIND_BY_HOST = {
     "music.youtube.com": "podcast",
     "open.spotify.com": "podcast",
     "podcasts.apple.com": "podcast",
+    # X links are posts, not articles: they have an author and a body of a
+    # handful of sentences, and filing them as articles put every one of them
+    # in the wrong bucket of the library.
+    "x.com": "post",
+    "twitter.com": "post",
+    "mobile.twitter.com": "post",
     "arxiv.org": "paper",
     "www.arxiv.org": "paper",
 }
@@ -84,13 +99,45 @@ def _json_list(raw) -> list:
 
 def as_dict(row) -> dict:
     """One item, as the interface and the model both see it."""
+    from backend.library.enrich import infer_category
+
     data = dict(row)
     data["indexed"] = data.get("document_id") is not None
     # Stored as JSON so the columns stay simple; handed out as lists so nothing
     # above this line has to know that.
-    data["tags"] = _json_list(data.get("tags"))
-    data["resources"] = _json_list(data.get("resources"))
+    tags = _json_list(data.get("tags"))
+    resources = _json_list(data.get("resources"))
+    data["tags"] = tags
+    data["resources"] = resources
+
+    cat = data.get("category")
+    if not cat or cat == "general":
+        cat = infer_category(resources, tags, kind=data.get("kind", ""))
+    data["category"] = cat or "general"
     return data
+
+
+async def _rendered_if_empty(url: str, page):
+    """Try a renderer when the page itself gave up nothing.
+
+    A single-page app returns markup with no words in it, and the honest note
+    `fetch_readable` writes -- "the page returned no readable text" -- is what a
+    library item full of nothing looks like. Only reached after the ordinary
+    fetch has already failed to produce text, so a page PSOK can read itself is
+    never sent to a third party. Off if the user switched it off.
+    """
+    if page is not None and page.text.strip():
+        return page
+
+    from backend.config import load_social
+
+    if not load_social().reader_fallback:
+        return page
+
+    from backend.web.jina import fetch_rendered
+
+    rendered = await fetch_rendered(url)
+    return rendered if rendered is not None else page
 
 
 class LibraryService:
@@ -114,11 +161,19 @@ class LibraryService:
         url: str,
         *,
         kind: str | None = None,
+        category: str | None = None,
         consumed_on: str | None = None,
         notes: str | None = None,
         title: str | None = None,
+        source_ref: str | None = None,
     ) -> Captured:
-        """Log a URL, fetching whatever text it will give up."""
+        """Log a URL, fetching whatever text it will give up.
+
+        `source_ref` names where the link came from -- a browser bookmark's guid,
+        say -- and is checked before the URL is. The two answer different
+        questions: the URL catches the same page arriving twice, the ref catches
+        the same *bookmark* arriving twice after its page was moved or renamed.
+        """
         url = (url or "").strip()
         if not url:
             raise LibraryError("a url is needed")
@@ -127,6 +182,11 @@ class LibraryService:
         if kind and kind not in KINDS:
             raise LibraryError(f"unknown kind '{kind}'. One of: {', '.join(KINDS)}")
 
+        if source_ref:
+            existing = self.store.by_source_ref(source_ref)
+            if existing is not None:
+                return Captured(as_dict(existing), already_logged=True)
+
         try:
             await check_url_async(url)
         except UnsafeURL as exc:
@@ -134,12 +194,124 @@ class LibraryService:
 
         existing = self.store.by_url(url)
         if existing is not None:
-            # Re-pasting a link is how you land here, and a duplicate row plus a
+            # Idempotent: saving a link twice is a common mistake when
+            # catching up on tabs, and clobbering what was already there with a
             # second fetch is not what that meant.
             return Captured(as_dict(existing), already_logged=True)
 
-        page = None
+        # An Instagram permalink is not a page anybody can read: Instagram
+        # serves a login wall, so `fetch_readable` would log a title-less item
+        # with a note where the content should be. `backend/library/reels.py`
+        # opens it properly -- caption, author, video, transcript -- and every
+        # door into the library gets that by hooking it here rather than at each
+        # caller.
         capture_note = ""
+        if is_reel_url(url):
+            from backend.library.reels import ReelCapture, ReelError
+
+            try:
+                return await ReelCapture(self).capture(url, notes=notes)
+            except ReelError as exc:
+                # Not fatal. The link is still worth logging, with the reason it
+                # could not be opened written on it -- the same rule every other
+                # failed fetch here follows. The plain-page attempt below will
+                # not get far either, and its note says so.
+                capture_note = str(exc)
+                log.info("falling back to a plain link for %s: %s", url, exc)
+
+        # An X link is a three-rung ladder, because the top rung needs setup a
+        # fresh machine will not have and the bottom rung is nothing. X serves
+        # a JavaScript shell to PSOK's user agent and the third-party renderer
+        # fallback is usually blocked, so without this the row landed as a
+        # bare URL: no text, no document, invisible to search.
+        #
+        # Rung 1 -- the reader in `backend/web/social.py`, which acts as the
+        # signed-in user and reads the whole thread. It was wired to the
+        # agent's social tool but never consulted here, which is the gap this
+        # fills. It needs `psok social allow x`, a `twitter` binary and two
+        # cookies in the keychain; every one of those is a deliberate opt-in,
+        # so its absence reads as a note, never an exception.
+        #
+        # Rung 2 -- the public oEmbed endpoint, used the way YouTube's is
+        # below. One post, no thread, no credentials: the honest zero-config
+        # answer.
+        #
+        # Rung 3 -- fall through to the ordinary fetch, which will fail
+        # against X's shell, and say so in the capture note.
+        if is_x_post(url):
+            x_note: str | None = None
+            from backend.config import load_social
+            from backend.web.social import SocialError, reader_for
+            from backend.web.social import read as social_read
+
+            social = load_social()
+            reader = reader_for(url)
+            reader_text = None
+            if social.allows("x") and reader is not None:
+                from backend.config import paths as config_paths
+
+                try:
+                    # A workspace the reader may write in. The library itself
+                    # is the workspace here: the reader is only ever going to
+                    # write scratch files, and a capture has no tool context
+                    # to name a better one.
+                    workspace = str(config_paths().home)
+                    reader_text, _reader = await social_read(
+                        url, workspace=workspace, allowed=social.allow
+                    )
+                except SocialError as exc:
+                    x_note = str(exc)
+                except Exception as exc:  # a reader crash is not a lost capture
+                    x_note = f"the {reader.source} reader failed: {exc}"
+                    log.info("social reader failed for %s: %s", url, exc)
+            if reader_text:
+                meta = await x_oembed(url)
+                return await self.capture_media(
+                    title=(meta or {}).get("title") or url,
+                    kind=kind or kind_for(url),
+                    category=category,
+                    url=url,
+                    author=(meta or {}).get("author"),
+                    site="x.com",
+                    consumed_on=consumed_on,
+                    notes=notes,
+                    source_ref=source_ref,
+                    text=reader_text,
+                    text_source="page",
+                    capture_note="",
+                )
+            meta = await x_oembed(url)
+            if meta:
+                title = title or meta["title"]
+                author = meta.get("author") or None
+                site = meta.get("site")
+                text = meta.get("text") or ""
+                published_on = None
+                # oEmbed answered, so the capture is complete; the reader's
+                # failure (a stale cookie, say) is a detail, and it is logged.
+                if x_note:
+                    log.info("x reader rung failed for %s: %s", url, x_note)
+                capture_note = "x.com post: the post text via oEmbed, no thread context"
+                item_id = self.store.create(
+                    kind=kind or kind_for(url),
+                    title=(title or url)[:400],
+                    category=category,
+                    url=url,
+                    author=author,
+                    site=site,
+                    published_on=published_on,
+                    consumed_on=consumed_on or date.today().isoformat(),
+                    notes=notes,
+                    source_ref=source_ref,
+                )
+                note = await self._store_text(item_id, title or url, text, capture_note)
+                self.store.update(item_id, capture_note=note or None)
+                return Captured(as_dict(self.store.get(item_id)))
+            # Rung 3: the note names whichever rung was the last one tried.
+            if x_note:
+                capture_note = x_note
+
+        page = None
         if is_youtube(url):
             # YouTube's watch page is a script bundle; oEmbed is the only thing
             # it will state plainly, and it does not carry a transcript.
@@ -161,6 +333,7 @@ class LibraryService:
                 raise LibraryError(str(exc)) from exc
             except FetchError as exc:
                 capture_note = str(exc)
+            page = await _rendered_if_empty(url, page)
             title = title or (page.title if page else None)
             author = page.author if page else None
             site = page.site if page else None
@@ -172,23 +345,63 @@ class LibraryService:
         item_id = self.store.create(
             kind=kind or kind_for(url),
             title=(title or url)[:400],
+            category=category,
             url=url,
             author=author,
             site=site,
             published_on=published_on,
             consumed_on=consumed_on or date.today().isoformat(),
             notes=notes,
+            source_ref=source_ref,
         )
 
         note = await self._store_text(item_id, title or url, text, capture_note)
         self.store.update(item_id, capture_note=note or None)
+        self._enrich_later(item_id)
         return Captured(as_dict(self.store.get(item_id)))
+
+    def _enrich_later(self, item_id: int) -> None:
+        """Summarise and tag a fresh capture, out of band.
+
+        Every other door into the library enriches inline -- the reel path, the
+        bookmark path -- because a person or a runner is already doing the
+        slow work there. `capture_url` is different in the one way that
+        matters: the relay poll calls it on a fifteen-second loop, and inline
+        enrichment would hold that loop for a model call while more shares
+        pile up. Backgrounded instead, so the row lands fast and the summary
+        lands when it lands.
+
+        Gated on `library.auto_enrich` so a machine with no provider key can
+        turn it off rather than log a refusal per share. No reference to the
+        task is kept: enrichment is best-effort, and the caller's work is done
+        whether or not it succeeds. `enrich` can always be re-run from the
+        Library view.
+        """
+        try:
+            from backend.config import load_library
+
+            if not load_library().auto_enrich:
+                return
+        except Exception:
+            return
+
+        async def run() -> None:
+            try:
+                await self.enrich(item_id)
+            except Exception as exc:  # the item is captured and searchable already
+                log.info("auto-enrichment failed for library item %s: %s", item_id, exc)
+
+        try:
+            asyncio.get_running_loop().create_task(run())
+        except RuntimeError:  # no loop: a sync caller gets no enrichment
+            log.debug("no loop to enrich library item %s on", item_id)
 
     async def log_manual(
         self,
         *,
         title: str,
         kind: str = "note",
+        category: str | None = None,
         text: str | None = None,
         url: str | None = None,
         author: str | None = None,
@@ -206,6 +419,7 @@ class LibraryService:
         item_id = self.store.create(
             kind=kind,
             title=title[:400],
+            category=category,
             url=(url or "").strip() or None,
             author=author,
             site=None,
@@ -278,6 +492,7 @@ class LibraryService:
         *,
         title: str,
         kind: str = "video",
+        category: str | None = None,
         url: str | None = None,
         author: str | None = None,
         site: str | None = None,
@@ -315,6 +530,7 @@ class LibraryService:
         item_id = self.store.create(
             kind=kind,
             title=title[:400],
+            category=category,
             url=url,
             author=author,
             site=site,
@@ -399,6 +615,8 @@ class LibraryService:
             heading = "Transcript"
         elif text_source == "caption":
             heading = "Caption"
+        elif text_source == "caption and transcript":
+            heading = "Caption and Transcript"
 
         result = await enrichment.enrich_text(
             body, title=row["title"], kind=row["kind"], text_source=text_source, client=client
@@ -406,6 +624,7 @@ class LibraryService:
 
         self.store.update(
             item_id,
+            category=result.category,
             summary=result.summary,
             tags=json.dumps(list(result.tags)) if result.tags else None,
             resources=json.dumps(list(result.resources)) if result.resources else None,
@@ -500,8 +719,34 @@ class LibraryService:
 
     # -- reading ---------------------------------------------------------
 
-    def recent(self, *, kind: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
-        return [as_dict(row) for row in self.store.list(kind=kind, limit=limit, offset=offset)]
+    def recent(
+        self,
+        *,
+        kind: str | None = None,
+        category: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        if category:
+            all_rows = self.store.list(kind=kind, limit=5000)
+            items = [as_dict(row) for row in all_rows]
+            matched = [it for it in items if it.get("category") == category]
+            return matched[offset : offset + limit]
+        return [
+            as_dict(row)
+            for row in self.store.list(kind=kind, limit=limit, offset=offset)
+        ]
+
+    def category_counts(self) -> dict[str, int]:
+        all_items = [as_dict(row) for row in self.store.list(limit=500)]
+        c: dict[str, int] = {}
+        for it in all_items:
+            cat = it.get("category") or "general"
+            c[cat] = c.get(cat, 0) + 1
+        return c
+
+    def counts(self) -> dict[str, int]:
+        return self.store.counts()
 
     async def search(self, query: str, *, limit: int = 20) -> list[dict]:
         """Find library items by meaning and by keyword, ranked together.
@@ -539,9 +784,6 @@ class LibraryService:
             if len(out) >= limit:
                 break
         return out
-
-    def counts(self) -> dict[str, int]:
-        return self.store.counts()
 
 
 def _rating(value: object) -> int | None:

@@ -1,10 +1,10 @@
 """Taking what the relay caught while this machine was off.
 
-`docs/superpowers/specs/2026-09-04-instagram-relay-design.md` has the why. The
-short version: a closed laptop is a *down* webhook endpoint, and Meta responds to
-a down endpoint by retrying and then disabling the subscription. So a small
-always-on Worker answers Meta's 200 and holds the delivery in a free SQLite
-queue, and this module is the half that goes and gets it.
+`docs/archive/superpowers/specs/2026-09-04-instagram-relay-design.md` has the
+why. The short version: a closed laptop is a *down* webhook endpoint, and Meta
+responds to a down endpoint by retrying and then disabling the subscription.
+So a small always-on Worker answers Meta's 200 and holds the delivery in a free
+SQLite queue, and this module is the half that goes and gets it.
 
 **The relay is always on and it is never trusted.** It stores the exact bytes
 Meta sent and the exact `X-Hub-Signature-256` header, and `_accept` verifies that
@@ -164,11 +164,14 @@ class RelayPoller:
         settings = load_instagram()
         if not (settings.relay_enabled and settings.relay_url and token()):
             return {"synced": False, "pulled": 0, "queued": 0, "acked": 0}
-        if not signature.configured():
-            # Nothing pulled could be verified, so pulling it would only mean
-            # deleting it at the relay unread.
-            return {"synced": False, "pulled": 0, "queued": 0, "acked": 0,
-                    "note": "the Instagram credentials are not all set"}
+        # The Instagram credentials are NOT a precondition for the sync. A
+        # `kind='share'` row -- a link from a phone -- is verified by the share
+        # token it echoes, not by Meta's app secret, and it is the entire reason
+        # someone runs the relay without running Instagram. Holding *every*
+        # row back because a delivery cannot be verified would leave phone
+        # shares sitting in D1 until the daily cron prunes them after eight
+        # days -- the exact "it never arrived" bug the relay exists to prevent.
+        # The per-row check lives in `_take`.
 
         ack, self._pending_ack = self._pending_ack, []
         try:
@@ -186,7 +189,14 @@ class RelayPoller:
         pulled = 0
         for row in payload.get("deliveries") or []:
             row_id = row.get("id")
-            if await self._take(row, store):
+            taken = await self._take(row, store)
+            if taken is None:
+                # Held, not dropped: the row is one a future sync can process,
+                # so acknowledging it now would be discarding it. The batch is
+                # FIFO, which means everything behind it waits too -- the
+                # cheaper alternative, acking past it, loses a reel for good.
+                continue
+            if taken:
                 pulled += 1
             # Acknowledged either way. A row that cannot be verified is not a
             # delivery being held back for later, it is garbage, and leaving it
@@ -216,7 +226,15 @@ class RelayPoller:
             save_instagram({"token_expires_on": expires})
         log.info("the relay refreshed the Instagram token; it is now good until %s", expires)
 
-    async def _take(self, row: dict[str, Any], store: InstagramEventStore) -> bool:
+    async def _take(self, row: dict[str, Any], store: InstagramEventStore) -> bool | None:
+        """Take one row: True pulled, False dropped, None held for a later sync.
+
+        None is the only answer that leaves the row alive at the relay, and is
+        reserved for a row that is *temporarily* unprocessable -- one whose
+        verification needs a credential this machine has not been given yet.
+        Everything else is dropped and acknowledged, because a row nobody will
+        ever be able to process must not block the queue behind it.
+        """
         kind = row.get("kind")
         try:
             raw = base64.b64decode(row.get("body") or "", validate=True)
@@ -225,6 +243,19 @@ class RelayPoller:
             return False
         if kind == "share":
             return await self._take_share(raw, row)
+        if not signature.configured():
+            # A delivery verifies against the app secret, and without the full
+            # Instagram credential set there is no app secret to verify with.
+            # Held rather than dropped: the next sync after the credentials
+            # arrive takes it, and acknowledging it now would make this the
+            # sync that threw the reel away. The relay holds it; the daily cron
+            # is the eight-day deadline.
+            log.info(
+                "relay row %s is a delivery but the Instagram credentials are"
+                " not all set; leaving it at the relay",
+                row.get("id"),
+            )
+            return None
         return self._take_delivery(raw, row, store)
 
     def _take_delivery(self, raw: bytes, row: dict[str, Any],

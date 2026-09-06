@@ -23,6 +23,8 @@ from datetime import date, datetime, timedelta
 from backend.config import load_instagram, save_instagram
 from backend.instagram import signature
 from backend.instagram.client import InstagramClient, InstagramError
+from backend.instagram.relay import POLL_SECONDS as RELAY_POLL_SECONDS
+from backend.instagram.relay import RelayPoller
 from backend.instagram.service import IngestService
 from backend.instagram.store import InstagramEventStore
 
@@ -51,6 +53,11 @@ class InstagramRunner:
         self._service_factory = service_factory
         self._next_prune = 0.0
         self._checked_token_on: str | None = None
+        # Its own interval, not the drain's. The drain is a local database
+        # read every five seconds; this is a round trip over the internet, and
+        # the free plan it talks to counts requests per day.
+        self._relay = RelayPoller()
+        self._next_relay = 0.0
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -97,13 +104,37 @@ class InstagramRunner:
         """Recover, drain, and keep the token alive. Returns the events handled."""
         # The cheapest possible no-op on a machine that has not set this up, and
         # it runs on every tick of every test's app lifespan.
-        if not load_instagram().enabled:
+        settings = load_instagram()
+        if not settings.enabled and not self._relay_wanted(settings):
+            return []
+        # The relay half runs with Instagram off: a phone share (`kind='share'`)
+        # has nothing to do with Instagram, and gating it behind
+        # `instagram.enabled` -- which defaults to False -- is what left shares
+        # sitting in the relay's D1 for days. Only the drain below is Instagram
+        # work, and it no-ops on an empty queue without touching a credential.
+        if self._relay_wanted(settings):
+            await self._maybe_sync_relay(InstagramEventStore())
+        if not settings.enabled:
             return []
         store = InstagramEventStore()
         store.reclaim_stale()
         handled = await self.drain(store=store)
         await self._housekeeping(store)
         return handled
+
+    @staticmethod
+    def _relay_wanted(settings) -> bool:
+        """Is there a relay to poll for anything this machine can process?
+
+        A share token alone qualifies: shares verify against it, not against
+        Instagram's credentials. Deliveries need more, and `relay.sync` makes
+        that call per row -- this is only the question "is there any point
+        dialling the relay at all", and an unset URL answers it before anything
+        else.
+        """
+        from backend.instagram import relay as ig_relay
+
+        return bool(settings.relay_enabled and settings.relay_url and ig_relay.token())
 
     async def drain(self, *, store: InstagramEventStore | None = None) -> list[int]:
         """Work the queue, one event at a time.
@@ -127,6 +158,25 @@ class InstagramRunner:
                     store.finish(event["id"], status="failed", note=str(exc))
                 handled.append(event["id"])
         return handled
+
+    async def sync_relay(self) -> dict:
+        """Ask the relay now. The button, and the first thing after a boot."""
+        self._next_relay = 0.0
+        return await self._relay.sync()
+
+    async def _maybe_sync_relay(self, store: InstagramEventStore) -> None:
+        """Collect whatever arrived while this machine was not answering.
+
+        Ahead of the drain in the same tick, so a delivery caught overnight is
+        processed on the first tick after boot rather than the second.
+        """
+        loop_now = asyncio.get_running_loop().time()
+        if loop_now < self._next_relay:
+            return
+        self._next_relay = loop_now + RELAY_POLL_SECONDS
+        # Never raises; a relay that is down is a warning and a retry, never a
+        # tick that fails and takes the drain with it.
+        await self._relay.sync(store=store)
 
     async def _housekeeping(self, store: InstagramEventStore) -> None:
         now = asyncio.get_running_loop().time()

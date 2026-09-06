@@ -18,11 +18,11 @@ import ErrorState from '../components/ui/ErrorState.jsx'
  * rather than posting, because a page on another origin cannot POST to this API
  * and should not be able to. */
 
-const KINDS = ['article', 'book', 'video', 'podcast', 'newsletter', 'paper', 'note', 'other']
+const KINDS = ['article', 'book', 'video', 'podcast', 'newsletter', 'paper', 'post', 'note', 'other']
 
 const KIND_ICON = {
   article: 'book', book: 'book', video: 'image', podcast: 'spark',
-  newsletter: 'mail', paper: 'book', note: 'edit', other: 'link',
+  newsletter: 'mail', paper: 'book', post: 'chat', note: 'edit', other: 'link',
 }
 
 function bookmarklet(origin) {
@@ -78,6 +78,31 @@ export default function Library() {
     const timer = setTimeout(load, query ? 300 : 0)
     return () => clearTimeout(timer)
   }, [load, query])
+
+  // A capture from the phone lands through the relay every fifteen seconds,
+  // which the list never saw until someone reloaded the page. Ten, not
+  // fifteen, so the item is usually there on the poll after the relay hands
+  // it over. Visibility-gated like the connectors poll -- a hidden tab polling
+  // is a cost with no reader -- and reusing `load` rather than a second fetch
+  // so the two can never disagree about what is current.
+  useEffect(() => {
+    let cancelled = false
+    const tick = () => { if (!cancelled) load() }
+    let timer = null
+    const start = () => { if (timer === null) timer = setInterval(tick, 10000) }
+    const stop = () => { if (timer !== null) { clearInterval(timer); timer = null } }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') stop()
+      else start()
+    }
+    onVisibility()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [load])
 
   const save = useCallback(async () => {
     const body = {
@@ -446,6 +471,7 @@ function InstagramPanel({ toast }) {
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState('')
   const [form, setForm] = useState({ app_secret: '', verify_token: '', access_token: '', owner: '' })
+  const [relay, setRelay] = useState({ url: '', token: '' })
   const origin = typeof window === 'undefined' ? '' : window.location.origin
 
   const load = useCallback(async () => {
@@ -576,6 +602,9 @@ function InstagramPanel({ toast }) {
             </span>
           </div>
 
+          <RelayRow state={state} busy={busy} run={run} relay={relay} setRelay={setRelay}
+            toast={toast} setState={setState} />
+
           <div className="set-row">
             <span>
               Transcription
@@ -600,11 +629,103 @@ function InstagramPanel({ toast }) {
       ) : null}
 
       <p className="set-note">
-        This webhook is reachable from the internet by design, and its only authentication is
-        Meta’s signature on each delivery. Every other endpoint here is unauthenticated — put a
-        proxy in front that publishes <code>{state.webhook_path}</code> and nothing else. See
-        docs/deployment.md.
+        {state.relay.ready ? (
+          <>
+            Meta delivers to the relay, not to this machine, so nothing here is reachable from
+            the internet and nothing needs a proxy. The relay stores the bytes Meta signed and
+            this machine checks that signature again before anything reaches the library.
+          </>
+        ) : (
+          <>
+            Without a relay this webhook has to be reachable from the internet, and its only
+            authentication is Meta’s signature on each delivery. Every other endpoint here is
+            unauthenticated — put a proxy in front that publishes{' '}
+            <code>{state.webhook_path}</code> and nothing else. See docs/deployment.md.
+          </>
+        )}
       </p>
     </section>
+  )
+}
+
+/* The relay: the difference between capture working and capture working while
+ * this machine is closed.
+ *
+ * Worth being blunt in the copy rather than neutral. Meta does not queue for a
+ * webhook that fails — it retries and then disables the subscription — so
+ * “no relay” is not “deliveries arrive late”, it is “eventually nothing arrives
+ * at all and nothing says so”. */
+function RelayRow({ state, busy, run, relay, setRelay, toast, setState }) {
+  const [syncing, setSyncing] = useState(false)
+  const info = state.relay
+
+  const save = () => run('relay', async () => {
+    const next = await api.setInstagramRelay({
+      url: relay.url || undefined,
+      token: relay.token || undefined,
+      enabled: true,
+    })
+    setRelay({ url: '', token: '' })
+    return next
+  }, 'Relay connected')
+
+  const sync = async () => {
+    setSyncing(true)
+    try {
+      const result = await api.syncInstagramRelay()
+      toast(result.synced
+        ? `Took ${result.pulled}, ${result.queued} still waiting`
+        : (result.error || 'The relay could not be reached'), result.synced ? 'ok' : 'bad')
+      setState(await api.instagram())
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  if (!info.ready) {
+    return (
+      <div className="set-row set-row--stack">
+        <span>
+          Relay
+          <span className="set-sub">
+            Nothing is catching deliveries while this machine is off. Meta retries a webhook
+            that fails and then switches the subscription off — so a closed lid eventually
+            means no reels at all, with no error anywhere. See relay/README.md.
+          </span>
+        </span>
+        <div className="lib-relay-form">
+          <input className="lib-input" placeholder="https://psok-relay.….workers.dev"
+            value={relay.url} onChange={(e) => setRelay({ ...relay, url: e.target.value })} />
+          <input className="lib-input" type="password" placeholder="The relay token"
+            value={relay.token} onChange={(e) => setRelay({ ...relay, token: e.target.value })} />
+          <button type="button" className="btn btn--small btn--primary"
+            disabled={busy === 'relay' || !relay.url || !relay.token} onClick={save}>
+            Connect
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="set-row">
+      <span>
+        Relay
+        <span className="set-sub">
+          <code>{info.url}</code> — deliveries survive this machine being off
+        </span>
+      </span>
+      <span className="set-row-tail">
+        <button type="button" className="btn btn--small" disabled={syncing} onClick={sync}>
+          {syncing ? 'Looking…' : 'Sync now'}
+        </button>
+        <button type="button" className="btn btn--small" disabled={busy === 'relay-off'}
+          onClick={() => run('relay-off', () => api.clearInstagramRelay(), 'Relay forgotten')}>
+          Forget
+        </button>
+      </span>
+    </div>
   )
 }

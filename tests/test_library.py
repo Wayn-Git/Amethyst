@@ -253,7 +253,12 @@ def test_an_unknown_kind_names_the_ones_that_work(client):
 def test_the_library_page_loads_on_an_empty_database(client):
     response = client.get("/api/library")
     assert response.status_code == 200
-    assert response.json() == {"items": [], "counts": {}, "query": ""}
+    assert response.json() == {
+        "items": [],
+        "counts": {},
+        "category_counts": {},
+        "query": "",
+    }
 
 
 async def test_the_reader_checks_every_redirect_hop(db, monkeypatch):
@@ -284,3 +289,81 @@ async def test_the_reader_checks_every_redirect_hop(db, monkeypatch):
     with pytest.raises(UnsafeURL):
         await reader._get_following_redirects(Client(), "https://example.com/go", timeout=1.0)
     assert checked == ["https://example.com/go", "http://169.254.169.254/latest/meta-data/"]
+
+
+# -- x.com / twitter.com --------------------------------------------------
+#
+# X serves a JS shell to an ordinary fetch, so these links used to land as a
+# bare URL: no text, no document, invisible to search. The capture ladder is
+# reader -> oEmbed -> plain fetch; these tests pin the rungs.
+
+
+async def test_an_x_link_is_captured_through_oembed(db, offline, psok_home, monkeypatch):
+    """The zero-config rung: a real title and body with no credentials.
+
+    Mutation check: delete the oEmbed rung and this captures a title-less row
+    with no text -- exactly the regression it exists to prevent.
+    """
+
+    async def oembed(url, **kwargs):
+        return {
+            "title": "Someone on X",
+            "author": "Someone",
+            "site": "x.com",
+            "text": "the actual post text",
+        }
+
+    monkeypatch.setattr("backend.library.service.x_oembed", oembed)
+
+    captured = await service().capture_url("https://x.com/someone/status/12345")
+
+    assert captured.item["title"] == "Someone on X"
+    assert captured.item["kind"] == "post"
+    assert captured.item["document_id"], "an x capture must be searchable"
+    assert "post text via oEmbed" in (captured.item["capture_note"] or "")
+
+
+async def test_an_x_link_falls_through_when_oembed_is_silent(db, offline, psok_home, monkeypatch):
+    """oEmbed answering nothing (a deleted post, a bad id) is not an error --
+    the link is still logged, with the note the ordinary fetch left."""
+    from backend.config import save_social
+
+    save_social({"reader_fallback": False})
+
+    async def nothing(url, **kwargs):
+        return None
+
+    monkeypatch.setattr("backend.library.service.x_oembed", nothing)
+
+    async def refuses(url, **kwargs):
+        raise FetchError("the page gave no readable text")
+
+    captured = await service(fetcher=refuses).capture_url(
+        "https://x.com/someone/status/12345"
+    )
+
+    assert captured.item["kind"] == "post"
+    assert "gave no readable text" in captured.item["capture_note"]
+
+
+async def test_a_configured_x_reader_wins_over_oembed(db, offline, psok_home, monkeypatch):
+    """The top rung: a signed-in reader reads the thread, oEmbed only names it."""
+
+    async def oembed(url, **kwargs):
+        return {"title": "Someone on X", "author": "Someone", "site": "x.com",
+                "text": "single post"}
+
+    async def social_read(url, *, workspace, allowed):
+        return "the whole thread, as the reader printed it", None
+
+    monkeypatch.setattr("backend.library.service.x_oembed", oembed)
+    monkeypatch.setattr("backend.web.social.read", social_read)
+
+    from backend.config import save_social
+
+    save_social({"allow": ["x"]})
+
+    captured = await service().capture_url("https://x.com/someone/status/12345")
+
+    assert "whole thread" in Path(captured.item["text_path"]).read_text(encoding="utf-8")
+    assert captured.item["kind"] == "post"

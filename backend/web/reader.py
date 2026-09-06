@@ -159,6 +159,58 @@ def is_youtube(url: str) -> bool:
     return (urlparse(url).hostname or "").lower() in YOUTUBE_HOSTS
 
 
+#: X serves a JavaScript shell to an ordinary fetch, so a captured link has
+#: historically landed as a title-less row with no text -- findable by neither
+#: its content nor its title. The hosts the reader (`backend/web/social.py`)
+#: owns are the same ones checked here.
+X_HOSTS = {"x.com", "twitter.com", "mobile.twitter.com"}
+X_OEMBED_URL = "https://publish.twitter.com/oembed?url={url}"
+
+
+def is_x_post(url: str) -> bool:
+    """An x.com/twitter.com link. Statuses and profiles alike; the oEmbed
+    endpoint sorts out which is which, and a non-post answers None."""
+    return (urlparse(url).hostname or "").lower() in X_HOSTS
+
+
+async def x_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:
+    """A post's author and text, from X's own public oEmbed endpoint.
+
+    No credentials, no rate limit worth naming, and no thread context -- the
+    single post and nothing before or after it. That is still the difference
+    between a captured link with a real title and body and one logged as a bare
+    URL, and it is why this is the middle rung of the capture ladder rather
+    than a footnote: it works on a machine with no reader installed, which is
+    every machine that has not opted in.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            response = await client.get(
+                X_OEMBED_URL.format(url=quote(url, safe="")),
+                headers={"User-Agent": USER_AGENT},
+            )
+        if response.status_code != 200:
+            return None
+        data = json.loads(response.text)
+    except (httpx.HTTPError, ValueError) as exc:
+        log.debug("x oembed lookup failed for %s: %s", url, exc)
+        return None
+    # `html` is the embed markup with the post text inside it; strip the tags
+    # to the words. Not a full readability pass -- a blockquote, a link and
+    # the author's handle is the whole of what X puts in there.
+    text = re.sub(r"<[^>]+>", " ", data.get("html") or "")
+    text = " ".join(text.split())
+    title = (data.get("author_name") or "").strip()
+    if not title:
+        return None
+    return {
+        "title": f"{title} on X",
+        "author": title,
+        "site": "x.com",
+        "text": text,
+    }
+
+
 async def youtube_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:
     """Title and channel for a YouTube URL, from YouTube's own public endpoint.
 

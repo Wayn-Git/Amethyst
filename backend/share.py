@@ -11,8 +11,12 @@ authentication at all and is not meant to (ADR-0001):
   a 401 is an endpoint worth guessing at.
 * The token lives in the OS keychain like every other secret here, never in the
   config file and never in the database.
-* Comparison is constant time, and repeated failures from one address are
-  slowed down.
+* Comparison is constant time, and failures are rate limited. The window is
+  process-global rather than per-address -- a deliberate simplification: it
+  means ten failures from anywhere lock the endpoint for everyone for five
+  minutes. Acceptable because the protected action is one library capture, and
+  the alternative (tracking addresses) would need a source of truth for the
+  caller's address that a reverse proxy makes unreliable anyway.
 
 **A token here does not make a public deployment safe.** Every other `/api`
 route stays unauthenticated. Exposing PSOK to the internet means putting a proxy
