@@ -396,7 +396,17 @@ async def unread_count(address: str | None = None) -> dict[str, int]:
 async def labels() -> list[dict[str, Any]]:
     data = await _call("GET", "/labels")
     return [
-        {"id": label.get("id"), "name": label.get("name"), "type": label.get("type")}
+        {
+            "id": label.get("id"),
+            "name": label.get("name"),
+            "type": label.get("type"),
+            # Counts, because the mailbox rail wants an unread badge and a
+            # second query per box to count it client-side is a query per box.
+            # Present only where Gmail states them (system labels and user
+            # labels; not on CATEGORY_* which is why they are absent).
+            "unread": label.get("messagesUnread"),
+            "total": label.get("messagesTotal"),
+        }
         for label in (data.get("labels") or [])
     ]
 

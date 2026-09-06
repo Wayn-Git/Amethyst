@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import Icon from '../components/Icon.jsx'
+import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
 import ToolCallCard from '../components/ToolCallCard.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
@@ -447,75 +447,61 @@ function Msg({
    of one. Here it sits beside the answer instead: still complete, still
    expandable, no longer in the way.
 
-   Rendered through a portal into the shell's slot, so the panel belongs to the
-   workbench while its contents belong to whichever view is open. */
+   Rendered through the shared SidePanel into the shell's slot, so the panel
+   belongs to the workbench while its contents belong to whichever view is open. */
 function RunPanel({ steps, live, liveReasoning, running, onClose, totals }) {
-  const host = typeof document === 'undefined' ? null : document.getElementById('wb-panel')
-  if (!host) return null
+  return (
+    <SidePanel
+      title="Steps"
+      count={steps.length}
+      onClose={onClose}
+      closeLabel="Hide the steps panel"
+      footer={
+        totals && (
+          <>
+            <span>{totals.steps} step{totals.steps === 1 ? '' : 's'}</span>
+            <span>{totals.tools} tool{totals.tools === 1 ? '' : 's'}</span>
+            <span className="mono">{formatDuration(totals.durationMs)}</span>
+          </>
+        )
+      }
+    >
+      {steps.length === 0 && !running && (
+        <p className="wb-panel-empty">
+          Nothing has run yet. Tool calls, reasoning and what a turn cost show up here
+          as the agent works.
+        </p>
+      )}
 
-  const body = (
-    <>
-      <div className="wb-panel-head">
-        <span className="wb-panel-title">Steps</span>
-        {steps.length > 0 && <span className="wb-panel-count">{steps.length}</span>}
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={onClose}
-          title="Hide the steps panel"
-          aria-label="Hide the steps panel"
-        >
-          <Icon name="x" size={14} />
-        </button>
-      </div>
+      {steps.map((item) => {
+        if (item.kind === 'reasoning') {
+          return <Reasoning key={item.id} text={item.text} ms={item.ms} />
+        }
+        if (item.kind === 'cost') return null
+        return (
+          <ToolCallCard
+            key={item.id}
+            call={{
+              name: item.name,
+              arguments: item.arguments ?? {},
+              content: item.content,
+              status: item.isError ? 'error' : 'done',
+            }}
+            running={false}
+          />
+        )
+      })}
 
-      <div className="wb-panel-body">
-        {steps.length === 0 && !running && (
-          <p className="wb-panel-empty">
-            Nothing has run yet. Tool calls, reasoning and what a turn cost show up here
-            as the agent works.
-          </p>
-        )}
-
-        {steps.map((item) => {
-          if (item.kind === 'reasoning') {
-            return <Reasoning key={item.id} text={item.text} ms={item.ms} />
-          }
-          if (item.kind === 'cost') return null
-          return (
-            <ToolCallCard
-              key={item.id}
-              call={{
-                name: item.name,
-                arguments: item.arguments ?? {},
-                content: item.content,
-                status: item.isError ? 'error' : 'done',
-              }}
-              running={false}
-            />
-          )
-        })}
-
-        {running && liveReasoning && <Reasoning text={liveReasoning} live />}
-        {running && live && <ToolCallCard call={live} running />}
-        {running && !live && !liveReasoning && (
-          <div className="thinking">
-            working
-            <span className="thinking-dots"><i /><i /><i /></span>
-          </div>
-        )}
-      </div>
-
-      {totals && (
-        <div className="wb-panel-foot">
-          <span>{totals.steps} step{totals.steps === 1 ? '' : 's'}</span>
-          <span>{totals.tools} tool{totals.tools === 1 ? '' : 's'}</span>
-          <span className="mono">{formatDuration(totals.durationMs)}</span>
+      {running && liveReasoning && <Reasoning text={liveReasoning} live />}
+      {running && live && <ToolCallCard call={live} running />}
+      {running && !live && !liveReasoning && (
+        <div className="thinking">
+          working
+          <span className="thinking-dots"><i /><i /><i /></span>
         </div>
       )}
-    </>
+    </SidePanel>
   )
-  return createPortal(body, host)
 }
 
 export default function Chat() {

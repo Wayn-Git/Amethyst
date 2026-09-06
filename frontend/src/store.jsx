@@ -373,14 +373,19 @@ export function AppProvider({ children }) {
   // of a turn, so the header has to keep asking.
   useEffect(() => {
     if (!ready) return undefined
-    const tick = setInterval(refreshHealth, HEALTH_INTERVAL)
-    const onFocus = () => refreshHealth()
+    // Caps ride the health tick rather than a timer of their own. `caps` used
+    // to be fetched once on boot and after a toggle, so the + menu's "N of M"
+    // and the palette could read a state minutes old; a second interval would
+    // just be a second clock to keep in step with this one.
+    const tick = () => { refreshHealth(); refreshCaps() }
+    const timer = setInterval(tick, HEALTH_INTERVAL)
+    const onFocus = () => tick()
     window.addEventListener('focus', onFocus)
     return () => {
-      clearInterval(tick)
+      clearInterval(timer)
       window.removeEventListener('focus', onFocus)
     }
-  }, [ready, refreshHealth])
+  }, [ready, refreshHealth, refreshCaps])
 
   const value = useMemo(() => ({
     view, setView,

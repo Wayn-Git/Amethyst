@@ -244,7 +244,34 @@ def test_every_connector_row_carries_its_state(client, psok_home):
 
     row = next(r for r in rows if r["name"] == "probe")
     assert set(row["lifecycle"]) == {"state", "detail", "action", "ready"}
-    assert row["lifecycle"]["state"] == "starting", "nothing has asked it to run yet"
+    # `off`, not `starting`: `enabled` now comes from the capability row, the
+    # same source reconcile obeys, and a connector nobody has switched on is
+    # off. Rendering it "failed to start" -- which is what a YAML-enabled row
+    # with no capability row used to read -- was the lie this test pins out.
+    assert row["lifecycle"]["state"] == "off"
+    assert row["lifecycle"]["action"] == "connect"
+
+
+def test_a_connector_enabled_in_yaml_but_not_switched_on_reads_off(client, psok_home):
+    """The "failed to start on a fresh server" bug, pinned out.
+
+    A connector enabled in mcp.yaml with no capability row used to pass the
+    `off` check, fail every other one, and land on "failed / Not running" --
+    because the two sources of truth for `enabled` disagreed. Now they are
+    one source: the capability row.
+    """
+    from backend.capabilities import CapabilityService, Kind
+    from backend.mcp import commands as mcp
+
+    mcp.add_custom(name="probe", transport="stdio", command="true", args=[])
+    rows = client.get("/api/mcp/servers").json()
+    row = next(r for r in rows if r["name"] == "probe")
+    assert row["lifecycle"]["state"] == "off", "the capability row, not the YAML, decides"
+
+    CapabilityService().set_enabled(Kind.CONNECTOR, "probe", True)
+    rows = client.get("/api/mcp/servers").json()
+    row = next(r for r in rows if r["name"] == "probe")
+    assert row["lifecycle"]["state"] in ("starting", "sign_in", "failed")
 
 
 # --- 4.4: collapsing the Google connectors ----------------------------------

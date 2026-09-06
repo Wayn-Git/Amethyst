@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import SidePanel from '../components/SidePanel.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api } from '../api.js'
@@ -96,13 +97,99 @@ function Reply({ threadId, onSent }) {
   )
 }
 
+/* The panel's second half: library items that point at this thread.
+
+   A mail body carries links, and the library may already hold them -- captured
+   from the phone, saved from the browser. Searching the library for each link
+   is a query per panel, not per message: only the thread's first URL matters
+   (the rest are usually the same page in different clothes), and one search
+   answering nothing is the common case this must be cheap enough not to
+   matter. */
+function ThreadLibrary({ thread }) {
+  const [items, setItems] = useState(null)
+
+  const link = useMemo(() => {
+    const body = (thread?.messages || []).map((m) => m.body || '').join('\n')
+    return /https?:\/\/[^\s>)]+/.exec(body)?.[0] || null
+  }, [thread])
+
+  useEffect(() => {
+    let cancelled = false
+    setItems(null)
+    if (!link) return undefined
+    api.library({ q: link, limit: 5 })
+      .then((data) => { if (!cancelled) setItems(data.items || []) })
+      .catch(() => { if (!cancelled) setItems([]) })
+    return () => { cancelled = true }
+  }, [link])
+
+  if (!link) return null
+  if (!items) return <p className="wb-panel-empty">Looking in the library for this link…</p>
+  if (items.length === 0) return null
+  return (
+    <div className="mail-panel-lib">
+      <div className="mail-panel-sub">In your library</div>
+      {items.map((item) => (
+        <div key={item.id} className="mail-panel-lib-item">
+          <Icon name="link" size={13} />
+          <span>{item.title}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* The Mail side of the shell's panel slot. Everything it shows is state the
+   page already holds -- `rows`, `thread`, `account` -- so it is prop-driven
+   rather than SSE-bound, and adding a view that wants the panel needs no new
+   stream plumbing, only a consumer for SidePanel. */
+function MailPanel({ thread, rows, account, compact }) {
+  if (!thread || compact) return null
+
+  const last = thread.messages?.[thread.messages.length - 1]
+  if (!last) return null
+  const who = sender(last.from)
+  const history = rows.filter(
+    (row) => row.thread_id !== thread.id && sender(row.from).address === who.address,
+  )
+
+  return (
+    <SidePanel title="Thread" closeLabel="Hide the thread panel">
+      <div className="mail-panel-who">
+        <div className="mail-panel-sub">{who.name}</div>
+        {who.address && <div className="mail-panel-address">{who.address}</div>}
+        <div className="mail-panel-meta">
+          {thread.messages?.length ?? 0} message{(thread.messages?.length ?? 0) === 1 ? '' : 's'}
+          {account?.address ? ` · ${account.address}` : ''}
+        </div>
+      </div>
+
+      {history.length > 0 && (
+        <div className="mail-panel-history">
+          <div className="mail-panel-sub">Recent from this sender</div>
+          {history.slice(0, 5).map((row) => (
+            <div key={row.id} className="mail-panel-lib-item">
+              <Icon name="mail" size={13} />
+              <span>{row.subject}</span>
+              <span className="mail-when">{when(row.date)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ThreadLibrary thread={thread} />
+    </SidePanel>
+  )
+}
+
 export default function Mail() {
   const rootRef = useRef(null)
-  const { toast, setView } = useApp()
+  const { toast, setView, compact } = useApp()
   const [box, setBox] = useState(BOXES[0].id)
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState([])
   const [account, setAccount] = useState(null)
+  const [labels, setLabels] = useState([])
   const [open, setOpen] = useState(null)
   const [thread, setThread] = useState(null)
   const [loaded, setLoaded] = useState(false)
@@ -122,13 +209,18 @@ export default function Mail() {
   const load = useCallback(async () => {
     const token = ++loadToken.current
     try {
-      const [list, who] = await Promise.all([
+      const [list, who, labels] = await Promise.all([
         api.mailThreads({ q: query, limit: 30 }),
         api.mailAccount(),
+        // Unread for the rail badge. Independent of the box showing, so it
+        // rides the same load rather than a timer of its own; a 409 here is
+        // covered by the same "nobody is signed in" as the other two.
+        api.mailLabels().catch(() => []),
       ])
       if (loadToken.current !== token) return
       setRows(list)
       setAccount(who)
+      setLabels(labels)
       setError(null)
     } catch (err) {
       if (loadToken.current !== token) return
@@ -148,6 +240,30 @@ export default function Mail() {
     const timer = setTimeout(load, search ? 300 : 0)
     return () => clearTimeout(timer)
   }, [load, search])
+
+  // Mail never refreshed itself: one load on mount, one per click, and a
+  // message that arrived while the page was open sat invisible until someone
+  // pressed Refresh. The same visibility-gated poll the connectors page uses,
+  // at a slower beat -- the connectors poll drives a 3s status screen; this
+  // one only needs to be sooner than "the user looks and wonders".
+  useEffect(() => {
+    let cancelled = false
+    const tick = () => { if (!cancelled) load() }
+    let timer = null
+    const start = () => { if (timer === null) timer = setInterval(tick, 15000) }
+    const stop = () => { if (timer !== null) { clearInterval(timer); timer = null } }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') stop()
+      else start()
+    }
+    onVisibility()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [load])
 
   useEffect(() => {
     if (!open) { setThread(null); return undefined }
@@ -202,18 +318,28 @@ export default function Mail() {
         <div className="task-layout" data-enter>
           <nav className="task-rail" aria-label="Mailboxes">
             <div className="task-rail-head"><span>Mailboxes</span></div>
-            {BOXES.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                className={`task-rail-row${!search && box === entry.id ? ' is-on' : ''}`}
-                aria-current={!search && box === entry.id}
-                onClick={() => { setSearch(''); setBox(entry.id); setOpen(null) }}
-              >
-                <Icon name={entry.icon} size={15} />
-                <span className="task-rail-label">{entry.label}</span>
-              </button>
-            ))}
+            {BOXES.map((entry) => {
+              // The unread badge, from the label counts Gmail itself states.
+              // `is:unread` and the boxes like it have no label, so the badge
+              // is shown only where one genuinely exists -- Inbox, not a
+              // count of a search.
+              const unread = entry.id === 'in:inbox'
+                ? (labels.find((l) => l.id === 'INBOX')?.unread ?? 0)
+                : 0
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={`task-rail-row${!search && box === entry.id ? ' is-on' : ''}`}
+                  aria-current={!search && box === entry.id}
+                  onClick={() => { setSearch(''); setBox(entry.id); setOpen(null) }}
+                >
+                  <Icon name={entry.icon} size={15} />
+                  <span className="task-rail-label">{entry.label}</span>
+                  {unread > 0 && <span className="mail-unread-badge">{unread}</span>}
+                </button>
+              )
+            })}
           </nav>
 
           <section className="task-pane">
@@ -374,15 +500,22 @@ export default function Mail() {
                             console and sign in again.
                           </div>
                         )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        </div>
-      </div>
+                       </div>
+                     )}
+                   </div>
+                 )
+               })}
+             </div>
+           </section>
+         </div>
+       </div>
+
+      {/* The panel fills the shell's slot only when a thread is open and
+          there is room for a fourth column. On a phone (`compact`) there is
+          no slot, and the thread already renders inline above -- a lost panel
+          would mean a lost thread, so the fallback is "not rendered at all"
+          rather than a hidden duplicate. */}
+      <MailPanel thread={thread} rows={rows} account={account} compact={compact} />
     </div>
   )
 }

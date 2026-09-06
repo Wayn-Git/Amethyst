@@ -1137,19 +1137,14 @@ export default function ConnectorsTab({ query, newOpen, setNewOpen }) {
      Grouping on the process alone put Google Workspace under "Connected"
      reporting 122 tools live, beside a "Sign in" button, while no Google
      account was attached to it — every one of those tools would have failed.
-     A connector that still needs an account or its credentials is waiting on
-     you, whatever its process is doing.
+    A connector that still needs an account or its credentials is waiting on
+    you, whatever its process is doing.
 
-     The judgement now comes from the server as `lifecycle` — the same one the
-     agent loop uses to decide whether to offer the connector's tools, so the
-     screen and the model cannot disagree about whether it works. The old
-     derivation stays as the fallback for a payload without it. */
-  const usable = (server) =>
-    server.lifecycle
-      ? server.lifecycle.ready
-      : Boolean(live[server.name]?.connected)
-        && (server.missing_credentials || []).length === 0
-        && server.signed_in !== false
+    The judgement comes from the server as `lifecycle` — the same one the agent
+    loop uses to decide whether to offer the connector's tools, so the screen
+    and the model cannot disagree about whether it works. There used to be a
+    client-side re-derivation beside it, which was exactly how they disagreed. */
+  const usable = (server) => Boolean(server.lifecycle?.ready)
 
   const [running, waiting] = useMemo(() => {
     const on = []
@@ -1186,15 +1181,8 @@ export default function ConnectorsTab({ query, newOpen, setNewOpen }) {
   const featured = showAll ? available : available.slice(0, FEATURED)
   const started = health?.mcp_reconciled !== false
 
-  const why = (server) => {
-    if (server.lifecycle) return LIFECYCLE_LABELS[server.lifecycle.state] || server.lifecycle.state
-    const state = live[server.name] || {}
-    if ((server.missing_credentials || []).length > 0) return 'needs credentials'
-    if (server.signed_in === false) return 'needs sign-in'
-    if (state.error) return 'failed to start'
-    if (!state.enabled) return 'off'
-    return started ? 'not running' : 'not started yet'
-  }
+  const why = (server) =>
+    LIFECYCLE_LABELS[server.lifecycle?.state] || server.lifecycle?.state || 'unknown'
 
   const startAll = useCallback(async () => {
     setStarting(true)
