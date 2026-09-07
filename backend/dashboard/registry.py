@@ -116,8 +116,20 @@ def system_manifest(widget_id, title, source="local"):
     return value
 
 
+def mail_manifest(widget_id, title):
+    value = need_manifest(widget_id, title)
+    value.update(
+        source=[{"type": "composio", "toolkit": "gmail"}, {"type": "llm"}],
+        refresh={"mode": "poll", "interval_s": 900},
+        requires=["connector:gmail"],
+        empty="No mail needs a reply.",
+    )
+    return value
+
+
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    mail_manifest("need.inbox", "Priority inbox"),
     system_manifest("sys.connectors", "Connector health and reconnect"),
     system_manifest("sys.model", "Active model", "director"),
     system_manifest("sys.notify", "Notification center"),

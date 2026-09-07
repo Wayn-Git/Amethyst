@@ -7,6 +7,8 @@ import time
 from collections import defaultdict
 from datetime import datetime
 
+from backend.agent.projection import project_email_item
+from backend.agent.read_cache import read_cache
 from backend.agent.trace import finish_turn_trace, record_tool_dispatch, start_turn_trace
 from backend.config import paths
 from backend.dashboard.store import settings_read, stamp
@@ -177,10 +179,50 @@ async def _read(widget_id, toolkit, slug, arguments):
             raise SourceUnavailable
         try:
             # Retain structured fields for projection; never cache this raw response.
-            result = await tool.handler(arguments, context)
-            if result.is_error:
+            cache_args = {**arguments, "dashboard_home": str(paths().db)}
+            cached = read_cache.get("dashboard_" + slug, cache_args) if toolkit == "gmail" else None
+            result = None if cached else await tool.handler(arguments, context)
+            if result and result.is_error:
                 raise RuntimeError(result.content)
-            value = json.loads(result.content)
+            value = json.loads(cached.content if cached else result.content)
+            if toolkit == "gmail" and not cached:
+                if isinstance(value, dict):
+                    value = value.get("data", value)
+                rows = (
+                    value if isinstance(value, list) else value.get("messages", value.get("emails"))
+                )
+                if not isinstance(rows, list):
+                    raise ValueError("Invalid mail response")
+                # Never turn a full body into a snippet or retain raw connector responses.
+                value = {
+                    "messages": [
+                        project_email_item(
+                            {
+                                **{
+                                    key: row[key]
+                                    for key in (
+                                        "id",
+                                        "message_id",
+                                        "threadId",
+                                        "thread_id",
+                                        "from",
+                                        "sender",
+                                        "subject",
+                                        "date",
+                                        "headers",
+                                        "labelIds",
+                                        "label_ids",
+                                        "snippet",
+                                    )
+                                    if key in row
+                                },
+                                "payload": {"headers": row.get("payload", {}).get("headers", [])},
+                            }
+                        )
+                        for row in rows
+                    ]
+                }
+                read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
         except Exception as exc:
             raise failed(toolkit, exc) from None
         if not access_enabled(widget_id) or composio_service.is_reauth_required(toolkit):

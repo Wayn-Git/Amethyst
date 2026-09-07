@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "need.inbox":
+        from backend.dashboard.mail import provide
+
+        return await provide(widget_id)
     if widget_id.startswith("sys."):
         from backend.dashboard.system import provide
 
@@ -185,6 +189,10 @@ def schedule(widget_id, background_tasks, force=False):
     if not force and data["synced_at"] and quiet_active():
         return
     retry_source = data["state"] == "not-connected" and time.monotonic() >= RETRY_AFTER.get(key, 0)
+    if force:
+        from backend.agent.read_cache import read_cache
+
+        read_cache.invalidate_domain("email")
     if force or data["state"] == "loading" or data["stale"] or retry_source:
         IN_FLIGHT.add(key)
         background_tasks.add_task(refresh, widget_id)

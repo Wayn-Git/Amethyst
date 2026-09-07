@@ -77,6 +77,10 @@ class AgendaSettings(StrictModel):
     enabled: bool
 
 
+class MailSettings(StrictModel):
+    model_enabled: bool = False
+
+
 class SearchSettings(StrictModel):
     query: str = Field(default="", max_length=500)
 
@@ -93,6 +97,8 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 if date.tzinfo is None:
                     raise ValueError("Snooze requires a timezone")
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
+        elif widget_id == "need.inbox":
+            value = MailSettings.model_validate(body).model_dump()
         elif widget_id == "task.agenda":
             value = AgendaSettings.model_validate(body).model_dump()
         elif widget_id in ("dev.backup", "dev.unpushed"):
