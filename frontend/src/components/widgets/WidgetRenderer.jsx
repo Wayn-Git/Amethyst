@@ -85,10 +85,15 @@ export default function WidgetRenderer({ widget }) {
   if (!Renderer || !widget?.data) return null
   if (!CONTENT[widget.type](widget.data)) return null
 
+  if (widget.type === 'image_gallery') {
+    return <Renderer data={widget.data} />
+  }
+
   const { icon, label } = FURNITURE[widget.type]
 
   return (
     <div className="widget-frame">
+
       {/* The header is the part that says "this is a thing the assistant made",
           as distinct from the message it is sitting in. It stays put while the
           body below it changes underneath -- a quiz moves through its questions

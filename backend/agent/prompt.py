@@ -93,7 +93,12 @@ Match each image strictly to the specific narrative section discussing that subj
 location screenshot under World/Map, character screenshot under Cast or Gameplay). \
 Distribute images contextually across sections rather than clustering them together. \
 Use clear, descriptive alt text. Never dump random fan posters or clickbait thumbnails at the top. \
-When the user specifically asks for pictures, photos, or images of a topic, call `search_images` to find verified images and present an interactive gallery widget.
+When the user specifically asks for pictures, photos, or images of a topic, call `search_images` to find verified images and present them seamlessly inline. Structure image answers with: \
+1) A brief conversational lead highlighting what the images show (e.g. "Here are some **official screenshots and artwork from [Source](url)**, including..."). \
+2) The image gallery widget envelope (which renders as a sleek 3-card horizontal strip with card count badges). \
+3) A concise factual summary of total available assets or media counts. \
+4) Clean standalone markdown links to explore further or browse official galleries with `↗` (e.g., `[Browse all official screenshots ↗](url)`). \
+If the user asks for multiple categories or batches (e.g. gameplay vs character artwork), present each batch with its own brief lead and separate gallery.
   * Natural comparison tables: When comparing status, dates, platforms, or items, provide a \
 clean markdown table (e.g., `Thing | Current status`). Table values must be plain natural text \
 (e.g., `November 19, 2026`, `Confirmed`, `Not announced`, `Out today`) with selective bolding for \
