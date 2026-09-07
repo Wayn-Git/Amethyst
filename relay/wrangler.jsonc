@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "psok-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+
+  // The workers.dev hostname is the point -- it is a stable public HTTPS address
+  // with no domain to buy. Preview URLs are not: they would publish a second,
+  // per-version address for the same Worker, and one public door carrying an
+  // access token is enough.
+  "workers_dev": true,
+  "preview_urls": false,
+
+  // One cron, once a day. It refreshes the Instagram access token before it can
+  // lapse and prunes rows the laptop has already taken. The free plan allows
+  // five triggers and fifteen minutes of wall clock each; this needs neither.
+  "triggers": { "crons": ["17 3 * * *"] },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "psok-relay",
+      // `wrangler d1 create psok-relay` prints this. It is an identifier, not a
+      // credential.
+      "database_id": "42d53cc1-4707-4fc0-94af-14dc172059ec"
+    }
+  ],
+
+  "observability": { "enabled": true }
+
+  // Three secrets, set with `wrangler secret put`, never in this file:
+  //   APP_SECRET    - Meta's app secret. Verifies every delivery's signature.
+  //   VERIFY_TOKEN  - echoed back during Meta's one-time handshake.
+  //   RELAY_TOKEN   - what the laptop presents to POST /sync.
+}

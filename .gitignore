@@ -190,3 +190,35 @@ sketch
 .claude/
 .skills/
 .playwright-mcp/
+
+# An empty directory another tool left behind, owned by root. Not part of PSOK.
+LibreChat/
+
+# The relay's dependencies. wrangler and workerd are large and reinstallable.
+relay/node_modules/
+relay/.wrangler/
+
+# Agent tooling, same reasoning as .claude/ above: this is how one person drives
+# their editor, not how PSOK is built. Kept on disk, out of the repository.
+.agents/
+
+# Scratch that keeps reappearing at the root. `,*` catches the editor-backup
+# convention that left a 51MB `,frontend.zip` here.
+/scratch*/
+/nothing/
+/info/
+,*
+
+# Wrangler state at the root, as distinct from relay/.wrangler/ below.
+/.wrangler/
+
+# The container's bind-mounted PSOK_HOME, and the personal state inside it.
+# Also denied in .dockerignore -- none of this may reach an image layer.
+/data/
+secrets.json
+psok.db
+psok.db-shm
+psok.db-wal
+
+# Local compose overrides, which are per-machine by definition.
+docker-compose.override.yml

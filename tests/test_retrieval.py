@@ -11,11 +11,11 @@ import hashlib
 
 import pytest
 
-from psok.retrieval import store
-from psok.retrieval.chunking import chunk_markdown, estimate_tokens
-from psok.retrieval.indexer import Indexer, discover
-from psok.retrieval.search import SearchService
-from psok.tools.base import ToolContext
+from backend.retrieval import store
+from backend.retrieval.chunking import chunk_markdown, estimate_tokens
+from backend.retrieval.indexer import Indexer, discover
+from backend.retrieval.search import SearchService
+from backend.tools.base import ToolContext
 
 DIMENSIONS = 16
 
@@ -182,7 +182,7 @@ async def test_marking_stale_forces_a_reindex(db, vault):
 
 
 async def test_write_file_tool_invalidates_the_index(db, vault):
-    from psok.tools.builtin.filesystem import write_file
+    from backend.tools.builtin.filesystem import write_file
 
     indexer = Indexer(FakeEmbedder(), conn=db)
     await indexer.index_vault(vault)
@@ -201,7 +201,7 @@ async def test_edit_file_tool_invalidates_the_index(db, vault):
     """write_file and delete_file marked the document stale; edit_file did not,
     so the most common way the agent changes a file left the index claiming
     content that is no longer on disk -- until an unrelated full re-scan."""
-    from psok.tools.builtin.filesystem import edit_file
+    from backend.tools.builtin.filesystem import edit_file
 
     await Indexer(FakeEmbedder(), conn=db).index_vault(vault)
 
@@ -304,7 +304,7 @@ def test_fts_query_sanitization_survives_punctuation():
 
 
 async def test_search_tool_reports_an_empty_index_helpfully(db):
-    from psok.tools.builtin.documents import search_documents
+    from backend.tools.builtin.documents import search_documents
 
     result = await search_documents({"query": "anything"}, ToolContext())
     assert not result.is_error
@@ -312,14 +312,14 @@ async def test_search_tool_reports_an_empty_index_helpfully(db):
 
 
 async def test_search_tool_needs_a_query(db):
-    from psok.tools.builtin.documents import search_documents
+    from backend.tools.builtin.documents import search_documents
 
     assert (await search_documents({}, ToolContext())).is_error
 
 
 async def test_search_tool_is_registered_and_low_risk(db):
-    from psok.tools.base import RiskLevel
-    from psok.tools.registry import build_default_registry
+    from backend.tools.base import RiskLevel
+    from backend.tools.registry import build_default_registry
 
     tool = build_default_registry().get("search_documents")
     assert tool is not None
@@ -337,7 +337,7 @@ async def test_search_tool_is_registered_and_low_risk(db):
 def test_extension_state_is_not_cached_by_connection_id():
     import sqlite3
 
-    from psok.db.connection import connect, migrate
+    from backend.db.connection import connect, migrate
 
     ids = set()
     for _ in range(4):
@@ -358,7 +358,7 @@ def test_extension_state_is_not_cached_by_connection_id():
 
 async def test_indexing_survives_a_fresh_connection_after_others_closed(tmp_path, psok_home):
     """The exact shape of the id-reuse bug: index, drop the connection, index again."""
-    from psok.db import connection as connection_module
+    from backend.db import connection as connection_module
 
     root = tmp_path / "v"
     root.mkdir()
@@ -415,18 +415,18 @@ class _CapturingClient:
         self.system_prompts: list[str] = []
 
     async def complete(self, messages, tools=None, params=None):
-        from psok.runtime.types import ModelResponse
+        from backend.runtime.types import ModelResponse
 
         self.system_prompts.append(messages[0]["content"])
         return ModelResponse(text="answered")
 
 
 def _scripted_director(monkeypatch, client):
-    import psok.agent.director as director_module
-    from psok.agent.director import Director
-    from psok.runtime.types import Capabilities, ResolvedModel
-    from psok.security.confirmation import ConfirmationService
-    from psok.tools.registry import ToolRegistry
+    import backend.agent.director as director_module
+    from backend.agent.director import Director
+    from backend.runtime.types import Capabilities, ResolvedModel
+    from backend.security.confirmation import ConfirmationService
+    from backend.tools.registry import ToolRegistry
 
     monkeypatch.setattr(
         director_module,
@@ -440,11 +440,11 @@ async def test_a_turn_injects_indexed_context_into_the_system_prompt(db, vault, 
     """context_for() existed, was tested, and was documented as pre-fetched into
     the prompt -- but the loop never called it, so the only way documents ever
     reached the model was the model deciding to search for them itself."""
-    from psok.db.repositories import ConversationRepository
+    from backend.db.repositories import ConversationRepository
 
     embedder = FakeEmbedder()
     await Indexer(embedder, conn=db).index_vault(vault)
-    monkeypatch.setattr("psok.retrieval.search.Embedder", lambda *a, **k: embedder)
+    monkeypatch.setattr("backend.retrieval.search.Embedder", lambda *a, **k: embedder)
 
     client = _CapturingClient()
     director = _scripted_director(monkeypatch, client)
@@ -461,12 +461,12 @@ async def test_a_turn_injects_indexed_context_into_the_system_prompt(db, vault, 
 async def test_an_empty_index_costs_the_turn_no_retrieval_work(db, monkeypatch):
     """Skipped before the embedder is ever constructed: a user who has never run
     `psok index` must not pay a round trip to an embedding server on every turn."""
-    from psok.db.repositories import ConversationRepository
+    from backend.db.repositories import ConversationRepository
 
     def explode(*a, **k):
         raise AssertionError("no embedder should be built for an empty index")
 
-    monkeypatch.setattr("psok.retrieval.search.Embedder", explode)
+    monkeypatch.setattr("backend.retrieval.search.Embedder", explode)
 
     client = _CapturingClient()
     director = _scripted_director(monkeypatch, client)
@@ -476,3 +476,174 @@ async def test_an_empty_index_costs_the_turn_no_retrieval_work(db, monkeypatch):
         pass
 
     assert "<retrieved_context>" not in client.system_prompts[0]
+
+
+# -- indexing without an embedder, and telling sources apart ------------------
+
+
+class _Dead:
+    """An embedding server that is not running, which is the common case."""
+
+    provider, model = "ollama", "nomic-embed-text"
+
+    async def embed(self, texts):
+        from backend.retrieval.embeddings import EmbeddingError
+
+        raise EmbeddingError("could not reach Ollama at http://localhost:11434")
+
+
+class _Fake:
+    provider, model = "ollama", "nomic-embed-text"
+
+    async def embed(self, texts):
+        return [[float(len(t) % 5), 1.0, 0.25] for t in texts]
+
+    async def embed_one(self, text):
+        return (await self.embed([text]))[0]
+
+
+async def test_the_keyword_index_does_not_depend_on_an_embedder(db, workspace):
+    """`chunks_fts` used to be created only inside `ensure_indexes`, which the
+    indexer only called once vectors had come back -- so the half of search that
+    is supposed to survive a missing embedder had no table to write into.
+
+    Mutation check: make `ensure_keyword_index` conditional on `vectors`.
+    """
+    from backend.retrieval.indexer import Indexer
+    from backend.retrieval.search import SearchService
+
+    note = workspace / "note.md"
+    note.write_text("# Note\n\nAttention residue is the cost of switching.\n")
+
+    await Indexer(embedder=_Dead()).index_file(note, require_embeddings=False)
+
+    hits = await SearchService(embedder=_Dead()).search("attention residue")
+    assert [h.label for h in hits] == ["note.md > Note"]
+
+
+async def test_a_vault_index_still_fails_loudly_without_an_embedder(db, workspace):
+    """The tolerant path is opt-in. A broken embedder affects every file in a
+    vault, so indexing one should fail once, loudly, rather than quietly build
+    half an index nobody knows is half.
+
+    Mutation check: default `require_embeddings` to False.
+    """
+    from backend.retrieval.embeddings import EmbeddingError
+    from backend.retrieval.indexer import Indexer
+
+    (workspace / "note.md").write_text("# Note\n\nSomething worth indexing.\n")
+
+    with pytest.raises(EmbeddingError):
+        await Indexer(embedder=_Dead()).index_vault(workspace)
+
+
+async def test_search_can_be_narrowed_to_one_source(db, workspace):
+    """Vault notes and captured pages share one index. "What have I read about
+    X" is a different question from "what is in my notes about X"."""
+    from backend.retrieval.indexer import Indexer
+    from backend.retrieval.search import SearchService
+
+    note = workspace / "note.md"
+    note.write_text("# Note\n\nAttention residue is the cost of switching.\n")
+    saved = workspace / "saved.md"
+    saved.write_text("# Deep Work\n\nAttention residue is the cost of switching.\n")
+
+    indexer = Indexer(embedder=_Fake())
+    await indexer.index_file(note)
+    await indexer.index_file(saved, source="library", title="Deep Work")
+
+    everything = await SearchService(embedder=_Fake()).search("attention residue")
+    assert len(everything) == 2
+
+    library_only = await SearchService(embedder=_Fake()).search(
+        "attention residue", source="library"
+    )
+    assert [h.label for h in library_only] == ["Deep Work"]
+
+
+# ------------------------------------------------------- binary documents
+
+
+def _pdf(path, pages):
+    from tests.test_documents import _pdf as build
+
+    return build(path, pages)
+
+
+async def test_discover_finds_documents_under_a_larger_cap_than_text(db, vault):
+    """Two megabytes is a large note and a small report -- a PDF's megabytes are
+    images, and PyMuPDF's cost tracks page count rather than bytes, so the text
+    cap would exclude exactly the long documents worth indexing.
+
+    Mutation check: use MAX_FILE_BYTES for documents too.
+    """
+    from backend.retrieval.indexer import MAX_FILE_BYTES
+
+    path = _pdf(vault / "notes" / "report.pdf", ["Findings"])
+    path.write_bytes(path.read_bytes() + b"\n%% " + b"x" * (MAX_FILE_BYTES + 1))
+    (vault / "notes" / "big.md").write_text("x" * (MAX_FILE_BYTES + 1))
+
+    found = {p.name for p in discover(vault)}
+    assert "report.pdf" in found
+    assert "big.md" not in found, "the text cap still applies to text"
+
+
+async def test_reindexing_a_pdf_does_no_extraction_or_embedding_work(db, vault):
+    """The content hash is taken over the raw bytes and checked *before* anything
+    is extracted, so re-scanning a folder of PDFs costs a read and a hash.
+    Hashing the extracted text instead would mean extracting every file on every
+    scan to discover that nothing changed.
+
+    Mutation check: move extraction above the early return in `index_file`.
+    """
+    _pdf(vault / "notes" / "report.pdf", ["Gradient descent converges"])
+    embedder = FakeEmbedder()
+    indexer = Indexer(embedder, conn=db)
+
+    first = await indexer.index_vault(vault)
+    assert first.indexed == 3
+    after_first = embedder.calls
+
+    second = await indexer.index_vault(vault)
+    assert second.unchanged == 3
+    assert second.chunks_added == 0
+    assert embedder.calls == after_first, "an unchanged PDF must not be re-embedded"
+
+
+async def test_a_search_hit_in_a_pdf_names_its_page(db, vault):
+    """The payoff for every extractor emitting markdown: `## Page 2` becomes the
+    heading path, and `SearchHit.label` composes `report.pdf > Page 2` with no
+    change to search, the store or the schema.
+
+    Mutation check: emit the page number as body text rather than a heading.
+    """
+    _pdf(vault / "notes" / "report.pdf", ["Nothing useful", "Zebrafish telemetry results"])
+    embedder = FakeEmbedder()
+    await Indexer(embedder, conn=db).index_vault(vault)
+
+    hits = await SearchService(embedder, conn=db).search("Zebrafish telemetry", limit=5)
+    labels = [hit.label for hit in hits]
+    assert any(label == "report.pdf > Page 2" for label in labels), labels
+
+
+async def test_a_scanned_pdf_is_skipped_rather_than_counted_as_an_error(db, vault):
+    """A folder of scans would otherwise fill `errors` with two hundred entries
+    and make a working index look broken. The file is fine; PSOK just cannot read
+    it without OCR, and `errors` should keep meaning "went wrong".
+
+    Mutation check: append to `report.errors` instead of `report.skipped`.
+    """
+    pymupdf = pytest.importorskip("pymupdf")
+    document = pymupdf.open()
+    page = document.new_page()
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 50, 50))
+    pixmap.clear_with(200)
+    page.insert_image(pymupdf.Rect(0, 0, 200, 200), pixmap=pixmap)
+    document.save(vault / "notes" / "scan.pdf")
+    document.close()
+
+    report = await Indexer(FakeEmbedder(), conn=db).index_vault(vault)
+    assert len(report.skipped) == 1
+    assert "tesseract" in report.skipped[0]
+    assert not report.errors
+    assert "1 skipped" in report.summary()

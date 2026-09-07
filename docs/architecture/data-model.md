@@ -94,6 +94,25 @@ chunks_fts                -- FTS5 virtual table
 
 Content hashing at the chunk level is Khoj's incremental-indexing pattern and PSOK adopts it directly: hash each chunk, diff against stored hashes for that document, embed only what changed, delete what disappeared. Re-scanning an unchanged vault costs a hash comparison.
 
+**What gets indexed.** Text and code by extension (`indexer.TEXT_EXTENSIONS`, capped at 2MB), plus PDF, DOCX, XLSX and PPTX (`indexer.DOCUMENT_EXTENSIONS`, capped at 25MB because a document's megabytes are images and its cost tracks page count). Binary documents are turned into markdown by `backend/documents/` **after** the content-hash early return, so an unchanged PDF is never opened by a document library and a re-scan still costs a read and a hash. `file_type` needed no change — it already stores `path.suffix`. `heading_path` is what carries structure across: `Page 12` for a PDF, `Sheet: Budget` for a workbook, `Slide 3` for a deck, the real outline for a Word file, so `SearchHit.label` prints `report.pdf > Page 12` unmodified.
+
+**Which model builds it.** Embeddings default to Ollama (ADR-0013's local-first
+posture) and are otherwise named by an `embeddings:` block in providers.yaml,
+beside `memory:` and `tiers:` -- `psok embeddings detect --set` probes the
+configured providers and writes it. This matters more than it looks: with no
+embedder reachable, every search silently falls back to keywords and a vault
+that looks indexed answers nothing. `psok doctor` reports it for that reason.
+
+Changing the model does not corrupt anything, and the reason is worth keeping:
+`store.record_embedding_model` writes down which model built the index and
+`SearchService` queries with *that* one, so a switch leaves the index **stale**
+rather than silently comparing vectors from two unrelated spaces. Dimensions
+differing (768 for bge-base, 1024 for bge-m3, 1536 for text-embedding-3-small)
+makes `ensure_indexes` drop and rebuild the vector table. Re-index after a
+change.
+
+A document PSOK cannot read — a scan with no text layer — lands in `IndexReport.skipped` rather than `errors`, because the file is fine and `errors` should keep meaning that something went wrong.
+
 The separate `chunks_fts` table is the concrete upgrade over Khoj's ILIKE filtering. See [retrieval](#retrieval-notes) below.
 
 ### Tasks and calendar
@@ -121,7 +140,7 @@ calendar_events
 
 `due_at` and `scheduled_at` being separate columns is the load-bearing detail for scheduling. "Due tomorrow" and "I will work on it at 2pm today" are different facts, and collapsing them makes conflict detection impossible. See [scheduling.md](scheduling.md).
 
-`reminder_at` is a third such fact — "tell me an hour before" — and `reminded_at` is the claim that stops one being delivered twice. The external columns mirror the pattern `calendar_events` already declares, and are written by the one-way Microsoft To Do pull in `psok/sync/`. The partial unique index is what makes that pull idempotent; without it a second pull duplicates every task.
+`reminder_at` is a third such fact — "tell me an hour before" — and `reminded_at` is the claim that stops one being delivered twice. The external columns mirror the pattern `calendar_events` already declares, and are written by the one-way Microsoft To Do pull in `backend/sync/`. The partial unique index is what makes that pull idempotent; without it a second pull duplicates every task.
 
 ### Audit log
 
@@ -170,12 +189,43 @@ If the filesystem is the source of truth for documents, the index can drift — 
 
 Three triggers keep them aligned: a **filesystem watcher** on the vault for external edits, an **explicit re-scan** on demand and at startup, and **direct invalidation** from PSOK's own file-mutating tools, which mark the affected document stale immediately rather than waiting for the watcher. Because re-indexing is content-hash incremental, all three are cheap.
 
+## Three tables added for the journal, the library and the brand kit
+
+**`journal_entries`** — briefings and reviews, one row per `(kind, entry_date)`
+behind a unique index. `entry_date` is the **local** calendar date, for the
+reason `_now()` gives in `repositories.py`: SQLite's `date('now')` is UTC, and a
+review filed under yesterday west of Greenwich is one nobody can find.
+`created_at`/`updated_at` stay UTC like every other pair here, and the two are
+never compared. `signals` is the JSON the entry was written from — stored rather
+than recomputed, so a review read in a month still shows the day it was actually
+about and the prose can be checked against what it was given. See
+[journal.md](journal.md).
+
+**`library_items`** — what was read, watched or listened to. The row is the
+record; the *text* is a real file under `~/.psok/library` with an ordinary
+`documents` row pointing at it, so the filesystem stays the source of truth
+(ADR-0004) and the existing hybrid index does all the searching.
+`document_id IS NULL` is a normal state — a paywall, a video with no transcript
+— and `capture_note` says which. `url` is indexed but **not** unique: re-reading
+something a year later is a real event. See [library.md](library.md).
+
+**`brand_profile`** — one row, pinned by `CHECK (id = 1)`, because a person has
+one voice here. A table rather than a JSON blob in `app_settings`: these are
+fields with types, and `_add_missing_columns` can add a tenth to a database that
+already exists.
+
+`kind` on the first two tables deliberately carries **no CHECK**. SQLite cannot
+alter a CHECK in place — that is why `memory_state` is a separate table — and
+both lists will grow. The services validate and name the accepted values in the
+400.
+
 ## Data location summary
 
 ```
 ~/.psok/
   psok.db                 SQLite: everything relational + vectors + FTS
   psok.db-wal
+  library/                captured text, one markdown file per library item
   config/
     providers.yaml        model providers (keychain refs, no secrets)
     mcp.yaml              MCP server definitions

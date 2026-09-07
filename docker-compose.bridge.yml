@@ -1,0 +1,28 @@
+# Bridge networking, for macOS and Windows, or for anyone who wants the
+# container in its own network namespace.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.bridge.yml up
+#
+# What this costs: Google and Spotify sign-in cannot complete. Their MCP
+# servers bind 127.0.0.1:8765 and 127.0.0.1:8888 inside the container, and
+# those ports are deliberately not published below -- publishing them would
+# look like it worked and then fail at the redirect with an error that reads
+# like a Google console misconfiguration. A wrong hint is worse than none.
+#
+# GitHub and Vercel do work here, because PSOK owns its own callback listener
+# and PSOK_OAUTH_CALLBACK_BIND tells it to accept connections forwarded from
+# the host. The redirect URI itself stays http://127.0.0.1:33418/oauth/callback
+# -- that string is registered with the provider and must not change; the
+# browser resolves it against the host's loopback, which Docker forwards in.
+
+services:
+  psok:
+    network_mode: bridge
+    environment:
+      PSOK_BIND: 0.0.0.0
+      PSOK_PORT: 8000
+      PSOK_OAUTH_CALLBACK_BIND: 0.0.0.0
+    ports:
+      # Loopback only. See the warning at the top of docker-compose.yml.
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:33418:33418"

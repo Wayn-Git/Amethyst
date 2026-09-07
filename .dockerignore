@@ -1,0 +1,68 @@
+# Two jobs: keep the build context small, and keep personal state out of image
+# layers. The second matters more. A layer is permanent and shippable -- once a
+# credential is in one, deleting the file in a later layer does not remove it.
+
+# ------------------------------------------------------------------- size
+#
+# Without these the context is over 5.7GB, of which .venv alone is 5.3GB.
+.venv/
+venv/
+**/node_modules/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.git/
+.gitignore
+.playwright-mcp/
+.wrangler/
+relay/.wrangler/
+.claude/
+.agents/
+LibreChat/
+,*
+*.zip
+
+# frontend/dist is built by the web stage. A stale local build must not shadow
+# it, or the image ships whatever was last built on someone's laptop.
+frontend/dist/
+
+# Not needed to run: the tests, the prose, and the two other deploy targets.
+tests/
+docs/
+NEXT-SESSION.md
+render.yaml
+vercel.json
+Dockerfile
+docker-compose*.yml
+
+# ----------------------------------------------------------------- safety
+#
+# Personal state, denied by pattern rather than by remembering. PSOK_HOME
+# defaults to ~/.psok and the connector directories live under $HOME, so none
+# of this is in the repository by default -- these patterns are here for the
+# day someone sets PSOK_HOME=./data to debug something, or copies a database
+# in to reproduce a bug. tests/test_docker_context.py asserts they are present.
+#
+# Secrets reach a running container through env_file at `docker run`, never
+# through ARG or ENV: both are visible in `docker history` on the built image,
+# for as long as the image exists.
+.env
+*.env
+!.env.example
+data/
+.psok/
+psok-home/
+**/secrets.json
+**/psok.db
+**/psok.db-*
+**/providers.yaml
+**/mcp.yaml
+**/.google_workspace_mcp/
+**/.spotify-mcp/
+**/.linkedin-mcp/
+**/token-cache.json
+**/credentials/
+*.pem
+*.key
