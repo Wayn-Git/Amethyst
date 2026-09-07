@@ -1141,12 +1141,12 @@ def test_every_preset_can_be_written_into_a_providers_file():
 
     for slug in SEEDED:
         preset = PRESETS_BY_SLUG[slug]
-        assert "ACCOUNT_ID" not in (preset.base_url or ""), slug
+        assert "ACCOUNT_ID" not in (preset.base_url or "") and "{account_id}" not in (preset.base_url or ""), slug
         assert preset.local or preset.api_key_ref, slug
 
     assert "cloudflare" not in SEEDED
-    assert "ACCOUNT_ID" in PRESETS_BY_SLUG["cloudflare"].base_url
-    assert "ACCOUNT_ID" not in render_default_providers()
+    assert "{account_id}" in PRESETS_BY_SLUG["cloudflare"].base_url
+    assert "{account_id}" not in render_default_providers()
 
 
 def test_an_environment_variable_name_survives_a_hyphenated_slug():
