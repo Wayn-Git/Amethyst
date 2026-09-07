@@ -34,7 +34,7 @@ export default function Jobs({ data, widgetId, refresh }) {
       <label>Repeat every minutes (blank for once)<input name="interval" type="number" min="15" max="43200" /></label></>}
       <button disabled={busy}>Review job</button>
     </form>}
-    <ul>{(data?.items || []).map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.status} {item.detail}</p>{item.note_id && <a href={`/library?item=${item.note_id}`}>Open research note</a>}{item.trace_id && <button disabled={busy} onClick={async () => { try { setTrace(await request(`/widgets/agent.delegated/runs/${item.run_id}/trace`)) } catch (e) { setError(e.message) } }}>View trace {item.trace_id}</button>}{!delegated && <button disabled={busy} onClick={() => propose('delete', { id: item.id })}>Delete</button>}</div></WidgetRow>)}</ul>
+    <ul>{(data?.items || []).map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.status} {item.detail}</p>{item.note_id && <a href={`/library?q=${encodeURIComponent(item.title)}&kind=note`}>Open research note</a>}{item.trace_id && <button disabled={busy} onClick={async () => { try { setTrace(await request(`/widgets/agent.delegated/runs/${item.run_id}/trace`)) } catch (e) { setError(e.message) } }}>View trace {item.trace_id}</button>}{!delegated && <button disabled={busy} onClick={() => propose('delete', { id: item.id })}>Delete</button>}</div></WidgetRow>)}</ul>
     {trace && <pre aria-label="Director trace">{JSON.stringify(trace, null, 2)}</pre>}
     <ul>{(data?.runs || []).map(run => <WidgetRow key={run.id}><div>Run {run.id}: {run.status} {run.error}</div></WidgetRow>)}</ul>
   </>

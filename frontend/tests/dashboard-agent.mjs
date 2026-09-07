@@ -46,7 +46,7 @@ try {
   await page.getByLabel('Title', { exact: true }).fill('UI delegated fixture')
   await page.getByLabel('Prompt', { exact: true }).fill('Read fixture')
   await page.getByRole('button', { name: 'Review job', exact: true }).click()
-  await page.getByRole('button', { name: 'Approve change' }).click()
+  await page.getByRole('button', { name: 'Reject change' }).click()
   await page.getByRole('button', { name: 'Review job', exact: true }).waitFor()
   console.log('agent.delegated UI passed')
   await page.evaluate(() => window.testMount('Jobs', 'agent.research', { available: false, items: [] }))

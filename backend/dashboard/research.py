@@ -5,6 +5,7 @@ import time
 
 from fastapi import HTTPException
 
+from backend.agent.trace import finish_turn_trace, record_tool_dispatch, start_turn_trace
 from backend.dashboard import delegated, jobs
 from backend.dashboard.items import save_draft
 from backend.db.connection import get_connection
@@ -93,6 +94,7 @@ async def save(job, answer, urls, callback):
         handler=unused,
         risk=RiskLevel.HIGH,
     )
+    trace, watchdog, token = start_turn_trace("dashboard", "agent.research: save note")
     started = time.monotonic()
     outcome, error = None, None
     try:
@@ -114,6 +116,8 @@ async def save(job, answer, urls, callback):
         error = str(exc)
         raise
     finally:
+        record_tool_dispatch(tool.name, (time.monotonic() - started) * 1000)
+        finish_turn_trace(trace, watchdog, token)
         ExecutionLogRepository().record(
             tool_name=tool.name,
             tool_source="native",

@@ -108,3 +108,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25: agent.watchers — persisted serial page/mailbox polling (15-minute floor), reused appeal inbox reader, audited fetches, sys.notify alerts; focused backend/UI tests passed.
 - 2026-10-25: agent.rules — audited reviewed per-tool rules in existing gate, write always-allow rejected, scheduled writes require fresh approval; permission/backend/UI tests passed.
 - 2026-10-25: agent.usage — Director token/latency totals over the recent session, exact cached cloud rate estimates only, honest unavailable values; 97 focused backend tests and six widget UI checks passed.
+- 2026-10-25: agent.research — trace the reviewed Library save separately and link results through the supported Library title filter; eight focused backend tests and all six UI checks passed.

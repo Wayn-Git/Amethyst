@@ -43,6 +43,11 @@ async def test_research_note_needs_sources_and_approval(db, monkeypatch):
     save.assert_not_called()
     await research.save(job, "Result", {"https://example.org/source"}, approve)
     assert "Sources\nhttps://example.org/source" in save.call_args.kwargs["text"]
+    from backend.agent.trace import get_recent_traces
+
+    saved_trace = get_recent_traces()[-1]
+    assert saved_trace.user_message == "agent.research: save note"
+    assert saved_trace.tool_call_sequence == ["dashboard_research_note"]
     assert db.execute("SELECT note_id FROM dashboard_research").fetchone()[0] == 123
     assert (
         db.execute(
