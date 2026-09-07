@@ -582,6 +582,24 @@ def ping() -> dict[str, Any]:
     return {"status": "ok", "version": app.version}
 
 
+# A registry built only to count tools for /api/health and /api/tools before
+# the first turn has built the real one. Constructing the full builtin tool set
+# on every poll was seconds of throwaway work per request on the event loop;
+# the real registry replaces it on the first turn, and this one is never
+# rebuilt until then.
+_THROWAWAY_REGISTRY: dict[str, Any] = {"registry": None}
+
+
+def _listing_registry() -> Any:
+    from backend.tools.registry import build_default_registry
+
+    if _mcp["registry"] is not None:
+        return _mcp["registry"]
+    if _THROWAWAY_REGISTRY["registry"] is None:
+        _THROWAWAY_REGISTRY["registry"] = build_default_registry()
+    return _THROWAWAY_REGISTRY["registry"]
+
+
 @app.get("/api/health")
 async def health() -> dict[str, Any]:
     """Component health, reported from the live registry where one exists.
@@ -590,7 +608,7 @@ async def health() -> dict[str, Any]:
     never included MCP tools and never moved when a connector failed -- the one
     thing a health check on this system is for.
     """
-    registry = _mcp["registry"] or build_default_registry()
+    registry = _listing_registry()
     skills, errors = scan()
     connector_errors = dict(_mcp["errors"])
     # Only providers that could answer. An entry with no key parses fine and
@@ -1239,6 +1257,12 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
     # an open fetch with no bytes yet, while `POST .../turn/stop` answered 404
     # because nothing had registered. Pressing Stop on a turn that had not
     # visibly begun was the one case Stop genuinely could not work.
+    if conversation_id in _active_turns:
+        # Two directors on one conversation interleave transcript writes and
+        # bill two model streams, and the first turn's cancel event is silently
+        # replaced -- Stop can only ever reach the second. The delete endpoints
+        # already refuse for exactly this reason; the turn endpoint must too.
+        raise HTTPException(409, "a turn is already running for this conversation")
     cancel = asyncio.Event()
     _active_turns[conversation_id] = cancel
     try:
@@ -1307,13 +1331,17 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
 
 
 @app.post("/api/conversations/{conversation_id}/turn/stop")
-def stop_turn(conversation_id: str) -> dict[str, str]:
+async def stop_turn(conversation_id: str) -> dict[str, str]:
     """Interrupt the turn streaming for this conversation.
 
     The loop stops before its next model call, cancels whatever tool call is in
     flight -- including one suspended on a confirmation -- and records it as
     interrupted rather than leaving the history claiming a call that never
     finished.
+
+    Async on purpose, like `decide_confirmation`: a sync endpoint runs in a
+    threadpool, and `Event.set` off the loop thread does not wake the waiters
+    promptly -- Stop could sit unread until some unrelated I/O poked the loop.
     """
     cancel = _active_turns.get(conversation_id)
     if cancel is None:
@@ -1323,8 +1351,11 @@ def stop_turn(conversation_id: str) -> dict[str, str]:
 
 
 @app.get("/api/confirmations")
-def list_confirmations() -> list[PendingConfirmation]:
-    return [entry["payload"] for entry in _pending.values()]
+async def list_confirmations() -> list[PendingConfirmation]:
+    # Async so the snapshot cannot race a turn registering a confirmation
+    # mid-iteration from the loop: a sync endpoint runs in a threadpool, and
+    # iterating a dict the loop is mutating raises RuntimeError.
+    return [entry["payload"] for entry in list(_pending.values())]
 
 
 class ConfirmationDecision(BaseModel):
@@ -1944,12 +1975,16 @@ async def mcp_logout(name: str) -> dict[str, Any]:
 
 
 @app.get("/api/mcp/authorizations")
-def mcp_pending_authorizations() -> list[dict[str, Any]]:
+async def mcp_pending_authorizations() -> list[dict[str, Any]]:
     """Sign-ins this process started, in flight or recently finished.
 
     `status` is `waiting` while the user is with the provider, then `done` or
     `failed` with the reason. This is the only channel that outlives the request
     that started the flow, so it is how an interface learns a sign-in landed.
+
+    Async on purpose: the body mutates `PENDING` (pruning, finishing, signing
+    out) and a sync endpoint would do that from a threadpool thread while the
+    login tasks on the loop write the same dict.
     """
     from backend.mcp import commands as mcp
     from backend.mcp.config import load_servers
@@ -2444,7 +2479,7 @@ def list_tools() -> list[dict[str, Any]]:
     # Deliberately not _registry_for: listing what exists must not start
     # connector processes as a side effect. Before the first turn this is the
     # builtin set, which is exactly what is true at that moment.
-    registry = _mcp["registry"] or build_default_registry()
+    registry = _listing_registry()
     rows = []
     for tool in registry.list():
         rows.append(

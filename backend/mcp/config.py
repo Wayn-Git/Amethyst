@@ -340,10 +340,15 @@ def _catalogue_entry(config: ServerConfig):
 
 
 def save_servers(servers: dict[str, ServerConfig], path: Path | None = None) -> None:
+    from backend.config import write_atomic
+
     p = path or config_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     body = {"mcpServers": {name: cfg.to_dict() for name, cfg in sorted(servers.items())}}
-    p.write_text(yaml.safe_dump(body, sort_keys=False, default_flow_style=False))
+    # Atomic: load_servers runs on every turn and in a 2s watcher poll, so a
+    # crash mid-write would not merely corrupt the file -- it would read as
+    # "no servers configured" for as long as the truncated YAML parsed.
+    write_atomic(p, yaml.safe_dump(body, sort_keys=False, default_flow_style=False))
 
 
 def add_server(config: ServerConfig, path: Path | None = None) -> None:

@@ -68,11 +68,37 @@ def token() -> str | None:
         return None
 
 
+#: Presence of the relay token, cached. The drain tick asks every five seconds,
+#: and each ask was a keychain round trip -- D-Bus IPC on the event loop for a
+#: value that changes only when someone runs the setup command.
+_TOKEN_PRESENCE: tuple[bool, float] | None = None
+
+
+def token_present() -> bool:
+    """Whether the relay token exists, remembered for a short while."""
+    global _TOKEN_PRESENCE
+    import time as _time
+
+    now = _time.monotonic()
+    if _TOKEN_PRESENCE is not None and now < _TOKEN_PRESENCE[1]:
+        return _TOKEN_PRESENCE[0]
+    try:
+        answer = get_secret(TOKEN_REF) is not None
+    except Exception:
+        answer = False
+    _TOKEN_PRESENCE = (answer, now + 10.0)
+    return answer
+
+
 def set_token(value: str) -> None:
+    global _TOKEN_PRESENCE
+    _TOKEN_PRESENCE = None  # a set token must be visible to the next presence ask
     set_secret(TOKEN_REF, value.strip())
 
 
 def clear_token() -> None:
+    global _TOKEN_PRESENCE
+    _TOKEN_PRESENCE = None
     try:
         delete_secret(TOKEN_REF)
     except Exception as exc:
@@ -259,7 +285,7 @@ class RelayPoller:
         return self._take_delivery(raw, row, store)
 
     def _take_delivery(self, raw: bytes, row: dict[str, Any],
-                       store: InstagramEventStore) -> bool:
+                       store: InstagramEventStore) -> bool | None:
         # The check that makes the relay untrusted infrastructure rather than a
         # trusted one. Over the bytes as they arrived at the relay, which is why
         # they were relayed as bytes.
@@ -278,8 +304,15 @@ class RelayPoller:
             return False
 
         if store.queued_count() >= MAX_QUEUED:
-            log.warning("the local queue is full at %d; leaving the rest at the relay", MAX_QUEUED)
-            return False
+            # Held, not dropped. The drain empties the local queue every few
+            # seconds, so the next sync has room again -- but acknowledging now
+            # would make this the sync that told the relay to delete the reel.
+            # None leaves the row alive at the relay; the daily cron is the
+            # eight-day deadline if this machine never drains.
+            log.warning(
+                "the local queue is full at %d; leaving the rest at the relay", MAX_QUEUED
+            )
+            return None
 
         queued = 0
         for inbound in parse(body):

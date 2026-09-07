@@ -47,6 +47,10 @@ from backend.web.reader import (
 
 log = logging.getLogger(__name__)
 
+#: Background enrichment tasks, held so the event loop's weak reference to an
+#: unreferenced task cannot be the reason enrichment silently vanishes.
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
 #: Below this, the "text" is a cookie banner or a paywall stub rather than an
 #: article, and indexing it would pollute the index with a page nobody read.
 MIN_INDEXABLE_CHARS = 200
@@ -372,10 +376,11 @@ class LibraryService:
         lands when it lands.
 
         Gated on `library.auto_enrich` so a machine with no provider key can
-        turn it off rather than log a refusal per share. No reference to the
-        task is kept: enrichment is best-effort, and the caller's work is done
-        whether or not it succeeds. `enrich` can always be re-run from the
-        Library view.
+        turn it off rather than log a refusal per share. The task is held in a
+        module-level set with a done-callback: asyncio keeps only weak
+        references, so an unreferenced task can be garbage-collected mid-run,
+        which is a nondeterministic way for enrichment to vanish without even
+        the logged failure. `enrich` can always be re-run from the Library view.
         """
         try:
             from backend.config import load_library
@@ -392,9 +397,12 @@ class LibraryService:
                 log.info("auto-enrichment failed for library item %s: %s", item_id, exc)
 
         try:
-            asyncio.get_running_loop().create_task(run())
+            task = asyncio.get_running_loop().create_task(run())
         except RuntimeError:  # no loop: a sync caller gets no enrichment
             log.debug("no loop to enrich library item %s on", item_id)
+            return
+        _BACKGROUND_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_TASKS.discard)
 
     async def log_manual(
         self,
@@ -466,7 +474,12 @@ class LibraryService:
         path = text_path(item_id, title)
         document_text = text if rendered else f"# {title}\n\n{text}\n"
         try:
-            path.write_text(document_text, encoding="utf-8")
+            # Atomic: this file is indexed the line below, and a crash mid-write
+            # would index a truncated capture that then reads as unchanged on
+            # every later scan.
+            from backend.config import write_atomic
+
+            write_atomic(path, document_text)
         except OSError as exc:
             log.warning("could not write library text for %s: %s", item_id, exc)
             return f"the text could not be saved: {exc}"

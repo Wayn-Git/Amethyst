@@ -74,15 +74,19 @@ def backoff(attempt: int) -> float:
     return min(2.0**attempt, 8.0) * (0.5 + random.random() / 2)
 
 
-# One client per event loop, so connections are reused across calls.
+# One client per (event loop, read timeout), so connections are reused across
+# calls *of the same shape*. A client was built and closed per request and per
+# retry, which meant a fresh TCP and TLS handshake to the provider every time.
+# A browser task makes on the order of 26 model calls -- each one a tool call's
+# worth of round trip -- so that was 26 handshakes to the same host, paid in
+# series, before any tokens moved. Keyed by loop because a client is bound to
+# the loop that created it, and the CLI, the API and tests each run their own.
 #
-# A client was built and closed per request and per retry, which meant a fresh
-# TCP and TLS handshake to the provider every time. A browser task makes on the
-# order of 26 model calls -- each one a tool call's worth of round trip -- so
-# that was 26 handshakes to the same host, paid in series, before any tokens
-# moved. Keyed by loop because a client is bound to the loop that created it,
-# and the CLI, the API and tests each run their own.
-_CLIENTS: dict[object, httpx.AsyncClient] = {}
+# The timeout is part of the key because it used to be silently dropped after
+# first creation: whichever module touched the pool first fixed everyone
+# else's timeout, so Gmail's effective read deadline depended on whether the
+# embeddings client (120s) or the relay (20s) had happened to run first.
+_CLIENTS: dict[tuple[object, float], httpx.AsyncClient] = {}
 
 
 #: The longest a connect may take. A dead endpoint should fail fast; it is the
@@ -105,22 +109,25 @@ def _as_timeout(timeout: float) -> httpx.Timeout:
 
 def _client(timeout: float) -> httpx.AsyncClient:
     loop = asyncio.get_running_loop()
-    client = _CLIENTS.get(loop)
+    key = (loop, timeout)
+    client = _CLIENTS.get(key)
     if client is None or client.is_closed:
         client = httpx.AsyncClient(
             timeout=_as_timeout(timeout),
             limits=httpx.Limits(max_keepalive_connections=16, keepalive_expiry=300.0),
         )
-        _CLIENTS[loop] = client
+        _CLIENTS[key] = client
     return client
 
 
 async def close_clients() -> None:
-    """Close this loop's pooled client. Called on shutdown; safe to skip."""
+    """Close this loop's pooled clients. Called on shutdown; safe to skip."""
     loop = asyncio.get_running_loop()
-    client = _CLIENTS.pop(loop, None)
-    if client is not None and not client.is_closed:
-        await client.aclose()
+    stale = [key for key in _CLIENTS if key[0] is loop]
+    for key in stale:
+        client = _CLIENTS.pop(key, None)
+        if client is not None and not client.is_closed:
+            await client.aclose()
 
 
 def is_retryable(status: int, body: str | None = None) -> bool:

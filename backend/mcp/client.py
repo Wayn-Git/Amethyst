@@ -252,6 +252,16 @@ class MCPConnection:
                 self._ready.set_exception(self._classify(message))
             else:
                 log.warning("MCP server %s dropped: %s", self.config.name, message)
+        finally:
+            # Whatever way the task ends, nothing will ever serve the queue
+            # again. A caller whose request was queued but not yet picked up
+            # would otherwise wait on its future until the timeout in `call`
+            # -- and before that timeout existed, forever. Skipped while the
+            # ready future is still pending: that failure is delivered through
+            # `_ready` to whoever is connecting, and no request can have been
+            # queued before connect() returned.
+            if self._ready is None or self._ready.done():
+                self._fail_pending(f"'{self.config.name}' dropped before this call ran")
 
     def _describe(self, exc: BaseException) -> str:
         """Unwrap nested TaskGroup ExceptionGroups down to the cause that matters.
@@ -365,7 +375,14 @@ class MCPConnection:
             await self.connect()
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         await self._requests.put((tool_name, arguments, future))
-        return await future
+        # The future is resolved by `_serve` -- but `_serve` only runs while
+        # the transport lives, and a request enqueued in the window where the
+        # serving task is dying (or queued behind the shutdown sentinel) is
+        # never answered at all. Without a bound here, a crashed stdio server
+        # turned one tool call into a hang that lasted until the user pressed
+        # Stop; with one, it is a TimeoutError the manager's handler already
+        # knows how to report.
+        return await asyncio.wait_for(future, timeout=self.config.timeout_seconds)
 
     async def disconnect(self) -> None:
         task, self._task = self._task, None
@@ -378,12 +395,31 @@ class MCPConnection:
             except Exception as exc:
                 log.debug("graceful shutdown of %s failed, cancelling: %s", self.config.name, exc)
                 task.cancel()
+        # Anything still queued will never be served; fail it now rather than
+        # leaving a caller -- possibly one holding the turn open -- waiting on
+        # a future nothing will resolve.
+        self._fail_pending(f"{self.config.name} shut down before this call ran")
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=5)
         except (TimeoutError, asyncio.CancelledError):
-            pass
+            # `shield` keeps the task alive on timeout, so cancel it here too:
+            # abandoning a running task leaks the stdio subprocess and its
+            # pipes for the life of the process.
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await asyncio.wait_for(task, timeout=5)
         except Exception as exc:
             log.debug("%s exited with %s", self.config.name, exc)
+
+    def _fail_pending(self, message: str) -> None:
+        """Resolve every queued request with an error, so nobody waits on it."""
+        while True:
+            try:
+                tool_name, _arguments, future = self._requests.get_nowait()
+            except asyncio.QueueEmpty:
+                return
+            if not future.done():
+                future.set_exception(MCPConnectionError(message))
 
     async def _drain_shutdown(self, future: asyncio.Future) -> None:
         await self._requests.put(("__shutdown__", {}, future))

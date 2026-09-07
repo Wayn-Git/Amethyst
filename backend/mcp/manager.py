@@ -120,6 +120,14 @@ class MCPManager:
         self.open_browser = open_browser
         self.connections: dict[str, MCPConnection] = {}
         self.errors: dict[str, str] = {}
+        # One lock per server, serialising connect/disconnect for that server
+        # only. Without it, a mid-turn reconnect racing a turn-start reconcile
+        # interleaved disconnect -> spawn -> register for the same name: the
+        # loser's teardown unregistered the winner's live tools mid-call, or
+        # its registry.register raised "already registered" -- the subprocess
+        # churn the API's global lock exists to prevent, reachable through a
+        # path the API's lock does not cover.
+        self._server_locks: dict[str, asyncio.Lock] = {}
         # When reconcile may next try a failed server again, and how many times
         # in a row it has failed -- see `_hold_off`.
         self.retry_after: dict[str, float] = {}
@@ -261,6 +269,13 @@ class MCPManager:
         if not config.enabled:
             return 0
 
+        lock = self._server_locks.setdefault(config.name, asyncio.Lock())
+        async with lock:
+            return await self._connect_server_locked(config, interactive=interactive, force=force)
+
+    async def _connect_server_locked(
+        self, config: ServerConfig, *, interactive: bool = True, force: bool = False
+    ) -> int:
         live = self.connections.get(config.name)
         if (
             not force
@@ -438,10 +453,12 @@ class MCPManager:
     # --------------------------------------------------------------- lifecycle
 
     async def disconnect_server(self, name: str) -> None:
-        connection = self.connections.pop(name, None)
-        if connection is not None:
-            await connection.disconnect()
-        self.registry.unregister_server(name)
+        lock = self._server_locks.setdefault(name, asyncio.Lock())
+        async with lock:
+            connection = self.connections.pop(name, None)
+            if connection is not None:
+                await connection.disconnect()
+            self.registry.unregister_server(name)
 
     async def connect_all(
         self, *, conversation_id: str | None = None, interactive: bool = False
@@ -532,12 +549,13 @@ class MCPManager:
         service = CapabilityService()
         configured = load_servers()
         results: dict[str, int | str] = {}
+        pending_disconnect: list[str] = []
+        pending_connect: list[ServerConfig] = []
 
         for name in [n for n in set(self.connections) | set(self.errors) if n not in configured]:
             # Removed from mcp.yaml. Its failure has to go with it, or health
             # stays degraded forever over a connector that no longer exists.
-            await self.disconnect_server(name)
-            self._clear_failure(name)
+            pending_disconnect.append(name)
             results[name] = 0
 
         for name, config in configured.items():
@@ -546,8 +564,8 @@ class MCPManager:
 
             if not config.enabled or service.switched_off(Kind.CONNECTOR, name):
                 if connected:
-                    await self.disconnect_server(name)
                     results[name] = 0
+                    pending_disconnect.append(name)
                 continue
 
             # Only an explicit "on" starts a process. A server connected by hand
@@ -555,16 +573,44 @@ class MCPManager:
             if not connected and service.is_enabled(Kind.CONNECTOR, name):
                 if name in self.errors and time.monotonic() < self.retry_after.get(name, 0.0):
                     continue
-                try:
-                    results[name] = await self.connect_server(config, interactive=False)
-                except Exception as exc:
-                    results[name] = str(exc)
+                pending_connect.append(config)
+
+        # Disconnects and connects run concurrently, exactly as `connect_all`
+        # does: the serial loop this replaces could hold every turn's start for
+        # N x connect-timeout seconds, because reconcile runs at the head of
+        # every turn under the registry lock.
+        async def connect_one(config: ServerConfig) -> tuple[str, int | str]:
+            try:
+                return config.name, await self.connect_server(config, interactive=False)
+            except Exception as exc:
+                return config.name, str(exc)
+
+        if pending_disconnect or pending_connect:
+            await asyncio.gather(
+                *(self.disconnect_server(name) for name in pending_disconnect),
+                *(connect_one(config) for config in pending_connect),
+            )
+            for name in pending_disconnect:
+                self._clear_failure(name)
+                results[name] = 0
+            for config in pending_connect:
+                # A connect that raced its own disconnect records its outcome
+                # through the connection state; read it back rather than
+                # trusting the pre-gather snapshot.
+                results[config.name] = self.registered_tool_count(config.name) or self.errors.get(
+                    config.name, 0
+                )
         self.reconciled_once = True
         return results
 
     async def shutdown(self) -> None:
-        for name in list(self.connections):
-            await self.disconnect_server(name)
+        # Concurrent: disconnect is bounded by a 5s+5s timeout per server, and a
+        # serial shutdown over N dead servers paid N times that on the exit
+        # path while the API was already trying to stop.
+        if self.connections:
+            await asyncio.gather(
+                *(self.disconnect_server(name) for name in list(self.connections))
+            )
 
     def status(self) -> list[dict[str, Any]]:
         counts = self._tool_counts()

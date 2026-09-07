@@ -42,6 +42,7 @@ from backend.agent.prompt import (
     estimate_tokens,
     extract_skill_invocations,
     fit_tools_to_budget,
+    to_wire_message,
     to_wire_messages,
     tool_schema_tokens,
 )
@@ -112,8 +113,8 @@ async def _race_cancel(awaitable, cancel: asyncio.Event | None):
     during a model call did nothing until that call returned -- with a 120s
     timeout and three retries, up to about eight minutes of a dead interface.
     Racing here is what makes the button mean what it says: cancelling the task
-    propagates into httpx and aborts the request itself rather than waiting for
-    a response nobody wants.
+    propagates into httpx and aborts the request itself rather than waiting for a
+    response nobody wants.
     """
     if cancel is None:
         return await awaitable
@@ -134,6 +135,16 @@ async def _race_cancel(awaitable, cancel: asyncio.Event | None):
         waiter.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await waiter
+
+
+async def _none():
+    """The absent retrieval block, as an awaitable -- see `run`'s gather."""
+    return None
+
+
+async def _empty():
+    """The absent memory recall, as an awaitable -- see `run`'s gather."""
+    return []
 
 
 async def _stream_until_cancelled(stream, cancel: asyncio.Event | None):
@@ -414,12 +425,15 @@ class Director:
         # progress bar, and an invented one is worse than none.
         executing = not planning and user_message.lstrip().lower().startswith("approved")
         step_open: int | None = None
-        if self.retrieval:
+        if self.retrieval or self.memory:
             yield Event("status", {"state": "retrieving"})
-        retrieved_context = await self._retrieve(user_message)
-        if self.memory:
-            yield Event("status", {"state": "recalling"})
-        recalled = await self._recall(conversation_id, user_message)
+        # Two independent best-effort lookups, run together: an embedder round
+        # trip awaited before the memory service added its own latency to the
+        # head of every turn for no ordering reason at all.
+        retrieved_context, recalled = await asyncio.gather(
+            self._retrieve(user_message) if self.retrieval else _none(),
+            self._recall(conversation_id, user_message) if self.memory else _empty(),
+        )
         hidden_servers = self._disabled_connectors(conversation_id)
         # Which connectors can actually be reached this turn. Resolved once:
         # it is the same answer on every round trip, and it is read twice per
@@ -453,6 +467,14 @@ class Director:
         # about how to continue, not part of what was said, so it never reaches
         # the transcript.
         nudge: str | None = None
+        # The transcript as wire messages, assembled once and appended to as the
+        # turn writes new rows. Reading the full history from SQLite on every
+        # round trip -- with `json.loads` on every tool_calls blob -- made a
+        # long conversation cost O(rows x iterations) on the event loop.
+        history: list[dict[str, Any]] = to_wire_messages(
+            self.messages.history(conversation_id)
+        )
+        seen_message_id = self._last_message_id(conversation_id)
 
         for iteration in range(self.guards.max_iterations):
             if cancel is not None and cancel.is_set():
@@ -561,12 +583,19 @@ class Director:
                         warned_about_tools = True
                         yield Event("warning", {"message": dropped_summary(dropped)})
                 try:
-                    history = to_wire_messages(self.messages.history(conversation_id))
+                    # Rows this turn wrote since the last round trip -- tool
+                    # results, assistant tool_calls -- appended to the snapshot
+                    # taken once at the head of the turn. A fallback attempt
+                    # reuses the same assembled list rather than re-reading it.
+                    for message in self.messages.history(conversation_id):
+                        if message.id is not None and message.id > seen_message_id:
+                            history.append(to_wire_message(message))
+                            seen_message_id = message.id
                     # Re-budgeted against whichever model is about to be called.
                     # Carrying a 200,000-token history into a 32,000-token
                     # fallback trades one provider's outage for the next one's
                     # refusal.
-                    history = budget_history(
+                    budgeted = budget_history(
                         history,
                         context_window=model.capabilities.context_window,
                         system_prompt=system_prompt,
@@ -578,14 +607,14 @@ class Director:
                     # enough to answer from, and is strictly better than the
                     # error frame this used to become.
                     log.warning("history assembly failed, sending the last exchange: %s", exc)
-                    history = [{"role": "user", "content": user_message}]
+                    budgeted = [{"role": "user", "content": user_message}]
                     if not degraded:
                         degraded = True
                         yield Event(
                             "warning",
                             {"message": "earlier messages could not be read for this turn"},
                         )
-                wire = [{"role": "system", "content": system_prompt}, *history]
+                wire = [{"role": "system", "content": system_prompt}, *budgeted]
                 if nudge:
                     # Cleared once a call succeeds, not here: a fallback
                     # attempt has to carry the same instruction.
@@ -1257,6 +1286,26 @@ class Director:
             return (await SearchService().context_for(user_message)) or None
         except Exception as exc:
             log.debug("retrieval unavailable for this turn: %s", exc)
+            return None
+
+    def _last_message_id(self, conversation_id: str) -> int:
+        """The newest row id in a conversation, for the incremental history read."""
+        try:
+            row = self.conn_or_none().execute(
+                "SELECT COALESCE(MAX(id), 0) AS n FROM messages WHERE conversation_id = ?",
+                (conversation_id,),
+            ).fetchone()
+            return int(row[0])
+        except Exception:
+            return 0
+
+    def conn_or_none(self):
+        """The shared connection, or None if the database will not open."""
+        try:
+            from backend.db.connection import get_connection
+
+            return get_connection()
+        except Exception:
             return None
 
     def _persist(self, *args: Any, **kwargs: Any) -> None:

@@ -21,6 +21,7 @@ two ticks overlapping, cannot produce two of them.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from datetime import datetime, timedelta
@@ -52,6 +53,12 @@ LATE_AFTER = timedelta(minutes=5)
 # available on demand from the API and the CLI, and the Tasks page asks for one
 # when it opens.
 SYNC_EVERY_SECONDS = 90
+
+#: How often the audit log is pruned. Every tool call from every source writes
+#: a row and nothing else retires them, so unattended runs grow a table nothing
+#: reads past its first page -- an hour between prunes is far under any growth
+#: rate that matters, and the prune itself is one statement.
+PRUNE_LOGS_EVERY_SECONDS = 3600.0
 
 
 def _now() -> datetime:
@@ -120,20 +127,28 @@ class ReminderRunner:
         # it this loop is reminders only, which is what the CLI and the tests want.
         self.manager_for = manager_for
         self._next_sync = 0.0
+        self._next_prune_logs = 0.0
+        # The in-flight sync, if one is running. The sync is network round
+        # trips (and possibly a connector spawn); the reminder scan is one
+        # indexed read. Awaiting the sync inside the tick made reminder
+        # delivery wait out every Graph call -- the same stall this runner was
+        # split out of the automation loop to avoid, arriving from its other
+        # neighbour. Tracked so a slow sync cannot overlap itself either.
+        self._sync_task: asyncio.Task | None = None
 
     def start(self) -> None:
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._loop(), name="reminders")
 
     async def stop(self) -> None:
-        if self._task is None:
-            return
-        self._task.cancel()
-        try:
-            await self._task
-        except asyncio.CancelledError:
-            pass
+        tasks = [t for t in (self._task, self._sync_task) if t is not None]
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         self._task = None
+        self._sync_task = None
 
     async def _loop(self) -> None:
         while True:
@@ -141,28 +156,47 @@ class ReminderRunner:
                 await asyncio.sleep(TICK_SECONDS)
                 if sent := await fire_due():
                     log.info("delivered %d reminder(s)", sent)
-                await self._maybe_sync()
+                self._maybe_sync()
+                self._maybe_prune_logs()
             except asyncio.CancelledError:
                 raise
             except Exception:  # one bad tick must not end the runner
                 log.exception("reminder tick failed")
 
-    async def _maybe_sync(self) -> None:
-        """Pull connected task sources, well below the reminder cadence.
+    def _maybe_prune_logs(self) -> None:
+        """Retire old audit rows. Runs whether or not anything else is set up."""
+        if time.monotonic() < self._next_prune_logs:
+            return
+        self._next_prune_logs = time.monotonic() + PRUNE_LOGS_EVERY_SECONDS
+        try:
+            from backend.db.repositories import ExecutionLogRepository
 
-        Reminders are checked twice a minute because the cost is a single
-        indexed read. A sync is network round trips against someone else's API,
-        so it runs on its own much slower clock -- and a connector that is not
-        signed in is a normal state, logged at debug and not retried harder.
+            ExecutionLogRepository().prune()
+        except Exception:
+            log.exception("could not prune the execution log")
+
+    def _maybe_sync(self) -> None:
+        """Kick off a connector sync without waiting for it.
+
+        The cadence is unchanged; what changed is that a tick no longer blocks
+        on it. A connector that is not signed in is a normal state, logged at
+        debug and not retried harder.
         """
         if self.manager_for is None or time.monotonic() < self._next_sync:
             return
+        if self._sync_task is not None and not self._sync_task.done():
+            return  # the last sync is still running; the next tick will retry
         self._next_sync = time.monotonic() + SYNC_EVERY_SECONDS
+        self._sync_task = asyncio.create_task(self._run_sync(), name="reminders:sync")
+
+    async def _run_sync(self) -> None:
         try:
             report = await sync_microsoft_todo(await self.manager_for())
         except SyncUnavailable as exc:
             log.debug("Microsoft To Do sync skipped: %s", exc)
             return
+        except asyncio.CancelledError:
+            raise
         except Exception:
             log.exception("Microsoft To Do sync failed")
             return

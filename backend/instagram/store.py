@@ -182,12 +182,17 @@ class InstagramEventStore:
         ).fetchone()[0]
 
     def prune(self, *, keep_days: int = 30) -> int:
-        """Drop settled events. The library item is the record; this is the receipt."""
+        """Drop settled events. The library item is the record; this is the receipt.
+
+        `failed` is included: a row that failed three attempts carries its full
+        verbatim payload and will never change state, so keeping it forever is
+        an unbounded table for a misconfigured account.
+        """
         cutoff = (datetime.now() - timedelta(days=keep_days)).isoformat(
             sep=" ", timespec="seconds"
         )
         cursor = self.conn.execute(
-            "DELETE FROM instagram_events WHERE status IN ('done', 'ignored')"
+            "DELETE FROM instagram_events WHERE status IN ('done', 'ignored', 'failed')"
             " AND received_at < ?",
             (cutoff,),
         )

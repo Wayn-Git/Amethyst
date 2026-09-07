@@ -220,6 +220,58 @@ class Indexer:
         if len(chunks) > LOUD_CHUNK_COUNT:
             log.info("%s is %d chunks; embedding it will take a while", path.name, len(chunks))
 
+        # The document row is not touched until the embedding has answered.
+        # The old order wrote `content_hash` and deleted the old chunks first,
+        # then awaited the embedder -- holding an uncommitted transaction open
+        # across a network call whose retries can run to minutes, on the one
+        # connection the whole process shares. Any other writer's commit() in
+        # that window flushed the half-done state (chunks already deleted, hash
+        # already advanced), and a crash there left a document with no chunks,
+        # `stale=0` and a matching hash -- which the early return above then
+        # read as "unchanged" forever. Embedding first, writing second, keeps
+        # the database never wrong for longer than one fast local commit.
+        stored = (
+            {
+                row["content_hash"]: row["id"]
+                for row in self.conn.execute(
+                    "SELECT id, content_hash FROM document_chunks WHERE document_id = ?",
+                    (existing["id"],),
+                ).fetchall()
+            }
+            if existing
+            else {}
+        )
+        incoming = {chunk.content_hash: chunk for chunk in chunks}
+        new_chunks = [chunk for h, chunk in incoming.items() if h not in stored]
+
+        vectors: list = []
+        if new_chunks:
+            # Before anything is written: keyword search must not depend on an
+            # embedder answering. See store.ensure_keyword_index.
+            store.ensure_keyword_index(self.conn)
+            self.conn.commit()  # the ensure above; not part of the write below
+            try:
+                vectors = await self.embedder.embed([c.content for c in new_chunks])
+            except EmbeddingError as exc:
+                if require_embeddings:
+                    raise
+                # Findable by keyword now, and by meaning after a re-index once
+                # the embedder is back. Silently dropping the chunk instead
+                # would lose the document for the sake of half its index.
+                log.info("indexing %s without embeddings: %s", path.name, exc)
+                report.errors.append(f"embeddings unavailable: {exc}")
+                vectors = []
+            if vectors and len(vectors) != len(new_chunks):
+                # Pairing by position is only valid if the counts match; a short
+                # response would silently attach each vector to the wrong chunk.
+                raise EmbeddingError(
+                    f"embedder returned {len(vectors)} vectors for {len(new_chunks)} chunks"
+                )
+            if vectors:
+                store.ensure_indexes(self.conn, len(vectors[0]))
+                store.record_embedding_model(self.conn, self.embedder.provider, self.embedder.model)
+                self.conn.commit()  # the ensures above; not part of the write below
+
         if existing:
             document_id = existing["id"]
             self.conn.execute(
@@ -244,14 +296,6 @@ class Indexer:
             document_id = cursor.lastrowid
 
         # Diff by chunk hash so an edit to one paragraph re-embeds one chunk.
-        stored = {
-            row["content_hash"]: row["id"]
-            for row in self.conn.execute(
-                "SELECT id, content_hash FROM document_chunks WHERE document_id = ?", (document_id,)
-            ).fetchall()
-        }
-        incoming = {chunk.content_hash: chunk for chunk in chunks}
-
         obsolete = [cid for h, cid in stored.items() if h not in incoming]
         if obsolete:
             store.remove_chunks(self.conn, obsolete)
@@ -259,49 +303,23 @@ class Indexer:
             self.conn.execute(f"DELETE FROM document_chunks WHERE id IN ({placeholders})", obsolete)
             report.chunks_deleted += len(obsolete)
 
-        new_chunks = [chunk for h, chunk in incoming.items() if h not in stored]
-        if new_chunks:
-            # Before anything is written: keyword search must not depend on an
-            # embedder answering. See store.ensure_keyword_index.
-            store.ensure_keyword_index(self.conn)
-            try:
-                vectors = await self.embedder.embed([c.content for c in new_chunks])
-            except EmbeddingError as exc:
-                if require_embeddings:
-                    raise
-                # Findable by keyword now, and by meaning after a re-index once
-                # the embedder is back. Silently dropping the chunk instead
-                # would lose the document for the sake of half its index.
-                log.info("indexing %s without embeddings: %s", path.name, exc)
-                report.errors.append(f"embeddings unavailable: {exc}")
-                vectors = []
-            if vectors and len(vectors) != len(new_chunks):
-                # Pairing by position is only valid if the counts match; a short
-                # response would silently attach each vector to the wrong chunk.
-                raise EmbeddingError(
-                    f"embedder returned {len(vectors)} vectors for {len(new_chunks)} chunks"
-                )
-            if vectors:
-                store.ensure_indexes(self.conn, len(vectors[0]))
-                store.record_embedding_model(self.conn, self.embedder.provider, self.embedder.model)
-
-            for chunk, vector in zip(new_chunks, vectors or [None] * len(new_chunks), strict=False):
-                cursor = self.conn.execute(
-                    "INSERT INTO document_chunks (document_id, chunk_index, heading_path,"
-                    " content, content_hash, token_count) VALUES (?, ?, ?, ?, ?, ?)",
-                    (
-                        document_id,
-                        chunk.index,
-                        chunk.heading_path,
-                        chunk.content,
-                        chunk.content_hash,
-                        chunk.token_count,
-                    ),
-                )
-                store.index_chunk(
-                    self.conn, cursor.lastrowid, chunk.content, chunk.heading_path, vector
-                )
-            report.chunks_added += len(new_chunks)
+        for chunk, vector in zip(new_chunks, vectors or [None] * len(new_chunks), strict=False):
+            cursor = self.conn.execute(
+                "INSERT INTO document_chunks (document_id, chunk_index, heading_path,"
+                " content, content_hash, token_count) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    document_id,
+                    chunk.index,
+                    chunk.heading_path,
+                    chunk.content,
+                    chunk.content_hash,
+                    chunk.token_count,
+                ),
+            )
+            store.index_chunk(
+                self.conn, cursor.lastrowid, chunk.content, chunk.heading_path, vector
+            )
+        report.chunks_added += len(new_chunks)
 
         self.conn.commit()
         report.indexed += 1

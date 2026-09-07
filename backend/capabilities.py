@@ -72,7 +72,7 @@ class CapabilityService:
             "SELECT enabled FROM capability_state WHERE scope = ? AND kind = ? AND name = ?",
             (scope, str(kind), name),
         ).fetchone()
-        return None if row is None else bool(row["enabled"])
+        return None if row is None else bool(row[0])
 
     def set_enabled(
         self,

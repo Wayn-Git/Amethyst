@@ -9,6 +9,7 @@ invoke_skill tool, by design.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,22 @@ from backend.config import paths
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+#: How long a directory listing is trusted. The catalogue is built into the
+#: system prompt on every model round trip -- a 15-iteration turn re-walked the
+#: skills directory and re-parsed every SKILL.md's YAML fifteen times. Skill
+#: files change on the scale of minutes at most, so a short TTL removes the
+#: repeated disk walk without making a just-created skill invisible.
+SCAN_TTL_SECONDS = 5.0
+
+_scan_cache: tuple[float, Path, tuple[list[Skill], list[SkillLoadError]]] | None = None
+
+
+def forget_scan_cache() -> None:
+    """Drop the scan cache. Called when a skill is installed or removed, so the
+    next read reflects the change immediately rather than after the TTL."""
+    global _scan_cache
+    _scan_cache = None
 
 
 @dataclass
@@ -75,10 +92,25 @@ def parse_skill_md(path: Path) -> tuple[Skill | None, str | None]:
 
 
 def scan(skills_dir: Path | None = None) -> tuple[list[Skill], list[SkillLoadError]]:
+    """List installed skills, cached for a few seconds.
+
+    Called from the system-prompt build on every model round trip, so the disk
+    walk and YAML parse are memoised per directory for `SCAN_TTL_SECONDS`. An
+    explicit `skills_dir` bypasses the cache: it is what the tests use, and a
+    caller naming a directory wants that directory, not a stale answer.
+    """
+    global _scan_cache
     root = skills_dir or paths().skills_dir
+    if skills_dir is None and _scan_cache is not None:
+        expires, cached_root, cached = _scan_cache
+        if cached_root == root and time.monotonic() < expires:
+            return cached
+
     skills: list[Skill] = []
     errors: list[SkillLoadError] = []
     if not root.exists():
+        if skills_dir is None:
+            _scan_cache = (time.monotonic() + SCAN_TTL_SECONDS, root, (skills, errors))
         return skills, errors
 
     for child in sorted(root.iterdir()):
@@ -93,6 +125,8 @@ def scan(skills_dir: Path | None = None) -> tuple[list[Skill], list[SkillLoadErr
             skills.append(skill)
         else:
             errors.append(SkillLoadError(skill_md, error or "unknown error"))
+    if skills_dir is None:
+        _scan_cache = (time.monotonic() + SCAN_TTL_SECONDS, root, (skills, errors))
     return skills, errors
 
 

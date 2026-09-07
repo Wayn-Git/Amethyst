@@ -98,6 +98,13 @@ def install_text(text: str, *, skills_dir: Path | None = None, overwrite: bool =
             shutil.rmtree(target)
         shutil.copytree(staged, target)
 
+    # A skill landing or changing must be visible to the next `scan()` at once
+    # -- the catalogue view reads it right after this returns, and a TTL-stale
+    # answer would report the just-installed skill as absent.
+    from backend.skills.loader import forget_scan_cache
+
+    forget_scan_cache()
+
     installed, error = parse_skill_md(target / "SKILL.md")
     if installed is None:  # pragma: no cover - it parsed a moment ago
         raise SkillInstallError(error or "not a valid skill")
@@ -135,4 +142,7 @@ def remove(name: str, *, skills_dir: Path | None = None) -> bool:
     if not target.is_relative_to(root) or not target.is_dir():
         return False
     shutil.rmtree(target)
+    from backend.skills.loader import forget_scan_cache
+
+    forget_scan_cache()
     return True

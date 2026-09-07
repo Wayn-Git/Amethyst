@@ -242,19 +242,21 @@ def tool_schema_tokens(tools: Sequence[Any] | None) -> int:
 
 def to_wire_messages(history: list[Message]) -> list[dict]:
     """Repository rows to the normalized message shape adapters consume."""
-    out: list[dict] = []
-    for m in history:
-        entry: dict = {"role": m.role, "content": m.content}
-        if m.tool_calls:
-            entry["tool_calls"] = m.tool_calls
-        if m.tool_call_id:
-            entry["tool_call_id"] = m.tool_call_id
-        if m.tool_name:
-            entry["tool_name"] = m.tool_name
-        if m.is_error:
-            entry["is_error"] = True
-        out.append(entry)
-    return out
+    return [to_wire_message(m) for m in history]
+
+
+def to_wire_message(m: Message) -> dict:
+    """One repository row to the normalized message shape adapters consume."""
+    entry: dict = {"role": m.role, "content": m.content}
+    if m.tool_calls:
+        entry["tool_calls"] = m.tool_calls
+    if m.tool_call_id:
+        entry["tool_call_id"] = m.tool_call_id
+    if m.tool_name:
+        entry["tool_name"] = m.tool_name
+    if m.is_error:
+        entry["is_error"] = True
+    return entry
 
 
 #: How PSOK names a connector's tool in the registry (`backend.tools.registry`).

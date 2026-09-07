@@ -134,7 +134,9 @@ class InstagramRunner:
         """
         from backend.instagram import relay as ig_relay
 
-        return bool(settings.relay_enabled and settings.relay_url and ig_relay.token())
+        # Presence, not the value: this runs every tick, and the value is only
+        # needed when a sync actually happens.
+        return bool(settings.relay_enabled and settings.relay_url and ig_relay.token_present())
 
     async def drain(self, *, store: InstagramEventStore | None = None) -> list[int]:
         """Work the queue, one event at a time.

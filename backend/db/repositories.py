@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from backend.db.connection import get_connection
+from backend.db.connection import get_connection, transaction
 
 
 def _conn(conn: sqlite3.Connection | None) -> sqlite3.Connection:
@@ -170,9 +170,23 @@ class ConversationRepository:
             " ORDER BY created_at DESC LIMIT -1 OFFSET ?",
             (automation_id, keep),
         ).fetchall()
-        for row in stale:
-            self.delete(row["id"])
-        return len(stale)
+        if not stale:
+            return 0
+        ids = [row["id"] for row in stale]
+        with transaction(self.conn):
+            for start in range(0, len(ids), 400):
+                batch = ids[start : start + 400]
+                placeholders = ",".join("?" * len(batch))
+                self.conn.execute(
+                    f"DELETE FROM conversations WHERE id IN ({placeholders})", batch
+                )
+                self.conn.execute(
+                    f"DELETE FROM capability_state WHERE scope IN ({placeholders})", batch
+                )
+                self.conn.execute(
+                    f"DELETE FROM memory_state WHERE scope IN ({placeholders})", batch
+                )
+        return len(ids)
 
     def update(
         self,
@@ -215,21 +229,27 @@ class ConversationRepository:
         Messages cascade through the foreign key, but two tables key on the
         conversation id as a plain scope string rather than a reference --
         capability_state and memory_state -- so a deleted conversation would
-        otherwise leave rows nothing can ever reach again. Extracted memories
+        otherwise leave rows nothing can ever reach again.         Extracted memories
         are deliberately kept: a fact learned in a conversation outlives it,
         which is why memories.conversation_id is not a foreign key.
+
+        The three deletes run inside one transaction. On the single connection
+        the process shares, an interleaved commit from another thread could
+        land between the conversation's DELETE and its scoped-row cleanup, so a
+        crash mid-sequence left exactly the orphaned rows this shape exists to
+        prevent.
         """
-        cursor = self.conn.execute(
-            "DELETE FROM conversations WHERE id = ?", (conversation_id,)
-        )
-        if cursor.rowcount:
-            self.conn.execute(
-                "DELETE FROM capability_state WHERE scope = ?", (conversation_id,)
+        with transaction(self.conn):
+            cursor = self.conn.execute(
+                "DELETE FROM conversations WHERE id = ?", (conversation_id,)
             )
-            self.conn.execute(
-                "DELETE FROM memory_state WHERE scope = ?", (conversation_id,)
-            )
-        self.conn.commit()
+            if cursor.rowcount:
+                self.conn.execute(
+                    "DELETE FROM capability_state WHERE scope = ?", (conversation_id,)
+                )
+                self.conn.execute(
+                    "DELETE FROM memory_state WHERE scope = ?", (conversation_id,)
+                )
         return cursor.rowcount > 0
 
     def delete_all(self, *, include_automations: bool = False) -> int:
@@ -249,7 +269,27 @@ class ConversationRepository:
         if not include_automations:
             sql += " WHERE automation_id IS NULL"
         rows = self.conn.execute(sql).fetchall()
-        return sum(1 for row in rows if self.delete(row["id"]))
+        # Scoped rows are cleaned with two bulk deletes inside the same
+        # transaction as the conversations, rather than three statements per
+        # conversation each with their own commit: "clear all" on a few hundred
+        # conversations was hundreds of WAL fsyncs on the shared connection.
+        ids = [row["id"] for row in rows]
+        if not ids:
+            return 0
+        with transaction(self.conn):
+            for start in range(0, len(ids), 400):
+                batch = ids[start : start + 400]
+                placeholders = ",".join("?" * len(batch))
+                self.conn.execute(
+                    f"DELETE FROM conversations WHERE id IN ({placeholders})", batch
+                )
+                self.conn.execute(
+                    f"DELETE FROM capability_state WHERE scope IN ({placeholders})", batch
+                )
+                self.conn.execute(
+                    f"DELETE FROM memory_state WHERE scope IN ({placeholders})", batch
+                )
+        return len(ids)
 
     def touch(self, conversation_id: str) -> None:
         self.conn.execute(
@@ -420,6 +460,23 @@ class ExecutionLogRepository:
         return self.conn.execute(
             "SELECT * FROM execution_logs ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
+
+    def prune(self, *, keep: int = 5000) -> int:
+        """Keep only the newest `keep` audit rows.
+
+        Nothing retired these before, and every tool call from every source
+        writes one -- an unattended automation on a 15-minute interval writes
+        roughly a hundred a day, and years of them grow a table nothing reads
+        past its first page.
+        """
+        cursor = self.conn.execute(
+            "DELETE FROM execution_logs WHERE id <"
+            " (SELECT COALESCE(MIN(id), 0) FROM"
+            "  (SELECT id FROM execution_logs ORDER BY id DESC LIMIT ?))",
+            (keep,),
+        )
+        self.conn.commit()
+        return cursor.rowcount
 
 
 class McpTrustRepository:
@@ -660,11 +717,16 @@ class TaskRepository:
                 return int(row["id"])
         return None
 
-    def _bucket_where(self, bucket: str, list_id: int | None = None) -> tuple[str, dict]:
+    def _bucket_where(
+        self, bucket: str, list_id: int | None = None, *, my_day_list: int | None = None
+    ) -> tuple[str, dict]:
+        """`my_day_list` is read once per `counts()` pass and passed through:
+        computing it per bucket re-ran the task_lists scan six times for one
+        sidebar redraw."""
         params = {
             "today": _today(),
             "list_id": list_id,
-            "my_day_list": self.my_day_list_id(),
+            "my_day_list": self.my_day_list_id() if my_day_list is None else my_day_list,
         }
         if bucket == "my_day":
             return self._MY_DAY, params
@@ -718,9 +780,10 @@ class TaskRepository:
         One query per bucket would be six round trips for a sidebar that redraws
         on every mutation.
         """
+        my_day = self.my_day_list_id()
         out: dict[str, int] = {}
         for name in ("my_day", "missed", "important", "general", "completed", "all"):
-            where, params = self._bucket_where(name)
+            where, params = self._bucket_where(name, my_day_list=my_day)
             row = self.conn.execute(
                 f"SELECT count(*) FROM tasks WHERE {where}", params
             ).fetchone()

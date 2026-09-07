@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,28 @@ from typing import Any
 import yaml
 
 log = logging.getLogger(__name__)
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Replace a file's contents via temp file + rename.
+
+    A crash mid-`write_text` leaves a truncated YAML that every later read
+    parses as an error or as empty -- and providers.yaml is read on every
+    health poll. `os.replace` is atomic on POSIX and Windows, so a reader sees
+    either the whole old file or the whole new one, never half of either.
+    """
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle, scratch = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w") as out:
+            out.write(text)
+        os.replace(scratch, path)
+    except BaseException:
+        with suppress(OSError):
+            os.unlink(scratch)
+        raise
 
 
 def psok_home() -> Path:
@@ -158,10 +181,48 @@ def has_key(config: ProviderConfig) -> bool:
         return False
     from backend.secrets import get_secret
 
+    # The keychain answer is cached for a short window. `has_key` runs per
+    # provider per health poll, and a keychain read is D-Bus IPC -- normally
+    # milliseconds, but it runs on the event loop and a busy secret service
+    # stalls every poll for every provider. Credentials do not appear and
+    # vanish on this timescale; `psok keys` and the settings page both call
+    # `forget_key_presence` when one is added or removed.
     try:
-        return bool(get_secret(config.api_key_ref))
+        return key_present(config.api_key_ref)
     except Exception:  # a keychain that will not open is not a configured key
         return False
+
+
+#: When each keychain presence answer expires. Presence, never the value -- the
+#: value is resolved fresh at call time by `resolve_api_key`.
+_KEY_PRESENCE: dict[str, tuple[bool, float]] = {}
+_KEY_PRESENCE_TTL = 10.0
+
+
+def key_present(ref: str) -> bool:
+    """Keychain presence with a short TTL. See `has_key`."""
+    import time as _time
+
+    from backend.secrets import get_secret
+
+    now = _time.monotonic()
+    cached = _KEY_PRESENCE.get(ref)
+    if cached is not None and now < cached[1]:
+        return cached[0]
+    try:
+        answer = bool(get_secret(ref))
+    except Exception:
+        answer = False
+    _KEY_PRESENCE[ref] = (answer, now + _KEY_PRESENCE_TTL)
+    return answer
+
+
+def forget_key_presence(ref: str | None = None) -> None:
+    """Drop the presence cache when a key is added or removed."""
+    if ref is None:
+        _KEY_PRESENCE.clear()
+    else:
+        _KEY_PRESENCE.pop(ref, None)
 
 
 def configured_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
@@ -244,7 +305,7 @@ def load_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
     p = path or paths().providers_yaml
     if not p.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_default_providers())
+        write_atomic(p, _default_providers())
     raw = yaml.safe_load(p.read_text()) or {}
     out: dict[str, ProviderConfig] = {}
     for entry in raw.get("providers") or []:
@@ -336,8 +397,9 @@ def save_providers(entries: list[dict[str, Any]], path: Path | None = None) -> N
     p.parent.mkdir(parents=True, exist_ok=True)
     document = (yaml.safe_load(p.read_text()) if p.exists() else None) or {}
     document["providers"] = entries
-    p.write_text(
-        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False)
+    write_atomic(
+        p,
+        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
     )
 
 
@@ -381,8 +443,9 @@ def set_tier(
         tiers = {}
     tiers[tier] = {"provider": provider, "model": model}
     document["tiers"] = tiers
-    p.write_text(
-        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False)
+    write_atomic(
+        p,
+        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
     )
 
 
@@ -456,8 +519,9 @@ def clear_tier(tier: str, path: Path | None = None) -> bool:
         document["tiers"] = tiers
     else:
         document.pop("tiers", None)
-    p.write_text(
-        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False)
+    write_atomic(
+        p,
+        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
     )
     return True
 
@@ -1110,7 +1174,7 @@ def save_embeddings(provider: str, model: str, path: Path | None = None) -> None
             raw = {}
     raw["embeddings"] = {"provider": provider, "model": model}
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
+    write_atomic(p, yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
 
 
 def clear_embeddings(path: Path | None = None) -> None:
@@ -1123,7 +1187,7 @@ def clear_embeddings(path: Path | None = None) -> None:
     except yaml.YAMLError:
         return
     if raw.pop("embeddings", None) is not None:
-        p.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
+        write_atomic(p, yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
 
 
 #: Which provider turns speech into text. In providers.yaml beside `tiers:`
@@ -1156,8 +1220,9 @@ def save_transcription(provider: str, model: str, path: Path | None = None) -> N
     document = yaml.safe_load(p.read_text()) if p.exists() else {}
     document = document or {}
     document["transcription"] = {"provider": provider, "model": model}
-    p.write_text(
-        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False)
+    write_atomic(
+        p,
+        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
     )
 
 
@@ -1169,7 +1234,8 @@ def clear_transcription(path: Path | None = None) -> bool:
     if "transcription" not in document:
         return False
     document.pop("transcription")
-    p.write_text(
-        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False)
+    write_atomic(
+        p,
+        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
     )
     return True

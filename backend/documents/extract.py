@@ -270,7 +270,7 @@ async def _pdf_pages_pdftotext(path: Path) -> tuple[list[str], bool]:
 
 async def _pdf(path: Path) -> str:
     if _pymupdf() is not None:
-        pages, has_images = _pdf_pages_pymupdf(path)
+        pages, has_images = await asyncio.to_thread(_pdf_pages_pymupdf, path)
         engine = "PyMuPDF"
     else:
         pages, has_images = await _pdf_pages_pdftotext(path)
@@ -540,14 +540,18 @@ async def extract(path: Path) -> str:
         raise ExtractionError(refusal)
 
     try:
+        # Every library below parses synchronously, and a 25MB PDF is seconds
+        # of CPU -- on the event loop, which stalls every streaming turn and
+        # runner for the parse. `to_thread` costs one hop; the pdftotext
+        # fallback is already a subprocess and keeps its await.
         if suffix == ".pdf":
             return await _pdf(path)
         if suffix == ".docx":
-            return _docx(path)
+            return await asyncio.to_thread(_docx, path)
         if suffix == ".xlsx":
-            return _xlsx(path)
+            return await asyncio.to_thread(_xlsx, path)
         if suffix == ".pptx":
-            return _pptx(path)
+            return await asyncio.to_thread(_pptx, path)
     except ExtractionError:
         raise
     except (OSError, zipfile.BadZipFile, ElementTree.ParseError) as exc:

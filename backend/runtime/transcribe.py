@@ -19,6 +19,7 @@ A short allowlist rather than a probe, because finding out an endpoint answers
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -110,14 +111,16 @@ async def transcribe(
         data["language"] = language
 
     try:
-        with path.open("rb") as handle:
-            response = await _client(timeout).post(
-                f"{config.base_url.rstrip('/')}/audio/transcriptions",
-                headers=headers,
-                data=data,
-                files={"file": (path.name, handle, "application/octet-stream")},
-                timeout=timeout,
-            )
+        # Bytes read on a worker thread: a sync file handle inside the async
+        # post made the event loop drive every chunk read of a 24MB upload.
+        payload = await asyncio.to_thread(path.read_bytes)
+        response = await _client(timeout).post(
+            f"{config.base_url.rstrip('/')}/audio/transcriptions",
+            headers=headers,
+            data=data,
+            files={"file": (path.name, payload, "application/octet-stream")},
+            timeout=timeout,
+        )
     except httpx.HTTPError as exc:
         # Unreachable is about the provider, so the chat chain should know.
         availability.record_failure(config.name, FailureKind.UNREACHABLE, str(exc))

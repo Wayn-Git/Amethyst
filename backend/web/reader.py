@@ -280,7 +280,23 @@ async def fetch_readable(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> Fetch
 
     final_url = str(response.url)
     content_type = response.headers.get("content-type", "")
-    raw = response.text[:MAX_PAGE_BYTES]
+
+    # Read the body as a stream, stopping at the cap. `response.text`
+    # materialised the whole response first -- the 2MB limit only trimmed after
+    # it was already in memory, so a model fetching a huge file ballooned the
+    # process before the slice.
+    if response.is_stream_consumed:
+        raw = response.text[:MAX_PAGE_BYTES]
+    else:
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in response.aiter_bytes():
+            chunks.append(chunk)
+            size += len(chunk)
+            if size >= MAX_PAGE_BYTES:
+                break
+        raw = b"".join(chunks)[:MAX_PAGE_BYTES].decode("utf-8", errors="replace")
+        await response.aclose()
 
     meta: dict[str, str] = {}
     if "html" in content_type or (not content_type and raw.lstrip().startswith("<")):

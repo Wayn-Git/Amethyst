@@ -169,6 +169,10 @@ async def _access_token(address: str) -> str:
             "client_id": data["client_id"],
             "client_secret": data["client_secret"],
         },
+        # Explicit per request: the pooled client's default no longer decides
+        # this call's deadline (see runtime/http.py -- the pool is keyed by
+        # timeout now, but naming it here keeps that true whatever pools it).
+        timeout=30.0,
     )
     if response.status_code != 200:
         # The overwhelmingly common cause, and the one worth naming: Google
@@ -203,6 +207,7 @@ async def _call(
         params=params,
         json=body,
         headers={"Authorization": f"Bearer {token}"},
+        timeout=30.0,  # explicit; see _access_token
     )
     if response.status_code == 401:
         # The cached token was rejected. Drop it and let the next call mint a

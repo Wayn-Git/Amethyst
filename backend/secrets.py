@@ -136,6 +136,8 @@ def set_secret(ref: str, value: str) -> None:
         # `NoKeyringError` here used to escape as a 500 with a traceback, which
         # is how adding a key to a deployed instance failed without saying why.
         raise CredentialError(_NO_STORE) from exc
+    finally:
+        _forget_presence(ref)
 
 
 def delete_secret(ref: str) -> None:
@@ -144,6 +146,22 @@ def delete_secret(ref: str) -> None:
         service, username = SERVICE, ref
     try:
         _store().delete_password(service, username)
+    except Exception:
+        pass
+    finally:
+        _forget_presence(ref)
+
+
+def _forget_presence(ref: str) -> None:
+    """Drop the key-presence cache for this ref, if one is warm.
+
+    The cache lives in backend.config (which cannot be imported here at module
+    level -- config imports this module). An absent cache is the common case.
+    """
+    try:
+        from backend import config as _config
+
+        _config.forget_key_presence(ref)
     except Exception:
         pass
 

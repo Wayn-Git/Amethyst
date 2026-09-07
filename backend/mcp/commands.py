@@ -276,7 +276,9 @@ def _write_credentials_file(
         existing.setdefault(keys["redirect_uri"], "http://127.0.0.1:8888/callback")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(existing, indent=2))
+    from backend.config import write_atomic
+
+    write_atomic(path, json.dumps(existing, indent=2))
     path.chmod(0o600)
 
 
@@ -852,16 +854,20 @@ async def check_google_client(config: ServerConfig) -> str | None:
         )
 
     try:
-        response = await httpx2.AsyncClient(timeout=8.0).post(
-            GOOGLE_TOKEN_ENDPOINT,
-            data={
-                "code": "psok-preflight-not-a-real-code",
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uri": REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-        )
+        # Opened with `async with` so the client and its connection pool are
+        # closed on the way out; an un-managed AsyncClient here leaked a pool
+        # per Google sign-in preflight.
+        async with httpx2.AsyncClient(timeout=8.0) as client:
+            response = await client.post(
+                GOOGLE_TOKEN_ENDPOINT,
+                data={
+                    "code": "psok-preflight-not-a-real-code",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                },
+            )
         body = response.json()
     except Exception as exc:  # offline, blocked, or an answer that is not JSON
         log.debug("Google client preflight could not run: %s", exc)
@@ -1055,20 +1061,25 @@ async def _command_login(config: ServerConfig, entry: cat.CatalogueEntry) -> str
     seen: list[str] = []
     published: str | None = None
     try:
-        assert process.stdout is not None
-        while True:
-            raw = await process.stdout.readline()
-            if not raw:
-                break
-            line = raw.decode(errors="replace").rstrip()
-            seen.append(line)
-            if published is None and (url := _authorization_url_in(line)):
-                published = url
-                PENDING[config.name] = PendingAuthorization(
-                    server_name=config.name, authorization_url=url
-                )
-                webbrowser.open(url)
-        await process.wait()
+        # Bounded: an auth binary that prints its URL and then waits on a
+        # callback nobody will complete kept this readline loop -- and the
+        # subprocess -- alive indefinitely. The TTL the OAuth flow uses is the
+        # right ceiling here too.
+        async with asyncio.timeout(AUTH_SESSION_TIMEOUT_SECONDS):
+            assert process.stdout is not None
+            while True:
+                raw = await process.stdout.readline()
+                if not raw:
+                    break
+                line = raw.decode(errors="replace").rstrip()
+                seen.append(line)
+                if published is None and (url := _authorization_url_in(line)):
+                    published = url
+                    PENDING[config.name] = PendingAuthorization(
+                        server_name=config.name, authorization_url=url
+                    )
+                    webbrowser.open(url)
+            await process.wait()
     finally:
         if process.returncode is None:
             process.kill()
@@ -1244,18 +1255,26 @@ def account(name: str) -> str | None:
     return _identity_of(entry.identity_url, entry.identity_field or "", token)
 
 
-# Identity answers per access token. The Connectors page asks for every
+# Identity answers, and when they expire. The Connectors page asks for every
 # signed-in server's account on every load and polls while it is open, and each
 # answer was a fresh blocking HTTP request with a five-second timeout -- so a
 # slow provider stalled the whole listing, repeatedly, for a value that cannot
 # change while the token does not.
-_IDENTITY_CACHE: dict[tuple[str, str], str | None] = {}
+#
+# Keyed by identity URL with a TTL, never by the raw bearer token: a token-keyed
+# cache grew one entry per rotation and held the token itself as a dict key for
+# the process lifetime.
+_IDENTITY_CACHE: dict[str, tuple[str | None, float]] = {}
+IDENTITY_TTL_SECONDS = 300.0
 
 
 def _identity_of(url: str, field: str, token: str) -> str | None:
-    key = (url, token)
-    if key in _IDENTITY_CACHE:
-        return _IDENTITY_CACHE[key]
+    import time as _time
+
+    key = url
+    cached = _IDENTITY_CACHE.get(key)
+    if cached is not None and _time.monotonic() < cached[1]:
+        return cached[0]
     try:
         import httpx2
 
@@ -1272,7 +1291,7 @@ def _identity_of(url: str, field: str, token: str) -> str | None:
     except Exception as exc:  # identity is a nicety; never fail a listing over it
         log.debug("identity lookup for %s failed: %s", url, exc)
         return None
-    _IDENTITY_CACHE[key] = answer
+    _IDENTITY_CACHE[key] = (answer, _time.monotonic() + IDENTITY_TTL_SECONDS)
     return answer
 
 

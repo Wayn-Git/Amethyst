@@ -131,7 +131,7 @@ class LibraryStore:
         try:
             self.conn.execute("ALTER TABLE library_items ADD COLUMN category TEXT")
             self.conn.commit()
-        except sqlite3.OperationalError:
+        except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
             pass
 
     def create(

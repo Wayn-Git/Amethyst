@@ -14,6 +14,7 @@ notifications arrive while a desktop session is there to receive them.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import shutil
 import sys
@@ -99,6 +100,11 @@ async def notify(title: str, body: str) -> bool:
         )
         _, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
     except TimeoutError:
+        # communicate() gave up, but the notifier itself is still running --
+        # killing it here is the difference between a dropped notification and
+        # a leaked process per reminder.
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
         log.warning("notifier did not exit; giving up on this notification")
         return False
     except OSError as exc:
