@@ -247,6 +247,7 @@ async def test_model_error_is_reported_not_raised(db, monkeypatch, caplog):
 
     model = ResolvedModel("fake", "fake-1", Failing(), Capabilities())
     monkeypatch.setattr("backend.agent.director.resolve", lambda *a, **k: model)
+    monkeypatch.setattr("backend.agent.director._conversation_fallback", lambda *_: [])
 
     cid = ConversationRepository().create("fake", "fake-1")
     with caplog.at_level("WARNING"):

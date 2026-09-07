@@ -425,8 +425,10 @@ class Director:
         # progress bar, and an invented one is worse than none.
         executing = not planning and user_message.lstrip().lower().startswith("approved")
         step_open: int | None = None
-        if self.retrieval or self.memory:
+        if self.retrieval:
             yield Event("status", {"state": "retrieving"})
+        elif self.memory:
+            yield Event("status", {"state": "recalling"})
         # Two independent best-effort lookups, run together: an embedder round
         # trip awaited before the memory service added its own latency to the
         # head of every turn for no ordering reason at all.

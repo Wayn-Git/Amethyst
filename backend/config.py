@@ -179,7 +179,6 @@ def has_key(config: ProviderConfig) -> bool:
         return True
     if not config.api_key_ref:
         return False
-    from backend.secrets import get_secret
 
     # The keychain answer is cached for a short window. `has_key` runs per
     # provider per health poll, and a keychain read is D-Bus IPC -- normally

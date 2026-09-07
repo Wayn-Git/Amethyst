@@ -6,7 +6,30 @@
 
 ---
 
-## Run it in Docker
+## ⚡ Quick Start
+
+> 📖 **Full guide:** See [QUICKSTART.md](QUICKSTART.md) for 2-minute setup, connecting Ollama (free local models), and API keys.
+
+### 1-Line Automated Launcher (macOS / Linux / WSL2)
+
+```bash
+git clone <this repository> && cd pkos
+./run.sh
+# → Opens http://127.0.0.1:8000 automatically
+```
+
+*(On Windows Command Prompt, run `run.bat`. On Mac/Linux, run `./run.sh`)*
+
+The script checks prerequisites, creates `.venv`, installs dependencies from `requirements.txt`, builds the web UI, initializes the local SQLite database, and opens PSOK in your default browser.
+
+- Run `./run.sh --setup` (or `run.bat --setup`) for the interactive configuration wizard (API keys, OAuth, Cloudflare, connectors).
+- Run `./run.sh --dev` for concurrent backend + frontend hot-reloading.
+- Run `./run.sh --doctor` to run diagnostics.
+- See **[CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md)** for complete setup instructions for Google Workspace, Microsoft To Do, Cloudflare Workers, and Library capture.
+
+---
+
+## 🐳 Run it in Docker
 
 ```bash
 git clone <this repository> && cd pkos
@@ -40,17 +63,19 @@ That turn is three tool calls — a web search, then two fetches — resolved wi
 
 ---
 
-## Dev quick start
+## Manual Installation (pip or uv)
 
 ```bash
-uv venv
-uv pip install -e '.[dev]'
+python3 -m venv .venv
+source .venv/bin/activate               # Windows: .venv\Scripts\activate
+pip install -r requirements.txt         # or: uv pip install -r requirements.txt
 
-psok init                              # ~/.psok, the database, default config
-psok doctor                            # what is configured and what is missing
+psok init                               # ~/.psok, the database, default config
+psok doctor                             # what is configured and what is missing
 
 cd frontend && npm install && npm run build
-psok serve --open                      # http://127.0.0.1:8000
+cd ..
+psok serve --open                       # http://127.0.0.1:8000
 ```
 
 Point it at a model. Ollama is preconfigured; a cloud provider keeps its key in the OS keychain, never in the config file:

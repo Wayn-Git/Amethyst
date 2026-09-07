@@ -27,7 +27,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from backend.documents.extract import LEGACY, _importable
+from backend.documents.extract import LEGACY
 
 #: Formats this module can create from markdown.
 WRITABLE = frozenset({".docx", ".xlsx", ".pptx", ".pdf"})
@@ -121,6 +121,8 @@ def parse_markdown(text: str) -> list[Block]:
 
 def missing_writer(suffix: str) -> str | None:
     """Why this format cannot be written here, or None. Checked before any work."""
+    from backend.documents.extract import _importable
+
     ext = suffix.lower()
     if ext in LEGACY:
         target, described = LEGACY[ext]

@@ -686,13 +686,23 @@ def test_a_conversation_can_be_deleted_and_takes_its_scoped_rows_with_it(api, db
         assert count("SELECT count(*) FROM memories WHERE conversation_id = ?") == 1
 
 
-def test_a_capability_profile_can_be_saved_applied_and_deleted_over_http(api, db):
+def test_a_capability_profile_can_be_saved_applied_and_deleted_over_http(api, db, monkeypatch):
     """End to end through the API, not just the service: saving snapshots the
     conversation's connectors, applying makes them match live (not just in the
     DB), and a profile a later connector never saw turns that connector off."""
     from fastapi.testclient import TestClient
 
     from backend.mcp.commands import add_from_catalogue
+    from backend.mcp.manager import MCPManager
+
+    async def fake_connect(self, config, **_):
+        return 1
+
+    async def fake_disconnect(self, name):
+        pass
+
+    monkeypatch.setattr(MCPManager, "connect_server", fake_connect)
+    monkeypatch.setattr(MCPManager, "disconnect_server", fake_disconnect)
 
     add_from_catalogue("memory")
     add_from_catalogue("fetch")

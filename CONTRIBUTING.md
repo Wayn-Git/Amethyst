@@ -6,16 +6,22 @@ exist, and each is enforced by a test or a build step rather than by memory.
 
 ## Setup
 
+### Automated (Fastest)
 ```bash
-uv venv
-uv pip install -e '.[dev]'        # the -e matters; see "The -e rule"
+./run.sh --dev
+```
+
+### Manual
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt   # or: uv pip install -e '.[dev]' (the -e matters; see "The -e rule")
 psok init
 
 cd frontend && npm install
 ```
 
-`uv` from [astral.sh](https://docs.astral.sh/uv/), or `pip` if you prefer; the
-`.[dev]` extra carries pytest, ruff and the rest.
+`uv` from [astral.sh](https://docs.astral.sh/uv/), or standard `pip`; the
+`requirements-dev.txt` / `.[dev]` extra carries pytest, ruff and the rest.
 
 ## Before every push
 

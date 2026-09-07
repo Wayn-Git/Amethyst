@@ -316,6 +316,7 @@ async def _lifespan(_: FastAPI):
     await _reminders.stop()
     await _runner.stop()
     with contextlib.suppress(asyncio.CancelledError):
+        _boot_connectors.cancel()
         await _boot_connectors
     if _mcp["manager"] is not None:
         await _mcp["manager"].shutdown()
@@ -1331,7 +1332,7 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
 
 
 @app.post("/api/conversations/{conversation_id}/turn/stop")
-async def stop_turn(conversation_id: str) -> dict[str, str]:
+def stop_turn(conversation_id: str) -> dict[str, str]:
     """Interrupt the turn streaming for this conversation.
 
     The loop stops before its next model call, cancels whatever tool call is in

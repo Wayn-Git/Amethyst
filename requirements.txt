@@ -1,0 +1,7 @@
+# PSOK Python Dependencies
+# Single source of truth: pyproject.toml
+#
+# Installs PSOK in editable mode (-e) along with all core and optional extras
+# (providers, vector database, document extractors, and media tools).
+# The -e is required so backend/api/main.py resolves frontend/dist correctly.
+-e .[providers,vector,documents,reels]

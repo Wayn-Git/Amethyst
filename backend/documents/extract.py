@@ -512,7 +512,14 @@ def _pptx_zip(path: Path) -> list[str]:
 
 
 def _pptx(path: Path) -> str:
-    blocks = _pptx_library(path) if _importable("pptx") else _pptx_zip(path)
+    blocks = None
+    if _importable("pptx"):
+        try:
+            blocks = _pptx_library(path)
+        except Exception:
+            blocks = None
+    if not blocks:
+        blocks = _pptx_zip(path)
     if not blocks:
         raise ExtractionError(f"{path.name} has no slides")
     return "\n\n".join(blocks)
