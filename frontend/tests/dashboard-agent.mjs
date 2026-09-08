@@ -70,4 +70,12 @@ try {
   assert.equal(await rule.locator('option[value="allow"]').evaluate(el => el.disabled), true)
   await rule.selectOption('deny')
   console.log('agent.rules UI passed')
+  await page.evaluate(() => window.testMount('Usage', 'agent.usage', { window: 'Fixture session', items: [
+    { id: 'local/fixture', title: 'Local fixture', location: 'local', calls: 1, input_tokens: 10, output_tokens: 5, latency_ms: 25 },
+    { id: 'cloud/fixture', title: 'Cloud fixture', location: 'cloud', calls: 1, input_tokens: null, output_tokens: 5, latency_ms: 50, estimated_cost_usd: null }
+  ] }))
+  await page.getByText('Model latency: 25 ms', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Estimated cost: Unavailable', { exact: true }).count(), 1)
+  assert.equal(await page.getByText(/Estimated cost:/).count(), 1)
+  console.log('agent.usage UI passed')
 } finally { await browser.close() }

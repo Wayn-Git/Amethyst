@@ -308,6 +308,7 @@ MANIFESTS = [
     director_manifest("need.approvals", "Permission approvals", ("approve", "deny")),
     director_manifest("agent.errors", "Errors and retries"),
     director_manifest("agent.audit", "Tool-call audit log"),
+    {**director_manifest("agent.usage", "Model usage meter"), "tier": "v2"},
     {**director_manifest("agent.rules", "Permission rules manager", ("set",)), "tier": "v2"},
     {
         **director_manifest("agent.watchers", "Page and mailbox watchers", ("add", "delete")),

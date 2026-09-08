@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import time
 from pathlib import Path
@@ -125,6 +126,13 @@ def _parse_catalog(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
                 "budget_min": budget_min,
                 "budget_max": budget_max,
             }
+            cost = model.get("cost")
+            if isinstance(cost, dict) and all(
+                type(cost.get(key)) in (int, float)
+                and math.isfinite(cost[key]) and cost[key] >= 0
+                for key in ("input", "output")
+            ):
+                result[full_key]["cost"] = {key: cost[key] for key in ("input", "output")}
 
     return result
 
@@ -235,3 +243,16 @@ def lookup_model(model_id: str) -> dict[str, Any] | None:
                 return entry
 
     return None
+
+
+def lookup_pricing(provider: str, model: str) -> dict[str, float] | None:
+    """Exact endpoint/model rates in USD per million tokens; never use fuzzy prices."""
+    entry = _load_cache().get(f"{provider}/{model}", {})
+    cost = entry.get("cost")
+    if not isinstance(cost, dict) or not all(
+        type(cost.get(key)) in (int, float)
+        and math.isfinite(cost[key]) and cost[key] >= 0
+        for key in ("input", "output")
+    ):
+        return None
+    return {key: cost[key] for key in ("input", "output")}
