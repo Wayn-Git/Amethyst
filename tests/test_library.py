@@ -257,6 +257,7 @@ def test_the_library_page_loads_on_an_empty_database(client):
         "items": [],
         "counts": {},
         "category_counts": {},
+        "tag_counts": {},
         "query": "",
     }
 
@@ -367,3 +368,38 @@ async def test_a_configured_x_reader_wins_over_oembed(db, offline, psok_home, mo
 
     assert "whole thread" in Path(captured.item["text_path"]).read_text(encoding="utf-8")
     assert captured.item["kind"] == "post"
+
+
+def test_library_tag_filtering_and_sorting(client, db):
+    # Log two items
+    item1 = client.post(
+        "/api/library",
+        json={"title": "Article One", "kind": "article", "consumed_on": "2026-09-01"},
+    ).json()
+    item2 = client.post(
+        "/api/library",
+        json={"title": "Article Two", "kind": "article", "consumed_on": "2026-09-05"},
+    ).json()
+
+    # Add tags via patch
+    client.patch(f"/api/library/{item1['id']}", json={"tags": ["python", "ai"]})
+    client.patch(f"/api/library/{item2['id']}", json={"tags": ["python", "react"]})
+
+    # Test tag_counts
+    res = client.get("/api/library").json()
+    assert res["tag_counts"]["python"] == 2
+    assert res["tag_counts"]["ai"] == 1
+    assert res["tag_counts"]["react"] == 1
+
+    # Test filtering by tag
+    ai_res = client.get("/api/library?tag=ai").json()
+    assert len(ai_res["items"]) == 1
+    assert ai_res["items"][0]["title"] == "Article One"
+
+    # Test date ordering
+    asc_res = client.get("/api/library?order=asc").json()
+    assert asc_res["items"][0]["id"] == item1["id"]
+
+    desc_res = client.get("/api/library?order=desc").json()
+    assert desc_res["items"][0]["id"] == item2["id"]
+

@@ -40,10 +40,14 @@ def psok_home(tmp_path, monkeypatch):
 
     # One backend for the whole test: a fresh instance per call would lose
     # every secret between the set and the get.
+    from backend.config import forget_key_presence
+
+    forget_key_presence()
     keyring = _MemoryKeyring()
     monkeypatch.setattr(secrets, "_keyring", lambda: keyring)
     connection.reset_connection()
     yield home
+    forget_key_presence()
     connection.reset_connection()
 
 

@@ -43,10 +43,180 @@ ENRICH_TIMEOUT = 90.0
 #: reasoning, unchanged.
 BACKGROUND_FALLBACK_LINKS = 4
 
-MAX_TAGS = 8
+MAX_TAGS = 3
 MAX_RESOURCES = 12
 
 CATEGORIES = ("movie", "travel", "food", "tool", "book", "general")
+
+CANONICAL_TOPICS = (
+    "ai",
+    "algorithms",
+    "programming",
+    "tools",
+    "design",
+    "cinema",
+    "streaming",
+    "data-science",
+    "reading",
+    "society",
+    "hardware",
+    "business",
+    "security",
+    "science",
+)
+
+TOPIC_SYNONYMS: dict[str, str] = {
+    # AI & Machine Learning
+    "ai": "ai",
+    "gpt": "ai",
+    "gpt6": "ai",
+    "claude": "ai",
+    "claude opus": "ai",
+    "gemini": "ai",
+    "llama": "ai",
+    "kimi": "ai",
+    "jlm": "ai",
+    "glm": "ai",
+    "model": "ai",
+    "models": "ai",
+    "inference": "ai",
+    "machine learning": "ai",
+    "machine-learning": "ai",
+    "generative": "ai",
+    "attention": "ai",
+    "humanoid robots": "ai",
+    "agent router": "ai",
+    "bytez": "ai",
+    # Algorithms & Data Structures
+    "algorithm": "algorithms",
+    "algorithms": "algorithms",
+    "a*": "algorithms",
+    "bfs": "algorithms",
+    "dijkstra": "algorithms",
+    "binarysearch": "algorithms",
+    "pathfinding": "algorithms",
+    "heuristic": "algorithms",
+    "graph": "algorithms",
+    "graph search": "algorithms",
+    "optimization": "algorithms",
+    # Programming, Software & Open Source
+    "coding": "programming",
+    "code-editor": "programming",
+    "github": "programming",
+    "hackathon": "programming",
+    "hacker": "programming",
+    "local-first": "programming",
+    "deployment": "programming",
+    "automation": "programming",
+    "api": "programming",
+    "open-source": "programming",
+    "computer science": "programming",
+    "software": "programming",
+    # Data Science & Retrieval
+    "hnsw": "data-science",
+    "hybridsearch": "data-science",
+    "filteredsearch": "data-science",
+    "decision trees": "data-science",
+    "linear regression": "data-science",
+    "logistic regression": "data-science",
+    # Design & UI/UX
+    "design": "design",
+    "figma": "design",
+    "ui": "design",
+    "ux": "design",
+    # Cinema & Television
+    "cinema": "cinema",
+    "film": "cinema",
+    "film adaptation": "cinema",
+    "movie": "cinema",
+    "drama": "cinema",
+    "romance": "cinema",
+    "thriller": "cinema",
+    "comedy": "cinema",
+    "action": "cinema",
+    "character portrait": "cinema",
+    "dinnerparty": "cinema",
+    "forbidden love": "cinema",
+    "coming of age": "cinema",
+    "mayday": "cinema",
+    "leftovers": "cinema",
+    "fable5": "cinema",
+    "comet": "cinema",
+    "i robot": "cinema",
+    "larp": "cinema",
+    # Streaming
+    "netflix": "streaming",
+    "amazon prime": "streaming",
+    "amazonprimevideo": "streaming",
+    "apple tv": "streaming",
+    "hbo": "streaming",
+    # Tools & Productivity
+    "tool": "tools",
+    "tools": "tools",
+    "desktop": "tools",
+    "dictation": "tools",
+    "free": "tools",
+    "free credits": "tools",
+    "cost": "tools",
+    "credits": "tools",
+    # Reading & Education
+    "book": "reading",
+    "books": "reading",
+    "education": "reading",
+    "beginners": "reading",
+    # Society & Themes
+    "bullying": "society",
+    "cyberbullying": "society",
+    "faith": "society",
+    "family": "society",
+    "friendship": "society",
+    "grief": "society",
+    "justice": "society",
+    "inequality": "society",
+    "teen": "society",
+    "highschool": "society",
+    "child": "society",
+    "coherence": "society",
+    "future": "society",
+    "fashion": "society",
+    "competition": "society",
+    "interview": "society",
+    "ivf": "society",
+    "linkedin": "society",
+    # Hardware
+    "gpu": "hardware",
+}
+
+
+def canonicalize_tags(tags: list[str] | tuple[str, ...]) -> list[str]:
+    """Map raw or ad-hoc tags to normalized canonical topics, capped at MAX_TAGS."""
+    cleaned: list[str] = []
+    seen: set[str] = set()
+
+    for raw in tags:
+        if not raw or not isinstance(raw, str):
+            continue
+        tag = raw.strip().lower()
+        tag = re.sub(r"^#+", "", tag).strip()
+        if not tag:
+            continue
+
+        canonical = TOPIC_SYNONYMS.get(tag)
+        if not canonical:
+            if tag.endswith("s") and tag[:-1] in TOPIC_SYNONYMS:
+                canonical = TOPIC_SYNONYMS[tag[:-1]]
+            elif tag in CANONICAL_TOPICS:
+                canonical = tag
+            else:
+                continue
+
+        if canonical and canonical not in seen:
+            seen.add(canonical)
+            cleaned.append(canonical)
+            if len(cleaned) >= MAX_TAGS:
+                break
+
+    return cleaned
 
 RESOURCE_TYPES = (
     "movie",
@@ -100,8 +270,8 @@ Rules:
   - "general" for other topics.
 - summary: two to four sentences on what this is about, in plain language. No \
 preamble, no "this video discusses".
-- tags: three to eight lowercase topic words. Nouns, not sentences. Only topics \
-the text is actually about.
+- tags: two to three lowercase canonical topic words (e.g. ai, algorithms, programming, tools, design, cinema, streaming, data-science, reading, society). Only topics \
+the text is directly about.
 - resources: concrete named things the text names that the user could go and find or watch:
   - movie/show: title, platform/genre, why to watch.
   - travel/destination: city/country, spot name, best to visit.
@@ -249,10 +419,14 @@ def parse_enrichment(text: str) -> Enrichment | None:
     raw_cat = str(data.get("category") or "").strip().lower()
     category = raw_cat if raw_cat in CATEGORIES else infer_category(resources, tags)
 
+    canonical_tags = canonicalize_tags(tags)
+    if not canonical_tags and tags:
+        canonical_tags = tags[:MAX_TAGS]
+
     return Enrichment(
         category=category,
         summary=summary,
-        tags=tuple(tags[:MAX_TAGS]),
+        tags=tuple(canonical_tags[:MAX_TAGS]),
         resources=tuple(resources[:MAX_RESOURCES]),
     )
 

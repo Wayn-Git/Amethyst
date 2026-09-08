@@ -3,94 +3,225 @@ import { useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
-import { api, fmtDate, copyText } from '../api.js'
+import { api } from '../api.js'
 import { SkeletonRows } from '../components/Skeleton.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 
-/* Everything you have read, watched and listened to.
- *
- * Capture writes the page's text to a real file under ~/.psok/library and hands
- * it to the same indexer that reads the vault, so an article saved here is
- * found by `search_documents` in a chat as well as by the search box below.
- *
- * `?url=` prefills the field — that is what the bookmarklet uses. It navigates
- * rather than posting, because a page on another origin cannot POST to this API
- * and should not be able to. */
-
-const KINDS = ['article', 'book', 'video', 'podcast', 'newsletter', 'paper', 'post', 'note', 'other']
-
-const KIND_ICON = {
-  article: 'book', book: 'book', video: 'image', podcast: 'spark',
-  newsletter: 'mail', paper: 'book', post: 'chat', note: 'edit', other: 'link',
-}
-
-function bookmarklet(origin) {
-  return `javascript:void(window.open('${origin}/library?url='+encodeURIComponent(location.href),'_blank'))`
-}
+import LibraryToolbar from './library/LibraryToolbar.jsx'
+import LibraryTagRail from './library/LibraryTagRail.jsx'
+import LibraryGrid from './library/LibraryGrid.jsx'
+import LibraryListView from './library/LibraryListView.jsx'
+import LibraryDetailModal from './library/LibraryDetailModal.jsx'
+import AddContentModal from './library/AddContentModal.jsx'
+import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
+import { getDomain } from './library/LibraryCard.jsx'
+import { AnimatePresence } from 'framer-motion'
 
 export default function Library() {
   const rootRef = useRef(null)
+  const searchInputRef = useRef(null)
   const { toast } = useApp()
   const [params, setParams] = useSearchParams()
+
+  // Data state
   const [items, setItems] = useState([])
   const [counts, setCounts] = useState({})
+  const [categoryCounts, setCategoryCounts] = useState({})
+  const [tagCounts, setTagCounts] = useState({})
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(null)
+
+  // Filter & layout state
   const [query, setQuery] = useState('')
-  const [kind, setKind] = useState('')
-  const [busyId, setBusyId] = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [selectedKind, setSelectedKind] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedTag, setSelectedTag] = useState('')
+  const [order, setOrder] = useState('desc')
+  const [layout, setLayout] = useState(() => {
+    try {
+      return localStorage.getItem('pkos_lib_layout') || 'grid'
+    } catch {
+      return 'grid'
+    }
+  })
+  const [railOpen, setRailOpen] = useState(() => {
+    try {
+      return localStorage.getItem('pkos_lib_rail') !== 'false'
+    } catch {
+      return true
+    }
+  })
+
+  // Modal states (Screenshot 3 & 4)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addModalMode, setAddModalMode] = useState('url')
+
+  const openAddModal = useCallback((mode = 'url') => {
+    setAddModalMode(mode)
+    setShowAddModal(true)
+  }, [])
   const [showShare, setShowShare] = useState(false)
-  const [draft, setDraft] = useState({ url: '', title: '', kind: '', author: '', notes: '' })
+  const [activeModalItem, setActiveModalItem] = useState(null)
+  const [busyId, setBusyId] = useState(null)
+  const [_saving, setSaving] = useState(false)
+
+  // Token and tracking refs
   const loadToken = useRef(0)
+  const activeProcessingIds = useRef(new Set())
+
   useViewEntrance(rootRef, [loaded])
 
-  // The bookmarklet lands here. Taken out of the URL once read, so a refresh
-  // does not re-offer a link that has already been saved.
-  useEffect(() => {
-    const incoming = params.get('url')
-    if (!incoming) return
-    setDraft((d) => ({ ...d, url: incoming }))
-    params.delete('url')
-    setParams(params, { replace: true })
-  }, [params, setParams])
+  // Persist layout choice
+  const handleLayoutChange = (nextLayout) => {
+    setLayout(nextLayout)
+    try {
+      localStorage.setItem('pkos_lib_layout', nextLayout)
+    } catch {
+      /* ignore storage errors */
+    }
+  }
 
+  // Persist rail visibility
+  const handleToggleRail = () => {
+    setRailOpen((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('pkos_lib_rail', String(next))
+      } catch {
+        /* ignore storage errors */
+      }
+      return next
+    })
+  }
+
+  // Load library items from backend
   const load = useCallback(async () => {
     const token = ++loadToken.current
     try {
-      const data = await api.library({ q: query, kind })
+      const data = await api.library({
+        q: query,
+        kind: selectedKind,
+        category: selectedCategory,
+        tag: selectedTag,
+        order,
+      })
       if (loadToken.current !== token) return
-      setItems(data.items)
-      setCounts(data.counts)
+
+      // Preserve any local optimistic items that are still saving
+      setItems((currentItems) => {
+        const optimistic = currentItems.filter((it) => it.isOptimistic)
+        const incomingIds = new Set(data.items.map((it) => it.id))
+        const remainingOptimistic = optimistic.filter((it) => !incomingIds.has(it.id))
+
+        // Mark items that are still processing in background
+        const merged = data.items.map((it) => {
+          const isProcessing =
+            !it.enriched_at &&
+            !it.enrichment_note &&
+            it.text_source !== 'none' &&
+            activeProcessingIds.current.has(it.id)
+          return isProcessing ? { ...it, isProcessing: true } : it
+        })
+
+        return [...remainingOptimistic, ...merged]
+      })
+
+      setCounts(data.counts || {})
+      setCategoryCounts(data.category_counts || {})
+      setTagCounts(data.tag_counts || {})
       setError(null)
     } catch (err) {
       if (loadToken.current !== token) return
-      setItems([])
       setError(err.message)
     } finally {
       if (loadToken.current === token) setLoaded(true)
     }
-  }, [query, kind])
+  }, [query, selectedKind, selectedCategory, selectedTag, order])
 
-  // Debounced, so typing a query is one request rather than one per keystroke.
+  // Debounced search query & filter reload
   useEffect(() => {
-    const timer = setTimeout(load, query ? 300 : 0)
+    const timer = setTimeout(load, query ? 250 : 0)
     return () => clearTimeout(timer)
   }, [load, query])
 
-  // A capture from the phone lands through the relay every fifteen seconds,
-  // which the list never saw until someone reloaded the page. Ten, not
-  // fifteen, so the item is usually there on the poll after the relay hands
-  // it over. Visibility-gated like the connectors poll -- a hidden tab polling
-  // is a cost with no reader -- and reusing `load` rather than a second fetch
-  // so the two can never disagree about what is current.
+  // Keyboard shortcuts (Ctrl+K to Add, Ctrl+/ to Search)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        openAddModal('url')
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openAddModal])
+
+  // Bookmarklet prefill handler
+  useEffect(() => {
+    const incoming = params.get('url')
+    if (!incoming) return
+    openAddModal('url')
+    params.delete('url')
+    setParams(params, { replace: true })
+  }, [params, setParams, openAddModal])
+
+  // Active poller for items whose background enrichment is still running
+  useEffect(() => {
+    if (activeProcessingIds.current.size === 0) return
+
+    const interval = setInterval(async () => {
+      const ids = Array.from(activeProcessingIds.current)
+      if (ids.length === 0) {
+        clearInterval(interval)
+        return
+      }
+
+      for (const id of ids) {
+        try {
+          const updated = await api.libraryItem(id)
+          if (updated.enriched_at || updated.enrichment_note) {
+            activeProcessingIds.current.delete(id)
+            setItems((prev) =>
+              prev.map((it) => (it.id === id ? { ...updated, isProcessing: false } : it))
+            )
+            toast(`Enriched: ${updated.title}`, 'ok')
+            // Refresh counts & tag index
+            api.library().then((res) => {
+              setCounts(res.counts || {})
+              setCategoryCounts(res.category_counts || {})
+              setTagCounts(res.tag_counts || {})
+            }).catch(() => {})
+          }
+        } catch {
+          activeProcessingIds.current.delete(id)
+        }
+      }
+    }, 1800)
+
+    return () => clearInterval(interval)
+  }, [items, toast])
+
+  // General background sync poll (every 10s, visibility-gated)
   useEffect(() => {
     let cancelled = false
-    const tick = () => { if (!cancelled) load() }
+    const tick = () => {
+      if (!cancelled) load()
+    }
     let timer = null
-    const start = () => { if (timer === null) timer = setInterval(tick, 10000) }
-    const stop = () => { if (timer !== null) { clearInterval(timer); timer = null } }
+    const start = () => {
+      if (timer === null) timer = setInterval(tick, 10000)
+    }
+    const stop = () => {
+      if (timer !== null) {
+        clearInterval(timer)
+        timer = null
+      }
+    }
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') stop()
       else start()
@@ -104,628 +235,296 @@ export default function Library() {
     }
   }, [load])
 
-  const save = useCallback(async () => {
-    const body = {
-      url: draft.url.trim() || null,
-      title: draft.title.trim() || null,
-      kind: draft.kind || null,
-      author: draft.author.trim() || null,
-      notes: draft.notes.trim() || null,
-    }
-    if (!body.url && !body.title) {
-      toast('Give a link, or a title', 'bad')
-      return
-    }
-    setSaving(true)
-    try {
-      const saved = await api.addLibraryItem(body)
-      toast(saved.already_logged ? `Already logged: ${saved.title}` : `Logged: ${saved.title}`, 'ok')
-      setDraft({ url: '', title: '', kind: '', author: '', notes: '' })
-      await load()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setSaving(false)
-    }
-  }, [draft, load, toast])
+  // Instant optimistic add resource
+  const handleAddResource = useCallback(
+    async (body) => {
+      const tempId = `opt-${Date.now()}`
+      const domain = body.url ? getDomain(body.url) : null
 
-  const act = useCallback(async (item, run, note) => {
-    setBusyId(item.id)
-    try {
-      await run()
-      if (note) toast(note, 'ok')
-      await load()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusyId(null)
-    }
-  }, [load, toast])
+      const optimisticItem = {
+        id: tempId,
+        url: body.url || null,
+        title: body.title || (domain ? `Saving ${domain}...` : 'Saving note...'),
+        site: domain,
+        kind: body.kind || (body.url ? 'article' : 'note'),
+        category: 'general',
+        consumed_on: new Date().toISOString().slice(0, 10),
+        author: body.author || null,
+        notes: body.notes || null,
+        tags: [],
+        summary: null,
+        isOptimistic: true,
+        isProcessing: true,
+        created_at: new Date().toISOString(),
+      }
 
-  const total = useMemo(() => Object.values(counts).reduce((sum, n) => sum + n, 0), [counts])
+      // 1. Immediately insert optimistic item at the top!
+      setItems((prev) => [optimisticItem, ...prev])
+      setShowQuickAdd(false)
+      setSaving(true)
+
+      try {
+        const saved = await api.addLibraryItem(body)
+        const isStillEnriching = !saved.enriched_at && !saved.enrichment_note
+
+        if (isStillEnriching) {
+          activeProcessingIds.current.add(saved.id)
+        }
+
+        // 2. Seamlessly upgrade the optimistic item to real item
+        setItems((prev) =>
+          prev.map((it) =>
+            it.id === tempId ? { ...saved, isProcessing: isStillEnriching } : it
+          )
+        )
+
+        toast(
+          saved.already_logged
+            ? `Already in library: ${saved.title}`
+            : `Added: ${saved.title}`,
+          'ok'
+        )
+
+        // Reload counts
+        const meta = await api.library({
+          q: query,
+          kind: selectedKind,
+          category: selectedCategory,
+          tag: selectedTag,
+          order,
+        })
+        setCounts(meta.counts || {})
+        setCategoryCounts(meta.category_counts || {})
+        setTagCounts(meta.tag_counts || {})
+      } catch (err) {
+        // Remove failed optimistic item
+        setItems((prev) => prev.filter((it) => it.id !== tempId))
+        toast(err.message, 'bad')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [query, selectedKind, selectedCategory, selectedTag, order, toast]
+  )
+
+  // Actions on existing items
+  const handleReindex = useCallback(
+    async (item) => {
+      setBusyId(item.id)
+      try {
+        const updated = await api.reindexLibraryItem(item.id)
+        setItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)))
+        toast('Indexed again for search', 'ok')
+      } catch (err) {
+        toast(err.message, 'bad')
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [toast]
+  )
+
+  const handleEnrich = useCallback(
+    async (item) => {
+      setBusyId(item.id)
+      try {
+        const updated = await api.enrichLibraryItem(item.id)
+        setItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)))
+        toast('Read and summarised with AI', 'ok')
+        // Refresh tags
+        const meta = await api.library()
+        setTagCounts(meta.tag_counts || {})
+        setCategoryCounts(meta.category_counts || {})
+      } catch (err) {
+        toast(err.message, 'bad')
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [toast]
+  )
+
+  const handleDelete = useCallback(
+    async (item) => {
+      setBusyId(item.id)
+      try {
+        await api.deleteLibraryItem(item.id)
+        setItems((prev) => prev.filter((it) => it.id !== item.id))
+        toast('Removed from library', 'ok')
+        // Update counts
+        const meta = await api.library()
+        setCounts(meta.counts || {})
+        setCategoryCounts(meta.category_counts || {})
+        setTagCounts(meta.tag_counts || {})
+      } catch (err) {
+        toast(err.message, 'bad')
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [toast]
+  )
+
+  const handleItemUpdate = useCallback((updated) => {
+    setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
+    setActiveModalItem((curr) => (curr?.id === updated.id ? updated : curr))
+  }, [])
+
+  const handleClearFilters = useCallback(() => {
+    setSelectedKind('')
+    setSelectedCategory('')
+    setSelectedTag('')
+    setQuery('')
+  }, [])
+
+  const total = useMemo(
+    () => Object.values(counts).reduce((sum, n) => sum + n, 0),
+    [counts]
+  )
+
+  const activeFilterCount =
+    (selectedKind ? 1 : 0) +
+    (selectedCategory ? 1 : 0) +
+    (selectedTag ? 1 : 0) +
+    (query ? 1 : 0)
 
   return (
-    <div className="view" ref={rootRef}>
-      <div className="view-inner view-inner--wide">
-        <header className="vheader" data-enter>
+    <div className="view lib-view" ref={rootRef}>
+      <div className="view-inner view-inner--wide lib-view-inner">
+        {/* Main Header (Clean, unslop, zero duplicate buttons) */}
+        <header className="vheader lib-main-header" data-enter>
           <div>
-            <h1>Library</h1>
-            <div className="vheader-sub">
-              What you have read, watched and listened to. Captured text is indexed,
-              so the agent can answer from it too.
+            <div className="lib-header-eyebrow mono">
+              <Icon name="book" size={13} />
+              <span>Personal Knowledge Base</span>
             </div>
-          </div>
-          <div className="vheader-actions">
-            <button
-              type="button"
-              className="btn btn--ghost"
-              aria-expanded={showShare}
-              onClick={() => setShowShare(!showShare)}
-            >
-              <Icon name="link" size={15} /> Save from anywhere
-            </button>
+            <h1 className="lib-page-title">Library</h1>
+            <div className="vheader-sub">
+              Organized knowledge, articles, videos, books, and references. Everything
+              captured is indexed for hybrid semantic search.
+            </div>
           </div>
         </header>
 
-        {showShare && <SharePanel toast={toast} />}
-        {showShare && <InstagramPanel toast={toast} />}
+        {/* Add Content Modal (Recall-style from Screenshot 3) */}
+        <AddContentModal
+          open={showAddModal}
+          initialMode={addModalMode}
+          onClose={() => setShowAddModal(false)}
+          onSubmit={handleAddResource}
+          toast={toast}
+        />
 
-        <section className="card card-pad lib-capture" data-enter>
-          <div className="card-title">log something</div>
-          <div className="lib-capture-row">
-            <input
-              className="lib-input"
-              placeholder="Paste a link…"
-              value={draft.url}
-              onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) save() }}
-            />
-            <select
-              className="lib-select"
-              value={draft.kind}
-              onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
-              aria-label="Kind"
-            >
-              <option value="">auto</option>
-              {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
-            <button type="button" className="btn btn--primary" disabled={saving} onClick={save}>
-              {saving ? 'Saving…' : 'Log it'}
-            </button>
-          </div>
-          <details className="lib-manual">
-            <summary>No link — a book, a talk, a conversation</summary>
-            <div className="lib-manual-grid">
-              <input
-                className="lib-input"
-                placeholder="Title"
-                value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+        {/* External Capture & Integrations Modal */}
+        <CaptureIntegrationsModal
+          open={showShare}
+          onClose={() => setShowShare(false)}
+          toast={toast}
+        />
+
+        {/* Toolbar: Search (Ctrl+/), Ask Chat, View & Sort Switchers, + Add (Ctrl+K) */}
+        <LibraryToolbar
+          query={query}
+          onQueryChange={setQuery}
+          searchRef={searchInputRef}
+          order={order}
+          onOrderChange={setOrder}
+          layout={layout}
+          onLayoutChange={handleLayoutChange}
+          railOpen={railOpen}
+          onToggleRail={handleToggleRail}
+          onOpenAdd={() => openAddModal('url')}
+          onToggleShare={() => setShowShare((prev) => !prev)}
+          showShare={showShare}
+          activeFilterCount={activeFilterCount}
+        />
+
+        {/* Two-Column Knowledge Layout: Tag Sidebar + Content */}
+        <div className={`lib-container ${railOpen ? 'lib-container--with-rail' : ''}`}>
+          <AnimatePresence>
+            {railOpen && (
+              <LibraryTagRail
+                total={total}
+                counts={counts}
+                categoryCounts={categoryCounts}
+                tagCounts={tagCounts}
+                selectedKind={selectedKind}
+                selectedCategory={selectedCategory}
+                selectedTag={selectedTag}
+                onSelectKind={setSelectedKind}
+                onSelectCategory={setSelectedCategory}
+                onSelectTag={setSelectedTag}
+                onClearFilters={handleClearFilters}
+                isOpen={railOpen}
+                onClose={() => setRailOpen(false)}
               />
-              <input
-                className="lib-input"
-                placeholder="Author"
-                value={draft.author}
-                onChange={(e) => setDraft({ ...draft, author: e.target.value })}
-              />
-            </div>
-            <textarea
-              className="lib-input"
-              rows={3}
-              placeholder="What it said, what you thought — this is what search reads."
-              value={draft.notes}
-              onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-            />
-          </details>
-        </section>
-
-        <div className="lib-toolbar" data-enter>
-          <div className="lib-search">
-            <Icon name="search" size={15} />
-            <input
-              className="lib-input"
-              placeholder="Search what you have read…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <select
-            className="lib-select"
-            value={kind}
-            onChange={(e) => setKind(e.target.value)}
-            aria-label="Filter by kind"
-          >
-            <option value="">all kinds</option>
-            {KINDS.map((k) => (
-              <option key={k} value={k}>{k}{counts[k] ? ` (${counts[k]})` : ''}</option>
-            ))}
-          </select>
-          <span className="lib-total mono">{total} logged</span>
-        </div>
-
-        {!loaded ? (
-          <SkeletonRows rows={5} controls={2} />
-        ) : error ? (
-          <ErrorState message={error} onRetry={load} />
-        ) : items.length === 0 ? (
-          <EmptyState
-            icon="book"
-            message={
-              query
-                ? `Nothing matched “${query}”. Items logged without captured text are findable by title and notes.`
-                : 'Nothing logged yet. Paste a link above, or ask in chat to log something you have read.'
-            }
-          />
-        ) : (
-          <div className="lib-rows">
-            {items.map((item) => (
-              <Row
-                key={item.id}
-                item={item}
-                busy={busyId === item.id}
-                onReindex={() => act(item, () => api.reindexLibraryItem(item.id), 'Indexed again')}
-                onEnrich={() => act(item, () => api.enrichLibraryItem(item.id), 'Read and summarised')}
-                onDelete={() => act(item, () => api.deleteLibraryItem(item.id), 'Removed')}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function Row({ item, busy, onReindex, onEnrich, onDelete }) {
-  return (
-    <article className="card lib-row" data-enter>
-      <div className="lib-row-icon">
-        {item.thumbnail_path ? (
-          <img className="lib-thumb" src={api.thumbnailUrl(item.id)} alt="" loading="lazy" />
-        ) : (
-          <Icon name={KIND_ICON[item.kind] || 'link'} size={18} />
-        )}
-      </div>
-      <div className="lib-row-body">
-        <div className="lib-row-title">
-          {item.url
-            ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>
-            : item.title}
-        </div>
-        <div className="lib-row-meta mono">
-          {[item.kind, item.author, item.site, fmtDate(item.consumed_on)].filter(Boolean).join(' · ')}
-        </div>
-        {/* What it is about, before what matched. A summary is the thing worth
-            reading in a list; the excerpt is only interesting while searching. */}
-        {item.summary ? <p className="lib-row-excerpt">{item.summary}</p> : null}
-        {item.excerpt && !item.summary ? <p className="lib-row-excerpt">{item.excerpt}</p> : null}
-        {item.notes && !item.excerpt && !item.summary
-          ? <p className="lib-row-excerpt">{item.notes}</p>
-          : null}
-        {item.tags?.length ? (
-          <div className="lib-tags">
-            {item.tags.map((tag) => <span className="lib-tag" key={tag}>{tag}</span>)}
-          </div>
-        ) : null}
-        {item.resources?.length ? (
-          <ul className="lib-resources">
-            {item.resources.map((r, i) => (
-              <li key={i}>
-                <span className="lib-resource-kind">{r.type}</span>
-                {r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.name}</a> : r.name}
-                {r.detail ? <span className="lib-resource-detail"> — {r.detail}</span> : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {/* Says exactly what was and was not captured. An item with no text and
-            no explanation is indistinguishable from a bug. */}
-        {item.capture_note
-          ? <p className="lib-row-note"><Icon name="info" size={13} /> {item.capture_note}</p>
-          : null}
-      </div>
-      <div className="lib-row-actions">
-        {item.indexed && !item.summary ? (
-          <button
-            type="button"
-            className="btn btn--ghost btn--small"
-            disabled={busy}
-            title="Work out what this is about, from the text it has"
-            aria-label={`Summarise ${item.title}`}
-            onClick={onEnrich}
-          >
-            <Icon name="spark" size={13} />
-          </button>
-        ) : null}
-        {item.indexed ? (
-          <button
-            type="button"
-            className="btn btn--ghost btn--small"
-            disabled={busy}
-            title="Index this text again — use after starting an embedding server"
-            aria-label={`Re-index ${item.title}`}
-            onClick={onReindex}
-          >
-            <Icon name="refresh" size={13} />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="btn btn--ghost btn--small"
-          disabled={busy}
-          aria-label={`Remove ${item.title}`}
-          onClick={onDelete}
-        >
-          <Icon name="trash" size={13} />
-        </button>
-      </div>
-    </article>
-  )
-}
-
-/* Two ways in from outside this machine, and they are not the same thing.
- *
- * The bookmarklet is a navigation: it opens this page with the link prefilled.
- * It needs nothing switched on, because no cross-origin request happens.
- *
- * The token is for a phone posting to a deployed instance, and it is a real
- * credential — so it is off until asked for, shown once, and the panel says
- * plainly that it does not make the rest of this API safe to expose. */
-function SharePanel({ toast }) {
-  const [status, setStatus] = useState(null)
-  const [token, setToken] = useState('')
-  const origin = typeof window === 'undefined' ? '' : window.location.origin
-
-  useEffect(() => {
-    api.shareStatus().then(setStatus).catch(() => setStatus({ enabled: false }))
-  }, [])
-
-  const rotate = async () => {
-    try {
-      const next = await api.rotateShareToken()
-      setToken(next.token)
-      setStatus({ enabled: true })
-      toast('Token created — copy it now, it is not shown again', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const revoke = async () => {
-    try {
-      await api.revokeShareToken()
-      setToken('')
-      setStatus({ enabled: false })
-      toast('Sharing switched off', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  return (
-    <section className="card card-pad lib-share" data-enter>
-      <div className="card-title">save from anywhere</div>
-      <div className="set-rows">
-        <div className="set-row">
-          <span>
-            Bookmarklet
-            <span className="set-sub">
-              Drag this to the bookmarks bar. On any page, it opens PSOK with the link filled in.
-            </span>
-          </span>
-          <span className="set-row-tail">
-            <a
-              className="btn btn--small"
-              href={bookmarklet(origin)}
-              onClick={(e) => e.preventDefault()}
-            >
-              Save to PSOK
-            </a>
-          </span>
-        </div>
-        <div className="set-row">
-          <span>
-            Share token
-            <span className="set-sub">
-              For a phone shortcut posting to <code>POST /api/share/capture</code>. Capture only —
-              it cannot read, list or run anything.
-            </span>
-          </span>
-          <span className="set-row-tail">
-            {status?.enabled ? (
-              <>
-                <button type="button" className="btn btn--ghost btn--small" onClick={rotate}>Rotate</button>
-                <button type="button" className="btn btn--ghost btn--small" onClick={revoke}>Revoke</button>
-              </>
-            ) : (
-              <button type="button" className="btn btn--small" onClick={rotate}>Create</button>
             )}
-          </span>
+          </AnimatePresence>
+
+          <main className="lib-main-content">
+            {!loaded ? (
+              <div className="lib-loading-skeleton" aria-hidden="true">
+                <SkeletonRows rows={6} controls={2} />
+              </div>
+            ) : error ? (
+              <ErrorState message={error} onRetry={load} />
+            ) : items.length === 0 ? (
+              <EmptyState
+                icon="book"
+                message={
+                  query || selectedTag || selectedKind || selectedCategory
+                    ? `No resources matched the current filter. Try clearing filters or changing your search.`
+                    : 'Your library is empty. Add a link, video, book, or note above to start building your knowledge base.'
+                }
+                action={
+                  activeFilterCount > 0 ? (
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={handleClearFilters}
+                    >
+                      Clear all filters
+                    </button>
+                  ) : null
+                }
+              />
+            ) : layout === 'grid' ? (
+              <LibraryGrid
+                items={items}
+                busyId={busyId}
+                onSelect={(item) => setActiveModalItem(item)}
+                onReindex={handleReindex}
+                onEnrich={handleEnrich}
+                onDelete={handleDelete}
+                onTagClick={(tag) => setSelectedTag(tag)}
+              />
+            ) : (
+              <LibraryListView
+                items={items}
+                busyId={busyId}
+                onSelect={(item) => setActiveModalItem(item)}
+                onReindex={handleReindex}
+                onEnrich={handleEnrich}
+                onDelete={handleDelete}
+                onTagClick={(tag) => setSelectedTag(tag)}
+              />
+            )}
+          </main>
         </div>
+
+        {/* Item Inspection & Edit Modal */}
+        <AnimatePresence>
+          {activeModalItem && (
+            <LibraryDetailModal
+              item={activeModalItem}
+              onClose={() => setActiveModalItem(null)}
+              onUpdate={handleItemUpdate}
+              onDelete={handleDelete}
+              toast={toast}
+            />
+          )}
+        </AnimatePresence>
       </div>
-      {token ? (
-        <div className="lib-token">
-          <code>{token}</code>
-          <button type="button" className="btn btn--small" onClick={() => copyText(token)}>
-            <Icon name="copy" size={13} /> Copy
-          </button>
-        </div>
-      ) : null}
-      <p className="set-note">
-        A token does not make this instance safe to publish. Every other endpoint here is
-        unauthenticated by design — if PSOK is reachable from the internet, put a proxy in front
-        that exposes <code>/api/share/capture</code> and nothing else. See docs/deployment.md.
-      </p>
-    </section>
-  )
-}
-
-/* Instagram capture: send a reel to the account, and it lands here.
- *
- * The panel is mostly about telling the truth about two things. The three
- * credentials are written and never read back — the server reports only whether
- * each is present. And the two routes are not equally good: a comment mention
- * carries the caption and the link, a direct message carries neither, so the
- * copy says which is which rather than letting somebody find out from a thin
- * item three weeks later. */
-function InstagramPanel({ toast }) {
-  const [state, setState] = useState(null)
-  const [busy, setBusy] = useState('')
-  const [form, setForm] = useState({ app_secret: '', verify_token: '', access_token: '', owner: '' })
-  const [relay, setRelay] = useState({ url: '', token: '' })
-  const origin = typeof window === 'undefined' ? '' : window.location.origin
-
-  const load = useCallback(async () => {
-    try { setState(await api.instagram()) } catch (err) { toast(err.message, 'bad') }
-  }, [toast])
-
-  useEffect(() => { load() }, [load])
-
-  const run = async (key, work, note) => {
-    setBusy(key)
-    try {
-      setState(await work())
-      if (note) toast(note, 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy('')
-    }
-  }
-
-  if (!state) return null
-  const { settings, credentials, configured } = state
-  const missing = Object.entries(credentials).filter(([, ok]) => !ok).map(([k]) => k)
-
-  return (
-    <section className="card card-pad lib-share" data-enter>
-      <div className="card-title">save from instagram</div>
-      <p className="set-note">
-        Comment <code>@your.account</code> on a reel and it is saved with its link and its
-        full caption — that is the route worth using. Sending the reel as a direct message
-        also works, but Instagram passes on the video and a title and <em>no</em> caption
-        and <em>no</em> link, so those are only searchable once the audio has been
-        transcribed.
-      </p>
-
-      {!configured ? (
-        <>
-          <p className="set-note">
-            From your Meta app: the app secret, a verify token you invent, and a long-lived
-            Instagram access token. They go straight to the OS keychain — nothing reads them
-            back out. Still missing: <b>{missing.join(', ')}</b>.
-          </p>
-          <div className="lib-manual-grid">
-            <input className="lib-input" placeholder="App secret" type="password"
-              value={form.app_secret} onChange={(e) => setForm({ ...form, app_secret: e.target.value })} />
-            <input className="lib-input" placeholder="Verify token (you choose this)"
-              value={form.verify_token} onChange={(e) => setForm({ ...form, verify_token: e.target.value })} />
-            <input className="lib-input" placeholder="Access token" type="password"
-              value={form.access_token} onChange={(e) => setForm({ ...form, access_token: e.target.value })} />
-            <input className="lib-input" placeholder="Your Instagram account id"
-              value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} />
-          </div>
-          <div className="set-inline" style={{ marginTop: 12 }}>
-            <button type="button" className="btn btn--primary btn--small" disabled={busy === 'save'}
-              onClick={() => run('save', async () => {
-                const saved = await api.saveInstagramCredentials({
-                  app_secret: form.app_secret || null,
-                  verify_token: form.verify_token || null,
-                  access_token: form.access_token || null,
-                  expires_in_days: form.access_token ? 60 : null,
-                })
-                if (form.owner) await api.updateInstagram({ owner_ig_id: form.owner })
-                setForm({ app_secret: '', verify_token: '', access_token: '', owner: '' })
-                return saved
-              }, 'Stored')}>
-              {busy === 'save' ? 'Saving…' : 'Save credentials'}
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="set-rows">
-          <div className="set-row">
-            <span>
-              Accepting deliveries
-              <span className="set-sub">
-                Webhook URL: <code>{origin}{state.webhook_path}</code>
-              </span>
-            </span>
-            <span className="set-row-tail">
-              <button type="button" className={`btn btn--small${settings.enabled ? ' btn--primary' : ''}`}
-                aria-pressed={settings.enabled} disabled={busy === 'toggle'}
-                onClick={() => run('toggle',
-                  () => api.updateInstagram({ enabled: !settings.enabled }),
-                  settings.enabled ? 'Capture off' : 'Capture on')}>
-                {settings.enabled ? 'On' : 'Off'}
-              </button>
-            </span>
-          </div>
-
-          <div className="set-row">
-            <span>
-              Who may save things
-              <span className="set-sub">
-                {settings.allow_senders.length
-                  ? `Allowed: ${settings.allow_senders.join(', ')}`
-                  : 'Nobody yet — anyone can message a public account, so nothing is saved until you say who.'}
-              </span>
-            </span>
-          </div>
-
-          {state.unknown_senders.map((sender) => (
-            <div className="set-row" key={sender.sender_id}>
-              <span>
-                {sender.sender_id} sent you something
-                <span className="set-sub">turned away {sender.attempts}× — not on the allowlist</span>
-              </span>
-              <span className="set-row-tail">
-                <button type="button" className="btn btn--small" disabled={busy === sender.sender_id}
-                  onClick={() => run(sender.sender_id,
-                    () => api.allowInstagramSender(sender.sender_id), 'Allowed')}>
-                  Allow
-                </button>
-              </span>
-            </div>
-          ))}
-
-          <div className="set-row">
-            <span>
-              Reply “Saved” on Instagram
-              <span className="set-sub">A write to your account, so it is off unless you ask</span>
-            </span>
-            <span className="set-row-tail">
-              <button type="button" className={`btn btn--small${settings.reply_on_save ? ' btn--primary' : ''}`}
-                aria-pressed={settings.reply_on_save} disabled={busy === 'reply'}
-                onClick={() => run('reply', () => api.updateInstagram({ reply_on_save: !settings.reply_on_save }))}>
-                {settings.reply_on_save ? 'On' : 'Off'}
-              </button>
-            </span>
-          </div>
-
-          <RelayRow state={state} busy={busy} run={run} relay={relay} setRelay={setRelay}
-            toast={toast} setState={setState} />
-
-          <div className="set-row">
-            <span>
-              Transcription
-              <span className="set-sub">
-                {state.transcription
-                  ? `${state.transcription.provider} · ${state.transcription.model}`
-                  : 'None configured — a reel sent as a message will have no text at all'}
-                {state.ffmpeg ? '' : ' · ffmpeg is not installed'}
-              </span>
-            </span>
-          </div>
-        </div>
-      )}
-
-      {state.token_expires_in_days !== null && state.token_expires_in_days < 14 ? (
-        <p className="lib-token">
-          <code>
-            The Instagram token expires in {state.token_expires_in_days} days. Once it lapses it
-            cannot be refreshed — only replaced.
-          </code>
-        </p>
-      ) : null}
-
-      <p className="set-note">
-        {state.relay.ready ? (
-          <>
-            Meta delivers to the relay, not to this machine, so nothing here is reachable from
-            the internet and nothing needs a proxy. The relay stores the bytes Meta signed and
-            this machine checks that signature again before anything reaches the library.
-          </>
-        ) : (
-          <>
-            Without a relay this webhook has to be reachable from the internet, and its only
-            authentication is Meta’s signature on each delivery. Every other endpoint here is
-            unauthenticated — put a proxy in front that publishes{' '}
-            <code>{state.webhook_path}</code> and nothing else. See docs/deployment.md.
-          </>
-        )}
-      </p>
-    </section>
-  )
-}
-
-/* The relay: the difference between capture working and capture working while
- * this machine is closed.
- *
- * Worth being blunt in the copy rather than neutral. Meta does not queue for a
- * webhook that fails — it retries and then disables the subscription — so
- * “no relay” is not “deliveries arrive late”, it is “eventually nothing arrives
- * at all and nothing says so”. */
-function RelayRow({ state, busy, run, relay, setRelay, toast, setState }) {
-  const [syncing, setSyncing] = useState(false)
-  const info = state.relay
-
-  const save = () => run('relay', async () => {
-    const next = await api.setInstagramRelay({
-      url: relay.url || undefined,
-      token: relay.token || undefined,
-      enabled: true,
-    })
-    setRelay({ url: '', token: '' })
-    return next
-  }, 'Relay connected')
-
-  const sync = async () => {
-    setSyncing(true)
-    try {
-      const result = await api.syncInstagramRelay()
-      toast(result.synced
-        ? `Took ${result.pulled}, ${result.queued} still waiting`
-        : (result.error || 'The relay could not be reached'), result.synced ? 'ok' : 'bad')
-      setState(await api.instagram())
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  if (!info.ready) {
-    return (
-      <div className="set-row set-row--stack">
-        <span>
-          Relay
-          <span className="set-sub">
-            Nothing is catching deliveries while this machine is off. Meta retries a webhook
-            that fails and then switches the subscription off — so a closed lid eventually
-            means no reels at all, with no error anywhere. See relay/README.md.
-          </span>
-        </span>
-        <div className="lib-relay-form">
-          <input className="lib-input" placeholder="https://psok-relay.….workers.dev"
-            value={relay.url} onChange={(e) => setRelay({ ...relay, url: e.target.value })} />
-          <input className="lib-input" type="password" placeholder="The relay token"
-            value={relay.token} onChange={(e) => setRelay({ ...relay, token: e.target.value })} />
-          <button type="button" className="btn btn--small btn--primary"
-            disabled={busy === 'relay' || !relay.url || !relay.token} onClick={save}>
-            Connect
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="set-row">
-      <span>
-        Relay
-        <span className="set-sub">
-          <code>{info.url}</code> — deliveries survive this machine being off
-        </span>
-      </span>
-      <span className="set-row-tail">
-        <button type="button" className="btn btn--small" disabled={syncing} onClick={sync}>
-          {syncing ? 'Looking…' : 'Sync now'}
-        </button>
-        <button type="button" className="btn btn--small" disabled={busy === 'relay-off'}
-          onClick={() => run('relay-off', () => api.clearInstagramRelay(), 'Relay forgotten')}>
-          Forget
-        </button>
-      </span>
     </div>
   )
 }

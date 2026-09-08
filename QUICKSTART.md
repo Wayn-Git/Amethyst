@@ -1,0 +1,188 @@
+# 🚀 PSOK Quick Start Guide
+
+Welcome to **PSOK** (Personal Operating System with Knowledge)! This guide will get you up and running in **less than 2 minutes**.
+
+---
+
+## ⚡ 1-Minute Automated Start (Recommended)
+
+PSOK includes automated startup scripts:
+- **macOS / Linux / WSL2**: Run `./run.sh`
+- **Windows**: Run `run.bat` *(in Command Prompt or PowerShell, or double-click it)*
+
+*(Note: If your operating system hides file extensions, `run.sh` and `run.bat` may both appear simply as `run`. Choose `run.bat` for Windows and `run.sh` for Unix/Mac/Linux).*
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-username/pkos.git
+cd pkos
+
+# 2. Run the startup script (macOS/Linux/WSL)
+./run.sh
+
+# Or on Windows:
+run.bat
+```
+
+The script automatically sets up `.venv`, installs dependencies, initializes the database, builds the frontend, and opens the app in your browser at:
+👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
+
+---
+
+## 🧙‍♂️ Interactive Setup Wizard (API Keys, OAuth & Connectors)
+
+If you or a friend want a guided interactive setup for your AI models, app connectors (Google, Microsoft, GitHub), Cloudflare embeddings, and the Library:
+
+```bash
+./run.sh --setup
+# Or on Windows:
+run.bat --setup
+```
+
+For detailed manual instructions for every integration, see the **[Complete Configuration & Connectivity Guide](docs/CONFIGURATION_GUIDE.md)**.
+
+---
+
+## 📋 Prerequisites
+
+Before running, ensure your machine has:
+- **Python 3.11+** (`python3 --version`)
+- **Node.js 18+** & **npm** (`node -v && npm -v`)
+
+<details>
+<summary><b>Need to install prerequisites? (Click to expand)</b></summary>
+
+### macOS
+```bash
+brew install python@3.12 node
+```
+
+### Ubuntu / Debian
+```bash
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip nodejs npm
+```
+
+### Fedora
+```bash
+sudo dnf install -y python3 python3-pip nodejs npm
+```
+
+### Windows
+- Download Python: [python.org](https://www.python.org/downloads/) (check "Add python.exe to PATH")
+- Download Node.js: [nodejs.org](https://nodejs.org/)
+
+</details>
+
+---
+
+## 🐳 Option 2: Docker Compose
+
+If you have Docker installed, you don't need Python or Node on your host:
+
+```bash
+docker compose up
+```
+
+Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)**. Your data is stored locally in `./data/psok`.
+
+---
+
+## 🛠️ Option 3: Manual Installation
+
+If you prefer installing step-by-step:
+
+```bash
+# 1. Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate       # On Windows: .venv\Scripts\activate
+
+# 2. Install Python dependencies
+pip install -r requirements.txt
+
+# 3. Initialize PSOK database & configuration
+psok init
+
+# 4. Build the web frontend
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 5. Start the server
+psok serve --open
+```
+
+---
+
+## 🧠 Setting Up AI Models (2 Minutes)
+
+PSOK works with **100% free local models** as well as **cloud providers** (Anthropic Claude, OpenAI, Groq, Gemini).
+
+### Method A: 100% Free & Local (Ollama - No API Keys)
+1. Download and install [Ollama](https://ollama.ai/).
+2. Pull any model (for example, Llama 3.2 or Qwen 2.5):
+   ```bash
+   ollama run llama3.2
+   ```
+3. PSOK connects to Ollama automatically! Simply pick it from the model selector in the chat.
+
+### Method B: Cloud Providers (OpenAI, Anthropic, Groq)
+Copy `.env.example` to `.env` (the startup script does this automatically):
+```bash
+cp .env.example .env
+```
+Add your API key(s) to `.env`:
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GROQ_API_KEY=gsk_...
+```
+*Or* configure them via the web UI in **Settings → Models**, or via the CLI:
+```bash
+psok secrets set psok/anthropic
+psok secrets set psok/openai
+psok secrets set psok/groq
+```
+
+---
+
+## 🧰 Useful Commands
+
+| Command | Description |
+|---|---|
+| `./run.sh` / `run.bat` | Builds frontend (if needed), initializes DB, and serves on port 8000 |
+| `./run.sh --setup` / `run.bat --setup` | Interactive setup wizard for API keys, OAuth, Cloudflare & connectors |
+| `./run.sh --dev` | Starts backend with hot-reload + Vite dev server concurrently |
+| `./run.sh --doctor` / `run.bat --doctor` | Runs system diagnostics (checks models, DB, tools, connectors) |
+| `./run.sh --build` | Rebuilds the frontend bundle |
+| `psok doctor` | Checks what is working and what is missing |
+| `psok chat "Hello"` | Run a chat turn directly from your terminal |
+
+---
+
+## ❓ Frequently Asked Questions & Troubleshooting
+
+### Q: Why do I see two `run` files in the repository root?
+There is **`run.sh`** (for macOS, Linux, and WSL2) and **`run.bat`** (for Windows Command Prompt / PowerShell). If your file explorer has "Hide extensions for known file types" turned on, they might both display as "run". Run `run.bat` on Windows and `./run.sh` on Mac/Linux.
+
+### Q: How do I configure OAuth (Google Workspace, Microsoft To Do, etc.)?
+1. **Microsoft To Do**: Zero configuration! Click **Add** → **Connect** in **Connectors & Skills** (`/capabilities`) and approve with your Microsoft account via device code.
+2. **Google Workspace**: Create an OAuth desktop client in Google Cloud Console, add the Client ID/Secret in `.env` or run `./run.sh --setup`, then click **Connect**.
+See [docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md) for step-by-step instructions.
+
+### Q: How does the Cloudflare Worker Relay work for Instagram and Library capture?
+The relay in `relay/` is a free Cloudflare Worker that stays awake on the edge. When you or someone else sends/comments a reel on Instagram or shares a link from a phone, the relay holds it until your machine pulls it, transcribes the audio, and saves it into your Library. See [docs/CONFIGURATION_GUIDE.md#4-cloudflare-worker-relay](docs/CONFIGURATION_GUIDE.md#4-cloudflare-worker-relay).
+
+### Q: The page is blank when opening http://127.0.0.1:8000?
+Run `./run.sh --build` (or `cd frontend && npm install && npm run build`). PSOK serves the SPA from `frontend/dist`.
+
+### Q: How do I test if everything is functioning?
+Run `./run.sh --doctor` or `run.bat --doctor`. It validates the database, model providers, tools, and skills.
+
+### Q: Can I run frontend and backend separately with live hot-reloading?
+Yes! Simply run:
+```bash
+./run.sh --dev
+```
+This starts the backend on port `8000` and the Vite dev server on `http://127.0.0.1:5173`.
