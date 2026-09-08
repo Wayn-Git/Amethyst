@@ -6,7 +6,7 @@ import { MOD_LABEL } from '../keys.js'
 import { useConfirm } from './ui/ConfirmDialog.jsx'
 import { useDismiss } from '../hooks/useDismiss.js'
 
-/* The second column of the workbench: everything you have said to PSOK.
+/* The second column of the workbench: everything you have said to AMETHYST.
 
    It was folded into the rail before, underneath the places, which meant the
    two competed for the same height and hiding the navigation hid the history
@@ -122,7 +122,7 @@ export default function ConversationList() {
       aria-hidden={compact && !railOpen ? 'true' : undefined}
     >
       <div className="wb-list-top">
-        <span className="wb-brand">PSOK</span>
+        <span className="wb-brand">AMETHYST</span>
         <button
           type="button"
           className="icon-btn"
@@ -163,7 +163,7 @@ export default function ConversationList() {
       <div className="wb-convs">
         {empty && (
           <p className="wb-list-empty">
-            {conversations.length ? 'Nothing matches that.' : 'No conversations yet. Ask PSOK something.'}
+            {conversations.length ? 'Nothing matches that.' : 'No conversations yet. Ask AMETHYST something.'}
           </p>
         )}
         {groups.map((g) => (

@@ -21,7 +21,7 @@ from backend.config import load_browser
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
 
 DISABLED = (
-    "browser history is switched off. PSOK reads it from the browser's own"
+    "browser history is switched off. AMETHYST reads it from the browser's own"
     " database on this machine, and it stays off until it is turned on in"
     " settings."
 )

@@ -29,7 +29,7 @@ SENSITIVE_PATH_PATTERNS = [
         r"/\.npmrc$",
         r"/\.netrc$",
         r"/\.env(\.|$)",
-        r"/\.psok/config(/|$)",
+        r"/\.amethyst/config(/|$)",
         r"_history$",
         r"/\.mozilla(/|$)",
         r"/\.config/google-chrome(/|$)",

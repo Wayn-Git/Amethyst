@@ -236,7 +236,7 @@ async def test_a_pdf_is_written_through_libreoffice_not_pandoc(db, workspace):
     assert not result.is_error, result.content
     assert "LibreOffice" in result.content
     assert (workspace / "out.pdf").exists()
-    assert not list(workspace.glob(".*psok-tmp*")), "the intermediate .docx was left behind"
+    assert not list(workspace.glob(".*amethyst-tmp*")), "the intermediate .docx was left behind"
 
 
 async def test_a_pdf_cannot_be_edited_in_place(db, workspace):

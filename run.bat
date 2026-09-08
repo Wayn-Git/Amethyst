@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ======================================================
-echo               PSOK Launcher ^& Manager
+echo               AMETHYST Launcher ^& Manager
 echo ======================================================
 
 :: 1. Check Python
@@ -25,7 +25,7 @@ if %ERRORLEVEL% neq 0 (
 
 :: 3. Setup Virtual Environment
 if not exist ".venv" (
-    echo [PSOK] Creating virtual environment (.venv)...
+    echo [AMETHYST] Creating virtual environment (.venv)...
     python -m venv .venv
 )
 
@@ -34,29 +34,29 @@ call .venv\Scripts\activate.bat
 :: 4. Install Dependencies
 python -c "import fastapi, uvicorn, pydantic, mcp, yaml, backend" >nul 2>nul
 if %ERRORLEVEL% neq 0 (
-    echo [PSOK] Installing Python dependencies from requirements.txt...
+    echo [AMETHYST] Installing Python dependencies from requirements.txt...
     python -m pip install --upgrade pip
     python -m pip install -r requirements.txt
 )
 
 :: 5. Create .env if missing
 if not exist ".env" (
-    echo [PSOK] Creating initial .env from .env.example...
+    echo [AMETHYST] Creating initial .env from .env.example...
     copy .env.example .env >nul
 )
 
 :: 6. Initialize DB
-echo [PSOK] Initializing PSOK...
+echo [AMETHYST] Initializing AMETHYST...
 python -m backend.cli init
 
 :: 7. Build Frontend if missing
 if not exist "frontend\node_modules" (
-    echo [PSOK] Installing frontend dependencies...
+    echo [AMETHYST] Installing frontend dependencies...
     cd frontend && call npm install && cd ..
 )
 
 if not exist "frontend\dist\index.html" (
-    echo [PSOK] Building frontend web app...
+    echo [AMETHYST] Building frontend web app...
     cd frontend && call npm run build && cd ..
 )
 
@@ -73,13 +73,13 @@ exit /b 0
 :check_doctor
 
 if "%1"=="--doctor" (
-    echo [PSOK] Running diagnostics:
+    echo [AMETHYST] Running diagnostics:
     python -m backend.cli doctor
     pause
     exit /b 0
 )
 
-echo [PSOK] Starting PSOK on http://127.0.0.1:8000 ...
+echo [AMETHYST] Starting AMETHYST on http://127.0.0.1:8000 ...
 python -m backend.cli serve --open %*
 
 pause

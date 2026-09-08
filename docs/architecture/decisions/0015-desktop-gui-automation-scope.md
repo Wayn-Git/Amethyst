@@ -15,7 +15,7 @@ v1 desktop tools are limited to `open_application`, `open_url`, and `open_file` 
 ## Alternatives Considered
 
 - **Build full computer-use-style GUI automation in v1.** Rejected: it is the single highest-risk, highest-complexity capability surface available to build, and none of the brief's concrete examples require it.
-- **Delegate all desktop interaction to a bundled MCP server, as Pipali does with browser control.** Deferred rather than rejected outright — this remains a reasonable path for a later phase, but is not adopted by default in v1 given that MCP servers run outside PSOK's sandbox (see [security.md](../security.md)).
+- **Delegate all desktop interaction to a bundled MCP server, as Pipali does with browser control.** Deferred rather than rejected outright — this remains a reasonable path for a later phase, but is not adopted by default in v1 given that MCP servers run outside AMETHYST's sandbox (see [security.md](../security.md)).
 
 ## Trade-offs
 

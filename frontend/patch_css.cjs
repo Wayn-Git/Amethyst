@@ -1,5 +1,5 @@
 const fs = require('fs');
-const file = '/home/wayne/Documents/GitHub/pkos/frontend/src/index.css';
+const file = '/home/wayne/Documents/GitHub/amethyst/frontend/src/index.css';
 let css = fs.readFileSync(file, 'utf8');
 
 css = css.replace(/border: 1.5px solid #d9532f;/g, "border: 1px solid var(--accent);");

@@ -1,8 +1,8 @@
-# PSOK
+# AMETHYST
 
 **A personal operating system: one AI agent over your files, shell, tasks, calendar, notes and connected services.** Single-user and local-first — your data stays in a SQLite file on your machine, your secrets stay in the OS keychain, and nothing is sent anywhere except to the model provider you choose.
 
-![The PSOK interface](docs/images/interface.png)
+![The AMETHYST interface](docs/images/interface.png)
 
 ---
 
@@ -13,14 +13,14 @@
 ### 1-Line Automated Launcher (macOS / Linux / WSL2)
 
 ```bash
-git clone <this repository> && cd pkos
+git clone <this repository> && cd amethyst
 ./run.sh
 # → Opens http://127.0.0.1:8000 automatically
 ```
 
 *(On Windows Command Prompt, run `run.bat`. On Mac/Linux, run `./run.sh`)*
 
-The script checks prerequisites, creates `.venv`, installs dependencies from `requirements.txt`, builds the web UI, initializes the local SQLite database, and opens PSOK in your default browser.
+The script checks prerequisites, creates `.venv`, installs dependencies from `requirements.txt`, builds the web UI, initializes the local SQLite database, and opens AMETHYST in your default browser.
 
 - Run `./run.sh --setup` (or `run.bat --setup`) for the interactive configuration wizard (API keys, OAuth, Cloudflare, connectors).
 - Run `./run.sh --dev` for concurrent backend + frontend hot-reloading.
@@ -32,16 +32,16 @@ The script checks prerequisites, creates `.venv`, installs dependencies from `re
 ## 🐳 Run it in Docker
 
 ```bash
-git clone <this repository> && cd pkos
+git clone <this repository> && cd amethyst
 docker compose up
 # → http://127.0.0.1:8000
 ```
 
-One image, one process, one port: the API and the built interface come from the same origin, so there is no second service and no cross-origin request to configure. First run walks you through pointing it at a model and signing into whatever connectors you want; state lives in two volumes (`./data/psok` for the library and database, a named volume for connector tokens) and survives restarts.
+One image, one process, one port: the API and the built interface come from the same origin, so there is no second service and no cross-origin request to configure. First run walks you through pointing it at a model and signing into whatever connectors you want; state lives in two volumes (`./data/amethyst` for the library and database, a named volume for connector tokens) and survives restarts.
 
 > ### Exposure warning, unhedged
 >
-> **PSOK has no authentication.** Anything that can reach port 8000 can read your files, run shell commands and read your mail. The compose file publishes on `127.0.0.1` only — do not change that without putting an authenticating reverse proxy in front of it ([deployment.md](docs/deployment.md)).
+> **AMETHYST has no authentication.** Anything that can reach port 8000 can read your files, run shell commands and read your mail. The compose file publishes on `127.0.0.1` only — do not change that without putting an authenticating reverse proxy in front of it ([deployment.md](docs/deployment.md)).
 
 Google and Spotify sign-ins need `network_mode: host` (the Linux default here); the [docker notes](docs/deployment.md) say why, and what a container degrades at honestly — desktop notifications, the shell sandbox on hardened hosts, office conversion.
 
@@ -51,7 +51,7 @@ Google and Spotify sign-ins need `network_mode: host` (the Linux default here); 
 
 ## What it does
 
-Ask for something in one line. PSOK decides which of its tools to use, asks permission before anything that writes or runs, and shows you exactly what it did.
+Ask for something in one line. AMETHYST decides which of its tools to use, asks permission before anything that writes or runs, and shows you exactly what it did.
 
 ![A multi-step turn](docs/images/turn.png)
 
@@ -70,20 +70,20 @@ python3 -m venv .venv
 source .venv/bin/activate               # Windows: .venv\Scripts\activate
 pip install -r requirements.txt         # or: uv pip install -r requirements.txt
 
-psok init                               # ~/.psok, the database, default config
-psok doctor                             # what is configured and what is missing
+amethyst init                               # ~/.amethyst, the database, default config
+amethyst doctor                             # what is configured and what is missing
 
 cd frontend && npm install && npm run build
 cd ..
-psok serve --open                       # http://127.0.0.1:8000
+amethyst serve --open                       # http://127.0.0.1:8000
 ```
 
 Point it at a model. Ollama is preconfigured; a cloud provider keeps its key in the OS keychain, never in the config file:
 
 ```bash
-psok providers catalogue               # what PSOK knows how to configure
-psok providers add anthropic
-psok secrets set psok/anthropic        # prompts, so the key stays out of shell history
+amethyst providers catalogue               # what AMETHYST knows how to configure
+amethyst providers add anthropic
+amethyst secrets set amethyst/anthropic        # prompts, so the key stays out of shell history
 ```
 
 Any OpenAI-compatible endpoint — vLLM, LM Studio, a proxy — works with no code change:
@@ -107,11 +107,11 @@ The honest table: most missing pieces cost a feature quietly rather than break a
 | this machine has | then this works | without it |
 |---|---|---|
 | `ffmpeg` + `ffprobe` | reels and audio transcription | the item is saved with a title only; says so |
-| `bubblewrap` (Linux) / `seatbelt` (macOS) | the shell sandbox | commands still confirm, then run unsandboxed; `psok doctor` states which |
+| `bubblewrap` (Linux) / `seatbelt` (macOS) | the shell sandbox | commands still confirm, then run unsandboxed; `amethyst doctor` states which |
 | `uv`/`uvx` and Node `npx` | the MCP connector catalogue | half the catalogue cannot start; named in each row |
 | `sqlite-vec` | semantic search | search falls back to keyword-only, with a warning in the log |
 | `pdftotext` (poppler) | reading PDFs | PDF extraction fails with a named error |
-| `soffice` (LibreOffice) | converting to `.docx`/`.pptx` | the tool refuses with the install line — not in the image (~800MB); `docker compose exec psok apt-get install -y libreoffice-writer` if you need it |
+| `soffice` (LibreOffice) | converting to `.docx`/`.pptx` | the tool refuses with the install line — not in the image (~800MB); `docker compose exec amethyst apt-get install -y libreoffice-writer` if you need it |
 | a provider key | summaries, tags, transcription | capture still works; the item says "not summarised" and enrichment can be re-run later |
 
 ## Connectors: zero-config, and bring-your-own
@@ -119,13 +119,13 @@ The honest table: most missing pieces cost a feature quietly rather than break a
 **Works with nothing to register** — the connector signs into *your* account, no app of yours needed:
 
 - `fetch`, `memory`, `playwright`, `chrome-devtools` — no auth at all
-- `vercel` — its authorization server accepts dynamic registration, so PSOK registers on first sign-in
+- `vercel` — its authorization server accepts dynamic registration, so AMETHYST registers on first sign-in
 - `microsoft-todo` — Microsoft's own public client, device-code flow
 - `github`, `linkedin`, `tavily`, `exa`, `firecrawl` — an API key or an app registration of your own, pasted into the row
 
 **Needs an OAuth app registration of your own:**
 
-- **Google** — and it cannot honestly be called zero-config anyway: while the app is in *Testing*, Google expires a test user's grant — the refresh token included — **seven days** after it is given, and publishing is blocked by restricted Gmail scopes (paid CASA assessment) and Branding fields that need a Search-Console-verified domain. PSOK's mechanism for a shared registration exists (`PSOK_DEFAULT_GOOGLE_*`), ships with no value, and would not remove the weekly renewal. The connector announces its grant age before a tool call finds out. [connectors.md](docs/architecture/connectors.md) has the full accounting.
+- **Google** — and it cannot honestly be called zero-config anyway: while the app is in *Testing*, Google expires a test user's grant — the refresh token included — **seven days** after it is given, and publishing is blocked by restricted Gmail scopes (paid CASA assessment) and Branding fields that need a Search-Console-verified domain. AMETHYST's mechanism for a shared registration exists (`AMETHYST_DEFAULT_GOOGLE_*`), ships with no value, and would not remove the weekly renewal. The connector announces its grant age before a tool call finds out. [connectors.md](docs/architecture/connectors.md) has the full accounting.
 - **Spotify** — 25 users in Development Mode, each added by email in the dashboard.
 
 **A friend contributing on their own machine** never reaches yours: the shared registration, where one exists, identifies the *software*; every token is minted per install and stays there.
@@ -152,11 +152,11 @@ Each of these was exercised end to end, not just wired up.
 
 **A day you can open.** Today pulls your calendar, task buckets, unread mail and connected tools onto one page, under a briefing written each morning from those same figures. In the evening a check-in is filed with the day's real numbers and no prose — the review is written from *your* answers, when you give them, and rolls up on the day your week ends. See [journal.md](docs/architecture/journal.md).
 
-**Reels, saved by sending them.** Comment `@your.account` on an Instagram post, or send it to the account as a message, and it lands in the library — the savetolist.com mechanic, on Meta's own API. A mention carries the permalink and the full caption; a direct message carries neither, so PSOK transcribes the audio through a provider you already have a key for, and the item says plainly which of the two it was. What it will not do is describe a video it has no words for. See [instagram.md](docs/architecture/instagram.md) — and [relay/README.md](relay/README.md) for the Cloudflare Worker that catches deliveries while your machine is closed.
+**Reels, saved by sending them.** Comment `@your.account` on an Instagram post, or send it to the account as a message, and it lands in the library — the savetolist.com mechanic, on Meta's own API. A mention carries the permalink and the full caption; a direct message carries neither, so AMETHYST transcribes the audio through a provider you already have a key for, and the item says plainly which of the two it was. What it will not do is describe a video it has no words for. See [instagram.md](docs/architecture/instagram.md) — and [relay/README.md](relay/README.md) for the Cloudflare Worker that catches deliveries while your machine is closed.
 
-**A library of what you have read.** Paste a link and PSOK fetches it, extracts the text to a real file under `~/.psok/library`, and hands it to the same indexer that reads your vault — so `search_documents` answers from a saved article without knowing the library exists. An X/Twitter link is captured through its public oEmbed when it has no signed-in reader, a phone share through the relay lands within a poll, and everything with real text gets a summary, tags and the things it named. A paywall, a video with no transcript, or an embedding server that is not running each cost part of the capture and none of the record: the item says which. See [library.md](docs/architecture/library.md).
+**A library of what you have read.** Paste a link and AMETHYST fetches it, extracts the text to a real file under `~/.amethyst/library`, and hands it to the same indexer that reads your vault — so `search_documents` answers from a saved article without knowing the library exists. An X/Twitter link is captured through its public oEmbed when it has no signed-in reader, a phone share through the relay lands within a poll, and everything with real text gets a summary, tags and the things it named. A paywall, a video with no transcript, or an embedding server that is not running each cost part of the capture and none of the record: the item says which. See [library.md](docs/architecture/library.md).
 
-**A brand kit that changes the output.** Voice, values, palette and fonts, injected as a `<brand>` block into the system prompt when PSOK writes *for* you rather than *to* you. The Settings panel shows the literal text the model is handed, so a stored voice and an applied one cannot silently differ.
+**A brand kit that changes the output.** Voice, values, palette and fonts, injected as a `<brand>` block into the system prompt when AMETHYST writes *for* you rather than *to* you. The Settings panel shows the literal text the model is handed, so a stored voice and an applied one cannot silently differ.
 
 **Long-term memory.** Standing facts extracted by a second model call after a turn and recalled in later conversations, updated by a create/supersede diff rather than an ever-growing transcript. Switchable off, globally or per conversation.
 
@@ -221,7 +221,7 @@ frontend/         the React app — built by Vite, served by the same process
 docs/             architecture, ADRs, deployment
 ```
 
-`backend` is the import name (`from backend.tasks.service import TaskService`); `psok` stays the command you type, the keychain service, and the name of `~/.psok`.
+`backend` is the import name (`from backend.tasks.service import TaskService`); `amethyst` stays the command you type, the keychain service, and the name of `~/.amethyst`.
 
 - [Architecture overview](docs/architecture/overview.md) — the layer model and a worked request
 - [The web interface](docs/interface.md) — how the React app is built, and every keyboard binding
@@ -236,8 +236,8 @@ docs/             architecture, ADRs, deployment
 
 Stated plainly, because half-built features are worse than absent ones and this repository deliberately contains none:
 
-- **A daemon.** Automations, reminders and the journal wake up on their own, but only while `psok serve` is running. Nothing outlives the interface — an unattended turn that needs a permission answer at 3am has nobody to ask, so the gate denies anything outside a standing approval and records what it wanted.
-- **Anything multi-user, and anything safe to publish.** There is no authentication and there is not meant to be: bind it to loopback. Exactly two endpoints are built to be reached from outside — `POST /api/share/capture`, which is token-gated, and `POST /api/instagram/webhook`, whose only authentication is Meta's signature because Meta will not send a token. Reaching PSOK from anywhere still means a proxy in front that publishes those two paths and identity on everything else; [deployment.md](docs/deployment.md) has the Cloudflare setup.
+- **A daemon.** Automations, reminders and the journal wake up on their own, but only while `amethyst serve` is running. Nothing outlives the interface — an unattended turn that needs a permission answer at 3am has nobody to ask, so the gate denies anything outside a standing approval and records what it wanted.
+- **Anything multi-user, and anything safe to publish.** There is no authentication and there is not meant to be: bind it to loopback. Exactly two endpoints are built to be reached from outside — `POST /api/share/capture`, which is token-gated, and `POST /api/instagram/webhook`, whose only authentication is Meta's signature because Meta will not send a token. Reaching AMETHYST from anywhere still means a proxy in front that publishes those two paths and identity on everything else; [deployment.md](docs/deployment.md) has the Cloudflare setup.
 - **A calendar that syncs.** `calendar_events` is a local table the agent writes; Google Calendar is reachable as MCP tools and is not mirrored into it.
 - **First-party service integrations, except mail.** Calendar and GitHub are reachable as MCP connectors. Gmail is the one exception: it is read directly, using the refresh token the connector already stored, because fifteen tools written to be read by a model are the wrong shape for a screen.
 - **Projects, artifacts, plugins, voice input.** No backing anywhere in the system.
@@ -255,7 +255,7 @@ ruff check backend tests
 
 cd frontend
 npm run lint && npm run build
-npm run smoke             # in a real browser against a running `psok serve`
+npm run smoke             # in a real browser against a running `amethyst serve`
 ```
 
 The smoke suite is the one that matters: it drives Chromium against a live model and asserts what a person would see. Sandbox containment is tested against the real OS and skips where unavailable.

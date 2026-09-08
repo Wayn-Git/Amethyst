@@ -9,12 +9,12 @@ thin callers, the same arrangement `backend/tasks/service.py` established.
 
 ## The text is a real file
 
-`~/.psok/library/{id:06d}-{slug}.md`, indexed by the ordinary `Indexer` with
+`~/.amethyst/library/{id:06d}-{slug}.md`, indexed by the ordinary `Indexer` with
 `source="library"`.
 
-This is not a detail. PSOK stores an *index* that points at the filesystem and
+This is not a detail. AMETHYST stores an *index* that points at the filesystem and
 treats the file as the source of truth (ADR-0004), and a synthetic
-`psok://library/42` path would leave `mtime` and `size_bytes` NULL and break
+`amethyst://library/42` path would leave `mtime` and `size_bytes` NULL and break
 that invariant to save one write. What the file buys instead:
 
 * a real path, hash, size and mtime, so incremental re-indexing works unchanged
@@ -25,7 +25,7 @@ that invariant to save one write. What the file buys instead:
   allocated before the filename is built
 * `Indexer._prune_missing` never touches these rows (it only scans
   `WHERE path LIKE '{root}%'` for a vault root), and would be *correct* if
-  someone did index `~/.psok`
+  someone did index `~/.amethyst`
 * the user can open the text
 
 `SearchHit` carries `source` and `title`, and `label` prefers the title only for
@@ -53,10 +53,10 @@ Two consequences worth stating:
 * `POST /api/library/{id}/reindex` calls `embeddings.forget_unreachable()`
   first. `_UNREACHABLE` is cached for the life of the process, so before this
   there was no way to start Ollama and get semantic search without restarting
-  PSOK.
+  AMETHYST.
 
 **No transcript scraping.** YouTube's oEmbed endpoint gives a title and a
-channel with no API key; it does not give a transcript, and one PSOK invented
+channel with no API key; it does not give a transcript, and one AMETHYST invented
 would be worse than none.
 
 ## Capture, and the SSRF fix that came with it
@@ -124,7 +124,7 @@ a re-enrich -- without it, enriching twice would summarise the previous summary.
 A captured video is downloaded only to be transcribed, and discarded afterwards
 unless `instagram.keep_video` is on: twenty reels a day at fifteen megabytes is
 nine gigabytes a year, and the words are the part worth keeping. Thumbnails
-(~50 KB) stay. All of it lives under `~/.psok/library/media/` rather than beside
+(~50 KB) stay. All of it lives under `~/.amethyst/library/media/` rather than beside
 the markdown, which is a directory a person browses.
 
 `LibraryService.remove` unlinks all three files. Without that, deleting an item
@@ -145,7 +145,7 @@ POST /api/share/capture     Authorization: Bearer <token>     {"url": "..."}
 ```
 
 It can log a URL and nothing else — it cannot read, list, delete or reach a
-tool. It does not exist until `psok share-token --new` puts one in the OS
+tool. It does not exist until `amethyst share-token --new` puts one in the OS
 keychain; without one the route answers 404, because an endpoint that answers
 401 is an endpoint worth guessing at. Comparison is constant time, and repeated
 failures close the window for five minutes — including for the correct token,

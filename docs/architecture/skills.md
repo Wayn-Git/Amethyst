@@ -5,7 +5,7 @@ A skill is not a new execution primitive. It is a packaged set of instructions t
 ## Format
 
 ```
-~/.psok/skills/<name>/
+~/.amethyst/skills/<name>/
   SKILL.md           required
   scripts/           optional — run via run_shell_command
   references/        optional — read via view_file / grep_files
@@ -34,13 +34,13 @@ The markdown body is the procedure itself — written as instructions to the mod
 
 The directory name is the skill's identity. `version` is for the user's own tracking and for changelog purposes; discovery does not key off it, and there is no dependency resolution between skill versions.
 
-**No remote skill registry or marketplace in v1.** A solo project does not need a distribution system for something that is a markdown file; sharing a skill is sharing a directory. This may be revisited if PSOK ever wants a community skill-sharing surface, but it is not infrastructure v1 needs.
+**No remote skill registry or marketplace in v1.** A solo project does not need a distribution system for something that is a markdown file; sharing a skill is sharing a directory. This may be revisited if AMETHYST ever wants a community skill-sharing surface, but it is not infrastructure v1 needs.
 
-Builtin skills ship inside the PSOK repository under `backend/skills/builtin/` and are copied into `~/.psok/skills/` on first run, **without overwriting any skill the user has already edited** — the same seeding behaviour Pipali uses, checked by comparing against a stored hash of what was last seeded rather than by unconditional overwrite.
+Builtin skills ship inside the AMETHYST repository under `backend/skills/builtin/` and are copied into `~/.amethyst/skills/` on first run, **without overwriting any skill the user has already edited** — the same seeding behaviour Pipali uses, checked by comparing against a stored hash of what was last seeded rather than by unconditional overwrite.
 
 ## Discovery
 
-At startup, and on an explicit reload, PSOK scans `~/.psok/skills/*/SKILL.md`, parses and validates frontmatter, and caches `{name, description, path}` for every valid skill. Invalid skills are excluded from the catalogue and their validation errors are surfaced in a diagnostics view rather than silently dropped.
+At startup, and on an explicit reload, AMETHYST scans `~/.amethyst/skills/*/SKILL.md`, parses and validates frontmatter, and caches `{name, description, path}` for every valid skill. Invalid skills are excluded from the catalogue and their validation errors are surfaced in a diagnostics view rather than silently dropped.
 
 The cached catalogue — name, description, and filesystem path only, never the full body — is what gets injected into the system prompt. This is the same progressive-disclosure principle the AI runtime uses for tool discovery and the MCP layer uses for large tool sets from a single server: advertise cheaply, load the expensive content only when it is actually going to be used.
 
@@ -58,8 +58,8 @@ If the number of installed skills grows large enough that the catalogue itself b
 
 ## Script dependencies
 
-A skill's `scripts/` directory may carry its own dependency declaration — a `requirements.txt` fragment or a `pyproject.toml` snippet — and dependencies are installed automatically when the skill is added, so a skill can bring its own tooling (for instance, a document-generation skill needing a DOCX library) without PSOK's core dependency set growing to anticipate every skill anyone might write.
+A skill's `scripts/` directory may carry its own dependency declaration — a `requirements.txt` fragment or a `pyproject.toml` snippet — and dependencies are installed automatically when the skill is added, so a skill can bring its own tooling (for instance, a document-generation skill needing a DOCX library) without AMETHYST's core dependency set growing to anticipate every skill anyone might write.
 
 ## Composition
 
-Skills are expected to combine multiple tools, integrations, and MCP calls in one procedure — that composition is the entire reason skills exist rather than PSOK simply relying on the model's raw judgment every time. A well-written skill turns a multi-step, easy-to-get-wrong procedure ("check for calendar conflicts before creating a task, and if there's a conflict, propose alternatives") into a single reusable instruction set, without requiring a single line of new code.
+Skills are expected to combine multiple tools, integrations, and MCP calls in one procedure — that composition is the entire reason skills exist rather than AMETHYST simply relying on the model's raw judgment every time. A well-written skill turns a multi-step, easy-to-get-wrong procedure ("check for calendar conflicts before creating a task, and if there's a conflict, propose alternatives") into a single reusable instruction set, without requiring a single line of new code.

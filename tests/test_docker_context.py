@@ -26,10 +26,10 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_PATTERNS = [
     ".env",
     "data/",
-    ".psok/",
+    ".amethyst/",
     "**/secrets.json",
-    "**/psok.db",
-    "**/psok.db-*",
+    "**/amethyst.db",
+    "**/amethyst.db-*",
     "**/providers.yaml",
     "**/mcp.yaml",
     "**/.google_workspace_mcp/",
@@ -48,9 +48,9 @@ REQUIRED_PATTERNS = [
 # match the `.dockerignore` safety block on purpose: one list for two doors,
 # because git and docker are two ways the same file leaves this machine.
 UNTRACKABLE = [
-    "psok.db",
-    "psok.db-wal",
-    "psok.db-shm",
+    "amethyst.db",
+    "amethyst.db-wal",
+    "amethyst.db-shm",
     "secrets.json",
     "providers.yaml",
     "mcp.yaml",
@@ -76,7 +76,7 @@ def test_dockerignore_has_every_safety_pattern():
 def test_personal_files_are_git_ignored():
     """Every match in the tree is ignored by git or the pattern list is wrong.
 
-    Walks the whole tree, so a `psok.db` copied in to debug something fails
+    Walks the whole tree, so a `amethyst.db` copied in to debug something fails
     here rather than in an image built a week later.
     """
     leaked = []
@@ -112,11 +112,11 @@ def test_default_client_fields_carry_names_not_values():
     for entry in cat.CATALOGUE:
         if entry.default_client_id_env:
             assert re.fullmatch(
-                r"PSOK_DEFAULT_[A-Z0-9_]+", entry.default_client_id_env
+                r"AMETHYST_DEFAULT_[A-Z0-9_]+", entry.default_client_id_env
             ), f"{entry.id}: {entry.default_client_id_env} is not an env-var name"
             if entry.default_client_secret_env:
                 assert re.fullmatch(
-                    r"PSOK_DEFAULT_[A-Z0-9_]+", entry.default_client_secret_env
+                    r"AMETHYST_DEFAULT_[A-Z0-9_]+", entry.default_client_secret_env
                 ), f"{entry.id}: {entry.default_client_secret_env} is not an env-var name"
             # An api_key_ref connector is metered per user; a shared one spends
             # the owner's quota, and defaulting it is not sharing, it is
@@ -130,8 +130,8 @@ def test_default_client_fields_carry_names_not_values():
 
 def test_default_client_absent_when_environment_empty(monkeypatch):
     for var in (
-        "PSOK_DEFAULT_GOOGLE_CLIENT_ID",
-        "PSOK_DEFAULT_GOOGLE_CLIENT_SECRET",
+        "AMETHYST_DEFAULT_GOOGLE_CLIENT_ID",
+        "AMETHYST_DEFAULT_GOOGLE_CLIENT_SECRET",
     ):
         monkeypatch.delenv(var, raising=False)
     entry = cat.get("google-workspace")
@@ -144,8 +144,8 @@ def test_default_client_needs_an_id(monkeypatch):
     """A secret alone is not a default. Half a credential that cannot work is
     worse than a missing one, because the failure appears at the provider as a
     message about an unknown client rather than about the missing half."""
-    monkeypatch.setenv("PSOK_DEFAULT_GOOGLE_CLIENT_SECRET", "a-secret")
-    monkeypatch.delenv("PSOK_DEFAULT_GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.setenv("AMETHYST_DEFAULT_GOOGLE_CLIENT_SECRET", "a-secret")
+    monkeypatch.delenv("AMETHYST_DEFAULT_GOOGLE_CLIENT_ID", raising=False)
     entry = cat.get("google-workspace")
     if entry is None:
         pytest.skip("no google-workspace entry in this catalogue")

@@ -50,7 +50,7 @@ async def _pdf_via_docx(path: Path, content: str, ctx: ToolContext) -> ToolResul
     installed. `convert_file` is called rather than re-implemented so there is
     one sandboxed subprocess in the codebase, not two.
     """
-    intermediate = path.with_name(f".{path.stem}.psok-tmp.docx")
+    intermediate = path.with_name(f".{path.stem}.amethyst-tmp.docx")
     try:
         doc.create(intermediate, content)
         result = await convert_file(

@@ -191,7 +191,7 @@ def test_the_seeded_file_matches_the_catalogue(tmp_path):
     from backend.provider_catalogue import SEEDED
 
     assert set(loaded) == set(SEEDED)
-    assert loaded["groq"].api_key_ref == "psok/groq", "listed, awaiting only a key"
+    assert loaded["groq"].api_key_ref == "amethyst/groq", "listed, awaiting only a key"
 
 
 def test_adding_a_provider_replaces_rather_than_shadows(tmp_path):
@@ -219,13 +219,13 @@ def test_writing_providers_leaves_the_memory_block_alone(tmp_path):
 # --- declared context windows ----------------------------------------------
 
 
-def test_a_declared_context_window_beats_the_substring_guess(tmp_path, psok_home):
+def test_a_declared_context_window_beats_the_substring_guess(tmp_path, amethyst_home):
     """`nemotron-3-ultra-550b-a55b` matches no substring and silently got
     128,000, so the budgeter trimmed history against a number nobody checked.
 
     Mutation check: drop the `if declared` branch from `_context_window`.
     """
-    path = psok_home / "config" / "providers.yaml"
+    path = amethyst_home / "config" / "providers.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "providers:\n"
@@ -277,7 +277,7 @@ def test_only_credential_free_endpoints_are_probed():
     confirm it on a health poll that runs every twenty seconds costs more than
     it returns."""
     assert availability.needs_probe(ProviderConfig(name="ollama", base_url="http://x/v1"))
-    assert not availability.needs_probe(ProviderConfig(name="groq", api_key_ref="psok/groq"))
+    assert not availability.needs_probe(ProviderConfig(name="groq", api_key_ref="amethyst/groq"))
 
 
 def test_an_unreachable_provider_is_remembered_and_then_forgotten():
@@ -317,7 +317,7 @@ def _configs(**names: str | None) -> dict[str, ProviderConfig]:
     return {n: ProviderConfig(name=n, default_model=m) for n, m in names.items()}
 
 
-def test_the_chain_defaults_to_every_other_configured_provider(tmp_path, psok_home):
+def test_the_chain_defaults_to_every_other_configured_provider(tmp_path, amethyst_home):
     configs = _configs(nvidia="nemotron", groq="llama-3.3-70b", cerebras="llama-3.3-70b")
     chain = build_chain("nvidia", "nemotron", configs=configs, order=None)
 
@@ -325,7 +325,7 @@ def test_the_chain_defaults_to_every_other_configured_provider(tmp_path, psok_ho
     assert chain[1].model == "llama-3.3-70b", "a fallback uses that provider's declared model"
 
 
-def test_a_provider_with_no_declared_model_is_not_a_fallback(psok_home):
+def test_a_provider_with_no_declared_model_is_not_a_fallback(amethyst_home):
     """Substituting it in would mean guessing a model name, which is the exact
     failure the placeholder-model work already fixed once."""
     configs = _configs(nvidia="nemotron", mystery=None, groq="llama-3.3-70b")
@@ -334,7 +334,7 @@ def test_a_provider_with_no_declared_model_is_not_a_fallback(psok_home):
     assert [link.provider for link in chain] == ["nvidia", "groq"]
 
 
-def test_a_provider_known_to_be_down_is_skipped(psok_home):
+def test_a_provider_known_to_be_down_is_skipped(amethyst_home):
     availability.record_failure("groq", FailureKind.UNREACHABLE)
     configs = _configs(nvidia="nemotron", groq="llama-3.3-70b", cerebras="llama-3.3-70b")
     chain = build_chain("nvidia", "nemotron", configs=configs, order=None)
@@ -342,7 +342,7 @@ def test_a_provider_known_to_be_down_is_skipped(psok_home):
     assert [link.provider for link in chain] == ["nvidia", "cerebras"]
 
 
-def test_the_chain_is_capped(psok_home):
+def test_the_chain_is_capped(amethyst_home):
     """Walking every configured provider spends minutes proving the network is
     broken."""
     configs = _configs(a="m", b="m", c="m", d="m", e="m")
@@ -665,7 +665,7 @@ async def test_extraction_uses_the_model_that_answered_not_the_one_that_failed(d
 
 
 @pytest.fixture
-def client(psok_home):
+def client(amethyst_home):
     from fastapi.testclient import TestClient
 
     from backend.api.main import app
@@ -674,7 +674,7 @@ def client(psok_home):
         yield c
 
 
-def test_a_provider_can_be_added_from_the_catalogue_with_its_key(client, psok_home):
+def test_a_provider_can_be_added_from_the_catalogue_with_its_key(client, amethyst_home):
     """Settings used to tell the user to go and hand-edit YAML it knew every
     field of. This is that form's whole round trip."""
     body = {"name": "groq", "api_key": "gsk-not-a-real-key"}
@@ -685,7 +685,7 @@ def test_a_provider_can_be_added_from_the_catalogue_with_its_key(client, psok_ho
 
     from backend.secrets import get_secret
 
-    assert get_secret("psok/groq") == "gsk-not-a-real-key"
+    assert get_secret("amethyst/groq") == "gsk-not-a-real-key"
 
     listed = client.get("/api/providers").json()
     entry = next(p for p in listed["configured"] if p["name"] == "groq")
@@ -693,7 +693,7 @@ def test_a_provider_can_be_added_from_the_catalogue_with_its_key(client, psok_ho
     assert entry["has_key"] is True
 
 
-def test_no_route_ever_returns_a_key(client, psok_home):
+def test_no_route_ever_returns_a_key(client, amethyst_home):
     """A key pasted into the wrong field must not come back out over HTTP --
     the same rule `mcp_set_env` already holds to.
 
@@ -706,7 +706,7 @@ def test_no_route_ever_returns_a_key(client, psok_home):
         assert secret not in response.text
 
 
-def test_a_padded_key_is_refused_with_the_reason(client, psok_home):
+def test_a_padded_key_is_refused_with_the_reason(client, amethyst_home):
     """Trailing whitespace from a copy is sent verbatim and fails as a bad key,
     which reads as the key being wrong rather than as the paste being wrong."""
     response = client.post("/api/providers", json={"name": "groq", "api_key": "abc \n"})
@@ -714,7 +714,7 @@ def test_a_padded_key_is_refused_with_the_reason(client, psok_home):
     assert "whitespace" in response.json()["detail"]
 
 
-def test_a_custom_provider_needs_a_base_url(client, psok_home):
+def test_a_custom_provider_needs_a_base_url(client, amethyst_home):
     """Without one the OpenAI-compatible adapter posts to OpenAI, and the
     resulting 401 reads as a bad key rather than as a missing endpoint."""
     response = client.post("/api/providers", json={"name": "my-vllm"})
@@ -729,7 +729,7 @@ def test_a_custom_provider_needs_a_base_url(client, psok_home):
     assert ok.json()["ready"] is True
 
 
-def test_removing_a_provider_keeps_its_key(client, psok_home):
+def test_removing_a_provider_keeps_its_key(client, amethyst_home):
     """Dropping an entry and destroying the credential behind it are different
     decisions, and only one of them is reversible from that screen."""
     client.post("/api/providers", json={"name": "groq", "api_key": "gsk-keep-me"})
@@ -738,10 +738,10 @@ def test_removing_a_provider_keeps_its_key(client, psok_home):
 
     from backend.secrets import get_secret
 
-    assert get_secret("psok/groq") == "gsk-keep-me"
+    assert get_secret("amethyst/groq") == "gsk-keep-me"
 
 
-def test_health_says_which_configured_providers_cannot_answer(client, psok_home, monkeypatch):
+def test_health_says_which_configured_providers_cannot_answer(client, amethyst_home, monkeypatch):
     """`has_key` calls a keyless local endpoint configured by definition, so the
     picker offered Ollama while nothing listened on its port.
 
@@ -768,7 +768,7 @@ def test_every_provider_the_spec_names_is_listed_in_a_fresh_file(tmp_path):
     for a catalogue behind a screen. Listing costs nothing -- a keyless entry is
     filtered out of the picker -- and what it buys is that the file is the menu:
     base URL, model and keychain ref already written, so adding a provider is
-    `psok secrets set` rather than research.
+    `amethyst secrets set` rather than research.
 
     Mutation check: shorten `SEEDED`.
     """
@@ -840,7 +840,7 @@ def test_an_unreadable_fallback_order_defers_rather_than_forbidding(db):
     assert _conversation_fallback(repo.get(cid)) is None
 
 
-def test_a_fallback_naming_an_unconfigured_provider_is_refused(client, psok_home):
+def test_a_fallback_naming_an_unconfigured_provider_is_refused(client, amethyst_home):
     """Skipped silently at turn time, the user would never learn the name was
     wrong."""
     from backend.config import configured_providers
@@ -881,7 +881,7 @@ def test_a_providers_tool_cap_trims_rather_than_failing_the_turn():
     """Groq refuses a request carrying more than 128 tool schemas -- `400
     'tools' : maximum number of items is 128` -- and this machine offers 178
     across thirteen connectors, so every Groq turn died before a token moved
-    with an error naming a limit nothing in PSOK knew about.
+    with an error naming a limit nothing in AMETHYST knew about.
 
     Builtins survive the trim first: a turn that has lost `list_files` is broken
     in a way a turn missing one of forty-four GitHub tools is not.
@@ -1013,7 +1013,7 @@ def test_every_preset_can_be_written_into_a_providers_file():
 
 
 def test_an_environment_variable_name_survives_a_hyphenated_slug():
-    """`ollama-cloud` is a legal slug and `PSOK_OLLAMA-CLOUD_API_KEY` is not a
+    """`ollama-cloud` is a legal slug and `AMETHYST_OLLAMA-CLOUD_API_KEY` is not a
     legal environment variable -- no shell can export it, so the container path
     that variable exists for would have been closed for that provider.
 
@@ -1021,7 +1021,7 @@ def test_an_environment_variable_name_survives_a_hyphenated_slug():
     """
     from backend.provider_catalogue import PRESETS_BY_SLUG
 
-    assert PRESETS_BY_SLUG["ollama-cloud"].api_key_env == "PSOK_OLLAMA_CLOUD_API_KEY"
+    assert PRESETS_BY_SLUG["ollama-cloud"].api_key_env == "AMETHYST_OLLAMA_CLOUD_API_KEY"
     assert "-" not in PRESETS_BY_SLUG["ollama-cloud"].api_key_env
 
 
@@ -1108,7 +1108,7 @@ def test_clearing_a_tier_is_idempotent(tmp_path):
     assert "tiers" not in (yaml.safe_load(path.read_text()) or {}), "empty block is removed"
 
 
-def _seed_home(psok_home):
+def _seed_home(amethyst_home):
     """Write a two-provider file to the isolated home the API actually reads."""
     from backend.config import paths
 
@@ -1130,11 +1130,11 @@ providers:
     return path
 
 
-def test_the_tier_endpoints_round_trip(client, monkeypatch, psok_home):
+def test_the_tier_endpoints_round_trip(client, monkeypatch, amethyst_home):
     """Assign the go-to model over HTTP, read it back, clear it."""
     monkeypatch.setenv("GROQ_KEY", "g")
     monkeypatch.setenv("NVIDIA_KEY", "n")
-    _seed_home(psok_home)
+    _seed_home(amethyst_home)
 
     r = client.put("/api/tiers/default", json={"provider": "groq", "model": "openai/gpt-oss-120b"})
     assert r.status_code == 200
@@ -1150,7 +1150,7 @@ def test_the_tier_endpoints_round_trip(client, monkeypatch, psok_home):
     assert "default" not in client.get("/api/tiers").json()["tiers"]
 
 
-def test_ping_forces_a_fresh_probe_ignoring_the_cache(client, monkeypatch, psok_home):
+def test_ping_forces_a_fresh_probe_ignoring_the_cache(client, monkeypatch, amethyst_home):
     """The picker's badge is a passive survey; Ping means "check this one now".
 
     Mutation check: return `cached(name)` from `availability.ping` instead of
@@ -1160,7 +1160,7 @@ def test_ping_forces_a_fresh_probe_ignoring_the_cache(client, monkeypatch, psok_
 
     monkeypatch.setenv("GROQ_KEY", "g")
     monkeypatch.setenv("NVIDIA_KEY", "n")
-    _seed_home(psok_home)
+    _seed_home(amethyst_home)
 
     calls = {"n": 0}
 
@@ -1182,12 +1182,12 @@ def test_ping_forces_a_fresh_probe_ignoring_the_cache(client, monkeypatch, psok_
     assert client.post("/api/providers/ghost/ping").status_code == 404
 
 
-def test_ping_all_reports_every_provider(client, monkeypatch, psok_home):
+def test_ping_all_reports_every_provider(client, monkeypatch, amethyst_home):
     from backend.runtime import availability
 
     monkeypatch.setenv("GROQ_KEY", "g")
     monkeypatch.setenv("NVIDIA_KEY", "n")
-    _seed_home(psok_home)
+    _seed_home(amethyst_home)
 
     async def fake_probe(cfg):
         return availability.Availability(name=cfg.name, available=cfg.name == "groq")

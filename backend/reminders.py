@@ -1,4 +1,4 @@
-"""Reminders: the one thing PSOK says without being asked.
+"""Reminders: the one thing AMETHYST says without being asked.
 
 `tasks.due_at` has existed since the first schema and nothing ever read it, so a
 deadline was a value you could store and then had to remember yourself. This is
@@ -6,10 +6,10 @@ the loop that reads it.
 
 Two rules, both stated rather than implied:
 
-**Reminders fire while PSOK is open.** Same rule as automations, for the same
+**Reminders fire while AMETHYST is open.** Same rule as automations, for the same
 reason ([architecture/automation.md](../docs/architecture/automation.md)): a
 daemon that outlives the interface is a second process with its own lifecycle,
-and nothing here is worth that. A reminder that came due while PSOK was shut is
+and nothing here is worth that. A reminder that came due while AMETHYST was shut is
 delivered when it next starts -- late, and marked late, rather than silently
 dropped.
 

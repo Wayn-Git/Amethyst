@@ -123,10 +123,10 @@ def test_every_connector_failure_names_the_screen_and_the_button():
 
 
 async def test_an_oauth_failure_does_not_send_a_browser_user_to_the_terminal(monkeypatch):
-    """It used to answer `psok mcp login <name>`. The user is in a browser and
+    """It used to answer `amethyst mcp login <name>`. The user is in a browser and
     the button is two clicks away.
 
-    Mutation check: restore the `psok mcp login` string in `_make_handler`.
+    Mutation check: restore the `amethyst mcp login` string in `_make_handler`.
     """
     from backend.mcp.client import OAuthRequired
     from backend.mcp.manager import MCPManager
@@ -149,7 +149,7 @@ async def test_an_oauth_failure_does_not_send_a_browser_user_to_the_terminal(mon
     result = await manager._make_handler("google-gmail", "search")({}, ToolContext())
 
     assert result.is_error
-    assert "psok mcp login" not in result.content
+    assert "amethyst mcp login" not in result.content
     assert "Connect" in result.content
 
 
@@ -225,7 +225,7 @@ def test_one_tool_is_not_one_tools():
 
 
 @pytest.fixture
-def client(psok_home):
+def client(amethyst_home):
     from fastapi.testclient import TestClient
 
     from backend.api.main import app
@@ -234,7 +234,7 @@ def client(psok_home):
         yield c
 
 
-def test_every_connector_row_carries_its_state(client, psok_home):
+def test_every_connector_row_carries_its_state(client, amethyst_home):
     """Computed on the server so the screen, the CLI and the agent loop cannot
     reach different conclusions from the same five fields."""
     from backend.mcp import commands as mcp
@@ -252,7 +252,7 @@ def test_every_connector_row_carries_its_state(client, psok_home):
     assert row["lifecycle"]["action"] == "connect"
 
 
-def test_a_connector_enabled_in_yaml_but_not_switched_on_reads_off(client, psok_home):
+def test_a_connector_enabled_in_yaml_but_not_switched_on_reads_off(client, amethyst_home):
     """The "failed to start on a fresh server" bug, pinned out.
 
     A connector enabled in mcp.yaml with no capability row used to pass the
@@ -284,7 +284,7 @@ def _google_servers(*services: str):
         mcp.add_from_catalogue(f"google-{service}")
 
 
-def test_the_merge_plans_before_it_touches_anything(psok_home):
+def test_the_merge_plans_before_it_touches_anything(amethyst_home):
     """Nothing here runs on startup or as a side effect. A migration that
     touches a working sign-in is a decision the account's owner takes."""
     from backend.mcp.config import config_path
@@ -300,7 +300,7 @@ def test_the_merge_plans_before_it_touches_anything(psok_home):
     assert config_path().read_text() == before, "planning must not write"
 
 
-def test_merging_grants_only_the_services_that_were_configured(psok_home):
+def test_merging_grants_only_the_services_that_were_configured(amethyst_home):
     """Merging three connectors must not silently hand the model five.
 
     Mutation check: use `GOOGLE_MERGED_TOOLS` instead of `plan.tools` in
@@ -316,7 +316,7 @@ def test_merging_grants_only_the_services_that_were_configured(psok_home):
     assert merged.args == ["workspace-mcp", "--single-user", "--tools", "gmail", "calendar"]
 
 
-def test_the_merge_keeps_the_credentials_directory_and_the_env(psok_home):
+def test_the_merge_keeps_the_credentials_directory_and_the_env(amethyst_home):
     """The whole reason this is safe: every entry points at the same
     `~/.google_workspace_mcp/credentials`, and so does the merged one."""
     from backend.mcp import commands as mcp
@@ -337,7 +337,7 @@ def test_the_merge_keeps_the_credentials_directory_and_the_env(psok_home):
     assert entry.credentials_path == "~/.google_workspace_mcp/credentials"
 
 
-def test_the_previous_config_is_kept(psok_home):
+def test_the_previous_config_is_kept(amethyst_home):
     """The way back. A migration with no backup is one nobody should run."""
     from backend.mcp.migrations import apply_google_merge
 
@@ -348,7 +348,7 @@ def test_the_previous_config_is_kept(psok_home):
     assert "google-gmail" in backup.read_text()
 
 
-def test_merging_twice_is_not_an_error(psok_home):
+def test_merging_twice_is_not_an_error(amethyst_home):
     from backend.mcp.migrations import apply_google_merge, plan_google_merge
 
     _google_servers("gmail")
@@ -362,7 +362,7 @@ def test_merging_twice_is_not_an_error(psok_home):
     assert again.already_merged and backup is None, "a no-op must not take a backup"
 
 
-def test_nothing_to_merge_says_so(psok_home):
+def test_nothing_to_merge_says_so(amethyst_home):
     from backend.mcp.migrations import plan_google_merge
 
     plan = plan_google_merge()
@@ -370,7 +370,7 @@ def test_nothing_to_merge_says_so(psok_home):
     assert "nothing to merge" in plan.describe()
 
 
-def test_the_merged_connector_is_switched_on_if_any_source_was(psok_home):
+def test_the_merged_connector_is_switched_on_if_any_source_was(amethyst_home):
     """Leaving the old rows behind is not cosmetic: `reconcile` reads them, and
     a row for a connector no longer in mcp.yaml is what left `google-workspace`
     listed as enabled while not existing."""
@@ -391,7 +391,7 @@ def test_the_merged_connector_is_switched_on_if_any_source_was(psok_home):
 # --- 4.3, the last step: adding runs the first sync too ---------------------
 
 
-async def test_adding_a_connector_runs_its_first_sync(psok_home, monkeypatch):
+async def test_adding_a_connector_runs_its_first_sync(amethyst_home, monkeypatch):
     """Phase 4.3 asked for adding a connector to run its *whole* setup,
     "including a first sync for microsoft-todo". Signed in with tools live and
     an empty Tasks page reads as the sync being broken rather than as never
@@ -428,7 +428,7 @@ async def _noop():
     return None
 
 
-async def test_a_first_sync_that_cannot_run_yet_is_not_a_failure(psok_home, monkeypatch):
+async def test_a_first_sync_that_cannot_run_yet_is_not_a_failure(amethyst_home, monkeypatch):
     """Right after adding it, "not signed in" is the expected state on the way
     through -- not a reason to fail the add."""
     from backend.api import main as api
@@ -490,7 +490,7 @@ def test_a_grant_about_to_lapse_is_announced_before_it_does():
 
 def test_two_accounts_in_a_single_user_store_are_reported():
     """`MCP_SINGLE_USER_MODE` means the server picks one of the accounts in its
-    credentials directory and PSOK cannot tell which. Two Google accounts were
+    credentials directory and AMETHYST cannot tell which. Two Google accounts were
     sitting in that directory on the machine this was written on, and every
     tool call was answering for whichever one the server chose.
 
@@ -507,7 +507,7 @@ def test_two_accounts_in_a_single_user_store_are_reported():
     assert state.action == "sign_in"
 
 
-def test_a_browser_profile_is_not_six_accounts(psok_home, tmp_path, monkeypatch):
+def test_a_browser_profile_is_not_six_accounts(amethyst_home, tmp_path, monkeypatch):
     """LinkedIn's credential store is a browser profile directory, so counting
     its files reported six LinkedIn accounts on a machine with one -- and the
     row then offered to "settle which one" a single sign-in was using.

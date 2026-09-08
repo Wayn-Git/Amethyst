@@ -291,7 +291,7 @@ def tools() -> list[Tool]:
                     "add_to_my_day": {
                         "type": "boolean",
                         "description": "Put it in the My Day list -- where today's work"
-                        " lives, in PSOK and in Microsoft To Do alike. Use when the user says"
+                        " lives, in AMETHYST and in Microsoft To Do alike. Use when the user says"
                         " they will do it today, which is different from it being due today."
                         " A task belongs to one list, so this overrides `list`.",
                     },

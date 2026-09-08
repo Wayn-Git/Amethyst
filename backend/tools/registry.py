@@ -97,7 +97,7 @@ class ToolRegistry:
         is added rather than on the day someone remembers to update a list.
 
         `priority_servers` names the connectors that are connected and signed in
-        right now, and moves their tools up the list: after the builtins PSOK is
+        right now, and moves their tools up the list: after the builtins AMETHYST is
         built on, ahead of the tools of connectors that are merely configured. A
         soft signal only -- nothing is withheld and nothing is renamed, so the
         model still cannot tell a builtin from an MCP tool (ADR-0005) -- but

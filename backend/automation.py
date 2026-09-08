@@ -4,10 +4,10 @@ The smallest thing that is honestly a scheduled turn, and no more. A prompt, an
 interval, and a record of what happened -- with two decisions made explicitly
 rather than left to be discovered later:
 
-**Who decides it is time.** This process, while `psok serve` is running. A
+**Who decides it is time.** This process, while `amethyst serve` is running. A
 cron-like daemon would keep automations running when the API is down, which
 sounds better until you ask what it does with a turn that needs a permission
-answer at 3am. Tying them to the server means "automations run while PSOK is
+answer at 3am. Tying them to the server means "automations run while AMETHYST is
 open", which is a rule that can be stated in one sentence and is true.
 
 **What the permission gate does when nobody is watching.** It denies. An
@@ -274,7 +274,7 @@ class AutomationRepository:
         record. `"ok"` resets the count. `"blocked"` touches neither: an
         unattended turn correctly refusing to do something it was never
         approved for is not a failure to retry past, and backing it off would
-        read as PSOK giving up on approval rather than waiting for it.
+        read as AMETHYST giving up on approval rather than waiting for it.
         """
         previous = self.conn.execute(
             "SELECT consecutive_failures FROM automations WHERE id = ?", (automation_id,)
@@ -509,7 +509,7 @@ class AutomationRunner:
         """Run it this second, whatever its schedule says.
 
         `next_run_at` is deliberately not consulted: the interval floor governs
-        how often PSOK starts a run by itself, and a person pressing the button
+        how often AMETHYST starts a run by itself, and a person pressing the button
         has already decided. It still takes the lock, so "run now" queues behind
         a run in flight rather than putting two unattended turns on the machine
         at once.

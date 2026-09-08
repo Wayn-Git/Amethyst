@@ -8,7 +8,7 @@ from backend.db import connection
 class _MemoryKeyring:
     """A keyring that lives and dies with one test.
 
-    Isolating PSOK_HOME alone left every credential path pointed at the
+    Isolating AMETHYST_HOME alone left every credential path pointed at the
     developer's real OS keychain: a test asserting a connector was not signed
     in passed or failed depending on whether the person running it happened to
     have signed into that connector, and a test that stored a secret wrote it
@@ -30,11 +30,11 @@ class _MemoryKeyring:
 
 
 @pytest.fixture(autouse=True)
-def psok_home(tmp_path, monkeypatch):
-    """Isolate every test in its own PSOK home so nothing touches the real one."""
-    home = tmp_path / "psok-home"
+def amethyst_home(tmp_path, monkeypatch):
+    """Isolate every test in its own AMETHYST home so nothing touches the real one."""
+    home = tmp_path / "amethyst-home"
     home.mkdir()
-    monkeypatch.setenv("PSOK_HOME", str(home))
+    monkeypatch.setenv("AMETHYST_HOME", str(home))
 
     from backend import secrets
 
@@ -52,7 +52,7 @@ def psok_home(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def db(psok_home):
+def db(amethyst_home):
     return connection.get_connection()
 
 
@@ -73,4 +73,4 @@ def workspace(tmp_path):
 # fixture.
 GOOGLE_SECRET = "GOCSPX" + "-" + "abcdefghijklmnopqrstuvwxyz12"
 GOOGLE_SECRET_ROTATED = "GOCSPX" + "-" + "zyxwvutsrqponmlkjihgfedcba98"
-GOOGLE_CLIENT_ID = "psok-test-client" + ".apps." + "googleusercontent" + ".com"
+GOOGLE_CLIENT_ID = "amethyst-test-client" + ".apps." + "googleusercontent" + ".com"

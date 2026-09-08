@@ -323,7 +323,7 @@ class IngestService:
                 from backend.media.vision import extract_frames
                 from backend.runtime.vision import extract_visual_text
                 
-                frames_dir = Path(tempfile.mkdtemp(prefix="psok-vision-"))
+                frames_dir = Path(tempfile.mkdtemp(prefix="amethyst-vision-"))
                 try:
                     frames = await extract_frames(video, frames_dir)
                     frame_bytes = [f.read_bytes() for f in frames]

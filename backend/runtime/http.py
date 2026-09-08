@@ -92,7 +92,7 @@ _CLIENTS: dict[tuple[object, float], httpx.AsyncClient] = {}
 #: The longest a connect may take. A dead endpoint should fail fast; it is the
 #: *read* -- time to first byte, and time between stream chunks -- that wants to
 #: be generous, because a slow model is not a broken one. OpenCode allows 300s
-#: for the first byte for exactly this reason; PSOK's flat 120s was killing slow
+#: for the first byte for exactly this reason; AMETHYST's flat 120s was killing slow
 #: reasoning models mid-answer.
 CONNECT_TIMEOUT = 10.0
 

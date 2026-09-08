@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-PSOK must let the agent operate on the user's filesystem and run shell commands safely. Pipali's confirmation-service-plus-sandbox-mode design is the researched precedent, along with its identified weakness: model self-reported risk is the primary gate. See [security.md](../security.md).
+AMETHYST must let the agent operate on the user's filesystem and run shell commands safely. Pipali's confirmation-service-plus-sandbox-mode design is the researched precedent, along with its identified weakness: model self-reported risk is the primary gate. See [security.md](../security.md).
 
 ## Decision
 
@@ -14,7 +14,7 @@ Adopt a single transport-agnostic ConfirmationService with a **static, per-tool 
 
 ## Alternatives Considered
 
-- **Model self-reported risk as the primary gate, as in Pipali.** Rejected: this makes the entire safety property depend on model honesty and accuracy for a decision PSOK can partially make deterministically (a static risk table per tool).
+- **Model self-reported risk as the primary gate, as in Pipali.** Rejected: this makes the entire safety property depend on model honesty and accuracy for a decision AMETHYST can partially make deterministically (a static risk table per tool).
 - **Requiring both sandboxing and confirmation for every operation.** Rejected as excessive for low-risk sandboxed operations; would degrade the interactive experience without a matching safety gain, since the sandbox already provides OS-level containment for those cases.
 - **Building a fake or partial Windows sandbox.** Rejected: a false sense of containment is worse than an honest confirmation-only posture.
 

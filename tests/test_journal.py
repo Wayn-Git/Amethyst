@@ -269,7 +269,7 @@ async def test_the_runner_waits_for_its_hour_and_then_files_once(db, monkeypatch
 
 async def test_the_weekly_only_fires_on_its_own_day(db, monkeypatch):
     """A weekly review written on Wednesday about last week is worse than none,
-    so a week nobody opened PSOK on its review day produces no rollup. The
+    so a week nobody opened AMETHYST on its review day produces no rollup. The
     interface offers it on demand instead."""
     monkeypatch.setattr("backend.journal.service.default_chain", lambda **kw: [])
     from backend.config import save_journal_schedule

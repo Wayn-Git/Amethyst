@@ -58,7 +58,7 @@ def _fold_list_name(name: str | None) -> str:
 #: The To Do list that *is* My Day.
 #:
 #: My Day is not a flag on a task and not a tag: it is one list, kept in
-#: Microsoft To Do beside the others, which both PSOK and the phone open. That
+#: Microsoft To Do beside the others, which both AMETHYST and the phone open. That
 #: is the only arrangement where the same tasks appear in both places without a
 #: gesture unique to one of them -- To Do's own My Day is an overlay its API
 #: does not expose (see `backend/sync/microsoft_todo.py`), so anything built on it
@@ -685,7 +685,7 @@ class TaskRepository:
     #: My Day is the contents of one list, and nothing else.
     #:
     #: It used to be a date stamp (`my_day_on`) fed by three different gestures
-    #: -- a sun in PSOK writing a "My Day" category, a `#myday` hashtag, and a
+    #: -- a sun in AMETHYST writing a "My Day" category, a `#myday` hashtag, and a
     #: list of this name -- which meant the page could disagree with the phone
     #: about what was in today, and usually did: tasks added through To Do's own
     #: My Day carry none of the three, because that overlay is not in its API.

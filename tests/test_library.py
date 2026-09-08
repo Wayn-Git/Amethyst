@@ -89,10 +89,10 @@ def offline(monkeypatch):
     monkeypatch.setattr("backend.library.service.check_url_async", allow)
 
 
-async def test_capture_writes_a_real_file_and_indexes_it(db, offline, psok_home):
+async def test_capture_writes_a_real_file_and_indexes_it(db, offline, amethyst_home):
     """The text is a file on disk, not a row pretending to be one.
 
-    PSOK stores an index that points at the filesystem and treats the file as
+    AMETHYST stores an index that points at the filesystem and treats the file as
     the source of truth (ADR-0004). A synthetic path would leave `mtime` and
     `size_bytes` NULL and break that for the sake of skipping one write.
 
@@ -102,7 +102,7 @@ async def test_capture_writes_a_real_file_and_indexes_it(db, offline, psok_home)
     captured = await service().capture_url("https://calnewport.com/deep-work")
 
     path = Path(captured.item["text_path"])
-    assert path.is_file() and path.parent == psok_home / "library"
+    assert path.is_file() and path.parent == amethyst_home / "library"
     assert captured.item["title"] == "Deep Work"
     assert captured.item["author"] == "Cal Newport"
     assert captured.item["published_on"] == "2016-01-05"
@@ -299,7 +299,7 @@ async def test_the_reader_checks_every_redirect_hop(db, monkeypatch):
 # reader -> oEmbed -> plain fetch; these tests pin the rungs.
 
 
-async def test_an_x_link_is_captured_through_oembed(db, offline, psok_home, monkeypatch):
+async def test_an_x_link_is_captured_through_oembed(db, offline, amethyst_home, monkeypatch):
     """The zero-config rung: a real title and body with no credentials.
 
     Mutation check: delete the oEmbed rung and this captures a title-less row
@@ -324,7 +324,9 @@ async def test_an_x_link_is_captured_through_oembed(db, offline, psok_home, monk
     assert "post text via oEmbed" in (captured.item["capture_note"] or "")
 
 
-async def test_an_x_link_falls_through_when_oembed_is_silent(db, offline, psok_home, monkeypatch):
+async def test_an_x_link_falls_through_when_oembed_is_silent(
+    db, offline, amethyst_home, monkeypatch
+):
     """oEmbed answering nothing (a deleted post, a bad id) is not an error --
     the link is still logged, with the note the ordinary fetch left."""
     from backend.config import save_social
@@ -347,7 +349,7 @@ async def test_an_x_link_falls_through_when_oembed_is_silent(db, offline, psok_h
     assert "gave no readable text" in captured.item["capture_note"]
 
 
-async def test_a_configured_x_reader_wins_over_oembed(db, offline, psok_home, monkeypatch):
+async def test_a_configured_x_reader_wins_over_oembed(db, offline, amethyst_home, monkeypatch):
     """The top rung: a signed-in reader reads the thread, oEmbed only names it."""
 
     async def oembed(url, **kwargs):

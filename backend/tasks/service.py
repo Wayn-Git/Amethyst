@@ -11,7 +11,7 @@ So: one service, three thin callers. A field added here reaches every surface at
 once, and "where does a task go" has exactly one answer.
 
 **Lists mirror Microsoft To Do.** When the connector is signed in, Graph owns
-the lists and PSOK follows; a list created here is created there first, so it
+the lists and AMETHYST follows; a list created here is created there first, so it
 reaches the phone rather than becoming a second organisation scheme nobody sees.
 With nothing signed in, lists are local and say so.
 
@@ -39,7 +39,7 @@ DEFAULT_WORK_BLOCK_MINUTES = 60
 
 SOURCE = "microsoft-todo"
 
-#: What a My Day list is called when PSOK has to make one. Any of the names in
+#: What a My Day list is called when AMETHYST has to make one. Any of the names in
 #: `MY_DAY_LIST_NAMES` is recognised; this is the one written.
 MY_DAY_LIST_NAME = "My Day"
 
@@ -232,7 +232,7 @@ class TaskService:
         except Exception as exc:
             log.info("could not move task %s in Microsoft To Do: %s", task_id, exc)
             # Left exactly where it was, in both places. Moving it locally over a
-            # failed upstream move would put PSOK and the phone into permanent
+            # failed upstream move would put AMETHYST and the phone into permanent
             # disagreement about which list holds it.
             raise TaskError(
                 f"could not move '{existing['title']}' to {target.name} in Microsoft To Do."
@@ -262,7 +262,7 @@ class TaskService:
         from backend.sync.microsoft_todo import create_remote_list
 
         if live.connection(SOURCE) is None:
-            return None, "kept in PSOK (no task connector is signed in)"
+            return None, "kept in AMETHYST (no task connector is signed in)"
         try:
             external_id = await create_remote_list(name)
         except Exception as exc:
@@ -396,7 +396,7 @@ class TaskService:
             return None, "kept locally only -- Microsoft To Do could not be written to"
 
         if external is None:
-            return None, "kept in PSOK (no task connector is signed in)"
+            return None, "kept in AMETHYST (no task connector is signed in)"
         return external, "added to Microsoft To Do"
 
     async def update(
@@ -491,7 +491,7 @@ class TaskService:
         return await self.update(task_id, status="done" if done else "todo")
 
     async def cancel(self, task_id: int) -> Written:
-        """Soft-cancel. Nothing in PSOK deletes a task.
+        """Soft-cancel. Nothing in AMETHYST deletes a task.
 
         A row deleted locally comes straight back on the next pull, so deleting
         one is a lie that lasts fifteen minutes.

@@ -5,7 +5,7 @@ mattered". History is the record of everything else, and the difference is why
 this ingests one and only searches the other.
 
 Capture is one-way on purpose. Deleting a bookmark in the browser means "I am
-done with this tab", not "destroy the notes PSOK made"; the library item stays,
+done with this tab", not "destroy the notes AMETHYST made"; the library item stays,
 the way every other capture does. Nothing here writes to the browser at all.
 """
 

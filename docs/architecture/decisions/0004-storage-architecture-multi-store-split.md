@@ -10,7 +10,7 @@ The brief explicitly warns against assuming all data belongs in one store. Khoj 
 
 ## Decision
 
-Split PSOK's data across exactly three mechanisms, each chosen because the other two are actively wrong for that specific data type: SQLite for everything relational, searchable, and transactional (app state, tasks, calendar, conversations as normalized messages, document index, chunk embeddings, memories, integration metadata, audit logs); the local filesystem for the user's original documents, treated as source of truth rather than discarded after text extraction; the OS keychain for every credential, with only a reference stored in SQLite.
+Split AMETHYST's data across exactly three mechanisms, each chosen because the other two are actively wrong for that specific data type: SQLite for everything relational, searchable, and transactional (app state, tasks, calendar, conversations as normalized messages, document index, chunk embeddings, memories, integration metadata, audit logs); the local filesystem for the user's original documents, treated as source of truth rather than discarded after text extraction; the OS keychain for every credential, with only a reference stored in SQLite.
 
 ## Alternatives Considered
 

@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 # authorization URL, when the whole point is that the user has not chosen one
 # yet. It never reaches the provider: the hint carrying it is stripped before
 # the browser opens, and the account is whatever they pick.
-ACCOUNT_TO_BE_CHOSEN = "pending@psok.local"
+ACCOUNT_TO_BE_CHOSEN = "pending@amethyst.local"
 
 # How long a server that owns its own OAuth is kept running for the user to
 # finish in the browser, and how often its credential store is checked. Matched
@@ -132,8 +132,8 @@ REGISTRATION_HELP = {
         "  1. https://github.com/settings/developers -> New OAuth App\n"
         f"  2. Authorization callback URL: {REDIRECT_URI}\n"
         "  3. Generate a client secret\n"
-        "  4. psok mcp auth github --client-id <id> --client-secret <secret>\n"
-        "  5. psok mcp login github"
+        "  4. amethyst mcp auth github --client-id <id> --client-secret <secret>\n"
+        "  5. amethyst mcp login github"
     )
 }
 
@@ -148,15 +148,15 @@ def entry_for(config: ServerConfig) -> cat.CatalogueEntry | None:
 
 
 def auth_kind(config: ServerConfig) -> str:
-    """Who runs this server's sign-in: PSOK, the server itself, or nobody.
+    """Who runs this server's sign-in: AMETHYST, the server itself, or nobody.
 
-    `client.py`'s `_transport` builds PSOK's OAuth provider for remote
+    `client.py`'s `_transport` builds AMETHYST's OAuth provider for remote
     transports only. A stdio server therefore never sees it, however its config
     is flagged -- it runs its own flow in its own process. Conflating the two
     is what let a Google client id be stored in fields nothing downstream reads
     while the interface reported the connector as signed in.
 
-    Returns "oauth" (PSOK drives it), "setup" (the server drives it, once it
+    Returns "oauth" (AMETHYST drives it), "setup" (the server drives it, once it
     has credentials), or "none".
     """
     entry = entry_for(config)
@@ -170,7 +170,7 @@ def auth_kind(config: ServerConfig) -> str:
 def _reject_implausible_client_id(name: str, client_id: str) -> None:
     """Refuse a value that cannot be an OAuth client id.
 
-    Every provider PSOK supports issues an opaque token here -- never an email
+    Every provider AMETHYST supports issues an opaque token here -- never an email
     address, never something with a space in it. Storing one anyway replaced a
     working Google client with the string `dadad@gmail.com` and left the
     connector reporting itself configured, so this is a real failure mode
@@ -188,7 +188,7 @@ def _reject_implausible_client_id(name: str, client_id: str) -> None:
 # What a Google OAuth client secret looks like: the `GOCSPX-` marker Google
 # prints in front of every one it issues, then 28 characters. Checked because
 # the alternative is finding out at the end of a sign-in, from the provider,
-# in a browser tab PSOK cannot see -- "(invalid_client) The provided client
+# in a browser tab AMETHYST cannot see -- "(invalid_client) The provided client
 # secret is invalid", after the user has already chosen their account.
 GOOGLE_SECRET_PREFIX = "GOCSPX-"
 GOOGLE_SECRET_LENGTH = 35
@@ -241,7 +241,7 @@ def _write_credentials_file(
     looks. The medium differs because the server decided so -- this one reads no
     environment at all.
 
-    ADR-0012 says PSOK's secrets live in the keychain, and they still do: the
+    ADR-0012 says AMETHYST's secrets live in the keychain, and they still do: the
     secret is stored there first and this file is written from it, so the
     keychain stays the source of truth and re-entering the client rewrites the
     file. The file itself is unavoidable -- the server has no other input -- so
@@ -265,9 +265,9 @@ def _write_credentials_file(
             existing = {}
 
     if client_secret and store_secret:
-        set_secret(f"psok-mcp/{name}.client_secret", client_secret)
+        set_secret(f"amethyst-mcp/{name}.client_secret", client_secret)
     elif not client_secret:
-        client_secret = get_secret(f"psok-mcp/{name}.client_secret")
+        client_secret = get_secret(f"amethyst-mcp/{name}.client_secret")
 
     existing[keys["client_id"]] = client_id
     if client_secret and "client_secret" in keys:
@@ -350,7 +350,7 @@ def _guard_stored_credential(name: str, key: str, *, force: bool) -> None:
     )
     raise CredentialLocked(
         f"'{name}' already has a stored {key} and it is not editable from here.{reach}"
-        f" To replace it deliberately: psok mcp env {name} {key} <value> --secret --force"
+        f" To replace it deliberately: amethyst mcp env {name} {key} <value> --secret --force"
     )
 
 
@@ -363,7 +363,7 @@ def set_oauth_client(
 ) -> ServerConfig:
     """Attach a hand-registered OAuth client to a server.
 
-    Where the credentials belong depends on who runs the flow. PSOK's OAuth
+    Where the credentials belong depends on who runs the flow. AMETHYST's OAuth
     provider is built for remote transports only, so a stdio server's client id
     and secret go into the environment its process reads -- the catalogue entry
     names the two variables. Secrets go to the keychain either way; mcp.yaml
@@ -386,7 +386,7 @@ def set_oauth_client(
             return load_servers()[name]
         if entry is None or not entry.client_id_env:
             raise ValueError(
-                f"'{name}' runs over stdio and PSOK does not run its sign-in, so there is"
+                f"'{name}' runs over stdio and AMETHYST does not run its sign-in, so there is"
                 " nowhere for an OAuth client to go. Set whatever variables the server"
                 " documents as environment credentials instead."
             )
@@ -419,7 +419,7 @@ def set_oauth_client(
     config.oauth = True
     config.oauth_client_id = client_id
     if client_secret:
-        ref = f"psok-mcp/{name}.client_secret"
+        ref = f"amethyst-mcp/{name}.client_secret"
         set_secret(ref, client_secret)
         config.oauth_client_secret_ref = ref
 
@@ -449,12 +449,12 @@ def env_secret_ref(name: str, key: str) -> str:
     config = load_servers().get(name)
     entry = entry_for(config) if config is not None else None
     group = entry.shares_account_with if entry is not None else None
-    return f"psok-mcp/{group or name}.env.{key}"
+    return f"amethyst-mcp/{group or name}.env.{key}"
 
 
 def _legacy_env_secret_ref(name: str, key: str) -> str:
     """Where it used to live: one entry per connector, never shared."""
-    return f"psok-mcp/{name}.env.{key}"
+    return f"amethyst-mcp/{name}.env.{key}"
 
 
 def set_env(
@@ -463,7 +463,7 @@ def set_env(
     """Set one environment variable for a stdio server.
 
     With `secret`, the value goes to the OS keychain and mcp.yaml keeps only a
-    `keychain:` reference -- the same rule every other credential in PSOK
+    `keychain:` reference -- the same rule every other credential in AMETHYST
     follows, extended to the servers that take theirs through the environment
     (ADR-0012).
 
@@ -596,7 +596,7 @@ def account_count(config: ServerConfig) -> int:
 def grant_age_days(config: ServerConfig) -> int | None:
     """How long ago this connector's newest account was signed in.
 
-    Read from the credential file's own mtime rather than from anything PSOK
+    Read from the credential file's own mtime rather than from anything AMETHYST
     stores: the file is written by the server when a sign-in completes and
     rewritten on every token refresh it manages, so it is the only record of
     when the account was last actually established. None where the connector
@@ -672,7 +672,7 @@ def sign_out(name: str) -> list[str]:
     Switching a connector off only stops its process; the account it was signed
     in as survives in storage, which is why reconnecting used to succeed
     silently as whoever signed in first, with no way to change account short of
-    deleting keychain entries by hand. Signing out clears both stores: PSOK's
+    deleting keychain entries by hand. Signing out clears both stores: AMETHYST's
     own tokens, and -- for a server that runs its own flow -- the credential
     files that server keeps.
 
@@ -714,7 +714,7 @@ def sign_out(name: str) -> list[str]:
 # of Gmail *and* destroyed the in-flight state of a Calendar sign-in happening at
 # the same moment -- which surfaced at the end of a successful Google login as
 # "Invalid or expired OAuth state parameter", pointing at the provider when the
-# cause was PSOK. `login(force=True)` signs out first, so "switch account" did
+# cause was AMETHYST. `login(force=True)` signs out first, so "switch account" did
 # this to itself.
 IN_FLIGHT_FILES = frozenset({"oauth_states.json"})
 
@@ -778,7 +778,7 @@ def always_ask_which_account(url: str) -> str:
     refresh token on Google, leaving a connection that dies in an hour.
 
     `login_hint` goes, for the same reason: it pre-selects an account, and the
-    address it carries is one PSOK had to invent to satisfy a required argument
+    address it carries is one AMETHYST had to invent to satisfy a required argument
     rather than one the user chose. Google verifies the account actually picked
     and the credential is stored under that, so dropping the hint is what makes
     "choose your account on Google's page" true.
@@ -827,9 +827,9 @@ async def check_google_client(config: ServerConfig) -> str | None:
     """Ask Google whether this client id and secret are usable, before using them.
 
     A wrong secret is only discovered at the very end of the flow, by the
-    provider, in a browser tab PSOK cannot see -- the user picks their account,
+    provider, in a browser tab AMETHYST cannot see -- the user picks their account,
     approves the scopes, and *then* gets "(invalid_client) The provided client
-    secret is invalid" with nothing in PSOK to explain it. Asking first turns
+    secret is invalid" with nothing in AMETHYST to explain it. Asking first turns
     that into a sentence on the connector's own page before anything opens.
 
     The probe is a token request with a deliberately invalid code. Google checks
@@ -861,7 +861,7 @@ async def check_google_client(config: ServerConfig) -> str | None:
             response = await client.post(
                 GOOGLE_TOKEN_ENDPOINT,
                 data={
-                    "code": "psok-preflight-not-a-real-code",
+                    "code": "amethyst-preflight-not-a-real-code",
                     "client_id": client_id,
                     "client_secret": client_secret,
                     "redirect_uri": REDIRECT_URI,
@@ -1040,7 +1040,7 @@ async def _command_login(config: ServerConfig, entry: cat.CatalogueEntry) -> str
     LinkedIn opens a browser for `--login`; Spotify ships a second binary that
     prints an authorization URL and waits on its own loopback callback. Neither
     exposes a tool to call, so without this they could only be signed into by
-    hand in a terminal -- and PSOK's Connect button would have to either lie or
+    hand in a terminal -- and AMETHYST's Connect button would have to either lie or
     do nothing.
 
     The URL is published through PENDING like every other pending sign-in, so a
@@ -1105,7 +1105,7 @@ async def login(
 
     `force` signs out first. Without it a provider that still holds a session
     hands back the same account without ever showing its chooser, which makes
-    "switch account" impossible from inside PSOK.
+    "switch account" impossible from inside AMETHYST.
 
     `manager` is the live one, where there is one. Signing in through a
     throwaway manager stored the token and then shut the connection down, so
@@ -1149,7 +1149,7 @@ async def login(
             return await _command_login(config, entry)
         if entry is None or not entry.auth_tool:
             # This connector's own tools carry its auth (an API key already in
-            # the keychain, here) -- there is no browser flow for PSOK to
+            # the keychain, here) -- there is no browser flow for AMETHYST to
             # drive. Resolving the placeholder immediately is what keeps the
             # lifecycle from reporting "authenticating" for a connector that
             # is, underneath, already fully connected: `/login`'s caller
@@ -1386,7 +1386,7 @@ def missing_credentials(config: ServerConfig) -> list[str]:
             return []
         # A default has not been written to the file yet -- that happens at
         # sign-in, in `ensure_default_credentials` -- but it exists, so asking
-        # the user for a credential PSOK already has would be a lie.
+        # the user for a credential AMETHYST already has would be a lie.
         return [] if default_id else ["a client id and secret"]
     if entry.api_key_ref:
         # Never defaulted, and this is deliberate. These are metered per-user
@@ -1405,7 +1405,7 @@ def is_signed_in(config: ServerConfig) -> bool | None:
     """Whether an account is actually attached. None where there is none to attach.
 
     A stdio server's account is its own to hold, so the question is answered by
-    its credential store rather than by PSOK's keychain -- reading the wrong one
+    its credential store rather than by AMETHYST's keychain -- reading the wrong one
     is what made a connector that had never seen a Google account report itself
     signed in.
     """
@@ -1457,7 +1457,7 @@ def status(*, with_accounts: bool = False) -> list[dict]:
                 "grant_age_days": grant_age_days(config),
                 "grant_lifetime_days": entry.grant_lifetime_days if entry else None,
                 # More than one account in a store a server reads in single-user
-                # mode is a genuine ambiguity: PSOK cannot tell which one the
+                # mode is a genuine ambiguity: AMETHYST cannot tell which one the
                 # server picked, and neither can the user unless it is said.
                 #
                 # Only where the files *are* accounts. LinkedIn's store is a
@@ -1468,7 +1468,7 @@ def status(*, with_accounts: bool = False) -> list[dict]:
                 "accounts": account_count(config),
                 "account": account(name) if with_accounts and signed_in else None,
                 # Whose app registration the sign-in will use. The distinction
-                # the interface owes a friend: "Using PSOK's shared app
+                # the interface owes a friend: "Using AMETHYST's shared app
                 # registration -- you are signing in with your own account" is a
                 # different sentence from "register an app", and without this
                 # field there is no way to tell them apart. `user` is set by the

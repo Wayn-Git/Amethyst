@@ -19,11 +19,11 @@ from backend.tools.registry import ToolRegistry
 # --------------------------------------------------------------------------
 
 
-def test_unknown_provider_falls_through_to_openai_compatible(psok_home, monkeypatch):
-    """The fallback is what gives PSOK an open-ended provider set (ADR-0001)."""
+def test_unknown_provider_falls_through_to_openai_compatible(amethyst_home, monkeypatch):
+    """The fallback is what gives AMETHYST an open-ended provider set (ADR-0001)."""
     from backend import config
 
-    yaml_path = psok_home / "config" / "providers.yaml"
+    yaml_path = amethyst_home / "config" / "providers.yaml"
     yaml_path.parent.mkdir(parents=True, exist_ok=True)
     yaml_path.write_text(
         "providers:\n"
@@ -39,7 +39,7 @@ def test_unknown_provider_falls_through_to_openai_compatible(psok_home, monkeypa
     assert config  # keep the import meaningful
 
 
-def test_unconfigured_unknown_provider_is_reported(psok_home):
+def test_unconfigured_unknown_provider_is_reported(amethyst_home):
     with pytest.raises(ProviderNotConfigured):
         resolve("not-a-real-provider")
 
@@ -95,13 +95,13 @@ def test_anthropic_maps_tool_results_to_content_blocks():
 # --------------------------------------------------------------------------
 
 
-def test_system_prompt_includes_environment_and_skills(psok_home):
+def test_system_prompt_includes_environment_and_skills(amethyst_home):
     from backend.skills.loader import seed_builtin_skills
 
     seed_builtin_skills()
     prompt = build_system_prompt(workspace_root="/tmp/ws")
     assert "<environment>" in prompt and "/tmp/ws" in prompt
-    assert "psok-intro" in prompt, "skills are advertised by name in the prompt"
+    assert "amethyst-intro" in prompt, "skills are advertised by name in the prompt"
     assert "Diagnosing a failure" not in prompt, "the skill body must NOT be inlined"
 
 
@@ -327,8 +327,8 @@ def test_audit_log_stores_redacted_arguments(db):
 
 
 def test_provider_config_holds_a_reference_not_a_secret():
-    config = ProviderConfig(name="openai", api_key_ref="psok/openai")
-    assert config.api_key_ref == "psok/openai"
+    config = ProviderConfig(name="openai", api_key_ref="amethyst/openai")
+    assert config.api_key_ref == "amethyst/openai"
     assert not hasattr(config, "api_key")
 
 

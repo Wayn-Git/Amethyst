@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Khoj stores an entire conversation transcript as a single JSON field on the conversation row, rewritten on every turn. PSOK needs conversation history for context assembly, token-budgeted truncation, and (eventually) cross-conversation search. See [data-model.md](../data-model.md).
+Khoj stores an entire conversation transcript as a single JSON field on the conversation row, rewritten on every turn. AMETHYST needs conversation history for context assembly, token-budgeted truncation, and (eventually) cross-conversation search. See [data-model.md](../data-model.md).
 
 ## Decision
 

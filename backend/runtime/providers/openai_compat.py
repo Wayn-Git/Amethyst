@@ -2,7 +2,7 @@
 
 This one adapter covers OpenAI itself plus Ollama, vLLM, LM Studio, NVIDIA NIM,
 Groq, OpenRouter and anything else speaking the chat-completions wire format.
-Unrecognized provider names fall through to here (ADR-0001), which is why PSOK
+Unrecognized provider names fall through to here (ADR-0001), which is why AMETHYST
 supports an open-ended provider set with four adapters.
 """
 
@@ -58,13 +58,13 @@ __all__ = ["OpenAICompatClient", "ProviderHTTPError", "ProviderStreamError", "in
 
 
 def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """PSOK's normalized messages into the chat-completions wire shape.
+    """AMETHYST's normalized messages into the chat-completions wire shape.
 
-    The two other adapters already translate; this one used to forward PSOK's
+    The two other adapters already translate; this one used to forward AMETHYST's
     own rows untouched, which happens to work only while a turn takes one
     iteration. As soon as a tool call is replayed the difference bites: the wire
     format wants `type: "function"` on every tool call and `arguments` as a JSON
-    *string*, and rejects the `tool_name` and `is_error` columns PSOK carries on
+    *string*, and rejects the `tool_name` and `is_error` columns AMETHYST carries on
     tool rows for its own use. Lenient servers ignored all three; OpenAI itself
     and schema-validating servers answer 400.
     """
@@ -94,7 +94,7 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "function": {
                             "name": fn.get("name"),
                             # Already a string when it came straight off the wire;
-                            # a dict once it has been through PSOK's storage.
+                            # a dict once it has been through AMETHYST's storage.
                             "arguments": arguments
                             if isinstance(arguments, str)
                             else json.dumps(arguments or {}),

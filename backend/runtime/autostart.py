@@ -1,6 +1,6 @@
 """Features that switch themselves on when their inputs already exist.
 
-`psok serve` used to present a machine half-dark: the bookmark watcher and the
+`amethyst serve` used to present a machine half-dark: the bookmark watcher and the
 X reader sat off by default -- correctly, because both read a person's own
 browser history and sessions -- so a fresh install answered with capture paths
 that were configured but inert, and the user's first hour was spent hunting for
@@ -24,7 +24,7 @@ What it deliberately does NOT touch:
   is the explicit statement they were given.
 
 Every change is logged, and all of it is reversible from the same CLIs that
-set it by hand: `psok bookmarks disable`, `psok social deny x`.
+set it by hand: `amethyst bookmarks disable`, `amethyst social deny x`.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def auto_setup() -> list[str]:
     """Turn on what can work today. Returns what changed, as sentences.
 
     Idempotent: a second boot finds everything already on and returns nothing,
-    which is also why it can run on every `psok serve` without a flag. Never
+    which is also why it can run on every `amethyst serve` without a flag. Never
     raises -- a machine where auto-setup fails is a machine that still serves.
     """
     changed: list[str] = []
@@ -80,14 +80,14 @@ def _browser_watcher() -> str | None:
     except Exception:
         # No Firefox-family profile on this machine. Not an error, and not a
         # reason to say anything -- the user will find out from
-        # `psok bookmarks status` when they go looking.
+        # `amethyst bookmarks status` when they go looking.
         return None
     save_browser({"enabled": True})
     return "browser capture on: a Firefox-family profile is on this machine"
 
 
 def _x_reader() -> str | None:
-    """`psok social allow x`, when the reader could actually run today.
+    """`amethyst social allow x`, when the reader could actually run today.
 
     Allow-without-credentials would be a silent lie: the capture ladder would
     take the reader rung, fail, and fall through with a note that names a

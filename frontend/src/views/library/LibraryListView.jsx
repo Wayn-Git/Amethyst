@@ -17,8 +17,10 @@ export default function LibraryListView({
 
   useEffect(() => {
     if (!containerRef.current) return
-    const rows = containerRef.current.querySelectorAll('.lib-row')
+    const rows = Array.from(containerRef.current.querySelectorAll('.lib-row:not([data-animated="true"])'))
     if (!rows.length) return
+
+    rows.forEach(r => r.setAttribute('data-animated', 'true'))
 
     gsap.fromTo(
       rows,

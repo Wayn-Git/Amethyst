@@ -66,10 +66,10 @@ export default function Memory() {
       <div className="view-inner">
         <header className="vheader" data-enter>
           <div>
-            <h1>What PSOK remembers</h1>
+            <h1>What AMETHYST remembers</h1>
             <div className="vheader-sub">
               Standing facts, extracted after a turn and recalled in later conversations.
-              Correcting one retires it rather than deleting it, so what PSOK believed —
+              Correcting one retires it rather than deleting it, so what AMETHYST believed —
               and when that changed — stays answerable.
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function Memory() {
         {state && facts.length === 0 && (
           <EmptyState icon="spark">
             {state.facts.length === 0
-              ? 'Nothing remembered yet. Tell PSOK something durable about you — a preference, a project, a constraint — and it will be recorded after the turn.'
+              ? 'Nothing remembered yet. Tell AMETHYST something durable about you — a preference, a project, a constraint — and it will be recorded after the turn.'
               : 'No fact matches that filter.'}
           </EmptyState>
         )}

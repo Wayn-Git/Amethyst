@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# PSOK - Personal Operating System Startup Script
+# AMETHYST - Personal Operating System Startup Script
 # ==============================================================================
 # Usage:
 #   ./run.sh          # Default: builds frontend & runs unified server (opens browser)
 #   ./run.sh --dev    # Development mode: runs backend & Vite dev server with hot reload
-#   ./run.sh --doctor # Runs PSOK doctor diagnostic check
+#   ./run.sh --doctor # Runs AMETHYST doctor diagnostic check
 #   ./run.sh --build  # Rebuilds the frontend bundle
 #   ./run.sh --help   # Displays usage information
 # ==============================================================================
@@ -21,15 +21,15 @@ RED="\033[0;31m"
 RESET="\033[0m"
 
 info() {
-    echo -e "${CYAN}${BOLD}[PSOK]${RESET} $1"
+    echo -e "${CYAN}${BOLD}[AMETHYST]${RESET} $1"
 }
 
 success() {
-    echo -e "${GREEN}${BOLD}[PSOK]${RESET} $1"
+    echo -e "${GREEN}${BOLD}[AMETHYST]${RESET} $1"
 }
 
 warn() {
-    echo -e "${YELLOW}${BOLD}[PSOK]${RESET} $1"
+    echo -e "${YELLOW}${BOLD}[AMETHYST]${RESET} $1"
 }
 
 error() {
@@ -41,7 +41,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 show_help() {
-    echo -e "${BOLD}PSOK - Personal Operating System${RESET}"
+    echo -e "${BOLD}AMETHYST - Personal Operating System${RESET}"
     echo ""
     echo "Usage:"
     echo "  ./run.sh [OPTION]"
@@ -100,7 +100,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo -e "${BOLD}======================================================${RESET}"
-echo -e "${BOLD}              PSOK Launcher & Manager                 ${RESET}"
+echo -e "${BOLD}              AMETHYST Launcher & Manager                 ${RESET}"
 echo -e "${BOLD}======================================================${RESET}"
 
 # 1. Check Python >= 3.11
@@ -190,10 +190,10 @@ if [ ! -f ".env" ]; then
     success "Created .env. (You can add API keys in .env or configure them via the UI)"
 fi
 
-# 6. Initialize PSOK (DB, directories, skills)
-info "Running PSOK initialization..."
-psok init >/dev/null 2>&1 || python -m backend.cli init
-success "PSOK storage and database verified."
+# 6. Initialize AMETHYST (DB, directories, skills)
+info "Running AMETHYST initialization..."
+amethyst init >/dev/null 2>&1 || python -m backend.cli init
+success "AMETHYST storage and database verified."
 
 # Handle setup mode
 if [ "$MODE" == "setup" ]; then
@@ -203,15 +203,15 @@ fi
 
 # Handle init mode
 if [ "$MODE" == "init" ]; then
-    success "Initialization complete. Run './run.sh' to start PSOK."
+    success "Initialization complete. Run './run.sh' to start AMETHYST."
     exit 0
 fi
 
 # Handle doctor mode
 if [ "$MODE" == "doctor" ]; then
-    info "Running PSOK Doctor diagnostics:"
+    info "Running AMETHYST Doctor diagnostics:"
     echo ""
-    psok doctor || python -m backend.cli doctor
+    amethyst doctor || python -m backend.cli doctor
     exit 0
 fi
 
@@ -232,10 +232,10 @@ if [ "$MODE" == "build" ] || [ ! -f "frontend/dist/index.html" ]; then
     fi
 fi
 
-# 8. Start PSOK
+# 8. Start AMETHYST
 if [ "$MODE" == "dev" ]; then
     echo ""
-    info "${BOLD}Starting PSOK in DEVELOPMENT mode...${RESET}"
+    info "${BOLD}Starting AMETHYST in DEVELOPMENT mode...${RESET}"
     info "Backend API:  http://127.0.0.1:8000"
     info "Frontend Dev: http://127.0.0.1:5173 (with hot reload)"
     info "Press Ctrl+C to stop both servers."
@@ -252,7 +252,7 @@ if [ "$MODE" == "dev" ]; then
     trap cleanup EXIT INT TERM
 
     # Start backend
-    psok serve --port "$PORT" --reload &
+    amethyst serve --port "$PORT" --reload &
     BACKEND_PID=$!
 
     # Start frontend dev server
@@ -265,16 +265,16 @@ else
     if command -v lsof >/dev/null 2>&1; then
         if lsof -i :"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
             warn "Port $PORT is already in use by another process."
-            info "If PSOK is already running, you can open http://127.0.0.1:$PORT directly in your browser."
+            info "If AMETHYST is already running, you can open http://127.0.0.1:$PORT directly in your browser."
             info "Or launch on a different port: ./run.sh --port $((PORT+1))"
             echo ""
         fi
     fi
 
     echo ""
-    info "${BOLD}Starting PSOK Unified Server...${RESET}"
+    info "${BOLD}Starting AMETHYST Unified Server...${RESET}"
     info "Application URL: ${BOLD}http://127.0.0.1:${PORT}${RESET}"
     info "Press Ctrl+C to stop."
     echo ""
-    psok serve --port "$PORT" --open
+    amethyst serve --port "$PORT" --open
 fi

@@ -1,19 +1,19 @@
-# PSOK, one container.
+# AMETHYST, one container.
 #
 #   cp .env.example .env      # optional: provider keys
 #   docker compose up -d
 #   open http://127.0.0.1:8000
 #
-# PSOK has no authentication. Anything that can reach port 8000 can read your
+# AMETHYST has no authentication. Anything that can reach port 8000 can read your
 # files, run shell commands and read your mail. This file publishes on
 # loopback only. Do not change that without an authenticating reverse proxy in
 # front -- see docs/deployment.md.
 
 services:
-  psok:
+  amethyst:
     build: .
-    image: psok:local
-    container_name: psok
+    image: amethyst:local
+    container_name: amethyst
 
     # Reaps the uvx and npx grandchildren that MCP connectors leave behind.
     init: true
@@ -22,7 +22,7 @@ services:
     # Host networking, and this is not a shortcut -- it is the only thing that
     # makes OAuth work on Linux.
     #
-    # Three sign-in flows finish at a listener on localhost: 33418 (PSOK's own
+    # Three sign-in flows finish at a listener on localhost: 33418 (AMETHYST's own
     # redirect, backend/mcp/oauth.py), 8765 (Google's workspace-mcp, pinned
     # with fallback disabled), 8888 (Spotify). All three bind 127.0.0.1 inside
     # the process, and Docker's port publishing forwards to the container's
@@ -38,8 +38,8 @@ services:
     environment:
       # With host networking this is the host's loopback, so the warning above
       # is enforced rather than described.
-      PSOK_BIND: 127.0.0.1
-      PSOK_PORT: 8000
+      AMETHYST_BIND: 127.0.0.1
+      AMETHYST_PORT: 8000
 
     # Matches the host user so the bind mount below is writable from both
     # sides. fish: set -x UID (id -u); set -x GID (id -g)
@@ -50,13 +50,13 @@ services:
         required: false
 
     volumes:
-      # Everything PSOK keeps: psok.db and its FTS5 and vec0 virtual tables,
+      # Everything AMETHYST keeps: amethyst.db and its FTS5 and vec0 virtual tables,
       # config/, library/, library/media/, logs/, skills/, attachments/, and
       # secrets.json. A bind mount because this is the user's own library --
       # they should be able to browse it, grep it and back it up.
-      - ./data/psok:/data/psok
+      - ./data/amethyst:/data/amethyst
 
-      # State that MCP connectors write OUTSIDE PSOK_HOME, into $HOME:
+      # State that MCP connectors write OUTSIDE AMETHYST_HOME, into $HOME:
       #   ~/.google_workspace_mcp/credentials/<address>.json
       #   ~/.config/microsoft-todo-mcp/token-cache.json
       #   ~/.linkedin-mcp/profile
@@ -64,7 +64,7 @@ services:
       # A named volume rather than a second bind mount: these are opaque token
       # caches nobody should hand-edit, and it sidesteps uid mismatches.
       # Without this volume, every connector sign-in is lost on restart.
-      - psok-connector-home:/home/psok
+      - amethyst-connector-home:/home/amethyst
 
 volumes:
-  psok-connector-home:
+  amethyst-connector-home:

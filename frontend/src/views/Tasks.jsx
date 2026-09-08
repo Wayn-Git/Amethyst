@@ -260,7 +260,7 @@ export default function Tasks() {
     }
   }, [load, toast])
 
-  /* Microsoft To Do is pushed and pulled on a fifteen-minute loop while PSOK is
+  /* Microsoft To Do is pushed and pulled on a fifteen-minute loop while AMETHYST is
      up. This is the same sync on demand, for the minute after someone signs in
      or ticks something they want on their phone now. */
   const sync = useCallback(async () => {
@@ -330,7 +330,7 @@ export default function Tasks() {
             <div className="vheader-sub">
               {counts.connected
                 ? 'Tasks, lists, dates and importance sync both ways with Microsoft To Do. My Day is your To Do list called My Day — the sun moves a task into it.'
-                : 'Kept in PSOK. Sign in to Microsoft To Do from Connectors and these follow you.'}
+                : 'Kept in AMETHYST. Sign in to Microsoft To Do from Connectors and these follow you.'}
             </div>
           </div>
           <div className="vheader-actions">
@@ -503,7 +503,7 @@ export default function Tasks() {
                   <Icon name="check" size={20} />
                   {view.bucket === 'missed'
                     ? 'Nothing overdue.'
-                    : 'Nothing here. Add one above, or ask PSOK to.'}
+                    : 'Nothing here. Add one above, or ask AMETHYST to.'}
                 </div>
               )}
 
@@ -638,7 +638,7 @@ export default function Tasks() {
                 className="btn btn--small"
                 onClick={() => { setView('chat'); chat.focusComposer?.() }}
               >
-                <Icon name="chat" size={13} /> Ask PSOK to add one
+                <Icon name="chat" size={13} /> Ask AMETHYST to add one
               </button>
             </div>
           </section>

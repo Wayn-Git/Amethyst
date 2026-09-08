@@ -15,7 +15,7 @@ from backend.mcp import commands as mcp
 from backend.mcp.config import KEYCHAIN_PREFIX, config_path, load_servers
 from backend.secrets import get_secret
 
-pytestmark = pytest.mark.usefixtures("psok_home")
+pytestmark = pytest.mark.usefixtures("amethyst_home")
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ needs_build = pytest.mark.skipif(
 
 @needs_build
 def test_the_built_interface_is_served_by_the_api(client):
-    """One process is the whole product: `psok serve` and open a browser."""
+    """One process is the whole product: `amethyst serve` and open a browser."""
     response = client.get("/")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
@@ -212,7 +212,7 @@ async def test_a_prompt_says_which_conversation_it_suspended():
 # container with, and a way to store a key on a host that has no keychain.
 
 
-def test_ping_is_cheap_and_does_not_survey_providers(psok_home, monkeypatch):
+def test_ping_is_cheap_and_does_not_survey_providers(amethyst_home, monkeypatch):
     """The interface fires this before React mounts, to start a stopped
     container booting. `/api/health` surveys every provider over the network,
     so using that would make a cold start wait for a boot *and* a round of
@@ -238,12 +238,12 @@ def test_ping_is_cheap_and_does_not_survey_providers(psok_home, monkeypatch):
     assert response.json()["status"] == "ok"
 
 
-def test_a_key_can_be_stored_on_a_host_with_no_keychain(psok_home, monkeypatch, tmp_path):
+def test_a_key_can_be_stored_on_a_host_with_no_keychain(amethyst_home, monkeypatch, tmp_path):
     """A container has no OS keychain, so `keyring` raises on the first write.
     That escaped the route as a 500 with a traceback, which is how adding a key
     to a deployed instance failed without saying why.
 
-    Mutation check: drop `PSOK_SECRETS_FILE` from `_store`, and this 503s.
+    Mutation check: drop `AMETHYST_SECRETS_FILE` from `_store`, and this 503s.
     """
     from fastapi.testclient import TestClient
 
@@ -251,7 +251,7 @@ def test_a_key_can_be_stored_on_a_host_with_no_keychain(psok_home, monkeypatch, 
     from backend.api.main import app
 
     store = tmp_path / "secrets.json"
-    monkeypatch.setenv("PSOK_SECRETS_FILE", str(store))
+    monkeypatch.setenv("AMETHYST_SECRETS_FILE", str(store))
     # The conftest fixture patches `_keyring`; take it back out so this exercises
     # the branch a real container takes.
     monkeypatch.setattr(secrets, "_keyring", _no_keychain)
@@ -261,12 +261,12 @@ def test_a_key_can_be_stored_on_a_host_with_no_keychain(psok_home, monkeypatch, 
             "/api/providers", json={"name": "groq", "api_key": "gsk_" + "x" * 20}
         )
     assert response.status_code == 200, response.text
-    assert secrets.get_secret("psok/groq") == "gsk_" + "x" * 20
+    assert secrets.get_secret("amethyst/groq") == "gsk_" + "x" * 20
     # Owner only. A key readable by every process on the box is not storage.
     assert store.stat().st_mode & 0o077 == 0
 
 
-def test_without_that_variable_the_answer_names_it(psok_home, monkeypatch):
+def test_without_that_variable_the_answer_names_it(amethyst_home, monkeypatch):
     """Not a 500, and not a silent downgrade to a file nobody asked for: the
     error says which environment variable turns file storage on.
 
@@ -277,7 +277,7 @@ def test_without_that_variable_the_answer_names_it(psok_home, monkeypatch):
     from backend import secrets
     from backend.api.main import app
 
-    monkeypatch.delenv("PSOK_SECRETS_FILE", raising=False)
+    monkeypatch.delenv("AMETHYST_SECRETS_FILE", raising=False)
     monkeypatch.setattr(secrets, "_keyring", _no_keychain)
 
     with TestClient(app) as client:
@@ -285,7 +285,7 @@ def test_without_that_variable_the_answer_names_it(psok_home, monkeypatch):
             "/api/providers", json={"name": "groq", "api_key": "gsk_" + "x" * 20}
         )
     assert response.status_code == 503, response.text
-    assert "PSOK_SECRETS_FILE" in response.json()["detail"]
+    assert "AMETHYST_SECRETS_FILE" in response.json()["detail"]
 
 
 def _no_keychain():
@@ -305,8 +305,8 @@ def _no_keychain():
     return Dead
 
 
-def test_every_preset_says_which_environment_variable_carries_its_key(psok_home):
-    """Without it a deployed PSOK could be given a key only by hand-editing
+def test_every_preset_says_which_environment_variable_carries_its_key(amethyst_home):
+    """Without it a deployed AMETHYST could be given a key only by hand-editing
     providers.yaml on a disk nobody has a shell on.
 
     Mutation check: drop `api_key_env` from `entry_for`.

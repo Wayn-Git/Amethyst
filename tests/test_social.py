@@ -92,7 +92,7 @@ async def test_a_site_must_be_allowed_before_it_is_read(db, ready):
             "https://www.reddit.com/r/webdev/comments/143acrg/x/", workspace="/tmp", allowed=()
         )
     assert "not on the allowed list" in str(raised.value)
-    assert "psok social allow reddit" in str(raised.value)
+    assert "amethyst social allow reddit" in str(raised.value)
 
 
 async def test_allowing_one_site_does_not_allow_the_other(db, ready):

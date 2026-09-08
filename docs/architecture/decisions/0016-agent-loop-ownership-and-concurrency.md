@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-Something must own the reason/act/observe cycle. Pipali's Director executes all of a turn's tool calls concurrently via a Promise.allSettled-style race. PSOK's tools frequently mutate local filesystem state and a single SQLite database. See [ai-runtime.md](../ai-runtime.md#the-agent-loop).
+Something must own the reason/act/observe cycle. Pipali's Director executes all of a turn's tool calls concurrently via a Promise.allSettled-style race. AMETHYST's tools frequently mutate local filesystem state and a single SQLite database. See [ai-runtime.md](../ai-runtime.md#the-agent-loop).
 
 ## Decision
 
@@ -14,7 +14,7 @@ One component, the Director, owns the entire loop: prompt assembly, model invoca
 
 ## Alternatives Considered
 
-- **Concurrent tool execution by default, as in Pipali.** Rejected as the default: for a single-user system where tools commonly mutate the filesystem or write to the same database, concurrent execution introduces real correctness risk (file races, interleaved writes, lock contention) for wall-clock savings that barely register at PSOK's scale.
+- **Concurrent tool execution by default, as in Pipali.** Rejected as the default: for a single-user system where tools commonly mutate the filesystem or write to the same database, concurrent execution introduces real correctness risk (file races, interleaved writes, lock contention) for wall-clock savings that barely register at AMETHYST's scale.
 - **Splitting loop responsibilities across multiple components** (a separate dispatcher-owning component, a separate prompt-assembly service invoked independently). Rejected: fragments the one place to look when the agent misbehaves, the exact benefit a single owning component provides.
 
 ## Trade-offs

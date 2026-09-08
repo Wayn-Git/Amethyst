@@ -127,8 +127,10 @@ TOPIC_SYNONYMS: dict[str, str] = {
     # Cinema & Television
     "cinema": "cinema",
     "film": "cinema",
+    "films": "cinema",
     "film adaptation": "cinema",
     "movie": "cinema",
+    "movies": "cinema",
     "drama": "cinema",
     "romance": "cinema",
     "thriller": "cinema",
@@ -144,6 +146,22 @@ TOPIC_SYNONYMS: dict[str, str] = {
     "comet": "cinema",
     "i robot": "cinema",
     "larp": "cinema",
+    "series": "cinema",
+    "show": "cinema",
+    "shows": "cinema",
+    "tv": "cinema",
+    "television": "cinema",
+    "actor": "cinema",
+    "actress": "cinema",
+    "director": "cinema",
+    "trailer": "cinema",
+    "anime": "cinema",
+    "fiction": "cinema",
+    "duy beni": "cinema",
+    "proyecto final": "cinema",
+    "tearsmith": "cinema",
+    "crush": "cinema",
+    "archie": "cinema",
     # Streaming
     "netflix": "streaming",
     "amazon prime": "streaming",
@@ -159,30 +177,18 @@ TOPIC_SYNONYMS: dict[str, str] = {
     "free credits": "tools",
     "cost": "tools",
     "credits": "tools",
+    "linkedin": "tools",
     # Reading & Education
     "book": "reading",
     "books": "reading",
     "education": "reading",
     "beginners": "reading",
-    # Society & Themes
-    "bullying": "society",
-    "cyberbullying": "society",
+    # Society & Culture
     "faith": "society",
-    "family": "society",
-    "friendship": "society",
     "grief": "society",
-    "justice": "society",
     "inequality": "society",
-    "teen": "society",
-    "highschool": "society",
-    "child": "society",
-    "coherence": "society",
-    "future": "society",
-    "fashion": "society",
-    "competition": "society",
-    "interview": "society",
-    "ivf": "society",
-    "linkedin": "society",
+    "culture": "society",
+    "philosophy": "society",
     # Hardware
     "gpu": "hardware",
 }
@@ -216,7 +222,12 @@ def canonicalize_tags(tags: list[str] | tuple[str, ...]) -> list[str]:
             if len(cleaned) >= MAX_TAGS:
                 break
 
+    # If item has cinema or streaming, remove any accidental 'society' tag
+    if ("cinema" in cleaned or "streaming" in cleaned) and "society" in cleaned:
+        cleaned.remove("society")
+
     return cleaned
+
 
 RESOURCE_TYPES = (
     "movie",
@@ -262,16 +273,14 @@ Reply with JSON and nothing else:
 
 Rules:
 - category: one of movie|travel|food|tool|book|general. Pick:
-  - "movie" for films, cinema, tv shows, anime, documentaries, streaming watchlists.
+  - "movie" for films, cinema, tv shows, series, anime, documentaries, streaming watchlists, clips or reels discussing movies/shows/actors/characters. NEVER mark movies, films, or series as "general" or "society".
   - "travel" for travel spots, vacation destinations, cities, sights, trip itineraries.
   - "food" for restaurants, cafes, street food, dishes to try, recipes, dining spots.
   - "tool" for software, developer tools, AI apps, SaaS, hardware, tech utilities.
   - "book" for books, reading lists, literature, papers.
-  - "general" for other topics.
-- summary: two to four sentences on what this is about, in plain language. No \
-preamble, no "this video discusses".
-- tags: two to three lowercase canonical topic words (e.g. ai, algorithms, programming, tools, design, cinema, streaming, data-science, reading, society). Only topics \
-the text is directly about.
+  - "general" for other topics only when none of the above fit.
+- summary: two to four sentences on what this is about, in plain language. No preamble, no "this video discusses".
+- tags: two to three lowercase canonical topic words (e.g. ai, algorithms, programming, tools, design, cinema, streaming, data-science, reading). For any movies, series, shows, actors, or films, always use "cinema" or "streaming" as the primary tag -- NEVER tag movies or entertainment with "society".
 - resources: concrete named things the text names that the user could go and find or watch:
   - movie/show: title, platform/genre, why to watch.
   - travel/destination: city/country, spot name, best to visit.
@@ -304,7 +313,7 @@ def infer_category(
     # (category, resource types, words looked for in the detail)
     by_resource = (
         ("movie", ("movie", "show", "film", "series"),
-         ("film", "movie", "cinema", "tv series", "documentary")),
+         ("film", "movie", "cinema", "tv series", "series", "documentary", "actor", "premiere", "character")),
         ("travel", ("travel", "destination", "spot"),
          ("destination", "hotel", "visit", "trip", "city", "tourist")),
         ("food", ("food", "restaurant", "cafe", "recipe", "dish"),
@@ -322,7 +331,7 @@ def infer_category(
     # (category, tags)
     by_tag = (
         ("movie", ("movie", "movies", "film", "films", "cinema", "netflix",
-                   "series", "tv", "show", "shows", "science fiction")),
+                   "series", "tv", "show", "shows", "science fiction", "fiction", "crush", "drama", "thriller", "comedy", "action", "romance", "archie")),
         ("travel", ("travel", "destination", "trip", "hotel", "explore",
                     "vacation", "tourism", "city", "places")),
         ("food", ("food", "restaurant", "cafe", "recipe", "dining", "dish",
@@ -417,7 +426,9 @@ def parse_enrichment(text: str) -> Enrichment | None:
             resources.append(cleaned)
 
     raw_cat = str(data.get("category") or "").strip().lower()
-    category = raw_cat if raw_cat in CATEGORIES else infer_category(resources, tags)
+    category = raw_cat if raw_cat in CATEGORIES and raw_cat != "general" else infer_category(resources, tags)
+    if category == "general":
+        category = infer_category(resources, tags)
 
     canonical_tags = canonicalize_tags(tags)
     if not canonical_tags and tags:

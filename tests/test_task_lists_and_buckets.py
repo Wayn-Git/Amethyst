@@ -195,7 +195,7 @@ def test_my_day_is_the_list_and_nothing_else(db):
 
     Deliberately narrower than it was: a task due today is *not* in My Day
     unless it was put there. The wide version could not agree with the phone,
-    because the phone has no idea what PSOK thinks is due today.
+    because the phone has no idea what AMETHYST thinks is due today.
 
     Mutation check: put the `date(due_at) = :today` clause back in `_MY_DAY`.
     """
@@ -266,7 +266,7 @@ def test_a_local_change_is_marked_for_the_next_push(db):
     """`dirty_at` is what the push half walks.
 
     Mutation check: drop the `dirty_at` assignment in `TaskService.update` and
-    a task ticked in PSOK never reaches the phone -- which is the bug this
+    a task ticked in AMETHYST never reaches the phone -- which is the bug this
     whole direction exists to fix.
     """
     from backend.sync.microsoft_todo import SOURCE
@@ -347,7 +347,7 @@ def test_the_pull_supersedes_a_local_edit_because_the_push_ran_first(db):
 
 
 def test_importance_survives_the_round_trip(db):
-    """To Do has one axis where PSOK has two; high importance is the user's flag."""
+    """To Do has one axis where AMETHYST has two; high importance is the user's flag."""
     from backend.sync.microsoft_todo import SOURCE, SyncReport, _apply, _task_arguments
 
     repo = TaskRepository()
@@ -699,7 +699,7 @@ def test_the_sun_moves_a_task_into_my_day_and_back(db):
 def test_the_list_a_task_comes_back_in_decides_my_day(db):
     """The pull files a task into the list it came from, and that is the whole
     of My Day membership -- so a task moved into the list on the phone is in
-    PSOK's My Day on the next sync, and one moved out leaves it.
+    AMETHYST's My Day on the next sync, and one moved out leaves it.
 
     This is the fix for the reported bug. A "My Day" *category* round-tripped
     fine and still could not see a task added through To Do's own My Day, which
@@ -839,7 +839,7 @@ async def test_a_move_is_a_create_then_a_delete_and_the_row_follows(db, monkeypa
 async def test_a_move_that_fails_upstream_leaves_the_task_where_it_was(db, monkeypatch):
     """To Do has no move: `move_remote_task` creates the task in the target and
     deletes the original. If that fails half way, the local row must not be
-    moved anyway -- PSOK and the phone would then disagree about which list
+    moved anyway -- AMETHYST and the phone would then disagree about which list
     holds it, and every later pull would fight the local answer.
 
     Mutation check: move the row before awaiting `move_remote_task`, or swallow
@@ -872,7 +872,7 @@ async def test_a_move_that_fails_upstream_leaves_the_task_where_it_was(db, monke
 def test_the_push_sends_back_every_tag_it_was_given(db):
     """Graph replaces the categories array rather than merging it, so a push
     that sent anything less than the whole list would delete the rest of the
-    user's tags. PSOK writes none of its own any more -- My Day is a list -- so
+    user's tags. AMETHYST writes none of its own any more -- My Day is a list -- so
     this exists purely to hand back what was there.
 
     Mutation check: return `[]` from `_categories_for`.
@@ -890,7 +890,7 @@ def test_the_push_sends_back_every_tag_it_was_given(db):
 
 
 def test_completion_time_comes_back_from_to_do(db):
-    """To Do knew three tasks were finished today and PSOK had recorded the
+    """To Do knew three tasks were finished today and AMETHYST had recorded the
     completion time of one: `_apply` never mapped `completedDateTime`, so
     "what did I get done today" could not be answered from local data.
 
@@ -1154,8 +1154,8 @@ def test_a_completion_time_is_not_dragged_into_the_previous_day(db):
     assert str(row["completed_at"]).startswith(_today()), row["completed_at"]
 
 
-def test_a_pull_keeps_the_time_of_day_psok_already_recorded(db):
-    """PSOK knows the minute the box was ticked; To Do only knows the date. The
+def test_a_pull_keeps_the_time_of_day_amethyst_already_recorded(db):
+    """AMETHYST knows the minute the box was ticked; To Do only knows the date. The
     pull used to overwrite the first with the second, so every completion time
     collapsed to midnight and "what did I do this morning" lost its answer.
 

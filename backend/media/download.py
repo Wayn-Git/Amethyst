@@ -53,7 +53,7 @@ async def fetch_to(
     if not url:
         raise DownloadError("there was no address to fetch")
 
-    headers = {"User-Agent": "PSOK/0.1"}
+    headers = {"User-Agent": "AMETHYST/0.1"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 

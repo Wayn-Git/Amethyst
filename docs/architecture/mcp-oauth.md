@@ -4,9 +4,9 @@ Companion to [mcp.md](mcp.md), which covers strategy. This one covers the flow t
 
 ## The flow
 
-PSOK does not implement OAuth from scratch. The MCP Python SDK's `OAuthClientProvider` already implements discovery, dynamic registration, PKCE, and token refresh. PSOK supplies the three pieces the SDK deliberately leaves to the host application:
+AMETHYST does not implement OAuth from scratch. The MCP Python SDK's `OAuthClientProvider` already implements discovery, dynamic registration, PKCE, and token refresh. AMETHYST supplies the three pieces the SDK deliberately leaves to the host application:
 
-| Piece | PSOK's implementation |
+| Piece | AMETHYST's implementation |
 |---|---|
 | `storage` | `KeychainTokenStorage` — tokens in the OS keychain, never a file ([ADR-0012](decisions/0012-credential-storage.md)) |
 | `redirect_handler` | Opens the system browser at the provider's own login page |
@@ -15,20 +15,20 @@ PSOK does not implement OAuth from scratch. The MCP Python SDK's `OAuthClientPro
 End to end, when the user connects GitHub:
 
 ```
- 1. PSOK connects anonymously to https://api.githubcopilot.com/mcp/
+ 1. AMETHYST connects anonymously to https://api.githubcopilot.com/mcp/
  2. Server replies 401 with
        WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource/mcp/"
- 3. PSOK fetches that resource metadata          (RFC 9728)
+ 3. AMETHYST fetches that resource metadata          (RFC 9728)
        -> authorization_servers: [https://github.com/login/oauth]
        -> scopes_supported:      [repo, read:org, …]
- 4. PSOK fetches the authorization server metadata (RFC 8414)
+ 4. AMETHYST fetches the authorization server metadata (RFC 8414)
        -> authorization_endpoint, token_endpoint, PKCE S256 supported
- 5. PSOK obtains a client_id — by dynamic registration where supported,
+ 5. AMETHYST obtains a client_id — by dynamic registration where supported,
     otherwise from the one the user registered (see below)
  6. Browser opens at github.com/login/oauth/authorize with PKCE + state
- 7. The user signs in and approves — on GitHub's real page, never inside PSOK
+ 7. The user signs in and approves — on GitHub's real page, never inside AMETHYST
  8. GitHub redirects to http://127.0.0.1:33418/oauth/callback?code=…
- 9. PSOK exchanges the code (plus the PKCE verifier) for tokens
+ 9. AMETHYST exchanges the code (plus the PKCE verifier) for tokens
 10. Tokens go to the OS keychain; the connection retries and succeeds
 ```
 
@@ -52,23 +52,23 @@ The `resource` parameter is RFC 8707 audience binding: it stops a token minted f
 
 The MCP spec expects dynamic client registration (RFC 7591) so a client can register itself on first contact. **GitHub does not implement it.** Its authorization server metadata advertises PKCE but publishes no `registration_endpoint`, and posting to the conventional path returns `404 page not found`.
 
-That is not an error PSOK can retry past. So the OAuth layer supports two ways of obtaining a client:
+That is not an error AMETHYST can retry past. So the OAuth layer supports two ways of obtaining a client:
 
 - **Dynamic registration**, when the provider offers it — fully automatic, nothing for the user to do.
 - **A pre-registered client**, seeded into token storage before the flow starts, which makes the SDK skip registration entirely.
 
-When registration 404s, PSOK classifies the failure specifically rather than surfacing a bare exception:
+When registration 404s, AMETHYST classifies the failure specifically rather than surfacing a bare exception:
 
 ```
-$ psok mcp add github
+$ amethyst mcp add github
 added 'github' (streamable-http)
 
 GitHub does not support automatic app registration, so register one once:
   1. https://github.com/settings/developers -> New OAuth App
   2. Authorization callback URL: http://127.0.0.1:33418/oauth/callback
   3. Generate a client secret
-  4. psok mcp auth github --client-id <id> --client-secret <secret>
-  5. psok mcp login github
+  4. amethyst mcp auth github --client-id <id> --client-secret <secret>
+  5. amethyst mcp login github
 ```
 
 This is the difference between a dead end and a five-step fix. The generic path produced `ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)`, which tells the user nothing — so the connection layer now unwraps nested exception groups to the leaf cause before classifying it.
@@ -79,13 +79,13 @@ Nothing secret is ever written to `mcp.yaml`:
 
 | Value | Where |
 |---|---|
-| Access and refresh tokens | OS keychain, `psok-mcp/<server>.tokens` |
-| Registered client info | OS keychain, `psok-mcp/<server>.client` |
-| OAuth client secret | OS keychain, `psok-mcp/<server>.client_secret` |
+| Access and refresh tokens | OS keychain, `amethyst-mcp/<server>.tokens` |
+| Registered client info | OS keychain, `amethyst-mcp/<server>.client` |
+| OAuth client secret | OS keychain, `amethyst-mcp/<server>.client_secret` |
 | OAuth **client id** | `mcp.yaml` — a public identifier, not a credential |
 | Keychain references | `mcp.yaml` |
 
-`psok mcp remove <name>` deletes the stored credentials along with the config entry, so removing a server does not leave tokens behind.
+`amethyst mcp remove <name>` deletes the stored credentials along with the config entry, so removing a server does not leave tokens behind.
 
 ## Three catalogue shapes
 
@@ -104,7 +104,7 @@ failure message that pointed at the wrong thing.
 **The connect deadline was shorter than the person it waited on.**
 `MCPConnection.connect` armed `timeout_seconds` (60s) around
 `session.initialize()`, and for an OAuth server that call contains the entire
-browser sign-in — which the loopback callback allows 300s. At 60s PSOK
+browser sign-in — which the loopback callback allows 300s. At 60s AMETHYST
 disconnected the transport mid-flow and recorded a circuit-breaker failure,
 while the callback thread went on to serve the redirect and render *Connected*
 in the browser. Both were telling the truth about different things.
@@ -118,7 +118,7 @@ spawned `workspace-mcp`, asked it for an authorization URL, opened the browser
 — and then shut the manager down in `finally`. `workspace-mcp` binds its
 `localhost:8765/oauth2callback` listener lazily *inside its own process*, so
 Google's redirect arrived at a port nothing held. Microsoft To Do broke the same
-way: a device-code flow needs the server alive to poll for completion, and PSOK
+way: a device-code flow needs the server alive to poll for completion, and AMETHYST
 killed it the moment the code was displayed. Ownership of that manager now
 passes to a watcher task which polls the credential store and tears the session
 down when the sign-in lands, a deadline passes, or the user signs out.
@@ -142,7 +142,7 @@ going fine surfaced as a bare network error.
 That message comes from the *provider*, which made it look like a Google
 problem. It was not. The `state` is a one-time CSRF nonce: the server that
 issued it checks it when the browser comes back, and refuses if it has gone or
-aged out. Five things in PSOK could destroy or outlive a state that had been
+aged out. Five things in AMETHYST could destroy or outlive a state that had been
 minted perfectly well, and the provider's refusal was the honest consequence of
 each.
 
@@ -190,7 +190,7 @@ by reading it.
 **The connect deadline was shorter than the person it waited on.**
 `MCPConnection.connect` armed `timeout_seconds` (60s) around
 `session.initialize()`, and for an OAuth server that call contains the entire
-browser sign-in, which the loopback callback allows 300s. At 60s PSOK
+browser sign-in, which the loopback callback allows 300s. At 60s AMETHYST
 disconnected the transport mid-flow and recorded a circuit-breaker failure,
 while the callback thread went on to serve the redirect and render *Connected*
 in the browser. Both were telling the truth about different things.
@@ -204,7 +204,7 @@ spawned `workspace-mcp`, asked it for an authorization URL, opened the browser
 — and then shut the manager down in `finally`. `workspace-mcp` binds its
 `localhost:8765/oauth2callback` listener lazily *inside its own process*, so
 Google's redirect arrived at a port nothing held. Microsoft To Do broke the same
-way: a device-code flow needs the server alive to poll for completion, and PSOK
+way: a device-code flow needs the server alive to poll for completion, and AMETHYST
 killed it the moment the code was displayed. Ownership of that manager now
 passes to a watcher task which polls the credential store and tears the session
 down when the sign-in lands, a deadline passes, or the user signs out.
@@ -229,13 +229,13 @@ browser tab, not for Chrome DevTools to boot.
 
 The next error along, once the state survives: the flow reaches Google's token
 endpoint and the *credential* is refused. Nothing about the flow is wrong here —
-the secret is — but two things in PSOK made it far harder to see than it needed
+the secret is — but two things in AMETHYST made it far harder to see than it needed
 to be, and one of them could cause it.
 
 **One Google client was stored nine times.** The catalogue's setup hint promises
 "you only do this once — every Google app then shares it", and
 `shares_account_with="google"` says the same. The storage did the opposite: the
-secret went to `psok-mcp/<connector>.env.GOOGLE_OAUTH_CLIENT_SECRET`, one entry
+secret went to `amethyst-mcp/<connector>.env.GOOGLE_OAUTH_CLIENT_SECRET`, one entry
 per connector. Regenerating a secret and pasting it on the Calendar panel left
 the other eight on the old value, so Calendar worked and Gmail failed at token
 exchange with a credential the user believed they had already replaced.
@@ -247,7 +247,7 @@ connector happened to be edited first.
 `GOCSPX-` plus 28 characters; a secret selected by hand rather than copied is
 easy to clip, and one character short fails exactly like a wrong one — at the
 very end of the flow, after the user has chosen their account, in a browser tab
-PSOK cannot see. `reject_implausible_credential` refuses what is certainly wrong
+AMETHYST cannot see. `reject_implausible_credential` refuses what is certainly wrong
 at the moment it is entered, and the endpoint answers `400` with the reason
 rather than storing it. It is deliberately narrow: an empty value, stray
 whitespace, a missing prefix, a wrong length. A provider changing its format
@@ -265,7 +265,7 @@ is not a bad credential and must never block a sign-in that would have worked.
 ## Device-code sign-in
 
 Microsoft To Do does not use a redirect at all: it hands back a short code and a
-page to type it at. PSOK returned that text as the login function's return
+page to type it at. AMETHYST returned that text as the login function's return
 value, and once the login endpoint stopped blocking, nothing read the return
 value any more -- so the code was extracted nowhere and shown nowhere, and the
 provider's page asked for something the user had never been given.
@@ -292,7 +292,7 @@ and offers no input. The backend refuses too -- `POST …/env` and
 hiding a control that still works is not a guarantee. Replacing one is
 deliberate and lives in the terminal:
 
-    psok mcp env <server> GOOGLE_OAUTH_CLIENT_SECRET <value> --secret --force
+    amethyst mcp env <server> GOOGLE_OAUTH_CLIENT_SECRET <value> --secret --force
 
 Only secrets. A client id is a public identifier and correcting one is
 harmless, so refusing it would be friction with nothing behind it.
@@ -300,7 +300,7 @@ harmless, so refusing it would be friction with nothing behind it.
 ## Abandoning a sign-in
 
 Closing the browser tab is how most abandoned sign-ins end, and nothing told
-PSOK. `DELETE /api/mcp/servers/{name}/login` cancels one: it stops the task,
+AMETHYST. `DELETE /api/mcp/servers/{name}/login` cancels one: it stops the task,
 releases the callback port, and shuts down any subprocess held open behind it.
 Waiting cards also carry the time they have left, so "is this going to sit here
 forever" has a visible answer -- it is five minutes, and there is a button.
@@ -326,8 +326,8 @@ and the outcome is never blank.
 ## Security properties
 
 - **SSRF protection** runs at transport construction, so a URL resolving to a private or loopback address never opens a connection. Local servers are legitimate, so `allow_local: true` opts in per server.
-- **MCP tools are never registered at low risk.** PSOK cannot inspect what an external server does, so its tools do not get the confirmation-free tier that vetted builtins get.
-- **First call to a new server always confirms**, once per server. This is a trust-establishment event separate from per-call risk, and it is the guardrail that compensates for MCP servers running outside PSOK's sandbox — a gap Pipali has and does not cover.
+- **MCP tools are never registered at low risk.** AMETHYST cannot inspect what an external server does, so its tools do not get the confirmation-free tier that vetted builtins get.
+- **First call to a new server always confirms**, once per server. This is a trust-establishment event separate from per-call risk, and it is the guardrail that compensates for MCP servers running outside AMETHYST's sandbox — a gap Pipali has and does not cover.
 - **Circuit breaker** per server, so one flapping server cannot degrade the rest.
 - **A failed server is backed off, not written off.** `reconcile` used to skip
   anything with a recorded error permanently, so one refused DNS lookup left a

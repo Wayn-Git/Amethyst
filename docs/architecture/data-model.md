@@ -4,11 +4,11 @@
 
 Where does each kind of information live? The brief was explicit that not everything belongs in one storage system, and Khoj is a live example of the opposite choice — one PostgreSQL instance with pgvector holding user data, transcripts, document text, and embeddings alike.
 
-PSOK rejects both extremes.
+AMETHYST rejects both extremes.
 
-**Khoj's single-store answer is wrong for PSOK's deployment shape.** PostgreSQL is a client-server database that expects to be administered: a service to run, a port to bind, a user and role to configure, a backup regime to maintain. Khoj is a hostable product with an operations story; PSOK is software one person runs on their own laptop. Requiring a database server before the first message is a real cost with no matching benefit.
+**Khoj's single-store answer is wrong for AMETHYST's deployment shape.** PostgreSQL is a client-server database that expects to be administered: a service to run, a port to bind, a user and role to configure, a backup regime to maintain. Khoj is a hostable product with an operations story; AMETHYST is software one person runs on their own laptop. Requiring a database server before the first message is a real cost with no matching benefit.
 
-**The opposite extreme — a relational database, plus a vector database, plus an object store, plus a cache — is also wrong.** Every additional engine is another process to run, another failure mode, another backup, and another consistency boundary. For a single user's personal data, that is infrastructure PSOK does not need and would have to operate forever.
+**The opposite extreme — a relational database, plus a vector database, plus an object store, plus a cache — is also wrong.** Every additional engine is another process to run, another failure mode, another backup, and another consistency boundary. For a single user's personal data, that is infrastructure AMETHYST does not need and would have to operate forever.
 
 The resolution: **one embedded engine, cleanly separated by domain, plus exactly two other mechanisms chosen because the embedded engine is actively wrong for that specific data type.**
 
@@ -24,7 +24,7 @@ The scale argument holds comfortably. A personal knowledge base of tens of thous
 
 The user's actual documents. Not a copy, not an extraction — the files themselves, where the user put them.
 
-This is a deliberate divergence from Khoj, which reads uploads into memory, extracts text, and discards the original bytes. That choice is privacy-friendly but forfeits three things PSOK needs: the ability to re-parse a document when the extractor improves, the ability to open the original from within PSOK, and the ability to keep binary content out of the database file. PSOK stores an *index* pointing at the filesystem — path, content hash, size, modification time — and treats the file as the source of truth.
+This is a deliberate divergence from Khoj, which reads uploads into memory, extracts text, and discards the original bytes. That choice is privacy-friendly but forfeits three things AMETHYST needs: the ability to re-parse a document when the extractor improves, the ability to open the original from within AMETHYST, and the ability to keep binary content out of the database file. AMETHYST stores an *index* pointing at the filesystem — path, content hash, size, modification time — and treats the file as the source of truth.
 
 ### 3. The OS keychain
 
@@ -92,16 +92,16 @@ chunks_fts                -- FTS5 virtual table
   content, content_rowid = document_chunks.id
 ```
 
-Content hashing at the chunk level is Khoj's incremental-indexing pattern and PSOK adopts it directly: hash each chunk, diff against stored hashes for that document, embed only what changed, delete what disappeared. Re-scanning an unchanged vault costs a hash comparison.
+Content hashing at the chunk level is Khoj's incremental-indexing pattern and AMETHYST adopts it directly: hash each chunk, diff against stored hashes for that document, embed only what changed, delete what disappeared. Re-scanning an unchanged vault costs a hash comparison.
 
 **What gets indexed.** Text and code by extension (`indexer.TEXT_EXTENSIONS`, capped at 2MB), plus PDF, DOCX, XLSX and PPTX (`indexer.DOCUMENT_EXTENSIONS`, capped at 25MB because a document's megabytes are images and its cost tracks page count). Binary documents are turned into markdown by `backend/documents/` **after** the content-hash early return, so an unchanged PDF is never opened by a document library and a re-scan still costs a read and a hash. `file_type` needed no change — it already stores `path.suffix`. `heading_path` is what carries structure across: `Page 12` for a PDF, `Sheet: Budget` for a workbook, `Slide 3` for a deck, the real outline for a Word file, so `SearchHit.label` prints `report.pdf > Page 12` unmodified.
 
 **Which model builds it.** Embeddings default to Ollama (ADR-0013's local-first
 posture) and are otherwise named by an `embeddings:` block in providers.yaml,
-beside `memory:` and `tiers:` -- `psok embeddings detect --set` probes the
+beside `memory:` and `tiers:` -- `amethyst embeddings detect --set` probes the
 configured providers and writes it. This matters more than it looks: with no
 embedder reachable, every search silently falls back to keywords and a vault
-that looks indexed answers nothing. `psok doctor` reports it for that reason.
+that looks indexed answers nothing. `amethyst doctor` reports it for that reason.
 
 Changing the model does not corrupt anything, and the reason is worth keeping:
 `store.record_embedding_model` writes down which model built the index and
@@ -111,7 +111,7 @@ differing (768 for bge-base, 1024 for bge-m3, 1536 for text-embedding-3-small)
 makes `ensure_indexes` drop and rebuild the vector table. Re-index after a
 change.
 
-A document PSOK cannot read — a scan with no text layer — lands in `IndexReport.skipped` rather than `errors`, because the file is fine and `errors` should keep meaning that something went wrong.
+A document AMETHYST cannot read — a scan with no text layer — lands in `IndexReport.skipped` rather than `errors`, because the file is fine and `errors` should keep meaning that something went wrong.
 
 The separate `chunks_fts` table is the concrete upgrade over Khoj's ILIKE filtering. See [retrieval](#retrieval-notes) below.
 
@@ -185,9 +185,9 @@ This resolves a genuine tension: the agent loop runs tools sequentially precisel
 
 ## Filesystem and index consistency
 
-If the filesystem is the source of truth for documents, the index can drift — and PSOK itself is one of the writers, since `write_file` and `edit_file` can modify an indexed file mid-conversation.
+If the filesystem is the source of truth for documents, the index can drift — and AMETHYST itself is one of the writers, since `write_file` and `edit_file` can modify an indexed file mid-conversation.
 
-Three triggers keep them aligned: a **filesystem watcher** on the vault for external edits, an **explicit re-scan** on demand and at startup, and **direct invalidation** from PSOK's own file-mutating tools, which mark the affected document stale immediately rather than waiting for the watcher. Because re-indexing is content-hash incremental, all three are cheap.
+Three triggers keep them aligned: a **filesystem watcher** on the vault for external edits, an **explicit re-scan** on demand and at startup, and **direct invalidation** from AMETHYST's own file-mutating tools, which mark the affected document stale immediately rather than waiting for the watcher. Because re-indexing is content-hash incremental, all three are cheap.
 
 ## Three tables added for the journal, the library and the brand kit
 
@@ -202,7 +202,7 @@ about and the prose can be checked against what it was given. See
 [journal.md](journal.md).
 
 **`library_items`** — what was read, watched or listened to. The row is the
-record; the *text* is a real file under `~/.psok/library` with an ordinary
+record; the *text* is a real file under `~/.amethyst/library` with an ordinary
 `documents` row pointing at it, so the filesystem stays the source of truth
 (ADR-0004) and the existing hybrid index does all the searching.
 `document_id IS NULL` is a normal state — a paywall, a video with no transcript
@@ -222,9 +222,9 @@ both lists will grow. The services validate and name the accepted values in the
 ## Data location summary
 
 ```
-~/.psok/
-  psok.db                 SQLite: everything relational + vectors + FTS
-  psok.db-wal
+~/.amethyst/
+  amethyst.db                 SQLite: everything relational + vectors + FTS
+  amethyst.db-wal
   library/                captured text, one markdown file per library item
   config/
     providers.yaml        model providers (keychain refs, no secrets)
@@ -234,7 +234,7 @@ both lists will grow. The services validate and name the accepted values in the
   logs/
   cache/
 
-<user's vault>/           documents — the user's own directory, PSOK does not own it
+<user's vault>/           documents — the user's own directory, AMETHYST does not own it
 
 OS keychain               every secret
 ```

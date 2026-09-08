@@ -1,6 +1,6 @@
 """Keep the local task store and Microsoft To Do in step, both directions.
 
-**To Do is the source of truth.** Its lists, its ids, its statuses. PSOK holds a
+**To Do is the source of truth.** Its lists, its ids, its statuses. AMETHYST holds a
 mirror so `due_at` and `reminder_at` are readable by the reminder loop and a
 task can be cross-referenced against the notes vault without a network round
 trip -- and so the buckets (My Day, Missed, Important) have something local to
@@ -15,7 +15,7 @@ time the pull runs, upstream already has the local changes, so "last write wins"
 and "the local change wins" are the same outcome.
 
 This replaces an earlier one-way design. Pulling only meant ticking a task in
-PSOK never reached the phone, which made the local copy a second list that
+AMETHYST never reached the phone, which made the local copy a second list that
 drifted -- the exact failure the write-through on create was added to avoid.
 
 Four properties this depends on, each load-bearing:
@@ -24,10 +24,10 @@ Four properties this depends on, each load-bearing:
   external_id)` behind a unique index, so pulling twice updates one row rather
   than making two. The mutation check for this is to drop the index and watch
   the duplicate appear.
-- **PSOK-only fields are never overwritten.** `scheduled_at`,
+- **AMETHYST-only fields are never overwritten.** `scheduled_at`,
   `duration_estimate_minutes` has no counterpart in To Do -- a
   pull that wrote every column would erase them on every tick. `notes` used to
-  be in this set by accident rather than by design: it is To Do's `body`, PSOK
+  be in this set by accident rather than by design: it is To Do's `body`, AMETHYST
   seeds it from there on create, and leaving it out meant a body edited on the
   phone never propagated again. It is synced now.
 - **A task that vanishes is cancelled, not deleted.** An empty or partial
@@ -70,7 +70,7 @@ SERVER = "microsoft-todo"
 #:
 #: A category named "My Day" was tried next, and round-tripped -- but failed at
 #: the thing that matters: a task added through To Do's own My Day carries no
-#: such tag, so PSOK's My Day and the phone's showed different tasks, which is
+#: such tag, so AMETHYST's My Day and the phone's showed different tasks, which is
 #: the original problem restated. What both ends can see is an ordinary list.
 #: So My Day *is* a list here, named in `backend.db.repositories.MY_DAY_LIST_NAMES`,
 #: and putting a task in it means moving it there -- see `move_remote_task`.
@@ -170,7 +170,7 @@ class SyncReport:
 def _timestamp(value: Any) -> str | None:
     """Graph's `{dateTime, timeZone}` shape, or a plain string, as local naive ISO.
 
-    The rest of PSOK stores naive local timestamps and compares them as strings,
+    The rest of AMETHYST stores naive local timestamps and compares them as strings,
     so a value carrying an offset has to be converted rather than stored as-is:
     a reminder held as UTC would fire at the wrong hour, silently.
     """
@@ -202,7 +202,7 @@ def _completed_at(item: dict, existing: Any = None) -> str | None:
     finished today". The date is what the field means, so the date is what is
     kept, unshifted.
 
-    And PSOK knows the minute the box was ticked where To Do only knows the day,
+    And AMETHYST knows the minute the box was ticked where To Do only knows the day,
     so a local stamp already on that date wins over midnight. Otherwise every
     completion time collapsed to 00:00 on the first sync after the tick.
     """
@@ -371,7 +371,7 @@ def _task_arguments(
         arguments["dueDateTime"] = due_at.replace(" ", "T")
     if reminder_at is not None:
         arguments["reminderDateTime"] = reminder_at.replace(" ", "T")
-    # To Do has one axis where PSOK has two. `important` is the user's flag and
+    # To Do has one axis where AMETHYST has two. `important` is the user's flag and
     # wins; `priority` is the model's advisory guess and only speaks when the
     # user has not.
     if important:
@@ -392,7 +392,7 @@ def _categories_for(row: Any) -> list[str]:
 
     Built from the categories the last pull saw rather than from nothing,
     because Graph's write is a replace: a shorter array deletes every tag left
-    out of it. PSOK writes none of its own -- My Day is a list -- so this hands
+    out of it. AMETHYST writes none of its own -- My Day is a list -- so this hands
     back exactly what the user already had.
     """
     try:
@@ -516,7 +516,7 @@ async def move_remote_task(
         return None
     # The status has to be a second call: `create_task` takes `status`, but a
     # task created `completed` comes back with no completion date, and the
-    # column PSOK shows "done today" from would be empty.
+    # column AMETHYST shows "done today" from would be empty.
     if row["status"] and row["status"] != "todo":
         await _call_json(
             connection,
@@ -620,7 +620,7 @@ def _sync_lists(
 
     This is the line the whole feature turned on. `_apply` used to take the list
     it belonged to and never look at it, so every task in every list collapsed
-    into one flat set and every task PSOK created went to the default list.
+    into one flat set and every task AMETHYST created went to the default list.
     """
     mapping: dict[str, int] = {}
     seen: set[str] = set()
@@ -800,7 +800,7 @@ def _apply(
 
     # Every tag the task carries, kept verbatim so the next push sends them back
     # rather than replacing them with a shorter list. None of them mean anything
-    # to PSOK: My Day is `list_id`, decided by the list this task came out of.
+    # to AMETHYST: My Day is `list_id`, decided by the list this task came out of.
     remote_categories = [c for c in (item.get("categories") or []) if isinstance(c, str)]
 
     existing = repository.by_external(SOURCE, external_id)
@@ -812,7 +812,7 @@ def _apply(
         "due_at": _timestamp(item.get("dueDateTime")),
         "reminder_at": _timestamp(item.get("reminderDateTime")),
         # Dropped entirely until 2026-08-28. To Do knew three tasks were
-        # finished today and PSOK recorded the completion time of one, so
+        # finished today and AMETHYST recorded the completion time of one, so
         # "what did I get done today" could not be answered from local data.
         "completed_at": _completed_at(item, existing),
         "priority": PRIORITY.get(importance),

@@ -15,7 +15,7 @@ Two things about it are load-bearing:
   seconds puts every bookmark in the year 57000, and nothing complains.
 
 Reading only. Closing a tab or moving a bookmark needs Firefox's remote agent or
-a WebExtension talking back to PSOK, which is a protocol; listing and searching
+a WebExtension talking back to AMETHYST, which is a protocol; listing and searching
 what is already there is most of the value and needs none.
 """
 
@@ -115,7 +115,7 @@ def find_profile(configured: str | None = None) -> Path:
 
     if not candidates:
         raise PlacesError(
-            "no Firefox-family browser profile was found on this machine. PSOK reads"
+            "no Firefox-family browser profile was found on this machine. AMETHYST reads"
             f" bookmarks from a profile's {PLACES}; set the profile directory if the"
             " browser lives somewhere unusual."
         )
@@ -136,7 +136,7 @@ def snapshot(profile: Path) -> Iterator[sqlite3.Connection]:
     if not source.is_file():
         raise PlacesError(f"no {PLACES} in {profile}")
 
-    with tempfile.TemporaryDirectory(prefix="psok-places-") as directory:
+    with tempfile.TemporaryDirectory(prefix="amethyst-places-") as directory:
         target = Path(directory) / PLACES
         try:
             shutil.copy2(source, target)

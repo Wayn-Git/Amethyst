@@ -48,7 +48,7 @@ From `relay/`:
 
 ```bash
 npm install
-npx wrangler d1 create psok-relay          # prints a database_id
+npx wrangler d1 create amethyst-relay          # prints a database_id
 ```
 
 Put that id into `wrangler.jsonc`, replacing `PUT-THE-D1-DATABASE-ID-HERE`.
@@ -62,7 +62,7 @@ npx wrangler secret put RELAY_TOKEN         # openssl rand -hex 32
 npm run deploy
 ```
 
-The last command prints the hostname, `https://psok-relay.<you>.workers.dev`.
+The last command prints the hostname, `https://amethyst-relay.<you>.workers.dev`.
 
 ## Point the two ends at it
 
@@ -70,7 +70,7 @@ The last command prints the hostname, `https://psok-relay.<you>.workers.dev`.
 
 | field | value |
 |---|---|
-| Callback URL | `https://psok-relay.<you>.workers.dev/ig/webhook` |
+| Callback URL | `https://amethyst-relay.<you>.workers.dev/ig/webhook` |
 | Verify token | the same string you gave `VERIFY_TOKEN` |
 
 Then subscribe to the `messages` and `mentions` fields. **Verify and save**
@@ -79,10 +79,10 @@ fires a live GET at that URL, so deploy before you press it.
 **Your machine**:
 
 ```bash
-psok instagram relay --url https://psok-relay.<you>.workers.dev \
+amethyst instagram relay --url https://amethyst-relay.<you>.workers.dev \
                      --token <the RELAY_TOKEN> --on
-psok instagram relay --sync      # go and look right now
-psok instagram queue             # what arrived
+amethyst instagram relay --sync      # go and look right now
+amethyst instagram queue             # what arrived
 ```
 
 The relay learns your access token, share token, allowlist and reply setting
@@ -119,7 +119,7 @@ behalf.
 reached the relay yet: it is pushed on the first `/sync`, which is every fifteen
 seconds while your machine is on — so this means either that the machine has not
 synced once since you set the share token, or that the relay settings are off
-(`psok instagram relay --sync` forces one now). The endpoint exists; it 404s
+(`amethyst instagram relay --sync` forces one now). The endpoint exists; it 404s
 until then so it does not announce itself half-configured.
 
 **A shortcut or share target gets `400 Bad Request`.** The body must carry a
@@ -157,14 +157,14 @@ Not here: library text, media, the index, conversations, memory, provider keys.
 
 ```bash
 npx wrangler tail                                            # live logs
-npx wrangler d1 execute psok-relay --remote \
+npx wrangler d1 execute amethyst-relay --remote \
   --command "SELECT id, kind, received_at FROM deliveries"   # what is waiting
 ```
 
 ## Taking it away
 
 ```bash
-psok instagram relay --forget
+amethyst instagram relay --forget
 npx wrangler delete
 ```
 

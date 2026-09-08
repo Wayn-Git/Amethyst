@@ -1,11 +1,11 @@
-# PSOK as one image: one process, one port, one origin.
+# AMETHYST as one image: one process, one port, one origin.
 #
 # The API already serves the built single-page app when frontend/dist exists
 # (backend/api/main.py, _mount_frontend), so there is no second service to run
 # and no cross-origin request to configure. That is the whole reason this is a
 # single image rather than a compose file with a web tier.
 #
-# Build:  docker build -t psok:local .
+# Build:  docker build -t amethyst:local .
 # Run:    docker compose up          (see docker-compose.yml)
 
 
@@ -67,7 +67,7 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 #   libreoffice -- ~800MB for one tool. backend/tools/builtin/convert.py
 #     already degrades with a named message when soffice is missing. Add it in
 #     a running container if you need it:
-#       docker compose exec psok apt-get install -y libreoffice-writer
+#       docker compose exec amethyst apt-get install -y libreoffice-writer
 RUN apt-get update && apt-get install --no-install-recommends -y \
       ca-certificates \
       ffmpeg \
@@ -94,10 +94,10 @@ RUN mkdir -p backend && touch backend/__init__.py
 #   documents   pdftotext covers reading; nothing covers writing. There is no
 #               honest way to author a .docx without python-docx.
 #   providers   openai and anthropic, or the two headline providers are
-#               unreachable and `psok doctor` reports none configured.
+#               unreachable and `amethyst doctor` reports none configured.
 #   reels       yt-dlp, the fallback route for an Instagram permalink. It goes
 #               stale in weeks; refresh it in place rather than at boot:
-#                 docker compose exec psok uv pip install --system -U yt-dlp
+#                 docker compose exec amethyst uv pip install --system -U yt-dlp
 #               Auto-updating at start would make every restart depend on PyPI.
 #
 # The -e is load-bearing and not a development habit. backend/api/main.py
@@ -109,7 +109,7 @@ RUN uv pip install --system --no-cache -e '.[providers,vector,documents,reels]'
 
 COPY backend/ ./backend/
 COPY --from=web /build/dist ./frontend/dist
-COPY docker/entrypoint.sh /usr/local/bin/psok-entrypoint
+COPY docker/entrypoint.sh /usr/local/bin/amethyst-entrypoint
 
 # The assertion that turns the blank page above into a failed build.
 RUN python -c "from backend.api.main import _DIST; assert (_DIST / 'index.html').is_file(), _DIST"
@@ -117,21 +117,21 @@ RUN python -c "from backend.api.main import _DIST; assert (_DIST / 'index.html')
 # Runs as a normal user. bubblewrap needs unprivileged user namespaces, which
 # most hosts allow but some (Ubuntu 24.04's apparmor_restrict_unprivileged_userns)
 # do not. backend/security/sandbox.py handles that already: platform_backend()
-# returns None, commands run directly, and `psok doctor` says so.
+# returns None, commands run directly, and `amethyst doctor` says so.
 #
 # Do NOT add privileged: true or cap_add: SYS_ADMIN to make bwrap work. That
 # grants the container the capabilities needed to escape it, in order to
 # constrain a tool inside it -- strictly worse than no sandbox. In a container
 # the container is the boundary, and it is a tighter one than bwrap gives on a
-# laptop: this process sees /data/psok, /home/psok and nothing else of yours.
-RUN useradd --uid 1000 --create-home --home-dir /home/psok psok \
- && mkdir -p /data/psok /opt/uv-cache /opt/npm-cache /opt/cache \
- && chown -R psok:psok /data/psok /home/psok /opt/uv-cache /opt/npm-cache /opt/cache \
- && chmod +x /usr/local/bin/psok-entrypoint
+# laptop: this process sees /data/amethyst, /home/amethyst and nothing else of yours.
+RUN useradd --uid 1000 --create-home --home-dir /home/amethyst amethyst \
+ && mkdir -p /data/amethyst /opt/uv-cache /opt/npm-cache /opt/cache \
+ && chown -R amethyst:amethyst /data/amethyst /home/amethyst /opt/uv-cache /opt/npm-cache /opt/cache \
+ && chmod +x /usr/local/bin/amethyst-entrypoint
 
-# PSOK_SECRETS_FILE is mandatory in a container, not optional: there is no OS
+# AMETHYST_SECRETS_FILE is mandatory in a container, not optional: there is no OS
 # keychain here, and without it every attempt to store a key answers 503
-# (backend/secrets.py). Keeping it inside PSOK_HOME means one volume covers
+# (backend/secrets.py). Keeping it inside AMETHYST_HOME means one volume covers
 # both, which is what render.yaml does too.
 #
 # The caches must sit OUTSIDE $HOME. $HOME is a volume, and a volume mount
@@ -142,26 +142,26 @@ RUN useradd --uid 1000 --create-home --home-dir /home/psok psok \
 # ~/.config/microsoft-todo-mcp/token-cache.json and the catalogue entry reads
 # that exact path, so redirecting it would break sign-in detection.
 #
-# PSOK_CORS_ORIGINS is deliberately unset: one origin, so the dev default is
+# AMETHYST_CORS_ORIGINS is deliberately unset: one origin, so the dev default is
 # correct and an allowlist would only be a way to get it wrong.
-ENV PSOK_HOME=/data/psok \
-    PSOK_SECRETS_FILE=/data/psok/secrets.json \
-    HOME=/home/psok \
+ENV AMETHYST_HOME=/data/amethyst \
+    AMETHYST_SECRETS_FILE=/data/amethyst/secrets.json \
+    HOME=/home/amethyst \
     UV_CACHE_DIR=/opt/uv-cache \
     UV_LINK_MODE=copy \
     npm_config_cache=/opt/npm-cache \
     XDG_CACHE_HOME=/opt/cache \
     PYTHONUNBUFFERED=1 \
-    PSOK_BIND=0.0.0.0 \
-    PSOK_PORT=8000
+    AMETHYST_BIND=0.0.0.0 \
+    AMETHYST_PORT=8000
 
-USER psok
+USER amethyst
 
 EXPOSE 8000
 
 # /api/ping and not /api/health: health surveys every configured provider over
 # the network, which would make container liveness depend on OpenAI being up.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
-  CMD curl -fsS "http://127.0.0.1:${PSOK_PORT}/api/ping" || exit 1
+  CMD curl -fsS "http://127.0.0.1:${AMETHYST_PORT}/api/ping" || exit 1
 
-ENTRYPOINT ["/usr/local/bin/psok-entrypoint"]
+ENTRYPOINT ["/usr/local/bin/amethyst-entrypoint"]

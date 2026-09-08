@@ -2,7 +2,7 @@
 
 The MCP SDK's OAuthClientProvider already implements the hard parts: protected
 resource metadata discovery (RFC 9728), authorization server metadata (RFC 8414),
-dynamic client registration (RFC 7591), PKCE, and token refresh. PSOK supplies
+dynamic client registration (RFC 7591), PKCE, and token refresh. AMETHYST supplies
 the three pieces the SDK deliberately leaves to the host application:
 
   storage           where tokens live -- the OS keychain, never a file (ADR-0012)
@@ -56,8 +56,8 @@ REDIRECT_URI = f"http://{CALLBACK_HOST}:{CALLBACK_PORT}/oauth/callback"
 # whoever connects. Widening that is a decision the operator makes knowingly,
 # which is why it is an environment variable set by docker-compose.bridge.yml
 # and never a default.
-CALLBACK_BIND = os.environ.get("PSOK_OAUTH_CALLBACK_BIND", "").strip() or CALLBACK_HOST
-CLIENT_NAME = "PSOK"
+CALLBACK_BIND = os.environ.get("AMETHYST_OAUTH_CALLBACK_BIND", "").strip() or CALLBACK_HOST
+CLIENT_NAME = "AMETHYST"
 
 # How long a person gets to finish at the provider. Every deadline in the
 # sign-in path is derived from this one so none of them can be shorter than it
@@ -66,11 +66,11 @@ CLIENT_NAME = "PSOK"
 CALLBACK_TIMEOUT_SECONDS = 300.0
 
 # How long an authorization *link* is worth offering. A published URL carries a
-# state the provider will only accept for a while: PSOK's own flow stops
+# state the provider will only accept for a while: AMETHYST's own flow stops
 # listening at CALLBACK_TIMEOUT_SECONDS, and a server running its own flow
 # (workspace-mcp) expires its state after ten minutes. Past this the link is
 # dead, and offering it produces "Invalid or expired OAuth state parameter" --
-# the provider is right to refuse it, so PSOK must stop presenting it as
+# the provider is right to refuse it, so AMETHYST must stop presenting it as
 # something to click.
 AUTHORIZATION_LINK_TTL_SECONDS = 300.0
 
@@ -79,26 +79,26 @@ class AuthorizationDenied(RuntimeError):
     """The provider came back without a code: cancelled, denied, or refused."""
 
 _SUCCESS_PAGE = b"""<!doctype html><meta charset="utf-8">
-<title>PSOK - connected</title>
+<title>AMETHYST - connected</title>
 <style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;height:100vh;
 margin:0;background:#0f1115;color:#e6e8eb}div{text-align:center}h1{font-weight:600;font-size:1.3rem}
 p{color:#9aa3ad}</style>
-<div><h1>Connected</h1><p>You can close this tab and return to PSOK.</p></div>"""
+<div><h1>Connected</h1><p>You can close this tab and return to AMETHYST.</p></div>"""
 
 _FAILURE_PAGE = b"""<!doctype html><meta charset="utf-8">
-<title>PSOK - authorization failed</title>
+<title>AMETHYST - authorization failed</title>
 <style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;height:100vh;
 margin:0;background:#0f1115;color:#e6e8eb}div{text-align:center}h1{font-weight:600;font-size:1.3rem}
 p{color:#9aa3ad}</style>
-<div><h1>Authorization failed</h1><p>Return to PSOK for details.</p></div>"""
+<div><h1>Authorization failed</h1><p>Return to AMETHYST for details.</p></div>"""
 
 
 def token_ref(server_name: str) -> str:
-    return f"psok-mcp/{server_name}.tokens"
+    return f"amethyst-mcp/{server_name}.tokens"
 
 
 def client_ref(server_name: str) -> str:
-    return f"psok-mcp/{server_name}.client"
+    return f"amethyst-mcp/{server_name}.client"
 
 
 def has_stored_token(server_name: str) -> bool:
@@ -312,14 +312,14 @@ async def _wait_for_callback(timeout: float = CALLBACK_TIMEOUT_SECONDS) -> Autho
     it is baked into the redirect URI registered with the provider, so a wait
     that lingers after the user has given up blocks every retry until it
     expires -- which is what turned one abandoned sign-in into five minutes of
-    "another PSOK sign-in may already be in progress".
+    "another AMETHYST sign-in may already be in progress".
     """
     try:
         server = HTTPServer((CALLBACK_BIND, CALLBACK_PORT), _CallbackHandler)
     except OSError as exc:
         raise CallbackPortUnavailable(
             f"cannot listen on {CALLBACK_BIND}:{CALLBACK_PORT} for the OAuth redirect"
-            f" ({exc}). Another PSOK sign-in may already be in progress, or another"
+            f" ({exc}). Another AMETHYST sign-in may already be in progress, or another"
             f" program holds the port. Close it and try again."
         ) from exc
 
@@ -347,7 +347,7 @@ async def _wait_for_callback(timeout: float = CALLBACK_TIMEOUT_SECONDS) -> Autho
                     lambda: None if done.done() else done.set_result(True)
                 )
 
-    thread = threading.Thread(target=serve, daemon=True, name="psok-oauth-callback")
+    thread = threading.Thread(target=serve, daemon=True, name="amethyst-oauth-callback")
     thread.start()
     try:
         await asyncio.wait_for(asyncio.shield(done), timeout=timeout)
@@ -443,7 +443,7 @@ def build_auth_provider(
     awaiting_user: asyncio.Event | None = None,
     interactive: bool = True,
 ) -> OAuthClientProvider:
-    """Wire the SDK's OAuth client to PSOK's keychain and loopback callback.
+    """Wire the SDK's OAuth client to AMETHYST's keychain and loopback callback.
 
     `awaiting_user` is set the moment the flow starts waiting on a person. The
     connect deadline reads it to tell "this server is not answering" apart from

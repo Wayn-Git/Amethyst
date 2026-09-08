@@ -135,12 +135,12 @@ Mentions do not fire for media owned by private accounts, and their assets 403.
 
 The long-lived token lasts 60 days and refreshes **only while still valid**. The
 runner checks once a day and refreshes at 14 days remaining; once lapsed there is
-no automatic recovery, so it is surfaced in `psok doctor`, in the panel, and as a
+no automatic recovery, so it is surfaced in `amethyst doctor`, in the panel, and as a
 desktop notification before that happens.
 
 ## The relay, and why the obvious deployment is wrong
 
-Nothing arrives while PSOK is shut -- but unlike automations, that is not a
+Nothing arrives while AMETHYST is shut -- but unlike automations, that is not a
 delay. **Meta does not queue for a webhook that fails.** It retries, and after
 sustained failure it disables the subscription. A laptop with the lid shut is not
 a slow endpoint, it is a down one, so pointing Meta at one means being silently
@@ -186,11 +186,11 @@ to everything else.
 ## Trying it without Meta
 
 ```bash
-psok instagram credentials --app-secret ... --verify-token ... --access-token ... --owner-id ...
-psok instagram enable
-psok instagram senders --allow <your IGSID>
-psok instagram send-sample --route dm-reel      # a correctly signed delivery
-psok instagram queue
+amethyst instagram credentials --app-secret ... --verify-token ... --access-token ... --owner-id ...
+amethyst instagram enable
+amethyst instagram senders --allow <your IGSID>
+amethyst instagram send-sample --route dm-reel      # a correctly signed delivery
+amethyst instagram queue
 ```
 
 `send-sample` shares its fixtures with the tests, so the manual loop and the
@@ -198,5 +198,5 @@ suite cannot drift apart. By hand, sign with `printf '%s' | openssl dgst -sha256
 -hmac` -- not `echo`, whose trailing newline changes the HMAC and is why most
 hand-made signature tests fail.
 
-With a relay deployed, `psok instagram relay --sync` collects immediately rather
+With a relay deployed, `amethyst instagram relay --sync` collects immediately rather
 than waiting for the poll.

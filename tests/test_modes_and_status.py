@@ -282,7 +282,7 @@ async def test_done_carries_what_the_turn_cost(db, monkeypatch):
 
 
 @pytest.fixture
-def client(psok_home):
+def client(amethyst_home):
     from fastapi.testclient import TestClient
 
     from backend.api.main import app
@@ -291,7 +291,7 @@ def client(psok_home):
         yield c
 
 
-def test_an_unknown_mode_is_refused_before_the_stream_opens(client, psok_home):
+def test_an_unknown_mode_is_refused_before_the_stream_opens(client, amethyst_home):
     """A mode nobody honours would silently act when the user asked for a plan.
     Rejected up front, like an unknown provider, rather than inside an open SSE
     body where the failure reads as a truncated response."""
@@ -538,7 +538,7 @@ async def test_the_same_question_is_not_asked_twice(db, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_no_heavy_tier_means_no_offer(db, monkeypatch):
-    """An offer PSOK cannot honour is worse than no offer. A machine with one
+    """An offer AMETHYST cannot honour is worse than no offer. A machine with one
     provider has nothing to escalate to, and the tool is simply absent rather
     than present and failing.
 
@@ -582,7 +582,7 @@ async def test_reasoning_mode_runs_on_the_heavy_tier_and_does_not_offer_to_escal
     assert "reasoning" in client.seen_system[0], "the mode reaches the system prompt"
 
 
-def test_reasoning_is_a_mode_the_api_accepts(client, psok_home):
+def test_reasoning_is_a_mode_the_api_accepts(client, amethyst_home):
     """Mutation check: drop "reasoning" from `TURN_MODES`."""
     from backend.api.main import TURN_MODES
 

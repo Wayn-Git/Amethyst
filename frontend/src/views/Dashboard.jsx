@@ -51,7 +51,7 @@ export default function Dashboard() {
 
   const lines = health
     ? [
-        { tag: 'boot', text: 'PSOK — personal operating system' },
+        { tag: 'boot', text: 'AMETHYST — personal operating system' },
         { tag: 'ok', tagClass: 't-tag-ok', text: 'kernel: sqlite3 + FTS5 · secrets in the OS keychain' },
         {
           tag: unavailable.length ? 'warn' : 'ok',
@@ -93,7 +93,7 @@ export default function Dashboard() {
         },
       ]
     : [
-        { tag: 'boot', text: 'PSOK — personal operating system' },
+        { tag: 'boot', text: 'AMETHYST — personal operating system' },
         healthError
           ? { tag: 'err', tagClass: 't-tag-bad', text: `api unreachable: ${healthError}` }
           : { tag: 'wait', text: 'awaiting backend…' },

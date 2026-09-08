@@ -69,7 +69,7 @@ class ExtractionError(RuntimeError):
 
 
 def _install_line(package: str, extra: str = "documents") -> str:
-    return f"install it with 'pip install \"psok[{extra}]\"' and try again"
+    return f"install it with 'pip install \"amethyst[{extra}]\"' and try again"
 
 
 def _importable(module: str) -> bool:

@@ -1,6 +1,6 @@
 """Regressions for the connector sign-in flow, reminders, and bulk clears.
 
-Every test here reproduces a defect that was found by using PSOK, not by
+Every test here reproduces a defect that was found by using AMETHYST, not by
 reading it. Each is written so that reverting the fix makes it fail -- a test
 that cannot fail protects nothing.
 """
@@ -26,7 +26,7 @@ from backend.memory import MemoryStore
 async def test_connect_waits_out_an_interactive_sign_in():
     """`connect` gave a browser sign-in the *server's* 60s deadline.
 
-    The user was still on GitHub's consent page when PSOK gave up, disconnected
+    The user was still on GitHub's consent page when AMETHYST gave up, disconnected
     the transport mid-flow and tripped the circuit breaker -- while the loopback
     callback went on to serve the redirect and render "Connected". Two truths,
     one of them useless.
@@ -175,7 +175,7 @@ def test_finished_authorizations_are_pruned_but_waiting_ones_are_not():
     assert "live" in PENDING, "an in-flight sign-in must never be dropped"
 
 
-def test_a_waiting_card_flips_to_done_only_when_the_token_works(client, psok_home, monkeypatch):
+def test_a_waiting_card_flips_to_done_only_when_the_token_works(client, amethyst_home, monkeypatch):
     """The GitHub-that-claimed-connected bug.
 
     A blob in the keychain passed `has_tokens`, and the pending-card self-heal
@@ -368,12 +368,12 @@ def test_the_pull_is_idempotent(db):
     assert report.updated == 0, "an unchanged item is not an update"
 
 
-def test_the_pull_never_overwrites_a_psok_only_field(db):
+def test_the_pull_never_overwrites_a_amethyst_only_field(db):
     """`scheduled_at` has no counterpart in To Do; a full-row write erases it.
 
-    `notes` is deliberately *not* in this set. It is To Do's `body`, PSOK seeds
+    `notes` is deliberately *not* in this set. It is To Do's `body`, AMETHYST seeds
     it from there on create, and holding it back meant a note edited on the
-    phone never reached PSOK again -- a bug that read as an invariant because
+    phone never reached AMETHYST again -- a bug that read as an invariant because
     it sat beside a real one.
 
     `my_day_on` left this set on 2026-08-28, when My Day started travelling as a
@@ -401,7 +401,7 @@ def test_the_pull_never_overwrites_a_psok_only_field(db):
     assert after["duration_estimate_minutes"] == 45
 
 
-def test_a_body_edited_in_to_do_reaches_psok(db):
+def test_a_body_edited_in_to_do_reaches_amethyst(db):
     """The other half of the field split above, and the reason it changed."""
     from backend.sync.microsoft_todo import SOURCE, SyncReport, _apply
 
@@ -450,7 +450,7 @@ def test_graph_timestamps_become_comparable_local_time(db):
     assert _timestamp(None) is None
     assert _timestamp({"dateTime": "", "timeZone": "UTC"}) is None
     converted = _timestamp({"dateTime": "2026-09-01T09:00:00", "timeZone": "UTC"})
-    assert converted is not None and "T" not in converted, "stored the way the rest of PSOK is"
+    assert converted is not None and "T" not in converted, "stored the way the rest of AMETHYST is"
 
 
 # --- clearing conversations and memories ------------------------------------
@@ -512,7 +512,7 @@ def test_forgetting_everything_twice_is_harmless(db):
 
 
 @pytest.fixture
-def client(psok_home):
+def client(amethyst_home):
     from fastapi.testclient import TestClient
 
     from backend.api.main import app
@@ -659,7 +659,7 @@ def test_the_device_code_is_found_without_inventing_one(text, expected):
     """A device-code sign-in cannot be completed without showing the code.
 
     The provider's page asks for a code the user was never given: the server
-    returned it in its text and PSOK discarded that text entirely. Matching is
+    returned it in its text and AMETHYST discarded that text entirely. Matching is
     anchored on the word "code" rather than hunting for anything code-shaped,
     because showing the wrong string to type is worse than showing none.
     """
@@ -860,7 +860,7 @@ async def test_an_unreachable_list_never_loses_the_task(db, monkeypatch):
 # --- the workspace must not take the connectors with it ---------------------
 
 
-def test_rebinding_keeps_live_connections_and_re_registers_their_tools(psok_home):
+def test_rebinding_keeps_live_connections_and_re_registers_their_tools(amethyst_home):
     """The workspace root belongs to the builtin file tools, not to MCP.
 
     Rebuilding both together meant every connector was torn down and respawned
@@ -898,7 +898,7 @@ def test_rebinding_keeps_live_connections_and_re_registers_their_tools(psok_home
 
 
 @pytest.mark.asyncio
-async def test_changing_the_workspace_does_not_shut_the_manager_down(psok_home, monkeypatch):
+async def test_changing_the_workspace_does_not_shut_the_manager_down(amethyst_home, monkeypatch):
     """A turn carries a workspace; a reconcile, a toggle and a connect do not.
 
     Those two roots alternate all session, so a rebuild on every change is a

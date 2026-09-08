@@ -81,7 +81,7 @@ class JournalRunner:
                 continue
             if kind == "weekly" and now.weekday() != schedule.weekly_weekday:
                 # A weekly review written on Wednesday about last week is worse
-                # than none, so a week nobody opened PSOK on its review day
+                # than none, so a week nobody opened AMETHYST on its review day
                 # produces no rollup. The interface offers it on demand instead.
                 continue
             entry = await service.fire(kind, date(now.year, now.month, now.day))

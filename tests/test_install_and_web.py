@@ -14,7 +14,7 @@ from backend.api.main import app
 from backend.skills.install import SkillInstallError, install_text, remove, to_raw_url
 from backend.skills.loader import scan
 
-pytestmark = pytest.mark.usefixtures("psok_home")
+pytestmark = pytest.mark.usefixtures("amethyst_home")
 
 SKILL = """---
 name: note-taker
@@ -37,22 +37,23 @@ def client():
 # ------------------------------------------------------------------ skills
 
 
-def test_a_skill_installs_under_the_name_it_declares(psok_home):
+def test_a_skill_installs_under_the_name_it_declares(amethyst_home):
     skill = install_text(SKILL)
     assert skill.name == "note-taker"
-    assert skill.path == psok_home / "skills" / "note-taker" / "SKILL.md"
+    assert skill.path == amethyst_home / "skills" / "note-taker" / "SKILL.md"
     assert [s.name for s in scan()[0]] == ["note-taker"]
 
 
-def test_a_file_that_is_not_a_skill_leaves_nothing_behind(psok_home):
+def test_a_file_that_is_not_a_skill_leaves_nothing_behind(amethyst_home):
     """Staged and parsed before it is placed: a download that turns out not to
     be a skill must not leave a directory the loader can only report as broken."""
     with pytest.raises(SkillInstallError):
         install_text("# just a readme\n")
-    assert not (psok_home / "skills").exists() or list((psok_home / "skills").iterdir()) == []
+    skills = amethyst_home / "skills"
+    assert not skills.exists() or list(skills.iterdir()) == []
 
 
-def test_installing_over_a_working_skill_needs_saying_so(psok_home):
+def test_installing_over_a_working_skill_needs_saying_so(amethyst_home):
     install_text(SKILL)
     with pytest.raises(SkillInstallError, match="already installed"):
         install_text(SKILL.replace("Take notes", "Take different notes"))
@@ -71,15 +72,15 @@ def test_a_github_page_url_is_rewritten_to_the_raw_file():
     assert to_raw_url("https://example.com/SKILL.md") == "https://example.com/SKILL.md"
 
 
-def test_removing_refuses_anything_that_is_not_a_plain_name(psok_home):
+def test_removing_refuses_anything_that_is_not_a_plain_name(amethyst_home):
     """The name arrives from an HTTP path; `../` would be a delete anywhere."""
     install_text(SKILL)
     with pytest.raises(SkillInstallError):
         remove("../../etc")
-    assert (psok_home / "skills" / "note-taker").is_dir()
+    assert (amethyst_home / "skills" / "note-taker").is_dir()
 
     assert remove("note-taker") is True
-    assert not (psok_home / "skills" / "note-taker").exists()
+    assert not (amethyst_home / "skills" / "note-taker").exists()
 
 
 def test_installing_from_a_url_that_resolves_locally_is_refused(client):
@@ -89,7 +90,7 @@ def test_installing_from_a_url_that_resolves_locally_is_refused(client):
     assert "private" in response.json()["detail"] or "loopback" in response.json()["detail"]
 
 
-def test_removing_a_skill_over_http(client, psok_home):
+def test_removing_a_skill_over_http(client, amethyst_home):
     install_text(SKILL)
     assert client.delete("/api/skills/note-taker").status_code == 200
     assert client.delete("/api/skills/note-taker").status_code == 404
@@ -98,9 +99,9 @@ def test_removing_a_skill_over_http(client, psok_home):
 # ------------------------------------------------------------- attachments
 
 
-def test_a_dropped_file_becomes_a_path_the_tools_can_read(client, psok_home):
-    """The browser has no idea where a file is on disk and PSOK's tools work on
-    paths, so the file is written into the PSOK home and the path comes back."""
+def test_a_dropped_file_becomes_a_path_the_tools_can_read(client, amethyst_home):
+    """The browser has no idea where a file is on disk and AMETHYST's tools work on
+    paths, so the file is written into the AMETHYST home and the path comes back."""
     response = client.post(
         "/api/attachments",
         files={"file": ("notes.txt", b"remember the milk", "text/plain")},
@@ -112,10 +113,10 @@ def test_a_dropped_file_becomes_a_path_the_tools_can_read(client, psok_home):
 
     landed = Path(body["path"])
     assert landed.read_text() == "remember the milk"
-    assert landed.is_relative_to(psok_home / "attachments")
+    assert landed.is_relative_to(amethyst_home / "attachments")
 
 
-def test_an_upload_cannot_escape_the_attachments_directory(client, psok_home):
+def test_an_upload_cannot_escape_the_attachments_directory(client, amethyst_home):
     response = client.post(
         "/api/attachments",
         files={"file": ("../../evil.sh", b"rm -rf /", "text/plain")},
@@ -127,18 +128,18 @@ def test_an_upload_cannot_escape_the_attachments_directory(client, psok_home):
     assert landed.name == "evil.sh"
     # Resolved, not lexical: `.../attachments/<id>/../../evil.sh` starts with
     # the attachments directory as a string while pointing outside it.
-    assert landed.resolve().is_relative_to((psok_home / "attachments").resolve())
+    assert landed.resolve().is_relative_to((amethyst_home / "attachments").resolve())
     assert landed.resolve().read_bytes() == b"rm -rf /"
 
 
-def test_an_oversized_upload_is_rejected_and_not_kept(client, psok_home, monkeypatch):
+def test_an_oversized_upload_is_rejected_and_not_kept(client, amethyst_home, monkeypatch):
     monkeypatch.setattr("backend.api.main.MAX_ATTACHMENT_BYTES", 16)
     response = client.post(
         "/api/attachments",
         files={"file": ("big.bin", b"x" * 1024, "application/octet-stream")},
     )
     assert response.status_code == 413
-    assert list((psok_home / "attachments").iterdir()) == []
+    assert list((amethyst_home / "attachments").iterdir()) == []
 
 
 # ------------------------------------------------------------------- tools

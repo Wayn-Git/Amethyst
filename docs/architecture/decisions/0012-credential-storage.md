@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-PSOK holds API keys for AI providers and OAuth tokens for Gmail, Calendar, GitHub, and potentially MCP servers. LibreChat stores these encrypted in its database, appropriate for a hosted multi-tenant product. Khoj follows a similar pattern. PSOK is local-first and single-user.
+AMETHYST holds API keys for AI providers and OAuth tokens for Gmail, Calendar, GitHub, and potentially MCP servers. LibreChat stores these encrypted in its database, appropriate for a hosted multi-tenant product. Khoj follows a similar pattern. AMETHYST is local-first and single-user.
 
 ## Decision
 
@@ -19,7 +19,7 @@ Store every credential in the OS-native secret store (macOS Keychain, Linux Secr
 
 ## Trade-offs
 
-Depends on OS keychain availability and correct configuration, which is a safe assumption on macOS and Windows and generally safe on Linux desktop environments with a Secret Service provider running; headless Linux servers may need an alternative backend, a known limitation of this approach rather than a blocker for PSOK's primary desktop use case.
+Depends on OS keychain availability and correct configuration, which is a safe assumption on macOS and Windows and generally safe on Linux desktop environments with a Secret Service provider running; headless Linux servers may need an alternative backend, a known limitation of this approach rather than a blocker for AMETHYST's primary desktop use case.
 
 ## Consequences
 

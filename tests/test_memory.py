@@ -346,7 +346,7 @@ async def test_a_correction_replaces_rather_than_being_refused(db):
 
 
 async def test_a_duplicate_is_not_reported_to_the_interface(db, scripted):
-    """The event says what changed. Reporting a fact PSOK already held as
+    """The event says what changed. Reporting a fact AMETHYST already held as
     'remembered' on every turn would be noise the user cannot act on."""
     model = scripted(ScriptedModel(diff='{"create": ["likes strong coffee"], "supersede": []}'))
 

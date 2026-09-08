@@ -1,7 +1,7 @@
 const fs = require('fs');
 
 // Patch LibraryDetailModal.jsx
-let detailPath = '/home/wayne/Documents/GitHub/pkos/frontend/src/views/library/LibraryDetailModal.jsx';
+let detailPath = '/home/wayne/Documents/GitHub/amethyst/frontend/src/views/library/LibraryDetailModal.jsx';
 let detail = fs.readFileSync(detailPath, 'utf8');
 detail = detail.replace(
   "import Icon from '../../components/Icon.jsx'",
@@ -22,7 +22,7 @@ detail = detail.replace(
 fs.writeFileSync(detailPath, detail);
 
 // Patch SharePanels.jsx
-let sharePath = '/home/wayne/Documents/GitHub/pkos/frontend/src/views/library/SharePanels.jsx';
+let sharePath = '/home/wayne/Documents/GitHub/amethyst/frontend/src/views/library/SharePanels.jsx';
 let share = fs.readFileSync(sharePath, 'utf8');
 share = share.replace(
   "import Icon from '../../components/Icon.jsx'",
@@ -43,7 +43,7 @@ share = share.replace(
 fs.writeFileSync(sharePath, share);
 
 // Patch LibraryTagRail.jsx
-let railPath = '/home/wayne/Documents/GitHub/pkos/frontend/src/views/library/LibraryTagRail.jsx';
+let railPath = '/home/wayne/Documents/GitHub/amethyst/frontend/src/views/library/LibraryTagRail.jsx';
 let rail = fs.readFileSync(railPath, 'utf8');
 rail = rail.replace(
   "import Icon from '../../components/Icon.jsx'",

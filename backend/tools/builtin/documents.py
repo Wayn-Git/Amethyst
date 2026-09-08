@@ -30,7 +30,7 @@ async def search_documents(args: dict[str, Any], _: ToolContext) -> ToolResult:
         if stats["chunks"] == 0:
             return ToolResult.ok(
                 "No documents are indexed yet. The user can index a folder with"
-                " `psok index <path>`."
+                " `amethyst index <path>`."
             )
         return ToolResult.ok(f"No matches for {query!r} across {stats['chunks']} indexed chunks.")
 
@@ -47,7 +47,7 @@ def _stats() -> dict[str, int]:
 async def index_status(_: dict[str, Any], __: ToolContext) -> ToolResult:
     stats = _stats()
     if not stats["documents"]:
-        return ToolResult.ok("Nothing is indexed. Index a folder with `psok index <path>`.")
+        return ToolResult.ok("Nothing is indexed. Index a folder with `amethyst index <path>`.")
     return ToolResult.ok(
         f"{stats['documents']} documents indexed, {stats['chunks']} searchable chunks."
     )

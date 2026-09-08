@@ -1,6 +1,6 @@
 """Gmail, read and written directly, using the account the connector signed in.
 
-**Why not through the `google-gmail` connector.** It works, and PSOK's agent
+**Why not through the `google-gmail` connector.** It works, and AMETHYST's agent
 still uses it -- fifteen tools, and they are the right shape for a model. They
 are the wrong shape for a screen. `search_gmail_messages` answers with prose::
 

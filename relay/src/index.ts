@@ -1,5 +1,5 @@
 /**
- * PSOK's relay: the part of Instagram capture that has to be awake.
+ * AMETHYST's relay: the part of Instagram capture that has to be awake.
  *
  * A closed laptop is not a slow endpoint, it is a down one. Meta retries a
  * failed webhook and then disables the subscription, so pointing Meta at a
@@ -495,7 +495,7 @@ function policyPage(env: Env): Response {
 	const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Privacy policy — PSOK relay</title>
+<title>Privacy policy — AMETHYST relay</title>
 <style>
  :root { color-scheme: light dark; }
  body { max-width: 42rem; margin: 0 auto; padding: 3rem 1.25rem 6rem;
@@ -507,7 +507,7 @@ function policyPage(env: Env): Response {
  code { font-size: .9em; }
 </style></head><body>
 <h1>Privacy policy</h1>
-<p class="sub">For the personal Instagram integration behind <code>psok-relay</code>.</p>
+<p class="sub">For the personal Instagram integration behind <code>amethyst-relay</code>.</p>
 
 <h2>What this is</h2>
 <p>A personal tool run by one individual, for their own use. It saves Instagram

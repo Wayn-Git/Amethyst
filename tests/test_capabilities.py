@@ -1,6 +1,6 @@
 """Skills and connectors that can be switched on and off, per conversation.
 
-PSOK used to advertise every installed skill and connect every configured server
+AMETHYST used to advertise every installed skill and connect every configured server
 on every turn. These tests cover the layer that lets the user narrow that, and
 the "/" invocation that engages one skill directly.
 """
@@ -17,7 +17,7 @@ from backend.skills.loader import seed_builtin_skills
 
 
 def test_skills_default_on_and_connectors_default_off():
-    """Skills are inert text. Connectors reach outside PSOK and may spawn
+    """Skills are inert text. Connectors reach outside AMETHYST and may spawn
     processes, so they wait to be switched on."""
     assert DEFAULT_ENABLED[Kind.SKILL] is True
     assert DEFAULT_ENABLED[Kind.CONNECTOR] is False
@@ -73,63 +73,63 @@ def test_toggling_is_idempotent(db):
 # -------------------------------------------------------------------- prompt
 
 
-def test_only_enabled_skills_are_advertised(db, psok_home):
+def test_only_enabled_skills_are_advertised(db, amethyst_home):
     seed_builtin_skills()
     service = CapabilityService(db)
 
-    assert "psok-intro" in build_system_prompt()
+    assert "amethyst-intro" in build_system_prompt()
 
-    service.set_enabled(Kind.SKILL, "psok-intro", False)
-    assert "psok-intro" not in build_system_prompt()
+    service.set_enabled(Kind.SKILL, "amethyst-intro", False)
+    assert "amethyst-intro" not in build_system_prompt()
 
 
-def test_a_skill_disabled_for_one_conversation_stays_available_elsewhere(db, psok_home):
+def test_a_skill_disabled_for_one_conversation_stays_available_elsewhere(db, amethyst_home):
     seed_builtin_skills()
-    CapabilityService(db).set_enabled(Kind.SKILL, "psok-intro", False, conversation_id="c1")
+    CapabilityService(db).set_enabled(Kind.SKILL, "amethyst-intro", False, conversation_id="c1")
 
-    assert "psok-intro" not in build_system_prompt(conversation_id="c1")
-    assert "psok-intro" in build_system_prompt(conversation_id="c2")
+    assert "amethyst-intro" not in build_system_prompt(conversation_id="c1")
+    assert "amethyst-intro" in build_system_prompt(conversation_id="c2")
 
 
-def test_catalogue_advertises_without_inlining_the_body(db, psok_home):
+def test_catalogue_advertises_without_inlining_the_body(db, amethyst_home):
     """Progressive disclosure: name and description only, so the catalogue cost
     stays flat as skills accumulate."""
     seed_builtin_skills()
     prompt = build_system_prompt()
-    assert "psok-intro" in prompt
+    assert "amethyst-intro" in prompt
     assert "Diagnosing a failure" not in prompt, "the body must not be inlined by default"
 
 
-def test_an_invoked_skill_is_inlined_in_full(db, psok_home):
+def test_an_invoked_skill_is_inlined_in_full(db, amethyst_home):
     """Selecting a skill from the "/" menu should engage it immediately rather
     than costing a turn to read it back."""
     seed_builtin_skills()
-    prompt = build_system_prompt(pinned_skills=["psok-intro"])
+    prompt = build_system_prompt(pinned_skills=["amethyst-intro"])
     assert "<active_skill" in prompt
     assert "Diagnosing a failure" in prompt
 
 
-def test_invoking_a_disabled_skill_still_works(db, psok_home):
+def test_invoking_a_disabled_skill_still_works(db, amethyst_home):
     """Explicitly asking for something is a stronger signal than a stale toggle."""
     seed_builtin_skills()
-    CapabilityService(db).set_enabled(Kind.SKILL, "psok-intro", False)
+    CapabilityService(db).set_enabled(Kind.SKILL, "amethyst-intro", False)
 
-    prompt = build_system_prompt(pinned_skills=["psok-intro"])
+    prompt = build_system_prompt(pinned_skills=["amethyst-intro"])
     assert "<active_skill" in prompt
 
 
 # ---------------------------------------------------------- slash invocation
 
 
-def test_slash_invocation_is_recognised_and_stripped(db, psok_home):
+def test_slash_invocation_is_recognised_and_stripped(db, amethyst_home):
     seed_builtin_skills()
-    invoked, cleaned = extract_skill_invocations("/psok-intro what can you do?")
-    assert invoked == ["psok-intro"]
-    assert "/psok-intro" not in cleaned
+    invoked, cleaned = extract_skill_invocations("/amethyst-intro what can you do?")
+    assert invoked == ["amethyst-intro"]
+    assert "/amethyst-intro" not in cleaned
     assert "what can you do?" in cleaned
 
 
-def test_paths_and_dates_are_not_mistaken_for_skills(db, psok_home):
+def test_paths_and_dates_are_not_mistaken_for_skills(db, amethyst_home):
     """Only names matching an installed skill count, so ordinary text survives."""
     seed_builtin_skills()
     for text in ("look in /usr/bin for it", "the ratio is 3/4", "check /etc/hosts"):
@@ -138,31 +138,31 @@ def test_paths_and_dates_are_not_mistaken_for_skills(db, psok_home):
         assert cleaned == text
 
 
-def test_an_unknown_slash_name_is_left_alone(db, psok_home):
+def test_an_unknown_slash_name_is_left_alone(db, amethyst_home):
     seed_builtin_skills()
     invoked, cleaned = extract_skill_invocations("/not-a-skill hello")
     assert invoked == []
     assert "/not-a-skill" in cleaned
 
 
-def test_a_bare_invocation_keeps_the_message_usable(db, psok_home):
+def test_a_bare_invocation_keeps_the_message_usable(db, amethyst_home):
     """Stripping the marker must not leave an empty prompt."""
     seed_builtin_skills()
-    invoked, cleaned = extract_skill_invocations("/psok-intro")
-    assert invoked == ["psok-intro"]
+    invoked, cleaned = extract_skill_invocations("/amethyst-intro")
+    assert invoked == ["amethyst-intro"]
     assert cleaned.strip()
 
 
-def test_the_same_skill_is_not_pinned_twice(db, psok_home):
+def test_the_same_skill_is_not_pinned_twice(db, amethyst_home):
     seed_builtin_skills()
-    invoked, _ = extract_skill_invocations("/psok-intro and again /psok-intro")
-    assert invoked == ["psok-intro"]
+    invoked, _ = extract_skill_invocations("/amethyst-intro and again /amethyst-intro")
+    assert invoked == ["amethyst-intro"]
 
 
 # ----------------------------------------------------------------- listings
 
 
-def test_connector_listing_reports_state_and_auth(db, psok_home):
+def test_connector_listing_reports_state_and_auth(db, amethyst_home):
     from backend.mcp.commands import add_from_catalogue
 
     add_from_catalogue("github")
@@ -175,7 +175,7 @@ def test_connector_listing_reports_state_and_auth(db, psok_home):
     assert all(not c.enabled for c in connectors.values()), "connectors start off"
 
 
-def test_enabled_name_helpers_agree_with_the_listing(db, psok_home):
+def test_enabled_name_helpers_agree_with_the_listing(db, amethyst_home):
     from backend.mcp.commands import add_from_catalogue
 
     add_from_catalogue("memory")
@@ -186,7 +186,7 @@ def test_enabled_name_helpers_agree_with_the_listing(db, psok_home):
     assert service.enabled_connector_names() == {"memory"}
 
 
-def test_saving_a_profile_snapshots_the_conversations_connector_state(db, psok_home):
+def test_saving_a_profile_snapshots_the_conversations_connector_state(db, amethyst_home):
     from backend.mcp.commands import add_from_catalogue
 
     add_from_catalogue("github")
@@ -204,7 +204,7 @@ def test_saving_a_profile_snapshots_the_conversations_connector_state(db, psok_h
     assert profiles[0]["total_count"] == 2
 
 
-def test_saving_a_profile_keeps_the_toggle_even_when_mcp_yaml_disables_it(db, psok_home):
+def test_saving_a_profile_keeps_the_toggle_even_when_mcp_yaml_disables_it(db, amethyst_home):
     """`save_profile` used to read `Capability.enabled` -- `config.enabled AND
     is_enabled(...)` -- rather than the raw toggle. A connector switched on
     for this conversation but administratively disabled in mcp.yaml
@@ -225,7 +225,7 @@ def test_saving_a_profile_keeps_the_toggle_even_when_mcp_yaml_disables_it(db, ps
     assert service.profiles()[0]["on_count"] == 1
 
 
-def test_saving_the_same_name_twice_replaces_it_rather_than_erroring(db, psok_home):
+def test_saving_the_same_name_twice_replaces_it_rather_than_erroring(db, amethyst_home):
     from backend.mcp.commands import add_from_catalogue
 
     add_from_catalogue("memory")
@@ -239,7 +239,7 @@ def test_saving_the_same_name_twice_replaces_it_rather_than_erroring(db, psok_ho
     assert service.profiles()[0]["on_count"] == 0
 
 
-def test_applying_a_profile_turns_on_exactly_what_it_stored(db, psok_home):
+def test_applying_a_profile_turns_on_exactly_what_it_stored(db, amethyst_home):
     from backend.mcp.commands import add_from_catalogue
 
     add_from_catalogue("github")
@@ -257,7 +257,7 @@ def test_applying_a_profile_turns_on_exactly_what_it_stored(db, psok_home):
     assert service.is_enabled(Kind.CONNECTOR, "memory", "c1") is False
 
 
-def test_applying_a_profile_turns_off_a_connector_added_after_it_was_saved(db, psok_home):
+def test_applying_a_profile_turns_off_a_connector_added_after_it_was_saved(db, amethyst_home):
     """Authoritative, not additive -- see the schema comment on
     capability_profiles. A connector the profile never saw defaults to off."""
     from backend.mcp.commands import add_from_catalogue
@@ -278,7 +278,7 @@ def test_applying_an_unknown_profile_raises(db):
         CapabilityService(db).apply_profile("never-saved", "c1")
 
 
-def test_deleting_a_profile(db, psok_home):
+def test_deleting_a_profile(db, amethyst_home):
     from backend.mcp.commands import add_from_catalogue
 
     add_from_catalogue("memory")
@@ -289,7 +289,7 @@ def test_deleting_a_profile(db, psok_home):
     assert service.delete_profile("temp") is False
 
 
-async def test_disabled_connectors_are_never_connected(db, psok_home):
+async def test_disabled_connectors_are_never_connected(db, amethyst_home):
     """The toggle has to stop the process being spawned, not just hide the tools."""
     from backend.mcp.commands import add_from_catalogue
     from backend.mcp.manager import MCPManager
@@ -366,7 +366,7 @@ async def test_a_connector_off_for_one_conversation_is_hidden_and_undispatchable
 
 async def test_a_server_connected_by_hand_is_usable_without_a_toggle(db):
     """Connectors default off so configuring one does not silently start it.
-    But `psok mcp connect x` registers tools without touching capability state,
+    But `amethyst mcp connect x` registers tools without touching capability state,
     and treating "no opinion" as "refuse" made every tool from that path
     undispatchable -- the gate has to refuse what was switched off, not what was
     never switched on."""
@@ -414,7 +414,7 @@ async def test_the_loop_withholds_a_disabled_connectors_tools(db, monkeypatch):
 # --------------------------------------------------------------------- misc
 
 
-def test_capability_lookup_failure_does_not_lose_every_skill(db, psok_home, monkeypatch):
+def test_capability_lookup_failure_does_not_lose_every_skill(db, amethyst_home, monkeypatch):
     """Capability state is an optimisation, not a gate."""
     import backend.agent.prompt as prompt_module
 
@@ -424,7 +424,7 @@ def test_capability_lookup_failure_does_not_lose_every_skill(db, psok_home, monk
         raise RuntimeError("database gone")
 
     monkeypatch.setattr("backend.capabilities.CapabilityService.__init__", explode)
-    assert "psok-intro" in prompt_module.build_system_prompt()
+    assert "amethyst-intro" in prompt_module.build_system_prompt()
 
 
 @pytest.mark.parametrize("kind", ["skill", "connector"])
@@ -443,7 +443,7 @@ def test_the_prompt_distinguishes_advertised_skills_from_loaded_ones():
     assert "do not read its file again" in BASE_PROMPT
 
 
-async def test_director_pins_a_slash_invoked_skill(db, psok_home, monkeypatch):
+async def test_director_pins_a_slash_invoked_skill(db, amethyst_home, monkeypatch):
     """End to end: the marker reaches prompt assembly as a pinned skill."""
     import backend.agent.director as director_module
     from backend.agent.director import Director
@@ -471,11 +471,11 @@ async def test_director_pins_a_slash_invoked_skill(db, psok_home, monkeypatch):
     # memory off: post-turn extraction is a second call to the same recorder,
     # and this test is about what the turn itself was given.
     director = Director(ToolRegistry(ConfirmationService(auto_approve)), memory=False)
-    async for _ in director.run(cid, "/psok-intro what can you do"):
+    async for _ in director.run(cid, "/amethyst-intro what can you do"):
         pass
 
     assert "<active_skill" in seen["system"], "the invoked skill must be inlined"
-    assert "/psok-intro" not in seen["user"], "the routing marker must be stripped"
+    assert "/amethyst-intro" not in seen["user"], "the routing marker must be stripped"
     assert "what can you do" in seen["user"]
 
 

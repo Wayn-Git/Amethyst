@@ -407,7 +407,7 @@ function Msg({
   }
   if (role === 'assistant') {
     // A turn that only called tools has nothing to say yet, and labelling each
-    // of those as a reply from PSOK turns three steps of one answer into three
+    // of those as a reply from AMETHYST turns three steps of one answer into three
     // answers.
     if (!item.text && item.toolCalls?.length) {
       // With the panel open the calls are drawn there, and an assistant turn
@@ -418,7 +418,7 @@ function Msg({
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
         <div className="msg-role">
-          psok
+          amethyst
           <CopyButton text={item.text} label="Copy this answer" />
           <PinButton item={item} onPin={onPin} />
         </div>
@@ -547,14 +547,14 @@ export default function Chat() {
      again. Persisted so a reload does not resurrect one the user already
      dismissed for a condition that has not changed. */
   const [dismissedBanners, setDismissedBanners] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('psok.dismissed.v1') || '[]')) }
+    try { return new Set(JSON.parse(localStorage.getItem('amethyst.dismissed.v1') || '[]')) }
     catch { return new Set() }
   })
   const dismissBanner = useCallback((sig) => {
     setDismissedBanners((prev) => {
       const next = new Set(prev)
       next.add(sig)
-      try { localStorage.setItem('psok.dismissed.v1', JSON.stringify([...next])) } catch { /* private mode */ }
+      try { localStorage.setItem('amethyst.dismissed.v1', JSON.stringify([...next])) } catch { /* private mode */ }
       return next
     })
   }, [])
@@ -826,7 +826,7 @@ export default function Chat() {
         /* A frame added on the server used to vanish here without trace, which
            is how you spend an afternoon wondering why the backend's new event
            "does not arrive". It arrives. */
-        console.warn('[psok] unhandled turn frame', evt.type, evt) // eslint-disable-line no-console
+        console.warn('[amethyst] unhandled turn frame', evt.type, evt) // eslint-disable-line no-console
         break
     }
   }, [pushAssistant, pushNote, settle, setBuffer, setReasoning, setTool, setStatus, notifyDone])
@@ -1561,7 +1561,7 @@ export default function Chat() {
                         onClick={() => jumpToItem(item.id)}
                         title={item.text}
                       >
-                        <span className="pin-chip-who">{item.kind === 'user' ? 'you' : 'psok'}</span>
+                        <span className="pin-chip-who">{item.kind === 'user' ? 'you' : 'amethyst'}</span>
                         <span className="pin-chip-text">{item.text.replace(/\s+/g, ' ').slice(0, 90)}</span>
                         <span
                           role="button"
@@ -1598,7 +1598,7 @@ export default function Chat() {
                 ))}
                 {turnState === 'running' && !liveTool && (
                   <div className="msg msg-assistant">
-                    <div className="msg-role">psok</div>
+                    <div className="msg-role">amethyst</div>
                     {!asideTools && liveReasoning && <Reasoning text={liveReasoning} live={!liveBuffer} />}
                     {liveBuffer ? (
                       <div className="msg-body">

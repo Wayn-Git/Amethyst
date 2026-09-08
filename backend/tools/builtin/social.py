@@ -6,7 +6,7 @@ one post and a read that returned a list would each be the wrong shape.
 
 Neither reimplements a client. `backend/web/social.py` routes to `rdt-cli` and
 `twitter-cli`, and the module docstring there says why: these sites are an
-anti-bot arms race, and PSOK is not going to win it quietly on a Tuesday.
+anti-bot arms race, and AMETHYST is not going to win it quietly on a Tuesday.
 """
 
 from __future__ import annotations

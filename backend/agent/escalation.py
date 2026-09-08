@@ -1,6 +1,6 @@
 """When the fast model says the job is bigger than it is.
 
-PSOK runs three tiers (`backend.config.TIERS`): a fast model for the questions that
+AMETHYST runs three tiers (`backend.config.TIERS`): a fast model for the questions that
 are one tool call or none, a default for ordinary work, and a heavy one that
 takes a hundred seconds and gets hard things right. Something has to decide
 which a message deserves.
@@ -11,7 +11,7 @@ chat-versus-plan. **Not a heuristic** on message length or whether it names a
 file: that guesses, and guesses silently.
 
 So the model decides, because it is the only party that knows it is out of its
-depth, and it says so the way PSOK already lets a model say things -- a tool the
+depth, and it says so the way AMETHYST already lets a model say things -- a tool the
 director offers, never registers, and answers itself. `submit_plan` and
 `begin_step` are the same shape. The failure mode is the one `begin_step` was
 accepted with: **a model that never calls it produces no escalations**, rather

@@ -13,7 +13,7 @@ the fact that this machine read that page leaves the machine. Two things follow,
 and both are enforced:
 
 * It runs **only after the ordinary fetch has already failed** to produce text,
-  so a page PSOK could read itself is never sent anywhere.
+  so a page AMETHYST could read itself is never sent anywhere.
 * It is a setting the user can see and switch off (`social.reader_fallback`).
 
 The local alternative is obscura -- a Rust headless browser with a real V8, CDP

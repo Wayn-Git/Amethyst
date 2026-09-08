@@ -137,7 +137,7 @@ export default function BrandKit() {
     <>
       <h3>Your voice</h3>
       <p className="set-note">
-        Used when PSOK writes <em>for</em> you — a post, an email, copy, a caption — and not when
+        Used when AMETHYST writes <em>for</em> you — a post, an email, copy, a caption — and not when
         it answers you. Everything here is optional; an empty kit adds nothing to the prompt.
       </p>
 
@@ -188,7 +188,7 @@ export default function BrandKit() {
         onChange={(v) => set({ dont: v })} />
 
       <Pairs
-        label="Palette" hint="Name and hex, for anything PSOK builds you"
+        label="Palette" hint="Name and hex, for anything AMETHYST builds you"
         rows={state.palette || []} keys={['name', 'hex']}
         placeholders={['ink', '#0a0a0b']}
         onChange={(rows) => set({ palette: rows })}

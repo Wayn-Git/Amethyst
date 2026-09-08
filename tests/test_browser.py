@@ -109,7 +109,7 @@ def profile(tmp_path) -> Path:
 def test_the_seed_bookmarks_firefox_made_are_not_captured(profile):
     """A fresh profile ships four links to Mozilla's own site in a folder it
     created. Nobody bookmarked those, and capturing them makes the first sync
-    look like PSOK invented four articles.
+    look like AMETHYST invented four articles.
 
     Mutation check: drop the SEED_FOLDER check in `bookmarks`.
     """

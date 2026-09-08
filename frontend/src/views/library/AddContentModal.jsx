@@ -40,7 +40,7 @@ export default function AddContentModal({
     }
   }, [open, initialMode])
 
-  if (!open) return null
+
 
   // Extract all valid HTTP/HTTPS URLs from pasted text
   const extractUrls = (text) => {
@@ -224,10 +224,10 @@ export default function AddContentModal({
             role="dialog"
             aria-modal="true"
             aria-label="Add Content"
-            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            initial={{ opacity: 0, scale: 0.98, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            exit={{ opacity: 0, scale: 0.98, y: 12 }}
+            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
           >
             {/* Modal Header */}
         <div className="add-content-head">

@@ -22,7 +22,7 @@ from backend.instagram import relay, signature
 from backend.instagram.store import InstagramEventStore
 
 APP_SECRET = "an-app-secret"
-RELAY_URL = "https://psok-relay.example.workers.dev"
+RELAY_URL = "https://amethyst-relay.example.workers.dev"
 RELAY_TOKEN = "a-relay-token"
 
 
@@ -89,14 +89,14 @@ class FakeRelay:
 
 
 @pytest.fixture
-def wired(psok_home):
+def wired(amethyst_home):
     """Credentials stored and the relay switched on, which is the working state."""
     signature.set_credentials(
         app_secret=APP_SECRET, verify_token="v", access_token="an-access-token"
     )
     relay.set_token(RELAY_TOKEN)
     save_instagram({"relay_url": RELAY_URL, "relay_enabled": True, "enabled": True})
-    return psok_home
+    return amethyst_home
 
 
 # -- the check that makes the relay untrusted ----------------------------
@@ -308,7 +308,7 @@ async def test_a_relayed_share_is_checked_against_this_machines_token(wired, mon
 
 
 @pytest.mark.asyncio
-async def test_nothing_happens_when_the_relay_is_switched_off(psok_home):
+async def test_nothing_happens_when_the_relay_is_switched_off(amethyst_home):
     fake = FakeRelay()
     result = await relay.RelayPoller(fake).sync()
 
@@ -317,7 +317,7 @@ async def test_nothing_happens_when_the_relay_is_switched_off(psok_home):
 
 
 @pytest.mark.asyncio
-async def test_a_delivery_without_instagram_credentials_is_held_not_dropped(psok_home):
+async def test_a_delivery_without_instagram_credentials_is_held_not_dropped(amethyst_home):
     """The old contract refused the whole sync when the Instagram credentials
     were incomplete, which held phone *shares* hostage to a setup they have
     nothing to do with -- the "it never arrived" bug. The new one: the sync
@@ -351,7 +351,7 @@ async def test_a_delivery_without_instagram_credentials_is_held_not_dropped(psok
     assert result["pulled"] == 1
 
 
-def test_configured_needs_both_a_url_and_a_token(psok_home):
+def test_configured_needs_both_a_url_and_a_token(amethyst_home):
     assert relay.configured() is False
     save_instagram({"relay_url": RELAY_URL})
     assert relay.configured() is False
@@ -370,13 +370,13 @@ def test_the_relay_url_must_be_https(wired):
     from backend.api.main import app
 
     with TestClient(app) as client:
-        response = client.put("/api/instagram/relay", json={"url": "http://psok.example.com"})
+        response = client.put("/api/instagram/relay", json={"url": "http://amethyst.example.com"})
 
     assert response.status_code == 400
     assert "https" in response.json()["detail"]
 
 
-def test_switching_the_relay_on_without_a_token_is_refused(psok_home):
+def test_switching_the_relay_on_without_a_token_is_refused(amethyst_home):
     from fastapi.testclient import TestClient
 
     from backend.api.main import app

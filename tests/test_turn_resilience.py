@@ -180,7 +180,7 @@ async def test_a_broken_system_prompt_degrades_rather_than_aborting(db, scripted
     assert answer_of(events) == "answered from the base prompt"
     warnings = [e.data["message"] for e in events if e.type == "warning"]
     assert any("context could not be assembled" in w for w in warnings), "and it says so"
-    assert "You are PSOK" in client.seen_system[0], "the base prompt still went out"
+    assert "You are AMETHYST" in client.seen_system[0], "the base prompt still went out"
 
 
 async def test_an_unreadable_history_degrades_rather_than_aborting(db, scripted, monkeypatch):

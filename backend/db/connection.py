@@ -48,13 +48,13 @@ def migrate(conn: sqlite3.Connection) -> None:
     _repair_placeholder_models(conn)
 
 
-# Tables an older PSOK created and this one has no code for. Dropping is guarded
+# Tables an older AMETHYST created and this one has no code for. Dropping is guarded
 # on emptiness: a table nothing references but that somehow holds rows is a
 # surprise worth keeping, not tidying away.
 LEGACY_TABLES = ("integrations", "integration_state")
 
 
-# Columns an older PSOK wrote that this one has no code for, with the indexes
+# Columns an older AMETHYST wrote that this one has no code for, with the indexes
 # that have to go first -- SQLite refuses to drop a column an index still names.
 #
 # `tasks.my_day_on` held the date a task was put in My Day, back when My Day was
@@ -235,7 +235,7 @@ def _add_missing_columns(conn: sqlite3.Connection) -> None:
     Every statement in schema.sql is `IF NOT EXISTS`, which is a no-op against a
     table that already exists in an *older* shape -- and then an index over a
     column that table does not have fails, taking startup down with a bare
-    "no such column". A database from a previous version of PSOK is the normal
+    "no such column". A database from a previous version of AMETHYST is the normal
     case for a single user upgrading in place, so it has to be handled here
     rather than by asking them to delete their data.
 
@@ -296,7 +296,7 @@ def get_connection() -> sqlite3.Connection:
 
 
 def reset_connection() -> None:
-    """Drop the cached connection. Used by tests and by PSOK_HOME changes."""
+    """Drop the cached connection. Used by tests and by AMETHYST_HOME changes."""
     global _connection
     if _connection is not None:
         _connection.close()

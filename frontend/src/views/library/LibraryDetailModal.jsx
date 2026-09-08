@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import Icon from '../../components/Icon.jsx'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { api, fmtDate } from '../../api.js'
 import { useModalDismiss, onOverlayMouseDown } from '../../hooks/useModalDismiss.js'
-import { formatDuration, getDomain } from './LibraryCard.jsx'
+import { formatDuration, getDomain, getFaviconUrl, KIND_ICON } from './LibraryCard.jsx'
 
 export default function LibraryDetailModal({
   item,
@@ -13,27 +13,58 @@ export default function LibraryDetailModal({
   toast,
 }) {
   const panelRef = useRef(null)
+  const menuRef = useRef(null)
+  const ratingRef = useRef(null)
   useModalDismiss(Boolean(item), onClose)
 
   const [notes, setNotes] = useState(item?.notes || '')
   const [tagInput, setTagInput] = useState('')
+  const [isAddingTag, setIsAddingTag] = useState(false)
   const [tags, setTags] = useState(item?.tags || [])
   const [rating, setRating] = useState(item?.rating || null)
-  const [savingField, setSavingField] = useState(false)
+  const [savingNotes, setSavingNotes] = useState(false)
   const [busyAction, setBusyAction] = useState('')
+  const [showMenu, setShowMenu] = useState(false)
+  const [showRatingPicker, setShowRatingPicker] = useState(false)
+
+  // Sync state if item changes
+  useEffect(() => {
+    if (item) {
+      setNotes(item.notes || '')
+      setTags(item.tags || [])
+      setRating(item.rating || null)
+    }
+  }, [item])
+
+  // Close menus on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowMenu(false)
+      }
+      if (ratingRef.current && !ratingRef.current.contains(e.target)) {
+        setShowRatingPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   if (!item) return null
 
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
+  const favicon = getFaviconUrl(item.url)
+  const isProcessing = Boolean(item.isProcessing) || busyAction === 'enrich'
 
   const handleRating = async (stars) => {
     const newRating = rating === stars ? null : stars
     setRating(newRating)
+    setShowRatingPicker(false)
     try {
       const updated = await api.updateLibraryItem(item.id, { rating: newRating })
       onUpdate?.(updated)
-      toast('Rating saved', 'ok')
+      toast(newRating ? `Rated ${newRating} ★` : 'Rating cleared', 'ok')
     } catch (err) {
       toast(err.message, 'bad')
     }
@@ -42,10 +73,15 @@ export default function LibraryDetailModal({
   const handleAddTag = async (e) => {
     e?.preventDefault()
     const clean = tagInput.trim().toLowerCase().replace(/^#/, '')
-    if (!clean || tags.includes(clean)) return
+    if (!clean || tags.includes(clean)) {
+      setIsAddingTag(false)
+      setTagInput('')
+      return
+    }
     const nextTags = [...tags, clean]
     setTags(nextTags)
     setTagInput('')
+    setIsAddingTag(false)
     try {
       const updated = await api.updateLibraryItem(item.id, { tags: nextTags })
       onUpdate?.(updated)
@@ -68,20 +104,32 @@ export default function LibraryDetailModal({
   }
 
   const handleSaveNotes = async () => {
-    setSavingField(true)
+    if (savingNotes) return
+    setSavingNotes(true)
     try {
       const updated = await api.updateLibraryItem(item.id, { notes: notes.trim() || null })
       onUpdate?.(updated)
-      toast('Notes updated', 'ok')
+      toast('Comment saved', 'ok')
     } catch (err) {
       toast(err.message, 'bad')
     } finally {
-      setSavingField(false)
+      setSavingNotes(false)
+    }
+  }
+
+  const handleShare = async () => {
+    const shareUrl = item.url || window.location.href
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      toast('Link copied to clipboard', 'ok')
+    } catch {
+      toast('Could not copy link', 'bad')
     }
   }
 
   const runAction = async (name, fn, successNote) => {
     setBusyAction(name)
+    setShowMenu(false)
     try {
       const res = await fn()
       if (res && typeof res === 'object') onUpdate?.(res)
@@ -93,248 +141,400 @@ export default function LibraryDetailModal({
     }
   }
 
+  // Kind label
+  const rawKind = item.kind || 'video'
+  const kindLabel = rawKind.charAt(0).toUpperCase() + rawKind.slice(1)
+  const kindIconName = rawKind === 'video' ? 'video' : KIND_ICON[rawKind] || 'book'
+
+  // Categories list (filter out 'general')
+  const categories = item.category && item.category.toLowerCase() !== 'general'
+    ? item.category.split(',').map((c) => c.trim()).filter((c) => Boolean(c) && c.toLowerCase() !== 'general')
+    : []
+
   return (
-    <motion.div className="modal-overlay" onMouseDown={onOverlayMouseDown(onClose)}>
+    <motion.div
+      className="modal-overlay lib-modal-backdrop"
+      onMouseDown={onOverlayMouseDown(onClose)}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+    >
       <motion.div
-        className="modal lib-detail-modal"
+        className="modal lib-detail-card-modal"
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={item.title || 'Resource Details'}
-        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 8 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="modal-head">
-          <div className="lib-detail-badges">
-            <span className="lib-kind-badge mono">{item.kind || 'article'}</span>
-            {item.category && (
-              <span className="lib-category-badge mono">{item.category}</span>
-            )}
-            {duration && <span className="lib-duration-badge mono">{duration}</span>}
-          </div>
-          <button
-            type="button"
-            className="icon-btn modal-close"
-            onClick={onClose}
-            aria-label="Close modal"
-          >
-            <Icon name="x" size={14} />
-          </button>
-        </div>
+        <div className="lib-detail-scroll-area">
+          {/* Top Media Header */}
+          <div className="lib-detail-media-wrap">
+            <div className="lib-detail-media-frame">
+              {item.media_path ? (
+                <video
+                  className="lib-detail-media-el"
+                  src={api.mediaUrl(item.id)}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              ) : item.thumbnail_path ? (
+                <img
+                  className="lib-detail-media-el"
+                  src={api.thumbnailUrl(item.id)}
+                  alt=""
+                  loading="lazy"
+                />
+              ) : (
+                <div className="lib-detail-media-placeholder">
+                  <Icon name={kindIconName} size={48} />
+                </div>
+              )}
 
-        <div className="lib-detail-content">
-          {/* Title & External Link */}
-          <h2 className="lib-detail-title">{item.title || 'Untitled Resource'}</h2>
+              {/* Floating Back Button — Top Left */}
+              <button
+                type="button"
+                className="lib-detail-float-btn lib-detail-float-btn--left"
+                onClick={onClose}
+                aria-label="Back / Close"
+              >
+                <Icon name="back" size={16} />
+              </button>
 
-          <div className="lib-detail-meta mono">
-            {domain && <span>{domain}</span>}
-            {item.author && <span>by {item.author}</span>}
-            <span>Consumed: {fmtDate(item.consumed_on || item.created_at)}</span>
-            {item.text_source && item.text_source !== 'none' && (
-              <span>Source: {item.text_source}</span>
-            )}
-          </div>
-
-          {/* Rating */}
-          <div className="lib-detail-rating-row">
-            <span className="lib-detail-section-label mono">Rating</span>
-            <div className="lib-stars" role="group" aria-label="Rating">
-              {[1, 2, 3, 4, 5].map((star) => (
+              {/* Floating Options Button — Top Right */}
+              <div className="lib-detail-menu-anchor" ref={menuRef}>
                 <button
                   type="button"
-                  key={star}
-                  className={`lib-star-btn ${rating >= star ? 'lib-star-btn--filled' : ''}`}
-                  onClick={() => handleRating(star)}
-                  aria-label={`${star} star${star > 1 ? 's' : ''}`}
+                  className="lib-detail-float-btn lib-detail-float-btn--right"
+                  onClick={() => setShowMenu(!showMenu)}
+                  aria-label="More options"
                 >
-                  ★
+                  <Icon name="dots" size={18} />
                 </button>
-              ))}
-              {rating ? (
-                <button
-                  type="button"
-                  className="lib-star-clear mono"
-                  onClick={() => handleRating(rating)}
-                >
-                  Clear
-                </button>
-              ) : null}
-            </div>
-          </div>
 
-          {/* Media preview if available */}
-          {item.thumbnail_path && (
-            <div className="lib-detail-preview">
-              <img
-                className="lib-detail-img"
-                src={api.thumbnailUrl(item.id)}
-                alt=""
-                loading="lazy"
-              />
-            </div>
-          )}
+                {showMenu && (
+                  <div className="lib-detail-dropdown-menu">
+                    <button
+                      type="button"
+                      className="lib-detail-dropdown-item"
+                      onClick={() => runAction('enrich', () => api.enrichLibraryItem(item.id), 'AI summary refreshed')}
+                      disabled={busyAction === 'enrich'}
+                    >
+                      <Icon name="spark" size={14} />
+                      <span>{busyAction === 'enrich' ? 'Analysing…' : 'Re-summarise with AI'}</span>
+                    </button>
+                    {item.indexed && (
+                      <button
+                        type="button"
+                        className="lib-detail-dropdown-item"
+                        onClick={() => runAction('reindex', () => api.reindexLibraryItem(item.id), 'Re-indexed')}
+                        disabled={busyAction === 'reindex'}
+                      >
+                        <Icon name="refresh" size={14} />
+                        <span>Re-index item</span>
+                      </button>
+                    )}
+                    {item.url && (
+                      <button
+                        type="button"
+                        className="lib-detail-dropdown-item"
+                        onClick={() => { handleShare(); setShowMenu(false); }}
+                      >
+                        <Icon name="copy" size={14} />
+                        <span>Copy URL</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="lib-detail-dropdown-item lib-detail-dropdown-item--danger"
+                      onClick={() => { onDelete?.(item); onClose(); }}
+                    >
+                      <Icon name="trash" size={14} />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
-          {/* AI Summary */}
-          <div className="lib-detail-section">
-            <div className="lib-detail-section-head">
-              <span className="lib-detail-section-label mono">
-                <Icon name="spark" size={13} /> Summary
-              </span>
-              {item.enrichment_model && (
-                <span className="lib-detail-model mono">{item.enrichment_model}</span>
+              {/* Duration Pill — only when duration exists or item is a video */}
+              {(duration || rawKind === 'video') && (
+                <div className="lib-detail-duration-pill">
+                  <Icon name="play" size={10} weight="fill" />
+                  <span>{duration || 'Video'}</span>
+                </div>
               )}
             </div>
-            {item.summary ? (
-              <p className="lib-detail-summary">{item.summary}</p>
-            ) : (
-              <p className="lib-detail-empty-summary">
-                {item.enrichment_note || 'No AI summary generated yet for this resource.'}
-              </p>
-            )}
           </div>
 
-          {/* Tags */}
-          <div className="lib-detail-section">
-            <span className="lib-detail-section-label mono">Tags</span>
-            <div className="lib-detail-tags">
-              {tags.map((tag) => (
-                <span key={tag} className="lib-detail-tag">
-                  #{tag}
+          {/* Modal Body Content */}
+          <div className="lib-detail-body">
+            {/* Badges Row */}
+            <div className="lib-detail-badges-row">
+              <span className="lib-detail-pill">
+                <Icon name={kindIconName} size={12} />
+                <span>{kindLabel}</span>
+              </span>
+
+              {categories.map((cat, i) => (
+                <span key={i} className="lib-detail-pill">
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </span>
+              ))}
+
+              <span className="lib-detail-date-badge">
+                · {fmtDate(item.consumed_on || item.created_at)}
+              </span>
+            </div>
+
+            {/* Title / Headline */}
+            <h2 className="lib-detail-headline">{item.title || 'Untitled Resource'}</h2>
+
+            {/* Author / Publisher & Star Rating Row */}
+            <div className="lib-detail-author-row">
+              <div className="lib-detail-author-left">
+                {favicon ? (
+                  <img className="lib-detail-avatar-img" src={favicon} alt="" />
+                ) : (
+                  <div className="lib-detail-avatar-fallback">
+                    {(domain ? domain.charAt(0) : 'A').toUpperCase()}
+                  </div>
+                )}
+
+                <div className="lib-detail-author-meta">
+                  <span className="lib-detail-channel-name">{domain || 'LOCAL'}</span>
+                  {item.author && (
+                    <>
+                      <span className="lib-detail-meta-sep">·</span>
+                      <span className="lib-detail-author-name">by {item.author}</span>
+                    </>
+                  )}
+                  {item.word_count ? (
+                    <>
+                      <span className="lib-detail-meta-sep">·</span>
+                      <span className="lib-detail-meta-words">{item.word_count} words</span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Star Rating Badge — real data only, no fake 4.8 */}
+              <div className="lib-detail-rating-container" ref={ratingRef}>
+                <button
+                  type="button"
+                  className="lib-detail-rating-trigger"
+                  onClick={() => setShowRatingPicker(!showRatingPicker)}
+                  title="Click to rate"
+                >
+                  <Icon
+                    name="star"
+                    size={14}
+                    weight={(rating || item.rating) ? 'fill' : 'regular'}
+                    className={(rating || item.rating) ? 'lib-star-gold' : ''}
+                  />
+                  <span>
+                    {(rating || item.rating)
+                      ? Number(rating || item.rating).toFixed(1)
+                      : 'Rate'}
+                  </span>
+                </button>
+
+                {showRatingPicker && (
+                  <div className="lib-detail-rating-popover">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`lib-rating-star-btn ${(rating || item.rating || 0) >= s ? 'lib-rating-star-btn--active' : ''}`}
+                        onClick={() => handleRating(s)}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    {(rating || item.rating) ? (
+                      <button
+                        type="button"
+                        className="lib-rating-clear-btn"
+                        onClick={() => handleRating(rating || item.rating)}
+                      >
+                        clear
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Description / AI Summary */}
+            <div className="lib-detail-desc-wrap">
+              {isProcessing ? (
+                <div className="lib-detail-skel-wrap">
+                  <div className="skel" style={{ height: 14, width: '95%', borderRadius: 6, marginBottom: 8 }} />
+                  <div className="skel" style={{ height: 14, width: '88%', borderRadius: 6, marginBottom: 8 }} />
+                  <div className="skel" style={{ height: 14, width: '65%', borderRadius: 6 }} />
+                </div>
+              ) : item.summary ? (
+                <p className="lib-detail-summary-text">{item.summary}</p>
+              ) : (
+                <p className="lib-detail-summary-text lib-detail-summary-text--empty">
+                  {item.enrichment_note || 'No AI summary yet — hit Save or Re-summarise below.'}
+                </p>
+              )}
+            </div>
+
+            {/* Tags Flow */}
+            <div className="lib-detail-tags-wrap">
+              {tags.map((t) => (
+                <span key={t} className="lib-tag-pill">
+                  #{t}
                   <button
                     type="button"
-                    className="lib-tag-remove"
-                    onClick={() => handleRemoveTag(tag)}
-                    aria-label={`Remove #${tag}`}
+                    className="lib-tag-pill-del"
+                    onClick={() => handleRemoveTag(t)}
+                    aria-label={`Remove #${t}`}
                   >
                     ×
                   </button>
                 </span>
               ))}
-              <form onSubmit={handleAddTag} className="lib-tag-form">
+
+              {isAddingTag ? (
+                <form onSubmit={handleAddTag} className="lib-tag-add-form">
+                  <input
+                    className="lib-tag-add-input"
+                    autoFocus
+                    placeholder="new tag..."
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onBlur={() => {
+                      if (!tagInput.trim()) setIsAddingTag(false)
+                    }}
+                  />
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  className="lib-tag-add-trigger"
+                  onClick={() => setIsAddingTag(true)}
+                >
+                  + tag
+                </button>
+              )}
+            </div>
+
+            {/* Connected / Featured Resources Card */}
+            {item.resources?.length ? (
+              <div className="lib-detail-resources-list">
+                {item.resources.map((r, idx) => {
+                  const rName = typeof r === 'string' ? r : r.name
+                  const rType = typeof r === 'string' ? 'resource' : (r.type || 'resource')
+                  const rDetail = typeof r === 'string' ? '' : (r.detail || '')
+                  const rUrl = typeof r === 'string' ? '' : (r.url || '')
+                  const isVideoResource = rType === 'video' || rType === 'show' || rType === 'movie'
+                  const isBookResource = rType === 'book'
+
+                  return (
+                    <a
+                      key={idx}
+                      href={rUrl || '#'}
+                      target={rUrl ? '_blank' : undefined}
+                      rel="noreferrer"
+                      className={`lib-featured-resource-card ${!rUrl ? 'lib-featured-resource-card--static' : ''}`}
+                      onClick={(e) => {
+                        if (!rUrl) e.preventDefault()
+                      }}
+                    >
+                      <div className="lib-featured-resource-thumb">
+                        <Icon name={isVideoResource ? 'video' : isBookResource ? 'book' : 'link'} size={18} />
+                      </div>
+                      <div className="lib-featured-resource-info">
+                        <div className="lib-featured-resource-title-row">
+                          <span className="lib-featured-resource-title">{rName}</span>
+                          <span className="lib-featured-resource-badge">{rType.toUpperCase()}</span>
+                        </div>
+                        {rDetail ? (
+                          <span className="lib-featured-resource-detail">
+                            {rDetail}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="lib-featured-resource-link">
+                        <span>Featured in {rawKind}</span>
+                        <Icon name="chevron" size={12} />
+                      </div>
+                    </a>
+                  )
+                })}
+              </div>
+            ) : null}
+
+            {/* "Your thoughts..." Section */}
+            <div className="lib-detail-thoughts-wrap">
+              <label className="lib-detail-thoughts-title">Your thoughts...</label>
+              <div className="lib-detail-comment-bar">
+                <div className="lib-detail-comment-user">
+                  <Icon name="user" size={14} />
+                </div>
                 <input
-                  className="lib-tag-input"
-                  placeholder="+ Add tag..."
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
+                  type="text"
+                  className="lib-detail-comment-input"
+                  placeholder="Add a comment..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSaveNotes()
+                    }
+                  }}
                 />
-              </form>
+                <button
+                  type="button"
+                  className={`lib-detail-comment-submit ${notes !== (item.notes || '') && notes.trim() ? 'lib-detail-comment-submit--active' : ''}`}
+                  onClick={handleSaveNotes}
+                  disabled={savingNotes}
+                  aria-label="Send comment"
+                >
+                  <Icon name="send" size={14} />
+                </button>
+              </div>
             </div>
           </div>
-
-          {/* Named Entities / Resources */}
-          {item.resources?.length ? (
-            <div className="lib-detail-section">
-              <span className="lib-detail-section-label mono">
-                Extracted Entities & References ({item.resources.length})
-              </span>
-              <ul className="lib-resources">
-                {item.resources.map((r, idx) => (
-                  <li key={idx} className="lib-detail-resource-item">
-                    <span className="lib-resource-kind mono">{r.type}</span>
-                    <span className="lib-detail-resource-name">
-                      {r.url ? (
-                        <a href={r.url} target="_blank" rel="noreferrer">
-                          {r.name}
-                        </a>
-                      ) : (
-                        r.name
-                      )}
-                    </span>
-                    {r.detail && (
-                      <span className="lib-resource-detail"> — {r.detail}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {/* Notes Editor */}
-          <div className="lib-detail-section">
-            <span className="lib-detail-section-label mono">Personal Notes</span>
-            <textarea
-              className="lib-input lib-detail-notes-input"
-              rows={3}
-              placeholder="Add your takeaways, thoughts, quotes..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-            {notes !== (item.notes || '') && (
-              <button
-                type="button"
-                className="btn btn--small btn--primary"
-                style={{ marginTop: 8 }}
-                disabled={savingField}
-                onClick={handleSaveNotes}
-              >
-                {savingField ? 'Saving notes...' : 'Save notes'}
-              </button>
-            )}
-          </div>
-
-          {/* Capture Note */}
-          {item.capture_note && (
-            <div className="lib-detail-note-callout">
-              <Icon name="info" size={14} />
-              <span>{item.capture_note}</span>
-            </div>
-          )}
         </div>
 
-        {/* Modal Footer Actions */}
-        <div className="lib-detail-footer">
-          <div className="lib-detail-footer-left">
-            {item.url && (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn--ghost btn--small"
-              >
-                <Icon name="link" size={13} /> Open Source
+        {/* Bottom Actions Footer */}
+        <div className="lib-detail-bottom-footer">
+          <div className="lib-detail-footer-group">
+            {item.url ? (
+              <a href={item.url} target="_blank" rel="noreferrer" className="lib-footer-action-btn">
+                <Icon name="link" size={14} />
+                <span>Open</span>
               </a>
-            )}
-            <button
-              type="button"
-              className="btn btn--ghost btn--small"
-              disabled={busyAction === 'enrich'}
-              onClick={() =>
-                runAction('enrich', () => api.enrichLibraryItem(item.id), 'Summarised with AI')
-              }
-            >
-              <Icon name="spark" size={13} />{' '}
-              {busyAction === 'enrich' ? 'Analysing...' : 'Re-summarise'}
+            ) : null}
+
+            <button type="button" className="lib-footer-action-btn" onClick={handleShare}>
+              <Icon name="share" size={14} />
+              <span>Share</span>
             </button>
-            {item.indexed && (
-              <button
-                type="button"
-                className="btn btn--ghost btn--small"
-                disabled={busyAction === 'reindex'}
-                onClick={() =>
-                  runAction('reindex', () => api.reindexLibraryItem(item.id), 'Indexed again')
-                }
-              >
-                <Icon name="refresh" size={13} />{' '}
-                {busyAction === 'reindex' ? 'Indexing...' : 'Re-index'}
-              </button>
-            )}
           </div>
 
-          <div className="lib-detail-footer-right">
-            <button
-              type="button"
-              className="btn btn--ghost btn--small lib-btn-danger"
-              disabled={busyAction === 'delete'}
-              onClick={() => {
-                onDelete?.(item)
-                onClose()
-              }}
-            >
-              <Icon name="trash" size={13} /> Delete
-            </button>
-          </div>
+          <button
+            type="button"
+            className="lib-footer-action-btn lib-footer-action-btn--danger"
+            disabled={busyAction === 'delete'}
+            onClick={() => {
+              onDelete?.(item)
+              onClose()
+            }}
+          >
+            <Icon name="trash" size={14} />
+            <span>Delete</span>
+          </button>
         </div>
       </motion.div>
     </motion.div>

@@ -37,8 +37,8 @@ def write_atomic(path: Path, text: str) -> None:
         raise
 
 
-def psok_home() -> Path:
-    return Path(os.environ.get("PSOK_HOME", Path.home() / ".psok"))
+def amethyst_home() -> Path:
+    return Path(os.environ.get("AMETHYST_HOME", Path.home() / ".amethyst"))
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class Paths:
 
     @property
     def db(self) -> Path:
-        return self.home / "psok.db"
+        return self.home / "amethyst.db"
 
     @property
     def config_dir(self) -> Path:
@@ -102,7 +102,7 @@ class Paths:
 
 
 def paths() -> Paths:
-    return Paths(home=psok_home())
+    return Paths(home=amethyst_home())
 
 
 @dataclass
@@ -129,7 +129,7 @@ class ProviderConfig:
     #: Groq refuses more than 128 with `400 'tools' : maximum number of items
     #: is 128`, and this machine offers 178 across thirteen connectors -- so
     #: every turn failed before a token moved, with an error naming a limit
-    #: nothing in PSOK knew about. Declared per provider because it is a
+    #: nothing in AMETHYST knew about. Declared per provider because it is a
     #: property of the endpoint, not of the model, and unknown for most of them:
     #: `None` means "no cap has been observed", not "unlimited".
     max_tools: int | None = None
@@ -146,7 +146,7 @@ def _default_providers() -> str:
 
     Was a hand-written string that fell behind the catalogue it was meant to
     mirror: Groq sat commented out and Cerebras did not exist in it, which
-    `psok doctor` eventually grew a check to report rather than fix.
+    `amethyst doctor` eventually grew a check to report rather than fix.
     """
     from backend.provider_catalogue import render_default_providers
 
@@ -184,7 +184,7 @@ def has_key(config: ProviderConfig) -> bool:
     # provider per health poll, and a keychain read is D-Bus IPC -- normally
     # milliseconds, but it runs on the event loop and a busy secret service
     # stalls every poll for every provider. Credentials do not appear and
-    # vanish on this timescale; `psok keys` and the settings page both call
+    # vanish on this timescale; `amethyst keys` and the settings page both call
     # `forget_key_presence` when one is added or removed.
     try:
         return key_present(config.api_key_ref)
@@ -230,7 +230,7 @@ def configured_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
     providers.yaml is a menu, not an inventory: an entry whose `api_key_ref`
     points at an empty keychain slot parses perfectly and then fails on the
     first call. Offering one in a model picker means every turn against it dies
-    at the first round trip, which reads as PSOK being broken rather than as a
+    at the first round trip, which reads as AMETHYST being broken rather than as a
     key being absent -- so an interface asks this, and `resolve` still honours
     any provider named explicitly.
     """
@@ -367,7 +367,7 @@ def load_memory_model(path: Path | None = None) -> tuple[str, str] | None:
 
 # --- writing providers.yaml -------------------------------------------------
 #
-# Until now this file was read-only from PSOK's side: the Settings panel told
+# Until now this file was read-only from AMETHYST's side: the Settings panel told
 # the user to open it in an editor, which is a strange thing for an interface
 # that knows the base URL, the model id and where the key goes. These three
 # functions are the write half, modelled on `backend/mcp/config.py`, which has done
@@ -378,11 +378,11 @@ def load_memory_model(path: Path | None = None) -> tuple[str, str] | None:
 #: tripped -- per-entry comments a user wrote by hand are lost on the first
 #: programmatic edit, which is the honest trade for being able to edit it at all.
 _PROVIDERS_HEADER = """\
-# PSOK model providers. api_key_ref points at an OS keychain entry -- never a
-# literal key. Written by PSOK; hand edits survive, hand-written comments do not.
+# AMETHYST model providers. api_key_ref points at an OS keychain entry -- never a
+# literal key. Written by AMETHYST; hand edits survive, hand-written comments do not.
 #
 # A listed provider is not an offered one: an entry whose key is missing is
-# skipped by the model picker until `psok secrets set <ref>` fills it in.
+# skipped by the model picker until `amethyst secrets set <ref>` fills it in.
 """
 
 
@@ -853,7 +853,7 @@ _BROWSER_BOUNDS = {"poll_seconds": (30, 86_400)}
 
 @dataclass(frozen=True)
 class BrowserSettings:
-    """How PSOK reads the browser on this machine.
+    """How AMETHYST reads the browser on this machine.
 
     Off by default, and deliberately: `places.sqlite` holds every page the user
     has ever visited, and a personal OS reading that without being asked is not
@@ -998,7 +998,7 @@ def save_library(patch: dict) -> LibrarySettings:
 
 @dataclass(frozen=True)
 class SocialSettings:
-    """Which sites PSOK may read as the signed-in user, and how pages are rendered.
+    """Which sites AMETHYST may read as the signed-in user, and how pages are rendered.
 
     `allow` is empty by default and that is the design: the readers behind it
     carry a real session, so "read reddit" and "browse anywhere as me" are
@@ -1007,7 +1007,7 @@ class SocialSettings:
     """
 
     allow: tuple[str, ...] = ()
-    #: Send a page PSOK could not read itself through r.jina.ai, which renders
+    #: Send a page AMETHYST could not read itself through r.jina.ai, which renders
     #: JavaScript and returns markdown. It is a third party: the URL, and
     #: therefore the fact that this machine read it, leaves here. Only pages the
     #: ordinary fetch already failed on are sent.
@@ -1157,7 +1157,7 @@ def save_embeddings(provider: str, model: str, path: Path | None = None) -> None
     an error. `store.ensure_indexes` drops the vector table when the dimensions
     change, and `SearchService` queries with whichever model actually built the
     index -- so the failure mode is a stale index, not silent nonsense. The
-    caller is expected to re-index; `psok embeddings set` says so.
+    caller is expected to re-index; `amethyst embeddings set` says so.
     """
     provider = (provider or "").strip()
     model = (model or "").strip()
