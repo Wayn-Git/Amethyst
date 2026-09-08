@@ -2,7 +2,7 @@
 
 Once a server's tools are registered, the agent loop cannot tell them apart from
 builtin tools -- that indistinguishability is the point (ADR-0005). The two facts
-the dispatcher does know are that MCP servers run outside PSOK's sandbox and that
+the dispatcher does know are that MCP servers run outside AMETHYST's sandbox and that
 a new server needs a one-time trust confirmation, both handled by the permission
 gate rather than here.
 """
@@ -46,7 +46,7 @@ DEMOTE_AFTER_FAILURES = 3
 
 
 def normalize_result(result: Any) -> ToolResult:
-    """MCP content blocks into PSOK's uniform envelope.
+    """MCP content blocks into AMETHYST's uniform envelope.
 
     Every provider receives plain text; images and other binary blocks become
     artifacts so they never bloat the text the model reads.
@@ -364,7 +364,7 @@ class MCPManager:
                     handler=self._make_handler(config.name, discovered.name),
                     # From the server's own `annotations`, falling back to what
                     # the name says -- see `backend/mcp/risk.py`. This was a flat
-                    # `MEDIUM` until 2026-08-29, on the reasoning that PSOK
+                    # `MEDIUM` until 2026-08-29, on the reasoning that AMETHYST
                     # cannot inspect somebody else's server. It can: MCP tools
                     # carry `readOnlyHint` and `destructiveHint`, and discovery
                     # was throwing the field away. The cost of not reading it
@@ -535,7 +535,7 @@ class MCPManager:
         """Bring live connections in line with what is currently switched on.
 
         One manager serves the whole process for its lifetime, so without this a
-        connector switched on in the interface stayed dark until PSOK was
+        connector switched on in the interface stayed dark until AMETHYST was
         restarted -- the toggle wrote a row nothing acted on.
 
         A server that already failed is left alone until its backoff expires:

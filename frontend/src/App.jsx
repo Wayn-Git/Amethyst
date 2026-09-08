@@ -258,8 +258,8 @@ export default function App() {
   useEffect(() => {
     const here = byId(view)
     document.title = here && here.id !== 'chat'
-      ? `${here.label} · PSOK`
-      : 'PSOK · personal operating system'
+      ? `${here.label} · AMETHYST`
+      : 'AMETHYST · personal operating system'
   }, [view])
 
   // Nothing is mounted until the backend answers. Every view here opens by

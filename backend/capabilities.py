@@ -1,6 +1,6 @@
 """Which capabilities are live for a given conversation.
 
-PSOK previously advertised every installed skill and every connected server on
+AMETHYST previously advertised every installed skill and every connected server on
 every turn. That does not scale with installed capability: the catalogue grows
 without bound, and the user has no way to say "not this one, not here".
 
@@ -32,7 +32,7 @@ class Kind(enum.StrEnum):
 
 
 # What a capability does when nobody has expressed an opinion about it.
-# Skills are inert text, so they default on. Connectors reach outside PSOK and
+# Skills are inert text, so they default on. Connectors reach outside AMETHYST and
 # may spawn processes, so they stay off until the user turns them on.
 DEFAULT_ENABLED: dict[Kind, bool] = {
     Kind.SKILL: True,
@@ -98,7 +98,7 @@ class CapabilityService:
         dispatch. Connectors default off so that configuring a server does not
         silently start it -- but a server whose tools are registered was
         connected deliberately, whether through the toggle or through
-        `psok mcp connect`. Refusing those for want of an opt-in would break the
+        `amethyst mcp connect`. Refusing those for want of an opt-in would break the
         second path entirely; refusing the ones a user turned off is the actual
         requirement.
         """

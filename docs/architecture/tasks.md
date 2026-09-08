@@ -12,9 +12,9 @@ decisions that are surprising, and the one line that caused most of the work.
 def _apply(repository, report, task_list: dict, item: dict) -> None:
 ```
 
-and never reference `task_list` again. PSOK read the user's To Do lists, counted
+and never reference `task_list` again. AMETHYST read the user's To Do lists, counted
 them into the sync report, passed each one down — and dropped it. Every task
-collapsed into one flat set, every task PSOK created went to whichever list
+collapsed into one flat set, every task AMETHYST created went to whichever list
 Graph flags `defaultList`, and `create_task` had no list parameter at all, so
 "add milk to groceries" could not work even in principle.
 
@@ -66,7 +66,7 @@ The first fix kept `my_day_on` as a local date and carried it upstream as a
 reason no test could have found: the user adds today's tasks through **To Do's
 own My Day**, the overlay at the top of its sidebar. Those tasks carry no
 category, no hashtag and no special list — Graph returns them as ordinary tasks
-in *Tasks*. So PSOK's My Day and the phone's showed different tasks, which is
+in *Tasks*. So AMETHYST's My Day and the phone's showed different tasks, which is
 the original complaint restated with more machinery behind it.
 
 Measured on the live account, 2026-08-29: the two tasks ever added to the user's
@@ -85,7 +85,7 @@ list_id = :my_day_list AND status != 'cancelled'
 ```
 
 There is no `my_day_on` column any more (the migration drops it), no category
-PSOK writes, and no hashtag. One mechanism, visible from both ends, editable
+AMETHYST writes, and no hashtag. One mechanism, visible from both ends, editable
 from both ends.
 
 **The sun moves the task.** `TaskService.move` → `move_remote_task`, and because
@@ -98,12 +98,12 @@ from the source. Three consequences, stated rather than discovered:
   status, tags. Checklist items and the original creation date do not.
 - **Create first, delete second, always.** A failed delete leaves a duplicate
   the user can see and fix; a failed create after a delete has lost the task.
-  If either half fails the local row does **not** move, so PSOK and the phone
+  If either half fails the local row does **not** move, so AMETHYST and the phone
   never disagree about which list holds it.
 
 The one property carried over from the category design: **the push sends the
 whole `categories` array back**, because Graph replaces rather than merges and a
-shorter array deletes the user's other tags. PSOK writes none of its own now, so
+shorter array deletes the user's other tags. AMETHYST writes none of its own now, so
 `external_categories` exists purely to hand back what was already there.
 
 **What this costs.** To Do puts a task in exactly one list, so a task in My Day
@@ -119,7 +119,7 @@ Whatever is in the list. Nothing else — not "due today", not "scheduled today"
 The wide version (put there by hand, *or* scheduled today, *or* due today, *or*
 finished today) was the previous design and had to go with the date stamp: a
 bucket half of which is a query over local dates cannot agree with a phone that
-has no idea what PSOK thinks is due today. What it bought — a page that fills
+has no idea what AMETHYST thinks is due today. What it bought — a page that fills
 itself — is not worth a My Day that means two different things in two places.
 
 Completed tasks in the list **stay in it**, which is what To Do does too, and is
@@ -131,7 +131,7 @@ done ones are the record. Cancelled rows — tasks a pull no longer found upstre
 — are excluded, because they are not in the list any more either.
 
 `completed_at` is what makes the record readable, and the sync did not import it
-until 2026-08-28: To Do knew three tasks had been finished that day and PSOK had
+until 2026-08-28: To Do knew three tasks had been finished that day and AMETHYST had
 recorded the completion time of one, so "what did I get done today" could not be
 answered from local data at all. `_apply` now maps `completedDateTime`.
 
@@ -149,7 +149,7 @@ the model guesses. They are separate columns because an important task with no
 deadline and no priority is a normal thing, and because a model should not be
 able to promote something into the user's Important list.
 
-Going out, To Do has one axis where PSOK has two: `important` wins, and
+Going out, To Do has one axis where AMETHYST has two: `important` wins, and
 `priority` only speaks when the user has not flagged the task.
 
 ## Push, then pull
@@ -207,7 +207,7 @@ An outage and an emptied account produce the same empty response and only one of
 them is recoverable. `sync` raises before `_retire_missing` when the list
 listing came back empty, so an outage cannot cancel everything.
 
-PSOK's own delete is also a cancel: a mirrored row deleted locally comes
+AMETHYST's own delete is also a cancel: a mirrored row deleted locally comes
 straight back on the next pull, so deleting one is a lie that lasts fifteen
 minutes.
 

@@ -191,7 +191,7 @@ sketch
 .skills/
 .playwright-mcp/
 
-# An empty directory another tool left behind, owned by root. Not part of PSOK.
+# An empty directory another tool left behind, owned by root. Not part of AMETHYST.
 LibreChat/
 
 # The relay's dependencies. wrangler and workerd are large and reinstallable.
@@ -199,7 +199,7 @@ relay/node_modules/
 relay/.wrangler/
 
 # Agent tooling, same reasoning as .claude/ above: this is how one person drives
-# their editor, not how PSOK is built. Kept on disk, out of the repository.
+# their editor, not how AMETHYST is built. Kept on disk, out of the repository.
 .agents/
 
 # Scratch that keeps reappearing at the root. `,*` catches the editor-backup
@@ -212,13 +212,13 @@ relay/.wrangler/
 # Wrangler state at the root, as distinct from relay/.wrangler/ below.
 /.wrangler/
 
-# The container's bind-mounted PSOK_HOME, and the personal state inside it.
+# The container's bind-mounted AMETHYST_HOME, and the personal state inside it.
 # Also denied in .dockerignore -- none of this may reach an image layer.
 /data/
 secrets.json
-psok.db
-psok.db-shm
-psok.db-wal
+amethyst.db
+amethyst.db-shm
+amethyst.db-wal
 
 # Local compose overrides, which are per-machine by definition.
 docker-compose.override.yml

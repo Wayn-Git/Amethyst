@@ -17,16 +17,16 @@ import yaml
 from backend.config import paths
 
 DEFAULT_SANDBOX_YAML = """\
-# PSOK shell sandbox policy. Applies to sandbox-mode commands only.
+# AMETHYST shell sandbox policy. Applies to sandbox-mode commands only.
 enabled: true
 denied_read_paths:
   - ~/.ssh
   - ~/.aws
   - ~/.gnupg
-  - ~/.psok/config
+  - ~/.amethyst/config
 allowed_write_paths:
   - /tmp
-  - ~/.psok/cache
+  - ~/.amethyst/cache
 allow_network: true
 """
 

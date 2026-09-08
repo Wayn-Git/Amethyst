@@ -84,7 +84,7 @@ class ReelCapture:
         # The download happens before the row exists, because yt-dlp names the
         # file and the row is named by its id. It lands in a scratch directory
         # and is moved into place afterwards.
-        scratch = Path(tempfile.mkdtemp(prefix="psok-reel-"))
+        scratch = Path(tempfile.mkdtemp(prefix="amethyst-reel-"))
         try:
             reel = await self._open(url, scratch, settings)
             return await self._store(reel, notes=notes, settings=settings)
@@ -209,7 +209,7 @@ class ReelCapture:
                 from backend.media.vision import extract_frames
                 from backend.runtime.vision import extract_visual_text
 
-                frames_dir = Path(tempfile.mkdtemp(prefix="psok-vision-"))
+                frames_dir = Path(tempfile.mkdtemp(prefix="amethyst-vision-"))
                 try:
                     frames = await extract_frames(video, frames_dir)
                     if frames:

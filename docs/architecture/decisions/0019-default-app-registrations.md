@@ -16,7 +16,7 @@ things. The *app registration* is a client id identifying the software; the
 own account, and stay in that install's keychain.
 
 The previous `${VAR}` expansion in `backend/mcp/config.py` could not carry
-this: an unset variable expanded to the literal `${PSOK_DEFAULT_…}` string,
+this: an unset variable expanded to the literal `${AMETHYST_DEFAULT_…}` string,
 which was handed to the provider as a client id while `missing_credentials`
 reported the connector fully configured — two silent lies in opposite
 directions.
@@ -30,7 +30,7 @@ A real mechanism, shipped with **no Google, Spotify or GitHub value**:
   public; a committed client secret is a published one. A literal pasted into
   the catalogue passes every review because it looks exactly like a
   placeholder — so the shape is asserted by pattern
-  (`^PSOK_DEFAULT_[A-Z0-9_]+$`) in `tests/test_docker_context.py`, which is
+  (`^AMETHYST_DEFAULT_[A-Z0-9_]+$`) in `tests/test_docker_context.py`, which is
   the mechanical enforcement of "no secrets committed".
 - `default_client(entry)` returns `(None, None)` unless the id is present —
   a half-configured default cannot exist, because a secret beside an absent
@@ -77,7 +77,7 @@ share).
 
 ## Consequences
 
-A friend who runs PSOK signs into their own accounts through app
+A friend who runs AMETHYST signs into their own accounts through app
 registrations that identify the software, never a person; `client_source`
 says which is in play on every connector row. Defaults, where an operator
 chooses to supply them, arrive only at `docker run` via `env_file` — never

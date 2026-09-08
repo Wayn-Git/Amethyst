@@ -1,5 +1,5 @@
 const fs = require('fs');
-const file = '/home/wayne/Documents/GitHub/pkos/frontend/src/views/library/AddContentModal.jsx';
+const file = '/home/wayne/Documents/GitHub/amethyst/frontend/src/views/library/AddContentModal.jsx';
 let content = fs.readFileSync(file, 'utf8');
 
 content = content.replace(

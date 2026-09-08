@@ -1,8 +1,8 @@
 """MCP server configuration (ADR-0007).
 
-Two trust categories, both full trust, because in PSOK the administrator and the
+Two trust categories, both full trust, because in AMETHYST the administrator and the
 user are the same person: `configured` (the user's own mcp.yaml) and `bundled`
-(catalogue entries PSOK ships templates for). No restricted tier -- there is no
+(catalogue entries AMETHYST ships templates for). No restricted tier -- there is no
 separate untrusted submitter to defend against.
 """
 
@@ -30,10 +30,10 @@ _VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 KEYCHAIN_PREFIX = "keychain:"
 
 DEFAULT_MCP_YAML = """\
-# PSOK MCP servers.
+# AMETHYST MCP servers.
 #
-# Add one with `psok mcp add <catalogue-id>`, or write an entry by hand.
-# Secrets belong in the OS keychain: use `api_key_ref: psok/<name>` rather than
+# Add one with `amethyst mcp add <catalogue-id>`, or write an entry by hand.
+# Secrets belong in the OS keychain: use `api_key_ref: amethyst/<name>` rather than
 # pasting a token here. ${VAR} interpolates from the environment.
 #
 # mcpServers:
@@ -59,7 +59,7 @@ class Transport(enum.StrEnum):
 
 class Source(enum.StrEnum):
     CONFIGURED = "configured"  # the user wrote this entry
-    BUNDLED = "bundled"  # added from PSOK's catalogue
+    BUNDLED = "bundled"  # added from AMETHYST's catalogue
 
 
 @dataclass
@@ -203,7 +203,7 @@ class ServerConfig:
             client_id, client_secret = default_client(entry)
             # All or nothing. A client id and its secret are one credential,
             # and mixing halves is worse than supplying neither: the user's own
-            # id beside PSOK's secret is a pair no provider has ever issued,
+            # id beside AMETHYST's secret is a pair no provider has ever issued,
             # and it fails at the token exchange with a message about the
             # client rather than about the mix-up.
             wanted = [k for k in (entry.client_id_env, entry.client_secret_env) if k]
@@ -312,7 +312,7 @@ def _fill_catalogue_env(config: ServerConfig) -> None:
     URI on a port nobody registered would only have helped new users.
 
     Additive only. Anything already in the file wins, because that is either the
-    user's own value or a keychain reference written by `psok mcp env`.
+    user's own value or a keychain reference written by `amethyst mcp env`.
     """
     if config.source is not Source.BUNDLED or not config.catalogue_id:
         return
@@ -329,7 +329,7 @@ def _catalogue_entry(config: ServerConfig):
     """The catalogue entry this server was copied from, if it still exists.
 
     Same guard as `_fill_catalogue_env`: only a bundled server is a copy of a
-    catalogue entry. One the user added by hand is theirs, and PSOK has no
+    catalogue entry. One the user added by hand is theirs, and AMETHYST has no
     business filling anything into it.
     """
     if config.source is not Source.BUNDLED or not config.catalogue_id:

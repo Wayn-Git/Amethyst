@@ -8,7 +8,7 @@ import the API, and spawning a second copy of a stdio server would mean a second
 process and a second sign-in.
 
 So the owner publishes it here and everything else asks. Deliberately a single
-value rather than a registry of managers: PSOK is one user's process with one
+value rather than a registry of managers: AMETHYST is one user's process with one
 set of connections (ADR-0001), and pretending otherwise would invent a concept
 nothing needs.
 """

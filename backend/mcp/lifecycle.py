@@ -172,7 +172,7 @@ def _ready_state(
         return ConnectorState("ready", f"{detail} {ageing}", action="sign_in", ready=True)
 
     # Two accounts in a store the server reads in single-user mode: it picks
-    # one, PSOK cannot tell which, and the tools answer for whichever it was.
+    # one, AMETHYST cannot tell which, and the tools answer for whichever it was.
     accounts = row.get("accounts") or 0
     if accounts > 1:
         return ConnectorState(

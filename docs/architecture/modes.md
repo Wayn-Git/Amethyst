@@ -201,7 +201,7 @@ that knows it is out of its depth. The cost of that choice is the one
 `begin_step` was accepted with: a model that never calls it produces no
 escalations, rather than wrong ones.
 
-Withheld when no `heavy` tier resolves — an offer PSOK cannot honour is worse
+Withheld when no `heavy` tier resolves — an offer AMETHYST cannot honour is worse
 than no offer — and withheld on a turn whose transcript already carries an
 escalation request, or "Answer anyway" would ask the same question forever.
 

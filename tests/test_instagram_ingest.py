@@ -251,7 +251,7 @@ async def test_an_expired_asset_still_logs_the_reel(ready):
         raise DownloadError("Instagram returned HTTP 403 for this file")
 
     # A transcriber has to exist for the download to be attempted at all -- with
-    # nothing able to use the video, PSOK does not fetch it in the first place.
+    # nothing able to use the video, AMETHYST does not fetch it in the first place.
     svc = service(downloader=gone, transcriber=_returns(Transcript(SPEECH, "groq", "whisper")))
     status = await svc.process(queue("dm_reel", DM_PAYLOAD))
 
@@ -312,7 +312,7 @@ async def test_the_video_is_discarded_but_the_transcript_is_kept(ready):
 
 
 async def test_removing_an_item_takes_its_media_with_it(ready):
-    """An orphaned mp4 under ~/.psok/library/media with no row pointing at it is
+    """An orphaned mp4 under ~/.amethyst/library/media with no row pointing at it is
     one nothing will ever clean up.
 
     Mutation check: unlink only text_path in LibraryService.remove.

@@ -1,6 +1,6 @@
 # AI Runtime
 
-The AI runtime is everything between "the agent loop wants a model response" and "a specific provider's API returned tokens." It has two parts: the **provider abstraction** (how PSOK talks to any model without knowing which one) and the **agent loop** (the component that owns the reason/act/observe cycle).
+The AI runtime is everything between "the agent loop wants a model response" and "a specific provider's API returned tokens." It has two parts: the **provider abstraction** (how AMETHYST talks to any model without knowing which one) and the **agent loop** (the component that owns the reason/act/observe cycle).
 
 ## The provider abstraction
 
@@ -16,7 +16,7 @@ ResolvedModel:
     model             str            # concrete model id
     client            ChatClient     # something the loop can call
     capabilities      Capabilities   # what this model can actually do
-    normalize_tools   callable       # PSOK tool schemas -> provider tool schemas
+    normalize_tools   callable       # AMETHYST tool schemas -> provider tool schemas
 ```
 
 `Capabilities` declares what the loop is allowed to attempt: whether tools are supported, whether streaming works, whether images can be sent, the context window size, and whether the model has a reasoning or thinking mode. The loop reads capabilities and adapts — it does not guess from the model name.
@@ -49,26 +49,26 @@ That fallback is the single most valuable idea taken from LibreChat, and it is w
 - **vLLM**, **LM Studio**, **llama.cpp server**, **text-generation-webui** — any local inference server
 - **NVIDIA NIM**, **Groq**, **OpenRouter**, **Together**, **Fireworks**, **DeepSeek**, **Mistral** — hosted providers
 
-None of these requires an adapter. Supporting a new one is adding four lines to a config file. PSOK ships four native adapters and gets an open-ended set of providers for free.
+None of these requires an adapter. Supporting a new one is adding four lines to a config file. AMETHYST ships four native adapters and gets an open-ended set of providers for free.
 
 Example `providers.yaml`:
 
 ```yaml
 providers:
   - name: openai
-    api_key_ref: psok/openai            # keychain reference, not a key
+    api_key_ref: amethyst/openai            # keychain reference, not a key
   - name: anthropic
-    api_key_ref: psok/anthropic
+    api_key_ref: amethyst/anthropic
   - name: ollama
     base_url: http://localhost:11434/v1
     # no key needed
   - name: nvidia-nim
     base_url: https://integrate.api.nvidia.com/v1
-    api_key_ref: psok/nvidia
+    api_key_ref: amethyst/nvidia
     provider: openai-compatible          # implied, but may be explicit
   - name: my-vllm-box
     base_url: http://192.168.1.40:8000/v1
-    api_key_ref: psok/vllm
+    api_key_ref: amethyst/vllm
 ```
 
 **`api_key_ref` is a keychain reference, never a key.** No secret appears in this file. See [security.md](security.md).
@@ -82,12 +82,12 @@ Ollama speaks the OpenAI format and could ride the fallback. It gets a thin adap
 **Every provider-specific behaviour lives inside its adapter and is invisible above it.** The known cases, all confirmed in LibreChat's implementation:
 
 - **Google/Gemini** rejects JSON Schema unions and non-string enums in function declarations that OpenAI and Anthropic accept. The Google adapter sanitizes tool schemas on the way out. Note that this is a *tool-schema* quirk, not a parameter quirk — provider differences are not confined to model settings.
-- **Anthropic** takes extended thinking as a native enabled-with-budget block, with model-version differences and a budget that must not exceed max tokens. The adapter maps PSOK's generic `thinking_budget` and clamps it.
-- **OpenAI** maps PSOK's generic `reasoning_effort` into its reasoning object, and some models reject reasoning combined with function tools on chat-completions, requiring the Responses API instead. The adapter routes accordingly.
+- **Anthropic** takes extended thinking as a native enabled-with-budget block, with model-version differences and a budget that must not exceed max tokens. The adapter maps AMETHYST's generic `thinking_budget` and clamps it.
+- **OpenAI** maps AMETHYST's generic `reasoning_effort` into its reasoning object, and some models reject reasoning combined with function tools on chat-completions, requiring the Responses API instead. The adapter routes accordingly.
 - **OpenAI-compatible endpoints** frequently do not implement structured multimodal content blocks. The adapter defaults to the simpler content format. Some also ignore `stream: true` and answer with an ordinary JSON body; a stream that carries nothing is not an empty answer, so the adapter asks again without streaming rather than reporting silence.
-- **Message translation is per adapter, including this one.** PSOK's own message rows are not the chat-completions wire shape: tool calls need `type: "function"` and `arguments` as a JSON string, and the `tool_name` and `is_error` columns PSOK keeps for itself do not belong on the wire. Each adapter converts on the way out.
+- **Message translation is per adapter, including this one.** AMETHYST's own message rows are not the chat-completions wire shape: tool calls need `type: "function"` and `arguments` as a JSON string, and the `tool_name` and `is_error` columns AMETHYST keeps for itself do not belong on the wire. Each adapter converts on the way out.
 
-PSOK's common parameter surface is deliberately small: `temperature`, `max_tokens`, `reasoning_effort` (none/low/medium/high), `thinking_budget`, `stop`, `seed`. Anything a provider does not support is dropped by its adapter, which reports the drop through capabilities rather than failing.
+AMETHYST's common parameter surface is deliberately small: `temperature`, `max_tokens`, `reasoning_effort` (none/low/medium/high), `thinking_budget`, `stop`, `seed`. Anything a provider does not support is dropped by its adapter, which reports the drop through capabilities rather than failing.
 
 **The test for whether this boundary is holding:** grep the agent loop and tool registry for provider names. If a provider name appears outside `runtime/providers/`, the abstraction has leaked.
 
@@ -110,15 +110,15 @@ Different roles can use different models simultaneously, all through the same re
 
 ### The local-first tension, resolved
 
-PSOK's posture is local-first — it is a personal knowledge system holding the user's private documents and correspondence. But small local models are measurably worse at structured tool calling than frontier cloud models, and the agent loop depends entirely on structured tool calling.
+AMETHYST's posture is local-first — it is a personal knowledge system holding the user's private documents and correspondence. But small local models are measurably worse at structured tool calling than frontier cloud models, and the agent loop depends entirely on structured tool calling.
 
-Resolution: **local-first governs data-heavy background roles strongly, and the main conversational model by preference but not by force.** Embeddings and memory extraction default local, because they touch every document and every turn. For the main model, first-run setup detects whether a tool-calling-capable local model is available and either recommends pulling one or prompts for a cloud API key — rather than silently defaulting to a model that will fail at the loop and make PSOK look broken. Recorded as [ADR-0013](decisions/0013-local-first-ai-default-posture.md).
+Resolution: **local-first governs data-heavy background roles strongly, and the main conversational model by preference but not by force.** Embeddings and memory extraction default local, because they touch every document and every turn. For the main model, first-run setup detects whether a tool-calling-capable local model is available and either recommends pulling one or prompts for a cloud API key — rather than silently defaulting to a model that will fail at the loop and make AMETHYST look broken. Recorded as [ADR-0013](decisions/0013-local-first-ai-default-posture.md).
 
 ### No LangChain
 
-PSOK calls the official SDKs (`openai`, `anthropic`, `google-genai`) directly behind the adapter interface. The interface *is* PSOK's abstraction; a framework on top of it would be a second one.
+AMETHYST calls the official SDKs (`openai`, `anthropic`, `google-genai`) directly behind the adapter interface. The interface *is* AMETHYST's abstraction; a framework on top of it would be a second one.
 
-LangChain earns its cost when you need chain composition, a large integration surface, or swappable orchestration. PSOK runs one conversation at a time with one loop, and every provider integration it needs is a hundred lines against a well-documented SDK. Adopting the framework would mean debugging through its abstractions and inheriting its upgrade cadence to solve a problem PSOK does not have. Recorded in [ADR-0001](decisions/0001-ai-provider-abstraction.md).
+LangChain earns its cost when you need chain composition, a large integration surface, or swappable orchestration. AMETHYST runs one conversation at a time with one loop, and every provider integration it needs is a hundred lines against a well-documented SDK. Adopting the framework would mean debugging through its abstractions and inheriting its upgrade cadence to solve a problem AMETHYST does not have. Recorded in [ADR-0001](decisions/0001-ai-provider-abstraction.md).
 
 ## The agent loop
 
@@ -171,7 +171,7 @@ One component — the **Director** — owns the entire cycle. Nothing else decid
 
 ### Sequential by default
 
-Pipali executes all of a turn's tool calls concurrently. PSOK does not, by default.
+Pipali executes all of a turn's tool calls concurrently. AMETHYST does not, by default.
 
 For a single-user system whose tools mutate the local filesystem, run shell commands, and write to one SQLite database, concurrent execution introduces real correctness risk — interleaved writes to the same file, ordering-dependent shell commands, lock contention — in exchange for wall-clock savings that barely register at this scale. Parallel execution is an opt-in configuration flag for read-only tool sets. Recorded in [ADR-0016](decisions/0016-agent-loop-ownership-and-concurrency.md).
 

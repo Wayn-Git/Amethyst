@@ -31,7 +31,7 @@ from backend.tools.registry import ToolRegistry, mcp_tool_key
 # ------------------------------------------------------------------- config
 
 
-def test_config_roundtrip_without_leaking_secrets(psok_home):
+def test_config_roundtrip_without_leaking_secrets(amethyst_home):
     add_server(
         ServerConfig(
             name="example",
@@ -39,105 +39,105 @@ def test_config_roundtrip_without_leaking_secrets(psok_home):
             url="https://example.com/mcp",
             oauth=True,
             oauth_client_id="client-123",
-            oauth_client_secret_ref="psok-mcp/example.client_secret",
+            oauth_client_secret_ref="amethyst-mcp/example.client_secret",
         )
     )
-    text = (psok_home / "config" / "mcp.yaml").read_text()
+    text = (amethyst_home / "config" / "mcp.yaml").read_text()
     assert "client-123" in text, "a client id is not a secret and belongs in config"
-    assert "psok-mcp/example.client_secret" in text, "only the reference is stored"
+    assert "amethyst-mcp/example.client_secret" in text, "only the reference is stored"
 
     loaded = load_servers()["example"]
     assert loaded.oauth and loaded.url == "https://example.com/mcp"
     assert remove_server("example") and "example" not in load_servers()
 
 
-def test_stdio_server_requires_a_command(psok_home):
+def test_stdio_server_requires_a_command(amethyst_home):
     with pytest.raises(ValueError, match="needs a command"):
         ServerConfig(name="x", transport=Transport.STDIO).validate()
 
 
-def test_remote_server_requires_a_url(psok_home):
+def test_remote_server_requires_a_url(amethyst_home):
     with pytest.raises(ValueError, match="needs a url"):
         ServerConfig(name="x", transport=Transport.SSE).validate()
 
 
-def test_env_interpolation(psok_home, monkeypatch):
-    monkeypatch.setenv("PSOK_TEST_TOKEN", "abc123")
+def test_env_interpolation(amethyst_home, monkeypatch):
+    monkeypatch.setenv("AMETHYST_TEST_TOKEN", "abc123")
     config = ServerConfig(
         name="x",
         transport=Transport.STREAMABLE_HTTP,
         url="https://example.com",
-        headers={"X-Token": "${PSOK_TEST_TOKEN}"},
+        headers={"X-Token": "${AMETHYST_TEST_TOKEN}"},
     )
     assert config.resolved_headers()["X-Token"] == "abc123"
 
 
-def test_api_key_resolves_from_the_keychain(psok_home):
+def test_api_key_resolves_from_the_keychain(amethyst_home):
     from backend.secrets import set_secret
 
-    set_secret("psok-test/apikey", "sekrit")
+    set_secret("amethyst-test/apikey", "sekrit")
     config = ServerConfig(
         name="x",
         transport=Transport.STREAMABLE_HTTP,
         url="https://example.com",
-        api_key_ref="psok-test/apikey",
+        api_key_ref="amethyst-test/apikey",
     )
     assert config.resolved_headers()["Authorization"] == "Bearer sekrit"
 
 
-def test_a_custom_header_name_sends_the_raw_key_not_bearer_wrapped(psok_home):
+def test_a_custom_header_name_sends_the_raw_key_not_bearer_wrapped(amethyst_home):
     from backend.secrets import set_secret
 
-    set_secret("psok-test/apikey", "sekrit")
+    set_secret("amethyst-test/apikey", "sekrit")
     config = ServerConfig(
         name="x",
         transport=Transport.STREAMABLE_HTTP,
         url="https://example.com",
-        api_key_ref="psok-test/apikey",
+        api_key_ref="amethyst-test/apikey",
         api_key_header="x-api-key",
     )
     assert config.resolved_headers()["x-api-key"] == "sekrit"
 
 
-def test_a_query_param_key_is_appended_to_the_url_not_the_headers(psok_home):
+def test_a_query_param_key_is_appended_to_the_url_not_the_headers(amethyst_home):
     from backend.secrets import set_secret
 
-    set_secret("psok-test/apikey", "sekrit")
+    set_secret("amethyst-test/apikey", "sekrit")
     config = ServerConfig(
         name="x",
         transport=Transport.STREAMABLE_HTTP,
         url="https://example.com/mcp/",
-        api_key_ref="psok-test/apikey",
+        api_key_ref="amethyst-test/apikey",
         api_key_query_param="tavilyApiKey",
     )
     assert config.resolved_url() == "https://example.com/mcp/?tavilyApiKey=sekrit"
     assert "Authorization" not in config.resolved_headers()
 
 
-def test_a_query_param_key_never_reaches_the_url_on_disk(psok_home):
+def test_a_query_param_key_never_reaches_the_url_on_disk(amethyst_home):
     """`resolved_url()` is a spawn-time computation. `to_dict()` -- what
     actually gets written to mcp.yaml -- must still carry only the bare url
     and the reference, never the resolved key."""
     from backend.secrets import set_secret
 
-    set_secret("psok-test/apikey", "sekrit")
+    set_secret("amethyst-test/apikey", "sekrit")
     config = ServerConfig(
         name="x",
         transport=Transport.STREAMABLE_HTTP,
         url="https://example.com/mcp/",
-        api_key_ref="psok-test/apikey",
+        api_key_ref="amethyst-test/apikey",
         api_key_query_param="tavilyApiKey",
     )
     assert config.to_dict()["url"] == "https://example.com/mcp/"
     assert "sekrit" not in str(config.to_dict())
 
 
-def test_an_unresolved_query_param_key_leaves_the_url_bare(psok_home):
+def test_an_unresolved_query_param_key_leaves_the_url_bare(amethyst_home):
     config = ServerConfig(
         name="x",
         transport=Transport.STREAMABLE_HTTP,
         url="https://example.com/mcp/",
-        api_key_ref="psok-test/never-set",
+        api_key_ref="amethyst-test/never-set",
         api_key_query_param="tavilyApiKey",
     )
     assert config.resolved_url() == "https://example.com/mcp/"
@@ -164,40 +164,40 @@ def test_catalogue_entries_are_well_formed():
             assert entry.setup_hint, f"{entry.id} claims setup but explains nothing"
 
 
-def test_adding_from_catalogue_marks_it_bundled(psok_home):
+def test_adding_from_catalogue_marks_it_bundled(amethyst_home):
     config = mcp_commands.add_from_catalogue("playwright")
     assert config.source is Source.BUNDLED
     assert config.catalogue_id == "playwright"
     assert load_servers()["playwright"].command == "npx"
 
 
-def test_an_api_key_catalogue_entry_carries_its_ref_into_the_config(psok_home):
+def test_an_api_key_catalogue_entry_carries_its_ref_into_the_config(amethyst_home):
     config = mcp_commands.add_from_catalogue("exa")
-    assert config.api_key_ref == "psok-mcp/exa.api_key"
+    assert config.api_key_ref == "amethyst-mcp/exa.api_key"
     assert config.api_key_header == "x-api-key"
 
 
-def test_a_query_param_catalogue_entry_carries_its_param_name(psok_home):
+def test_a_query_param_catalogue_entry_carries_its_param_name(amethyst_home):
     config = mcp_commands.add_from_catalogue("tavily")
     assert config.api_key_query_param == "tavilyApiKey"
 
 
-def test_an_api_key_server_reports_missing_before_the_key_is_set(psok_home):
+def test_an_api_key_server_reports_missing_before_the_key_is_set(amethyst_home):
     mcp_commands.add_from_catalogue("firecrawl")
     config = load_servers()["firecrawl"]
     assert mcp_commands.missing_credentials(config) == ["an API key"]
 
 
-def test_an_api_key_server_reports_nothing_missing_once_the_key_is_set(psok_home):
+def test_an_api_key_server_reports_nothing_missing_once_the_key_is_set(amethyst_home):
     from backend.secrets import set_secret
 
     mcp_commands.add_from_catalogue("firecrawl")
-    set_secret("psok-mcp/firecrawl.api_key", "sekrit")
+    set_secret("amethyst-mcp/firecrawl.api_key", "sekrit")
     config = load_servers()["firecrawl"]
     assert mcp_commands.missing_credentials(config) == []
 
 
-async def test_login_on_a_setup_connector_with_no_flow_resolves_its_own_placeholder(psok_home):
+async def test_login_on_a_setup_connector_with_no_flow_resolves_its_own_placeholder(amethyst_home):
     """`/api/mcp/servers/{name}/login` plants a PENDING placeholder before
     calling `login()`, on the assumption every path through it ends in
     `_finish`. A server whose auth is entirely its own (an API key, no
@@ -214,7 +214,7 @@ async def test_login_on_a_setup_connector_with_no_flow_resolves_its_own_placehol
     assert PENDING["firecrawl"].status == "done"
 
 
-async def test_login_on_a_connector_with_nothing_to_sign_into_also_resolves_it(psok_home):
+async def test_login_on_a_connector_with_nothing_to_sign_into_also_resolves_it(amethyst_home):
     from backend.mcp.oauth import PENDING, PendingAuthorization
 
     mcp_commands.add_from_catalogue("fetch")
@@ -226,7 +226,7 @@ async def test_login_on_a_connector_with_nothing_to_sign_into_also_resolves_it(p
 
 
 async def test_a_broken_sign_in_reports_failure_rather_than_erasing_the_record(
-    psok_home, monkeypatch
+    amethyst_home, monkeypatch
 ):
     """`_server_side_login`'s exception handler used to do
     `PENDING.pop(config.name, None)` -- deleting the placeholder instead of
@@ -253,7 +253,7 @@ async def test_a_broken_sign_in_reports_failure_rather_than_erasing_the_record(
     assert "connection refused" in (pending.message or "")
 
 
-async def test_login_on_a_server_removed_mid_flow_resolves_rather_than_orphans(psok_home):
+async def test_login_on_a_server_removed_mid_flow_resolves_rather_than_orphans(amethyst_home):
     """Reachable by a race: `mcp_login` plants a placeholder before scheduling
     `login()` as a task, and a concurrent remove can delete the server first."""
     from backend.mcp.oauth import PENDING, PendingAuthorization
@@ -265,7 +265,7 @@ async def test_login_on_a_server_removed_mid_flow_resolves_rather_than_orphans(p
     assert PENDING["never-added"].status == "failed"
 
 
-def test_unknown_catalogue_id_lists_alternatives(psok_home):
+def test_unknown_catalogue_id_lists_alternatives(amethyst_home):
     with pytest.raises(ValueError, match="playwright"):
         mcp_commands.add_from_catalogue("not-a-real-server")
 
@@ -276,17 +276,17 @@ def test_github_needs_a_hand_registered_client():
     assert REDIRECT_URI in mcp_commands.REGISTRATION_HELP["github"]
 
 
-def test_setting_an_oauth_client_keeps_the_secret_out_of_config(psok_home):
+def test_setting_an_oauth_client_keeps_the_secret_out_of_config(amethyst_home):
     mcp_commands.add_from_catalogue("github")
     mcp_commands.set_oauth_client("github", "Iv1.abc", "super-secret")
 
-    text = (psok_home / "config" / "mcp.yaml").read_text()
+    text = (amethyst_home / "config" / "mcp.yaml").read_text()
     assert "super-secret" not in text
     assert "Iv1.abc" in text
 
     from backend.secrets import get_secret
 
-    assert get_secret("psok-mcp/github.client_secret") == "super-secret"
+    assert get_secret("amethyst-mcp/github.client_secret") == "super-secret"
 
 
 # --------------------------------------------------------------------- ssrf
@@ -330,8 +330,8 @@ class _FakeConnection:
         self.connected = True
 
 
-def test_a_tools_risk_comes_from_what_the_server_says_about_it(psok_home):
-    """Every MCP tool was `MEDIUM` until 2026-08-29, on the reasoning that PSOK
+def test_a_tools_risk_comes_from_what_the_server_says_about_it(amethyst_home):
+    """Every MCP tool was `MEDIUM` until 2026-08-29, on the reasoning that AMETHYST
     cannot inspect somebody else's server. It can: MCP carries `readOnlyHint`
     and `destructiveHint` on every tool, and discovery was discarding the field.
 
@@ -367,7 +367,7 @@ def test_a_tools_risk_comes_from_what_the_server_says_about_it(psok_home):
     assert risk("write_note") is RiskLevel.MEDIUM, "undeclared and unrecognised stays as it was"
 
 
-def test_a_server_that_annotates_nothing_is_read_by_its_verbs(psok_home):
+def test_a_server_that_annotates_nothing_is_read_by_its_verbs(amethyst_home):
     """Most servers annotate nothing at all -- of the four this machine runs,
     the useful hints came from names. `search_gmail_messages` reading silently
     while `send_gmail_message` still asks is the whole point of the change.
@@ -383,7 +383,7 @@ def test_a_server_that_annotates_nothing_is_read_by_its_verbs(psok_home):
     assert classify("blocklist_add") is RiskLevel.MEDIUM, "a prefix, not a substring"
 
 
-def test_a_name_may_raise_a_servers_claim_but_never_lower_it(psok_home):
+def test_a_name_may_raise_a_servers_claim_but_never_lower_it(amethyst_home):
     """A server calling `delete_everything` read-only is wrong or lying, and
     neither is a reason to run it silently. The reverse does not apply: a server
     that declares destructive keeps that rating whatever the tool is called.
@@ -401,7 +401,7 @@ def test_a_name_may_raise_a_servers_claim_but_never_lower_it(psok_home):
     )
 
 
-def test_unregister_removes_only_that_servers_tools(psok_home):
+def test_unregister_removes_only_that_servers_tools(amethyst_home):
     registry = ToolRegistry(ConfirmationService(auto_approve))
     manager = MCPManager(registry)
     manager._register_tools(
@@ -460,7 +460,7 @@ def test_empty_result_still_says_something():
 # --------------------------------------------------------------------- oauth
 
 
-async def test_tokens_round_trip_through_the_keychain(psok_home):
+async def test_tokens_round_trip_through_the_keychain(amethyst_home):
     from mcp.shared.auth import OAuthToken
 
     storage = KeychainTokenStorage("test-server")
@@ -529,18 +529,18 @@ async def test_oauth_http_client_asks_for_json_so_github_does_not_form_encode():
         await plain.aclose()
 
 
-async def test_preregistered_client_is_seeded_so_registration_is_skipped(psok_home):
+async def test_preregistered_client_is_seeded_so_registration_is_skipped(amethyst_home):
     from backend.mcp.oauth import seed_preregistered_client
     from backend.secrets import set_secret
 
-    set_secret("psok-mcp/gh.client_secret", "shh")
+    set_secret("amethyst-mcp/gh.client_secret", "shh")
     config = ServerConfig(
         name="gh",
         transport=Transport.STREAMABLE_HTTP,
         url="https://api.githubcopilot.com/mcp/",
         oauth=True,
         oauth_client_id="Iv1.abc",
-        oauth_client_secret_ref="psok-mcp/gh.client_secret",
+        oauth_client_secret_ref="amethyst-mcp/gh.client_secret",
     )
     await seed_preregistered_client(config)
 
@@ -552,7 +552,7 @@ async def test_preregistered_client_is_seeded_so_registration_is_skipped(psok_ho
 # ------------------------------------------------------------- error surface
 
 
-def test_registration_404_becomes_actionable_guidance(psok_home):
+def test_registration_404_becomes_actionable_guidance(amethyst_home):
     from backend.mcp.client import MCPConnection, OAuthRegistrationUnsupported
 
     connection = MCPConnection(
@@ -560,10 +560,10 @@ def test_registration_404_becomes_actionable_guidance(psok_home):
     )
     classified = connection._classify("OAuthRegistrationError: Registration failed: 404 not found")
     assert isinstance(classified, OAuthRegistrationUnsupported)
-    assert "psok mcp auth github" in str(classified)
+    assert "amethyst mcp auth github" in str(classified)
 
 
-def test_nested_exception_groups_are_unwrapped_to_the_real_cause(psok_home):
+def test_nested_exception_groups_are_unwrapped_to_the_real_cause(amethyst_home):
     from backend.mcp.client import MCPConnection
 
     connection = MCPConnection(ServerConfig(name="x", transport=Transport.STDIO, command="true"))
@@ -573,7 +573,7 @@ def test_nested_exception_groups_are_unwrapped_to_the_real_cause(psok_home):
     assert "unhandled errors" not in described
 
 
-async def test_circuit_breaker_opens_then_recovers(psok_home):
+async def test_circuit_breaker_opens_then_recovers(amethyst_home):
     from backend.mcp.client import CircuitBreaker
 
     breaker = CircuitBreaker(max_failures=2, cooldown_seconds=0.05)
@@ -591,15 +591,15 @@ async def test_circuit_breaker_opens_then_recovers(psok_home):
 # ------------------------------------------------------ env-held credentials
 
 
-def test_an_env_secret_lives_in_the_keychain_not_the_config(psok_home):
+def test_an_env_secret_lives_in_the_keychain_not_the_config(amethyst_home):
     """A stdio server that takes its credentials through the environment -- the
     Google one, for instance -- had nowhere to put them but mcp.yaml. Every
-    other credential in PSOK is a keychain reference; these are too now."""
+    other credential in AMETHYST is a keychain reference; these are too now."""
     from backend.mcp.commands import add_custom, set_env
     from backend.mcp.config import config_path, load_servers
     from backend.secrets import delete_secret
 
-    ref = "psok-mcp/google.env.GOOGLE_OAUTH_CLIENT_SECRET"
+    ref = "amethyst-mcp/google.env.GOOGLE_OAUTH_CLIENT_SECRET"
     try:
         add_custom("google", "stdio", command="uvx", args=["workspace-mcp"])
         set_env("google", "GOOGLE_OAUTH_CLIENT_SECRET", GOOGLE_SECRET, secret=True)
@@ -617,7 +617,7 @@ def test_an_env_secret_lives_in_the_keychain_not_the_config(psok_home):
         delete_secret(ref)  # the keychain outlives the tmp_path home
 
 
-def test_a_missing_env_secret_is_reported_not_passed_as_a_reference(psok_home, monkeypatch):
+def test_a_missing_env_secret_is_reported_not_passed_as_a_reference(amethyst_home, monkeypatch):
     """Passing the literal string 'keychain:...' as a credential would make the
     server fail with something unrecognisable."""
     from backend.mcp.commands import add_custom
@@ -626,33 +626,33 @@ def test_a_missing_env_secret_is_reported_not_passed_as_a_reference(psok_home, m
     monkeypatch.setattr("backend.secrets.get_secret", lambda ref: None)
     add_custom("google", "stdio", command="uvx")
     config = load_servers()["google"]
-    config.env["TOKEN"] = "keychain:psok-mcp/google.env.TOKEN"
+    config.env["TOKEN"] = "keychain:amethyst-mcp/google.env.TOKEN"
     add_server(config)
 
     assert "TOKEN" not in load_servers()["google"].resolved_env()
 
 
-def test_env_still_interpolates_from_the_environment(psok_home, monkeypatch):
+def test_env_still_interpolates_from_the_environment(amethyst_home, monkeypatch):
     from backend.mcp.commands import add_custom, set_env
     from backend.mcp.config import load_servers
 
-    monkeypatch.setenv("PSOK_TEST_REGION", "eu-west-1")
+    monkeypatch.setenv("AMETHYST_TEST_REGION", "eu-west-1")
     add_custom("thing", "stdio", command="run")
-    set_env("thing", "REGION", "${PSOK_TEST_REGION}")
+    set_env("thing", "REGION", "${AMETHYST_TEST_REGION}")
 
     assert load_servers()["thing"].resolved_env()["REGION"] == "eu-west-1"
 
 
 # ------------------------------------------------------- who runs the sign-in
 
-# PSOK's OAuth provider is built for remote transports only (client.py's
+# AMETHYST's OAuth provider is built for remote transports only (client.py's
 # `_transport`). A stdio server therefore runs its own flow in its own process,
 # and every one of these tests covers a way the old code forgot that: it stored
 # a Google client where nothing read it, reported a connector signed in that had
 # never seen an account, and offered no way to change account at all.
 
 
-def test_a_stdio_servers_client_goes_to_the_env_its_process_reads(psok_home):
+def test_a_stdio_servers_client_goes_to_the_env_its_process_reads(amethyst_home):
     mcp_commands.add_from_catalogue("google-gmail")
 
     mcp_commands.set_oauth_client(
@@ -669,7 +669,7 @@ def test_a_stdio_servers_client_goes_to_the_env_its_process_reads(psok_home):
     assert config.oauth_client_id is None
 
 
-def test_an_email_is_refused_as_a_client_id(psok_home):
+def test_an_email_is_refused_as_a_client_id(amethyst_home):
     mcp_commands.add_from_catalogue("google-gmail")
     mcp_commands.set_oauth_client("google-gmail", GOOGLE_CLIENT_ID)
 
@@ -681,14 +681,14 @@ def test_an_email_is_refused_as_a_client_id(psok_home):
     assert config.env["GOOGLE_OAUTH_CLIENT_ID"] == GOOGLE_CLIENT_ID
 
 
-def test_a_connector_is_not_signed_in_just_because_it_has_credentials(psok_home, monkeypatch):
+def test_a_connector_is_not_signed_in_just_because_it_has_credentials(amethyst_home, monkeypatch):
     """Configuring a client is not signing in, and connecting is not either."""
     mcp_commands.add_from_catalogue("google-gmail")
     mcp_commands.set_oauth_client(
         "google-gmail", GOOGLE_CLIENT_ID, GOOGLE_SECRET
     )
 
-    credentials = psok_home / "google-credentials"
+    credentials = amethyst_home / "google-credentials"
     monkeypatch.setattr(
         cat.get("google-gmail"), "credentials_path", str(credentials), raising=False
     )
@@ -702,7 +702,7 @@ def test_a_connector_is_not_signed_in_just_because_it_has_credentials(psok_home,
     assert mcp_commands.account("google-gmail") == "someone@gmail.com"
 
 
-def test_missing_credentials_are_named_rather_than_reported_as_needing_sign_in(psok_home):
+def test_missing_credentials_are_named_rather_than_reported_as_needing_sign_in(amethyst_home):
     mcp_commands.add_from_catalogue("google-gmail")
     config = load_servers()["google-gmail"]
     assert mcp_commands.missing_credentials(config) == [
@@ -711,11 +711,11 @@ def test_missing_credentials_are_named_rather_than_reported_as_needing_sign_in(p
     ]
 
 
-def test_signing_out_forgets_the_account_the_server_itself_holds(psok_home, monkeypatch):
+def test_signing_out_forgets_the_account_the_server_itself_holds(amethyst_home, monkeypatch):
     """Switching a connector off left its account in place, so reconnecting
     silently reused it and no account could ever be changed."""
     mcp_commands.add_from_catalogue("google-gmail")
-    credentials = psok_home / "google-credentials"
+    credentials = amethyst_home / "google-credentials"
     credentials.mkdir()
     (credentials / "someone@gmail.com.json").write_text("{}")
     monkeypatch.setattr(
@@ -735,7 +735,7 @@ def test_signing_out_forgets_the_account_the_server_itself_holds(psok_home, monk
     assert mcp_commands.is_signed_in(load_servers()["google-gmail"]) is False
 
 
-def test_signing_out_of_an_oauth_server_drops_its_token(psok_home):
+def test_signing_out_of_an_oauth_server_drops_its_token(amethyst_home):
     from backend.mcp.oauth import has_tokens, token_ref
     from backend.secrets import set_secret
 
@@ -747,7 +747,7 @@ def test_signing_out_of_an_oauth_server_drops_its_token(psok_home):
     assert has_tokens("github") is False
 
 
-def test_google_sign_in_always_asks_which_account(psok_home):
+def test_google_sign_in_always_asks_which_account(amethyst_home):
     """Without this the browser's existing session is reused with no chooser,
     and Google issues no refresh token, so the connection dies within the hour."""
     asked = mcp_commands.always_ask_which_account(
@@ -762,7 +762,7 @@ def test_google_sign_in_always_asks_which_account(psok_home):
 
     # The pre-selected account goes. The server requires an address before it
     # will build a URL at all, and passes it as a login_hint -- but that address
-    # is one PSOK invented to satisfy the argument, so leaving it in would
+    # is one AMETHYST invented to satisfy the argument, so leaving it in would
     # pre-select an account the user never chose.
     hinted = (
         "https://accounts.google.com/o/oauth2/auth?client_id=abc"
@@ -775,7 +775,7 @@ def test_google_sign_in_always_asks_which_account(psok_home):
 
 
 @pytest.mark.asyncio
-async def test_login_does_not_claim_a_sign_in_that_never_happened(psok_home):
+async def test_login_does_not_claim_a_sign_in_that_never_happened(amethyst_home):
     """`login` used to report "authorized" for anything that connected, which is
     how a Google connector with no account attached reported itself signed in."""
     mcp_commands.add_from_catalogue("memory")
@@ -783,12 +783,12 @@ async def test_login_does_not_claim_a_sign_in_that_never_happened(psok_home):
     assert "needs no account" in await mcp_commands.login("memory")
 
 
-def test_an_abandoned_sign_in_is_not_mistaken_for_an_account(psok_home, monkeypatch):
+def test_an_abandoned_sign_in_is_not_mistaken_for_an_account(amethyst_home, monkeypatch):
     """A server keeps flow bookkeeping beside its accounts. Counting the
     bookkeeping reported a connector signed in "as oauth_states" when nobody
     had finished signing in."""
     mcp_commands.add_from_catalogue("google-gmail")
-    credentials = psok_home / "google-credentials"
+    credentials = amethyst_home / "google-credentials"
     credentials.mkdir()
     (credentials / "oauth_states.json").write_text("{}")
     monkeypatch.setattr(
@@ -814,7 +814,7 @@ def test_an_abandoned_sign_in_is_not_mistaken_for_an_account(psok_home, monkeypa
     assert mcp_commands.is_signed_in(load_servers()["google-gmail"]) is False
 
 
-def test_google_apps_are_separate_connectors_sharing_one_account(psok_home):
+def test_google_apps_are_separate_connectors_sharing_one_account(amethyst_home):
     """One server covering nine services behind a single row meant wanting Gmail
     switched on Drive, Chat and Forms too. They are separate connectors now --
     but one Google account, so signing into any is signing into all."""
@@ -836,10 +836,10 @@ def test_google_apps_are_separate_connectors_sharing_one_account(psok_home):
     assert mcp_commands.shares_account_with("github") == []
 
 
-def test_one_google_sign_in_covers_every_google_app(psok_home, monkeypatch):
+def test_one_google_sign_in_covers_every_google_app(amethyst_home, monkeypatch):
     mcp_commands.add_from_catalogue("google-gmail")
     mcp_commands.add_from_catalogue("google-drive")
-    credentials = psok_home / "google-credentials"
+    credentials = amethyst_home / "google-credentials"
     credentials.mkdir()
     for app in ("google-gmail", "google-drive"):
         monkeypatch.setattr(cat.get(app), "credentials_path", str(credentials), raising=False)
@@ -856,7 +856,7 @@ def test_one_google_sign_in_covers_every_google_app(psok_home, monkeypatch):
     assert mcp_commands.account("google-drive") == "someone@gmail.com"
 
 
-def test_one_google_client_covers_every_google_app(psok_home):
+def test_one_google_client_covers_every_google_app(amethyst_home):
     """The client authorizes the account, and the account is shared -- so asking
     for it once per connector would be asking nine times for the same value and
     leaving eight broken until you obliged."""
@@ -894,13 +894,13 @@ def test_vercel_registers_itself_unlike_github():
 
 
 def test_a_store_that_does_not_name_accounts_says_signed_in_without_inventing_one(
-    psok_home, monkeypatch
+    amethyst_home, monkeypatch
 ):
     """LinkedIn keeps a browser profile, not a file per address. It can say that
     someone is signed in; it cannot say who, and guessing from the filename
     would be the same invention this module exists to prevent."""
     mcp_commands.add_from_catalogue("linkedin")
-    profile = psok_home / "linkedin-profile"
+    profile = amethyst_home / "linkedin-profile"
     monkeypatch.setattr(cat.get("linkedin"), "credentials_path", str(profile), raising=False)
 
     config = load_servers()["linkedin"]
@@ -914,9 +914,9 @@ def test_a_store_that_does_not_name_accounts_says_signed_in_without_inventing_on
     assert mcp_commands.account("linkedin") is None
 
 
-def test_signing_out_removes_a_nested_profile_not_just_its_top_level(psok_home, monkeypatch):
+def test_signing_out_removes_a_nested_profile_not_just_its_top_level(amethyst_home, monkeypatch):
     mcp_commands.add_from_catalogue("linkedin")
-    profile = psok_home / "linkedin-profile"
+    profile = amethyst_home / "linkedin-profile"
     (profile / "Default" / "Storage").mkdir(parents=True)
     (profile / "Default" / "Storage" / "leveldb").write_bytes(b"x")
     (profile / "Cookies").write_bytes(b"session")
@@ -929,12 +929,12 @@ def test_signing_out_removes_a_nested_profile_not_just_its_top_level(psok_home, 
     assert mcp_commands.is_signed_in(load_servers()["linkedin"]) is False
 
 
-def test_a_single_file_credential_store_is_its_own_account(psok_home, monkeypatch):
+def test_a_single_file_credential_store_is_its_own_account(amethyst_home, monkeypatch):
     """Microsoft To Do keeps one token cache, not a directory of accounts.
     Reading it as a directory found nothing and reported a signed-in connector
     as signed out forever."""
     mcp_commands.add_from_catalogue("microsoft-todo")
-    cache = psok_home / "token-cache.json"
+    cache = amethyst_home / "token-cache.json"
     monkeypatch.setattr(cat.get("microsoft-todo"), "credentials_path", str(cache), raising=False)
 
     assert mcp_commands.is_signed_in(load_servers()["microsoft-todo"]) is False
@@ -943,7 +943,7 @@ def test_a_single_file_credential_store_is_its_own_account(psok_home, monkeypatc
     assert mcp_commands.account("microsoft-todo") is None
 
 
-def test_microsoft_todo_needs_nothing_registered(psok_home):
+def test_microsoft_todo_needs_nothing_registered(amethyst_home):
     """It signs in with Microsoft's own public client, so there is no client id
     to ask for -- only a sign-in."""
     mcp_commands.add_from_catalogue("microsoft-todo")
@@ -952,12 +952,12 @@ def test_microsoft_todo_needs_nothing_registered(psok_home):
     assert cat.get("microsoft-todo").auth_tool == "sign_in"
 
 
-def test_credentials_reach_the_json_file_a_server_actually_reads(psok_home, monkeypatch):
+def test_credentials_reach_the_json_file_a_server_actually_reads(amethyst_home, monkeypatch):
     """Spotify reads no environment at all -- verified against its own
     getConfigFilePath. Routing its client into env vars would have stored it
     where nothing looks, the same failure as Google's."""
     mcp_commands.add_from_catalogue("spotify")
-    config_file = psok_home / "spotify" / "config.json"
+    config_file = amethyst_home / "spotify" / "config.json"
     monkeypatch.setattr(cat.get("spotify"), "credentials_file", str(config_file), raising=False)
     monkeypatch.setattr(cat.get("spotify"), "credentials_path", str(config_file), raising=False)
 
@@ -972,17 +972,17 @@ def test_credentials_reach_the_json_file_a_server_actually_reads(psok_home, monk
     # The keychain stays the source of truth (ADR-0012).
     from backend.secrets import get_secret
 
-    assert get_secret("psok-mcp/spotify.client_secret") == "s3cret"
+    assert get_secret("amethyst-mcp/spotify.client_secret") == "s3cret"
     assert config_file.stat().st_mode & 0o777 == 0o600
     assert mcp_commands.missing_credentials(load_servers()["spotify"]) == []
 
 
-def test_storing_a_client_is_not_signing_in(psok_home, monkeypatch):
+def test_storing_a_client_is_not_signing_in(amethyst_home, monkeypatch):
     """Spotify's client id and its access token share one file, so the file
     existing cannot mean signed in -- that is exactly the claim that made a
     Google connector with no account report itself connected."""
     mcp_commands.add_from_catalogue("spotify")
-    config_file = psok_home / "spotify" / "config.json"
+    config_file = amethyst_home / "spotify" / "config.json"
     for field in ("credentials_file", "credentials_path"):
         monkeypatch.setattr(cat.get("spotify"), field, str(config_file), raising=False)
 
@@ -993,7 +993,7 @@ def test_storing_a_client_is_not_signing_in(psok_home, monkeypatch):
     assert mcp_commands.is_signed_in(load_servers()["spotify"]) is True
 
 
-def test_a_sign_in_tool_is_only_sent_the_arguments_it_declares(psok_home):
+def test_a_sign_in_tool_is_only_sent_the_arguments_it_declares(amethyst_home):
     """These were hardcoded to Google's shape. Microsoft To Do's sign_in takes
     none, and handing it `user_google_email` would send a Google address to
     Microsoft."""

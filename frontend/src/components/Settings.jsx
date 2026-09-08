@@ -207,8 +207,8 @@ function DailyRhythm() {
     <>
       <h3>Daily rhythm</h3>
       <p className="set-note">
-        When the morning briefing and the evening check-in are filed. Both run while PSOK is
-        open, on this machine&rsquo;s own clock. A day PSOK was never open for is simply not filed —
+        When the morning briefing and the evening check-in are filed. Both run while AMETHYST is
+        open, on this machine&rsquo;s own clock. A day AMETHYST was never open for is simply not filed —
         you can write one at any time from Today.
       </p>
       <div className="set-rows">
@@ -347,7 +347,7 @@ function IterationLimit() {
 
 /* Add a provider, and store its key.
  *
- * This panel used to say "configured in ~/.psok/config/providers.yaml", which
+ * This panel used to say "configured in ~/.amethyst/config/providers.yaml", which
  * is a strange thing for an interface to say about a file whose every field it
  * knows: the base URL, the model id and the page the key comes from are all in
  * the catalogue. So the form writes the entry rather than describing it.
@@ -440,7 +440,7 @@ function AddProviderForm({ preset, onDone, onCancel }) {
             type="password"
             value={key}
             autoComplete="off"
-            placeholder={preset ? `stored as psok/${preset.slug}` : 'stored in the OS keychain'}
+            placeholder={preset ? `stored as amethyst/${preset.slug}` : 'stored in the OS keychain'}
             onChange={(e) => setKey(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !busy) save() }}
           />
@@ -956,7 +956,7 @@ function Data() {
         />
         <DangerRow
           label="Memories"
-          note="Every fact PSOK has remembered about you. It stops recalling them."
+          note="Every fact AMETHYST has remembered about you. It stops recalling them."
           count={facts}
           confirmLabel="Forget all"
           onConfirm={async () => {

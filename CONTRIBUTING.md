@@ -1,6 +1,6 @@
-# Contributing to PSOK
+# Contributing to AMETHYST
 
-PSOK is a single-user, local-first agent system. Everything below is either a
+AMETHYST is a single-user, local-first agent system. Everything below is either a
 setup step or a rule with a trap behind it — the traps are the reason the rules
 exist, and each is enforced by a test or a build step rather than by memory.
 
@@ -15,7 +15,7 @@ exist, and each is enforced by a test or a build step rather than by memory.
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt   # or: uv pip install -e '.[dev]' (the -e matters; see "The -e rule")
-psok init
+amethyst init
 
 cd frontend && npm install
 ```
@@ -42,12 +42,12 @@ Frontend:
 ```bash
 cd frontend
 npm run lint && npm run build
-npm run smoke          # against a running `psok serve` with a configured model
+npm run smoke          # against a running `amethyst serve` with a configured model
 ```
 
 ## The one-worker rule
 
-`psok serve` runs one uvicorn process. Do not swap it for gunicorn or
+`amethyst serve` runs one uvicorn process. Do not swap it for gunicorn or
 `--workers N`: the app's lifespan starts **five in-process runners** —
 automations, reminders, the journal, Instagram capture, the bookmark watcher
 (`backend/api/main.py`, `_lifespan`) — plus the MCP manager holding live
@@ -58,7 +58,7 @@ a machine that answers twice and writes twice.
 ## The secrets rule
 
 Nothing personal in the repository, nothing personal in an image layer. The
-`PSOK_DEFAULT_*` mechanism in `backend/mcp/catalogue.py` carries **names of
+`AMETHYST_DEFAULT_*` mechanism in `backend/mcp/catalogue.py` carries **names of
 environment variables, never values** — a real client id pasted into the
 catalogue would pass every review because it looks exactly like a placeholder.
 
@@ -68,17 +68,17 @@ catalogue would pass every review because it looks exactly like a placeholder.
 pytest tests/test_docker_context.py
 ```
 
-- every `default_client_id_env` must match `^PSOK_DEFAULT_[A-Z0-9_]+$`, with
+- every `default_client_id_env` must match `^AMETHYST_DEFAULT_[A-Z0-9_]+$`, with
   `api_key_ref` unset (a metered key is per-user; a shared one spends the
   owner's quota and "search is broken" is what running out looks like);
-- every `psok.db*`, `secrets.json`, `providers.yaml`, `mcp.yaml`,
+- every `amethyst.db*`, `secrets.json`, `providers.yaml`, `mcp.yaml`,
   `token-cache.json`, `credentials/`, `*.pem` in the tree must be git-ignored;
 - the required `.dockerignore` patterns are present.
 
 And the release gate for the image:
 
 ```bash
-docker run --rm --entrypoint sh psok:local -c 'ls -A /data/psok /home/psok'
+docker run --rm --entrypoint sh amethyst:local -c 'ls -A /data/amethyst /home/amethyst'
 ```
 
 must print **nothing**. Those directories are created by the entrypoint at
@@ -117,7 +117,7 @@ that signed in.
 - `AuthKind.SETUP` — the server runs its own flow once it has credentials;
   say which keys it reads (`client_id_env` etc.) or which file
   (`credentials_file` + `credentials_file_keys`).
-- `AuthKind.OAUTH` — PSOK drives OAuth 2.1 + PKCE; needs
+- `AuthKind.OAUTH` — AMETHYST drives OAuth 2.1 + PKCE; needs
   `oauth_scopes`, and `identity_url` is what makes "signed in" verifiable
   rather than assumed.
 

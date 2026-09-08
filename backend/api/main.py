@@ -52,7 +52,7 @@ from backend.tools.registry import build_default_registry
 
 # The frontend is served from Vite's dev server on another port, so every
 # browser request is cross-origin. Override for a different port or a built
-# bundle with PSOK_CORS_ORIGINS as a comma-separated list. No wildcard: PSOK
+# bundle with AMETHYST_CORS_ORIGINS as a comma-separated list. No wildcard: AMETHYST
 # binds to localhost for one user, and a wildcard would let any page that user
 # visits drive their machine through this API.
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -61,7 +61,7 @@ log = logging.getLogger(__name__)
 
 
 def _cors_origins() -> list[str]:
-    configured = os.environ.get("PSOK_CORS_ORIGINS", "").strip()
+    configured = os.environ.get("AMETHYST_CORS_ORIGINS", "").strip()
     if not configured:
         return DEV_ORIGINS
     return [origin.strip() for origin in configured.split(",") if origin.strip()]
@@ -187,7 +187,7 @@ async def _manager_with(name: str):
     Between "start nothing" and "start everything" there is the thing the caller
     actually needs. Syncing tasks used to take the first branch and answer 409
     until some unrelated turn had happened to reconcile -- so a freshly started
-    PSOK showed an empty Tasks page and "not running", with no way to fix it
+    AMETHYST showed an empty Tasks page and "not running", with no way to fix it
     from that page. Taking the second branch instead would spawn a dozen
     subprocesses, and on this machine five of them contend for one port.
 
@@ -227,7 +227,7 @@ async def _task_sync_manager():
     """What the background sync asks for: the To Do connector, started if need be.
 
     The loop used to take whatever had already reconciled, which on a freshly
-    started PSOK is nothing -- so the fifteen-minute sync did nothing at all
+    started AMETHYST is nothing -- so the fifteen-minute sync did nothing at all
     until some unrelated turn happened to start connectors, and the Tasks page
     sat empty in the meantime.
     """
@@ -271,7 +271,7 @@ async def _lifespan(_: FastAPI):
         log.info("auto-setup: %s", note)
     # Automations run while this process is up, and only while it is up. A
     # separate daemon would keep them running with nothing able to answer a
-    # permission prompt, which is a worse promise than "they run while PSOK is
+    # permission prompt, which is a worse promise than "they run while AMETHYST is
     # open" -- a rule that fits in a sentence and is true.
     _runner.start()
     # Reminders take the same rule, for the same reason. Deliberately a second
@@ -291,7 +291,7 @@ async def _lifespan(_: FastAPI):
 
     # Switched-on connectors start at boot rather than on the first turn.
     # The manager used to be built lazily by the first chat request, so on a
-    # fresh `psok serve` every connector sat dark -- "starting", "not
+    # fresh `amethyst serve` every connector sat dark -- "starting", "not
     # running" -- until somebody opened a conversation or pressed Connect,
     # and the Connectors page showed nothing working for the whole first
     # session. Starting here means the page tells the truth from the first
@@ -323,7 +323,7 @@ async def _lifespan(_: FastAPI):
     await close_clients()
 
 
-app = FastAPI(title="PSOK", version="0.1.0", lifespan=_lifespan)
+app = FastAPI(title="AMETHYST", version="0.1.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
@@ -414,7 +414,7 @@ async def _await_confirmation(request: ConfirmationRequest) -> bool:
     """Suspend the loop until the interface answers, or time out generously.
 
     The long timeout is deliberate: a scheduled or unattended run should still be
-    approvable when the user next opens PSOK.
+    approvable when the user next opens AMETHYST.
     """
     # The request carries its own id, already announced to the interface as a
     # confirmation_required event. Minting a second one here would leave the UI
@@ -614,7 +614,7 @@ async def health() -> dict[str, Any]:
     connector_errors = dict(_mcp["errors"])
     # Only providers that could answer. An entry with no key parses fine and
     # then fails on the first round trip, and a model picker offering one turns
-    # a missing credential into "PSOK is broken".
+    # a missing credential into "AMETHYST is broken".
     providers = configured_providers()
     # Having a key is not the same as being able to answer. A local endpoint
     # declares no key at all, so `has_key` calls it configured by definition and
@@ -680,7 +680,7 @@ async def health() -> dict[str, Any]:
 
 # --- providers ---------------------------------------------------------------
 #
-# The Settings panel used to say "configured in ~/.psok/config/providers.yaml",
+# The Settings panel used to say "configured in ~/.amethyst/config/providers.yaml",
 # which is a strange thing for an interface to say about a file whose every
 # field it knows. These three routes are what let it write that file instead of
 # describing it.
@@ -776,9 +776,10 @@ def add_provider_route(body: AddProvider) -> dict[str, Any]:
     if not entry.get("base_url") and not preset:
         # Without one the OpenAI-compatible adapter silently posts to OpenAI,
         # which fails as an authentication error and reads as a bad key.
-        raise HTTPException(400, f"'{name}' needs a base URL: PSOK has no preset for it")
+        raise HTTPException(400, f"'{name}' needs a base URL: AMETHYST has no preset for it")
 
-    api_key_ref = entry.get("api_key_ref") or (None if preset and preset.local else f"psok/{name}")
+    default_ref = None if (preset and preset.local) else f"amethyst/{name}"
+    api_key_ref = entry.get("api_key_ref") or default_ref
     if body.api_key is not None:
         value = body.api_key
         if not value.strip():
@@ -1012,7 +1013,7 @@ def remove_provider_route(name: str) -> dict[str, Any]:
 
     Removing a provider from a list and destroying the credential behind it are
     different decisions, and only one of them is reversible from this screen.
-    `psok secrets delete` is the other one.
+    `amethyst secrets delete` is the other one.
     """
     from backend.config import remove_provider
 
@@ -1809,7 +1810,7 @@ def mcp_set_env(name: str, body: ServerEnv) -> dict[str, Any]:
     except mcp.CredentialLocked as exc:
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
-        # A credential PSOK can already tell is wrong is a bad request, not a
+        # A credential AMETHYST can already tell is wrong is a bad request, not a
         # missing server -- and the message says what to do about it, which is
         # the whole point of checking before the provider does.
         raise HTTPException(400, str(exc)) from exc
@@ -1934,7 +1935,7 @@ async def mcp_cancel_login(name: str) -> dict[str, Any]:
     """Abandon a sign-in in progress.
 
     A sign-in holds real resources while it waits -- the fixed callback port for
-    PSOK's own flow, and a whole subprocess for a server that runs its own --
+    AMETHYST's own flow, and a whole subprocess for a server that runs its own --
     and a user who has closed the browser tab has no other way to say so. They
     expire on their own, but "wait five minutes" is not an answer to "I did not
     mean to start this".
@@ -2031,7 +2032,7 @@ async def mcp_pending_authorizations() -> list[dict[str, Any]]:
             "server": name,
             # Only offered while the link can still be used. A dead one is worse
             # than none: it fails at the provider with a message about a state
-            # parameter, which reads as PSOK being broken.
+            # parameter, which reads as AMETHYST being broken.
             "authorization_url": p.authorization_url if p.live else None,
             "status": p.status,
             "message": p.message,
@@ -2498,8 +2499,8 @@ def list_tools() -> list[dict[str, Any]]:
 # ------------------------------------------------------------- attachments
 #
 # A browser cannot hand the agent a file path -- it has no idea where the file
-# is on disk, and PSOK's tools work on paths. So a file dropped into the
-# composer is written into the PSOK home first, and the message carries the
+# is on disk, and AMETHYST's tools work on paths. So a file dropped into the
+# composer is written into the AMETHYST home first, and the message carries the
 # path it landed at, which the ordinary file tools then read.
 
 
@@ -2841,7 +2842,7 @@ async def mail_account() -> dict[str, Any]:
         "can_send": account.can_send,
         "can_modify": account.can_modify,
         # Every account the connector holds. More than one means it picks in
-        # single-user mode and PSOK cannot say which -- worth showing.
+        # single-user mode and AMETHYST cannot say which -- worth showing.
         "others": [a.address for a in found[1:]],
     }
 
@@ -2916,7 +2917,7 @@ def list_calendar(days: int = 14) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- memory
 #
-# The standing facts PSOK holds about the user, and the switch that governs
+# The standing facts AMETHYST holds about the user, and the switch that governs
 # them. Memory has its own table rather than a capability_state row (the CHECK
 # constraint there predates it), so it needs its own routes rather than riding
 # /api/capabilities.
@@ -3018,7 +3019,7 @@ def forget_all_memories() -> dict[str, Any]:
     """Retire every remembered fact at once.
 
     Superseded rather than deleted, like the single-fact path: the row stays so
-    that what PSOK believed, and when it stopped, remains answerable. Nothing
+    that what AMETHYST believed, and when it stopped, remains answerable. Nothing
     recalls a superseded fact, so from the model's side this is forgetting.
     """
     from backend.memory import MemoryStore
@@ -3028,7 +3029,7 @@ def forget_all_memories() -> dict[str, Any]:
 
 @app.delete("/api/memory/{memory_id}")
 def forget_memory(memory_id: int) -> dict[str, Any]:
-    """Retire a fact. It stops being recalled but the row survives, so what PSOK
+    """Retire a fact. It stops being recalled but the row survives, so what AMETHYST
     believed and when it stopped believing it stays answerable."""
     from backend.memory import MemoryStore
 
@@ -3081,7 +3082,7 @@ def put_brand(body: BrandBody) -> dict[str, Any]:
 # --------------------------------------------------------------- library
 #
 # What the user has read, watched and listened to. The text of a captured page
-# is a real file under ~/.psok/library indexed by the ordinary document
+# is a real file under ~/.amethyst/library indexed by the ordinary document
 # indexer, so `search_documents` finds it too -- these routes are the record
 # and the capture path, not a second search stack.
 
@@ -3242,12 +3243,29 @@ def library_thumbnail(item_id: int) -> FileResponse:
         raise HTTPException(404, "the thumbnail is missing from disk")
     return FileResponse(path, media_type="image/jpeg")
 
+@app.get("/api/library/{item_id}/media")
+def library_media(item_id: int) -> FileResponse:
+    """Stream raw media content."""
+    import mimetypes
+    with get_connection() as conn:
+        row = LibraryStore(conn).get(item_id)
+    
+    if row is None or not row["media_path"]:
+        raise HTTPException(404, "there is no media for that item")
+        
+    path = Path(row["media_path"])
+    if not path.is_file():
+        raise HTTPException(404, "the media is missing from disk")
+        
+    mime_type, _ = mimetypes.guess_type(str(path))
+    return FileResponse(path, media_type=mime_type or "application/octet-stream")
+
 
 @app.post("/api/library/{item_id}/reindex")
 async def reindex_library_item(item_id: int) -> dict[str, Any]:
     """Index an item's text again, first forgetting a refused embedder.
 
-    This is how someone who started Ollama after PSOK gets semantic search
+    This is how someone who started Ollama after AMETHYST gets semantic search
     without restarting: the unreachable-endpoint cache is per process, and this
     is the one thing that clears it.
     """
@@ -3270,7 +3288,7 @@ async def consolidate_library_tags() -> dict[str, Any]:
 
 # ----------------------------------------------------------------- share
 #
-# One capture-only endpoint so a phone can send PSOK a link. See backend/share.py
+# One capture-only endpoint so a phone can send AMETHYST a link. See backend/share.py
 # for why it is shaped the way it is, and docs/deployment.md for what has to be
 # true before this is reachable from anywhere but this machine.
 
@@ -3426,7 +3444,7 @@ async def instagram_webhook(request: Request) -> dict[str, Any]:
     try:
         body = WebhookBody.model_validate_json(raw)
     except ValidationError:
-        # 200 on purpose. A body Meta signed and PSOK cannot read is not
+        # 200 on purpose. A body Meta signed and AMETHYST cannot read is not
         # something retrying fixes, and a 4xx makes Meta retry it for hours.
         log.warning("instagram webhook: a signed body did not parse")
         return {"status": "unreadable"}

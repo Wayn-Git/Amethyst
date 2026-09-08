@@ -17,7 +17,7 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('[psok] render failed', error, info)
+    console.error('[amethyst] render failed', error, info)
   }
 
   render() {

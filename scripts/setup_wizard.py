@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: E402
-"""PSOK Interactive Setup Wizard.
+"""AMETHYST Interactive Setup Wizard.
 
 Guides users and collaborators through configuring:
 1. AI Models & Providers (Ollama, Anthropic, OpenAI, Groq, etc.)
@@ -8,7 +8,7 @@ Guides users and collaborators through configuring:
 3. Cloudflare Workers AI & Embeddings
 4. Cloudflare Relay & Instagram Capture (for 24/7 Library ingest)
 5. Library & Social Bookmarks (X, browser bookmarks)
-6. System Diagnostics (PSOK Doctor)
+6. System Diagnostics (AMETHYST Doctor)
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ def print_header(title: str) -> None:
 # ----------------------------------------------------------------------
 def setup_models() -> None:
     print_header("1. AI Model Providers Configuration")
-    print("PSOK supports 100% free local models (Ollama) and cloud APIs.\n")
+    print("AMETHYST supports 100% free local models (Ollama) and cloud APIs.\n")
     print("Select an option:")
     print("  1) Configure Ollama (100% Free & Local - No API keys needed)")
     print("  2) Set Anthropic Claude API Key")
@@ -97,57 +97,57 @@ def setup_models() -> None:
         print("\n[Ollama Local Setup]")
         print("1. Install Ollama from https://ollama.ai")
         print("2. Run in a terminal: ollama run llama3.2 (or qwen2.5)")
-        print("3. PSOK connects automatically to http://127.0.0.1:11434.")
+        print("3. AMETHYST connects automatically to http://127.0.0.1:11434.")
         input("Press Enter to continue...")
 
     elif choice == "2":
-        current = env.get("ANTHROPIC_API_KEY", "") or (get_secret("psok/anthropic") or "")
+        current = env.get("ANTHROPIC_API_KEY", "") or (get_secret("amethyst/anthropic") or "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent Anthropic Key: {display}")
         key = prompt_input("Enter Anthropic API Key (sk-ant-...) [leave blank to keep]")
         if key:
             write_env_key("ANTHROPIC_API_KEY", key)
-            set_secret("psok/anthropic", key)
+            set_secret("amethyst/anthropic", key)
             print("✓ Saved Anthropic API Key.")
 
     elif choice == "3":
-        current = env.get("OPENAI_API_KEY", "") or (get_secret("psok/openai") or "")
+        current = env.get("OPENAI_API_KEY", "") or (get_secret("amethyst/openai") or "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent OpenAI Key: {display}")
         key = prompt_input("Enter OpenAI API Key (sk-...) [leave blank to keep]")
         if key:
             write_env_key("OPENAI_API_KEY", key)
-            set_secret("psok/openai", key)
+            set_secret("amethyst/openai", key)
             print("✓ Saved OpenAI API Key.")
 
     elif choice == "4":
-        current = env.get("GROQ_API_KEY", "") or (get_secret("psok/groq") or "")
+        current = env.get("GROQ_API_KEY", "") or (get_secret("amethyst/groq") or "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent Groq Key: {display}")
         key = prompt_input("Enter Groq API Key (gsk_...) [leave blank to keep]")
         if key:
             write_env_key("GROQ_API_KEY", key)
-            set_secret("psok/groq", key)
+            set_secret("amethyst/groq", key)
             print("✓ Saved Groq API Key.")
 
     elif choice == "5":
-        current = env.get("GEMINI_API_KEY", "") or (get_secret("psok/google") or "")
+        current = env.get("GEMINI_API_KEY", "") or (get_secret("amethyst/google") or "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent Gemini Key: {display}")
         key = prompt_input("Enter Google Gemini API Key (AIzaSy...) [leave blank to keep]")
         if key:
             write_env_key("GEMINI_API_KEY", key)
-            set_secret("psok/google", key)
+            set_secret("amethyst/google", key)
             print("✓ Saved Google Gemini API Key.")
 
     elif choice == "6":
-        current = env.get("OPENROUTER_API_KEY", "") or (get_secret("psok/openrouter") or "")
+        current = env.get("OPENROUTER_API_KEY", "") or (get_secret("amethyst/openrouter") or "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent OpenRouter Key: {display}")
         key = prompt_input("Enter OpenRouter API Key (sk-or-...) [leave blank to keep]")
         if key:
             write_env_key("OPENROUTER_API_KEY", key)
-            set_secret("psok/openrouter", key)
+            set_secret("amethyst/openrouter", key)
             print("✓ Saved OpenRouter API Key.")
 
 
@@ -177,7 +177,7 @@ def setup_connectors() -> None:
                 mcp_cmds.add_from_catalogue("microsoft-todo")
                 print("✓ Microsoft To Do connector added!")
                 print("To complete sign-in, open the web app (Connectors tab) or run:")
-                print("  psok mcp login microsoft-todo")
+                print("  amethyst mcp login microsoft-todo")
             except Exception as e:
                 print(f"Note: {e}")
 
@@ -192,15 +192,15 @@ def setup_connectors() -> None:
         client_id = prompt_input("Enter Google Client ID (or leave blank to skip)")
         if client_id:
             client_secret = prompt_input("Enter Google Client Secret")
-            write_env_key("PSOK_DEFAULT_GOOGLE_CLIENT_ID", client_id)
-            write_env_key("PSOK_DEFAULT_GOOGLE_CLIENT_SECRET", client_secret)
-            set_secret("psok/google-client-id", client_id)
-            set_secret("psok/google-client-secret", client_secret)
+            write_env_key("AMETHYST_DEFAULT_GOOGLE_CLIENT_ID", client_id)
+            write_env_key("AMETHYST_DEFAULT_GOOGLE_CLIENT_SECRET", client_secret)
+            set_secret("amethyst/google-client-id", client_id)
+            set_secret("amethyst/google-client-secret", client_secret)
             try:
                 mcp_cmds.add_from_catalogue("google-workspace")
                 print("✓ Google Workspace connector added with your OAuth credentials!")
-                print("To sign in to your Google account, open the Connectors tab in PSOK or run:")
-                print("  psok mcp login google-workspace")
+                print("To sign in to Google, open the Connectors tab in AMETHYST or run:")
+                print("  amethyst mcp login google-workspace")
             except Exception as e:
                 print(f"Note: {e}")
 
@@ -210,7 +210,7 @@ def setup_connectors() -> None:
         print("   (Scopes needed: repo, read:user)")
         token = prompt_input("Enter GitHub Personal Access Token (or leave blank to skip)")
         if token:
-            set_secret("psok/github-token", token)
+            set_secret("amethyst/github-token", token)
             try:
                 mcp_cmds.add_from_catalogue("github")
                 mcp_cmds.set_env("github", "GITHUB_PERSONAL_ACCESS_TOKEN", token)
@@ -225,8 +225,8 @@ def setup_connectors() -> None:
         client_id = prompt_input("Enter Spotify Client ID (or leave blank to skip)")
         if client_id:
             client_secret = prompt_input("Enter Spotify Client Secret")
-            write_env_key("PSOK_DEFAULT_SPOTIFY_CLIENT_ID", client_id)
-            write_env_key("PSOK_DEFAULT_SPOTIFY_CLIENT_SECRET", client_secret)
+            write_env_key("AMETHYST_DEFAULT_SPOTIFY_CLIENT_ID", client_id)
+            write_env_key("AMETHYST_DEFAULT_SPOTIFY_CLIENT_SECRET", client_secret)
             try:
                 mcp_cmds.add_from_catalogue("spotify")
                 print("✓ Spotify connector configured!")
@@ -238,7 +238,7 @@ def setup_connectors() -> None:
         print("1. Tavily: https://tavily.com (Fast AI web search)")
         tavily = prompt_input("Enter Tavily API Key (or leave blank to skip)")
         if tavily:
-            set_secret("psok/tavily", tavily)
+            set_secret("amethyst/tavily", tavily)
             try:
                 mcp_cmds.add_from_catalogue("tavily")
                 print("✓ Tavily search connector added!")
@@ -261,7 +261,7 @@ def setup_cloudflare() -> None:
     account_id = prompt_input("Enter Cloudflare Account ID (or leave blank to skip)")
     if account_id:
         token = prompt_input("Enter Cloudflare API Token")
-        set_secret("psok/cloudflare", token)
+        set_secret("amethyst/cloudflare", token)
         write_env_key("CLOUDFLARE_ACCOUNT_ID", account_id)
         write_env_key("CLOUDFLARE_API_KEY", token)
         print("✓ Stored Cloudflare credentials.")
@@ -289,15 +289,15 @@ def setup_relay() -> None:
     print("Deployment instructions:")
     print("  cd relay")
     print("  npm install")
-    print("  npx wrangler d1 create psok-relay      # copy database_id into wrangler.jsonc")
+    print("  npx wrangler d1 create amethyst-relay      # copy database_id into wrangler.jsonc")
     print("  npm run schema                         # apply D1 tables")
     print("  npx wrangler secret put APP_SECRET     # Meta app secret")
     print("  npx wrangler secret put VERIFY_TOKEN   # your chosen webhook verify string")
     print("  npx wrangler secret put RELAY_TOKEN    # secret token (e.g. openssl rand -hex 32)")
-    print("  npm run deploy                         # outputs https://psok-relay.<you>.workers.dev\n")
+    print("  npm run deploy                         # outputs https://amethyst-relay.<you>.workers.dev\n")
 
     relay_url = prompt_input(
-        "Enter deployed Relay URL (e.g. https://psok-relay.user.workers.dev) [blank to skip]"
+        "Enter deployed Relay URL (e.g. https://amethyst-relay.user.workers.dev) [blank to skip]"
     )
     if relay_url:
         token = prompt_input("Enter RELAY_TOKEN")
@@ -312,7 +312,7 @@ def setup_relay() -> None:
         )
         try:
             cmd_instagram(args)
-            print("✓ PSOK connected to Cloudflare Relay!")
+            print("✓ AMETHYST connected to Cloudflare Relay!")
         except Exception as e:
             print(f"Note: {e}")
 
@@ -346,7 +346,7 @@ def setup_library() -> None:
 # 6. Diagnostics
 # ----------------------------------------------------------------------
 def run_diagnostics() -> None:
-    print_header("6. Running PSOK Doctor Diagnostics")
+    print_header("6. Running AMETHYST Doctor Diagnostics")
     from backend.cli import cmd_doctor
 
     cmd_doctor(argparse.Namespace())
@@ -355,14 +355,14 @@ def run_diagnostics() -> None:
 
 def main() -> None:
     while True:
-        print_header("PSOK Setup & Configuration Assistant")
+        print_header("AMETHYST Setup & Configuration Assistant")
         print("Configure any feature easily for yourself or your friends:\n")
         print("  1) AI Models & API Keys (Ollama local, Anthropic, OpenAI, Groq)")
         print("  2) App Connectors & OAuth (Google Workspace, Microsoft, GitHub, Spotify)")
         print("  3) Cloudflare Workers AI & Embeddings")
         print("  4) Cloudflare Relay & Instagram Capture (24/7 Library Ingest)")
         print("  5) Library & Bookmarks Overview")
-        print("  6) Run System Diagnostics (PSOK Doctor)")
+        print("  6) Run System Diagnostics (AMETHYST Doctor)")
         print("  0) Exit")
 
         choice = prompt_input("\nEnter selection (0-6)", "6")
@@ -379,7 +379,7 @@ def main() -> None:
         elif choice == "6":
             run_diagnostics()
         elif choice == "0":
-            print("\nExiting Setup Assistant. Run './run.sh' to launch PSOK!")
+            print("\nExiting Setup Assistant. Run './run.sh' to launch AMETHYST!")
             break
         else:
             print("Invalid selection.")

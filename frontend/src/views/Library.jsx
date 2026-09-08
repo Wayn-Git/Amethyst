@@ -16,7 +16,7 @@ import LibraryDetailModal from './library/LibraryDetailModal.jsx'
 import AddContentModal from './library/AddContentModal.jsx'
 import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
 import { getDomain } from './library/LibraryCard.jsx'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 
 export default function Library() {
   const rootRef = useRef(null)
@@ -40,14 +40,14 @@ export default function Library() {
   const [order, setOrder] = useState('desc')
   const [layout, setLayout] = useState(() => {
     try {
-      return localStorage.getItem('pkos_lib_layout') || 'grid'
+      return localStorage.getItem('amethyst_lib_layout') || 'grid'
     } catch {
       return 'grid'
     }
   })
   const [railOpen, setRailOpen] = useState(() => {
     try {
-      return localStorage.getItem('pkos_lib_rail') !== 'false'
+      return localStorage.getItem('amethyst_lib_rail') !== 'false'
     } catch {
       return true
     }
@@ -76,7 +76,7 @@ export default function Library() {
   const handleLayoutChange = (nextLayout) => {
     setLayout(nextLayout)
     try {
-      localStorage.setItem('pkos_lib_layout', nextLayout)
+      localStorage.setItem('amethyst_lib_layout', nextLayout)
     } catch {
       /* ignore storage errors */
     }
@@ -87,7 +87,7 @@ export default function Library() {
     setRailOpen((prev) => {
       const next = !prev
       try {
-        localStorage.setItem('pkos_lib_rail', String(next))
+        localStorage.setItem('amethyst_lib_rail', String(next))
       } catch {
         /* ignore storage errors */
       }
@@ -443,21 +443,30 @@ export default function Library() {
         <div className={`lib-container ${railOpen ? 'lib-container--with-rail' : ''}`}>
           <AnimatePresence>
             {railOpen && (
-              <LibraryTagRail
-                total={total}
-                counts={counts}
-                categoryCounts={categoryCounts}
-                tagCounts={tagCounts}
-                selectedKind={selectedKind}
-                selectedCategory={selectedCategory}
-                selectedTag={selectedTag}
-                onSelectKind={setSelectedKind}
-                onSelectCategory={setSelectedCategory}
-                onSelectTag={setSelectedTag}
-                onClearFilters={handleClearFilters}
-                isOpen={railOpen}
-                onClose={() => setRailOpen(false)}
-              />
+              <motion.div
+                key="tag-rail-wrapper"
+                initial={{ width: 0, opacity: 0, marginRight: 0 }}
+                animate={{ width: 240, opacity: 1, marginRight: 20 }}
+                exit={{ width: 0, opacity: 0, marginRight: 0 }}
+                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                style={{ overflow: 'hidden', flexShrink: 0 }}
+              >
+                <LibraryTagRail
+                  total={total}
+                  counts={counts}
+                  categoryCounts={categoryCounts}
+                  tagCounts={tagCounts}
+                  selectedKind={selectedKind}
+                  selectedCategory={selectedCategory}
+                  selectedTag={selectedTag}
+                  onSelectKind={setSelectedKind}
+                  onSelectCategory={setSelectedCategory}
+                  onSelectTag={setSelectedTag}
+                  onClearFilters={handleClearFilters}
+                  isOpen={railOpen}
+                  onClose={() => setRailOpen(false)}
+                />
+              </motion.div>
             )}
           </AnimatePresence>
 

@@ -3,10 +3,10 @@
    Every bug worth having a test for here was invisible to unit tests: a
    confirmation prompt that never appeared, a stream that rendered the answer
    twice, a shortcut two components both claimed. So this drives a browser
-   against `psok serve` and a configured model, and asserts what a person would
+   against `amethyst serve` and a configured model, and asserts what a person would
    see.
 
-     psok serve                      # in another terminal
+     amethyst serve                      # in another terminal
      npm run smoke                   # BASE=http://127.0.0.1:8000 by default
 
    It sends real messages to whichever provider the machine has configured, so
@@ -52,7 +52,7 @@ if (!exe) {
 
 const health = await fetch(`${BASE}/api/health`).catch(() => null)
 if (!health?.ok) {
-  console.error(`No API at ${BASE}. Start one with:  psok serve`)
+  console.error(`No API at ${BASE}. Start one with:  amethyst serve`)
   process.exit(2)
 }
 
@@ -241,7 +241,7 @@ try {
   await page.waitForSelector('.cap-composer', { timeout: 4000 })
   await page.locator('#skill-name').fill(authored)
   await page.locator('#skill-desc').fill('A skill the smoke test wrote: it proves the three fields work')
-  await page.locator('#skill-body').fill('Say the word psok-authored-ok and stop.')
+  await page.locator('#skill-body').fill('Say the word amethyst-authored-ok and stop.')
   await page.locator('.cap-composer-foot button', { hasText: 'Create' }).click()
   const authoredCard = page.locator('.dcard', { hasText: authored }).first()
   let wrote = 0
@@ -291,11 +291,11 @@ try {
   await page.waitForTimeout(200)
 
   // A file dropped into the composer becomes a path the tools can read.
-  const scratch = join(tmpdir(), `psok-smoke-${Date.now()}.txt`)
+  const scratch = join(tmpdir(), `amethyst-smoke-${Date.now()}.txt`)
   writeFileSync(scratch, 'the smoke test wrote this')
   await page.locator('input[type=file]').first().setInputFiles(scratch)
   await page.waitForSelector('.file-chip', { timeout: 8000 })
-  check('an attached file is uploaded and shown', (await page.locator('.file-chip').innerText()).includes('psok-smoke'))
+  check('an attached file is uploaded and shown', (await page.locator('.file-chip').innerText()).includes('amethyst-smoke'))
   await page.locator('.file-chip button').click()
   await page.waitForTimeout(150)
   check('an attachment can be taken off again', (await page.locator('.file-chip').count()) === 0)
@@ -441,7 +441,7 @@ try {
     await page.keyboard.press('Control+Shift+O')
     await page.waitForTimeout(300)
     await page.locator('.composer textarea').fill(
-      'Run this shell command and show me the output: echo psok-smoke-ok',
+      'Run this shell command and show me the output: echo amethyst-smoke-ok',
     )
     await page.keyboard.press('Enter')
     await started()
@@ -475,7 +475,7 @@ try {
     await page.locator('.tool-card-head').first().click()
     await page.waitForTimeout(200)
     check('its result is visible when expanded',
-      (await page.locator('.tool-card').first().innerText()).includes('psok-smoke-ok'))
+      (await page.locator('.tool-card').first().innerText()).includes('amethyst-smoke-ok'))
 
     await page.keyboard.press('Control+7')
     await page.waitForTimeout(1200)
@@ -508,13 +508,13 @@ try {
   // Chat stays mounted behind every view, so `.view` alone matches two.
   const autoText = await page.locator('.view:not(.view--flush)').innerText()
   check('the page says what it does and does not do',
-    /while PSOK is open/i.test(autoText) && /blocked/i.test(autoText))
+    /while AMETHYST is open/i.test(autoText) && /blocked/i.test(autoText))
 
   const autoName = `smoke ${Date.now().toString(36)}`
   await page.locator('.cap-head .btn').click()
   await page.waitForSelector('#auto-name', { timeout: 4000 })
   await page.locator('#auto-name').fill(autoName)
-  await page.locator('#auto-prompt').fill('Say the word psok-automation-ok and stop.')
+  await page.locator('#auto-prompt').fill('Say the word amethyst-automation-ok and stop.')
   await page.locator('.cap-composer-foot button', { hasText: 'Create' }).click()
   const madeRow = page.locator('.auto-row', { hasText: autoName })
   let madeAuto = 0
@@ -548,7 +548,7 @@ try {
   // most recent conversations, so on a machine that has more than fifty,
   // deleting one pulls the fifty-first into view and the count never moves.
   const doomedId = await page.evaluate(
-    () => JSON.parse(localStorage.getItem('psok.ui.v1') || '{}').activeId,
+    () => JSON.parse(localStorage.getItem('amethyst.ui.v1') || '{}').activeId,
   )
   if (!doomedId) throw new Error('no conversation is open to delete')
   const doomed = page.locator('.wb-conv.active').first()
@@ -569,7 +569,7 @@ try {
   // than pointed at a row the API will now refuse.
   check('the interface lands somewhere valid afterwards',
     (await page.evaluate(
-      () => JSON.parse(localStorage.getItem('psok.ui.v1') || '{}').activeId,
+      () => JSON.parse(localStorage.getItem('amethyst.ui.v1') || '{}').activeId,
     )) !== doomedId && consoleErrors.length === 0)
 
 

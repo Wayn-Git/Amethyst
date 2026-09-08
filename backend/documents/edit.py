@@ -134,12 +134,12 @@ def missing_writer(suffix: str) -> str | None:
         # .pdf is written by way of a .docx, so it needs the same library.
         return (
             "writing .docx needs python-docx, which is not installed here. It covers Word"
-            " documents; install it with 'pip install \"psok[documents]\"' and try again."
+            " documents; install it with 'pip install \"amethyst[documents]\"' and try again."
         )
     if ext == ".xlsx" and not _importable("openpyxl"):
         return (
             "writing .xlsx needs openpyxl, which is not installed here. It covers Excel"
-            " workbooks; install it with 'pip install \"psok[documents]\"' and try again."
+            " workbooks; install it with 'pip install \"amethyst[documents]\"' and try again."
         )
     if ext == ".pptx" and not _importable("pptx"):
         # Unlike reading, there is no honest fallback: a .pptx is a zip of XML
@@ -147,7 +147,7 @@ def missing_writer(suffix: str) -> str | None:
         # writing one produces a file PowerPoint refuses to open.
         return (
             "writing .pptx needs python-pptx, which is not installed here. It covers"
-            " PowerPoint decks; install it with 'pip install \"psok[documents]\"' and try"
+            " PowerPoint decks; install it with 'pip install \"amethyst[documents]\"' and try"
             " again. Reading a deck works without it."
         )
     if ext not in WRITABLE:
@@ -166,7 +166,7 @@ def _save_atomically(save, path: Path) -> None:
     window is seconds rather than microseconds because saving a document
     re-serialises the whole thing.
     """
-    temporary = path.with_name(f".{path.name}.psok-tmp")
+    temporary = path.with_name(f".{path.name}.amethyst-tmp")
     try:
         save(str(temporary))
         os.replace(temporary, path)

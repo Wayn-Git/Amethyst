@@ -12,7 +12,7 @@ are one piece of work: a repeating task is a task with a schedule, and the
 schedule is only useful if it can reach the calendar.
 
 **Half of it is already readable.** Microsoft Graph exposes `recurrence` on a
-`todoTask` and PSOK has never requested it, so the To Do side needs a field
+`todoTask` and AMETHYST has never requested it, so the To Do side needs a field
 added to the pull rather than a design. The local side does need one: a schema
 slot on `tasks`, and a rule for what happens to a missed occurrence — does it
 pile up, roll forward, or vanish? That decision is the actual work, and the
@@ -45,7 +45,7 @@ groq, cerebras, llm7                                 serve no embeddings
 
 Cloudflare Workers AI is the pick: a key was already configured and the free
 tier covers a personal vault. Note it is a **cloud** embedder, so ADR-0013's
-local-first default stands and this is opt-in -- `psok embeddings detect --set`.
+local-first default stands and this is opt-in -- `amethyst embeddings detect --set`.
 
 Verified end to end: 4 files including a 11-page PDF, 61 chunks embedded, and
 "why is the browser history not indexed" returns the right section of this file.
@@ -53,7 +53,7 @@ Verified end to end: 4 files including a 11-page PDF, 61 chunks embedded, and
 ## Browser tabs, history and bookmarks
 
 **Bookmarks and history -- taken, 2026-09-05.** `backend/browser/` reads the
-profile; `psok bookmarks` and `/api/browser` drive it; `BrowserRunner` watches
+profile; `amethyst bookmarks` and `/api/browser` drive it; `BrowserRunner` watches
 for new bookmarks every five minutes and captures each into the library once,
 keyed on the bookmark's guid so a rename or a move is not a second capture.
 History is deliberately **not** indexed -- see below -- and is reached by the
@@ -76,7 +76,7 @@ Reading it is cheap and entirely local:
 
 - History and bookmarks are `places.sqlite` — ordinary SQLite, the same shape
   Firefox has used for years. It must be **copied before reading**: the browser
-  holds a lock, and PSOK already copies a live database this way for the
+  holds a lock, and AMETHYST already copies a live database this way for the
   connector checks.
 - Open tabs live in `sessionstore-backups/recovery.jsonlz4` — JSON behind
   Mozilla's `mozlz4` framing, which is lz4 with a magic header.
@@ -89,12 +89,12 @@ mattered, so that is the half worth capturing, fetching and summarising.
 
 **Controlling those tabs is the hard half.** Zen is Firefox, so there is no
 CDP; closing a tab or moving one between folders needs Firefox's remote agent
-or a WebExtension talking to PSOK. Reading first is the honest order: a page
+or a WebExtension talking to AMETHYST. Reading first is the honest order: a page
 that can list and search everything you have looked at is most of the value,
 and it needs no protocol at all.
 
 **Browserbase is not the answer.** Its repository is archived and marked "no
-longer maintained", the browser runs in their cloud, and it is paid. PSOK
+longer maintained", the browser runs in their cloud, and it is paid. AMETHYST
 already drives a local browser two ways — Playwright (24 tools) and
 chrome-devtools (29) — and those two cost 2,977 tokens of schema on every round
 trip between them. The want here is *your* browser and its real history, which
@@ -104,10 +104,10 @@ neither a cloud browser nor a fresh automated one has.
 
 Wanted as "free knowledge access, like Grok". **Built 2026-09-05** as
 `backend/web/social.py` plus `read_social` / `search_social`, and the shape is
-the point: PSOK **routes to readers that already hold a session** -- `rdt-cli`
+the point: AMETHYST **routes to readers that already hold a session** -- `rdt-cli`
 for Reddit, `twitter-cli` for X -- rather than writing a client. Writing one
 means owning an arms race against an anti-bot team and losing it quietly some
-Tuesday. Each site is on an allowlist the user sets (`psok social allow reddit`)
+Tuesday. Each site is on an allowlist the user sets (`amethyst social allow reddit`)
 because those readers act as the signed-in user, and credentials go into the
 subprocess environment, never argv, because `/proc` is world-readable.
 
@@ -122,7 +122,7 @@ guides.
 
 Pages that are a JavaScript bundle now fall back to `r.jina.ai`
 (`backend/web/jina.py`), only after the ordinary fetch has already returned
-nothing, and switchable with `psok social renderer off` because the URL leaves
+nothing, and switchable with `amethyst social renderer off` because the URL leaves
 the machine. Measured: excalidraw.com goes from 0 characters to a real page with
 a title. obscura -- a Rust headless browser with a real V8, ~70MB, Apache 2.0 --
 is the local end state and is an install; this is what works with neither.
@@ -135,7 +135,7 @@ The measurement that shaped all of it, and does not need re-deriving:
 page while `slug/.json` is answered with JSON. But Reddit's edge blocks the
 calling IP after roughly a dozen requests and then returns 403 to every user
 agent, including a real browser's. It is not a User-Agent check: an honest
-`linux:psok:v0.1 (personal use)`, a plain name, curl and Firefox were all
+`linux:amethyst:v0.1 (personal use)`, a plain name, curl and Firefox were all
 refused once the IP was blocked. `api.reddit.com/comments/<id>` is a second
 front door and is blocked with it.
 
@@ -150,7 +150,7 @@ no body text, until `rdt-cli` is installed and signed in -- at which point
 
 ## Instagram reels into a knowledge base, and on to cinejoy
 
-The most valuable-sounding one and the one with a blocker that is not PSOK's.
+The most valuable-sounding one and the one with a blocker that is not AMETHYST's.
 
 Reading DMs — which is what "send a reel to my account" means — needs an
 Instagram **Professional** account, a Meta app, and permission review before
@@ -158,7 +158,7 @@ the messaging endpoints answer at all. That is a process with a queue in it,
 not an afternoon.
 
 **Scope the half that is not blocked first.** "A link goes in, a tagged note
-comes out, and a film goes to cinejoy" is a pipeline PSOK can already almost
+comes out, and a film goes to cinejoy" is a pipeline AMETHYST can already almost
 build: fetch the page, extract what it is, classify it, write it to the vault,
 and post the subset that are films. Prove that with links pasted into a
 conversation, and the Meta side becomes a different way to feed a thing that
@@ -180,7 +180,7 @@ bridge changes the trade entirely.
 Read at `/home/wayne/Documents/GitHub/khoj`.
 
 **Its ingestion -- taken, 2026-09-05.** `src/khoj/processor/content/` handles
-org-mode, PDF, DOCX, Notion and GitHub. PSOK's vault used to read markdown and
+org-mode, PDF, DOCX, Notion and GitHub. AMETHYST's vault used to read markdown and
 plain text only, so everything in a PDF on this machine was invisible to
 retrieval -- the difference between "notes I wrote" and "a second brain".
 
@@ -194,7 +194,7 @@ empty index entry. Notion and GitHub are still open, and both are connector work
 rather than file-format work.
 
 **Its operator, no.** `processor/operator/` gives Khoj a computer by running a
-container with its own desktop: Docker, an Anthropic key, Claude-only. PSOK's
+container with its own desktop: Docker, an Anthropic key, Claude-only. AMETHYST's
 posture is local-first with Bubblewrap, it has no Anthropic key, and a second
 sandbox model beside the one that already works is a lot of machinery for a
 capability nobody has asked to use yet.
@@ -260,7 +260,7 @@ Three tools were nominated for scraping and browser control:
 [Obscura](https://github.com/h4ckf0r0day/obscura), and
 [Agent-Reach](https://github.com/Panniantong/Agent-Reach). The problem they
 address is real and unsolved: X, LinkedIn and Instagram all serve a login wall
-to an ordinary fetch. PSOK's current answer is a per-site reader
+to an ordinary fetch. AMETHYST's current answer is a per-site reader
 (`backend/web/social.py`) that shells out to a CLI holding the user's cookies,
 which works and is honest about acting as the signed-in user. A general scraper
 would be a different bet — broader reach, and no clear story about whose
@@ -285,7 +285,7 @@ server of one's own.
 ## The five projects this repository is an answer to
 
 From a video transcript kept in `features/transcribe.txt`. Recorded because it
-is the clearest statement of what PSOK set out to be, and four of the five are
+is the clearest statement of what AMETHYST set out to be, and four of the five are
 built: a life dashboard with a morning briefing (`Today`, `backend/journal/`), a
 second brain over your own files (`backend/retrieval/`), a daily and weekly
 review agent (`backend/journal/`), a brand kit (`backend/brand.py`), and a life

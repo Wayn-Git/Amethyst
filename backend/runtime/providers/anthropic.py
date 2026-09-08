@@ -3,7 +3,7 @@
 Anthropic's wire format differs enough from chat-completions to justify a real
 adapter: a top-level system parameter, content blocks rather than a string, and
 tool_use / tool_result blocks instead of a tool_calls array. Extended thinking is
-mapped from PSOK's generic thinking_budget and clamped so it cannot exceed
+mapped from AMETHYST's generic thinking_budget and clamped so it cannot exceed
 max_tokens -- a provider quirk absorbed here and invisible above (ADR-0001).
 """
 

@@ -136,7 +136,8 @@ class RelayClient:
         except httpx.HTTPError as exc:
             raise RelayError(f"the relay could not be reached: {exc}") from exc
         if response.status_code == 401:
-            raise RelayError("the relay refused this token. Re-run: psok instagram relay --token …")
+            raise RelayError("the relay refused this token. Re-run:"
+                             " amethyst instagram relay --token …")
         if response.status_code >= 400:
             raise RelayError(f"the relay returned HTTP {response.status_code}")
         try:

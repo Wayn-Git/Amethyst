@@ -1,13 +1,13 @@
 """Credential resolution. Secrets live in the OS keychain (ADR-0012).
 
 Nothing in this module ever writes a secret value to the database, a config file
-or a log line. Callers pass a reference ("psok/openai") and get a value back at
+or a log line. Callers pass a reference ("amethyst/openai") and get a value back at
 call time; the value is never cached on disk.
 
 **The one exception is deliberate, opt-in, and named.** A container has no OS
 keychain -- `keyring` raises `NoKeyringError` on the first write, which reached
 the browser as an unexplained 500 when someone added a key to a deployed
-instance. Setting `PSOK_SECRETS_FILE` to a path moves storage to that file,
+instance. Setting `AMETHYST_SECRETS_FILE` to a path moves storage to that file,
 owner-readable only. It is not encrypted and does not pretend to be: it is worth
 exactly what the filesystem under it is worth, which on a single-tenant instance
 with a private disk is the same thing the SQLite database is already worth.
@@ -25,7 +25,7 @@ import os
 import re
 from pathlib import Path
 
-SERVICE = "psok"
+SERVICE = "amethyst"
 
 # Redaction for the audit log. Any argument or result field whose *name* matches
 # looks credential-shaped, plus value patterns for tokens that leak by accident.
@@ -56,7 +56,7 @@ def _keyring():
 
 
 class _FileStore:
-    """`PSOK_SECRETS_FILE`, for a host with no keychain to offer.
+    """`AMETHYST_SECRETS_FILE`, for a host with no keychain to offer.
 
     Same three methods as `keyring`, so `_store()` can hand back either without
     the callers knowing which. Written 0600 and created 0600 -- not after the
@@ -99,7 +99,7 @@ class _FileStore:
 
 def _store():
     """Where secrets go. The OS keychain unless the environment says otherwise."""
-    configured = os.environ.get("PSOK_SECRETS_FILE", "").strip()
+    configured = os.environ.get("AMETHYST_SECRETS_FILE", "").strip()
     return _FileStore(Path(configured).expanduser()) if configured else _keyring()
 
 
@@ -107,14 +107,14 @@ def _store():
 #: is about installing a backend, which is the wrong advice on a container.
 _NO_STORE = (
     "this host has no OS keychain, so there is nowhere to put the key."
-    " Set PSOK_SECRETS_FILE to a path on a private disk (PSOK will keep keys"
+    " Set AMETHYST_SECRETS_FILE to a path on a private disk (AMETHYST will keep keys"
     " there, readable only by this user), or give the provider its key through"
     " the environment variable named in providers.yaml."
 )
 
 
 def get_secret(ref: str) -> str | None:
-    """Resolve a keychain reference like 'psok/openai' to its value."""
+    """Resolve a keychain reference like 'amethyst/openai' to its value."""
     service, _, username = ref.partition("/")
     if not username:
         service, username = SERVICE, ref

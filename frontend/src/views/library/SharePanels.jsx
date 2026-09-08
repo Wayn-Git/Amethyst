@@ -208,7 +208,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                   <span className="lib-integ-badge mono">Zero Config</span>
                 </div>
                 <p className="lib-integ-desc">
-                  Drag this button directly to your browser's bookmarks bar. Whenever you are on an article, paper, or video page, click it to immediately capture it into PKOS.
+                  Drag this button directly to your browser's bookmarks bar. Whenever you are on an article, paper, or video page, click it to immediately capture it into AMETHYST.
                 </p>
 
                 <div className="lib-bookmarklet-target-box">
@@ -218,7 +218,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                     onClick={(e) => e.preventDefault()}
                     title="Drag this button to your bookmarks bar"
                   >
-                    <Icon name="plus" size={14} /> Save to PKOS
+                    <Icon name="plus" size={14} /> Save to AMETHYST
                   </a>
                   <span className="lib-bookmarklet-hint mono">← Drag to Bookmarks Bar</span>
                 </div>
@@ -235,7 +235,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                 </div>
                 <div className="lib-integ-step">
                   <span className="lib-step-num mono">3</span>
-                  <span>Click <b>Save to PKOS</b> to capture and index in real-time</span>
+                  <span>Click <b>Save to AMETHYST</b> to capture and index in real-time</span>
                 </div>
               </div>
             </div>

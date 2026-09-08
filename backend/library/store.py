@@ -105,7 +105,7 @@ def text_path(item_id: int, title: str) -> Path:
 def media_dir() -> Path:
     """Thumbnails and video, kept apart from the text.
 
-    `~/.psok/library/` is a directory a person opens and reads; thirty megabytes
+    `~/.amethyst/library/` is a directory a person opens and reads; thirty megabytes
     of mp4 sitting between the markdown files is noise in the one place the
     filesystem-is-the-source-of-truth rule was supposed to pay off.
     """

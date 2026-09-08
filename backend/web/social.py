@@ -10,7 +10,7 @@ anti-bot, all variants), and the official API closed self-service registration
 in 2025-11."
 
 So the only thing that reads them is a logged-in session, and the tools that
-hold one already exist: `rdt-cli` for Reddit, `twitter-cli` for X. **PSOK routes
+hold one already exist: `rdt-cli` for Reddit, `twitter-cli` for X. **AMETHYST routes
 to them rather than reimplementing them.** Writing a Reddit client here would
 mean owning an arms race against an anti-bot team, and losing it quietly some
 Tuesday.
@@ -110,11 +110,14 @@ READERS: tuple[Reader, ...] = (
         package="twitter-cli",
         sign_in=(
             "store the two cookies from a signed-in browser with:"
-            " psok social credentials --x-auth-token ... --x-ct0 ..."
+            " amethyst social credentials --x-auth-token ... --x-ct0 ..."
         ),
         # twitter-cli reads only the environment -- its own guide says so
         # explicitly, and warns against relying on it to read a browser.
-        credentials=(("TWITTER_AUTH_TOKEN", "psok/x_auth_token"), ("TWITTER_CT0", "psok/x_ct0")),
+        credentials=(
+            ("TWITTER_AUTH_TOKEN", "amethyst/x_auth_token"),
+            ("TWITTER_CT0", "amethyst/x_ct0"),
+        ),
     ),
 )
 
@@ -211,7 +214,7 @@ async def _run(reader: Reader, argv: list[str], *, workspace: str) -> str:
     command = shlex.join(argv)
     wrapped, _backend = wrap_command(command, SandboxPolicy.load(), workspace)
 
-    environment = {**os.environ, "PSOK": "1", **_credentials(reader)}
+    environment = {**os.environ, "AMETHYST": "1", **_credentials(reader)}
     try:
         process = await asyncio.create_subprocess_exec(
             *wrapped,
@@ -310,5 +313,5 @@ def _require_allowed(reader: Reader, allowed: tuple[str, ...]) -> None:
         raise SocialError(
             f"{reader.source} is not on the allowed list. These readers act as the"
             " signed-in you, so each site is turned on deliberately:"
-            f" psok social allow {reader.source}"
+            f" amethyst social allow {reader.source}"
         )

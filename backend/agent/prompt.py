@@ -18,7 +18,7 @@ from backend.db.repositories import Message
 from backend.skills.loader import format_catalogue, scan
 
 BASE_PROMPT = """\
-You are PSOK, the user's personal operating system. You have direct access to \
+You are AMETHYST, the user's personal operating system. You have direct access to \
 their computer, their tasks and calendar, and their connected services, through \
 the tools listed for you.
 
@@ -259,7 +259,7 @@ def to_wire_message(m: Message) -> dict:
     return entry
 
 
-#: How PSOK names a connector's tool in the registry (`backend.tools.registry`).
+#: How AMETHYST names a connector's tool in the registry (`backend.tools.registry`).
 #: A name without it is a builtin.
 _MCP_MARKER = "__mcp__"
 
@@ -289,11 +289,11 @@ def cap_tools(
     Groq refuses a request carrying more than 128 tool schemas -- `400 'tools' :
     maximum number of items is 128` -- and this machine offers 178 across
     thirteen connectors, so every turn failed before a token moved with an error
-    naming a limit nothing in PSOK knew about.
+    naming a limit nothing in AMETHYST knew about.
 
     Two decisions worth stating:
 
-    * **Builtins are kept first.** They are the tools PSOK itself is built on --
+    * **Builtins are kept first.** They are the tools AMETHYST itself is built on --
       files, shell, tasks, calendar, retrieval -- and a turn that has lost
       `list_files` is broken in a way a turn missing one of forty-four GitHub
       tools is not.
@@ -341,9 +341,9 @@ def fit_tools_to_budget(
     Groq's free tier is 8,000 TPM, and this machine's 178 tool schemas are
     ~29,000 tokens -- so every turn used to be *skipped* on groq and shunted to
     a flakier provider. A small client like OpenCode "just works" on the same
-    tier because it sends a couple of tools; this makes PSOK send only as many
+    tier because it sends a couple of tools; this makes AMETHYST send only as many
     as fit, in the same priority order `cap_tools` uses -- builtins first (the
-    tools PSOK is built on), then a ready connector's tools, then the rest.
+    tools AMETHYST is built on), then a ready connector's tools, then the rest.
 
     The budget mirrors the caller's own estimate: `(system + tools) * margin <=
     ceiling`, so the tool allowance is `ceiling / margin - system`. Returns the

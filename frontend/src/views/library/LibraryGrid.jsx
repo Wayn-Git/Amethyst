@@ -17,18 +17,21 @@ export default function LibraryGrid({
 
   useEffect(() => {
     if (!containerRef.current) return
-    const cards = containerRef.current.querySelectorAll('.lib-card')
+    const cards = Array.from(containerRef.current.querySelectorAll('.lib-card:not([data-animated="true"])'))
     if (!cards.length) return
+
+    cards.forEach(c => c.setAttribute('data-animated', 'true'))
 
     gsap.fromTo(
       cards,
-      { autoAlpha: 0, y: 18 },
+      { autoAlpha: 0, scale: 0.94, y: 16 },
       {
         autoAlpha: 1,
+        scale: 1,
         y: 0,
-        duration: 0.4,
-        stagger: { each: 0.035, from: 'start' },
-        ease: 'power2.out',
+        duration: 0.5,
+        stagger: { each: 0.02, from: 'start' },
+        ease: 'back.out(1.2)',
         clearProps: 'transform,visibility,opacity',
       }
     )
@@ -46,10 +49,11 @@ export default function LibraryGrid({
           </header>
 
           <div className="lib-cards-grid">
-            {group.items.map((item) => (
+            {group.items.map((item, idx) => (
               <LibraryCard
                 key={item.id}
                 item={item}
+                index={idx}
                 busy={busyId === item.id}
                 onSelect={onSelect}
                 onReindex={() => onReindex(item)}

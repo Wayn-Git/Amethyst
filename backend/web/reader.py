@@ -37,7 +37,7 @@ from backend.mcp.ssrf import UnsafeURL, check_url_async
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = "Mozilla/5.0 (compatible; PSOK/0.1; +https://github.com/)"
+USER_AGENT = "Mozilla/5.0 (compatible; AMETHYST/0.1; +https://github.com/)"
 MAX_PAGE_BYTES = 2_000_000
 #: The text kept after reduction. Well above a long article, well below the
 #: point where chunking and embedding stop being interactive.
@@ -215,7 +215,7 @@ async def youtube_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] |
     """Title and channel for a YouTube URL, from YouTube's own public endpoint.
 
     No API key, and no transcript: YouTube does not offer one here, and a
-    transcript PSOK invented would be worse than none at all.
+    transcript AMETHYST invented would be worse than none at all.
     """
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:

@@ -49,7 +49,7 @@ class Embedder:
         It used to mean Ollama unconditionally, and on a machine without Ollama
         that made the whole index unreachable while a perfectly good embedding
         endpoint sat configured in providers.yaml. The explicit-argument path is
-        unchanged, so `psok index --provider x` still overrides everything.
+        unchanged, so `amethyst index --provider x` still overrides everything.
         """
         if provider is None:
             configured = load_embeddings()
@@ -132,7 +132,7 @@ class Embedder:
         if others:
             message += (
                 f"\n\nThis machine has {', '.join(others)} configured, which can embed"
-                " without Ollama. Point PSOK at one with: psok embeddings detect"
+                " without Ollama. Point AMETHYST at one with: amethyst embeddings detect"
             )
         return message
 
@@ -161,7 +161,7 @@ class Embedder:
 def configured_embedders() -> list[str]:
     """Providers that are configured here and might serve embeddings.
 
-    "Might": the only proof is a request, which `psok embeddings detect` makes.
+    "Might": the only proof is a request, which `amethyst embeddings detect` makes.
     This is for the sentence a failure prints, where naming a candidate is more
     use than naming none.
     """

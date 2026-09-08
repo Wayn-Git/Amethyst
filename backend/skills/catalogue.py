@@ -24,7 +24,7 @@ import httpx
 
 from backend.skills.loader import FRONTMATTER_RE, NAME_RE
 
-USER_AGENT = "PSOK/0.1 (+skills catalogue)"
+USER_AGENT = "AMETHYST/0.1 (+skills catalogue)"
 CACHE_TTL = 3600.0
 
 

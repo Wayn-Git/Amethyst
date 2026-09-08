@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 Contributors were expected to install uv, ffmpeg, poppler, Node, sqlite-vec
-and a browser's worth of MCP runtimes just to run PSOK, so nobody but the
+and a browser's worth of MCP runtimes just to run AMETHYST, so nobody but the
 owner ever did. Meanwhile the API already serves the built SPA from one
 origin (`backend/api/main.py`, `_mount_frontend`) when `frontend/dist`
 exists — there is no web tier to separate, and a compose file with two
@@ -30,7 +30,7 @@ Two traps shaped the image and are worth recording with it:
 
 One image: a Node stage builds the SPA, a Python stage carries the backend
 plus `uv`/`uvx`, Node/`npx`, ffmpeg, poppler, bubblewrap, curl and git. One
-process: the entrypoint runs `psok init` then `exec psok serve`, and compose
+process: the entrypoint runs `amethyst init` then `exec amethyst serve`, and compose
 sets `init: true` so orphaned `uvx`/`npx` children are reaped.
 
 - **One worker, forever.** The lifespan starts five in-process runners
@@ -39,13 +39,13 @@ sets `init: true` so orphaned `uvx`/`npx` children are reaped.
   all six against one SQLite file. `cmd_serve` runs `uvicorn.run()` with no
   `workers` argument, and neither the Dockerfile nor compose will grow a way
   to change that.
-- **Non-root (`uid 1000 psok`), no `privileged`, no `cap_add: SYS_ADMIN`.**
+- **Non-root (`uid 1000 amethyst`), no `privileged`, no `cap_add: SYS_ADMIN`.**
   Adding SYS_ADMIN to make bubblewrap work would grant the container the
   capability set needed to escape it, in order to constrain the LLM-driven
   shell tool inside it — strictly worse than no sandbox. In a container, the
   container *is* the boundary, and a tighter one than bwrap gives on a
   laptop; `backend/security/sandbox.py` already degrades to direct mode and
-  `psok doctor` states so.
+  `amethyst doctor` states so.
 - **Caches outside `$HOME`.** `$HOME` is a volume, and a volume mount shadows
   whatever the image baked there; the uv/npm/xdg caches live under `/opt`.
 - **`libnotify-bin` deliberately absent.** `notify-send` on PATH would be
@@ -55,12 +55,12 @@ sets `init: true` so orphaned `uvx`/`npx` children are reaped.
   degrades with a named message); the docs give the
   `docker compose exec` line instead.
 
-Loopback OAuth callbacks (PSOK's own `:33418`, workspace-mcp's `:8765`,
+Loopback OAuth callbacks (AMETHYST's own `:33418`, workspace-mcp's `:8765`,
 Spotify's `:8888`) are why the default compose file uses `network_mode:
-host` on Linux with `PSOK_BIND=127.0.0.1`: a bridge network forwards the
+host` on Linux with `AMETHYST_BIND=127.0.0.1`: a bridge network forwards the
 host's loopback to the container's interface, and a listener bound inside
-the container to `127.0.0.1` never sees it. PSOK's own listener's *bind*
-is overridable via `PSOK_OAUTH_CALLBACK_BIND` for bridge networking; the
+the container to `127.0.0.1` never sees it. AMETHYST's own listener's *bind*
+is overridable via `AMETHYST_OAUTH_CALLBACK_BIND` for bridge networking; the
 redirect URI itself never changes because it is registered with the provider.
 Google and Spotify run their own listeners and are host-networking-only,
 documented as such rather than half-solved with published ports that fail at
@@ -75,7 +75,7 @@ redirect with a message that reads like a Google console misconfiguration.
   LLM-driven shell tool the capabilities the sandbox exists to constrain.
 - **Auto-updating yt-dlp at start.** Rejected: every restart would depend on
   PyPI being up; the image documents
-  `docker compose exec psok uv pip install --system -U yt-dlp` instead.
+  `docker compose exec amethyst uv pip install --system -U yt-dlp` instead.
 
 ## Consequences
 

@@ -4,9 +4,9 @@ One service, three thin callers -- the HTTP routes, the agent tools, and the
 share endpoint -- following `backend/tasks/service.py`. The callers translate
 arguments in and phrase results out; the decisions live here.
 
-**The text is a real file.** PSOK stores an index that points at the filesystem
+**The text is a real file.** AMETHYST stores an index that points at the filesystem
 and treats the file as the source of truth (ADR-0004), so a captured article is
-written to `~/.psok/library/{id}-{slug}.md` and indexed by the ordinary
+written to `~/.amethyst/library/{id}-{slug}.md` and indexed by the ordinary
 `Indexer`. Nothing about search had to be taught the library exists: a saved
 article is found by `search_documents` exactly as a vault note is, ranked by the
 same hybrid index, and the user can open the file.
@@ -127,7 +127,7 @@ async def _rendered_if_empty(url: str, page):
     A single-page app returns markup with no words in it, and the honest note
     `fetch_readable` writes -- "the page returned no readable text" -- is what a
     library item full of nothing looks like. Only reached after the ordinary
-    fetch has already failed to produce text, so a page PSOK can read itself is
+    fetch has already failed to produce text, so a page AMETHYST can read itself is
     never sent to a third party. Off if the user switched it off.
     """
     if page is not None and page.text.strip():
@@ -225,14 +225,14 @@ class LibraryService:
 
         # An X link is a three-rung ladder, because the top rung needs setup a
         # fresh machine will not have and the bottom rung is nothing. X serves
-        # a JavaScript shell to PSOK's user agent and the third-party renderer
+        # a JavaScript shell to AMETHYST's user agent and the third-party renderer
         # fallback is usually blocked, so without this the row landed as a
         # bare URL: no text, no document, invisible to search.
         #
         # Rung 1 -- the reader in `backend/web/social.py`, which acts as the
         # signed-in user and reads the whole thread. It was wired to the
         # agent's social tool but never consulted here, which is the gap this
-        # fills. It needs `psok social allow x`, a `twitter` binary and two
+        # fills. It needs `amethyst social allow x`, a `twitter` binary and two
         # cookies in the keychain; every one of those is a deliberate opt-in,
         # so its absence reads as a note, never an exception.
         #
@@ -520,7 +520,7 @@ class LibraryService:
         media_path: str | None = None,
         duration_seconds: int | None = None,
     ) -> Captured:
-        """Log something whose text PSOK fetched itself, not through a page fetch.
+        """Log something whose text AMETHYST fetched itself, not through a page fetch.
 
         A reel is neither `capture_url` nor `log_manual`: there was something to
         fetch, but it did not come from `fetch_readable` and there may be no text
@@ -670,7 +670,7 @@ class LibraryService:
         `_UNREACHABLE` is cached for the life of the process, so an item captured
         while Ollama was down stays keyword-only until something clears it. This
         is that something: starting Ollama and pressing re-index is enough, and
-        restarting PSOK is not required.
+        restarting AMETHYST is not required.
         """
         row = self.store.get(item_id)
         if row is None:
@@ -723,7 +723,7 @@ class LibraryService:
             conn.execute("DELETE FROM documents WHERE id = ?", (row["document_id"],))
             conn.commit()
         # Every file the item owns, not just the text. A thumbnail is small and
-        # a video is not, and an orphaned mp4 under ~/.psok/library/media with
+        # a video is not, and an orphaned mp4 under ~/.amethyst/library/media with
         # no row pointing at it is one nothing will ever clean up.
         for field in ("text_path", "thumbnail_path", "media_path"):
             if row[field]:
@@ -803,7 +803,7 @@ class LibraryService:
 
         Results are items, not chunks: a hit is joined back to what you read, so
         the answer is "this article, and the passage that matched" rather than a
-        path under ~/.psok.
+        path under ~/.amethyst.
         """
         query = (query or "").strip()
         if not query:

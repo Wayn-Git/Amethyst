@@ -1,4 +1,4 @@
-"""PSOK command line entry point."""
+"""AMETHYST command line entry point."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from backend.tools.registry import build_default_registry
 
 
 async def _ask_terminal(request: ConfirmationRequest) -> bool:
-    print(f"\n  PSOK wants to run: {request.tool_name}  [{request.risk.value} risk]")
+    print(f"\n  AMETHYST wants to run: {request.tool_name}  [{request.risk.value} risk]")
     print(f"  reason: {request.reason}")
     for key, value in request.arguments.items():
         rendered = str(value)
@@ -46,7 +46,7 @@ def cmd_init(_: argparse.Namespace) -> int:
     SandboxPolicy.load()
     seeded = seed_builtin_skills()
 
-    print(f"PSOK initialized at {p.home}")
+    print(f"AMETHYST initialized at {p.home}")
     print(f"  database:  {p.db}")
     print(f"  providers: {p.providers_yaml}")
     print(f"  skills:    {p.skills_dir}" + (f" (seeded: {', '.join(seeded)})" if seeded else ""))
@@ -63,13 +63,14 @@ FAST_PROVIDERS = ("groq", "cerebras")
 
 def cmd_doctor(_: argparse.Namespace) -> int:
     p = paths()
-    print(f"home:      {p.home} ({'exists' if p.home.exists() else 'MISSING -- run psok init'})")
+    state = "exists" if p.home.exists() else "MISSING -- run amethyst init"
+    print(f"home:      {p.home} ({state})")
     print(f"database:  {p.db} ({'exists' if p.db.exists() else 'missing'})")
 
     providers = load_providers()
     usable = configured_providers()
     print(f"providers: {', '.join(usable) or 'none configured'}")
-    # Summarised, not one line each. providers.yaml lists every provider PSOK
+    # Summarised, not one line each. providers.yaml lists every provider AMETHYST
     # knows how to reach, so on a fresh install "no key yet" is the normal state
     # of most of them -- eleven warning lines would train the reader to skip the
     # section that also reports the things that are actually wrong.
@@ -77,16 +78,16 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     if keyless:
         listed = ", ".join(keyless)
         print(f"           {len(keyless)} listed without a key, so not offered: {listed}")
-        print("           add one with: psok secrets set psok/<name>")
+        print("           add one with: amethyst secrets set amethyst/<name>")
 
     # The starter file is only written when providers.yaml is absent, so an
-    # existing one never gains an entry PSOK adds later. Reporting the drift is
-    # half the job; `psok providers add` is the other half.
+    # existing one never gains an entry AMETHYST adds later. Reporting the drift is
+    # half the job; `amethyst providers add` is the other half.
     for name in FAST_PROVIDERS:
         if name not in providers:
             preset = catalogue.preset(name)
             label = preset.label if preset else name
-            print(f"           - {label} is not listed. Add it: psok providers add {name}")
+            print(f"           - {label} is not listed. Add it: amethyst providers add {name}")
 
     registry = build_default_registry()
     print(f"tools:     {len(registry.list())} registered")
@@ -110,7 +111,7 @@ def cmd_doctor(_: argparse.Namespace) -> int:
         if others:
             names = ", ".join(others)
             print(f"             {names} are configured and can.")
-            print("             Point PSOK at one: psok embeddings detect --set")
+            print("             Point AMETHYST at one: amethyst embeddings detect --set")
 
     skills, errors = scan()
     print(f"skills:    {len(skills)} loaded, {len(errors)} invalid")
@@ -185,7 +186,7 @@ def cmd_doctor(_: argparse.Namespace) -> int:
 
     if share.enabled():
         print("share:     a capture token is set -- POST /api/share/capture accepts it")
-        print("           revoke it with: psok share-token --revoke")
+        print("           revoke it with: amethyst share-token --revoke")
         print("           every OTHER endpoint here is unauthenticated by design.")
         print("           If this instance is reachable from the internet, put a proxy")
         print("           in front that publishes only /api/share/capture.")
@@ -328,7 +329,7 @@ def cmd_capabilities(args: argparse.Namespace) -> int:
         for c in items:
             mark = "on " if c.enabled else "off"
             print(f"  [{mark}] {c.name:<22} {_brief(c.description, 70)}")
-    print("\nToggle with:  psok capabilities --enable <name>  /  --disable <name>")
+    print("\nToggle with:  amethyst capabilities --enable <name>  /  --disable <name>")
     return 0
 
 
@@ -421,7 +422,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     ok, detail = asyncio.run(available(args.provider, args.model))
     if not ok:
         print(f"embeddings unavailable: {detail}", file=sys.stderr)
-        print("\nPSOK embeds locally by default. Install Ollama and run:", file=sys.stderr)
+        print("\nAMETHYST embeds locally by default. Install Ollama and run:", file=sys.stderr)
         print("  ollama pull nomic-embed-text", file=sys.stderr)
         return 1
     print(f"embedding with {detail}")
@@ -483,7 +484,7 @@ def cmd_mcp_catalogue(_: argparse.Namespace) -> int:
             print(f"  {'':<18} {_brief(e['description'], 90)}")
             if e["requires"]:
                 print(f"  {'':<18} requires {e['requires']}")
-    print("\nAdd one with:  psok mcp add <id>")
+    print("\nAdd one with:  amethyst mcp add <id>")
     return 0
 
 
@@ -518,9 +519,10 @@ def cmd_mcp_add(args: argparse.Namespace) -> int:
         print(f"\nsetup required:\n  {entry.setup_hint}")
     elif config.oauth:
         help_text = mcp.registration_help(config.name, config.catalogue_id)
-        print(f"\n{help_text}" if help_text else f"\nsign in with:  psok mcp login {config.name}")
+        fallback = f"\nsign in with:  amethyst mcp login {config.name}"
+        print(help_text and f"\n{help_text}" or fallback)
     else:
-        print(f"connect with:  psok mcp connect {config.name}")
+        print(f"connect with:  amethyst mcp connect {config.name}")
     return 0
 
 
@@ -543,7 +545,7 @@ def cmd_mcp_auth(args: argparse.Namespace) -> int:
         print(exc, file=sys.stderr)
         return 1
     print(f"stored OAuth client for '{args.name}' (secret in the OS keychain)")
-    print(f"sign in with:  psok mcp login {args.name}")
+    print(f"sign in with:  amethyst mcp login {args.name}")
     return 0
 
 
@@ -611,7 +613,7 @@ def cmd_mcp_logout(args: argparse.Namespace) -> int:
         print(f"'{args.name}' had no signed-in account to forget")
         return 0
     print(f"signed out of '{args.name}': forgot {', and '.join(cleared)}")
-    print(f"sign in again with:  psok mcp login {args.name}")
+    print(f"sign in again with:  amethyst mcp login {args.name}")
     return 0
 
 
@@ -620,7 +622,7 @@ def cmd_mcp_connect(args: argparse.Namespace) -> int:
 
     results = mcp.run(mcp.connect_and_report(args.name, open_browser=False))
     if not results:
-        print("no MCP servers configured; try `psok mcp catalogue`")
+        print("no MCP servers configured; try `amethyst mcp catalogue`")
         return 0
     exit_code = 0
     for name, outcome in results.items():
@@ -637,7 +639,7 @@ def cmd_mcp_status(_: argparse.Namespace) -> int:
 
     rows = mcp.status()
     if not rows:
-        print("no MCP servers configured; try `psok mcp catalogue`")
+        print("no MCP servers configured; try `amethyst mcp catalogue`")
         return 0
     for row in rows:
         auth = ""
@@ -679,7 +681,7 @@ def cmd_mcp_merge_google(args: argparse.Namespace) -> int:
     for warning in plan.warnings:
         print(f"  ! {warning}")
     print(
-        "\nThe Google account is untouched. Start it with `psok mcp connect"
+        "\nThe Google account is untouched. Start it with `amethyst mcp connect"
         f" {plan.target}`, or open Connectors."
     )
     return 0
@@ -802,7 +804,7 @@ def cmd_skills(args: argparse.Namespace) -> int:
 
     skills, errors = scan()
     if not skills and not errors:
-        print("no skills installed; add one with  psok skills --install <url>")
+        print("no skills installed; add one with  amethyst skills --install <url>")
         return 0
     for skill in skills:
         version = f" v{skill.version}" if skill.version else ""
@@ -839,7 +841,7 @@ def cmd_permissions(args: argparse.Namespace) -> int:
             f"  {row['decision']:<6} {row['operation_key']:<40}"
             f" {row['risk_level']:<7} since {row['created_at']}"
         )
-    print("\ntake one back with:  psok permissions --revoke <operation-key>")
+    print("\ntake one back with:  amethyst permissions --revoke <operation-key>")
     return 0
 
 
@@ -853,7 +855,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     from backend.api.main import _DIST
 
     url = f"http://{args.host}:{args.port}"
-    # PSOK has no authentication, by design (ADR-0001): the security model is
+    # AMETHYST has no authentication, by design (ADR-0001): the security model is
     # that it is only reachable from this machine. Binding elsewhere changes
     # that silently, and the person doing it usually means "let my phone reach
     # the share endpoint" rather than "publish my shell".
@@ -863,7 +865,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         print("! can read your files, run shell commands and read your mail.")
         print("! Put a reverse proxy in front of it -- see docs/deployment.md.")
     if (_DIST / "index.html").is_file():
-        print(f"PSOK is at {url}")
+        print(f"AMETHYST is at {url}")
     else:
         print(f"API at {url}/api — no built interface found at {_DIST}")
         print("build it with:  cd frontend && npm install && npm run build")
@@ -904,14 +906,14 @@ def cmd_share_token(args: argparse.Namespace) -> int:
             print("against:  POST /api/share/capture   {\"url\": \"https://...\"}")
             print()
             print("This token does not make the rest of this API safe to expose.")
-            print("See docs/deployment.md before putting PSOK on a public address.")
+            print("See docs/deployment.md before putting AMETHYST on a public address.")
             return 0
     except CredentialError as exc:
         print(f"could not store the token: {exc}")
         return 1
 
     print("set" if share.enabled() else "not set")
-    print("create one with: psok share-token --new")
+    print("create one with: amethyst share-token --new")
     return 0
 
 
@@ -942,7 +944,7 @@ def cmd_embeddings(args: argparse.Namespace) -> int:
         print(f"reachable:  {'yes -- ' + detail if ok else 'no'}")
         if not ok:
             print(f"  {detail}")
-            print("  try: psok embeddings detect")
+            print("  try: amethyst embeddings detect")
         return 0
 
     if action == "detect":
@@ -957,10 +959,10 @@ def cmd_embeddings(args: argparse.Namespace) -> int:
             provider, model, _ = found[0]
             save_embeddings(provider, model)
             print(f"\nset to {provider}:{model}.")
-            print("Re-index to rebuild the vectors: psok index <path>")
+            print("Re-index to rebuild the vectors: amethyst index <path>")
         else:
             first = found[0]
-            print(f"\nto use the first: psok embeddings set {first[0]} {first[1]}")
+            print(f"\nto use the first: amethyst embeddings set {first[0]} {first[1]}")
         return 0
 
     if action == "clear":
@@ -984,13 +986,13 @@ def cmd_embeddings(args: argparse.Namespace) -> int:
         # and "no results, and here is why".
         print(
             f"the index was built by {':'.join(built)}; it stays stale until you"
-            " re-index: psok index <path>"
+            " re-index: amethyst index <path>"
         )
     return 0
 
 
 def cmd_social(args: argparse.Namespace) -> int:
-    """Which sites PSOK may read as you, and the credentials that let it."""
+    """Which sites AMETHYST may read as you, and the credentials that let it."""
     from backend.config import allow_source, load_social, save_social
     from backend.secrets import CredentialError, set_secret
     from backend.web.social import READERS, missing
@@ -1026,8 +1028,8 @@ def cmd_social(args: argparse.Namespace) -> int:
     # credentials
     stored = 0
     for value, ref, label in (
-        (args.x_auth_token, "psok/x_auth_token", "X auth_token"),
-        (args.x_ct0, "psok/x_ct0", "X ct0"),
+        (args.x_auth_token, "amethyst/x_auth_token", "X auth_token"),
+        (args.x_ct0, "amethyst/x_ct0", "X ct0"),
     ):
         if not value:
             continue
@@ -1091,7 +1093,7 @@ def cmd_bookmarks(args: argparse.Namespace) -> int:
 
     # sync
     if not settings.enabled:
-        print("browser capture is off. Turn it on with: psok bookmarks enable")
+        print("browser capture is off. Turn it on with: amethyst bookmarks enable")
         return 1
     report = asyncio.run(BookmarkIngest().sync(enrich=not args.no_enrich))
     print(report.summary())
@@ -1126,7 +1128,7 @@ def cmd_instagram(args: argparse.Namespace) -> int:
         print("queue:     " + (", ".join(f"{n} {k}" for k, n in sorted(counts.items())) or "empty"))
         for row in store.unknown_senders():
             print(f"           {row['sender_id']} was turned away {row['attempts']}x"
-                  f" -- allow with: psok instagram senders --allow {row['sender_id']}")
+                  f" -- allow with: amethyst instagram senders --allow {row['sender_id']}")
         return 0
 
     if action == "credentials":
@@ -1145,7 +1147,7 @@ def cmd_instagram(args: argparse.Namespace) -> int:
             )
         if args.owner_id:
             save_instagram({"owner_ig_id": args.owner_id})
-        print("stored. Switch capture on with: psok instagram enable")
+        print("stored. Switch capture on with: amethyst instagram enable")
         return 0
 
     if action in ("enable", "disable"):
@@ -1305,7 +1307,8 @@ def _send_sample(args: argparse.Namespace, _json, asyncio) -> int:
 
     secret = signature.app_secret()
     if not secret:
-        print("no app secret is stored. Set one with: psok instagram credentials --app-secret ...")
+        print("no app secret is stored. Set one with: amethyst instagram credentials"
+              " --app-secret ...")
         return 1
 
     raw = _json.dumps(_sample_body(args.route)).encode()
@@ -1319,7 +1322,7 @@ def _send_sample(args: argparse.Namespace, _json, asyncio) -> int:
 
         base = load_instagram().relay_url
         if not base:
-            print("no relay is configured. Set one with: psok instagram relay --url ...")
+            print("no relay is configured. Set one with: amethyst instagram relay --url ...")
             return 1
         url = base.rstrip("/") + "/ig/webhook"
     else:
@@ -1339,14 +1342,14 @@ def _send_sample(args: argparse.Namespace, _json, asyncio) -> int:
         return 1
     print(f"HTTP {response.status_code} {response.text[:200]}")
     if args.relay:
-        print("now collect it with: psok instagram relay --sync")
-    print("watch it with: psok instagram queue")
+        print("now collect it with: amethyst instagram relay --sync")
+    print("watch it with: amethyst instagram queue")
     return 0
 
 
 # --- secrets ----------------------------------------------------------------
 #
-# providers.yaml and the docs have told people to run `psok secrets set` since
+# providers.yaml and the docs have told people to run `amethyst secrets set` since
 # before there was one; the README worked around its absence by telling them to
 # open a Python REPL and import `set_secret`. Storing a key is the one step
 # between a listed provider and an offered one, so it gets a command.
@@ -1401,7 +1404,7 @@ def cmd_secrets(args: argparse.Namespace) -> int:
     except CredentialError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    where = os.environ.get("PSOK_SECRETS_FILE", "").strip()
+    where = os.environ.get("AMETHYST_SECRETS_FILE", "").strip()
     print(f"stored {ref} in {where}" if where else f"stored {ref} in the OS keychain")
     return 0
 
@@ -1465,9 +1468,10 @@ def cmd_providers(args: argparse.Namespace) -> int:
             print(f"its key is already in the keychain at {preset.api_key_ref}")
         else:
             print(f"  get a key: {preset.keys_url}")
-            print(f"  store it:  psok secrets set {preset.api_key_ref}")
+            print(f"  store it:  amethyst secrets set {preset.api_key_ref}")
     if not entry.get("default_model"):
-        print(f"  pick a model: {preset.docs_url}  (psok providers add {preset.slug} --model ...)")
+        print(f"  pick a model: {preset.docs_url}  (amethyst providers add"
+              f" {preset.slug} --model ...)")
     return 0
 
 
@@ -1475,10 +1479,10 @@ def cmd_providers(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     from backend.capabilities import Kind
 
-    parser = argparse.ArgumentParser(prog="psok", description="Personal operating system")
+    parser = argparse.ArgumentParser(prog="amethyst", description="Personal operating system")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("init", help="create the PSOK home directory and database").set_defaults(
+    sub.add_parser("init", help="create the AMETHYST home directory and database").set_defaults(
         func=cmd_init
     )
     sub.add_parser("doctor", help="report configuration and component status").set_defaults(
@@ -1500,7 +1504,7 @@ def main(argv: list[str] | None = None) -> int:
     soc = sub.add_parser("social", help="read Reddit and X through a signed-in reader")
     sc = soc.add_subparsers(dest="action", required=True)
     sc.add_parser("status", help="which sites are allowed, and whether their readers work")
-    allow = sc.add_parser("allow", help="let PSOK read a site as you")
+    allow = sc.add_parser("allow", help="let AMETHYST read a site as you")
     allow.add_argument("source", help="reddit or x")
     deny = sc.add_parser("deny", help="stop reading a site")
     deny.add_argument("source", help="reddit or x")
@@ -1556,7 +1560,7 @@ def main(argv: list[str] | None = None) -> int:
     rly = ig.add_parser(
         "relay", help="the always-on receiver that catches deliveries while this machine is off"
     )
-    rly.add_argument("--url", help="https://psok-relay.<you>.workers.dev")
+    rly.add_argument("--url", help="https://amethyst-relay.<you>.workers.dev")
     rly.add_argument("--token", help="the RELAY_TOKEN the Worker was deployed with")
     rly.add_argument("--on", action="store_true", help="start polling it")
     rly.add_argument("--off", action="store_true", help="stop polling it")
@@ -1572,7 +1576,7 @@ def main(argv: list[str] | None = None) -> int:
     token.add_argument("--revoke", action="store_true", help="delete it; the endpoint disappears")
     token.set_defaults(func=cmd_share_token)
 
-    chat = sub.add_parser("chat", help="talk to PSOK")
+    chat = sub.add_parser("chat", help="talk to AMETHYST")
     chat.add_argument("message", nargs="?", help="single message; omit for an interactive session")
     chat.add_argument("--provider")
     chat.add_argument("--model")
@@ -1585,7 +1589,7 @@ def main(argv: list[str] | None = None) -> int:
     secrets_set = secrets_sub.add_parser(
         "set", help="store a key (prompts, so it stays out of shell history)"
     )
-    secrets_set.add_argument("ref", help="keychain reference, e.g. psok/groq")
+    secrets_set.add_argument("ref", help="keychain reference, e.g. amethyst/groq")
     secrets_set.add_argument("value", nargs="?", help="the key; omit to be prompted")
     secrets_sub.add_parser("list", help="which declared references have a key")
     secrets_delete = secrets_sub.add_parser("delete", help="remove a stored key")
@@ -1595,7 +1599,7 @@ def main(argv: list[str] | None = None) -> int:
     provs = sub.add_parser("providers", help="list, add or remove model providers")
     provs_sub = provs.add_subparsers(dest="action", required=True)
     provs_sub.add_parser("list", help="what providers.yaml lists and which are ready")
-    provs_sub.add_parser("catalogue", help="providers PSOK knows how to configure")
+    provs_sub.add_parser("catalogue", help="providers AMETHYST knows how to configure")
     provs_add = provs_sub.add_parser("add", help="add a catalogue provider to providers.yaml")
     provs_add.add_argument("name")
     provs_add.add_argument("--model", help="override the preset's default model")
@@ -1635,7 +1639,7 @@ def main(argv: list[str] | None = None) -> int:
     index = sub.add_parser("index", help="index a folder of notes for retrieval")
     index.add_argument("path", nargs="?", help="folder to index")
     index.add_argument("--status", action="store_true", help="report what is indexed")
-    # No default: `Embedder(None)` means "whatever `psok embeddings` configured",
+    # No default: `Embedder(None)` means "whatever `amethyst embeddings` configured",
     # and hard-coding ollama here made the setting look ignored -- the flag was
     # always passed, so it always won.
     index.add_argument("--provider", help="embedding provider (default: the configured one)")

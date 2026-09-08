@@ -6,7 +6,7 @@ none", so Ollama is reported configured whether or not anything is listening on
 its port. Four conversations in the real database collected nine consecutive
 `All connection attempts failed` because of exactly that: the picker offered a
 provider, every turn against it died on the first round trip, and the failure
-read as PSOK being broken rather than as `ollama serve` not running.
+read as AMETHYST being broken rather than as `ollama serve` not running.
 
 Two sources feed this, deliberately kept apart:
 

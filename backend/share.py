@@ -1,6 +1,6 @@
 """The share token: one credential, for one capture-only endpoint.
 
-`POST /api/share/capture` exists so a phone can send PSOK a link. Everything
+`POST /api/share/capture` exists so a phone can send AMETHYST a link. Everything
 about it is narrowed deliberately, because the rest of this API has no
 authentication at all and is not meant to (ADR-0001):
 
@@ -19,9 +19,9 @@ authentication at all and is not meant to (ADR-0001):
   caller's address that a reverse proxy makes unreliable anyway.
 
 **A token here does not make a public deployment safe.** Every other `/api`
-route stays unauthenticated. Exposing PSOK to the internet means putting a proxy
+route stays unauthenticated. Exposing AMETHYST to the internet means putting a proxy
 in front of it that publishes this one path and nothing else; see
-`docs/deployment.md`. `psok doctor` says so when the server is bound to an
+`docs/deployment.md`. `amethyst doctor` says so when the server is bound to an
 address that is not loopback.
 """
 

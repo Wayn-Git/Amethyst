@@ -10,10 +10,10 @@ permission gate raises can be answered with the keyboard.
 
 ```bash
 cd frontend && npm install && npm run build   # once
-psok serve --open                             # http://127.0.0.1:8000
+amethyst serve --open                             # http://127.0.0.1:8000
 ```
 
-`psok serve` is the whole product in one process: FastAPI serves the API under
+`amethyst serve` is the whole product in one process: FastAPI serves the API under
 `/api` and the built bundle everywhere else, so there is no second port and no
 cross-origin request to configure. A path that is not a file falls through to
 `index.html` for the client router; an unknown `/api/...` path still returns a
@@ -23,12 +23,12 @@ like HTML arriving where JSON was expected.
 While working on the interface itself:
 
 ```bash
-psok serve                 # or: uvicorn psok.api.main:app --reload
+amethyst serve                 # or: uvicorn amethyst.api.main:app --reload
 cd frontend && npm run dev # http://localhost:5173, proxying /api to :8000
 ```
 
 The dev server proxies `/api`, so the browser makes same-origin requests and
-CORS does not enter into it. `PSOK_CORS_ORIGINS` exists for the case where the
+CORS does not enter into it. `AMETHYST_CORS_ORIGINS` exists for the case where the
 bundle really is served from somewhere else, and is deliberately not a wildcard:
 this API runs shell commands on the machine.
 
@@ -36,7 +36,7 @@ this API runs shell commands on the machine.
 
 Stated so it can be argued with rather than absorbed as taste.
 
-**The direction is an instrument panel.** PSOK sits open all day beside a
+**The direction is an instrument panel.** AMETHYST sits open all day beside a
 terminal and does real things to a real filesystem. That rules out the product
 page look, and it rules out the two defaults generative design falls into: cream
 with a serif, or acid green on black.
@@ -140,7 +140,7 @@ invented one. Three ways in, and all three end in the same validated file:
   skill goes through, so nothing authored here can be a skill the loader will
   only ever report as broken.
 - **Import a link** — any `SKILL.md` URL, which is what the CLI's
-  `psok skills --install` does.
+  `amethyst skills --install` does.
 - **Install** from a catalogue card.
 
 The gear on an installed card engages it, stands it down, or uninstalls it.
@@ -259,7 +259,7 @@ feel broken.
 and an interval, run as an ordinary turn in a conversation of its own.
 
 The page states the two beta positions rather than burying them, because both
-are surprising: **they run while PSOK is open** and not otherwise — there is no
+are surprising: **they run while AMETHYST is open** and not otherwise — there is no
 daemon — and **an unattended turn cannot answer a permission prompt, so it does
 not raise one**. Anything outside the user's standing approvals is refused, and
 the run records `blocked` naming the exact operations it wanted, so the fix is
@@ -277,7 +277,7 @@ a `confirmation_required` frame. The prompt shows the arguments and the
 
 **Settings → Permissions** lists every standing approval — what now runs
 without asking — with a button to revoke one, because a grant nobody can see is
-a grant nobody can take back. `psok permissions` prints the same list. The
+a grant nobody can take back. `amethyst permissions` prints the same list. The
 Activity view is the trail and only the trail; it used to carry a second copy of
 this list.
 
@@ -328,9 +328,9 @@ so an abandoned call no longer blocks the next call to that connector.
 
 ## Attachments, and what a file means here
 
-A browser has no idea where a file is on disk, and PSOK's tools work on paths.
+A browser has no idea where a file is on disk, and AMETHYST's tools work on paths.
 So a file dropped into the composer, pasted into it, or picked with `⌘U` is
-uploaded to `~/.psok/attachments/<id>/<name>` first, and the message carries the
+uploaded to `~/.amethyst/attachments/<id>/<name>` first, and the message carries the
 path it landed at — which `view_file`, `grep_files` and the shell then read like
 any other file. The upload endpoint keeps only the basename, so a filename
 containing `../` cannot place the file anywhere else.

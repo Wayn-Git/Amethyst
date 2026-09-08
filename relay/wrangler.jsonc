@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "psok-relay",
+  "name": "amethyst-relay",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
 
@@ -19,8 +19,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "psok-relay",
-      // `wrangler d1 create psok-relay` prints this. It is an identifier, not a
+      "database_name": "amethyst-relay",
+      // `wrangler d1 create amethyst-relay` prints this. It is an identifier, not a
       // credential.
       "database_id": "42d53cc1-4707-4fc0-94af-14dc172059ec"
     }

@@ -30,13 +30,13 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Tests.** Schema applies idempotently; repository round-trips; redaction covers both credential-shaped key names and value patterns; audit rows store redacted arguments.
 
-**Acceptance.** `psok init` produces a working database; no secret value can reach a table.
+**Acceptance.** `amethyst init` produces a working database; no secret value can reach a table.
 
 ---
 
 ## ✅ Phase 2 — AI runtime
 
-**Goal.** PSOK can talk to any provider without the rest of the system knowing which.
+**Goal.** AMETHYST can talk to any provider without the rest of the system knowing which.
 
 **Components.** `runtime/types.py` (normalized message, response, tool-schema, capability shapes), `runtime/registry.py` (registry plus OpenAI-compatible fallback), adapters for OpenAI-compatible, Anthropic, Google, and Ollama.
 
@@ -64,7 +64,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 ## ✅ Phase 4 — Local computer tools, permissions, sandbox
 
-**Goal.** PSOK can act on the machine safely.
+**Goal.** AMETHYST can act on the machine safely.
 
 **Components.** `tools/builtin/filesystem.py`, `tools/builtin/shell.py`, `tools/builtin/desktop.py`, `security/confirmation.py` (static risk floor, escalation-only self-report, sensitive-path denylist, persisted skip-keys), `security/sandbox.py` (Seatbelt/Bubblewrap wrapping).
 
@@ -86,7 +86,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Tests.** Frontmatter validation rejects malformed skills with a reported reason; the catalogue appears in the system prompt while the skill body does not.
 
-**Acceptance.** Dropping a `SKILL.md` into `~/.psok/skills/` makes it usable with no restart.
+**Acceptance.** Dropping a `SKILL.md` into `~/.amethyst/skills/` makes it usable with no restart.
 
 ---
 
@@ -122,13 +122,13 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 ## ✅ Phase 7 — Interface surface
 
-**Goal.** Something to drive PSOK with.
+**Goal.** Something to drive AMETHYST with.
 
 **Components.** `backend/cli.py` (`init`, `doctor`, `chat`, `logs`), `backend/api/main.py` (conversations, streaming turns, pending confirmations, audit log, skills).
 
 **Dependencies.** Phases 3–6.
 
-**Acceptance.** `psok doctor` reports component health; the API streams a turn and surfaces confirmations for a UI to answer.
+**Acceptance.** `amethyst doctor` reports component health; the API streams a turn and surfaces confirmations for a UI to answer.
 
 **Hardened for a browser client afterwards.** CORS for the Vite dev origin, without which no frontend request reaches a route at all; failures inside an open SSE stream reported as an `error` event rather than a truncated body; an unknown provider rejected when the conversation is created rather than mid-turn; `PATCH /api/conversations/{id}` so switching model mid-conversation is an action a UI can take; a lock around registry construction so two concurrent turns cannot each build an MCP manager.
 
@@ -136,7 +136,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 ## ✅ Phase 8 — Retrieval and document indexing
 
-**Goal.** PSOK can answer from the user's own documents.
+**Goal.** AMETHYST can answer from the user's own documents.
 
 **Components.** Filesystem walker and watcher; chunking with heading prefixes; content-hash incremental indexing; embeddings via the Phase 2 adapters (local by default); `sqlite-vec` population; FTS5 keyword index; reciprocal-rank fusion; a `search_documents` tool; retrieval injection into prompt assembly.
 
@@ -144,7 +144,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Tests.** Chunk boundaries and heading paths; editing one file re-embeds only its changed chunks; hybrid search beats vector-only on an exact-term query; budgeted context assembly stays within the model's window.
 
-**Acceptance.** Pointing PSOK at a notes directory makes it queryable; re-scanning an unchanged vault performs no embedding work. Both verified, including semantic hits on queries sharing no words with the source text.
+**Acceptance.** Pointing AMETHYST at a notes directory makes it queryable; re-scanning an unchanged vault performs no embedding work. Both verified, including semantic hits on queries sharing no words with the source text.
 
 **Built beyond the original plan.** The query embedder is pinned to whichever model built the index — embedding a query with a different model puts it in an unrelated vector space and returns plausible nonsense rather than failing. The model is recorded at index time and adopted automatically at search time.
 
@@ -152,9 +152,9 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 ## ✅ Phase 9 — Memory
 
-**Goal.** PSOK remembers across conversations.
+**Goal.** AMETHYST remembers across conversations.
 
-**Components.** Post-turn fact extraction returning a create/supersede diff; recency plus semantic recall; `<memories>` injection; per-conversation toggle. `psok memory` and `/api/memory` for listing, forgetting, and switching it off.
+**Components.** Post-turn fact extraction returning a create/supersede diff; recency plus semantic recall; `<memories>` injection; per-conversation toggle. `amethyst memory` and `/api/memory` for listing, forgetting, and switching it off.
 
 **Dependencies.** Phase 8 — deliberately reuses its embedding and vector infrastructure rather than duplicating it.
 
@@ -182,7 +182,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Acceptance.** A real third-party MCP server's tools appear alongside builtins, correctly namespaced and normalized. Verified.
 
-**Built beyond the original plan.** OAuth 2.1 with PKCE for servers that require their own login, a curated server catalogue behind `psok mcp add`, and per-conversation connector toggles. See [mcp-oauth.md](../architecture/mcp-oauth.md).
+**Built beyond the original plan.** OAuth 2.1 with PKCE for servers that require their own login, a curated server catalogue behind `amethyst mcp add`, and per-conversation connector toggles. See [mcp-oauth.md](../architecture/mcp-oauth.md).
 
 ---
 
@@ -190,7 +190,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Goal.** Gmail, Google Calendar, GitHub.
 
-**Components.** Not designed. Gmail, Calendar and GitHub are currently reachable as MCP connectors, so this phase only becomes worth doing if PSOK needs their data synced into local tables to be cross-referenced. That need has not appeared yet, and the design should follow the need rather than precede it.
+**Components.** Not designed. Gmail, Calendar and GitHub are currently reachable as MCP connectors, so this phase only becomes worth doing if AMETHYST needs their data synced into local tables to be cross-referenced. That need has not appeared yet, and the design should follow the need rather than precede it.
 
 **Dependencies.** Everything prior. Highest external-dependency surface — OAuth applications, third-party quotas — so it benefits from every earlier phase being stable.
 

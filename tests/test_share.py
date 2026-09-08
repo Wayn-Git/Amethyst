@@ -1,6 +1,6 @@
 """The share endpoint: one credential, one capability.
 
-A token here lets a phone send PSOK a link. It must do that and nothing else,
+A token here lets a phone send AMETHYST a link. It must do that and nothing else,
 and it must not exist at all until someone asks for it -- an endpoint that
 answers 401 rather than 404 is an endpoint worth guessing at.
 """

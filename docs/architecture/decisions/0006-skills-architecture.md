@@ -6,11 +6,11 @@ Proposed
 
 ## Context
 
-Skills need to let the model follow packaged multi-step procedures without PSOK building a separate execution engine for them. Pipali's `SKILL.md`-directory model, discovered via progressive disclosure and executed through existing tools rather than a dedicated invoke mechanism, is the researched precedent. See [skills.md](../skills.md).
+Skills need to let the model follow packaged multi-step procedures without AMETHYST building a separate execution engine for them. Pipali's `SKILL.md`-directory model, discovered via progressive disclosure and executed through existing tools rather than a dedicated invoke mechanism, is the researched precedent. See [skills.md](../skills.md).
 
 ## Decision
 
-Represent skills as filesystem directories under `~/.psok/skills/<name>/` containing a required `SKILL.md`, discovered by scanning and validating frontmatter, advertised in the system prompt by name, description, and path only (progressive disclosure), and invoked through the model reading the file with the existing `view_file` tool and executing its procedure with existing tools. No dedicated `invoke_skill` tool. No remote skill registry in v1.
+Represent skills as filesystem directories under `~/.amethyst/skills/<name>/` containing a required `SKILL.md`, discovered by scanning and validating frontmatter, advertised in the system prompt by name, description, and path only (progressive disclosure), and invoked through the model reading the file with the existing `view_file` tool and executing its procedure with existing tools. No dedicated `invoke_skill` tool. No remote skill registry in v1.
 
 ## Alternatives Considered
 

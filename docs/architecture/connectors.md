@@ -26,7 +26,7 @@ Two mistakes, and only fixing both is a fix:
 
 `backend/mcp/guidance.py` answers one question: which connectors are running with
 no account attached. It asks `commands.is_signed_in`, which reads the server's
-*own* credential store rather than PSOK's keychain — reading the wrong one is
+*own* credential store rather than AMETHYST's keychain — reading the wrong one is
 what made a connector that had never seen a Google account report itself signed
 in.
 
@@ -63,7 +63,7 @@ a turn that spent its whole iteration budget rediscovering the same failure.
 
 The wording lives in one module so the tool result, the dispatch guard and the
 manager cannot drift into describing three different interfaces. One message
-also changed audience: an `OAuthRequired` used to answer `psok mcp login
+also changed audience: an `OAuthRequired` used to answer `amethyst mcp login
 <name>`, sending someone who is in a browser to a terminal for a button two
 clicks away.
 
@@ -167,7 +167,7 @@ can sign in"`, and adding a connector that needs nothing answered
 
 ## Collapsing the Google connectors
 
-`backend/mcp/migrations.py`, run by `psok mcp merge-google`.
+`backend/mcp/migrations.py`, run by `amethyst mcp merge-google`.
 
 Five entries, each `uvx workspace-mcp --single-user --tools <one service>`, over
 one Google account: five processes sharing one OAuth client, one credentials
@@ -188,7 +188,7 @@ stops being true.
 Safety properties, in the order they matter:
 
 - **Nothing runs it but a person.** No startup hook, no upgrade step, no side
-  effect of adding a connector. `psok mcp merge-google` prints the plan and
+  effect of adding a connector. `amethyst mcp merge-google` prints the plan and
   changes nothing; `--apply` is a second, separate decision.
 - **`mcp.yaml` is copied to a timestamped `.bak` before anything is written.**
 - **Only the configured services are granted.** Merging three connectors must
@@ -213,14 +213,14 @@ Safety properties, in the order they matter:
     `sign_in` and named its own next action;
   - its tools were withheld from the model (`offered: []`), naming one anyway
     returned the instruction, and signing in brought them straight back.
-- Live `psok serve`: `POST /api/mcp/servers` returned a `lifecycle` naming the
+- Live `amethyst serve`: `POST /api/mcp/servers` returned a `lifecycle` naming the
   two credentials it still needed; a no-auth connector returned `ready`.
 - **The stated verify criterion, run as a real automation**: `run_once` against
   a real HTTP model with `github` *and* `vercel` unauthorised reached the model
   in **0.1s**, both connectors refused by name with the screen and the button,
   `status=ok`. `RUN_TIMEOUT_SECONDS` is 180 and two unauthorised connectors used
   to be able to eat it.
-- `psok mcp merge-google` dry-run against the real config: 5 sources, correct
+- `amethyst mcp merge-google` dry-run against the real config: 5 sources, correct
   tool list, `signed in: yes`. **Not applied** — that is the account owner's
   call.
 
@@ -244,7 +244,7 @@ because it outlived the document that first carried it.
 **The fact.** Google expires a test user's consent seven days after it is
 given — not the access token, the *grant*, so the refresh token stops working
 too and the connector goes from working to signed-out with nothing in between.
-That expiry, not a PSOK bug, is what "Google signed itself out again" is.
+That expiry, not a AMETHYST bug, is what "Google signed itself out again" is.
 
 **Why the app is in Testing at all.** Publishing to production would remove the
 seven-day cap. Publishing was attempted (2026-08-29) and **Google refuses**,
@@ -268,7 +268,7 @@ production is not a formality.
 **What is actually true meanwhile:** test-user sign-in, renewed roughly weekly.
 `grant_lifetime_days` on the Google catalogue entries and the age warning in
 the connector's row exist precisely so the expiry is announced rather than
-discovered by a failed tool call. A shared PSOK client id
-(`PSOK_DEFAULT_GOOGLE_*`) would make setup zero for the owner and change
+discovered by a failed tool call. A shared AMETHYST client id
+(`AMETHYST_DEFAULT_GOOGLE_*`) would make setup zero for the owner and change
 nothing for anyone else — the 100-test-user cap and the seven-day grant are
 properties of the app, not of who registered it.

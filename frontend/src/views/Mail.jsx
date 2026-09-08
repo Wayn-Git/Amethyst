@@ -12,7 +12,7 @@ import { SkeletonRows } from '../components/Skeleton.jsx'
    The data does not come through the `google-gmail` connector. That connector
    answers in prose written for a model to read -- "📧 MESSAGES:", "Message ID:"
    -- and a screen built on it would be a regular expression over somebody
-   else's help text. PSOK talks to Gmail directly using the account the
+   else's help text. AMETHYST talks to Gmail directly using the account the
    connector signed in; see backend/mail/gmail.py.
 
    Bodies arrive as text. HTML mail is reduced to text on the server rather than

@@ -1,7 +1,7 @@
 """How much a connector's tool is trusted to do without asking first.
 
 Until 2026-08-29 every MCP tool was registered at `RiskLevel.MEDIUM`, on the
-reasoning that PSOK cannot inspect what somebody else's server actually does.
+reasoning that AMETHYST cannot inspect what somebody else's server actually does.
 The cost of that was not theoretical: with thirteen connectors and 156 of 178
 tools coming from them, searching mail, listing tasks and reading a calendar all
 raised a confirmation prompt, and the user answered so many that the prompt
@@ -10,7 +10,7 @@ reads.
 
 The premise was also wrong. MCP has carried `annotations` on every tool since
 the 2025-03-26 revision -- `readOnlyHint`, `destructiveHint`, `idempotentHint`,
-`openWorldHint` -- and PSOK was discarding the field at discovery. The server
+`openWorldHint` -- and AMETHYST was discarding the field at discovery. The server
 does say what its tools do; nothing was listening.
 
 Two rules, in this order:
@@ -77,7 +77,7 @@ def _declared(annotations: dict[str, Any] | None) -> RiskLevel | None:
     """What the server says, or None if it said nothing.
 
     Both spellings are accepted: the Python SDK models these as snake_case and
-    the wire sends camelCase, and a server talking to PSOK through some other
+    the wire sends camelCase, and a server talking to AMETHYST through some other
     client library is not the place to find out which one won.
     """
     if not annotations:
@@ -107,7 +107,7 @@ def _from_name(name: str) -> RiskLevel | None:
 def classify(name: str, annotations: dict[str, Any] | None = None) -> RiskLevel:
     """The risk tier for one MCP tool.
 
-    `name` is the tool's own name as its server calls it, not PSOK's registry
+    `name` is the tool's own name as its server calls it, not AMETHYST's registry
     key -- the key carries a `__mcp__<server>` suffix that no prefix rule should
     have to know about.
     """

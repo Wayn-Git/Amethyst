@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: sans-serif; }
+  .lib-container {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 24px;
+    transition: grid-template-columns 0.32s cubic-bezier(0.16, 1, 0.3, 1), gap 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+    background: #eee;
+    padding: 20px;
+  }
+  .lib-container--closed {
+    grid-template-columns: 0px minmax(0, 1fr);
+    gap: 0px;
+  }
+  .sidebar-wrapper {
+    overflow: hidden;
+  }
+  .sidebar {
+    width: 240px; /* fixed width inside */
+    background: #ccc;
+    height: 100px;
+  }
+  .content {
+    background: #aaa;
+    height: 100px;
+  }
+</style>
+</head>
+<body>
+  <button onclick="document.querySelector('.lib-container').classList.toggle('lib-container--closed')">Toggle</button>
+  <div class="lib-container">
+    <div class="sidebar-wrapper">
+      <div class="sidebar">Sidebar</div>
+    </div>
+    <div class="content">Content</div>
+  </div>
+</body>
+</html>

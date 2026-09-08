@@ -45,7 +45,7 @@ def test_api_reuses_one_manager_rather_than_spawning_per_request():
     """One manager for the whole process, and the boot task that creates it.
 
     The manager used to be born lazily on the first chat turn, so a fresh
-    `psok serve` showed every switched-on connector dark until someone
+    `amethyst serve` showed every switched-on connector dark until someone
     opened a conversation. The lifespan now starts connectors at boot, in
     the background, which means this test can no longer assert on
     `manager is None` -- a test fast enough to beat the boot task and one
@@ -885,7 +885,7 @@ def test_a_pinned_message_does_not_change_what_the_model_is_sent(db):
     ]
 
 
-def test_a_skill_can_be_written_from_a_name_description_and_instruction(api, psok_home):
+def test_a_skill_can_be_written_from_a_name_description_and_instruction(api, amethyst_home):
     """Authoring a skill used to mean writing YAML frontmatter by hand into a
     file at a path that had to match the name inside it. Three fields is what a
     skill is; the endpoint composes the file and validates it exactly as it
@@ -1103,7 +1103,7 @@ def test_an_automation_will_not_run_faster_than_the_floor(db):
         repo.create("hollow", "   ", 60)
 
     # The floor itself is allowed, and is scheduled forward like any other.
-    eager = repo.create("as often as PSOK will", "do it", MIN_MINUTES)
+    eager = repo.create("as often as AMETHYST will", "do it", MIN_MINUTES)
     assert eager.every_minutes == MIN_MINUTES
     assert eager.next_run_at > _utcnow_iso()
 
@@ -1157,7 +1157,7 @@ def test_a_run_of_errors_backs_off_and_one_ok_resets_it(db):
 
 def test_a_blocked_run_does_not_back_off_or_reset(db):
     """Needing an approval is not a failure to retry past, and it is not
-    progress either -- backing it off would read as PSOK giving up on
+    progress either -- backing it off would read as AMETHYST giving up on
     approval rather than waiting for the user to grant it."""
     from backend.automation import AutomationRepository
 
@@ -1479,14 +1479,14 @@ async def test_a_low_risk_call_never_announces_a_confirmation(api, db, monkeypat
     assert "tool_result" in kinds and kinds[-1] == "done"
 
 
-# --- 21: the OpenAI-compatible adapter replayed PSOK's own message rows -----
+# --- 21: the OpenAI-compatible adapter replayed AMETHYST's own message rows -----
 
 
 def test_replayed_tool_calls_use_the_chat_completions_wire_shape():
     """The Anthropic and Google adapters translate history; this one forwarded
-    PSOK's normalized rows untouched. A single-iteration turn hid it, but the
+    AMETHYST's normalized rows untouched. A single-iteration turn hid it, but the
     moment a tool result was replayed the payload carried a tool call with no
-    `type` and an `arguments` object instead of a JSON string, plus PSOK's own
+    `type` and an `arguments` object instead of a JSON string, plus AMETHYST's own
     `tool_name` and `is_error` columns on the tool row. Lenient servers ignore
     all of that; OpenAI and schema-validating servers answer 400, which breaks
     every multi-step turn on the adapter that covers most providers."""
@@ -1494,7 +1494,7 @@ def test_replayed_tool_calls_use_the_chat_completions_wire_shape():
 
     client = OpenAICompatClient(base_url="http://x/v1", api_key=None, model="m")
     history = [
-        {"role": "system", "content": "you are psok"},
+        {"role": "system", "content": "you are amethyst"},
         {"role": "user", "content": "read it"},
         {
             "role": "assistant",
@@ -1523,7 +1523,7 @@ def test_replayed_tool_calls_use_the_chat_completions_wire_shape():
 
     tool_row = messages[3]
     assert tool_row == {"role": "tool", "tool_call_id": "call_1", "content": "1\thello"}, (
-        "PSOK's own columns must not travel to the provider"
+        "AMETHYST's own columns must not travel to the provider"
     )
 
 
@@ -1630,7 +1630,7 @@ async def test_an_answer_that_never_streamed_is_still_emitted_once(db, monkeypat
 async def test_a_connector_switched_on_mid_session_becomes_usable(api, db, tmp_path, monkeypatch):
     """One manager serves the process for its lifetime and only connected at
     the moment it was built, so a connector the user switched on in the
-    interface stayed dark until PSOK was restarted. The toggle wrote a row
+    interface stayed dark until AMETHYST was restarted. The toggle wrote a row
     nothing ever acted on."""
     from backend.capabilities import CapabilityService, Kind
     from backend.mcp.config import ServerConfig, Transport, add_server
@@ -2003,7 +2003,7 @@ async def test_switching_a_connector_on_starts_it_and_says_what_happened(api, db
         api._mcp.update({"manager": None, "registry": None, "workspace": None, "errors": {}})
 
 
-async def test_removing_a_connector_takes_its_failure_with_it(db, psok_home):
+async def test_removing_a_connector_takes_its_failure_with_it(db, amethyst_home):
     """A server removed from mcp.yaml left its error behind, so /api/health
     reported degraded forever over a connector that no longer existed."""
     from backend.mcp.config import ServerConfig, Transport, add_server, remove_server
@@ -2160,7 +2160,7 @@ def test_runs_written_before_the_column_existed_are_adopted(tmp_path, monkeypatc
 
     from backend.db import connection
 
-    monkeypatch.setenv("PSOK_HOME", str(tmp_path))
+    monkeypatch.setenv("AMETHYST_HOME", str(tmp_path))
     connection.reset_connection()
     conn = connection.get_connection()
 

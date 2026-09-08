@@ -32,7 +32,7 @@ def providers_yaml(tmp_path, monkeypatch):
     path.write_text(
         yaml.safe_dump(
             {
-                "providers": [{"name": "cloudflare", "api_key_ref": "psok/cloudflare"}],
+                "providers": [{"name": "cloudflare", "api_key_ref": "amethyst/cloudflare"}],
                 "memory": {"provider": "ollama", "model": "qwen2.5:3b"},
             }
         )
@@ -64,7 +64,7 @@ def test_a_configured_embedder_is_the_one_that_gets_used(providers_yaml):
 
 
 def test_an_explicit_argument_still_wins(providers_yaml):
-    """`psok index --provider x` has to override the setting, or there is no way
+    """`amethyst index --provider x` has to override the setting, or there is no way
     to try one without committing to it.
 
     Mutation check: read the setting before looking at the arguments.
@@ -134,7 +134,7 @@ def test_a_missing_ollama_names_a_provider_that_would_work(monkeypatch):
     )
     message = Embedder("ollama", "nomic-embed-text")._ollama_missing("http://localhost:11434", "no")
     assert "cloudflare" in message
-    assert "psok embeddings detect" in message
+    assert "amethyst embeddings detect" in message
     assert "groq" not in message, "groq serves no embeddings and must not be offered"
 
 
@@ -146,7 +146,7 @@ def test_with_nothing_else_configured_the_sentence_stays_about_ollama(monkeypatc
     monkeypatch.setattr(emb, "load_providers", lambda: {"groq": ProviderConfig(name="groq")})
     message = Embedder("ollama", "nomic-embed-text")._ollama_missing("http://localhost:11434", "no")
     assert "ollama pull" in message
-    assert "psok embeddings detect" not in message
+    assert "amethyst embeddings detect" not in message
 
 
 def test_only_configured_candidates_are_offered(monkeypatch):

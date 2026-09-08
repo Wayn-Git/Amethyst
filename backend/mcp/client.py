@@ -289,7 +289,7 @@ class MCPConnection:
             return OAuthRegistrationUnsupported(
                 f"'{self.config.name}' does not support automatic app registration, so it"
                 " needs an OAuth client you register yourself. See"
-                f" `psok mcp auth {self.config.name} --help`. ({message})"
+                f" `amethyst mcp auth {self.config.name} --help`. ({message})"
             )
         if "401" in message or "oauth" in lowered or "unauthorized" in lowered:
             return OAuthRequired(message)

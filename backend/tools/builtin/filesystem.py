@@ -194,7 +194,7 @@ async def grep_files(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
 
 
 def _invalidate_index(path: Path) -> None:
-    """Tell retrieval a file PSOK just wrote is stale.
+    """Tell retrieval a file AMETHYST just wrote is stale.
 
     The real work is `indexer.mark_stale_best_effort`, shared with the document
     authoring tools. Imported inside the call rather than at module scope so a

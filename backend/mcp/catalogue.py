@@ -47,7 +47,7 @@ class CatalogueEntry:
     api_key_header: str = "Authorization"
     api_key_query_param: str | None = None
     homepage: str | None = None
-    # Where a SETUP server's client credentials actually belong. PSOK's own
+    # Where a SETUP server's client credentials actually belong. AMETHYST's own
     # OAuth layer is consulted for remote transports only (see client.py's
     # `_transport`), so a stdio server that runs its own flow reads its client
     # id and secret from the environment instead. Without this mapping,
@@ -55,7 +55,7 @@ class CatalogueEntry:
     # reported success.
     client_id_env: str | None = None
     client_secret_env: str | None = None
-    # The NAME of an environment variable carrying a client id PSOK supplies
+    # The NAME of an environment variable carrying a client id AMETHYST supplies
     # when the user has not supplied one of their own -- never the value. The
     # repository is public, and a committed client secret is a leaked one.
     #
@@ -84,7 +84,7 @@ class CatalogueEntry:
     auth_tool: str | None = None
     # Others sign in by being run differently rather than by exposing a tool --
     # a `--login` flag, or a second binary in the same package. Without this,
-    # such a server can only be signed into by hand in a terminal, and PSOK's
+    # such a server can only be signed into by hand in a terminal, and AMETHYST's
     # Connect button would claim a sign-in it never performed.
     auth_command: str | None = None  # defaults to the entry's own command
     auth_command_args: list[str] = field(default_factory=list)
@@ -186,7 +186,7 @@ GOOGLE_APPS: list[tuple[str, str, str, str]] = [
 #: Google expires a test user's consent seven days after it is given -- not the
 #: access token, the *grant*, so the refresh token stops working too and the
 #: connector goes from working to signed-out with nothing in between. It is not
-#: a PSOK bug and there is no fix from this side while publishing is blocked
+#: a AMETHYST bug and there is no fix from this side while publishing is blocked
 #: (see docs/architecture/connectors.md), so the connector says how old its
 #: sign-in is and offers to renew it before a tool call discovers the problem.
 GOOGLE_TESTING_GRANT_DAYS = 7
@@ -206,7 +206,7 @@ GOOGLE_SETUP_HINT = (
     "     again every seven days.\n"
     "  3. Clients -> Create OAuth client -> *Web application*\n"
     "     Authorised redirect URI: http://localhost:8765/oauth2callback\n"
-    "     (this exact URI — it is the server's own callback, not PSOK's)\n"
+    "     (this exact URI — it is the server's own callback, not AMETHYST's)\n"
     "  4. Paste the client id and secret below, then press Connect."
 )
 
@@ -216,7 +216,7 @@ GOOGLE_SETUP_HINT = (
 #: Google validates byte-for-byte against the registered redirect URI.
 _GOOGLE_ENV: dict[str, str] = {
     # The server's own OAuth callback listener. Its default is 8000, which is
-    # where PSOK's API usually sits, so this pins a free port; the redirect URI
+    # where AMETHYST's API usually sits, so this pins a free port; the redirect URI
     # registered with Google has to match it exactly. Bound lazily, only during
     # a sign-in, so several of these can run at once.
     "WORKSPACE_MCP_PORT": "8765",
@@ -235,7 +235,7 @@ _GOOGLE_ENV: dict[str, str] = {
 
 
 #: The services a single merged Workspace connector covers. Deliberately not all
-#: nine: these are the ones with a real PSOK use, and every extra `--tools`
+#: nine: these are the ones with a real AMETHYST use, and every extra `--tools`
 #: entry is more tool schemas on every model round trip -- Gmail and Calendar
 #: alone measured 10,493 tokens.
 GOOGLE_MERGED_TOOLS = ("gmail", "calendar", "drive", "docs", "sheets")
@@ -273,8 +273,8 @@ def _google_apps() -> list[CatalogueEntry]:
                 homepage="https://github.com/taylorwilsdon/google_workspace_mcp",
                 client_id_env="GOOGLE_OAUTH_CLIENT_ID",
                 client_secret_env="GOOGLE_OAUTH_CLIENT_SECRET",
-                default_client_id_env="PSOK_DEFAULT_GOOGLE_CLIENT_ID",
-                default_client_secret_env="PSOK_DEFAULT_GOOGLE_CLIENT_SECRET",
+                default_client_id_env="AMETHYST_DEFAULT_GOOGLE_CLIENT_ID",
+                default_client_secret_env="AMETHYST_DEFAULT_GOOGLE_CLIENT_SECRET",
                 auth_tool="start_google_auth",
                 credentials_path="~/.google_workspace_mcp/credentials",
                 shares_account_with="google",
@@ -304,8 +304,8 @@ def _google_merged() -> CatalogueEntry:
         homepage="https://github.com/taylorwilsdon/google_workspace_mcp",
         client_id_env="GOOGLE_OAUTH_CLIENT_ID",
         client_secret_env="GOOGLE_OAUTH_CLIENT_SECRET",
-        default_client_id_env="PSOK_DEFAULT_GOOGLE_CLIENT_ID",
-        default_client_secret_env="PSOK_DEFAULT_GOOGLE_CLIENT_SECRET",
+        default_client_id_env="AMETHYST_DEFAULT_GOOGLE_CLIENT_ID",
+        default_client_secret_env="AMETHYST_DEFAULT_GOOGLE_CLIENT_SECRET",
         auth_tool="start_google_auth",
         credentials_path="~/.google_workspace_mcp/credentials",
         shares_account_with="google",
@@ -390,7 +390,7 @@ CATALOGUE: list[CatalogueEntry] = [
         title="Knowledge Graph Memory",
         description=(
             "A persistent knowledge graph of entities and relations. Complementary to"
-            " PSOK's own memory: this one is explicitly curated by the model."
+            " AMETHYST's own memory: this one is explicitly curated by the model."
         ),
         category="Knowledge",
         auth=AuthKind.NONE,
@@ -413,7 +413,7 @@ CATALOGUE: list[CatalogueEntry] = [
         transport=Transport.STREAMABLE_HTTP,
         url="https://mcp.vercel.com",
         # Vercel's authorization server publishes a registration_endpoint, so
-        # unlike GitHub it registers PSOK itself and needs nothing registered by
+        # unlike GitHub it registers AMETHYST itself and needs nothing registered by
         # hand. Scopes are left to discovery: the resource advertises `openid`
         # and naming more here would only narrow what it grants.
         homepage="https://vercel.com/docs/agent-resources/vercel-mcp",
@@ -500,8 +500,8 @@ CATALOGUE: list[CatalogueEntry] = [
         # This server reads no environment at all -- verified against its own
         # `getConfigFilePath`, which prefers ~/.spotify-mcp/config.json.
         credentials_file="~/.spotify-mcp/config.json",
-        default_client_id_env="PSOK_DEFAULT_SPOTIFY_CLIENT_ID",
-        default_client_secret_env="PSOK_DEFAULT_SPOTIFY_CLIENT_SECRET",
+        default_client_id_env="AMETHYST_DEFAULT_SPOTIFY_CLIENT_ID",
+        default_client_secret_env="AMETHYST_DEFAULT_SPOTIFY_CLIENT_SECRET",
         credentials_file_keys={
             "client_id": "clientId",
             "client_secret": "clientSecret",
@@ -527,10 +527,10 @@ CATALOGUE: list[CatalogueEntry] = [
             "Needs a Tavily API key: app.tavily.com -> API Keys.\n"
             "Tavily's remote server takes the key as a URL query parameter rather\n"
             "than a header -- documented as its path for clients without their own\n"
-            "OAuth support, which is what PSOK's MCP client is."
+            "OAuth support, which is what AMETHYST's MCP client is."
         ),
         homepage="https://docs.tavily.com/documentation/mcp",
-        api_key_ref="psok-mcp/tavily.api_key",
+        api_key_ref="amethyst-mcp/tavily.api_key",
         api_key_query_param="tavilyApiKey",
     ),
     # -------------------------------------------------------------------- exa
@@ -544,7 +544,7 @@ CATALOGUE: list[CatalogueEntry] = [
         url="https://mcp.exa.ai/mcp",
         setup_hint="Needs an Exa API key: dashboard.exa.ai -> API Keys.",
         homepage="https://docs.exa.ai/reference/exa-mcp",
-        api_key_ref="psok-mcp/exa.api_key",
+        api_key_ref="amethyst-mcp/exa.api_key",
         api_key_header="x-api-key",
     ),
     # -------------------------------------------------------------- firecrawl
@@ -563,7 +563,7 @@ CATALOGUE: list[CatalogueEntry] = [
         url="https://mcp.firecrawl.dev/v2/mcp",
         setup_hint="Needs a Firecrawl API key: firecrawl.dev/app/api-keys.",
         homepage="https://docs.firecrawl.dev/mcp-server",
-        api_key_ref="psok-mcp/firecrawl.api_key",
+        api_key_ref="amethyst-mcp/firecrawl.api_key",
     ),
 ]
 
@@ -575,7 +575,7 @@ def get(entry_id: str) -> CatalogueEntry | None:
 
 
 def default_client(entry: CatalogueEntry | None) -> tuple[str | None, str | None]:
-    """The app registration PSOK ships with, if the environment carries one.
+    """The app registration AMETHYST ships with, if the environment carries one.
 
     Returns `(None, None)` unless the *id* is present, never a secret on its
     own. A half-configured default is worse than none: the id is what the

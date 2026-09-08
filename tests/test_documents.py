@@ -235,7 +235,7 @@ def test_a_missing_library_is_named_with_the_line_that_installs_it(monkeypatch):
     sentence = missing_reader(".docx")
     assert sentence is not None
     assert "python-docx" in sentence
-    assert 'pip install "psok[documents]"' in sentence
+    assert 'pip install "amethyst[documents]"' in sentence
 
 
 def test_the_old_binary_formats_point_at_the_tool_that_opens_them():

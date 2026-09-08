@@ -1,6 +1,6 @@
-# PSOK Architecture Overview
+# AMETHYST Architecture Overview
 
-PSOK is a personal operating system: one AI-powered interface connecting the user's applications, information, tasks, calendar, models, and tools. It is a **single-user, local-first** system — one person, one machine, no tenancy, no operations team. Almost every architectural decision in this document follows from that sentence.
+AMETHYST is a personal operating system: one AI-powered interface connecting the user's applications, information, tasks, calendar, models, and tools. It is a **single-user, local-first** system — one person, one machine, no tenancy, no operations team. Almost every architectural decision in this document follows from that sentence.
 
 The technology stack is **Python (FastAPI) on the backend and React on the frontend**, with all persistent state in embedded SQLite, the user's documents on the local filesystem, and all secrets in the operating system's keychain.
 
@@ -94,7 +94,7 @@ Every arrow in that walkthrough is a component boundary that exists in the diagr
 
 **One component owns the loop.** Prompt assembly, model invocation, dispatch, and termination live together in the Director. There is exactly one place to look when the agent misbehaves.
 
-**Above the dispatcher, everything is a tool.** A builtin function and a JSON-RPC call to an external MCP process are indistinguishable to the model and to the loop. The differences live in how each tool's implementation is constructed, and nowhere else. This is what lets PSOK add capability without touching the core.
+**Above the dispatcher, everything is a tool.** A builtin function and a JSON-RPC call to an external MCP process are indistinguishable to the model and to the loop. The differences live in how each tool's implementation is constructed, and nowhere else. This is what lets AMETHYST add capability without touching the core.
 
 **Provider differences never escape their adapter.** The loop deals in one tool representation and one parameter surface. That Gemini rejects schema unions, that some OpenAI models reject reasoning alongside tools, that Anthropic wants an explicit thinking budget — each of these is one module's private problem.
 
@@ -108,7 +108,7 @@ Every arrow in that walkthrough is a component boundary that exists in the diagr
 
 **Secrets never touch the model, the database, or the logs.** Credentials live in the keychain, are resolved inside tool implementations at call time, and are redacted from the audit trail.
 
-**Build nothing PSOK does not need yet.** No message broker, no vector service, no container orchestration, no multi-tenancy, no distributed coordination. Every such omission is a decision recorded in an ADR, with a named escape hatch if scale ever changes the answer.
+**Build nothing AMETHYST does not need yet.** No message broker, no vector service, no container orchestration, no multi-tenancy, no distributed coordination. Every such omission is a decision recorded in an ADR, with a named escape hatch if scale ever changes the answer.
 
 ## What each layer owns
 

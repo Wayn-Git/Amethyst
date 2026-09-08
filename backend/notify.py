@@ -1,6 +1,6 @@
 """Desktop notifications.
 
-The narrowest possible surface: a title, a body, and best effort. PSOK has one
+The narrowest possible surface: a title, a body, and best effort. AMETHYST has one
 thing to say from outside a conversation -- a reminder is due -- and this is how
 it says it.
 
@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 # Said once per process. A machine with no notifier is a normal configuration
 # (a server, a container, a stripped desktop), not an error to repeat every
-# thirty seconds for as long as PSOK runs.
+# thirty seconds for as long as AMETHYST runs.
 _warned = False
 
 
@@ -65,7 +65,7 @@ def _argv(prefix: list[str], title: str, body: str) -> list[str]:
         ]
     if prefix[0] == "kdialog":
         return [*prefix, f"{title}\n{body}", "10"]
-    return [*prefix, "--app-name=PSOK", title, body]
+    return [*prefix, "--app-name=AMETHYST", title, body]
 
 
 def available() -> bool:

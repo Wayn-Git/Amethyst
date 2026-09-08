@@ -1,6 +1,6 @@
 """What actually happened, gathered before anything is written about it.
 
-The division of labour is the one the rest of PSOK uses: the model interprets,
+The division of labour is the one the rest of AMETHYST uses: the model interprets,
 this module computes (ADR-0010). Every number a briefing or a review states
 comes from here, from a query against the database, and the model is handed
 those numbers rather than the tools to go and find some.

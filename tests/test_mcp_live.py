@@ -37,7 +37,7 @@ async def _connect(server_id: str):
     return manager, registry, count
 
 
-async def test_memory_server_discovers_and_executes(psok_home):
+async def test_memory_server_discovers_and_executes(amethyst_home):
     manager, registry, count = await _connect("memory")
     try:
         assert count >= 5, "the memory server should expose a handful of tools"
@@ -49,7 +49,7 @@ async def test_memory_server_discovers_and_executes(psok_home):
             "create_entities__mcp__memory",
             {
                 "entities": [
-                    {"name": "PSOK", "entityType": "project", "observations": ["personal OS"]}
+                    {"name": "AMETHYST", "entityType": "project", "observations": ["personal OS"]}
                 ]
             },
             ToolContext(),
@@ -57,12 +57,12 @@ async def test_memory_server_discovers_and_executes(psok_home):
         assert not created.is_error, created.content
 
         graph = await registry.dispatch("read_graph__mcp__memory", {}, ToolContext())
-        assert not graph.is_error and "PSOK" in graph.content
+        assert not graph.is_error and "AMETHYST" in graph.content
     finally:
         await manager.shutdown()
 
 
-async def test_bad_arguments_come_back_as_an_error_result(psok_home):
+async def test_bad_arguments_come_back_as_an_error_result(amethyst_home):
     """A server-side validation failure must not crash the turn."""
     manager, registry, _ = await _connect("memory")
     try:
@@ -75,7 +75,7 @@ async def test_bad_arguments_come_back_as_an_error_result(psok_home):
         await manager.shutdown()
 
 
-async def test_browser_server_exposes_navigation_tools(psok_home):
+async def test_browser_server_exposes_navigation_tools(amethyst_home):
     manager, registry, count = await _connect("playwright")
     try:
         assert count > 10, "playwright exposes a broad browser toolset"
@@ -85,7 +85,7 @@ async def test_browser_server_exposes_navigation_tools(psok_home):
         await manager.shutdown()
 
 
-async def test_disconnect_removes_the_tools_again(psok_home):
+async def test_disconnect_removes_the_tools_again(amethyst_home):
     manager, registry, count = await _connect("memory")
     try:
         assert count > 0 and registry.list()
@@ -96,7 +96,7 @@ async def test_disconnect_removes_the_tools_again(psok_home):
 
 
 @pytest.mark.skipif(shutil.which("curl") is None, reason="needs curl")
-async def test_github_requires_authorization_with_useful_guidance(psok_home):
+async def test_github_requires_authorization_with_useful_guidance(amethyst_home):
     """GitHub's real server should refuse anonymously and say what to do about it."""
     from backend.mcp.client import MCPConnectionError
     from backend.mcp.manager import MCPManager
@@ -107,6 +107,6 @@ async def test_github_requires_authorization_with_useful_guidance(psok_home):
         with pytest.raises(MCPConnectionError) as excinfo:
             await manager.connect_server(load_servers()["github"])
         message = str(excinfo.value)
-        assert "psok mcp auth github" in message or "authoriz" in message.lower()
+        assert "amethyst mcp auth github" in message or "authoriz" in message.lower()
     finally:
         await manager.shutdown()

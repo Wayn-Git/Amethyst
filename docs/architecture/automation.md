@@ -20,7 +20,7 @@ agreeing about arithmetic.
 
 ## Decision 1: who decides it is time
 
-**This process, while `psok serve` is running.** A background task wakes every
+**This process, while `amethyst serve` is running.** A background task wakes every
 thirty seconds, reads the due rows off an index, and runs them one at a time.
 
 The alternative — a cron-like daemon independent of the API — keeps automations
@@ -29,7 +29,7 @@ what such a daemon does with a turn that needs a permission answer at 3am. It
 cannot ask anyone. So it either hangs, or it decides on the user's behalf, and
 both are worse than not running.
 
-Tying automations to the server makes the rule "automations run while PSOK is
+Tying automations to the server makes the rule "automations run while AMETHYST is
 open", which fits in a sentence, is true, and is printed on the page.
 
 Runs are rescheduled from *now*, not from the time they were due. A server that
@@ -49,12 +49,12 @@ there to say "carry on" — and no more than fits inside the timeout.
 The runner wakes every ten seconds (`TICK_SECONDS`) and the interval floor is
 one minute (`MIN_MINUTES`); the ceiling is thirty days. Both were looser — a
 thirty-second tick under a five-minute floor — and together they meant the
-tightest automation PSOK would accept actually fired somewhere between five and
+tightest automation AMETHYST would accept actually fired somewhere between five and
 six minutes from now. A minute is still six ticks, so an interval is honoured
 rather than approximated, and the tick no longer costs a third of the shortest
 period. Below the tick an "automation" would be a busy loop wearing a schedule.
 
-"Run now" ignores all of this. The floor governs how often PSOK starts a run by
+"Run now" ignores all of this. The floor governs how often AMETHYST starts a run by
 itself; a person pressing the button has already decided. It still queues behind
 a run in flight, so two unattended turns never share the machine.
 
@@ -129,7 +129,7 @@ consecutive failure doubles the wait (capped at the existing thirty-day
 ceiling), and one `ok` run resets it to nothing. A `blocked` run — the gate
 correctly refusing something it was never approved for — does neither: it is
 not progress, but it is not a failure to retry past either, and backing it off
-would read as PSOK giving up on approval rather than waiting for it.
+would read as AMETHYST giving up on approval rather than waiting for it.
 
 This does not make a run retry, or make a flaky provider more reliable. It
 means an automation stuck failing every fifteen minutes settles into failing

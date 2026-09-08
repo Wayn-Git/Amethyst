@@ -1,4 +1,4 @@
--- PSOK schema. See docs/architecture/data-model.md.
+-- AMETHYST schema. See docs/architecture/data-model.md.
 -- SQLite is the single relational engine (ADR-0002); documents live on the
 -- filesystem and secrets live in the OS keychain (ADR-0004, ADR-0012).
 
@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_chunks_hash ON document_chunks(content_hash);
 
 
 -- The lists a task can belong to. Microsoft To Do owns these when an account is
--- signed in: `external_id` is the Graph list id, and PSOK mirrors rather than
+-- signed in: `external_id` is the Graph list id, and AMETHYST mirrors rather than
 -- invents. A list with no `external_id` is local-only, which is what a machine
 -- with no task connector gets.
 CREATE TABLE IF NOT EXISTS task_lists (
@@ -299,7 +299,7 @@ CREATE TABLE IF NOT EXISTS automations (
 CREATE INDEX IF NOT EXISTS idx_automations_due ON automations(enabled, next_run_at);
 
 -- Long-term memory: the second tier of the two-tier design (docs/research/khoj.md).
--- Facts are superseded rather than deleted, so "what did PSOK believe last week,
+-- Facts are superseded rather than deleted, so "what did AMETHYST believe last week,
 -- and when did that change" stays answerable -- the transcript records what was
 -- said, and this records what was concluded.
 CREATE TABLE IF NOT EXISTS memories (
@@ -372,7 +372,7 @@ CREATE INDEX IF NOT EXISTS idx_journal_recent ON journal_entries(entry_date DESC
 
 -- Everything read, watched or listened to, logged as it is consumed.
 --
--- The record is here; the text is a real file under ~/.psok/library, indexed by
+-- The record is here; the text is a real file under ~/.amethyst/library, indexed by
 -- the ordinary document indexer. So a library item is searchable by exactly the
 -- machinery a vault note is, `search_documents` finds it without knowing it
 -- exists, and the filesystem stays the source of truth for the text (ADR-0004)
@@ -427,7 +427,7 @@ CREATE INDEX IF NOT EXISTS idx_library_source_ref
 CREATE INDEX IF NOT EXISTS idx_library_url ON library_items(url) WHERE url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_library_consumed ON library_items(consumed_on DESC, id DESC);
 
--- How PSOK writes when it writes *for* the user rather than *to* them.
+-- How AMETHYST writes when it writes *for* the user rather than *to* them.
 --
 -- Exactly one row, pinned by the CHECK, because a person has one voice here. A
 -- table rather than a JSON blob in app_settings: these are fields with types,

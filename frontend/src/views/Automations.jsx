@@ -15,7 +15,7 @@ import Button from '../components/ui/Button.jsx'
    Two decisions are stated on the page rather than buried, because both are
    surprising and both are load-bearing:
 
-   They run while PSOK is open, and only then. A daemon that kept them running
+   They run while AMETHYST is open, and only then. A daemon that kept them running
    with the server down would be running turns nothing could answer a permission
    prompt for.
 
@@ -333,7 +333,7 @@ export default function Automations() {
           <span>
             <strong style={{ fontWeight: 500 }}>What this is, exactly.</strong> A prompt and an
             interval. It runs as an ordinary turn in a conversation of its own, <strong>while
-            PSOK is open</strong> — there is no daemon, so nothing runs when the server is down.
+            AMETHYST is open</strong> — there is no daemon, so nothing runs when the server is down.
             An unattended turn has nobody to answer a permission prompt, so it does not raise
             one: anything you have not already approved with “don’t ask again” comes back
             <span className="mono"> blocked</span>, naming the operation it wanted. No cron

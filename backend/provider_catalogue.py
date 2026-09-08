@@ -1,6 +1,6 @@
 """Known model providers, as data.
 
-Adding a provider to PSOK needs no code (ADR-0001): any name not in
+Adding a provider to AMETHYST needs no code (ADR-0001): any name not in
 `PROVIDER_REGISTRY` resolves to the OpenAI-compatible adapter, so an entry in
 providers.yaml with a base URL and a key is the whole integration. What was
 missing was not capability but knowledge -- the base URL, the model id and the
@@ -14,7 +14,7 @@ where to get a key, and what the docs are.
 Two deliberate omissions:
 
 * **No auth-style field.** A generic client with per-provider flags is the right
-  shape when every provider goes through one client. PSOK already has native
+  shape when every provider goes through one client. AMETHYST already has native
   adapters for the two that do not speak Bearer-and-chat-completions (Anthropic,
   Google), so a flag nothing reads would be a reserved slot for code that does
   not exist. `adapter` names the existing mechanism instead.
@@ -62,7 +62,7 @@ class ProviderPreset:
 
     @property
     def api_key_ref(self) -> str | None:
-        return None if self.local else f"psok/{self.slug}"
+        return None if self.local else f"amethyst/{self.slug}"
 
     @property
     def api_key_env(self) -> str | None:
@@ -71,20 +71,20 @@ class ProviderPreset:
         The keychain stays first -- `has_key` and `resolve_api_key` both check
         the reference before the variable -- and this is the way in for a host
         that has no keychain to check. A container is the whole reason it
-        exists: without it, a deployed PSOK could be given a key only by
+        exists: without it, a deployed AMETHYST could be given a key only by
         hand-editing providers.yaml on a disk nobody has a shell on.
 
         The name is the vendor's own where the vendor has one, because that is
         the variable the key is already sitting in on the machine of anyone who
-        has used the provider before. `PSOK_*` for the rest, which is a name
+        has used the provider before. `AMETHYST_*` for the rest, which is a name
         nothing else will collide with.
         """
         if self.local:
             return None
         # A hyphen is fine in a slug and not in an environment variable name --
-        # `ollama-cloud` would otherwise generate `PSOK_OLLAMA-CLOUD_API_KEY`,
+        # `ollama-cloud` would otherwise generate `AMETHYST_OLLAMA-CLOUD_API_KEY`,
         # which no shell can export.
-        fallback = f"PSOK_{self.slug.upper().replace('-', '_')}_API_KEY"
+        fallback = f"AMETHYST_{self.slug.upper().replace('-', '_')}_API_KEY"
         return _CONVENTIONAL_ENV.get(self.slug, fallback)
 
 
@@ -233,7 +233,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     # Added 2026-08-30. Each model list below was fetched live that day, and the
     # default named is one that endpoint actually returned. Chat completions
     # need a key on all of them -- the listings are open, the inference is not
-    # -- so **tool calling on these is unverified**, which is the thing PSOK
+    # -- so **tool calling on these is unverified**, which is the thing AMETHYST
     # depends on most and the first thing to check when a key arrives.
     #
     # GitHub Models was asked for and is deliberately absent: its endpoint
@@ -318,7 +318,7 @@ PRESETS_BY_SLUG: dict[str, ProviderPreset] = {p.slug: p for p in PROVIDER_PRESET
 #: Listing costs nothing: `configured_providers` filters out any entry whose key
 #: is missing, so a listed provider is not an offered one. What it buys is that
 #: the file itself is the menu -- base URL, model and keychain ref already
-#: written -- so adding a provider is `psok secrets set`, not research. That was
+#: written -- so adding a provider is `amethyst secrets set`, not research. That was
 #: the point of extending `DEFAULT_PROVIDERS` rather than only building a
 #: catalogue behind a screen.
 SEEDED = (
@@ -380,16 +380,16 @@ def render_default_providers() -> str:
     Generated rather than hand-written so the file a new install gets and the
     catalogue the Settings panel offers cannot drift apart -- which is exactly
     what happened to Groq and Cerebras, present in one and absent from the other
-    for long enough that `psok doctor` grew a check for it.
+    for long enough that `amethyst doctor` grew a check for it.
     """
     lines = [
-        "# PSOK model providers. api_key_ref points at an OS keychain entry --",
+        "# AMETHYST model providers. api_key_ref points at an OS keychain entry --",
         "# never a literal key.",
         "#",
         "# A listed provider is not an offered one: an entry whose key is missing is",
-        "# skipped by the model picker until `psok secrets set <ref>` fills it in.",
+        "# skipped by the model picker until `amethyst secrets set <ref>` fills it in.",
         "# More providers -- OpenRouter, DeepSeek, Mistral, xAI, Together, Fireworks,",
-        "# NVIDIA -- are in Settings > Models, or `psok providers add <name>`.",
+        "# NVIDIA -- are in Settings > Models, or `amethyst providers add <name>`.",
         "providers:",
     ]
     for slug in SEEDED:
@@ -397,7 +397,7 @@ def render_default_providers() -> str:
         if p.note:
             lines.append(f"  # {p.label}: {p.note}")
         if p.keys_url:
-            lines.append(f"  #   key: {p.keys_url}  ->  psok secrets set {p.api_key_ref}")
+            lines.append(f"  #   key: {p.keys_url}  ->  amethyst secrets set {p.api_key_ref}")
         entry = entry_for(p)
         lines.append(f"  - name: {entry['name']}")
         for key, value in entry.items():

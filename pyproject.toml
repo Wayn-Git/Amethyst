@@ -1,5 +1,5 @@
 [project]
-name = "psok"
+name = "amethyst"
 version = "0.1.0"
 description = "Personal operating system: one AI interface to your apps, information, tasks and tools"
 requires-python = ">=3.11"
@@ -47,7 +47,7 @@ dev = [
 ]
 
 [project.scripts]
-psok = "backend.cli:main"
+amethyst = "backend.cli:main"
 
 [build-system]
 requires = ["hatchling"]

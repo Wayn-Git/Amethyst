@@ -20,17 +20,17 @@ from backend.runtime.transcribe import (
 
 
 @pytest.fixture
-def groq(db, psok_home):
+def groq(db, amethyst_home):
     """A provider with a key, so it counts as configured."""
     from backend.secrets import set_secret
 
-    set_secret("psok/groq", "gsk_" + "x" * 40)
+    set_secret("amethyst/groq", "gsk_" + "x" * 40)
     add_provider(
         {
             "name": "groq",
             "base_url": "https://api.groq.com/openai/v1",
             "default_model": "a-model",
-            "api_key_ref": "psok/groq",
+            "api_key_ref": "amethyst/groq",
         }
     )
     return "groq"

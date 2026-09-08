@@ -27,7 +27,7 @@ A dedicated module, not spread across tool implementations, owning:
 - **Conflict detection** — checking a candidate time window against existing `calendar_events` for overlap.
 - **`find_free_slot`** — a simple greedy scan across the calendar for an open window matching a requested duration. v1 scope only.
 
-**Deliberately not built:** recurring tasks, and a constraint-solver that auto-schedules multiple tasks against each other, balancing priorities and durations across a week. That is a meaningfully harder problem than a greedy free-slot scan, and nothing in the brief's examples requires it. It is a stretch-phase item, not a v1 requirement — building it now would be solving a problem PSOK does not yet have evidence anyone needs solved.
+**Deliberately not built:** recurring tasks, and a constraint-solver that auto-schedules multiple tasks against each other, balancing priorities and durations across a week. That is a meaningfully harder problem than a greedy free-slot scan, and nothing in the brief's examples requires it. It is a stretch-phase item, not a v1 requirement — building it now would be solving a problem AMETHYST does not yet have evidence anyone needs solved.
 
 ## Data model
 
@@ -37,7 +37,7 @@ See [data-model.md](data-model.md) for the full schema. The detail that matters 
 
 There is no recurrence support, and no column reserving a place for it. An earlier version of this file claimed `tasks.recurrence_rule` existed; it never did — `git log -S` finds no commit that added it. Corrected 2026-08-27.
 
-`tasks.reminder_at` and `tasks.reminded_at` are a different thing from either. A reminder is one timestamp and one notification, not a schedule: `backend/reminders.py` scans `COALESCE(reminder_at, due_at)` every thirty seconds while `psok serve` runs, claims `reminded_at` with a conditional update, and then notifies — in that order, so a machine with no notification daemon misses one reminder rather than repeating it forever. It fires while PSOK is open, the same rule automations state, and for the same reason.
+`tasks.reminder_at` and `tasks.reminded_at` are a different thing from either. A reminder is one timestamp and one notification, not a schedule: `backend/reminders.py` scans `COALESCE(reminder_at, due_at)` every thirty seconds while `amethyst serve` runs, claims `reminded_at` with a conditional update, and then notifies — in that order, so a machine with no notification daemon misses one reminder rather than repeating it forever. It fires while AMETHYST is open, the same rule automations state, and for the same reason.
 
 Both columns are local naive time, like every other timestamp the engine resolves. That is load-bearing and not obvious: SQLite compares these as strings, so a UTC clock on one side of the comparison delivers every reminder late by the machine's offset.
 

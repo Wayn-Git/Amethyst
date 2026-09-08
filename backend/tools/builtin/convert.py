@@ -212,7 +212,7 @@ async def convert_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         proc = await asyncio.create_subprocess_exec(
             *wrapped,
             cwd=str(destination.parent),
-            env={**os.environ, "PSOK": "1"},
+            env={**os.environ, "AMETHYST": "1"},
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

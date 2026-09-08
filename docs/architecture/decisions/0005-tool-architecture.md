@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-PSOK needs builtin capabilities (filesystem, shell, scheduling), integration-provided capabilities (Gmail, Calendar, GitHub), and MCP-provided capabilities (external servers) to all be usable by the model. LibreChat's `builtin | mcp | action | custom` taxonomy, unified behind one LangChain tool interface, is the researched precedent. See [components.md](../components.md).
+AMETHYST needs builtin capabilities (filesystem, shell, scheduling), integration-provided capabilities (Gmail, Calendar, GitHub), and MCP-provided capabilities (external servers) to all be usable by the model. LibreChat's `builtin | mcp | action | custom` taxonomy, unified behind one LangChain tool interface, is the researched precedent. See [components.md](../components.md).
 
 ## Decision
 

@@ -1,12 +1,12 @@
-# ⚙️ PSOK Complete Configuration & Connectivity Guide
+# ⚙️ AMETHYST Complete Configuration & Connectivity Guide
 
-Welcome to the comprehensive configuration guide for **PSOK**! This guide covers everything needed to connect external apps, set up OAuth, deploy the Cloudflare 24/7 relay, and master the personal Library.
+Welcome to the comprehensive configuration guide for **AMETHYST**! This guide covers everything needed to connect external apps, set up OAuth, deploy the Cloudflare 24/7 relay, and master the personal Library.
 
 ---
 
-## 🧭 3 Ways to Configure PSOK
+## 🧭 3 Ways to Configure AMETHYST
 
-You can configure PSOK using any of the following methods:
+You can configure AMETHYST using any of the following methods:
 
 | Method | Best For | How to Access |
 |---|---|---|
@@ -18,7 +18,7 @@ You can configure PSOK using any of the following methods:
 
 ## 🤖 1. AI Models & Providers
 
-PSOK gives you freedom to choose between **100% free local models** (no API keys, zero cloud costs) and **cloud model providers**.
+AMETHYST gives you freedom to choose between **100% free local models** (no API keys, zero cloud costs) and **cloud model providers**.
 
 ### Option A: 100% Free & Local via Ollama (Zero API Keys)
 1. Download and install [Ollama](https://ollama.ai/).
@@ -28,7 +28,7 @@ PSOK gives you freedom to choose between **100% free local models** (no API keys
    # Or for larger capacity:
    ollama run qwen2.5:7b
    ```
-3. PSOK detects Ollama running on `http://127.0.0.1:11434` automatically! Select it from the model dropdown in the chat.
+3. AMETHYST detects Ollama running on `http://127.0.0.1:11434` automatically! Select it from the model dropdown in the chat.
 
 ### Option B: Cloud Providers
 Add your keys into `.env` (or pass them via `./run.sh --setup`):
@@ -42,7 +42,7 @@ GROQ_API_KEY=gsk_...
 
 ## 🔗 2. Apps Connectivity & OAuth
 
-PSOK uses Model Context Protocol (MCP) to interact with external tools and services. You can manage connectors in the **Connectors & Skills** view (`/capabilities`) or via the CLI.
+AMETHYST uses Model Context Protocol (MCP) to interact with external tools and services. You can manage connectors in the **Connectors & Skills** view (`/capabilities`) or via the CLI.
 
 ### 📋 Connector Matrix
 
@@ -62,7 +62,7 @@ Microsoft To Do uses Microsoft's public device-code flow:
 1. In the Web UI, go to **Connectors & Skills** (`/capabilities`) → click **Add** next to **Microsoft To Do**.
 2. Click **Connect**. A device code will appear.
 3. Visit [microsoft.com/devicelogin](https://microsoft.com/devicelogin), enter the code, and approve.
-4. PSOK is now connected to your tasks and task lists!
+4. AMETHYST is now connected to your tasks and task lists!
 
 ---
 
@@ -71,7 +71,7 @@ Because Google requires OAuth credentials for desktop applications:
 1. Go to [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials).
 2. Click **Create Credentials** → **OAuth Client ID**:
    - **Application type**: Desktop app
-   - **Name**: PSOK
+   - **Name**: AMETHYST
 3. In **APIs & Services → Library**, enable:
    - Gmail API
    - Google Calendar API
@@ -79,11 +79,11 @@ Because Google requires OAuth credentials for desktop applications:
 4. Copy your **Client ID** and **Client Secret**.
 5. Set them in `.env`:
    ```env
-   PSOK_DEFAULT_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-   PSOK_DEFAULT_GOOGLE_CLIENT_SECRET=your-client-secret
+   AMETHYST_DEFAULT_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   AMETHYST_DEFAULT_GOOGLE_CLIENT_SECRET=your-client-secret
    ```
    *Or* enter them when prompted in `./run.sh --setup`.
-6. Open **Connectors & Skills** in PSOK and click **Connect**. Approve in your browser.
+6. Open **Connectors & Skills** in AMETHYST and click **Connect**. Approve in your browser.
 7. **One Account Signs into All**: Signing into Google Workspace automatically authorizes Gmail, Calendar, and Drive at once!
 
 ---
@@ -91,10 +91,10 @@ Because Google requires OAuth credentials for desktop applications:
 ### 🐙 Setting Up GitHub
 1. Generate a Personal Access Token (Classic) at [github.com/settings/tokens](https://github.com/settings/tokens).
 2. Select scopes: `repo`, `read:user`.
-3. In PSOK, run:
+3. In AMETHYST, run:
    ```bash
-   psok mcp add github
-   psok mcp env github GITHUB_PERSONAL_ACCESS_TOKEN=<your-token>
+   amethyst mcp add github
+   amethyst mcp env github GITHUB_PERSONAL_ACCESS_TOKEN=<your-token>
    ```
 
 ---
@@ -103,8 +103,8 @@ Because Google requires OAuth credentials for desktop applications:
 1. Sign up for a free key at [tavily.com](https://tavily.com).
 2. Store the key:
    ```bash
-   psok secrets set psok/tavily
-   psok mcp add tavily
+   amethyst secrets set amethyst/tavily
+   amethyst mcp add tavily
    ```
 
 ---
@@ -124,7 +124,7 @@ Cloudflare provides 100% free cloud embeddings (`@cf/baai/bge-base-en-v1.5`) and
    ```
 5. Set Cloudflare as the default embedding provider:
    ```bash
-   psok embeddings set cloudflare @cf/baai/bge-base-en-v1.5
+   amethyst embeddings set cloudflare @cf/baai/bge-base-en-v1.5
    ```
 
 ---
@@ -146,7 +146,7 @@ cd relay
 npm install
 
 # 2. Create the Cloudflare D1 database (free)
-npx wrangler d1 create psok-relay
+npx wrangler d1 create amethyst-relay
 ```
 The command outputs a `database_id`. Open `relay/wrangler.jsonc` and paste that ID into `database_id`.
 
@@ -157,30 +157,30 @@ npm run schema
 # 4. Set the 3 Worker secrets
 npx wrangler secret put APP_SECRET       # Your Meta App Secret from developers.facebook.com
 npx wrangler secret put VERIFY_TOKEN     # Any random string you choose (e.g. my-secret-verify-token)
-npx wrangler secret put RELAY_TOKEN      # A random token for PSOK sync (e.g. openssl rand -hex 32)
+npx wrangler secret put RELAY_TOKEN      # A random token for AMETHYST sync (e.g. openssl rand -hex 32)
 
 # 5. Deploy the worker!
 npm run deploy
 ```
 The deploy command prints your worker URL:
-`https://psok-relay.<your-name>.workers.dev`
+`https://amethyst-relay.<your-name>.workers.dev`
 
-### Connecting the Relay to Meta & PSOK:
+### Connecting the Relay to Meta & AMETHYST:
 1. **In Meta App Dashboard (Instagram Webhooks)**:
-   - **Callback URL**: `https://psok-relay.<your-name>.workers.dev/ig/webhook`
+   - **Callback URL**: `https://amethyst-relay.<your-name>.workers.dev/ig/webhook`
    - **Verify Token**: The exact string you gave to `VERIFY_TOKEN`.
    - **Fields**: Subscribe to `messages` and `mentions`.
-2. **In PSOK**:
+2. **In AMETHYST**:
    ```bash
-   psok instagram relay --url https://psok-relay.<your-name>.workers.dev --token <RELAY_TOKEN> --on
+   amethyst instagram relay --url https://amethyst-relay.<your-name>.workers.dev --token <RELAY_TOKEN> --on
    ```
 
 ---
 
 ## 📚 5. The Library Section (Your Knowledge Vault)
 
-The **Library** (`/library`) is your central, unified personal knowledge vault. Unlike standard bookmark apps, PSOK:
-- Converts saved content into clean markdown stored locally at `~/.psok/library/`.
+The **Library** (`/library`) is your central, unified personal knowledge vault. Unlike standard bookmark apps, AMETHYST:
+- Converts saved content into clean markdown stored locally at `~/.amethyst/library/`.
 - Runs full-text indexing + semantic vector embeddings for hybrid search.
 - Uses local LLMs or cloud providers to extract summaries, tags, and key entities.
 
@@ -193,7 +193,7 @@ The **Library** (`/library`) is your central, unified personal knowledge vault. 
    - Share any web link, article, or YouTube video from your phone.
    - Sends a simple `POST /share` to your Cloudflare Worker with `{ "url": "https://..." }`.
 3. **Browser Bookmarks Sync**:
-   - Run `psok bookmarks sync` to auto-ingest your Chrome, Brave, or Safari bookmarks.
+   - Run `amethyst bookmarks sync` to auto-ingest your Chrome, Brave, or Safari bookmarks.
 4. **Drag & Drop Files**:
    - Drop PDFs, DOCX, PPTX, or images directly into the chat or Library view.
 5. **In-Chat Conversations**:

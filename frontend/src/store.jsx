@@ -21,7 +21,7 @@ function pathToId(pathname) {
 
 const AppCtx = createContext(null)
 
-const KEY = 'psok.ui.v1'
+const KEY = 'amethyst.ui.v1'
 
 function loadPrefs() {
   try {
@@ -201,7 +201,7 @@ export function AppProvider({ children }) {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
     if (typeof document !== 'undefined' && document.visibilityState === 'visible') return
     try {
-      const n = new Notification(title, { body: (body || '').slice(0, 180), tag: 'psok-turn' })
+      const n = new Notification(title, { body: (body || '').slice(0, 180), tag: 'amethyst-turn' })
       n.onclick = () => { try { window.focus() } catch { /* no-op */ } ; onClick?.() ; n.close() }
     } catch { /* some contexts throw on construction */ }
   }, [notifyOnDone])

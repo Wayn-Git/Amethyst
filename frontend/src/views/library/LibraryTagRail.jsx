@@ -46,7 +46,13 @@ export default function LibraryTagRail({
   }, [counts])
 
   return (
-    <motion.aside className={`lib-tag-rail ${isOpen ? 'lib-tag-rail--open' : 'lib-tag-rail--closed'}`}>
+    <motion.aside 
+      className={`lib-tag-rail ${isOpen ? 'lib-tag-rail--open' : 'lib-tag-rail--closed'}`}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+    >
       <div className="lib-tag-rail-header">
         <div className="lib-tag-rail-title">
           <Icon name="grid" size={14} />

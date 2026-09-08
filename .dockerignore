@@ -39,10 +39,10 @@ docker-compose*.yml
 
 # ----------------------------------------------------------------- safety
 #
-# Personal state, denied by pattern rather than by remembering. PSOK_HOME
-# defaults to ~/.psok and the connector directories live under $HOME, so none
+# Personal state, denied by pattern rather than by remembering. AMETHYST_HOME
+# defaults to ~/.amethyst and the connector directories live under $HOME, so none
 # of this is in the repository by default -- these patterns are here for the
-# day someone sets PSOK_HOME=./data to debug something, or copies a database
+# day someone sets AMETHYST_HOME=./data to debug something, or copies a database
 # in to reproduce a bug. tests/test_docker_context.py asserts they are present.
 #
 # Secrets reach a running container through env_file at `docker run`, never
@@ -52,11 +52,11 @@ docker-compose*.yml
 *.env
 !.env.example
 data/
-.psok/
-psok-home/
+.amethyst/
+amethyst-home/
 **/secrets.json
-**/psok.db
-**/psok.db-*
+**/amethyst.db
+**/amethyst.db-*
 **/providers.yaml
 **/mcp.yaml
 **/.google_workspace_mcp/

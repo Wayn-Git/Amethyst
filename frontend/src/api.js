@@ -80,7 +80,7 @@ export async function wakeBackend() {
         attempts: attempt,
         error: API_ORIGIN
           ? `No answer from ${API_ORIGIN} after ${Math.round(WAKE_GIVE_UP_AFTER / 1000)}s.`
-          : 'No answer from the API. Is `psok serve` running?',
+          : 'No answer from the API. Is `amethyst serve` running?',
       })
       return false
     }
@@ -117,21 +117,21 @@ async function j(url, opts) {
     // with no wifi alike. The interface showed that string verbatim, which
     // named none of them. Say where it was trying to reach, and put the backend
     // back into waking so the boot frame comes up rather than a dead page.
-    if (state.phase === 'ready') { publish({ phase: 'waking', since: Date.now(), attempts: 0 }) }
+    if (state.phase === 'ready') { wakeBackend() }
     const where = API_ORIGIN || window.location.origin
     throw new Error(`Could not reach ${where} — ${err.message || 'the request failed'}`)
   }
   if (state.phase !== 'ready') publish({ phase: 'ready', error: null })
   if (!res.ok) {
     // A 405 on a path this interface knows about means the endpoint is not in
-    // the running server, which in practice means one thing: `psok serve` has
+    // the running server, which in practice means one thing: `amethyst serve` has
     // been up since before the bundle it is serving was built. "405: Method
     // Not Allowed" sends someone looking for a bug in their own request; this
     // says what to actually do about it.
     if (res.status === 405) {
       throw new Error(
         `This server does not have ${opts?.method || 'that'} ${url} — it is running an older`
-        + ' build than the interface it is serving. Restart psok serve.',
+        + ' build than the interface it is serving. Restart amethyst serve.',
       )
     }
     let detail = res.statusText
@@ -385,6 +385,7 @@ export const api = {
   // A route rather than a path: the browser is never handed a filesystem
   // location, and a missing still is a 404 rather than a broken <img>.
   thumbnailUrl: (id) => `${BASE}/library/${id}/thumbnail`,
+  mediaUrl: (id) => `${BASE}/library/${id}/media`,
 
   // Instagram capture. Credentials go one way only — set and delete; the status
   // reports whether each is present, never what it is.

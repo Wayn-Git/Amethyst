@@ -1,12 +1,12 @@
-# 🚀 PSOK Quick Start Guide
+# 🚀 AMETHYST Quick Start Guide
 
-Welcome to **PSOK** (Personal Operating System with Knowledge)! This guide will get you up and running in **less than 2 minutes**.
+Welcome to **AMETHYST** (Personal Operating System with Knowledge)! This guide will get you up and running in **less than 2 minutes**.
 
 ---
 
 ## ⚡ 1-Minute Automated Start (Recommended)
 
-PSOK includes automated startup scripts:
+AMETHYST includes automated startup scripts:
 - **macOS / Linux / WSL2**: Run `./run.sh`
 - **Windows**: Run `run.bat` *(in Command Prompt or PowerShell, or double-click it)*
 
@@ -14,8 +14,8 @@ PSOK includes automated startup scripts:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/pkos.git
-cd pkos
+git clone https://github.com/your-username/amethyst.git
+cd amethyst
 
 # 2. Run the startup script (macOS/Linux/WSL)
 ./run.sh
@@ -84,7 +84,7 @@ If you have Docker installed, you don't need Python or Node on your host:
 docker compose up
 ```
 
-Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)**. Your data is stored locally in `./data/psok`.
+Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)**. Your data is stored locally in `./data/amethyst`.
 
 ---
 
@@ -100,8 +100,8 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 # 2. Install Python dependencies
 pip install -r requirements.txt
 
-# 3. Initialize PSOK database & configuration
-psok init
+# 3. Initialize AMETHYST database & configuration
+amethyst init
 
 # 4. Build the web frontend
 cd frontend
@@ -110,14 +110,14 @@ npm run build
 cd ..
 
 # 5. Start the server
-psok serve --open
+amethyst serve --open
 ```
 
 ---
 
 ## 🧠 Setting Up AI Models (2 Minutes)
 
-PSOK works with **100% free local models** as well as **cloud providers** (Anthropic Claude, OpenAI, Groq, Gemini).
+AMETHYST works with **100% free local models** as well as **cloud providers** (Anthropic Claude, OpenAI, Groq, Gemini).
 
 ### Method A: 100% Free & Local (Ollama - No API Keys)
 1. Download and install [Ollama](https://ollama.ai/).
@@ -125,7 +125,7 @@ PSOK works with **100% free local models** as well as **cloud providers** (Anthr
    ```bash
    ollama run llama3.2
    ```
-3. PSOK connects to Ollama automatically! Simply pick it from the model selector in the chat.
+3. AMETHYST connects to Ollama automatically! Simply pick it from the model selector in the chat.
 
 ### Method B: Cloud Providers (OpenAI, Anthropic, Groq)
 Copy `.env.example` to `.env` (the startup script does this automatically):
@@ -140,9 +140,9 @@ GROQ_API_KEY=gsk_...
 ```
 *Or* configure them via the web UI in **Settings → Models**, or via the CLI:
 ```bash
-psok secrets set psok/anthropic
-psok secrets set psok/openai
-psok secrets set psok/groq
+amethyst secrets set amethyst/anthropic
+amethyst secrets set amethyst/openai
+amethyst secrets set amethyst/groq
 ```
 
 ---
@@ -156,8 +156,8 @@ psok secrets set psok/groq
 | `./run.sh --dev` | Starts backend with hot-reload + Vite dev server concurrently |
 | `./run.sh --doctor` / `run.bat --doctor` | Runs system diagnostics (checks models, DB, tools, connectors) |
 | `./run.sh --build` | Rebuilds the frontend bundle |
-| `psok doctor` | Checks what is working and what is missing |
-| `psok chat "Hello"` | Run a chat turn directly from your terminal |
+| `amethyst doctor` | Checks what is working and what is missing |
+| `amethyst chat "Hello"` | Run a chat turn directly from your terminal |
 
 ---
 
@@ -175,7 +175,7 @@ See [docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md) for step-by-step 
 The relay in `relay/` is a free Cloudflare Worker that stays awake on the edge. When you or someone else sends/comments a reel on Instagram or shares a link from a phone, the relay holds it until your machine pulls it, transcribes the audio, and saves it into your Library. See [docs/CONFIGURATION_GUIDE.md#4-cloudflare-worker-relay](docs/CONFIGURATION_GUIDE.md#4-cloudflare-worker-relay).
 
 ### Q: The page is blank when opening http://127.0.0.1:8000?
-Run `./run.sh --build` (or `cd frontend && npm install && npm run build`). PSOK serves the SPA from `frontend/dist`.
+Run `./run.sh --build` (or `cd frontend && npm install && npm run build`). AMETHYST serves the SPA from `frontend/dist`.
 
 ### Q: How do I test if everything is functioning?
 Run `./run.sh --doctor` or `run.bat --doctor`. It validates the database, model providers, tools, and skills.

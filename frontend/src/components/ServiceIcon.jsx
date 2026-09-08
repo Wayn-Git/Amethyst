@@ -1,4 +1,4 @@
-/* Brand marks for the connectors PSOK ships in its catalogue.
+/* Brand marks for the connectors AMETHYST ships in its catalogue.
 
    These used to be drawn by hand in this file: an approximation of the GitHub
    octocat, a four-colour shape standing in for the Google G, a green circle

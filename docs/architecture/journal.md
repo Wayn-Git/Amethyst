@@ -60,7 +60,7 @@ plus the questions, and `PATCH /api/journal/{id}` writes the review — committi
 `user_notes` **before** the model call, so a provider that hangs costs the
 write-up and never what was typed.
 
-A week where PSOK was never open on the review day produces no rollup. A weekly
+A week where AMETHYST was never open on the review day produces no rollup. A weekly
 review written on Wednesday about last week is worse than none; Today offers one
 on demand instead.
 

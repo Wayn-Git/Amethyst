@@ -5,7 +5,7 @@ Written 4 September 2026.
 ## The problem
 
 `backend/instagram/` is complete and tested. It cannot be used, because it needs
-a public HTTPS address and PSOK runs on a laptop that is closed most of the day.
+a public HTTPS address and AMETHYST runs on a laptop that is closed most of the day.
 
 A closed laptop is not a slow endpoint, it is a *down* endpoint. Meta retries a
 failed webhook and, after sustained failure, disables the subscription — so the
@@ -107,7 +107,7 @@ provider keys, the app secret's use for anything but verification.
   drain tick.
 - Config: `relay_url`, `relay_enabled` in `app_settings`; the relay token in the
   keychain beside the other three.
-- CLI: `psok instagram relay --url … --token … | --status | --sync`.
+- CLI: `amethyst instagram relay --url … --token … | --status | --sync`.
 - Library panel: last sync, count waiting at the relay.
 
 Nothing in the processing pipeline changes. A relayed delivery and a direct one

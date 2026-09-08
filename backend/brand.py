@@ -1,4 +1,4 @@
-"""The user's own voice, and how PSOK writes in it.
+"""The user's own voice, and how AMETHYST writes in it.
 
 A brand kit is only worth storing if it changes something. So this is not a
 settings page that remembers a palette: `prompt_block` is injected into the
@@ -12,7 +12,7 @@ skeleton of blank headings -- nothing. A `<brand>` carrying "voice:" and no
 voice costs context on every turn and tells the model the user has none.
 
 **It is scoped to writing done in the user's name.** Posts, copy, captions,
-newsletters. Not answers PSOK gives the user directly, which should stay plain,
+newsletters. Not answers AMETHYST gives the user directly, which should stay plain,
 and not a topic to raise unprompted. The block says so in its first line,
 because a model given a voice with no scope will use it to answer questions.
 """

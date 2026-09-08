@@ -1,6 +1,6 @@
 """Reading the open web.
 
-PSOK could reach the web only through a connector before this: the model had no
+AMETHYST could reach the web only through a connector before this: the model had no
 way to look something up unless the user had switched one on, which made
 "search for X" fail for a reason that had nothing to do with the request. These
 two tools are read-only and touch nothing on the machine, so they carry the

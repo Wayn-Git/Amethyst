@@ -171,7 +171,7 @@ async def test_deleted_files_are_pruned(db, vault):
 
 
 async def test_marking_stale_forces_a_reindex(db, vault):
-    """PSOK's own file edits invalidate the index immediately."""
+    """AMETHYST's own file edits invalidate the index immediately."""
     indexer = Indexer(FakeEmbedder(), conn=db)
     await indexer.index_vault(vault)
 
@@ -308,7 +308,7 @@ async def test_search_tool_reports_an_empty_index_helpfully(db):
 
     result = await search_documents({"query": "anything"}, ToolContext())
     assert not result.is_error
-    assert "psok index" in result.content, "tell the user how to fix it"
+    assert "amethyst index" in result.content, "tell the user how to fix it"
 
 
 async def test_search_tool_needs_a_query(db):
@@ -356,7 +356,7 @@ def test_extension_state_is_not_cached_by_connection_id():
     assert connect and migrate  # keep the import meaningful
 
 
-async def test_indexing_survives_a_fresh_connection_after_others_closed(tmp_path, psok_home):
+async def test_indexing_survives_a_fresh_connection_after_others_closed(tmp_path, amethyst_home):
     """The exact shape of the id-reuse bug: index, drop the connection, index again."""
     from backend.db import connection as connection_module
 
@@ -460,7 +460,7 @@ async def test_a_turn_injects_indexed_context_into_the_system_prompt(db, vault, 
 
 async def test_an_empty_index_costs_the_turn_no_retrieval_work(db, monkeypatch):
     """Skipped before the embedder is ever constructed: a user who has never run
-    `psok index` must not pay a round trip to an embedding server on every turn."""
+    `amethyst index` must not pay a round trip to an embedding server on every turn."""
     from backend.db.repositories import ConversationRepository
 
     def explode(*a, **k):
@@ -628,7 +628,7 @@ async def test_a_search_hit_in_a_pdf_names_its_page(db, vault):
 
 async def test_a_scanned_pdf_is_skipped_rather_than_counted_as_an_error(db, vault):
     """A folder of scans would otherwise fill `errors` with two hundred entries
-    and make a working index look broken. The file is fine; PSOK just cannot read
+    and make a working index look broken. The file is fine; AMETHYST just cannot read
     it without OCR, and `errors` should keep meaning "went wrong".
 
     Mutation check: append to `report.errors` instead of `report.skipped`.

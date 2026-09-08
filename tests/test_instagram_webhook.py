@@ -1,6 +1,6 @@
 """The webhook: what it accepts, what it refuses, and how fast it answers.
 
-This endpoint is the one part of PSOK meant to be reachable from the internet,
+This endpoint is the one part of AMETHYST meant to be reachable from the internet,
 and Meta will not send it a bearer token -- so the HMAC signature is the whole of
 its authentication. Most of what is asserted here is about that.
 """
@@ -168,7 +168,7 @@ def test_meta_retrying_a_delivery_records_it_once(client, configured):
 
 
 def test_a_body_that_cannot_be_read_is_answered_with_200(client, configured):
-    """A body Meta signed and PSOK cannot parse will not parse next time either.
+    """A body Meta signed and AMETHYST cannot parse will not parse next time either.
     A 4xx here makes Meta retry it for hours.
 
     Mutation check: raise 400 on a ValidationError.

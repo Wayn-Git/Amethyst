@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-Retrieval needs similarity search over document-chunk and memory embeddings. Khoj uses pgvector inside its single Postgres instance. PSOK uses SQLite as its primary engine (ADR-0002). See [data-model.md](../data-model.md).
+Retrieval needs similarity search over document-chunk and memory embeddings. Khoj uses pgvector inside its single Postgres instance. AMETHYST uses SQLite as its primary engine (ADR-0002). See [data-model.md](../data-model.md).
 
 ## Decision
 
@@ -14,12 +14,12 @@ Store embeddings in the same SQLite database using the `sqlite-vec` extension, i
 
 ## Alternatives Considered
 
-- **A separate hosted or embedded vector database from day one (Qdrant, Chroma, LanceDB).** Rejected as premature: adds a second engine and a cross-engine join between chunk metadata and embeddings for a scale PSOK's personal-use case does not reach.
+- **A separate hosted or embedded vector database from day one (Qdrant, Chroma, LanceDB).** Rejected as premature: adds a second engine and a cross-engine join between chunk metadata and embeddings for a scale AMETHYST's personal-use case does not reach.
 - **No vector search, keyword-only retrieval.** Rejected: semantic search over personal notes and documents is core to the product's value.
 
 ## Trade-offs
 
-`sqlite-vec` is less mature and has a smaller ecosystem than dedicated vector databases; acceptable given PSOK's expected corpus size. The escape hatch is real but unbuilt — it is a documented path, not a fallback that has been implemented and tested.
+`sqlite-vec` is less mature and has a smaller ecosystem than dedicated vector databases; acceptable given AMETHYST's expected corpus size. The escape hatch is real but unbuilt — it is a documented path, not a fallback that has been implemented and tested.
 
 ## Consequences
 

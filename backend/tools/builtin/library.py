@@ -7,7 +7,7 @@ share endpoint and these tools all go through it.
 `search_documents` already finds library material, because it is the same index.
 `search_library` exists because "what have I read about X" is a different
 question from "what is in my notes about X", and answering it with the item --
-title, author, when you read it -- rather than a passage under `~/.psok` is what
+title, author, when you read it -- rather than a passage under `~/.amethyst` is what
 makes the answer usable.
 """
 

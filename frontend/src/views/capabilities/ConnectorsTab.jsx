@@ -23,7 +23,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog.jsx'
 
    Reconnecting always signs out first. A provider that still holds a session
    otherwise returns the same account without ever showing its chooser, which
-   is what made switching account impossible from inside PSOK. */
+   is what made switching account impossible from inside AMETHYST. */
 function ConnectionBlock({ server, busy, onAct }) {
   const [hint, setHint] = useState('')
   const needsHint = server.auth_kind === 'setup' && Boolean(server.account_hint_label)
@@ -127,7 +127,7 @@ function ConnectionBlock({ server, busy, onAct }) {
 /* The client id and secret a provider issued, put where the thing that reads
    them will actually find it.
 
-   PSOK's OAuth provider is built for remote transports only, so a stdio server
+   AMETHYST's OAuth provider is built for remote transports only, so a stdio server
    reads its client from the environment its process is given. The backend
    routes by transport; this form only has to say which it is doing, because a
    form that claimed to store an OAuth client and wrote it somewhere nothing
@@ -182,7 +182,7 @@ function CredentialsForm({ server, onDone }) {
                 ? ` and shared with ${sharedWith.length} other connector${sharedWith.length === 1 ? '' : 's'}, so replacing it changes all of them.`
                 : '.'}
               {' '}Replacing it is deliberate, from the terminal:
-              <span className="mono"> psok mcp env {server.name} {secretKey} &lt;value&gt; --secret --force</span>
+              <span className="mono"> amethyst mcp env {server.name} {secretKey} &lt;value&gt; --secret --force</span>
             </div>
           </div>
         </div>
@@ -365,7 +365,7 @@ function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChan
     ['Category', server.category],
     ['Transport', server.transport],
     ['Endpoint', server.target],
-    ['Sign-in', { oauth: 'PSOK runs the OAuth flow', setup: 'The server runs its own flow', none: 'None' }[server.auth_kind]],
+    ['Sign-in', { oauth: 'AMETHYST runs the OAuth flow', setup: 'The server runs its own flow', none: 'None' }[server.auth_kind]],
     ['Requires', server.requires],
     ['Source', server.source],
   ].filter(([, value]) => Boolean(value))
@@ -585,7 +585,7 @@ const FEATURED = 8
    Every state is spelled out here because every one of them happened and none
    of them had a screen. A link is only offered while it can still be used: an
    expired one fails at the provider with a message about a state parameter,
-   which reads as PSOK being broken when the honest answer is "that took too
+   which reads as AMETHYST being broken when the honest answer is "that took too
    long, go again". */
 
 const AUTH_STATES = {
@@ -707,7 +707,7 @@ function AuthCard({ auth, title, onRetry, onCancel, onDismiss, onCopy, onCopyCod
         )}
         {waiting ? (
           /* Closing the browser tab is how most abandoned sign-ins end, and
-             nothing told PSOK. Without this the card sits there, and a whole
+             nothing told AMETHYST. Without this the card sits there, and a whole
              subprocess sits behind it, until the deadline passes. */
           <button
             type="button"
@@ -1343,7 +1343,7 @@ export default function ConnectorsTab({ query, newOpen, setNewOpen }) {
             {q
               ? 'No connector in the catalogue matches that.'
               : 'Every connector in the bundled catalogue is already added. Anything else is a'
-                + ' server of your own: add it to ~/.psok/config/mcp.yaml and it appears here.'}
+                + ' server of your own: add it to ~/.amethyst/config/mcp.yaml and it appears here.'}
           </p>
         </section>
       )}

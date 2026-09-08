@@ -54,7 +54,7 @@ async def run_shell_command(args: dict[str, Any], ctx: ToolContext) -> ToolResul
     else:
         argv, backend = wrap_command(command, policy, workspace)
 
-    env = {**os.environ, "PSOK": "1"}
+    env = {**os.environ, "AMETHYST": "1"}
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv,

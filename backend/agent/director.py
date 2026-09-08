@@ -1,7 +1,7 @@
 """The Director: the single owner of the reason -> act -> observe cycle (ADR-0016).
 
 Nothing else decides what happens next. Tool calls run sequentially by default,
-because PSOK's tools mutate local filesystem and database state and a single
+because AMETHYST's tools mutate local filesystem and database state and a single
 user gains almost nothing from concurrency here.
 """
 
@@ -897,9 +897,9 @@ class Director:
                         "warning",
                         {"message": "the model ended the turn without an answer"},
                     )
-                    # Kept apart from `answer` on purpose: this is PSOK's
+                    # Kept apart from `answer` on purpose: this is AMETHYST's
                     # account of the turn, not the model's, and feeding it back
-                    # into memory extraction would file a sentence PSOK wrote as
+                    # into memory extraction would file a sentence AMETHYST wrote as
                     # something the model said.
                     delivered = self._summarise(conversation_id, said)
                 else:
@@ -1274,7 +1274,7 @@ class Director:
 
         Best-effort by construction: an unreachable embedder or a missing vector
         extension must degrade the answer, never fail the turn. Skipped entirely
-        while nothing is indexed, so a user who has never run `psok index` pays
+        while nothing is indexed, so a user who has never run `amethyst index` pays
         neither the query nor the embedder round trip.
         """
         if not self.retrieval or not user_message.strip():
@@ -1348,7 +1348,7 @@ class Director:
             log.exception("dispatching %s failed outside the tool handler", call.name)
             return ToolResult.error(
                 f"'{call.name}' could not be run: {type(exc).__name__}: {exc}."
-                " This is a fault in PSOK, not in the request. Carry on without this"
+                " This is a fault in AMETHYST, not in the request. Carry on without this"
                 " tool and tell the user which part of the task it cost.",
                 recoverable=True,
             )

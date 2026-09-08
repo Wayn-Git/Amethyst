@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-PSOK must turn requests like "finish my ML assignment tomorrow" into actual persisted schedule data, without relying on the model to perform date arithmetic or conflict resolution, both of which language models perform unreliably. See [scheduling.md](../scheduling.md).
+AMETHYST must turn requests like "finish my ML assignment tomorrow" into actual persisted schedule data, without relying on the model to perform date arithmetic or conflict resolution, both of which language models perform unreliably. See [scheduling.md](../scheduling.md).
 
 ## Decision
 

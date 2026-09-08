@@ -89,7 +89,7 @@ class IndexReport:
     chunks_added: int = 0
     chunks_deleted: int = 0
     errors: list[str] = field(default_factory=list)
-    #: Files PSOK could not read, which is not the same as files that went
+    #: Files AMETHYST could not read, which is not the same as files that went
     #: wrong. A folder of scanned PDFs would otherwise fill `errors` with two
     #: hundred entries and make a working index look broken.
     skipped: list[str] = field(default_factory=list)
@@ -349,7 +349,7 @@ class Indexer:
     def mark_stale(self, path: str | Path) -> None:
         """Flag a document for re-indexing.
 
-        PSOK's own write_file and edit_file tools call this, so a file the agent
+        AMETHYST's own write_file and edit_file tools call this, so a file the agent
         changed mid-conversation does not wait on a filesystem watcher.
         """
         self.conn.execute(
@@ -365,7 +365,7 @@ class Indexer:
 
 
 def mark_stale_best_effort(path: str | Path) -> None:
-    """Flag a document for re-indexing after PSOK itself wrote to it.
+    """Flag a document for re-indexing after AMETHYST itself wrote to it.
 
     Lives here rather than in one of the tool modules because both the
     filesystem tools and the document authoring tools need it, and reaching

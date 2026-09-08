@@ -2,7 +2,7 @@
 
 The bug these were written against was reported as
 "Invalid or expired OAuth state parameter" -- a message from the *provider*,
-which made it look like a Google problem. It was not. Five defects in PSOK
+which made it look like a Google problem. It was not. Five defects in AMETHYST
 could each destroy or outlive a state that was minted correctly, and the
 provider's refusal was the honest downstream consequence of every one.
 
@@ -47,7 +47,7 @@ def clean_pending():
 # --- the root cause: sign-out destroyed a sign-in in progress ---------------
 
 
-def test_signing_out_preserves_another_flows_oauth_state(psok_home, monkeypatch):
+def test_signing_out_preserves_another_flows_oauth_state(amethyst_home, monkeypatch):
     """The direct cause of "Invalid or expired OAuth state parameter".
 
     Nine Google connectors share one credentials directory, and
@@ -61,7 +61,7 @@ def test_signing_out_preserves_another_flows_oauth_state(psok_home, monkeypatch)
     """
     mcp_commands.add_from_catalogue("google-gmail")
     mcp_commands.add_from_catalogue("google-calendar")
-    shared = psok_home / "google-credentials"
+    shared = amethyst_home / "google-credentials"
     shared.mkdir()
     for name in ("google-gmail", "google-calendar"):
         monkeypatch.setattr(cat.get(name), "credentials_path", str(shared), raising=False)
@@ -77,10 +77,10 @@ def test_signing_out_preserves_another_flows_oauth_state(psok_home, monkeypatch)
     assert "abc123" in states, "the other sign-in's state must survive"
 
 
-def test_force_login_would_have_wiped_state_too(psok_home, monkeypatch):
+def test_force_login_would_have_wiped_state_too(amethyst_home, monkeypatch):
     """`force` signs out first, so "switch account" had the same effect."""
     mcp_commands.add_from_catalogue("google-drive")
-    shared = psok_home / "creds"
+    shared = amethyst_home / "creds"
     shared.mkdir()
     monkeypatch.setattr(cat.get("google-drive"), "credentials_path", str(shared), raising=False)
     (shared / "oauth_states.json").write_text('{"live": {}}')
@@ -89,10 +89,10 @@ def test_force_login_would_have_wiped_state_too(psok_home, monkeypatch):
     assert json.loads((shared / "oauth_states.json").read_text()) == {"live": {}}
 
 
-def test_sign_out_still_clears_everything_that_is_not_in_flight(psok_home, monkeypatch):
+def test_sign_out_still_clears_everything_that_is_not_in_flight(amethyst_home, monkeypatch):
     """The fix must not turn sign-out into a no-op."""
     mcp_commands.add_from_catalogue("linkedin")
-    profile = psok_home / "profile"
+    profile = amethyst_home / "profile"
     (profile / "Default" / "Storage").mkdir(parents=True)
     (profile / "Default" / "Storage" / "leveldb").write_bytes(b"x")
     (profile / "Cookies").write_bytes(b"session")
@@ -112,7 +112,7 @@ def test_a_stale_link_is_not_offered():
     """The screenshot's "2 sign-ins waiting" offered two links that could only fail.
 
     A `waiting` entry is not evidence anything is waiting: the state behind it
-    expires (five minutes for PSOK's own flow, ten for workspace-mcp), and the
+    expires (five minutes for AMETHYST's own flow, ten for workspace-mcp), and the
     process holding it may be long gone. Clicking one produced exactly the
     reported error.
 
@@ -208,7 +208,7 @@ async def test_a_stray_request_does_not_consume_the_callback():
 async def test_the_callback_port_is_free_again_immediately_after_a_timeout():
     """An abandoned wait held the fixed port for its whole timeout.
 
-    Every retry then failed with "another PSOK sign-in may already be in
+    Every retry then failed with "another AMETHYST sign-in may already be in
     progress" -- so one abandoned attempt blocked sign-in for five minutes.
 
     Mutation check: drop the `stop` event and the join, and the second wait
@@ -305,7 +305,7 @@ def test_the_sdk_still_compares_state_in_constant_time():
     assert "State parameter mismatch" in source
 
 
-def test_psok_never_logs_a_code_or_a_token():
+def test_amethyst_never_logs_a_code_or_a_token():
     """The callback URL carries a code; the handler must stay quiet about it."""
     import inspect
 
@@ -341,7 +341,7 @@ def test_tokens_are_keyed_per_server():
     assert client_ref("github") != client_ref("vercel")
 
 
-def test_the_link_ttl_matches_the_flow_that_issues_it(psok_home):
+def test_the_link_ttl_matches_the_flow_that_issues_it(amethyst_home):
     """A link offered for longer than the flow listens is a link that fails."""
     from backend.mcp.oauth import CALLBACK_TIMEOUT_SECONDS
 
@@ -353,7 +353,7 @@ def test_the_link_ttl_matches_the_flow_that_issues_it(psok_home):
 
 def test_no_callback_threads_are_left_behind():
     """A leaked serving thread holds the port and blocks the next sign-in."""
-    leaked = [t for t in threading.enumerate() if t.name == "psok-oauth-callback"]
+    leaked = [t for t in threading.enumerate() if t.name == "amethyst-oauth-callback"]
     assert leaked == [], f"left running: {leaked}"
 
 
@@ -362,7 +362,7 @@ def test_no_callback_threads_are_left_behind():
 GOOGLE_SECRET = GOOGLE_SECRET
 
 
-def test_one_google_secret_is_shared_rather_than_copied_nine_times(psok_home):
+def test_one_google_secret_is_shared_rather_than_copied_nine_times(amethyst_home):
     """The catalogue promises "you only do this once — every Google app then
     shares it", and the storage did the opposite.
 
@@ -396,13 +396,13 @@ def test_one_google_secret_is_shared_rather_than_copied_nine_times(psok_home):
     assert "GOOGLE_OAUTH_CLIENT_SECRET" not in servers["github"].env
 
 
-def test_updating_the_shared_secret_reaches_every_sibling(psok_home):
+def test_updating_the_shared_secret_reaches_every_sibling(amethyst_home):
     """The actual failure mode: rotate the secret, and the others stay stale.
 
     Propagation is what carries this: the connector being edited writes its
     reference onto every sibling, so the next read follows it. The group key in
     `env_secret_ref` is a naming choice on top of that -- one entry called
-    `psok-mcp/google.env.…` rather than one arbitrarily named after whichever
+    `amethyst-mcp/google.env.…` rather than one arbitrarily named after whichever
     connector happened to be edited first -- and is deliberately not what makes
     this pass.
     """
@@ -434,12 +434,12 @@ def test_updating_the_shared_secret_reaches_every_sibling(psok_home):
         ("GOCSPX" + "-" + "abcdefghijklmnopqrstuvwxyz1", "one character short"),
     ],
 )
-def test_a_credential_that_cannot_be_right_is_refused_at_entry(psok_home, value, because):
+def test_a_credential_that_cannot_be_right_is_refused_at_entry(amethyst_home, value, because):
     """Caught on save, not five minutes later by the provider.
 
     The reported failure was a 34-character secret where Google issues 35 -- a
     clipped copy. Stored happily, it survived until the end of a sign-in and
-    came back as `invalid_client` from a browser tab PSOK cannot see.
+    came back as `invalid_client` from a browser tab AMETHYST cannot see.
 
     Mutation check: delete the length and prefix checks and the last two cases
     are accepted.
@@ -451,7 +451,7 @@ def test_a_credential_that_cannot_be_right_is_refused_at_entry(psok_home, value,
         )
 
 
-def test_a_well_formed_secret_is_accepted(psok_home):
+def test_a_well_formed_secret_is_accepted(amethyst_home):
     """The check must reject only what is certainly wrong."""
     mcp_commands.add_from_catalogue("google-gmail")
     config = mcp_commands.set_env(
@@ -460,7 +460,7 @@ def test_a_well_formed_secret_is_accepted(psok_home):
     assert config.resolved_env()["GOOGLE_OAUTH_CLIENT_SECRET"] == GOOGLE_SECRET
 
 
-def test_the_secret_is_never_written_to_the_config_file(psok_home):
+def test_the_secret_is_never_written_to_the_config_file(amethyst_home):
     from backend.mcp.config import config_path
 
     mcp_commands.add_from_catalogue("google-gmail")
@@ -471,7 +471,7 @@ def test_the_secret_is_never_written_to_the_config_file(psok_home):
 
 
 @pytest.mark.asyncio
-async def test_the_google_preflight_reads_the_providers_verdict(monkeypatch, psok_home):
+async def test_the_google_preflight_reads_the_providers_verdict(monkeypatch, amethyst_home):
     """`invalid_client` means the credentials are wrong; `invalid_grant` means
     they are right and only the deliberately-bogus code was bad.
 
@@ -513,7 +513,7 @@ async def test_the_google_preflight_reads_the_providers_verdict(monkeypatch, pso
 
 
 @pytest.mark.asyncio
-async def test_an_unreachable_google_never_blocks_a_sign_in(monkeypatch, psok_home):
+async def test_an_unreachable_google_never_blocks_a_sign_in(monkeypatch, amethyst_home):
     """A network problem is not a bad credential, and must not read as one."""
     import httpx2
 
@@ -534,7 +534,7 @@ async def test_an_unreachable_google_never_blocks_a_sign_in(monkeypatch, psok_ho
 
 
 @pytest.mark.asyncio
-async def test_missing_credentials_are_named_before_anything_opens(psok_home):
+async def test_missing_credentials_are_named_before_anything_opens(amethyst_home):
     mcp_commands.add_from_catalogue("google-calendar")
     config = load_servers()["google-calendar"]
     config.env.pop("GOOGLE_OAUTH_CLIENT_SECRET", None)
@@ -545,7 +545,7 @@ async def test_missing_credentials_are_named_before_anything_opens(psok_home):
 # --- abandoning and self-healing --------------------------------------------
 
 
-def test_a_waiting_card_for_a_signed_in_connector_corrects_itself(psok_home, monkeypatch):
+def test_a_waiting_card_for_a_signed_in_connector_corrects_itself(amethyst_home, monkeypatch):
     """A card saying "finish signing in" for a connector that is already signed
     in is wrong, and the user cannot dismiss it.
 
@@ -558,7 +558,7 @@ def test_a_waiting_card_for_a_signed_in_connector_corrects_itself(psok_home, mon
     from backend.api.main import app
 
     mcp_commands.add_from_catalogue("microsoft-todo")
-    cache = psok_home / "todo-cache.json"
+    cache = amethyst_home / "todo-cache.json"
     monkeypatch.setattr(
         cat.get("microsoft-todo"), "credentials_path", str(cache), raising=False
     )
@@ -575,9 +575,9 @@ def test_a_waiting_card_for_a_signed_in_connector_corrects_itself(psok_home, mon
     assert row["status"] == "done"
 
 
-def test_cancelling_a_sign_in_clears_it(psok_home):
+def test_cancelling_a_sign_in_clears_it(amethyst_home):
     """Closing the browser tab is how most abandoned sign-ins end, and nothing
-    told PSOK -- so the card, and a whole subprocess behind it, stayed until the
+    told AMETHYST -- so the card, and a whole subprocess behind it, stayed until the
     deadline passed."""
     from fastapi.testclient import TestClient
 
@@ -595,7 +595,7 @@ def test_cancelling_a_sign_in_clears_it(psok_home):
         assert client.get("/api/mcp/authorizations").json() == []
 
 
-def test_a_device_code_reaches_the_interface(psok_home):
+def test_a_device_code_reaches_the_interface(amethyst_home):
     """The code has to survive as far as something that can render it."""
     from fastapi.testclient import TestClient
 
@@ -622,7 +622,7 @@ def test_a_device_code_reaches_the_interface(psok_home):
 # --- a working credential is not editable from a casual surface -------------
 
 
-def test_a_stored_secret_is_not_editable_from_the_connectors_menu(psok_home):
+def test_a_stored_secret_is_not_editable_from_the_connectors_menu(amethyst_home):
     """One OAuth client backs every connector in an account group.
 
     Overwriting it is not a per-connector edit: it takes all of them down at
@@ -649,7 +649,7 @@ def test_a_stored_secret_is_not_editable_from_the_connectors_menu(psok_home):
     assert servers["google-gmail"].resolved_env()["GOOGLE_OAUTH_CLIENT_SECRET"] == GOOGLE_SECRET
 
 
-def test_the_deliberate_path_still_works(psok_home):
+def test_the_deliberate_path_still_works(amethyst_home):
     mcp_commands.add_from_catalogue("google-gmail")
     mcp_commands.set_env(
         "google-gmail", "GOOGLE_OAUTH_CLIENT_SECRET", GOOGLE_SECRET, secret=True
@@ -661,7 +661,7 @@ def test_the_deliberate_path_still_works(psok_home):
     assert load_servers()["google-gmail"].resolved_env()["GOOGLE_OAUTH_CLIENT_SECRET"] == rotated
 
 
-def test_a_public_client_id_is_still_editable(psok_home):
+def test_a_public_client_id_is_still_editable(amethyst_home):
     """The guard is about the secret. A client id is a public identifier, and
     refusing to correct one would be friction with nothing behind it."""
     mcp_commands.add_from_catalogue("google-gmail")
@@ -671,7 +671,7 @@ def test_a_public_client_id_is_still_editable(psok_home):
     assert env["GOOGLE_OAUTH_CLIENT_ID"] == "other-" + GOOGLE_CLIENT_ID
 
 
-def test_the_first_credential_is_never_refused(psok_home):
+def test_the_first_credential_is_never_refused(amethyst_home):
     """Locking must not lock someone out of setting one up."""
     mcp_commands.add_from_catalogue("google-gmail")
     config = mcp_commands.set_env(
@@ -680,7 +680,7 @@ def test_the_first_credential_is_never_refused(psok_home):
     assert config.resolved_env()["GOOGLE_OAUTH_CLIENT_SECRET"] == GOOGLE_SECRET
 
 
-def test_the_api_refuses_and_offers_no_way_round_it(psok_home):
+def test_the_api_refuses_and_offers_no_way_round_it(amethyst_home):
     """Hiding the input is not enough: the endpoint has to refuse too, or the
     credential is still manipulable by anything that can reach the API."""
     from fastapi.testclient import TestClient

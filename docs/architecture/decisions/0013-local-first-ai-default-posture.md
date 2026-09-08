@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-PSOK is a personal knowledge system holding private documents and correspondence, which argues for a strong local-first, privacy-preserving default. But small local models are measurably weaker at structured tool calling than frontier cloud models, and the entire agent loop depends on reliable tool calling. See [ai-runtime.md](../ai-runtime.md#the-local-first-tension-resolved).
+AMETHYST is a personal knowledge system holding private documents and correspondence, which argues for a strong local-first, privacy-preserving default. But small local models are measurably weaker at structured tool calling than frontier cloud models, and the entire agent loop depends on reliable tool calling. See [ai-runtime.md](../ai-runtime.md#the-local-first-tension-resolved).
 
 ## Decision
 

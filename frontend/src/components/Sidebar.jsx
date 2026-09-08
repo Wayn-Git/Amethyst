@@ -49,7 +49,7 @@ export default function Sidebar() {
       aria-label="Places"
       aria-hidden={compact && !railOpen ? 'true' : undefined}
     >
-      <span className="wb-mark" aria-hidden="true">P</span>
+      <span className="wb-mark" aria-hidden="true">A</span>
 
       {PLACES.map((place) => (
         <button

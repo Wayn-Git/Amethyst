@@ -1,7 +1,7 @@
 # Providers: the catalogue, the taxonomy and the chain
 
 Built 2026-08-28. This is the "what happens when the provider cannot answer"
-half of the AI runtime; [ai-runtime.md](ai-runtime.md) is the "how PSOK talks to
+half of the AI runtime; [ai-runtime.md](ai-runtime.md) is the "how AMETHYST talks to
 any provider" half, and it did not change. The adapter contract, the registry
 and the OpenAI-compatible fall-through are the same as they were — this work
 was a catalogue, a classification and a loop, not a rewrite.
@@ -12,11 +12,11 @@ Four conversations in the real database had collected nine consecutive
 `All connection attempts failed`. Nothing was wrong with the provider
 abstraction. Three separate things were wrong around it:
 
-1. **PSOK knew a provider's base URL, model id and key page, and told the user
+1. **AMETHYST knew a provider's base URL, model id and key page, and told the user
    to go and edit YAML by hand.** `Settings.jsx` said "configured in
-   `~/.psok/config/providers.yaml`" and stopped there. `providers.yaml` was
+   `~/.amethyst/config/providers.yaml`" and stopped there. `providers.yaml` was
    read-only from the application's side: there was no `save_providers`, no
-   `add_provider`, and `psok secrets`, referenced by the docs and by the
+   `add_provider`, and `amethyst secrets`, referenced by the docs and by the
    starter file's own comments, had never been implemented.
 2. **"Has a key" was being used to mean "can answer."** A local endpoint
    declares no key, so `has_key` called it configured by definition — and
@@ -35,16 +35,16 @@ the set of facts needed to write one `providers.yaml` entry.
 
 The starter file is **generated from the catalogue** (`render_default_providers`)
 and lists twelve of them, so the file itself is the menu -- base URL, model and
-keychain ref already written, making "add a provider" one `psok secrets set`
+keychain ref already written, making "add a provider" one `amethyst secrets set`
 rather than research. Listing costs nothing: `configured_providers` filters out
 any entry whose key is missing, so a listed provider is not an offered one.
-`psok doctor` summarises the keyless ones on one line rather than warning per
+`amethyst doctor` summarises the keyless ones on one line rather than warning per
 provider, which would train the reader to skip the section that also reports
 real faults.
 
 The file is generated rather than hand-written. The hand-written one had drifted: Groq sat commented
 out while the docs claimed it was configured, and Cerebras existed in neither.
-`psok doctor` had grown a check to report the drift, which is a good sign the
+`amethyst doctor` had grown a check to report the drift, which is a good sign the
 two should not have been separate lists.
 
 Two deliberate omissions, both to avoid a reserved slot for code that does not
@@ -52,7 +52,7 @@ exist:
 
 - **No `auth_style` field.** openhuman's `AuthStyle` enum is why Anthropic is
   not a bespoke adapter there, and that is the right shape when every provider
-  goes through one generic client. PSOK already has native adapters for the two
+  goes through one generic client. AMETHYST already has native adapters for the two
   that do not speak Bearer-and-chat-completions, so the field would be read by
   nothing. `adapter` names the mechanism that already exists.
 - **`context_window` only where it is known.** A declared window overrides the
@@ -241,17 +241,17 @@ key rather than as a bad paste.
 `DELETE /api/providers/{name}` drops the entry and **keeps the key**. Removing a
 provider from a list and destroying the credential behind it are different
 decisions, and only one of them is reversible from that screen;
-`psok secrets delete` is the other one.
+`amethyst secrets delete` is the other one.
 
 ## CLI
 
-`psok secrets set|list|delete` and `psok providers list|catalogue|add|remove`.
+`amethyst secrets set|list|delete` and `amethyst providers list|catalogue|add|remove`.
 `secrets set` prompts rather than taking the key as an argument, because an
 argument lands in shell history and in `ps` — which is how the NVIDIA key and
 the Google secret both ended up in a transcript that then had to be rotated.
 `secrets list` prints which declared references have a key and never a value.
 
-`psok doctor` now points at `psok providers add <name>` instead of printing the
+`amethyst doctor` now points at `amethyst providers add <name>` instead of printing the
 YAML for the user to copy.
 
 ## Verified
@@ -265,7 +265,7 @@ YAML for the user to copy.
   - primary returns 404 → failed in 0.00s with **no** fallback attempt;
   - `survey` afterwards reported `broken` unavailable with its reason and
     `working` available.
-- Live `psok serve`: `/api/health` reported Ollama listed and
+- Live `amethyst serve`: `/api/health` reported Ollama listed and
   `providers_unavailable: {ollama: "nothing answered at
   http://localhost:11434/v1 (ConnectError)"}` with Ollama not running;
   `POST /api/providers` added DeepSeek and wrote the entry; a name with `../` in
