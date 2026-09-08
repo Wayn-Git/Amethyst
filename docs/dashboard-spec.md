@@ -339,7 +339,7 @@ Personal data in this group is stored locally only and is off until the user tur
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
 | sys.model | Active model with switch (local or cloud) | dir | MVP | [x] |
-| sys.connectors | Connector health and reconnect | cmp | MVP | [ ] |
+| sys.connectors | Connector health and reconnect | cmp | MVP | [x] |
 | sys.vault | Vault size and storage | lib | MVP | [x] |
 | sys.notify | Notification center | local | MVP | [x] |
 | sys.sync | Cloud sync status | local | v2 | [ ] |

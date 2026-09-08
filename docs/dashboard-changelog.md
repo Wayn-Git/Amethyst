@@ -52,3 +52,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-24: sys.vault shows indexed vault file counts/bytes, Library item count, and available storage volume capacity; no filesystem crawl.
 - 2026-10-24: sys.notify persists notifications before best-effort desktop delivery; task.reminders fire once through it, quiet hours retain center history. Targeted backend and browser checks pass.
 - 2026-10-24: sys.model reads the existing default tier/router and switches local/cloud defaults through single-use gated drafts; stale settings reject approval. 77 targeted backend tests, Ruff/Oxlint, and dashboard system browser checks pass.
+
+- 2026-10-24: sys.connectors adds health and scoped Connect Links atop the agenda/appeal reader, existing SWR cache and manifest polling; audited reads, auth expiry, connector backoff/circuits and write-gate regressions covered. 85 targeted backend tests, connector UI and changed-code lint pass; GitLab confirmed, live OAuth/local SDK delivery unverified.

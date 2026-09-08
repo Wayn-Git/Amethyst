@@ -105,6 +105,12 @@ def director_manifest(widget_id, title, actions=()):
 def system_manifest(widget_id, title, source="local"):
     value = manifest(widget_id, title, ["s", "m", "l"])
     value.update(group="system", source={"type": source}, empty="No notifications.")
+    if widget_id == "sys.connectors":
+        value.update(
+            source={"type": "composio"},
+            refresh={"mode": "poll", "interval_s": 10},
+            empty="No connectors enabled.",
+        )
     if widget_id == "sys.model":
         value["actions"] = [dict(id="switch", label="Switch model", gate=True)]
     return value
@@ -112,6 +118,7 @@ def system_manifest(widget_id, title, source="local"):
 
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    system_manifest("sys.connectors", "Connector health and reconnect"),
     system_manifest("sys.model", "Active model", "director"),
     system_manifest("sys.notify", "Notification center"),
     system_manifest("sys.vault", "Vault size and storage", "library"),

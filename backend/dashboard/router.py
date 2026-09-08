@@ -143,3 +143,22 @@ async def generate_follow_up(item_id: int):
 async def item_decision(widget_id: str, draft_id: str, body: DraftDecision):
     enabled(widget_id)
     return await decide(widget_id, draft_id, body.approved)
+
+
+@router.get("/connectors/health")
+async def connector_health():
+    from backend.dashboard.connectors import health
+
+    return await health()
+
+
+@router.post("/connectors/{toolkit}/connect")
+async def connector_connect(toolkit: str):
+    from backend.dashboard.connectors import SourceUnavailable, connect
+
+    try:
+        return await connect(toolkit)
+    except SourceUnavailable as exc:
+        raise HTTPException(422, "Read-only connection is not available for this toolkit") from exc
+    except Exception as exc:
+        raise HTTPException(503, "Could not create Connect Link. Check Composio settings.") from exc

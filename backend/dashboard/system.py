@@ -12,6 +12,10 @@ from backend.db.connection import get_connection
 
 
 async def provide(widget_id):
+    if widget_id == "sys.connectors":
+        from backend.dashboard.connectors import health
+
+        return await health()
     if widget_id == "sys.model":
         from backend.config import configured_providers, load_tiers
         from backend.runtime.router import RouteRequest, is_local, route
