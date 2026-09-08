@@ -175,19 +175,19 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `sys.sync` — bento adoption pending.
 - [ ] `sys.updates` — bento adoption pending.
 - [ ] `sys.vault` — bento adoption pending.
-- [ ] `task.agenda` — bento adoption pending.
-- [ ] `task.backlog` — bento adoption pending.
-- [ ] `task.conflicts` — bento adoption pending.
-- [x] `task.deadlines` — session 4 pilot; see ui-widget-patterns.md.
-- [ ] `task.focus` — ring/start/stop pilot complete; pause/resume blocked by existing backend contract.
-- [ ] `task.free` — bento adoption pending.
-- [ ] `task.goals` — bento adoption pending.
-- [ ] `task.habits` — bento adoption pending.
-- [ ] `task.kanban` — bento adoption pending.
-- [ ] `task.plan` — bento adoption pending.
-- [ ] `task.reminders` — bento adoption pending.
-- [ ] `task.risk` — bento adoption pending.
-- [x] `task.today` — session 4 pilot; see ui-widget-patterns.md.
+- [x] `task.agenda` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.backlog` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.conflicts` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.deadlines` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.focus` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.free` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.goals` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.habits` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.kanban` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.plan` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.reminders` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.risk` — reference adoption verified; ui-review/tasks-contact-sheet.png.
+- [x] `task.today` — reference adoption verified; ui-review/tasks-contact-sheet.png.
 
 ## Session 4 widget pilot
 

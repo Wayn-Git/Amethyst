@@ -269,3 +269,19 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `lib.highlights`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `lib.daily`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `lib.collections`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+
+## 2026-10-27 — tasks reference verification
+
+- `task.agenda`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.plan`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.free`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.conflicts`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.risk`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.focus`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.habits`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.goals`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.kanban`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.today`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.backlog`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.deadlines`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `task.reminders`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.

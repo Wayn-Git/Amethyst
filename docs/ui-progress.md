@@ -26,3 +26,5 @@ Remaining verification: finish captures and expanded contrast sweep, update grou
 - [x] **agent** — 14 IDs / 28 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/agent-contact-sheet.png`.
 
 - [x] **library** — 11 IDs / 22 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/library-contact-sheet.png`.
+
+- [x] **tasks** — 13 IDs / 26 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/tasks-contact-sheet.png`.
