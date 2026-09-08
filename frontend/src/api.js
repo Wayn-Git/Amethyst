@@ -360,10 +360,14 @@ export const api = {
 
   // With `q`, a hybrid search over captured text; without it, the most recent
   // items. Both come back as items rather than passages.
-  library: ({ q = '', kind = '', limit = 50 } = {}) =>
-    j(`/library?limit=${limit}`
+  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 50, offset = 0 } = {}) =>
+    j(`/library?limit=${limit}&offset=${offset}`
       + (q ? `&q=${encodeURIComponent(q)}` : '')
-      + (kind ? `&kind=${encodeURIComponent(kind)}` : '')),
+      + (kind ? `&kind=${encodeURIComponent(kind)}` : '')
+      + (category ? `&category=${encodeURIComponent(category)}` : '')
+      + (tag ? `&tag=${encodeURIComponent(tag)}` : '')
+      + (order ? `&order=${encodeURIComponent(order)}` : '')),
+  libraryItem: (id) => j(`/library/${id}`),
   addLibraryItem: (body) => j('/library', json('POST', body)),
   updateLibraryItem: (id, patch) => j(`/library/${id}`, json('PATCH', patch)),
   deleteLibraryItem: (id) => j(`/library/${id}`, json('DELETE')),

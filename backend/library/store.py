@@ -219,13 +219,20 @@ class LibraryStore:
         *,
         kind: str | None = None,
         category: str | None = None,
+        tag: str | None = None,
+        order: str = "desc",
         since: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[sqlite3.Row]:
-        sql = "SELECT * FROM library_items"
+        sql = "SELECT DISTINCT library_items.* FROM library_items"
+        joins = []
         params: list = []
         where = []
+        if tag:
+            joins.append(", json_each(library_items.tags)")
+            where.append("json_each.value = ?")
+            params.append(tag)
         if kind:
             where.append("kind = ?")
             params.append(kind)
@@ -235,9 +242,12 @@ class LibraryStore:
         if since:
             where.append("consumed_on >= ?")
             params.append(since)
+        if joins:
+            sql += " " + " ".join(joins)
         if where:
             sql += " WHERE " + " AND ".join(where)
-        sql += " ORDER BY consumed_on DESC, id DESC LIMIT ? OFFSET ?"
+        order_dir = "ASC" if str(order).lower() == "asc" else "DESC"
+        sql += f" ORDER BY library_items.consumed_on {order_dir}, library_items.id {order_dir} LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         return self.conn.execute(sql, params).fetchall()
 

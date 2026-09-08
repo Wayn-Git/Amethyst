@@ -737,17 +737,24 @@ class LibraryService:
         *,
         kind: str | None = None,
         category: str | None = None,
+        tag: str | None = None,
+        order: str = "desc",
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict]:
+        if tag:
+            rows = self.store.list(
+                kind=kind, category=category, tag=tag, order=order, limit=limit, offset=offset
+            )
+            return [as_dict(row) for row in rows]
         if category:
-            all_rows = self.store.list(kind=kind, limit=5000)
+            all_rows = self.store.list(kind=kind, order=order, limit=5000)
             items = [as_dict(row) for row in all_rows]
             matched = [it for it in items if it.get("category") == category]
             return matched[offset : offset + limit]
         return [
             as_dict(row)
-            for row in self.store.list(kind=kind, limit=limit, offset=offset)
+            for row in self.store.list(kind=kind, order=order, limit=limit, offset=offset)
         ]
 
     def category_counts(self) -> dict[str, int]:
@@ -757,6 +764,36 @@ class LibraryService:
             cat = it.get("category") or "general"
             c[cat] = c.get(cat, 0) + 1
         return c
+
+    def tag_counts(self) -> dict[str, int]:
+        try:
+            rows = self.store.conn.execute(
+                "SELECT json_each.value AS tag, COUNT(DISTINCT library_items.id) AS count "
+                "FROM library_items, json_each(library_items.tags) "
+                "WHERE library_items.tags IS NOT NULL "
+                "GROUP BY json_each.value ORDER BY count DESC, tag ASC LIMIT 100"
+            ).fetchall()
+            return {row["tag"]: row["count"] for row in rows}
+        except Exception:
+            return {}
+
+    def consolidate_tags(self) -> dict[str, int]:
+        """Normalize and consolidate all existing tags in SQLite to canonical topics."""
+        from backend.library.enrich import canonicalize_tags
+
+        rows = self.store.list(limit=5000)
+        updated = 0
+        for row in rows:
+            raw = _json_list(row["tags"])
+            if not raw:
+                continue
+            canonical = canonicalize_tags(raw)
+            if not canonical and raw:
+                canonical = [r.strip().lower() for r in raw[:2]]
+            if canonical != raw:
+                self.store.update(row["id"], tags=json.dumps(canonical))
+                updated += 1
+        return {"updated_items": updated, "distinct_tags": len(self.tag_counts())}
 
     def counts(self) -> dict[str, int]:
         return self.store.counts()

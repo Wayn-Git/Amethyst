@@ -3117,6 +3117,8 @@ async def list_library(
     q: str | None = None,
     kind: str | None = None,
     category: str | None = None,
+    tag: str | None = None,
+    order: str = "desc",
     limit: int = 50,
     offset: int = 0,
 ) -> dict[str, Any]:
@@ -3130,12 +3132,19 @@ async def list_library(
             items = [it for it in items if it.get("kind") == kind]
         if category:
             items = [it for it in items if it.get("category") == category]
+        if tag:
+            items = [it for it in items if tag in (it.get("tags") or [])]
+        if str(order).lower() == "asc":
+            items.reverse()
     else:
-        items = service.recent(kind=kind, category=category, limit=limit, offset=offset)
+        items = service.recent(
+            kind=kind, category=category, tag=tag, order=order, limit=limit, offset=offset
+        )
     return {
         "items": items,
         "counts": service.counts(),
         "category_counts": service.category_counts(),
+        "tag_counts": service.tag_counts(),
         "query": q or "",
     }
 
@@ -3250,6 +3259,13 @@ async def reindex_library_item(item_id: int) -> dict[str, Any]:
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(502, f"the text could not be indexed: {exc}") from exc
+
+
+@app.post("/api/library/consolidate-tags")
+async def consolidate_library_tags() -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    return LibraryService().consolidate_tags()
 
 
 # ----------------------------------------------------------------- share
