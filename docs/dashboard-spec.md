@@ -457,8 +457,8 @@ Personal data in this group is stored locally only and is off until the user tur
 - Library duplicates: current backend dedup recognizes URL/source identity only. Should content-similarity detection be added to Library later? Home reuses existing identity lookups and offers no destructive action.
 
 
-- Do Composio SDK subscriptions work for a local-only app, or do we poll everything?
-- Is there a Composio toolkit for GitLab? If not, does `dev.backup` cover GitLab through local git only?
+- SDK subscriptions: [published receiving-events guide](https://docs.composio.dev/docs/setting-up-triggers/subscribing-to-events) supports an outbound WebSocket with no tunnel; the installed Python SDK implements `triggers.subscribe()` through Pusher. Live local event delivery remains unverified (open); Home uses manifest polling for now.
+- GitLab: yes, the [official toolkit catalogue](https://composio.dev/toolkits/gitlab) lists `gitlab` (checked 2026-10-24). `dev.backup` remains local Git; no GitLab connector widget added.
 - Which toolkits exist for Discord, WhatsApp, YouTube, Google Maps, and Google Classroom?
 - Which weather and news sources do we use (free, no key if possible)?
 - Where is the user's location stored for weather, and is it set in first-run setup or settings?

@@ -7,8 +7,8 @@
 3. Add the provider branch in `backend/dashboard/service.py::local_provider`; `task.*` and `need.*` dispatch to `backend/dashboard/items.py::provide`.
    `PROVIDERS` already maps registered IDs to `local_provider`; override that ID there only when a separate async provider is needed.
    Return the payload, not the cache envelope; lists use `{"items": [...]}` and empty lists use `{"items": []}`.
-   `service.py` owns cache-first refresh, timeout, stale/error handling and freshness; `backend/dashboard/store.py` owns cache persistence.
-   Nonempty `requires` currently produces `not-connected`; connector execution is not implemented by registering a manifest.
+   `service.py` owns cache-first refresh, timeout, stale/error handling and freshness; `backend/dashboard/store.py` owns cache persistence. Reuse `useWidget.js` for manifest-interval polling; never add a second raw connector-response cache.
+   Connector requirements must have a supported reader in `backend/dashboard/connectors.py`; registering a manifest alone never grants tool access. Reuse its `read` function and project only the fields the widget needs before returning a payload.
 4. Reuse existing tables in `backend/db/schema.sql` (including `tasks`); add only needed dashboard tables to `backend/dashboard/schema.sql`.
    `backend/db/connection.py::migrate` executes both schemas. Supply an explicit safe migration for changes to existing dashboard tables.
 5. For local item writes, extend the allowlisted `TABLES`, validation and apply logic in `backend/dashboard/items.py`.

@@ -59,3 +59,14 @@ CREATE TABLE IF NOT EXISTS notifications (
     body TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+-- Only health metadata; no tokens, request arguments, or source responses.
+CREATE TABLE IF NOT EXISTS dashboard_connector_health (
+    toolkit TEXT PRIMARY KEY,
+    last_success TEXT,
+    failures INTEGER NOT NULL DEFAULT 0,
+    retry_at REAL NOT NULL DEFAULT 0,
+    needs_reconnect INTEGER NOT NULL DEFAULT 0,
+    reconnect_started TEXT,
+    account_id TEXT
+);

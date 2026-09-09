@@ -1989,19 +1989,20 @@ class ComposioService:
         except Exception:
             pass
 
-    async def get_connections_async(self, force: bool = False) -> dict[str, dict[str, Any]]:
-        """Asynchronously return or refresh connected accounts."""
+    async def get_connections_async(
+        self, force: bool = False, *, include_reauth: bool = False
+    ) -> dict[str, dict[str, Any]]:
+        """Return accounts; health readers may inspect expired-account replacements."""
         if not self.is_configured():
             return {}
         now = time.monotonic()
-        if not force and now < self._connections_expires_at and self._last_good_connections:
-            return self._filter_reauth(dict(self._last_good_connections))
-
-        if not force and now < self._connections_backoff_until and self._last_good_connections:
-            return self._filter_reauth(dict(self._last_good_connections))
-
-        conns = await self.fetch_connections_async()
-        return self._filter_reauth(conns)
+        if not force and (
+            now < self._connections_expires_at or now < self._connections_backoff_until
+        ):
+            conns = dict(self._last_good_connections)
+        else:
+            conns = await self.fetch_connections_async()
+        return conns if include_reauth else self._filter_reauth(conns)
 
     async def fetch_connections_async(self) -> dict[str, dict[str, Any]]:
         """Perform non-blocking fetch of connected accounts."""
@@ -2181,7 +2182,9 @@ class ComposioService:
             log.debug("Background connections revalidation failed: %s", exc)
             self._on_fetch_failure()
 
-    def initiate_connection(self, toolkit: str, alias: str | None = None) -> str:
+    def initiate_connection(
+        self, toolkit: str, alias: str | None = None, *, scopes: str | None = None
+    ) -> str:
         """Initiate hosted OAuth authorization with Composio and return redirect URL.
 
         Uses OpenMausBot's tool router session link technique:
@@ -2190,11 +2193,44 @@ class ComposioService:
         """
         slug = self._canonical_toolkit_slug(toolkit)
         if not self.is_configured():
-            raise RuntimeError("Composio is not configured with an API key. Connect Composio first.")
+            raise RuntimeError(
+                "Composio is not configured with an API key. Connect Composio first."
+            )
 
         headers = self._auth_headers(json=True)
         user_id = self._get_stable_user_id()
 
+        if scopes is not None:
+            # Never fall back to a broader managed-auth config if scoped auth fails.
+            client = self._get_client()
+            name = f"Amethyst read-only {slug}"
+            configs = client.auth_configs.list(toolkit_slug=slug)
+            auth_config = next(
+                (
+                    c
+                    for c in configs.items
+                    if c.name == name
+                    and c.status == "ENABLED"
+                    and (c.credentials or {}).get("scopes") == scopes
+                ),
+                None,
+            )
+            if auth_config is None:
+                auth_config = client.auth_configs.create(
+                    toolkit=slug,
+                    options={
+                        "type": "use_composio_managed_auth",
+                        "name": name,
+                        "credentials": {"scopes": scopes},
+                    },
+                )
+            raw_client = getattr(client, "client", client)
+            result = raw_client.link.create(
+                user_id=user_id,
+                auth_config_id=auth_config.id,
+                **({"alias": alias} if alias else {}),
+            )
+            return self._trusted_auth_url(result.redirect_url, slug)
         # Strategy 1: OpenMausBot Tool Router Session Link API
         if headers:
             try:

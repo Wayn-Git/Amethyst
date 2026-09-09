@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from backend.config import paths
-from backend.dashboard.connectors import SourceUnavailable, access_enabled
+from backend.dashboard.connectors import ConnectorBackoff, SourceUnavailable, access_enabled
 from backend.dashboard.registry import REGISTRY
 from backend.dashboard.store import cache_read, cache_write, settings_read, stamp
 
@@ -114,9 +114,13 @@ async def refresh(widget_id):
     previous = cache_read(widget_id)
     try:
         async with _GATE:
-            if REGISTRY[widget_id]["manifest"].get("requires") and widget_id != "task.agenda":
-                cache_write(widget_id, None, "not-connected")
-                return
+            from backend.dashboard.connectors import READ_TOOLS
+
+            if any(
+                requirement.removeprefix("connector:") not in READ_TOOLS
+                for requirement in REGISTRY[widget_id]["manifest"].get("requires", [])
+            ):
+                raise SourceUnavailable
             payload = await asyncio.wait_for(PROVIDERS[widget_id](widget_id), timeout=10)
             cache_write(
                 widget_id,
@@ -133,6 +137,17 @@ async def refresh(widget_id):
                 else "ok",
                 synced_at=stamp(),
             )
+    except ConnectorBackoff as exc:
+        RETRY_AFTER[(str(paths().db), widget_id)] = time.monotonic() + max(
+            0, exc.retry_at - time.time()
+        )
+        cache_write(
+            widget_id,
+            previous["payload"],
+            "error",
+            "Connector cooling down. Retry later.",
+            previous["synced_at"],
+        )
     except SourceUnavailable:
         interval = REGISTRY[widget_id]["manifest"]["refresh"].get("interval_s") or 900
         RETRY_AFTER[(str(paths().db), widget_id)] = time.monotonic() + interval
@@ -163,6 +178,8 @@ def schedule(widget_id, background_tasks, force=False):
     key = (str(paths().db), widget_id)
     data = read_data(widget_id)
     if key in IN_FLIGHT:
+        return
+    if not force and time.monotonic() < RETRY_AFTER.get(key, 0):
         return
     # Initial local data may populate during quiet hours; scheduled refreshes pause.
     if not force and data["synced_at"] and quiet_active():
