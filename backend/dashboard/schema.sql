@@ -150,3 +150,7 @@ CREATE TABLE IF NOT EXISTS dashboard_watchers (
     checked_at TEXT,
     error TEXT
 );
+CREATE TABLE IF NOT EXISTS dashboard_permission_rules (
+    tool_name TEXT PRIMARY KEY,
+    decision TEXT NOT NULL DEFAULT 'ask' CHECK(decision IN ('allow','ask','deny'))
+);

@@ -64,4 +64,10 @@ try {
   await page.getByRole('button', { name: 'Reject change' }).click()
   await page.getByRole('button', { name: 'Review watcher' }).waitFor()
   console.log('agent.watchers UI passed')
+  await page.evaluate(() => window.testMount('Rules', 'agent.rules', { items: [{ id: 'write_fixture', title: 'write_fixture', decision: 'ask', can_allow: false }] }))
+  const rule = page.getByRole('combobox', { name: 'Rule for write_fixture' })
+  assert.equal(await rule.inputValue(), 'ask')
+  assert.equal(await rule.locator('option[value="allow"]').evaluate(el => el.disabled), true)
+  await rule.selectOption('deny')
+  console.log('agent.rules UI passed')
 } finally { await browser.close() }

@@ -114,7 +114,9 @@ async def director_for(callback):
 
     director = await _unattended_director(callback)
     director.registry = director.registry.with_confirmation(
-        ConfirmationService(callback=callback, preferences=NoStandingWrites())
+        ConfirmationService(
+            callback=callback, preferences=NoStandingWrites(), require_write_approval=True
+        )
     )
     return director
 

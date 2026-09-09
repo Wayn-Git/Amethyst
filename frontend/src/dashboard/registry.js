@@ -34,6 +34,7 @@ export const WIDGETS = {
   'agent.delegated': lazy(() => import('./widgets/Jobs.jsx')),
   'agent.research': lazy(() => import('./widgets/Jobs.jsx')),
   'agent.watchers': lazy(() => import('./widgets/Watchers.jsx')),
+  'agent.rules': lazy(() => import('./widgets/Rules.jsx')),
   'agent.jobs': lazy(() => import('./widgets/Jobs.jsx')),
   'agent.feed': lazy(() => import('./widgets/Director.jsx')),
   'dev.ci': lazy(() => import('./widgets/ConnectedItems.jsx')),

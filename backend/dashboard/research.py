@@ -57,7 +57,9 @@ async def provide():
 
 def restrict(director, callback):
     registry = ToolRegistry(
-        confirmation=ConfirmationService(callback=callback, preferences=jobs.NoStandingWrites())
+        confirmation=ConfirmationService(
+            callback=callback, preferences=jobs.NoStandingWrites(), require_write_approval=True
+        )
     )
     for name in WEB_TOOLS:
         tool = director.registry.get(name)
@@ -95,7 +97,7 @@ async def save(job, answer, urls, callback):
     outcome, error = None, None
     try:
         outcome = await ConfirmationService(
-            callback=callback, preferences=jobs.NoStandingWrites()
+            callback=callback, preferences=jobs.NoStandingWrites(), require_write_approval=True
         ).check(tool, {"title": job["title"], "text": text}, ToolContext())
         if not outcome.allowed:
             raise RuntimeError("Library note denied; no note saved")

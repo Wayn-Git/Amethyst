@@ -282,7 +282,15 @@ async def decide(widget_id, draft_id, approved):
         ExecutionLogRepository().record(
             tool_name="dashboard_item",
             tool_source="native",
-            arguments={"widget_id": widget_id, "action": action},
+            arguments={
+                "widget_id": widget_id,
+                "action": action,
+                **(
+                    {"tool": body["tool"], "decision": body["decision"]}
+                    if widget_id == "agent.rules"
+                    else {}
+                ),
+            },
             confirmation_decision=(outcome.decision if approved else "denied")
             if outcome
             else "gate_error",
@@ -299,6 +307,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "agent.rules":
+        from backend.dashboard.rules import apply as apply_rule
+
+        return apply_rule(conn, action, body)
     if widget_id == "agent.watchers":
         from backend.dashboard.watchers import apply as apply_watch
 

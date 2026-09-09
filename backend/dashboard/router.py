@@ -177,9 +177,14 @@ class DraftDecision(StrictModel):
 
 
 @router.post("/widgets/{widget_id}/actions/{action}")
-def item_action(widget_id: str, action: str, body: dict):
+async def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "agent.rules":
+            from backend.dashboard.rules import RuleInput
+            from backend.dashboard.rules import draft as rule_draft
+
+            return await rule_draft(action, RuleInput.model_validate(body))
         if widget_id == "agent.watchers":
             from backend.dashboard.watchers import WatchInput
             from backend.dashboard.watchers import draft as watch_draft

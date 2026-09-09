@@ -110,7 +110,9 @@ class ConfirmationService:
         *,
         preferences: ConfirmationPreferenceRepository | None = None,
         mcp_trust: McpTrustRepository | None = None,
+        require_write_approval: bool = False,
     ):
+        self.require_write_approval = require_write_approval
         self.callback = callback or auto_approve
         self._prefs = preferences
         self._trust = mcp_trust
@@ -148,9 +150,7 @@ class ConfirmationService:
 
         return risk, reason
 
-    async def _ask(
-        self, request: ConfirmationRequest, context: ToolContext | None
-    ) -> bool:
+    async def _ask(self, request: ConfirmationRequest, context: ToolContext | None) -> bool:
         """Announce the prompt, then block on it.
 
         Announcing first is what lets an interface react the moment the turn
@@ -176,7 +176,7 @@ class ConfirmationService:
         # Announce before the marker: the turn loop that records the
         # suspension reads the same queue, and `_execute` re-arms its window
         # off this marker the moment the tool timeout expires while it holds.
-        from backend.tools.base import mark_gate_suspension, clear_gate_suspension
+        from backend.tools.base import clear_gate_suspension, mark_gate_suspension
 
         suspension_id = f"approval:{request.id}"
         mark_gate_suspension(context, suspension_id, "approval")
@@ -184,6 +184,18 @@ class ConfirmationService:
             return await self.callback(request)
         finally:
             clear_gate_suspension(context, suspension_id)
+
+    def tool_rule(self, tool: Tool) -> str | None:
+        from backend.db.connection import get_connection
+
+        row = (
+            get_connection()
+            .execute(
+                "SELECT decision FROM dashboard_permission_rules WHERE tool_name=?", (tool.name,)
+            )
+            .fetchone()
+        )
+        return row["decision"] if row else None
 
     async def check(
         self,
@@ -193,6 +205,17 @@ class ConfirmationService:
     ) -> ConfirmationOutcome:
         risk, reason = self.evaluate_risk(tool, arguments)
         idem_key = getattr(context, "idempotency_key", None) if context else None
+
+        from backend.tools.registry import is_write_action
+
+        write = tool.risk is not RiskLevel.LOW or is_write_action(tool.name, tool)
+        if self.require_write_approval and write:
+            risk = risk.at_least(RiskLevel.MEDIUM)
+        rule = self.tool_rule(tool)
+        if rule == "deny":
+            return ConfirmationOutcome(False, "denied_by_rule", risk, idempotency_key=idem_key)
+        # An old allow cannot become a write grant after a tool changes risk.
+        must_ask = rule == "ask" or (rule == "allow" and write)
 
         # First call to a not-yet-trusted MCP server always confirms. This is a
         # one-time trust event, orthogonal to the per-call risk gate.
@@ -210,17 +233,19 @@ class ConfirmationService:
                 if await self._ask(request, context):
                     self.mcp_trust.trust(tool.server_name)
                 else:
-                    return ConfirmationOutcome(False, "denied", RiskLevel.HIGH, idempotency_key=idem_key)
+                    return ConfirmationOutcome(
+                        False, "denied", RiskLevel.HIGH, idempotency_key=idem_key
+                    )
 
         sensitive = reason.startswith("touches sensitive path")
-        if risk is RiskLevel.LOW and not sensitive:
+        if risk is RiskLevel.LOW and not sensitive and not must_ask:
             return ConfirmationOutcome(True, "auto", risk, idempotency_key=idem_key)
 
         operation_key = tool.operation_key(arguments)
-        if not sensitive:
+        if not sensitive and not must_ask:
             # A standing preference cannot silence the sensitive-path check.
             remembered = self.preferences.get(operation_key)
-            if remembered == "allow":
+            if remembered == "allow" and not (self.require_write_approval and write):
                 return ConfirmationOutcome(True, "skipped_by_pref", risk, idempotency_key=idem_key)
             if remembered == "deny":
                 return ConfirmationOutcome(False, "denied_by_pref", risk, idempotency_key=idem_key)
@@ -235,7 +260,9 @@ class ConfirmationService:
             idempotency_key=idem_key,
         )
         allowed = await self._ask(request, context)
-        return ConfirmationOutcome(allowed, "approved" if allowed else "denied", risk, idempotency_key=idem_key)
+        return ConfirmationOutcome(
+            allowed, "approved" if allowed else "denied", risk, idempotency_key=idem_key
+        )
 
 
 #: File-writing tools that `guard-auto-edit` runs without asking. Named rather
@@ -296,6 +323,9 @@ class GuardedConfirmationService(ConfirmationService):
         risk, _reason = self.evaluate_risk(tool, arguments)
         idem_key = getattr(context, "idempotency_key", None) if context else None
 
+        if self.tool_rule(tool) is not None:
+            return await super().check(tool, arguments, context)
+
         if self.guard == "full-access":
             return ConfirmationOutcome(True, "full_access", risk, idempotency_key=idem_key)
 
@@ -305,7 +335,11 @@ class GuardedConfirmationService(ConfirmationService):
                 # trust check above it in the base class.
                 return await super().check(tool, arguments, context)
             return ConfirmationOutcome(
-                False, "blocked_by_mode", risk, detail=f"guard mode '{self.guard}'", idempotency_key=idem_key
+                False,
+                "blocked_by_mode",
+                risk,
+                detail=f"guard mode '{self.guard}'",
+                idempotency_key=idem_key,
             )
 
         if self.guard == "guard-auto-edit":
