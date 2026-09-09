@@ -12,3 +12,5 @@ Direction: quiet neutral canvas, white and charcoal cards, soft depth, restraine
 - [x] glance.clock: analog dial with accessible digital time and timezone.
 - [x] glance.next-event: calendar date hierarchy with real countdown.
 - [x] glance.music: album metadata, music symbol and familiar transport controls.
+
+Verification: 23 adopted widget fixtures cover source states, real values and reviewed actions across nine themes. Production desktop checks cover 1440/1024/768/390px, location changes, fit/undo, 44px shell controls and reduced motion. Playback review tests, focused JSX lint and production build pass. Screenshots and live connector/OS checks omitted; existing bundle-size/import warnings remain.
