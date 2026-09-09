@@ -1189,3 +1189,356 @@
   color: var(--accent);
 }
 
+/* ── Squircle Service Icon ── */
+.plugin-squircle-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.plugin-squircle-icon-box.is-large {
+  width: 58px;
+  height: 58px;
+  border-radius: 13px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.plugin-squircle-icon-box.is-small {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.plugin-squircle-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 5px;
+}
+
+.plugin-squircle-icon-box.is-large .plugin-squircle-icon-img {
+  padding: 8px;
+}
+
+.plugin-squircle-icon-box.is-small .plugin-squircle-icon-img {
+  padding: 3px;
+}
+
+.plugin-squircle-icon-monogram {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.plugin-squircle-icon-box.is-large .plugin-squircle-icon-monogram {
+  font-size: 24px;
+}
+
+/* ── Plugin Card Row (2-Column Grid Item) ── */
+.plugin-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 130ms var(--ease-out, ease), transform 120ms ease;
+  user-select: none;
+}
+
+.plugin-card-row:hover {
+  background: rgba(var(--tint), 0.04);
+  border-color: rgba(var(--tint), 0.06);
+}
+
+.plugin-card-row:active {
+  transform: scale(0.99);
+}
+
+.plugin-card-main-col {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.plugin-card-text-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.plugin-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.plugin-card-title {
+  font-weight: 500;
+  font-size: calc(14px * var(--text-scale, 1));
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plugin-card-blurb {
+  font-size: calc(12.5px * var(--text-scale, 1));
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  max-width: 280px;
+}
+
+.plugin-card-action-col {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.plugin-action-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-buttons);
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 120ms var(--ease-out, ease);
+}
+
+.plugin-action-icon-btn:hover {
+  color: var(--text);
+  background: rgba(var(--tint), 0.08);
+}
+
+.plugin-action-icon-btn:active {
+  transform: scale(0.96);
+}
+
+.plugin-action-icon-btn.is-add {
+  color: var(--text);
+  background: rgba(var(--tint), 0.04);
+  border: 1px solid rgba(var(--tint), 0.08);
+}
+
+.plugin-action-icon-btn.is-add:hover {
+  background: rgba(var(--tint), 0.12);
+  color: var(--text);
+}
+
+.plugin-action-icon-btn.is-more {
+  color: var(--text-dim);
+}
+
+.plugin-action-icon-btn.is-more:hover,
+.plugin-action-icon-btn.is-more.is-active {
+  color: var(--text);
+  background: rgba(var(--tint), 0.08);
+}
+
+.plugin-action-icon-btn.is-loading {
+  cursor: default;
+}
+
+/* ── Context Menu Popover ── */
+.plugin-menu-anchor {
+  position: relative;
+}
+
+.plugin-context-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 60;
+  min-width: 140px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  padding: 0.3rem;
+  transform-origin: top right;
+  animation: pluginPopoverEnter 140ms var(--ease-out, ease);
+}
+
+@keyframes pluginPopoverEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.plugin-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 100ms ease;
+}
+
+.plugin-popover-item:hover {
+  background: rgba(var(--tint), 0.08);
+}
+
+.plugin-popover-item:active {
+  transform: scale(0.98);
+}
+
+.plugin-popover-item.is-danger {
+  color: var(--stop, #ef4444);
+}
+
+.plugin-popover-item.is-danger:hover {
+  background: var(--stop-soft, rgba(239, 68, 68, 0.1));
+}
+
+.plugin-popover-divider {
+  height: 1px;
+  background: var(--hairline);
+  margin: 0.25rem 0;
+}
+
+/* ── Hero Preview Mockup (ChatGPT style) ── */
+.plugin-hero-preview-wrapper {
+  margin: 1.5rem 0 2rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.plugin-hero-preview-backdrop {
+  width: 100%;
+  max-width: 660px;
+  border-radius: 20px;
+  padding: 2.25rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(99, 102, 241, 0.10) 45%, rgba(168, 85, 247, 0.12) 100%);
+  border: 1px solid rgba(var(--tint), 0.08);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+.plugin-hero-user-bubble {
+  align-self: flex-end;
+  max-width: 82%;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 0.85rem 1.25rem;
+  font-size: calc(13.5px * var(--text-scale, 1));
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.plugin-hero-user-bubble p {
+  margin: 0;
+}
+
+.plugin-hero-assistant-card {
+  align-self: flex-start;
+  width: 94%;
+  max-width: 540px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.plugin-hero-execution-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.plugin-hero-duration {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  letter-spacing: -0.01em;
+}
+
+.plugin-hero-summary-text {
+  font-size: calc(13.5px * var(--text-scale, 1));
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0;
+}
+
+.plugin-hero-section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.plugin-hero-section-title {
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+}
+
+.plugin-hero-bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.plugin-hero-bullet-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: calc(12.5px * var(--text-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.plugin-hero-bullet-dot {
+  color: var(--accent);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+
