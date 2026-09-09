@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
@@ -22,8 +23,6 @@ export default function Capabilities() {
   const rootRef = useRef(null)
   const { capabilitiesTab, setCapabilitiesTab } = useApp()
   const [query, setQuery] = useState('')
-  // The primary action lives in the title row, so the page owns it and hands
-  // each tab the switch it turns.
   const [newOpen, setNewOpen] = useState(false)
   useViewEntrance(rootRef)
 
@@ -35,64 +34,76 @@ export default function Capabilities() {
   return (
     <div className="view" ref={rootRef}>
       <div className="view-inner view-inner--wide">
-        <header className="cap-head" data-enter>
-          <h1>Skills and connectors</h1>
-          <button
-            type="button"
-            className={`btn btn--pill${newOpen ? ' btn--ghost' : ' btn--primary'}`}
-            onClick={() => setNewOpen((o) => !o)}
-            aria-expanded={newOpen}
-          >
-            <Icon name={newOpen ? 'x' : 'plus'} size={14} />
-            {skills ? 'New skill' : 'New connector'}
-          </button>
-        </header>
+        {/* Clean borderless tab switcher (Skills vs Plugins) */}
+        <div className="clean-cap-topbar" data-enter>
+          <div className="clean-cap-switch" role="tablist" aria-label="Skills or connectors">
+            {TABS.map((t) => {
+              const isActive = capabilitiesTab === t.id
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  id={`cap-tab-${t.id}`}
+                  aria-selected={isActive}
+                  aria-controls={`cap-panel-${t.id}`}
+                  tabIndex={isActive ? 0 : -1}
+                  className={`clean-cap-tab-btn${isActive ? ' is-active' : ''}`}
+                  onClick={() => setCapabilitiesTab(t.id)}
+                >
+                  <span style={{ position: 'relative', zIndex: 1 }}>
+                    {t.id === 'connectors' ? 'Plugins' : t.label}
+                  </span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeCapSwitch"
+                      className="clean-cap-tab-indicator"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
 
-        <div className="cap-bar" data-enter>
-          {/* `role="tablist"` is a promise about the keyboard as much as about
-              the labels: arrows move between tabs, only the selected one is in
-              the tab order, and each names the panel it controls. Claiming the
-              role without those is worse than using plain buttons. */}
-          <div className="cap-tabs" role="tablist" aria-label="Skills or connectors">
-            {TABS.map((t, i) => (
-              <button
-                key={t.id}
+          {skills && (
+            <div className="clean-cap-actions">
+              <div className="plugin-search-pill">
+                <Icon name="search" size={14} />
+                <input
+                  value={query}
+                  placeholder="Search skills…"
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape' && query) {
+                      e.stopPropagation()
+                      setQuery('')
+                    }
+                  }}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => setQuery('')}
+                    aria-label="Clear"
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                )}
+              </div>
+              <motion.button
                 type="button"
-                role="tab"
-                id={`cap-tab-${t.id}`}
-                aria-selected={capabilitiesTab === t.id}
-                aria-controls={`cap-panel-${t.id}`}
-                tabIndex={capabilitiesTab === t.id ? 0 : -1}
-                className={`cap-tab${capabilitiesTab === t.id ? ' active' : ''}`}
-                onClick={() => setCapabilitiesTab(t.id)}
-                onKeyDown={(e) => {
-                  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
-                  if (!step) return
-                  e.preventDefault()
-                  const next = TABS[(i + step + TABS.length) % TABS.length]
-                  setCapabilitiesTab(next.id)
-                  document.getElementById(`cap-tab-${next.id}`)?.focus()
-                }}
+                className="plugin-add-custom-btn"
+                title="New skill"
+                onClick={() => setNewOpen((o) => !o)}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.94 }}
               >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="cap-search">
-            <Icon name="search" size={14} />
-            <input
-              value={query}
-              placeholder="Search…"
-              aria-label={skills ? 'Search skills' : 'Search connectors'}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.stopPropagation(); setQuery('') } }}
-            />
-            {query && (
-              <button type="button" className="icon-btn" onClick={() => setQuery('')} aria-label="Clear">
-                <Icon name="x" size={13} />
-              </button>
-            )}
-          </div>
+                <Icon name={newOpen ? 'x' : 'plus'} size={15} />
+              </motion.button>
+            </div>
+          )}
         </div>
 
         <div
@@ -100,9 +111,29 @@ export default function Capabilities() {
           id={`cap-panel-${capabilitiesTab}`}
           aria-labelledby={`cap-tab-${capabilitiesTab}`}
         >
-          {skills
-            ? <SkillsTab query={query} newOpen={newOpen} setNewOpen={setNewOpen} />
-            : <ConnectorsTab query={query} newOpen={newOpen} setNewOpen={setNewOpen} />}
+          <AnimatePresence mode="wait">
+            {skills ? (
+              <motion.div
+                key="skills-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <SkillsTab query={query} newOpen={newOpen} setNewOpen={setNewOpen} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="connectors-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <ConnectorsTab query={query} newOpen={newOpen} setNewOpen={setNewOpen} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
+import ServiceIcon from './ServiceIcon.jsx'
 import { api } from '../api.js'
 import { useApp } from '../store.jsx'
 import { MOD_LABEL } from '../keys.js'
@@ -15,7 +16,7 @@ import { connectorState } from './connectorState.js'
    on starts it here and waits for the answer, so the row never claims a
    capability the agent does not have. */
 
-function Row({ icon, label, hint, tail, onClick, disabled, danger, submenu, active }) {
+function Row({ icon, customIcon, label, hint, tail, onClick, disabled, danger, submenu, active }) {
   return (
     <button
       type="button"
@@ -25,7 +26,7 @@ function Row({ icon, label, hint, tail, onClick, disabled, danger, submenu, acti
       aria-haspopup={submenu ? 'menu' : undefined}
       aria-expanded={submenu ? Boolean(active) : undefined}
     >
-      {icon ? <Icon name={icon} size={15} /> : <span className="menu-gutter" />}
+      {customIcon ? customIcon : icon ? <Icon name={icon} size={15} /> : <span className="menu-gutter" />}
       <span className="menu-label">
         {label}
         {hint && <span className="menu-hint">{hint}</span>}
@@ -214,7 +215,7 @@ export default function PlusMenu({ conversationId, workspace, onWorkspace, onClo
               return (
                 <Row
                   key={cap.name}
-                  icon={null}
+                  customIcon={<ServiceIcon name={cap.name} size={15} />}
                   label={cap.name}
                   hint={state.detail ? state.detail.slice(0, 40) : state.label}
                   tail={<Toggle on={cap.enabled} />}

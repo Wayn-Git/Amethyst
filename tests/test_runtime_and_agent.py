@@ -768,3 +768,112 @@ async def test_a_model_that_only_ever_returns_nothing_still_ends(db, patched_res
     assert model.client.calls == 3  # the first call, plus two continuations
     warnings = [e.data.get("message", "") for e in events if e.type == "warning"]
     assert any("without an answer" in message for message in warnings)
+
+
+class _InBodyErrorTransport:
+    """A provider that reports overload *inside* a 200 stream.
+
+    This is how NVIDIA's NIM gateway reports transient overload: HTTP 200, SSE
+    headers, and then a single `data:` frame carrying an error object. Recorded
+    verbatim from `integrate.api.nvidia.com` on 2026-09-09.
+    """
+
+    FRAME = (
+        'data: {"error":{"message":"Service temporarily overloaded",'
+        '"type":"service_unavailable","code":503}}\n\n'
+    )
+    GOOD = (
+        'data: {"choices":[{"delta":{"content":"","tool_calls":[{"index":0,'
+        '"id":"call-1","type":"function","function":{"name":"list_files",'
+        '"arguments":"{\\"path\\":\\".\\"}"}}]},"finish_reason":"tool_calls"}]}\n\n'
+        "data: [DONE]\n\n"
+    )
+
+    def __init__(self, failures: int):
+        self.failures = failures
+        self.attempts = 0
+
+    def handler(self, request):
+        import httpx
+
+        self.attempts += 1
+        body = self.FRAME if self.attempts <= self.failures else self.GOOD
+        return httpx.Response(
+            200, text=body, headers={"content-type": "text/event-stream"}
+        )
+
+
+async def test_an_error_reported_inside_a_200_stream_is_retried(monkeypatch):
+    """The same failure, delivered two ways, must be retried the same way.
+
+    NVIDIA answers an overloaded model with HTTP 200 and an `error` object in
+    the first SSE frame. `stream_sse` retried a 503 *status* three times --
+    which is why the first probe of this bug recovered on attempt 2 -- but the
+    identical 503 in the body was raised straight out to the caller with no
+    retry at all, because the retry loop only ever looked at the status code.
+    One NVIDIA hiccup therefore ended the turn, while the same hiccup expressed
+    as a status code was invisible.
+
+    Nothing had been yielded when the error arrived, so replaying is safe by
+    the same rule the transport already applies to a dropped stream.
+
+    Mutation check: drop the pre-first-token error check from `stream_sse`.
+    """
+    from backend.runtime import http as runtime_http
+    from backend.runtime.providers import openai_compat
+
+    monkeypatch.setattr(runtime_http, "backoff", lambda attempt: 0.0)
+    flaky = _InBodyErrorTransport(failures=2)
+    _patch_transport(monkeypatch, flaky)
+
+    client = openai_compat.OpenAICompatClient(base_url="http://x/v1", api_key=None, model="m")
+    final = None
+    async for event in client.stream([{"role": "user", "content": "hi"}]):
+        if event.type == "done":
+            final = event.response
+
+    assert flaky.attempts == 3, "the in-body error is retried like a status code"
+    assert final is not None
+    assert [c.name for c in final.tool_calls] == ["list_files"], (
+        "and the tool call on the retry is parsed normally"
+    )
+
+
+async def test_an_unretryable_error_inside_a_200_stream_is_not_retried(monkeypatch):
+    """Only transient failures replay. A refused model is refused.
+
+    Mutation check: retry every in-body error regardless of kind.
+    """
+    import httpx
+
+    from backend.runtime import http as runtime_http
+    from backend.runtime.providers import openai_compat
+
+    monkeypatch.setattr(runtime_http, "backoff", lambda attempt: 0.0)
+
+    attempts = {"n": 0}
+
+    def handler(request):
+        attempts["n"] += 1
+        return httpx.Response(
+            200,
+            text='data: {"error":{"message":"Model \'x\' is currently unavailable.",'
+            '"type":"invalid_request_error","code":"model_unavailable"}}\n\n',
+            headers={"content-type": "text/event-stream"},
+        )
+
+    real_init = httpx.AsyncClient.__init__
+
+    def init(self, *args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", init)
+
+    client = openai_compat.OpenAICompatClient(base_url="http://x/v1", api_key=None, model="m")
+    with pytest.raises(Exception) as caught:
+        async for _ in client.stream([{"role": "user", "content": "hi"}]):
+            pass
+
+    assert attempts["n"] == 1, "a permanent refusal is not replayed"
+    assert "unavailable" in str(caught.value)

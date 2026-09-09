@@ -53,9 +53,6 @@ def resolve_tier(
 
     None is the ordinary answer on a machine with one provider, and every caller
     treats it as "use the conversation's own model" rather than as a failure.
-    An offer AMETHYST cannot honour -- a heavy tier with nothing behind it -- is
-    worse than no offer, so this returning None is what withholds the escalation
-    tool rather than a separate flag somebody has to keep in step.
     """
     entry = load_tiers().get(tier)
     if entry is None:

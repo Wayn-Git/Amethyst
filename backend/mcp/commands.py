@@ -1374,9 +1374,20 @@ def _client_source(config: ServerConfig, entry: cat.CatalogueEntry | None) -> st
 def missing_credentials(config: ServerConfig) -> list[str]:
     """What this server needs before its sign-in can even begin."""
     entry = entry_for(config)
-    if entry is None or auth_kind(config) != "setup":
+    if entry is None:
+        return []
+    kind = auth_kind(config)
+    if kind == "none":
         return []
     default_id, _ = cat.default_client(entry)
+    if kind == "oauth":
+        if config.oauth_client_id or default_id:
+            return []
+        if entry.setup_hint and ("register" in entry.setup_hint.lower() or "client" in entry.setup_hint.lower()):
+            return ["an OAuth client id and secret"]
+        return []
+    if kind != "setup":
+        return []
     if entry.credentials_file:
         # A server reading a JSON file has nothing in `env` to check, so the
         # question is whether the client id has reached that file yet.

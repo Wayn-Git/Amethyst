@@ -431,7 +431,15 @@ async def test_an_unconfigured_provider_becomes_an_error_event(db):
 
 def test_the_turn_stream_never_dies_without_saying_why(api, db):
     """The same defect through the HTTP surface: the stream must carry an
-    error event rather than the response body ending mid-flight."""
+    error event rather than the response body ending mid-flight.
+
+    The body opens on `status: starting`, which the API sends before it builds
+    the director. Building one starts connectors, and a connector may take
+    minutes to answer or fail; that await used to happen before the response
+    began, so a slow one left the browser holding an open request with no bytes
+    in it until the fetch failed outright. The first frame is now the proof the
+    socket is alive.
+    """
     import json
 
     from fastapi.testclient import TestClient
@@ -448,8 +456,9 @@ def test_the_turn_stream_never_dies_without_saying_why(api, db):
                 if line.startswith("data: ")
             ]
 
-    assert [e["type"] for e in events] == ["status", "error"]
-    assert events[0]["state"] == "failed", "an interface styles the turn off this"
+    assert [e["type"] for e in events] == ["status", "status", "error"]
+    assert events[0]["state"] == "starting", "the stream says it is alive first"
+    assert events[1]["state"] == "failed", "an interface styles the turn off this"
     assert events[-1]["type"] == "error", "and closes the stream on this"
 
 
@@ -569,11 +578,11 @@ async def test_concurrent_turns_share_one_mcp_manager(api, db, tmp_path, monkeyp
             built.append(self)
             self.registry = registry
 
-        async def connect_all(self, *, conversation_id=None):
+        async def connect_all(self, *, conversation_id=None, interactive=False, deadline=None):
             await asyncio.sleep(0.01)
             return {}
 
-        async def reconcile(self):
+        async def reconcile(self, *, deadline=None):
             return {}
 
         async def shutdown(self):
@@ -952,7 +961,7 @@ def test_a_turn_stops_counting_as_running_at_its_terminal_frame(api, db, monkeyp
             seen.append({"when": "after done", "running": conversation_id in api._active_turns})
             yield Event("memory", {"created": [], "superseded": []})
 
-    async def fake_director(workspace, mode="chat"):
+    async def fake_director(workspace, mode="chat", *, reconcile_deadline=None):
         return Director()
 
     monkeypatch.setattr(api, "_director", fake_director)
@@ -2190,3 +2199,86 @@ def test_runs_written_before_the_column_existed_are_adopted(tmp_path, monkeypatc
     assert dict(conn.execute("SELECT id, automation_id FROM conversations").fetchall()) == rows
     assert isinstance(conn, sqlite3.Connection)
     connection.reset_connection()
+
+
+def test_the_turn_says_it_is_alive_before_it_builds_the_agent(api, db, monkeypatch):
+    """A slow start must not read as a dead connection.
+
+    Building the director starts connectors, and a connector is allowed 180s to
+    answer -- 300s if it claims to be waiting on a sign-in. That await used to
+    sit above the response generator, so nothing had been sent: the browser
+    held an open request with no bytes in it, eventually failed the fetch
+    ("NetworkError when attempting to fetch resource"), and the conversation
+    stayed registered in `_active_turns` so every retry came back 409.
+
+    Mutation check: move the `_director(...)` await back above `stream()`.
+    """
+    import asyncio
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from backend.agent.director import Event
+    from backend.db.repositories import ConversationRepository
+
+    monkeypatch.setattr(api, "HEARTBEAT_SECONDS", 0.02)
+
+    class Director:
+        async def run(self, conversation_id, message, cancel=None):
+            yield Event("done", {"text": "hello"})
+
+    async def slow_director(workspace, mode="chat", *, reconcile_deadline=None):
+        # Stands in for a connector that will not come up quickly.
+        await asyncio.sleep(0.2)
+        return Director()
+
+    monkeypatch.setattr(api, "_director", slow_director)
+
+    with TestClient(api.app) as client:
+        cid = ConversationRepository().create("ollama", "qwen2.5:7b")
+        with client.stream("POST", f"/api/conversations/{cid}/turn", json={"message": "hi"}) as r:
+            assert r.status_code == 200
+            events = [
+                json.loads(line.removeprefix("data: "))
+                for line in r.iter_lines()
+                if line.startswith("data: ")
+            ]
+
+    kinds = [e["type"] for e in events]
+    assert kinds[0] == "status" and events[0]["state"] == "starting", (
+        "the first frame goes out before anything that can be slow"
+    )
+    assert "ping" in kinds[: kinds.index("done")], "the wait is covered by keepalives"
+    assert kinds[-1] == "done"
+    assert cid not in api._active_turns
+
+
+def test_an_agent_that_cannot_be_built_is_an_error_frame_not_a_stuck_turn(api, db, monkeypatch):
+    """And the conversation is released, so the next message is not a 409.
+
+    Mutation check: drop the `release()` from the build's `except` branch.
+    """
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from backend.db.repositories import ConversationRepository
+
+    async def broken_director(workspace, mode="chat", *, reconcile_deadline=None):
+        raise RuntimeError("the connector manager is wedged")
+
+    monkeypatch.setattr(api, "_director", broken_director)
+
+    with TestClient(api.app) as client:
+        cid = ConversationRepository().create("ollama", "qwen2.5:7b")
+        with client.stream("POST", f"/api/conversations/{cid}/turn", json={"message": "hi"}) as r:
+            assert r.status_code == 200
+            events = [
+                json.loads(line.removeprefix("data: "))
+                for line in r.iter_lines()
+                if line.startswith("data: ")
+            ]
+
+    assert [e["type"] for e in events] == ["status", "error"]
+    assert "the connector manager is wedged" in events[-1]["message"]
+    assert cid not in api._active_turns, "a failed build must not leave the turn registered"

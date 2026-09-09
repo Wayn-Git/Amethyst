@@ -131,6 +131,16 @@ export function AppProvider({ children }) {
     savePrefs({ view: next })
   }, [navigate])
 
+  const [pendingPrompt, setPendingPrompt] = useState(null)
+
+  const openChatWithPrompt = useCallback((prompt) => {
+    setActiveIdRaw(null)
+    savePrefs({ activeId: null })
+    setPendingPrompt(prompt)
+    navigate(pathFor('chat'))
+    savePrefs({ view: 'chat' })
+  }, [navigate])
+
   // Reopen where you left off, but only from the bare root: a direct visit or
   // bookmark to e.g. /mail is a real URL and must never be overridden by
   // whatever the last session happened to have open.
@@ -404,6 +414,7 @@ export function AppProvider({ children }) {
     theme, setTheme,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
+    pendingPrompt, setPendingPrompt, openChatWithPrompt,
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
@@ -413,6 +424,7 @@ export function AppProvider({ children }) {
     compact, railOpen, toggleRail, closeRail, panel, setPanel, togglePanel, theme, setTheme,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
+    pendingPrompt, openChatWithPrompt,
     renaming, renameConversation, deleteConversation, deleteAllConversations,
   ])
 

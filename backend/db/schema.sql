@@ -486,3 +486,31 @@ CREATE TABLE IF NOT EXISTS instagram_events (
 -- of one comment must not become two rows in the library.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ig_delivery ON instagram_events(delivery_key);
 CREATE INDEX IF NOT EXISTS idx_ig_pending ON instagram_events(status, id);
+
+-- Panel artifacts: file-type output the agent produced as a deliverable.
+--
+-- Only metadata. The file is the artifact (ADR-0004, ADR-0020) -- storing a
+-- second copy of a 400KB document here would mean two truths about the same
+-- bytes, and the one in the database would be the stale one the moment the
+-- user opened the file. Reopening reads the path.
+--
+-- Keyed by (conversation, resolved path) rather than by an id the model
+-- invents: the same document written three times across a conversation is one
+-- artifact with three versions, which is what "step back through versions"
+-- needs and what a fresh row per write cannot express.
+CREATE TABLE IF NOT EXISTS artifacts (
+    id              TEXT PRIMARY KEY,   -- hash of conversation_id + resolved path
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    path            TEXT NOT NULL,      -- resolved, absolute
+    title           TEXT,
+    media_type      TEXT NOT NULL DEFAULT 'text/markdown',
+    language        TEXT,               -- for syntax highlighting; NULL for prose
+    version         INTEGER NOT NULL DEFAULT 1,
+    bytes           INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_path
+    ON artifacts(conversation_id, path);
+CREATE INDEX IF NOT EXISTS idx_artifact_recent
+    ON artifacts(conversation_id, updated_at DESC);

@@ -369,6 +369,86 @@ class MessageRepository:
         return [Message.from_row(r) for r in self.conn.execute(sql, params).fetchall()]
 
 
+class ArtifactRepository:
+    """Panel artifacts: metadata only, because the file is the artifact.
+
+    Keyed by (conversation, resolved path). Writing the same document a second
+    time is version 2 of one artifact, not a second artifact -- which is what
+    lets the panel step back through revisions, and what a fresh row per write
+    could never express.
+    """
+
+    def __init__(self, conn: sqlite3.Connection | None = None):
+        self.conn = _conn(conn)
+
+    @staticmethod
+    def identify(conversation_id: str, path: str) -> str:
+        """The artifact's stable id.
+
+        Derived rather than random so the id is the same before and after the
+        row exists: the stream announces an artifact while the tool call is
+        still arriving, and the row is only written once the file has actually
+        been written. An id minted at write time would mean the frame that
+        opened the panel named something different from the row that persists
+        it.
+        """
+        import hashlib
+
+        digest = hashlib.sha256(f"{conversation_id}\x00{path}".encode())
+        return digest.hexdigest()[:32]
+
+    def record(
+        self,
+        conversation_id: str,
+        path: str,
+        *,
+        title: str | None = None,
+        media_type: str = "text/markdown",
+        language: str | None = None,
+        size: int = 0,
+    ) -> dict[str, Any]:
+        """Note that this path was written, and say which version that makes it.
+
+        The version is incremented by the database rather than read-then-written
+        by the caller: two tool calls landing on one path in the same turn would
+        otherwise both read version 1 and both write version 2.
+        """
+        artifact_id = self.identify(conversation_id, path)
+        self.conn.execute(
+            "INSERT INTO artifacts (id, conversation_id, path, title, media_type,"
+            " language, version, bytes) VALUES (?, ?, ?, ?, ?, ?, 1, ?)"
+            " ON CONFLICT(conversation_id, path) DO UPDATE SET"
+            " version = artifacts.version + 1,"
+            " title = COALESCE(excluded.title, artifacts.title),"
+            " media_type = excluded.media_type,"
+            " language = COALESCE(excluded.language, artifacts.language),"
+            " bytes = excluded.bytes,"
+            " updated_at = datetime('now')",
+            (artifact_id, conversation_id, path, title, media_type, language, size),
+        )
+        self.conn.commit()
+        row = self.get(artifact_id)
+        assert row is not None  # just written
+        return row
+
+    def get(self, artifact_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM artifacts WHERE id = ?", (artifact_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list(self, conversation_id: str) -> list[dict[str, Any]]:
+        """Every artifact in one conversation, newest first."""
+        return [
+            dict(row)
+            for row in self.conn.execute(
+                "SELECT * FROM artifacts WHERE conversation_id = ?"
+                " ORDER BY updated_at DESC, id",
+                (conversation_id,),
+            )
+        ]
+
+
 # --------------------------------------------------------------------------
 # permissions + audit
 # --------------------------------------------------------------------------

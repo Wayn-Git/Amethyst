@@ -167,7 +167,7 @@ export const api = {
   providerModels: (name) => j(`/providers/${encodeURIComponent(name)}/models`),
 
   // Tiers: which model does which job. `default` is the go-to model; `fast` is
-  // the quick cheap one; `heavy` is what the fast model escalates to.
+  // the quick cheap one; `heavy` is the slow careful one.
   settings: () => j('/settings'),
   updateSettings: (patch) => j('/settings', json('PATCH', patch)),
 
@@ -225,6 +225,12 @@ export const api = {
   // Stops the turn on the server. Aborting the browser's read only closes the
   // response: the loop behind it keeps calling models and tools.
   stopTurn: (id) => j(`/conversations/${id}/turn/stop`, json('POST', {})),
+
+  // A turn suspended on a clarifying question. `answerQuestion` is what
+  // resumes it; the turn is holding a future on the other end.
+  questions: (conversationId) =>
+    j(`/questions${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
+  answerQuestion: (id, answers) => j(`/questions/${id}`, json('POST', { answers })),
 
   confirmations: () => j('/confirmations'),
   decideConfirmation: (id, { allow, remember }) =>

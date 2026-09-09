@@ -479,7 +479,7 @@ function nameFor(baseUrl) {
 const ROLE_META = [
   { id: 'default', label: 'Go-to model', hint: 'The everyday default a new conversation starts on.' },
   { id: 'fast', label: 'Fast', hint: 'The quick, cheap model — hand-offs and the memory extractor.' },
-  { id: 'heavy', label: 'Heavy', hint: 'What the fast model escalates to for hard reasoning.' },
+  { id: 'heavy', label: 'Heavy', hint: 'The slow, careful model.' },
 ]
 
 /* Assign a provider and model to each job (the `tiers:` block of providers.yaml).

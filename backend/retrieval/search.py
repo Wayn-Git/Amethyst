@@ -14,6 +14,11 @@ log = logging.getLogger(__name__)
 
 CANDIDATES_PER_INDEX = 30
 
+#: How much wider the candidate pool goes when the caller filters by source or
+#: path. The filter runs after ranking, so every candidate that fails it is a
+#: slot the caller paid for and did not get -- see `SearchService.search`.
+FILTERED_CANDIDATE_FACTOR = 20
+
 
 @dataclass
 class SearchHit:
@@ -53,6 +58,13 @@ class SearchService:
     def __init__(self, embedder: Embedder | None = None, conn=None):
         self.conn = conn or get_connection()
         self.embedder = embedder or self._embedder_matching_index()
+        # Whether the last search ran on keywords alone because the embedder
+        # could not be reached. It was a log line and nothing else, so a
+        # caller -- and through it a model, and through that the user -- was
+        # told "here are your results" by a search that had quietly lost half
+        # of how it finds things. Anything reporting a count off a search has
+        # to be able to say the count is a floor.
+        self.degraded: str | None = None
 
     def _embedder_matching_index(self) -> Embedder:
         """Query with the model that built the index, not a global default.
@@ -84,21 +96,37 @@ class SearchService:
         if not query.strip():
             return []
 
+        self.degraded = None
         rankings: list[list[tuple[int, float]]] = []
 
-        keyword_hits = store.search_keywords(self.conn, query, CANDIDATES_PER_INDEX)
+        # A filtered search asks each index for far more candidates.
+        #
+        # Both indexes rank the whole corpus, and the `source` / `path_glob`
+        # filter is applied afterwards -- so with a flat thirty candidates a
+        # search scoped to the library was choosing from whatever thirty chunks
+        # scored best *overall*, and a vault full of notes on the same subject
+        # left almost nothing for the filter to keep. Asking the library for
+        # thirty matches and being handed twelve was this. Unfiltered searches
+        # keep the cheap ceiling: nothing is discarded there, so a wider pool
+        # would only cost time.
+        candidates = CANDIDATES_PER_INDEX
+        if source or path_glob:
+            candidates = CANDIDATES_PER_INDEX * FILTERED_CANDIDATE_FACTOR
+
+        keyword_hits = store.search_keywords(self.conn, query, candidates)
         if keyword_hits:
             rankings.append(keyword_hits)
 
         if semantic and store.vector_available(self.conn):
             try:
                 vector = await self.embedder.embed_one(query)
-                vector_hits = store.search_vectors(self.conn, vector, CANDIDATES_PER_INDEX)
+                vector_hits = store.search_vectors(self.conn, vector, candidates)
                 if vector_hits:
                     rankings.append(vector_hits)
             except Exception as exc:
                 # Keyword results are still useful, so degrade rather than fail.
                 log.warning("semantic search unavailable, using keywords only: %s", exc)
+                self.degraded = str(exc)
 
         if not rankings:
             return []
@@ -116,23 +144,41 @@ class SearchService:
     ) -> list[SearchHit]:
         if not chunk_ids:
             return []
-        # Fetch more than needed so a path filter still returns a full page.
-        window = chunk_ids[: limit * 4]
-        placeholders = ",".join("?" * len(window))
-        sql = (
-            "SELECT c.id, c.content, c.heading_path, d.path, d.source, d.title"
-            " FROM document_chunks c"
-            f" JOIN documents d ON d.id = c.document_id WHERE c.id IN ({placeholders})"
-        )
-        params: list = list(window)
-        if path_glob:
-            sql += " AND d.path GLOB ?"
-            params.append(path_glob if "*" in path_glob else f"*{path_glob}*")
-        if source:
-            sql += " AND d.source = ?"
-            params.append(source)
+        # A filtered search walks the whole ranking, not a window off the top.
+        #
+        # This took `chunk_ids[: limit * 4]` and applied the filters to that
+        # slice afterwards, which is fine when there is no filter and wrong
+        # when there is: the fused ranking covers every source, so a search
+        # scoped to `library` was competing for those slots against the whole
+        # vault. Asking for thirty library items and getting twelve was this --
+        # the other eighteen were ranked below notes that the filter then threw
+        # away. Batched because the ranking can be thousands of chunks and
+        # SQLite has a ceiling on how many parameters one statement may bind.
+        filtered = bool(path_glob or source)
+        batch_size = 400
+        candidates = chunk_ids if filtered else chunk_ids[: limit * 4]
+        rows: list = []
+        for start in range(0, len(candidates), batch_size):
+            batch = candidates[start : start + batch_size]
+            placeholders = ",".join("?" * len(batch))
+            sql = (
+                "SELECT c.id, c.content, c.heading_path, d.path, d.source, d.title"
+                " FROM document_chunks c"
+                f" JOIN documents d ON d.id = c.document_id WHERE c.id IN ({placeholders})"
+            )
+            params: list = list(batch)
+            if path_glob:
+                sql += " AND d.path GLOB ?"
+                params.append(path_glob if "*" in path_glob else f"*{path_glob}*")
+            if source:
+                sql += " AND d.source = ?"
+                params.append(source)
+            rows.extend(self.conn.execute(sql, params).fetchall())
+            if len(rows) >= limit * 4:
+                # Enough to fill the page after ranking; the rest of the
+                # ranking is below everything already held.
+                break
 
-        rows = self.conn.execute(sql, params).fetchall()
         hits = [
             SearchHit(
                 chunk_id=row["id"],

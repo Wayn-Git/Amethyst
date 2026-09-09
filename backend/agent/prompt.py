@@ -23,7 +23,11 @@ their computer, their tasks and calendar, and their connected services, through 
 the tools listed for you.
 
 Working principles:
-- Prefer acting over asking. Use a tool when you can answer with one.
+- Prefer acting over asking. Use a tool when you can answer with one. The one \
+exception is a request that genuinely reads two ways, where the two readings \
+lead to different work: call ask_user once, before building, rather than \
+building the wrong thing and finding out afterwards. Never ask what a tool \
+could tell you, and never ask to confirm something you are already sure of.
 - Match the work to the question. If the whole answer is one tool call, make \
 one; if it is none, make none. A question about you -- what you are, what you \
 can do, what is in this prompt -- is answered from what you already have. \
@@ -240,9 +244,68 @@ def tool_schema_tokens(tools: Sequence[Any] | None) -> int:
     return estimate_tokens(json.dumps(payload, default=str))
 
 
+def _call_ids(entry: dict) -> list[str]:
+    return [c.get("id") for c in (entry.get("tool_calls") or []) if c.get("id")]
+
+
 def to_wire_messages(history: list[Message]) -> list[dict]:
-    """Repository rows to the normalized message shape adapters consume."""
-    return [to_wire_message(m) for m in history]
+    """Repository rows to the normalized message shape adapters consume.
+
+    **Every tool call leaves with its answer, or it does not leave.**
+
+    The chat-completions format requires each entry in an assistant message's
+    `tool_calls` to be followed by a `tool` message carrying the same id. A turn
+    that dies between the model asking for a tool and the result being written
+    leaves the transcript holding one that nothing answers -- and from then on
+    every later turn in that conversation ships the malformed array. Recorded
+    from a real conversation on 2026-09-09: the same history produced
+    `400 "Tool choice is none, but model called a tool"` from groq,
+    `400 "Bad input: oneOf at '/' not met"` from cloudflare, and a 200 with an
+    empty answer from nvidia. One interrupted turn, and the conversation was
+    dead on every provider -- which is what "the model has lost the project"
+    actually was.
+
+    Healed on the way out rather than only prevented at the source, because a
+    database already holding broken conversations has to start working again.
+    The director closes its own turns (see `_close_open_tool_calls`); this is
+    what rescues the ones it never got the chance to.
+    """
+    entries = [to_wire_message(m) for m in history]
+    answered = {e.get("tool_call_id") for e in entries if e.get("role") == "tool"}
+    requested = {cid for e in entries for cid in _call_ids(e)}
+
+    out: list[dict] = []
+    for entry in entries:
+        if entry.get("role") == "tool":
+            # The mirror image, which history trimming produces on its own by
+            # cutting above the assistant message that made the call.
+            if entry.get("tool_call_id") not in requested:
+                continue
+            out.append(entry)
+            continue
+
+        calls = entry.get("tool_calls")
+        if not calls:
+            out.append(entry)
+            continue
+
+        kept = [c for c in calls if c.get("id") in answered]
+        if len(kept) == len(calls):
+            out.append(entry)
+            continue
+        # A partial batch keeps what was answered: dropping the whole message
+        # would throw away a result that really was computed.
+        trimmed = {k: v for k, v in entry.items() if k != "tool_calls"}
+        if kept:
+            trimmed["tool_calls"] = kept
+            out.append(trimmed)
+        elif (trimmed.get("content") or "").strip():
+            # It said something before it called the tool, and the sentence is
+            # part of the answer.
+            out.append(trimmed)
+        # Otherwise the row was only ever the call, and without it there is
+        # nothing left to send.
+    return out
 
 
 def to_wire_message(m: Message) -> dict:

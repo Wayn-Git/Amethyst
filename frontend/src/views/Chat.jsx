@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
+import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
 import ToolCallCard from '../components/ToolCallCard.jsx'
@@ -197,6 +199,7 @@ function PinButton({ item, onPin }) {
    without deciding what to call it -- which is why the fallback is the raw
    name rather than a shrug. */
 const STATUS_LABELS = {
+  starting: 'Starting up',
   retrieving: 'Searching your notes',
   recalling: 'Recalling',
   thinking: 'Thinking',
@@ -242,14 +245,152 @@ function stepClass(item, index) {
   return ''
 }
 
-/* The three modes, in the order they cost. `reasoning` is the one the fast
-   model asks for on your behalf when it escalates; picking it up front is the
-   same request without the question. */
+/* What a turn is for. Two modes, not a setting for how hard the model should
+   think: wanting a better answer is a reason to pick a better model, which the
+   model picker beside this already does. */
 const MODES = [
   { id: 'chat', label: 'Chat', hint: 'Answer and act in one turn' },
   { id: 'plan', label: 'Plan', hint: 'Ask for the plan before anything is run' },
-  { id: 'reasoning', label: 'Reasoning', hint: 'Start on the stronger, slower model' },
 ]
+
+/* The model asking, mid-turn, before it builds the wrong thing.
+
+   One question on screen at a time with "1 of 2" beside it, rather than the
+   whole set at once: a wall of questions is a form, and a form is answered
+   carelessly. The free-text row is always last and always present -- the
+   options are the model's guesses at what was meant, and being unable to say
+   "none of those" would make a wrong guess binding.
+
+   The turn is suspended while this is open. Answering resumes it with
+   everything it had already read still in context, which is why this is a card
+   in the transcript and not a new message the user has to compose. */
+function QuestionCard({ item, onAnswer, disabled }) {
+  const [index, setIndex] = useState(0)
+  const [answers, setAnswers] = useState(() => item.questions.map(() => ''))
+  const [other, setOther] = useState(() => item.questions.map(() => ''))
+  const [busy, setBusy] = useState(false)
+
+  const questions = item.questions ?? []
+  const current = questions[index]
+  const total = questions.length
+  const last = index >= total - 1
+  if (!current) return null
+
+  const chosen = answers[index]
+  const answered = chosen === '__other__' ? Boolean(other[index].trim()) : Boolean(chosen)
+
+  const pick = (value) => setAnswers((prev) => prev.map((a, i) => (i === index ? value : a)))
+
+  const settle = async () => {
+    const resolved = answers.map((a, i) => (a === '__other__' ? other[i].trim() : a))
+    setBusy(true)
+    try {
+      await onAnswer(item.askId, resolved)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (item.settled) {
+    return (
+      <div className="plan-card question-card">
+        <div className="plan-head">
+          <Icon name="info" size={14} />
+          <span>Answered</span>
+        </div>
+        {questions.map((q, i) => (
+          <p className="question-recap" key={i}>
+            <span className="question-recap-q">{q.question}</span>
+            <span className="question-recap-a">{item.settled[i] || '—'}</span>
+          </p>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="plan-card question-card">
+      <div className="plan-head">
+        <Icon name="info" size={14} />
+        <span>A quick question</span>
+        {total > 1 && <span className="plan-count">{index + 1} of {total}</span>}
+      </div>
+
+      <p className="question-text">{current.question}</p>
+
+      <div className="question-options" role="radiogroup" aria-label={current.question}>
+        {(current.options ?? []).map((option) => (
+          <button
+            type="button"
+            key={option.label}
+            className={`question-option${chosen === option.label ? ' is-picked' : ''}`}
+            onClick={() => pick(option.label)}
+            disabled={disabled || busy}
+          >
+            <span className="question-dot" aria-hidden="true" />
+            <span className="question-option-body">
+              <span className="question-option-label">{option.label}</span>
+              {option.description && (
+                <span className="question-option-hint">{option.description}</span>
+              )}
+            </span>
+          </button>
+        ))}
+
+        <button
+          type="button"
+          className={`question-option${chosen === '__other__' ? ' is-picked' : ''}`}
+          onClick={() => pick('__other__')}
+          disabled={disabled || busy}
+        >
+          <span className="question-dot" aria-hidden="true" />
+          <span className="question-option-body">
+            <span className="question-option-label">Something else</span>
+          </span>
+        </button>
+      </div>
+
+      {chosen === '__other__' && (
+        <input
+          className="question-other"
+          autoFocus
+          placeholder="In your own words"
+          value={other[index]}
+          disabled={disabled || busy}
+          onChange={(e) => setOther((prev) => prev.map((o, i) => (i === index ? e.target.value : o)))}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || !answered) return
+            e.preventDefault()
+            if (last) settle()
+            else setIndex(index + 1)
+          }}
+        />
+      )}
+
+      <div className="plan-actions">
+        {index > 0 && (
+          <button
+            type="button"
+            className="btn btn--ghost btn--small"
+            onClick={() => setIndex(index - 1)}
+            disabled={disabled || busy}
+          >
+            Back
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn--primary btn--small"
+          onClick={() => (last ? settle() : setIndex(index + 1))}
+          disabled={disabled || busy || !answered}
+        >
+          {last ? 'Send answer' : 'Next'}
+        </button>
+        <span className="plan-hint">The turn is waiting on this.</span>
+      </div>
+    </div>
+  )
+}
 
 function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
   return (
@@ -301,57 +442,14 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
   )
 }
 
-/* The fast model asking for the slow one.
-
-   Rendered like a plan card because it is the same kind of moment: the turn has
-   ended, nothing has run, and the user decides what happens next. The model it
-   would move to is named rather than described as "a bigger one" -- the wait is
-   the cost being agreed to, and it is measured in minutes on this machine. */
-function EscalationCard({ item, onEscalate, onAnyway, disabled }) {
-  return (
-    <div className="plan-card escalation-card">
-      <div className="plan-head">
-        <Icon name="spark" size={14} />
-        <span>Needs a stronger model</span>
-      </div>
-      <p className="plan-summary">{item.reason}</p>
-      <p className="plan-step-detail">
-        {item.from_model} → <strong>{item.to_model}</strong>
-      </p>
-      {item.settled ? (
-        <p className="plan-settled">
-          {item.settled === 'escalated' ? 'Escalated.' : 'Answered on the faster model.'}
-        </p>
-      ) : (
-        <div className="plan-actions">
-          <button type="button" className="btn btn--primary btn--small" disabled={disabled} onClick={onEscalate}>
-            Escalate
-          </button>
-          <button type="button" className="btn btn--ghost btn--small" disabled={disabled} onClick={onAnyway}>
-            Answer anyway
-          </button>
-          <span className="plan-hint">Nothing has run. The stronger model is slower.</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function Msg({
-  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onEscalate, onAnyway, busy,
+  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy,
   asideTools,
 }) {
   const role = item.kind
 
-  if (role === 'escalation') {
-    return (
-      <EscalationCard
-        item={item}
-        disabled={busy}
-        onEscalate={() => onEscalate?.(item.id)}
-        onAnyway={() => onAnyway?.(item.id)}
-      />
-    )
+  if (role === 'question') {
+    return <QuestionCard item={item} onAnswer={onAnswerQuestion} disabled={busy && !item.askId} />
   }
   if (role === 'plan') {
     return (
@@ -510,12 +608,15 @@ export default function Chat() {
   const {
     health, refreshHealth, setView, toast, registerChat,
     conversations, refreshConvs, activeId, setActiveId, setRenaming,
-    refreshCaps, setCapabilitiesTab,
+    caps, setCapEnabled, refreshCaps, setCapabilitiesTab,
     workspace, setWorkspace, notify,
     panel, setPanel, compact, view,
+    pendingPrompt, setPendingPrompt,
   } = useApp()
 
   const [items, setItems] = useState([])
+  // Why the transcript is empty, when it is empty because the fetch failed.
+  const [loadError, setLoadError] = useState(null)
   const [turnState, setTurnState] = useState('idle')
   const [stopping, setStopping] = useState(false)
   const [liveTool, setLiveTool] = useState(null)
@@ -525,6 +626,20 @@ export default function Chat() {
   const [pending, setPending] = useState([])
   const [elsewhere, setElsewhere] = useState([])
   const [input, setInput] = useState('')
+
+  useEffect(() => {
+    if (pendingPrompt) {
+      setInput(pendingPrompt)
+      setPendingPrompt(null)
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          textareaRef.current.selectionStart = textareaRef.current.value.length
+          textareaRef.current.selectionEnd = textareaRef.current.value.length
+        }
+      }, 50)
+    }
+  }, [pendingPrompt, setPendingPrompt])
   const [plusOpen, setPlusOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [draft, setDraft] = useState({ provider: '', model: '' })
@@ -533,10 +648,9 @@ export default function Chat() {
   const [attachments, setAttachments] = useState([])
   // Plan mode is a real instruction, not a mode flag: it is prepended to the
   // message so the model outlines the work before touching anything.
-  /* Three modes now, so a boolean stopped being enough. `chat` answers and
-     acts, `plan` hands back an approvable plan with mutating tools withheld,
-     and `reasoning` starts on the heavy tier -- the model the fast one asks for
-     when it escalates. */
+  /* `chat` answers and acts; `plan` hands back an approvable plan with
+     mutating tools withheld. A boolean would do, but the field is what the
+     backend takes and a third mode has been added before. */
   const [mode, setMode] = useState('chat')
   const [atBottom, setAtBottom] = useState(true)
   const [lastSent, setLastSent] = useState('')
@@ -588,13 +702,21 @@ export default function Chat() {
   const setStatus = useCallback((next) => { liveRef.current.status = next; setLiveStatus(next) }, [])
   const setReasoning = useCallback((t) => { liveRef.current.reasoning = t; setLiveReasoning(t) }, [])
 
+  /* Loading a transcript has three outcomes, and two of them used to render
+     identically. A conversation with no rows and a conversation whose rows
+     could not be fetched both ended as `items = []`, which draws the landing
+     hero -- so opening either one from the history column looked like the
+     click had bounced back to the front page. The error is kept so the
+     transcript can say which of the three happened. */
   const loadMessages = useCallback(async (cid) => {
+    setLoadError(null)
     if (!cid) { setItems([]); return }
     try {
       setItems(historyToItems(await api.messages(cid)))
     } catch (err) {
       toast(err.message, 'bad')
       setItems([])
+      setLoadError(err.message)
     }
   }, [toast])
 
@@ -608,7 +730,8 @@ export default function Chat() {
   useEffect(() => {
     if (runningRef.current) return
     loadMessages(activeId)
-  }, [activeId, loadMessages])
+    refreshCaps(activeId)
+  }, [activeId, loadMessages, refreshCaps])
 
   const selectConversation = useCallback((cid) => {
     if (turnState !== 'idle') { toast('Finish or stop this turn first', 'amber'); return }
@@ -726,6 +849,27 @@ export default function Chat() {
         setTool(null)
         break
       }
+      // The model asking before it builds the wrong thing. The turn is
+      // suspended on the other end of this, so the card is the only thing that
+      // can resume it.
+      case 'question_required':
+        pushAssistant()
+        setItems((prev) => (prev.some((it) => it.askId === evt.id) ? prev : [...prev, {
+          id: nextId(),
+          kind: 'question',
+          askId: evt.id,
+          questions: evt.questions ?? [],
+          settled: null,
+        }]))
+        break
+      // It stopped waiting -- answered here, answered elsewhere, or timed out.
+      // Marked settled either way so a stale card cannot be submitted into a
+      // future nothing is holding.
+      case 'question_settled':
+        setItems((prev) => prev.map((it) => (
+          it.askId === evt.id && !it.settled ? { ...it, settled: it.answers ?? [] } : it
+        )))
+        break
       case 'confirmation_required':
         // The turn is suspended until this is answered. The frame carries the
         // request id, which polling cannot supply unambiguously when two calls
@@ -764,25 +908,6 @@ export default function Chat() {
       // inside the loop and none of it was visible: the composer said
       // "Thinking" from the moment a turn opened until the first token, whether
       // the wait was retrieval, a cold connector or a provider retry.
-      // The fast model handing the job over. The message that caused it travels
-      // with the card: approving re-sends it in reasoning mode, and declining
-      // re-sends it in chat, where the backend withholds the tool because the
-      // transcript already records the request.
-      case 'escalation':
-        pushAssistant()
-        setItems((prev) => {
-          const asked = [...prev].reverse().find((it) => it.kind === 'user')
-          return [...prev, {
-            id: nextId(),
-            kind: 'escalation',
-            reason: evt.reason ?? '',
-            from_model: evt.from_model ?? '',
-            to_model: evt.to_model ?? '',
-            message: asked?.text ?? '',
-            settled: false,
-          }]
-        })
-        break
       case 'status':
         setStatus(evt.state ? { state: evt.state, tool: evt.tool, server: evt.server } : null)
         break
@@ -878,6 +1003,12 @@ export default function Chat() {
       // stream it no longer needs, not a turn someone interrupted.
       if (err.name === 'AbortError') { if (!settledRef.current) pushNote('warning', 'Stopped.') }
       else pushNote('error', err.message)
+      /* Whatever went wrong has now been said once. Without this the `finally`
+         below added "The turn ended without a result" underneath it, so a
+         single dropped connection printed two red rows that described the same
+         event -- and the second one implied a turn that had run and returned
+         nothing, which is not what happened. */
+      settledRef.current = true
     } finally {
       clearTimeout(watchdog)
       if (turnTokenRef.current === token) {
@@ -945,31 +1076,29 @@ export default function Chat() {
     )))
   }, [])
 
-  /* Both buttons re-send the same message; only the mode differs. There is no
-     resume endpoint and there should not be one -- the turn ended, nothing ran,
-     and a second turn is exactly what this is. "Answer anyway" needs no flag:
-     the backend withholds the tool when the last assistant message is the
-     escalation record, which survives a reload where a flag here would not. */
-  const answerEscalation = useCallback(async (itemId, mode) => {
-    if (turnState !== 'idle' || !activeId) return
-    let message = ''
-    setItems((prev) => prev.map((it) => {
-      if (it.id !== itemId) return it
-      message = it.message
-      return { ...it, settled: mode === 'reasoning' ? 'escalated' : 'declined' }
-    }))
-    if (!message) return
-    try {
-      abortRef.current?.abort()
-      await openTurn(activeId, message, mode)
-    } catch (err) {
-      toast(err.message, 'bad')
-      setTurnState('idle')
-    }
-  }, [turnState, activeId, openTurn, toast])
+  /* Resume a turn that is suspended on a question.
 
-  const escalate = useCallback((itemId) => answerEscalation(itemId, 'reasoning'), [answerEscalation])
-  const answerAnyway = useCallback((itemId) => answerEscalation(itemId, 'chat'), [answerEscalation])
+     Nothing is re-sent: the turn is still open, holding a future, with
+     everything it had already read still in its context. That is the whole
+     reason this is a card rather than a new message -- answering in the
+     composer would end one turn and start another, and the model would have to
+     reconstruct what it already knew. */
+  const answerQuestion = useCallback(async (askId, answers) => {
+    try {
+      await api.answerQuestion(askId, answers)
+      setItems((prev) => prev.map((it) => (
+        it.askId === askId ? { ...it, settled: answers } : it
+      )))
+    } catch (err) {
+      // The commonest failure is a turn that stopped waiting -- it timed out
+      // and carried on, or the user pressed Stop. Say so and settle the card,
+      // rather than leaving a button that will never work.
+      toast(err.message, 'bad')
+      setItems((prev) => prev.map((it) => (
+        it.askId === askId ? { ...it, settled: answers } : it
+      )))
+    }
+  }, [toast])
 
   const discardPlan = useCallback((itemId) => {
     // Local only. Nothing ran, so there is nothing to undo on the server, and
@@ -983,6 +1112,33 @@ export default function Chat() {
     const attached = attachments.length
       ? `\n\nAttached files (read them with view_file):\n${attachments.map((f) => `- ${f.path}`).join('\n')}`
       : ''
+
+    // Auto-enable mentioned plugins
+    if (caps.connectors) {
+      const lower = typed.toLowerCase()
+      const words = typed.split(/\s+/)
+      const mentions = words.filter(w => w.startsWith('@')).map(w => w.slice(1).toLowerCase())
+      for (const cap of caps.connectors) {
+        const titleClean = (cap.title || cap.name).replace(/\s+/g, '').toLowerCase()
+        const nameClean = (cap.name || '').replace(/\s+/g, '').toLowerCase()
+        const titleRaw = (cap.title || '').toLowerCase()
+        const isMentioned =
+          mentions.includes(titleClean) ||
+          mentions.includes(nameClean) ||
+          (titleClean && lower.includes(`@${titleClean}`)) ||
+          (nameClean && lower.includes(`@${nameClean}`)) ||
+          (titleRaw && lower.includes(`@${titleRaw}`))
+        if (isMentioned && !cap.enabled) {
+          try {
+            await setCapEnabled(cap, true)
+            toast(`Auto-enabled ${cap.title || cap.name}`, 'ok')
+          } catch (e) {
+            console.error('Failed to auto-enable', cap.name, e)
+          }
+        }
+      }
+    }
+
     /* No prefix any more. It used to prepend "Plan first: ..." to the user's
        own message, which meant the instruction was persisted into the
        transcript and replayed on every later iteration and every later turn --
@@ -1027,7 +1183,7 @@ export default function Chat() {
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    refreshConvs, openTurn, toast, setActiveId,
+    refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled,
   ])
 
   const stop = useCallback(async () => {
@@ -1145,22 +1301,39 @@ export default function Chat() {
   }, [refreshPending, turnState])
 
   const runAc = useCallback((value, cid) => {
-    const m = value.match(/\/[\w-]{1,}$/)
-    if (!m) { setAcItems([]); return }
+    const m = value.match(/([/@])([\w-]*)$/)
+    if (!m || (m[1] === '/' && m[2].length === 0)) { setAcItems([]); return }
+    const prefix = m[1]
+    const query = m[2].toLowerCase()
+
     clearTimeout(acTimerRef.current)
-    acTimerRef.current = setTimeout(async () => {
-      try {
-        setAcItems((await api.skillSearch(m[0].slice(1), cid)).slice(0, 6))
-        setAcIndex(0)
-      } catch { setAcItems([]) }
-    }, 160)
-  }, [])
+    if (prefix === '/') {
+      acTimerRef.current = setTimeout(async () => {
+        try {
+          const items = await api.skillSearch(query, cid)
+          setAcItems(items.slice(0, 6).map(it => ({ ...it, acType: 'skill' })))
+          setAcIndex(0)
+        } catch { setAcItems([]) }
+      }, 160)
+    } else if (prefix === '@') {
+      const available = caps.connectors || []
+      const matches = available.filter((c) => 
+        (c.name.toLowerCase().includes(query) || (c.title && c.title.toLowerCase().includes(query)))
+      )
+      setAcItems(matches.slice(0, 6).map(it => ({ ...it, acType: 'plugin' })))
+      setAcIndex(0)
+    }
+  }, [caps.connectors])
 
   const acceptAc = useCallback((item) => {
     if (!item) return
-    const m = input.match(/\/[\w-]*$/)
+    const m = input.match(/([/@])[\w-]*$/)
     const start = m ? m.index : input.length
-    setInput(input.slice(0, start) + '/' + item.name + ' ')
+    if (item.acType === 'skill') {
+      setInput(input.slice(0, start) + '/' + item.name + ' ')
+    } else {
+      setInput(input.slice(0, start) + '@' + (item.title || item.name).replace(/\s+/g, '') + ' ')
+    }
     setAcItems([])
     textareaRef.current?.focus()
   }, [input])
@@ -1213,7 +1386,17 @@ export default function Chat() {
   }, [rendered])
   const pins = useMemo(() => rendered.filter((i) => i.pinned && i.text), [rendered])
 
-  const isEmpty = rendered.length === 0 && turnState === 'idle'
+  /* Nothing on screen, for one of three reasons.
+     The hero -- "What needs doing?" and the openers -- belongs to exactly one
+     of them: no conversation is open. An *open* conversation that happens to
+     hold no messages is a different fact and has to look different, because
+     the two rendered the same before and clicking a row in the history column
+     landed on the front page. That is the whole bug: a turn that fails before
+     its first write leaves a titled conversation with no rows behind it, and
+     opening one of those was indistinguishable from opening nothing. */
+  const isBlank = rendered.length === 0 && turnState === 'idle'
+  const isEmpty = isBlank && !activeId
+  const openedEmpty = isBlank && Boolean(activeId) && !loadError
   /* "Nobody has signed in yet" is not a failure, and the server has said so
      since connectors shipped -- `connectors_awaiting_sign_in` exists for
      exactly this. The banner showed both in the same red sentence, which made
@@ -1275,10 +1458,57 @@ export default function Chat() {
               onMouseEnter={() => setAcIndex(i)}
               onClick={() => acceptAc(item)}
             >
-              <span className="ac-name">/{item.name}</span>
-              <span className="ac-desc">{item.description}</span>
+              {item.acType === 'plugin' ? (
+                 <>
+                   <span className="ac-name">
+                     <ServiceIcon name={item.name} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     @{item.title || item.name}
+                   </span>
+                   <span className="ac-desc">{item.description}</span>
+                 </>
+              ) : (
+                 <>
+                   <span className="ac-name">/{item.name}</span>
+                   <span className="ac-desc">{item.description}</span>
+                 </>
+              )}
             </button>
           ))}
+        </div>
+      )}
+
+      {(caps.connectors ?? []).length > 0 && (
+        <div className="chat-tools-dock" title="Active tools. Click any connector to turn it OFF/ON for this conversation.">
+          <span className="chat-tools-dock-label">
+            <Icon name="plug" size={11} />
+            Tools
+          </span>
+          {(caps.connectors ?? []).map((c) => {
+            const isLive = Boolean(c.enabled)
+            return (
+              <motion.button
+                key={c.name}
+                type="button"
+                className={`chat-tool-chip${isLive ? ' is-active' : ' is-inactive'}`}
+                onClick={() => setCapEnabled(c, !c.enabled)}
+                title={`${c.title || c.name}: ${isLive ? 'Active (click to turn OFF to prevent tool stacking)' : 'Disabled (click to turn ON)'}`}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <span className="chat-tool-chip-dot" />
+                <ServiceIcon name={c.name} size={12} />
+                <span className="chat-tool-chip-name">{c.title || c.name}</span>
+              </motion.button>
+            )
+          })}
+          <button
+            type="button"
+            className="chat-tool-manage-btn"
+            onClick={() => { setCapabilitiesTab('connectors'); setView('capabilities') }}
+            title="Manage and configure connectors"
+          >
+            + More
+          </button>
         </div>
       )}
 
@@ -1581,6 +1811,28 @@ export default function Chat() {
             )}
             <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
               <div className="chat-stream">
+                {loadError && (
+                  <div className="chat-note chat-note--bad" role="status">
+                    <Icon name="alert" size={14} />
+                    <span>This conversation&rsquo;s messages could not be loaded. {loadError}</span>
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={() => loadMessages(activeId)}
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+                {openedEmpty && (
+                  <div className="chat-note" role="status">
+                    <Icon name="chat" size={14} />
+                    <span>
+                      <strong>{active?.title || 'This conversation'}</strong> has no messages yet.
+                      {' '}Its first turn never reached the transcript — ask again below.
+                    </span>
+                  </div>
+                )}
                 {transcript.map((item) => (
                   <div key={item.id} data-item={item.id} className="stream-item">
                     <Msg
@@ -1589,8 +1841,7 @@ export default function Chat() {
                       onPin={onPin}
                       busy={turnState !== 'idle'}
                       onApprovePlan={approvePlan}
-                      onEscalate={escalate}
-                      onAnyway={answerAnyway}
+                      onAnswerQuestion={answerQuestion}
                       onDiscardPlan={discardPlan}
                       onEditPlanStep={editPlanStep}
                     />

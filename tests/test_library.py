@@ -405,3 +405,214 @@ def test_library_tag_filtering_and_sorting(client, db):
     desc_res = client.get("/api/library?order=desc").json()
     assert desc_res["items"][0]["id"] == item2["id"]
 
+
+
+# --- the agent's own view of the library ------------------------------------
+
+
+def _shelve(client, title, *, category=None, tags=(), kind="video", day="2026-09-01"):
+    item = client.post(
+        "/api/library", json={"title": title, "kind": kind, "consumed_on": day}
+    ).json()
+    patch = {}
+    if tags:
+        patch["tags"] = list(tags)
+    if category:
+        patch["category"] = category
+    if patch:
+        client.patch(f"/api/library/{item['id']}", json=patch)
+    return item
+
+
+async def test_the_agent_can_ask_for_a_tag_and_gets_every_item_with_it(client, db):
+    """The reported bug, exactly: twenty-one items tagged `cinema`, six returned.
+
+    `search_library` could only search text, so "which movies have I saved"
+    became a ranked query against the index and came back with whatever few
+    items scored best -- while the tag that answers the question precisely sat
+    on every row and the tool had no way to name it. A tag is an exact fact
+    about a row, so it is answered by selecting rows, and the count is true.
+
+    Mutation check: delete the `if filtering:` branch in `search_library`.
+    """
+    from backend.tools.builtin.library import search_library
+
+    for n in range(21):
+        # Titles a keyword search cannot help with, which is what half this
+        # library actually looks like.
+        _shelve(client, "🎬" * (n + 1), category="movie", tags=["cinema"])
+    _shelve(client, "A note about python", category="general", tags=["programming"])
+
+    result = await search_library({"tag": "cinema"}, None)
+
+    assert result.content.startswith("21 items:"), result.content[:200]
+    assert result.content.count("\n") == 21
+    assert "programming" not in result.content
+
+
+async def test_a_filtered_library_answer_is_not_capped_at_eight(client, db):
+    """The default limit is for a ranked text query, where the tail is noise.
+    A filter is a "which ones" question and eight of twenty-one is wrong, not
+    short.
+
+    Mutation check: use a single default limit of 8 for both paths.
+    """
+    from backend.tools.builtin.library import search_library
+
+    for n in range(21):
+        _shelve(client, f"Film {n}", category="movie", tags=["cinema"])
+
+    assert (await search_library({"category": "movie"}, None)).content.startswith("21 items:")
+    # And the caller can still ask for fewer.
+    assert (await search_library({"category": "movie", "limit": 5}, None)).content.startswith(
+        "5 items:"
+    )
+
+
+async def test_an_unknown_tag_answers_with_the_tags_that_exist(client, db):
+    """Otherwise the only recovery from a guessed tag is another guess."""
+    from backend.tools.builtin.library import search_library
+
+    _shelve(client, "Film", category="movie", tags=["cinema"])
+
+    result = await search_library({"tag": "films"}, None)
+
+    assert "Nothing in the library has tag 'films'" in result.content
+    assert "cinema (1)" in result.content
+    assert "movie (1)" in result.content
+
+
+async def test_the_agent_can_read_back_the_librarys_own_vocabulary(client, db):
+    from backend.tools.builtin.library import search_library
+
+    _shelve(client, "Film", category="movie", tags=["cinema"])
+    _shelve(client, "Other film", category="movie", tags=["cinema", "streaming"])
+
+    result = await search_library({"list_tags": True}, None)
+
+    assert "cinema (2)" in result.content
+    assert "streaming (1)" in result.content
+    assert "movie (2)" in result.content
+
+
+def test_an_item_is_described_with_what_it_is_filed_under(db):
+    """A model that cannot see the tags cannot group by them -- and half of
+    this library's titles are an emoji and nothing else.
+
+    Mutation check: drop category and tags from `describe`.
+    """
+    from backend.library.service import describe
+
+    line = describe(
+        {
+            "title": "🎬",
+            "kind": "video",
+            "category": "movie",
+            "tags": ["cinema", "streaming"],
+            "consumed_on": "2026-09-01",
+        }
+    )
+    assert "movie" in line
+    assert "cinema, streaming" in line
+
+
+def test_a_category_filter_finds_what_the_item_is_actually_called(client, db):
+    """The chip said twenty-one and the filter returned nineteen.
+
+    `as_dict` infers a category for an item stored as null or 'general', so
+    filtering on the stored column alone missed exactly the items whose
+    category was inferred -- while the count, which reads the same items
+    through `as_dict`, included them. Two views of one word, disagreeing.
+
+    Mutation check: filter on `store.list(category=...)` alone.
+    """
+    _shelve(client, "Filed as a movie", category="movie", tags=["cinema"])
+    # Stored 'general', inferred 'movie' from its tag -- what most captured
+    # items in a real library look like.
+    inferred = _shelve(client, "Inferred from its tag", tags=["cinema"])
+    client.patch(f"/api/library/{inferred['id']}", json={"category": "general"})
+    _shelve(client, "A tool", category="tool", tags=["tools"])
+
+    svc = LibraryService()
+    movies = svc.recent(category="movie", limit=100)
+
+    assert {i["title"] for i in movies} == {"Filed as a movie", "Inferred from its tag"}
+    assert svc.category_counts()["movie"] == len(movies), (
+        "the count and the filter have to agree about the same word"
+    )
+
+
+def test_a_filtered_category_pages_in_order(client, db):
+    for n in range(5):
+        _shelve(client, f"Film {n}", category="movie", day=f"2026-09-0{n + 1}")
+    _shelve(client, "A tool", category="tool", day="2026-09-09")
+
+    svc = LibraryService()
+
+    assert [i["title"] for i in svc.recent(category="movie", limit=2)] == ["Film 4", "Film 3"]
+    assert [i["title"] for i in svc.recent(category="movie", limit=2, offset=2)] == [
+        "Film 2",
+        "Film 1",
+    ]
+
+
+def test_category_counts_count_the_whole_shelf(client, db):
+    """They were tallied from the first 500 rows, so past that the interface's
+    category chips reported the composition of the newest 500 items as the
+    whole library.
+
+    Mutation check: go back to `store.list(limit=500)` and count in Python.
+    """
+    store = LibraryStore()
+    for n in range(600):
+        store.create(kind="video", title=f"Film {n}", category="movie", consumed_on="2026-01-01")
+    store.create(kind="article", title="A tool", category="tool", consumed_on="2026-01-01")
+
+    counts = LibraryService().category_counts()
+
+    assert counts["movie"] == 600
+    assert counts["tool"] == 1
+
+
+async def test_a_library_scoped_search_is_not_starved_by_the_vault(db, workspace, monkeypatch):
+    """A search scoped to the library competed against the whole corpus.
+
+    Both indexes rank everything and the `source` filter runs afterwards, so
+    with a flat thirty candidates per index a vault full of notes on the same
+    subject left almost nothing for the filter to keep -- and `_hydrate` then
+    took only the top `limit * 4` of what survived. Asking the library for its
+    matches and being handed a third of them was these two together.
+
+    The vault notes here deliberately outrank the library items: that is the
+    real shape of the problem, since a note written about a subject says the
+    words more often than a captured video's description does.
+
+    Mutation check: drop the widened candidate pool in `SearchService.search`,
+    or restore `window = chunk_ids[: limit * 4]` in `_hydrate`.
+    """
+    from backend.retrieval.indexer import Indexer
+
+    indexer = Indexer(embedder=FakeEmbedder())
+    for n in range(120):
+        note = workspace / f"note-{n}.md"
+        note.write_text(f"# Note {n}\n\n" + ("attention residue focus " * 60))
+        await indexer.index_file(note)
+
+    svc = service()
+    for n in range(6):
+        await svc.log_manual(
+            title=f"Focus piece {n}",
+            kind="article",
+            text="A short piece. attention residue focus is mentioned once here. "
+            + ("Filler about something else entirely. " * 30),
+        )
+
+    hits = await SearchService(embedder=FakeEmbedder()).search(
+        "attention residue focus", limit=6, source="library"
+    )
+
+    assert all(h.source == "library" for h in hits)
+    assert len(hits) == 6, (
+        f"every library match must be reachable, not just the ones that outrank"
+        f" the vault -- got {len(hits)}"
+    )

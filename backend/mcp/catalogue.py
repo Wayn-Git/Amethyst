@@ -565,6 +565,22 @@ CATALOGUE: list[CatalogueEntry] = [
         homepage="https://docs.firecrawl.dev/mcp-server",
         api_key_ref="amethyst-mcp/firecrawl.api_key",
     ),
+    # ---------------------------------------------------------------- thesvg
+    CatalogueEntry(
+        id="thesvg",
+        title="theSVG (Brand Icons)",
+        description=(
+            "Direct access to 6,500+ brand SVG icons from thesvg.org. Search, fetch raw SVG"
+            " markup, and get CDN embedding URLs with zero API keys required."
+        ),
+        category="Creativity",
+        auth=AuthKind.NONE,
+        transport=Transport.STDIO,
+        command="npx",
+        args=["-y", "@thesvg/mcp-server@latest"],
+        requires="Node.js (npx)",
+        homepage="https://thesvg.org",
+    ),
 ]
 
 CATALOGUE_BY_ID = {entry.id: entry for entry in CATALOGUE}

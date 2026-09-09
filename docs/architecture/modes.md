@@ -171,37 +171,37 @@ backend's new event "does not arrive". It arrives. It is now logged.
   message, and the toggle is one click.
 
 
-## A third mode, and a fourth thing the model can say (2026-08-29)
+## The third mode went again (2026-09-10)
 
-`reasoning` joined `chat` and `plan`. It is not plan mode with a bigger model:
-plan mode withholds mutating tools and hands back something to approve, and
-reasoning mode does neither — it runs the ordinary loop on the `heavy` tier
-(`backend/config.py`), which is the model the user chose to wait for.
+`reasoning` joined `chat` and `plan` on 2026-08-29 and has been removed. It ran
+the ordinary loop on the `heavy` tier with an instruction appended telling the
+model to work the problem through -- a second control for something the model
+picker beside it already does. Wanting a better answer is a reason to pick a
+better model, and two ways to say the same thing is one the user has to reason
+about before every message.
 
-**Tiers are not the fallback chain.** `backend/runtime/chain.py` answers "this
-provider is down, who else"; a tier answers "how hard is this work". Reading
-them as one thing would make a quota trip look like a decision the model made,
-and an escalation look like an outage.
+**Escalation went with it**, and that was the whole cost of the decision. The
+fast model calling `escalate(reason)` to hand a hard job to the heavy tier was
+a good protocol -- the third of its kind after `submit_plan` and `begin_step`,
+a tool the director offered, never registered, and answered itself. But its
+entire "yes" path was *re-send this message in reasoning mode*. With the mode
+gone the Escalate button had nowhere to send, and a button with nowhere to send
+is worse than no button. Keeping the mode alive purely to serve it would have
+left the removed setting still wired underneath, reachable by anything that
+posted the old value.
 
-**The escalation protocol** is the third of its kind, after `submit_plan` and
-`begin_step`, and it works the same way: a tool the director offers, never
-registers, and answers itself. The fast model calls `escalate(reason)`; the turn
-ends with an `escalation` frame; nothing has run. The interface names both
-models and offers Escalate or Answer anyway, and **both re-send the same
-message** — in `reasoning` mode or in `chat`. There is no resume endpoint,
-because there is nothing to resume, and no "do not ask again" flag, because the
-escalation is persisted as the assistant's own words and the director reads the
-transcript. That survives a reload; a flag in the browser would not.
+What went: `backend/agent/escalation.py` entirely, `ESCALATE_TOOL`, the
+`escalation` frame, the escalation card, `REASONING_INSTRUCTION`, and
+`reasoning` from `TURN_MODES`. The endpoint now refuses `mode: "reasoning"`
+with a 400 rather than quietly running it as chat, so a stale tab is told.
 
-Rejected on the way here, both already rejected once in this document for
-chat-versus-plan: a **classifier**, which costs a round trip on every message to
-answer a question most messages do not raise, and a **heuristic** on message
-length or file mentions, which guesses silently. The model is the only party
-that knows it is out of its depth. The cost of that choice is the one
-`begin_step` was accepted with: a model that never calls it produces no
-escalations, rather than wrong ones.
+**Tiers stayed.** `fast`, `default` and `heavy` are still configured and still
+assignable -- but nothing in the loop reads `heavy` any more, since escalation
+was its only consumer. That is a loose end left deliberately visible rather
+than tidied away: removing a tier is a change to routing configuration, which
+this was scoped not to touch.
 
-Withheld when no `heavy` tier resolves — an offer AMETHYST cannot honour is worse
-than no offer — and withheld on a turn whose transcript already carries an
-escalation request, or "Answer anyway" would ask the same question forever.
-
+What did **not** go, because it was never this: `reasoning_content` streaming,
+the collapsible thinking block in the transcript, `Capabilities.reasoning`, and
+the `reasoning_effort` provider parameter. Those are how a model's chain of
+thought is carried and displayed, not a setting anybody chose.
