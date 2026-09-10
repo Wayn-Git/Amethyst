@@ -283,7 +283,9 @@ async def decide(widget_id, draft_id, approved):
             tool_name="dashboard_item",
             tool_source="native",
             arguments={"widget_id": widget_id, "action": action},
-            confirmation_decision=outcome.decision if outcome else "gate_error",
+            confirmation_decision=(outcome.decision if approved else "denied")
+            if outcome
+            else "gate_error",
             risk_level=outcome.risk.value if outcome else None,
             error=error,
             duration_ms=int((time.monotonic() - started) * 1000),
@@ -297,6 +299,12 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "sys.model":
+        from backend.dashboard.system import apply_model
+
+        apply_model(body)
+        conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id='sys.model'")
+        return
     if widget_id == "dev.appeal":
         from backend.dashboard.developer import apply as apply_developer
 

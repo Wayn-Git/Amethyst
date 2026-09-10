@@ -54,6 +54,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "dev.unpushed",
         "sys.vault",
         "sys.notify",
+        "sys.model",
         "dev.appeal",
         "dev.recovery",
         "dash.gallery",

@@ -122,6 +122,10 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "sys.model":
+            from backend.dashboard.system import ModelInput, model_draft
+
+            return model_draft(action, ModelInput.model_validate(body))
         if widget_id.startswith("dev."):
             return developer_draft(widget_id, action, DeveloperInput.model_validate(body))
         return draft(widget_id, action, ItemInput.model_validate(body))
