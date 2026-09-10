@@ -75,37 +75,50 @@ function useDaemonSummon(onPairingRequest) {
     const streamUrl = origin ? `${origin}/api/control/stream` : '/api/control/stream'
     let stream = null
     let active = true
+    let timer = null
 
-    try {
-      stream = new EventSource(streamUrl)
-      stream.onmessage = (e) => {
-        if (!active) return
-        try {
-          const data = JSON.parse(e.data)
-          if (data.type === 'palette') {
-            // When native desktop is running with pywebview, the native spotlight window is raised.
-            // The main workbench window should not open an overlapping duplicate palette!
-            if (document.documentElement.dataset.native === '1') {
-              return
+    const connect = () => {
+      if (!active) return
+      try {
+        stream = new EventSource(streamUrl)
+        stream.onmessage = (e) => {
+          if (!active) return
+          try {
+            const data = JSON.parse(e.data)
+            if (data.type === 'palette') {
+              // When native desktop is running with pywebview, the native spotlight window is raised.
+              // The main workbench window should not open an overlapping duplicate palette!
+              if (document.documentElement.dataset.native === '1') {
+                return
+              }
+              setOverlay((prev) => (prev === 'palette' ? null : 'palette'))
+              window.focus?.()
+            } else if (data.type === 'pairing_request') {
+              onPairingRequest?.(data)
+              window.focus?.()
             }
-            setOverlay((prev) => (prev === 'palette' ? null : 'palette'))
-            window.focus?.()
-          } else if (data.type === 'pairing_request') {
-            onPairingRequest?.(data)
-            window.focus?.()
-          }
-        } catch { /* a frame this build does not know about is not an error */ }
-      }
-      stream.onerror = () => {
-        // EventSource will automatically retry connecting
-      }
-    } catch { /* EventSource constructor failure fallback */ }
+          } catch { /* a frame this build does not know about is not an error */ }
+        }
+        stream.onerror = () => {
+          // EventSource will automatically retry connecting
+        }
+      } catch { /* EventSource constructor failure fallback */ }
+    }
+
+    if (typeof document !== 'undefined' && document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', connect, { once: true })
+    } else {
+      timer = setTimeout(connect, 100)
+    }
 
     return () => {
       active = false
+      if (timer) clearTimeout(timer)
+      window.removeEventListener('DOMContentLoaded', connect)
       if (stream) stream.close()
     }
   }, [setOverlay, onPairingRequest])
+
 }
 
 /* Every binding in one listener.
