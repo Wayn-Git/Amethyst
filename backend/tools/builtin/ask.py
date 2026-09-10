@@ -63,16 +63,18 @@ def tools() -> list[Tool]:
         Tool(
             name="ask_user",
             description=(
-                "Ask the user a short multiple-choice question and wait for the"
-                " answer, when the request is genuinely ambiguous and the"
-                " readings would lead to different work. Use it BEFORE doing the"
-                " work, not after: the point is to avoid building the wrong"
-                " thing. Do NOT use it for anything you can look up with another"
-                " tool, for permission (the system asks separately), or to"
-                " confirm something you are already confident about --"
-                " unnecessary questions are the user doing your job. Give real"
-                " options with short descriptions; the user can always write"
-                " their own answer instead."
+                "THE ONLY WAY TO ASK THE USER ANYTHING. Pauses the turn, shows"
+                " them your choices as buttons, and returns what they picked so"
+                " you can carry on with everything you have already worked out."
+                " A question written in your reply instead ends the turn with"
+                " nobody able to answer it. So whenever you would write 'would"
+                " you like me to', 'should I', or 'which of these', call this"
+                " instead. Use it BEFORE doing the work: the point is to avoid"
+                " building the wrong thing. Do NOT use it for anything another"
+                " tool could tell you, for permission (the system asks about"
+                " that separately), or to confirm something you are already"
+                " confident about. Give real options with short descriptions;"
+                " the user can always write their own answer instead."
             ),
             parameters={
                 "type": "object",
@@ -88,6 +90,13 @@ def tools() -> list[Tool]:
                                 "question": {
                                     "type": "string",
                                     "description": "One clear question, in the user's terms",
+                                },
+                                "header": {
+                                    "type": "string",
+                                    "description": (
+                                        "Two or three words naming what is being"
+                                        " decided, e.g. 'Layout' or 'Scope'"
+                                    ),
                                 },
                                 "options": {
                                     "type": "array",

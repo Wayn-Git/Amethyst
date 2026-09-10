@@ -277,6 +277,185 @@ def _cost(iterations: int, tool_calls: int, started: float) -> dict[str, Any]:
     }
 
 
+# What the model can actually be shown. Anything else stays a path.
+_VIEWABLE = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+# Providers reject oversized images outright, and a 20MB screenshot is a failed
+# turn rather than a slow one.
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def _with_images(wire: list[dict[str, Any]], attachments: list[dict[str, Any]] | None):
+    """Attach images to the last user message as content blocks.
+
+    The interface used to append attachments to the prompt as a line of text --
+    `Attached files (read them with view_file): - /home/.../Screenshot.png` --
+    which meant the model never saw a single pixel. Asked to put that screenshot
+    in a GitHub issue it pasted the path, because the path was all it had.
+
+    Every provider adapter already understands `{"type": "image", ...}` blocks
+    (`openai_compat`, `anthropic` and `google` all convert them, and
+    `runtime/vision.py` has been building them for video frames all along).
+    Nothing was producing them for chat attachments; this does.
+
+    Non-image files keep the old treatment: the path plus a nudge toward
+    `view_file`, which is the right answer for a PDF or a CSV.
+    """
+    if not attachments:
+        return wire
+
+    import base64
+    from pathlib import Path
+
+    blocks: list[dict[str, Any]] = []
+    for item in attachments:
+        media = str(item.get("media_type") or "").lower()
+        path = item.get("path")
+        if media not in _VIEWABLE or not path:
+            continue
+        try:
+            raw = Path(path).read_bytes()
+        except OSError as exc:
+            log.warning("could not read the attachment %s: %s", path, exc)
+            continue
+        if len(raw) > _MAX_IMAGE_BYTES:
+            log.warning("attachment %s is %d bytes; too large to send", path, len(raw))
+            continue
+        blocks.append({
+            "type": "image",
+            "media_type": media,
+            "data": base64.b64encode(raw).decode("utf-8"),
+        })
+
+    if not blocks:
+        return wire
+
+    # The last user turn is the one the files were attached to.
+    for i in range(len(wire) - 1, -1, -1):
+        if wire[i].get("role") != "user":
+            continue
+        said = wire[i].get("content")
+        text = said if isinstance(said, str) else ""
+        patched = list(wire)
+        patched[i] = {
+            "role": "user",
+            "content": [{"type": "text", "text": text}, *blocks],
+        }
+        return patched
+
+    return wire
+
+
+class _LiveArtifacts:
+    """Turns streamed tool arguments into a document appearing on screen.
+
+    `create_artifact` carries a whole file in its arguments, so a turn that
+    writes one used to show nothing at all until the model had finished
+    emitting it -- often the longest silence in a session. The OpenAI-compatible
+    adapter now yields the JSON prefix as it grows, and this reads the `content`
+    value out of it and sends the difference.
+
+    One instance per attempt, because the ids it hands out have to match the
+    ones `_artifact_opening` computes for the same paths, and because a retry
+    against a different provider starts the document again from nothing.
+
+    Anthropic and Google do not stream arguments, so nothing here ever fires for
+    them and `_artifact_opening` sends the whole file exactly as before.
+    """
+
+    def __init__(self, director: "Director", conversation_id: str) -> None:
+        self._director = director
+        self._conversation_id = conversation_id
+        # index -> {"id", "path", "sent"}
+        self._open: dict[int, dict[str, Any]] = {}
+
+    def feed(self, chunk: Any):
+        """Events for one `tool_arguments` fragment. Yields nothing for most."""
+        if chunk.tool_name != self._director.ARTIFACT_TOOL:
+            return
+        raw = chunk.arguments_so_far or ""
+        index = chunk.tool_index or 0
+
+        from backend.runtime.partial_json import partial_string
+
+        state = self._open.get(index)
+        if state is None:
+            # The path has to be complete before anything can be announced --
+            # it decides the artifact's id, its media type and its language. A
+            # document whose `content` arrives before its `path` simply waits.
+            path = partial_string(raw, "path")
+            if not path or f'"{path}"' not in raw:
+                return
+            opened = self._announce(path, partial_string(raw, "title"))
+            if opened is None:
+                return
+            state, event = opened
+            self._open[index] = state
+            yield event
+
+        content = partial_string(raw, "content")
+        if len(content) <= len(state["sent"]):
+            return
+        # Only ever the difference, and only when it really is a continuation.
+        delta = (
+            content[len(state["sent"]):]
+            if content.startswith(state["sent"])
+            else content
+        )
+        state["sent"] = content
+        yield Event("artifact_delta", {"id": state["id"], "text": delta})
+
+    def opened(self, call: ToolCall) -> bool:
+        """Whether this document was already announced from the stream."""
+        return self._state_for(call) is not None
+
+    def sent_for(self, call: ToolCall) -> str:
+        """How much of this call's document already reached the panel.
+
+        Matched on the resolved path rather than the index, because by dispatch
+        time the call has been assembled and its position in the stream is no
+        longer something the caller knows.
+        """
+        state = self._state_for(call)
+        return state["sent"] if state else ""
+
+    def _state_for(self, call: ToolCall):
+        if call.name != self._director.ARTIFACT_TOOL:
+            return None
+        path = self._director._artifact_path(call)
+        if path is None:
+            return None
+        for state in self._open.values():
+            if state["path"] == path:
+                return state
+        return None
+
+    def _announce(self, raw_path: str, title: str):
+        """The `artifact_open` for a path, or None if it cannot be resolved."""
+        from pathlib import Path
+
+        from backend.db.repositories import ArtifactRepository
+        from backend.tools.builtin.filesystem import artifact_type
+
+        resolved = self._director._artifact_path(ToolCall(id="", name=self._director.ARTIFACT_TOOL, arguments={"path": raw_path}))
+        if resolved is None:
+            return None
+
+        media_type, language = artifact_type(Path(resolved))
+        artifact_id = ArtifactRepository.identify(self._conversation_id, resolved)
+        state = {"id": artifact_id, "path": resolved, "sent": ""}
+        event = Event(
+            "artifact_open",
+            {
+                "id": artifact_id,
+                "path": resolved,
+                "title": title.strip() or Path(resolved).name,
+                "media_type": media_type,
+                "language": language,
+            },
+        )
+        return state, event
+
+
 class Director:
     def __init__(
         self,
@@ -311,6 +490,7 @@ class Director:
         conversation_id: str,
         user_message: str,
         cancel: asyncio.Event | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[Event]:
         """Errors are data, all the way out to the interface.
 
@@ -327,7 +507,7 @@ class Director:
         # was in the transcript either, so reloading did not bring it back.
         shown: list[str] = []
         try:
-            async for event in self._run(conversation_id, user_message, cancel):
+            async for event in self._run(conversation_id, user_message, cancel, attachments):
                 if event.type in ("assistant_delta", "assistant_text"):
                     shown.append(event.data.get("text") or "")
                 yield event
@@ -380,6 +560,7 @@ class Director:
         conversation_id: str,
         user_message: str,
         cancel: asyncio.Event | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[Event]:
         conversation = self.conversations.get(conversation_id)
         if conversation is None:
@@ -578,6 +759,8 @@ class Director:
             # `stream: true`, and that answer still has to be delivered.
             streamed = False
             streamed_text: list[str] = []
+            # Said once, however many links the chain tries.
+            blind_noted = False
 
             # One answer, from however many providers it takes to get one.
             while True:
@@ -688,6 +871,29 @@ class Director:
                             {"message": "earlier messages could not be read for this turn"},
                         )
                 wire = [{"role": "system", "content": system_prompt}, *budgeted]
+                # Images the user attached to *this* turn, put back onto the
+                # message they were attached to. They are not in `history`,
+                # because the transcript stores what was said and a screenshot
+                # is not text -- see `_with_images`.
+                #
+                # Gated on the model that is actually about to answer, not on
+                # the one the user picked. A vision request that falls back to a
+                # text-only link used to send the image anyway: Nvidia answers
+                # `400 Received multimodal data but multimodal processing is not
+                # enabled`, so one transient 503 upstream turned "what is in this
+                # screenshot" into a failed turn.
+                if attachments:
+                    if model.capabilities.vision:
+                        wire = _with_images(wire, attachments)
+                    elif not blind_noted:
+                        blind_noted = True
+                        yield Event(
+                            "warning",
+                            {
+                                "message": f"{chain[active].provider} cannot look at images,"
+                                " so this turn was sent without them",
+                            },
+                        )
                 if nudge:
                     # Cleared once a call succeeds, not here: a fallback
                     # attempt has to carry the same instruction.
@@ -791,6 +997,11 @@ class Director:
                 response = None
                 streamed = False
                 streamed_text = []
+                # Reset per attempt, and defined whether or not the provider
+                # streams: the dispatch loop below asks it how much of a
+                # document already reached the panel, and Anthropic and Google
+                # never take the streaming branch at all.
+                live_artifacts = _LiveArtifacts(self, conversation_id)
                 yield Event("status", {"state": "planning" if planning else "thinking"})
                 try:
                     if (
@@ -815,6 +1026,12 @@ class Director:
                                 yield Event("assistant_delta", {"text": chunk.text})
                             elif chunk.type == "reasoning" and chunk.text:
                                 yield Event("reasoning_delta", {"text": chunk.text})
+                            elif chunk.type == "tool_arguments":
+                                # A document being written, one fragment at a
+                                # time. Only `create_artifact` is streamed this
+                                # way; every other tool is silent until dispatch.
+                                for event in live_artifacts.feed(chunk):
+                                    yield event
                             elif chunk.type == "done":
                                 response = chunk.response
                         streamed = bool(streamed_text)
@@ -1110,7 +1327,12 @@ class Director:
                     # panel appeared, fully written, at the moment the user
                     # pressed Allow. `artifact_done` below carries whether the
                     # write actually succeeded. See ADR-0020.
-                    for event in self._artifact_opening(conversation_id, call):
+                    for event in self._artifact_opening(
+                        conversation_id,
+                        call,
+                        already_sent=live_artifacts.sent_for(call),
+                        already_open=live_artifacts.opened(call),
+                    ):
                         yield event
                     # Dispatch can suspend the turn waiting on a confirmation,
                     # so its events have to reach the interface before it
@@ -1446,15 +1668,17 @@ class Director:
             path = root / path
         return str(path.resolve())
 
-    def _artifact_opening(self, conversation_id: str, call: ToolCall):
+    def _artifact_opening(
+        self, conversation_id: str, call: ToolCall, *, already_sent: str = "", already_open: bool = False,
+    ):
         """Announce an artifact and hand over its content.
 
-        Two events rather than one because of what comes next. Today the whole
-        document is known before dispatch, so this emits one `artifact_delta`
-        carrying all of it -- but the *shape* is the streaming shape, and when
-        the provider adapters start yielding tool-argument fragments the only
-        change here is that many deltas are emitted instead of one. The panel
-        cannot tell the difference and never has to be rewritten.
+        Two events rather than one because the shape is the streaming shape.
+        When the provider streamed the arguments, `_LiveArtifacts` has already
+        opened this document and sent most of it; `already_sent` is how much,
+        so this emits only the tail rather than the file twice. When the
+        provider did not stream -- Anthropic and Google still do not -- nothing
+        was sent, and this emits the whole thing exactly as it always did.
         """
         if call.name != self.ARTIFACT_TOOL:
             return
@@ -1471,19 +1695,29 @@ class Director:
         arguments = call.arguments or {}
         title = str(arguments.get("title") or "").strip() or Path(path).name
         artifact_id = ArtifactRepository.identify(conversation_id, path)
-        yield Event(
-            "artifact_open",
-            {
-                "id": artifact_id,
-                "path": path,
-                "title": title,
-                "media_type": media_type,
-                "language": language,
-            },
-        )
+        # Announced once. When the arguments streamed, `_LiveArtifacts` already
+        # opened this document and the panel has been filling ever since --
+        # opening it a second time restarts it from empty, which is a document
+        # blinking out and back in the middle of being read.
+        if not already_open:
+            yield Event(
+                "artifact_open",
+                {
+                    "id": artifact_id,
+                    "path": path,
+                    "title": title,
+                    "media_type": media_type,
+                    "language": language,
+                },
+            )
         content = arguments.get("content")
         if isinstance(content, str) and content:
-            yield Event("artifact_delta", {"id": artifact_id, "text": content})
+            # Only what the live stream has not already shown. The prefix check
+            # matters: if the two disagree the streamed text was wrong, and the
+            # authoritative version is this one, so send all of it.
+            tail = content[len(already_sent):] if content.startswith(already_sent) else content
+            if tail:
+                yield Event("artifact_delta", {"id": artifact_id, "text": tail})
 
     def _artifact_closing(self, conversation_id: str, call: ToolCall, result: ToolResult):
         """Close the artifact, and say whether the file was actually written.

@@ -349,6 +349,18 @@ class OpenAICompatClient:
                     slot["name"] = function["name"]
                 if function.get("arguments"):
                     slot["arguments"] += function["arguments"]
+                    # These fragments were accumulated silently until now, which
+                    # meant a tool carrying a document in its arguments had
+                    # nothing to show until the whole thing had arrived. The call
+                    # is still only dispatched once complete; this is so the
+                    # caller can render the part it already has.
+                    if slot["name"]:
+                        yield StreamEvent(
+                            type="tool_arguments",
+                            tool_name=slot["name"],
+                            tool_index=index,
+                            arguments_so_far=slot["arguments"],
+                        )
 
         calls = [
             ToolCall(

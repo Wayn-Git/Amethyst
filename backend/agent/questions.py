@@ -79,10 +79,16 @@ class Question:
     question: str
     options: list[Option] = field(default_factory=list)
     multi_select: bool = False
+    #: Two or three words naming what is being decided -- "Panel layout",
+    #: "Scope". The question itself is a sentence and reads slowly; this is what
+    #: the eye lands on, and what makes a stack of answered cards scannable
+    #: afterwards. Optional: a model that omits it loses a label, not a question.
+    header: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "question": self.question,
+            "header": self.header,
             "options": [o.as_dict() for o in self.options],
             "multi_select": self.multi_select,
         }
@@ -149,6 +155,9 @@ def parse(raw: Any) -> list[Question]:
                 question=text,
                 options=options,
                 multi_select=bool(item.get("multi_select")),
+                # Trimmed rather than rejected: an over-long header is a chip
+                # that wraps, which is a worse card, not a failed question.
+                header=str(item.get("header") or "").strip()[:24],
             )
         )
     return out

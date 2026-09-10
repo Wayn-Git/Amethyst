@@ -1432,10 +1432,25 @@ def list_pins(conversation_id: str) -> list[dict[str, Any]]:
 TURN_MODES = frozenset({"chat", "plan"})
 
 
+class Attachment(BaseModel):
+    """One file the user attached to this turn.
+
+    `media_type` is what decides whether the model is shown the file or told
+    where it is: an image becomes a content block it can actually look at,
+    anything else stays a path plus a nudge toward `view_file`.
+    """
+
+    path: str
+    name: str | None = None
+    media_type: str | None = None
+    bytes: int | None = None
+
+
 class TurnRequest(BaseModel):
     message: str
     workspace: str | None = None
     mode: str = "chat"
+    attachments: list[Attachment] = []
 
 
 @app.post("/api/conversations/{conversation_id}/turn")
@@ -1510,7 +1525,17 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
                 return
 
             async for event in _with_heartbeats(
-                director.run(conversation_id, body.message, cancel)
+                # Passed only when there is something to pass. `run` grew this
+                # parameter; anything implementing the older three-argument
+                # shape -- the unattended runner, the doubles in the tests --
+                # stays callable, which is the whole point of it being optional.
+                director.run(
+                    conversation_id,
+                    body.message,
+                    cancel,
+                    **({"attachments": [a.model_dump() for a in body.attachments]}
+                       if body.attachments else {}),
+                )
             ):
                 if event is _HEARTBEAT:
                     # A keepalive, not progress. It carries the elapsed seconds
