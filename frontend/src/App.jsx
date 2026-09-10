@@ -1,17 +1,17 @@
-import { Suspense, useCallback, useEffect, useRef } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Navigate, Routes, Route } from 'react-router-dom'
 import Icon from './components/Icon.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
 import Shortcuts from './components/Shortcuts.jsx'
 import Settings from './components/Settings.jsx'
 import Sidebar from './components/Sidebar.jsx'
-import ConversationList from './components/ConversationList.jsx'
+import PanelResizer from './components/PanelResizer.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
 import { BootScreen, SkeletonView } from './components/Skeleton.jsx'
 import { useApp } from './store.jsx'
 import { chord, isTyping, MOD_LABEL } from './keys.js'
-import { NAV, byDigit, byId } from './nav.js'
+import { byDigit, byId, forRoutes } from './nav.js'
 import { COMPONENTS } from './views/registry.js'
 import Chat from './views/Chat.jsx'
 
@@ -27,8 +27,7 @@ import Chat from './views/Chat.jsx'
    The two outer columns collapse independently, so a narrow window loses the
    history before it loses the navigation, and a wide one can show all four. */
 
-// Every routed view except chat, which is rendered outside <Routes> below.
-const ROUTED = NAV.filter((v) => v.id !== 'chat')
+
 
 /* Every binding in one listener.
 
@@ -39,7 +38,7 @@ const ROUTED = NAV.filter((v) => v.id !== 'chat')
 function useGlobalKeys() {
   const {
     view, setView, overlay, setOverlay, chat, conversations, activeId,
-    toggleRail, closeRail, compact, railOpen,
+    toggleRail, closeRail, compact, railOpen, betaPages,
   } = useApp()
 
   const cycleConversation = useCallback((delta) => {
@@ -83,7 +82,7 @@ function useGlobalKeys() {
       const digit = /^mod\+([1-9])$/.exec(combo)
       if (digit) {
         e.preventDefault()
-        const target = byDigit(Number(digit[1]))
+        const target = byDigit(Number(digit[1]), betaPages)
         if (target) setView(target.id)
         return
       }
@@ -104,7 +103,7 @@ function useGlobalKeys() {
     return () => document.removeEventListener('keydown', onKey)
   }, [
     view, setView, overlay, setOverlay, chat, cycleConversation, activeId,
-    toggleRail, closeRail, compact, railOpen,
+    toggleRail, closeRail, compact, railOpen, betaPages,
   ])
 }
 
@@ -122,28 +121,31 @@ function WorkbenchBar() {
 
   return (
     <header className="wb-bar">
-      {compact && (
-        <button
-          type="button"
-          className="icon-btn stage-menu"
-          onClick={toggleRail}
-          aria-label="Open navigation"
-          aria-expanded={railOpen}
-          aria-controls="rail"
-        >
-          <Icon name="sidebar" size={18} />
-        </button>
-      )}
-      {!compact && !railOpen && (
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={toggleRail}
-          title={`Show the sidebar — ${MOD_LABEL}+B`}
-          aria-label="Show the sidebar"
-        >
-          <Icon name="sidebar" size={16} />
-        </button>
+      {(!railOpen || compact) && (
+        <div className="wb-bar-left-controls">
+          <span className="wb-bar-brand">
+            <Icon name="spark" size={15} />
+            <span>AMETHYST</span>
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setOverlay('palette')}
+            title={`Search — ${MOD_LABEL}+K`}
+            aria-label="Search"
+          >
+            <Icon name="search" size={16} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={toggleRail}
+            title={`${railOpen ? 'Close' : 'Open'} sidebar — ${MOD_LABEL}+B`}
+            aria-label="Toggle sidebar"
+          >
+            <Icon name="sidebar" size={16} />
+          </button>
+        </div>
       )}
 
       <h1 className="wb-where">{here?.label ?? 'Chat'}</h1>
@@ -248,7 +250,14 @@ function Toasts() {
 }
 
 export default function App() {
-  const { view, server, retryServer, compact, railOpen, closeRail, panel } = useApp()
+  const {
+    view, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
+    betaPages,
+  } = useApp()
+  // Beta pages are not routed while they are switched off, so their addresses
+  // fall through to the redirect below rather than rendering a page the rail
+  // and the palette both say does not exist.
+  const routed = useMemo(() => forRoutes(betaPages), [betaPages])
   useGlobalKeys()
   const stageRef = useRef(null)
 
@@ -281,10 +290,10 @@ export default function App() {
         + `${drawerOpen ? ' app--drawer wb--drawer' : ''}`
         + `${railOpen ? '' : ' wb--rail-hidden'}`
         + `${panel ? '' : ' wb--panel-hidden'}`
+        + `${panel && panelExpanded ? ' wb--panel-full' : ''}`
       }
     >
       <Sidebar />
-      <ConversationList />
       {drawerOpen && <RailScrim onClose={closeRail} />}
       {/* `inert` is what keeps a screen reader and the Tab key out of the page
           the drawer is covering. Without it the drawer looks modal and behaves
@@ -307,10 +316,11 @@ export default function App() {
                   difference between a blank stage and a page loading. */}
               <Suspense fallback={<SkeletonView rows={5} aside={view === 'tasks' || view === 'mail'} />}>
                 <Routes>
-                  {ROUTED.map((v) => {
+                  {routed.map((v) => {
                     const Comp = COMPONENTS[v.id]
                     return <Route key={v.id} path={v.path} element={<Comp />} />
                   })}
+                  <Route path="*" element={<Navigate to="/chat" replace />} />
                 </Routes>
               </Suspense>
             </ErrorBoundary>
@@ -320,7 +330,15 @@ export default function App() {
       {/* The panel is a slot rather than a component: whichever view is open
           fills it through a portal, and it collapses on its own when nothing
           has anything to put there. */}
-      <aside className="wb-panel" id="wb-panel" aria-label="Run detail" inert={drawerOpen} />
+      <aside
+        className="wb-panel"
+        id="wb-panel"
+        aria-label="Run detail"
+        inert={drawerOpen}
+        style={{ '--panel-w': `${panelWidth}px` }}
+      >
+        <PanelResizer />
+      </aside>
       <CommandPalette />
       <Shortcuts />
       <Settings />

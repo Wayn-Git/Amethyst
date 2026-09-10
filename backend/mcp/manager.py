@@ -25,6 +25,15 @@ log = logging.getLogger(__name__)
 
 MAX_TOOLS_PER_SERVER = 128
 
+#: The longest anything waits for connectors to come up, when the caller named
+#: no deadline of its own. A connector's own ceilings -- 180s to answer, 300s
+#: waiting on a sign-in -- are right for the connector and wrong for every
+#: caller: the ones that pass no deadline are the boot pass and the background
+#: loops, and they hold the API's registry lock while they wait, so an
+#: unbounded one of those is a turn that cannot start. Nothing is cancelled at
+#: the deadline; the connect keeps going and lands when it lands.
+STARTUP_DEADLINE_SECONDS = 30.0
+
 # How long reconcile leaves a failed server alone, by consecutive failure. The
 # last value repeats, so a server that is genuinely gone is retried twice an
 # hour rather than at the head of every turn.
@@ -112,6 +121,44 @@ def _is_transport_failure(exc: BaseException) -> bool:
     return any(marker in text for marker in _TRANSPORT_FAILURES)
 
 
+class _ServerLock:
+    """Reentrant asyncio lock per server, so connect_server can call disconnect_server."""
+
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._owner: asyncio.Task[Any] | None = None
+        self._count = 0
+
+    async def acquire(self) -> bool:
+        current_task = asyncio.current_task()
+        if self._owner is not None and self._owner is current_task:
+            self._count += 1
+            return True
+        await self._lock.acquire()
+        self._owner = current_task
+        self._count = 1
+        return True
+
+    def release(self) -> None:
+        current_task = asyncio.current_task()
+        if self._owner is not current_task:
+            raise RuntimeError("Cannot release un-acquired lock")
+        self._count -= 1
+        if self._count == 0:
+            self._owner = None
+            self._lock.release()
+
+    async def __aenter__(self) -> "_ServerLock":
+        await self.acquire()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.release()
+
+    def locked(self) -> bool:
+        return self._lock.locked()
+
+
 class MCPManager:
     """Owns every MCP connection and keeps the registry in step with them."""
 
@@ -127,7 +174,7 @@ class MCPManager:
         # its registry.register raised "already registered" -- the subprocess
         # churn the API's global lock exists to prevent, reachable through a
         # path the API's lock does not cover.
-        self._server_locks: dict[str, asyncio.Lock] = {}
+        self._server_locks: dict[str, _ServerLock] = {}
         # When reconcile may next try a failed server again, and how many times
         # in a row it has failed -- see `_hold_off`.
         self.retry_after: dict[str, float] = {}
@@ -137,6 +184,12 @@ class MCPManager:
         # connector shrug off a transient error -- see `is_ready`.
         self.ready_since: dict[str, float] = {}
         self.hard_failures: dict[str, int] = {}
+        # Connects that outran the caller's deadline and were left to finish on
+        # their own. Held only so the event loop does not garbage-collect a
+        # running task; each removes itself when it settles. A connector that
+        # comes up late registers its tools into the same registry, so the turn
+        # after this one has them without anything having waited.
+        self._starting: set[asyncio.Task] = set()
         # Whether one full reconcile pass has ever completed. Existing merely
         # used to mean "the manager object exists", but the manager is created
         # lazily on the first turn and stdio servers take seconds to spawn --
@@ -269,7 +322,7 @@ class MCPManager:
         if not config.enabled:
             return 0
 
-        lock = self._server_locks.setdefault(config.name, asyncio.Lock())
+        lock = self._server_locks.setdefault(config.name, _ServerLock())
         async with lock:
             return await self._connect_server_locked(config, interactive=interactive, force=force)
 
@@ -453,15 +506,19 @@ class MCPManager:
     # --------------------------------------------------------------- lifecycle
 
     async def disconnect_server(self, name: str) -> None:
-        lock = self._server_locks.setdefault(name, asyncio.Lock())
+        lock = self._server_locks.setdefault(name, _ServerLock())
         async with lock:
             connection = self.connections.pop(name, None)
-            if connection is not None:
+            if connection is not None and hasattr(connection, "disconnect"):
                 await connection.disconnect()
             self.registry.unregister_server(name)
 
     async def connect_all(
-        self, *, conversation_id: str | None = None, interactive: bool = False
+        self,
+        *,
+        conversation_id: str | None = None,
+        interactive: bool = False,
+        deadline: float | None = None,
     ) -> dict[str, int | str]:
         """Connect every switched-on server. Failures are reported, never raised.
 
@@ -475,6 +532,12 @@ class MCPManager:
         So: a server needing a sign-in is reported, not waited on, and the rest
         start together. `interactive=True` is for a person pressing Connect,
         which is the only context where opening a browser is an answer.
+
+        `deadline` bounds how long the *caller* waits, not how long a connector
+        gets. A turn passes one so the agent starts answering on the connectors
+        that are up; anything slower keeps starting in the background and is
+        there for the next turn. Without a deadline this waits for all of them,
+        which is what a boot or a person pressing Connect wants.
         """
         from backend.capabilities import CapabilityService
 
@@ -485,15 +548,46 @@ class MCPManager:
             if config.enabled and name in live
         ]
 
-        async def one(config: ServerConfig) -> tuple[str, int | str]:
-            try:
-                return config.name, await self.connect_server(config, interactive=interactive)
-            except Exception as exc:
-                return config.name, str(exc)
+        settled: dict[str, int | str] = {}
 
-        settled = await asyncio.gather(*(one(config) for config in wanted))
+        async def one(config: ServerConfig) -> None:
+            try:
+                settled[config.name] = await self.connect_server(config, interactive=interactive)
+            except Exception as exc:
+                settled[config.name] = str(exc)
+
+        await self._settle(
+            [asyncio.ensure_future(one(config)) for config in wanted], deadline
+        )
         self.reconciled_once = True
-        return dict(settled)
+        return settled
+
+    async def _settle(
+        self, tasks: list[asyncio.Task], deadline: float | None
+    ) -> None:
+        """Wait for `tasks`, but never longer than `deadline`.
+
+        A connector's own ceiling is `timeout_seconds` (180s), and an
+        unauthorised one can hold `auth_timeout_seconds` (300s) waiting on a
+        browser nobody opened. Both are the right ceilings for the connector
+        and the wrong ones for a caller that has a user waiting: starting
+        connectors ran at the head of every turn under the API's registry lock,
+        so one server that never answered bought the whole turn five minutes of
+        silence before a single byte reached the browser.
+
+        Whatever has not finished by the deadline is left running rather than
+        cancelled -- cancelling a half-built stdio session leaks the subprocess
+        it has already spawned, and the connection is usually seconds from
+        being useful. It registers its tools when it lands.
+        """
+        if not tasks:
+            return
+        _, unfinished = await asyncio.wait(
+            tasks, timeout=STARTUP_DEADLINE_SECONDS if deadline is None else deadline
+        )
+        for task in unfinished:
+            self._starting.add(task)
+            task.add_done_callback(self._starting.discard)
 
     def state(self) -> dict[str, dict[str, Any]]:
         """What is actually running, per server.
@@ -531,7 +625,31 @@ class MCPManager:
             }
         return out
 
-    async def reconcile(self) -> dict[str, int | str]:
+    async def start_one(self, config: ServerConfig, *, deadline: float | None = None) -> None:
+        """Bring one server up, waiting no longer than `deadline`.
+
+        The single-server counterpart of `connect_all`, and for the same
+        reason: the API holds its registry lock across this call, so an
+        unbounded wait here is a lock nothing else can have. The reminder loop
+        asks for the To Do connector on every tick, and a To Do server that had
+        stopped answering held that lock for its full 180s ceiling -- during
+        which any turn that started queued behind it with nothing bounding the
+        wait. See `_settle` for why the connect is left running rather than
+        cancelled.
+        """
+
+        async def one() -> None:
+            try:
+                await self.connect_server(config, interactive=False)
+            except Exception as exc:
+                # Recorded on the manager; the caller reports it in its own
+                # words -- SyncUnavailable for a sync, a toast for a toggle.
+                log.info("could not start %s on demand: %s", config.name, exc)
+                self.errors[config.name] = str(exc)
+
+        await self._settle([asyncio.ensure_future(one())], deadline)
+
+    async def reconcile(self, *, deadline: float | None = None) -> dict[str, int | str]:
         """Bring live connections in line with what is currently switched on.
 
         One manager serves the whole process for its lifetime, so without this a
@@ -543,6 +661,12 @@ class MCPManager:
         start of every turn, before the model is even called. But it *is*
         retried eventually -- skipping it forever meant one transient DNS
         failure disabled a connector for the rest of the session.
+
+        `deadline` bounds the caller's wait. This runs at the head of every
+        turn under the API's registry lock, so without one a single server that
+        never answers held the turn for its full connect timeout -- 180s, or
+        300s if it claimed to be waiting on a sign-in -- and the browser saw an
+        open request with no bytes in it. See `_settle`.
         """
         from backend.capabilities import CapabilityService, Kind
 
@@ -573,22 +697,40 @@ class MCPManager:
             if not connected and service.is_enabled(Kind.CONNECTOR, name):
                 if name in self.errors and time.monotonic() < self.retry_after.get(name, 0.0):
                     continue
+                lock = self._server_locks.get(name)
+                if lock is not None and lock.locked():
+                    # A connect for this server is already in flight -- almost
+                    # always one left running by an earlier pass that outran its
+                    # deadline. Queuing a second one only waits on that same
+                    # per-server lock, so every later turn paid its whole
+                    # startup deadline waiting for a connect it was not going to
+                    # be the one to finish.
+                    continue
                 pending_connect.append(config)
 
         # Disconnects and connects run concurrently, exactly as `connect_all`
         # does: the serial loop this replaces could hold every turn's start for
         # N x connect-timeout seconds, because reconcile runs at the head of
         # every turn under the registry lock.
-        async def connect_one(config: ServerConfig) -> tuple[str, int | str]:
+        async def connect_one(config: ServerConfig) -> None:
             try:
-                return config.name, await self.connect_server(config, interactive=False)
-            except Exception as exc:
-                return config.name, str(exc)
+                await self.connect_server(config, interactive=False)
+            except Exception:
+                # Recorded on the connection itself by `_connect_server_locked`;
+                # the read-back below is what this pass reports.
+                pass
 
         if pending_disconnect or pending_connect:
-            await asyncio.gather(
-                *(self.disconnect_server(name) for name in pending_disconnect),
-                *(connect_one(config) for config in pending_connect),
+            await self._settle(
+                [
+                    asyncio.ensure_future(self.disconnect_server(name))
+                    for name in pending_disconnect
+                ]
+                + [
+                    asyncio.ensure_future(connect_one(config))
+                    for config in pending_connect
+                ],
+                deadline,
             )
             for name in pending_disconnect:
                 self._clear_failure(name)

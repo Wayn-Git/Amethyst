@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
-import ToolCallCard from '../components/ToolCallCard.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
+import ArtifactPanel from '../components/ArtifactPanel.jsx'
+import TurnTrace from '../components/TurnTrace.jsx'
+import TurnRail from '../components/TurnRail.jsx'
+import { SmoothTextarea, FadeScrollArea } from '../components/ui/skiper/index.js'
 import PlusMenu from '../components/PlusMenu.jsx'
 import ModelMenu from '../components/ModelMenu.jsx'
 import { useApp } from '../store.jsx'
@@ -43,10 +47,14 @@ function markPlan(items, update) {
   return items
 }
 
+/* Three things this machine can actually answer, one per kind of reach it has:
+   the calendar, the vault, the filesystem. Each carries the icon of the thing
+   it touches, so the row reads as a demonstration of range rather than three
+   sentences someone has to parse to find that out. */
 const OPENERS = [
-  'What am I meant to be doing tomorrow?',
-  'Find where I wrote about the deploy error',
-  'Summarise what changed in this folder today',
+  { icon: 'clock', text: 'What am I meant to be doing tomorrow?' },
+  { icon: 'search', text: 'Find where I wrote about the deploy error' },
+  { icon: 'folder', text: 'Summarise what changed in this folder today' },
 ]
 
 let idSeq = 0
@@ -75,6 +83,107 @@ function buildRendered(items) {
       j++
     }
     out.push({ ...it, toolCalls })
+    i = j - 1
+  }
+  return out
+}
+
+/* One trace per turn, not one per step.
+
+   A turn that searches, reads, thinks, searches again and then answers arrives
+   from the server as five assistant rows with reasoning between them. Rendered
+   one at a time that was ten pieces of machinery stacked between the question
+   and the answer -- `Thought for 1s`, `Worked for 1s`, `Thought for 4s`,
+   `Worked for 1s` -- which is the build log this was meant to replace, only
+   with nicer words on it.
+
+   So a run of machinery folds into a single item: every tool call the turn made
+   in order, and how long it spent thinking along the way. The answer follows
+   it, once. */
+function foldTraces(items) {
+  /* `.trim()`, not just falsiness. A turn read back from the database has
+     empty text on its tool-calling rows, but the same rows off the live stream
+     arrive carrying a newline or two -- whatever the model emitted before it
+     called the tool. Testing truthiness split one live turn into a trace per
+     step while the identical turn reloaded from history folded into one. */
+  /* `tool` as well as an assistant row carrying calls. `buildRendered` folds a
+     turn's tool rows onto the assistant row *above* them, which is the shape a
+     conversation has when it is read back from the database -- but live, the
+     calls arrive with no assistant row between them at all, so they stay
+     standalone. Leaving `tool` out of this test is what split one live turn
+     into a trace per step while the same turn reloaded folded into one.
+
+     `.trim()` for the same class of reason: a live tool-calling row arrives
+     carrying whatever whitespace the model emitted before the call. */
+  const isMachinery = (it) => (
+    it.kind === 'reasoning'
+    || it.kind === 'cost'
+    || it.kind === 'tool'
+    || (it.kind === 'assistant' && !it.text?.trim() && (it.toolCalls?.length ?? 0) > 0)
+  )
+  /* A note is not machinery, but it does not end a run of it either. The
+     provider-fallback lines -- "groq failed, answering with nvidia instead" --
+     land between two tool steps, and treating them as a boundary split one
+     turn's trace into four, which is what this fold exists to prevent. They
+     come back out above the trace, in order. */
+  const isAside = (it) => it.kind === 'note' || it.kind === 'memory'
+
+  let list = items
+  const out = []
+  for (let i = 0; i < list.length; i += 1) {
+    if (!isMachinery(list[i])) { out.push(list[i]); continue }
+
+    /* One ordered list, not a list of thoughts and a list of calls. The turn
+       thought, then searched, then thought about what it found, then searched
+       again -- and rendering every thought above every call describes a turn
+       that planned it all up front, which is not what happened. */
+    const events = []
+    const asides = []
+    /* Asides seen since the last machinery item. They only belong to this run
+       once more machinery follows them -- a note *after* the final tool call is
+       not inside the run, and emitting it here as well as leaving it for the
+       outer loop is what produced two children with the same key. */
+    let pending = []
+    let ms = 0
+    let j = i
+    let last = i
+    while (j < list.length && (isMachinery(list[j]) || isAside(list[j]))) {
+      const it = list[j]
+      if (isAside(it)) { pending.push(it); j += 1; continue }
+      for (const held of pending) asides.push(held)
+      pending = []
+      last = j
+      if (it.kind === 'reasoning') {
+        if (it.text) events.push({ type: 'thought', text: it.text })
+        ms += it.ms || 0
+      } else if (it.kind === 'cost') {
+        // The server's own measurement of the turn, which beats summing the
+        // stretches of reasoning we happened to see.
+        ms = it.durationMs || ms
+      } else if (it.kind === 'tool') {
+        events.push({ type: 'tool', call: { name: it.name, arguments: it.arguments, content: it.content, status: it.isError ? 'error' : 'done' } })
+      } else {
+        for (const c of it.toolCalls) events.push({ type: 'tool', call: c })
+      }
+      j += 1
+    }
+    // Trailing asides belong after the trace, not inside the run.
+    j = last + 1
+
+    /* The turn's last assistant row usually carries both the final tool calls
+       and the text that concludes the turn. Those calls belong to the trace;
+       the text does not, so the row stays and only its calls are lifted. */
+    const next = list[j]
+    if (next && next.kind === 'assistant' && next.text && next.toolCalls?.length) {
+      list = list.slice()
+      list[j] = { ...next, toolCalls: [] }
+      for (const c of next.toolCalls) events.push({ type: 'tool', call: c })
+    }
+
+    for (const aside of asides) out.push(aside)
+    if (events.length) {
+      out.push({ kind: 'trace', id: `trace-${list[i].id}`, events, ms })
+    }
     i = j - 1
   }
   return out
@@ -197,6 +306,7 @@ function PinButton({ item, onPin }) {
    without deciding what to call it -- which is why the fallback is the raw
    name rather than a shrug. */
 const STATUS_LABELS = {
+  starting: 'Starting up',
   retrieving: 'Searching your notes',
   recalling: 'Recalling',
   thinking: 'Thinking',
@@ -242,14 +352,234 @@ function stepClass(item, index) {
   return ''
 }
 
-/* The three modes, in the order they cost. `reasoning` is the one the fast
-   model asks for on your behalf when it escalates; picking it up front is the
-   same request without the question. */
+/* What a turn is for. Two modes, not a setting for how hard the model should
+   think: wanting a better answer is a reason to pick a better model, which the
+   model picker beside this already does. */
 const MODES = [
   { id: 'chat', label: 'Chat', hint: 'Answer and act in one turn' },
   { id: 'plan', label: 'Plan', hint: 'Ask for the plan before anything is run' },
-  { id: 'reasoning', label: 'Reasoning', hint: 'Start on the stronger, slower model' },
 ]
+
+/* The sentinel for "none of your options". A label rather than a flag because
+   it travels through the same pick/cursor machinery as a real option, and a
+   second code path for one row is a second code path to keep in step. Chosen to
+   be something no model would emit as an option label. */
+const OTHER = '\u0000other'
+
+/* The model asking, mid-turn, before it builds the wrong thing.
+
+   One question on screen at a time with "1 of 2" beside it, rather than the
+   whole set at once: a wall of questions is a form, and a form gets answered
+   carelessly. The free-text row is always last and always present -- the
+   options are the model's guesses at what was meant, and being unable to say
+   "none of those" would make a wrong guess binding.
+
+   Keyboard-first, because the composer has focus when this appears and making
+   someone reach for the mouse to answer one question is the slowest possible
+   version of a feature whose whole point is speed. Number keys pick, arrows
+   move, Enter advances.
+
+   The turn is suspended while this is open. Answering resumes it with
+   everything it had already read still in context, which is why this is a card
+   in the transcript and not a new message the user has to compose. */
+function QuestionCard({ item, onAnswer, disabled }) {
+  const questions = item.questions ?? []
+  const [index, setIndex] = useState(0)
+  // One entry per question. A multi-select question holds a list; a
+  // single-select holds one label or the sentinel for "Something else".
+  const [picked, setPicked] = useState(() => questions.map((q) => (q.multi_select ? [] : '')))
+  const [other, setOther] = useState(() => questions.map(() => ''))
+  const [cursor, setCursor] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const boxRef = useRef(null)
+
+  const current = questions[index]
+  const total = questions.length
+  const last = index >= total - 1
+
+  const rows = useMemo(
+    () => [...(current?.options ?? []).map((o) => o.label), OTHER],
+    [current],
+  )
+
+  // Focus follows the question, so the keys below work the moment it appears
+  // and again on every step.
+  useEffect(() => {
+    if (!item.settled) boxRef.current?.focus()
+    setCursor(0)
+  }, [index, item.settled])
+
+  if (!current) return null
+
+  const multi = Boolean(current.multi_select)
+  const choice = picked[index]
+  const chose = (label) => (multi ? (choice ?? []).includes(label) : choice === label)
+  const wantsOther = multi ? (choice ?? []).includes(OTHER) : choice === OTHER
+  const answered = wantsOther
+    ? Boolean(other[index].trim()) || (multi && (choice ?? []).length > 1)
+    : multi
+      ? (choice ?? []).length > 0
+      : Boolean(choice)
+
+  const pick = (label) => setPicked((prev) => prev.map((value, i) => {
+    if (i !== index) return value
+    if (!multi) return label
+    const list = value ?? []
+    return list.includes(label) ? list.filter((x) => x !== label) : [...list, label]
+  }))
+
+  /* What the model reads back. A multi-select answer is joined rather than sent
+     as a list because the tool result is prose the model parses by reading, and
+     "A, B" says what a JSON array would say with none of the ceremony. */
+  const resolve = () => picked.map((value, i) => {
+    const written = other[i].trim()
+    if (!multi && value === OTHER) return written
+    const list = Array.isArray(value) ? value : [value]
+    return list.map((x) => (x === OTHER ? written : x)).filter(Boolean).join(', ')
+  })
+
+  const advance = () => {
+    if (!answered) return
+    if (last) settle()
+    else setIndex(index + 1)
+  }
+
+  const settle = async () => {
+    setBusy(true)
+    try {
+      await onAnswer(item.askId, resolve())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onKeyDown = (e) => {
+    if (disabled || busy) return
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      setCursor((c) => (c + step + rows.length) % rows.length)
+      return
+    }
+    if (e.key === ' ' || (e.key === 'Enter' && !answered)) {
+      e.preventDefault()
+      pick(rows[cursor])
+      return
+    }
+    if (e.key === 'Enter') { e.preventDefault(); advance(); return }
+    const digit = Number(e.key)
+    if (digit >= 1 && digit <= rows.length) { e.preventDefault(); pick(rows[digit - 1]) }
+  }
+
+  if (item.settled) {
+    return (
+      <div className="plan-card question-card is-settled">
+        <div className="plan-head">
+          <Icon name="check" size={13} />
+          <span>Answered</span>
+        </div>
+        {questions.map((q, i) => (
+          <p className="question-recap" key={i}>
+            <span className="question-recap-q">{q.header || q.question}</span>
+            <span className="question-recap-a">{item.settled[i] || '—'}</span>
+          </p>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="plan-card question-card"
+      ref={boxRef}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      role="group"
+      aria-label={current.question}
+    >
+      <div className="plan-head">
+        {current.header
+          ? <span className="question-chip">{current.header}</span>
+          : <><Icon name="info" size={13} /><span>A quick question</span></>}
+        {total > 1 && <span className="plan-count">{index + 1} of {total}</span>}
+      </div>
+
+      <p className="question-text">{current.question}</p>
+      {multi && <p className="question-note">Pick as many as apply.</p>}
+
+      <div className="question-options" role={multi ? 'group' : 'radiogroup'}>
+        {rows.map((label, n) => {
+          const option = (current.options ?? []).find((o) => o.label === label)
+          return (
+            <button
+              type="button"
+              key={label}
+              className={`question-option${chose(label) ? ' is-picked' : ''}${cursor === n ? ' is-cursor' : ''}`}
+              onClick={() => { setCursor(n); pick(label) }}
+              onMouseEnter={() => setCursor(n)}
+              disabled={disabled || busy}
+              role={multi ? 'checkbox' : 'radio'}
+              aria-checked={chose(label)}
+            >
+              <span className={`question-mark${multi ? ' is-box' : ''}`} aria-hidden="true" />
+              <span className="question-option-body">
+                <span className="question-option-label">
+                  {label === OTHER ? 'Something else' : label}
+                </span>
+                {option?.description && (
+                  <span className="question-option-hint">{option.description}</span>
+                )}
+              </span>
+              <span className="question-key" aria-hidden="true">{n + 1}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {wantsOther && (
+        <input
+          className="question-other"
+          autoFocus
+          placeholder="In your own words"
+          value={other[index]}
+          disabled={disabled || busy}
+          onChange={(e) => setOther((prev) => prev.map((o, i) => (i === index ? e.target.value : o)))}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key !== 'Enter' || !answered) return
+            e.preventDefault()
+            advance()
+          }}
+        />
+      )}
+
+      <div className="plan-actions">
+        {index > 0 && (
+          <button
+            type="button"
+            className="btn btn--ghost btn--small"
+            onClick={() => setIndex(index - 1)}
+            disabled={disabled || busy}
+          >
+            Back
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn--primary btn--small"
+          onClick={advance}
+          disabled={disabled || busy || !answered}
+        >
+          {last ? 'Send answer' : 'Next'}
+        </button>
+        <span className="plan-hint">
+          <kbd className="kbd">1</kbd>–<kbd className="kbd">{rows.length}</kbd> to pick,{' '}
+          <kbd className="kbd">↵</kbd> to {last ? 'send' : 'continue'}. The turn is waiting.
+        </span>
+      </div>
+    </div>
+  )
+}
 
 function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
   return (
@@ -301,57 +631,13 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
   )
 }
 
-/* The fast model asking for the slow one.
-
-   Rendered like a plan card because it is the same kind of moment: the turn has
-   ended, nothing has run, and the user decides what happens next. The model it
-   would move to is named rather than described as "a bigger one" -- the wait is
-   the cost being agreed to, and it is measured in minutes on this machine. */
-function EscalationCard({ item, onEscalate, onAnyway, disabled }) {
-  return (
-    <div className="plan-card escalation-card">
-      <div className="plan-head">
-        <Icon name="spark" size={14} />
-        <span>Needs a stronger model</span>
-      </div>
-      <p className="plan-summary">{item.reason}</p>
-      <p className="plan-step-detail">
-        {item.from_model} → <strong>{item.to_model}</strong>
-      </p>
-      {item.settled ? (
-        <p className="plan-settled">
-          {item.settled === 'escalated' ? 'Escalated.' : 'Answered on the faster model.'}
-        </p>
-      ) : (
-        <div className="plan-actions">
-          <button type="button" className="btn btn--primary btn--small" disabled={disabled} onClick={onEscalate}>
-            Escalate
-          </button>
-          <button type="button" className="btn btn--ghost btn--small" disabled={disabled} onClick={onAnyway}>
-            Answer anyway
-          </button>
-          <span className="plan-hint">Nothing has run. The stronger model is slower.</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function Msg({
-  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onEscalate, onAnyway, busy,
-  asideTools,
+  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy, onOpenArtifact,
 }) {
   const role = item.kind
 
-  if (role === 'escalation') {
-    return (
-      <EscalationCard
-        item={item}
-        disabled={busy}
-        onEscalate={() => onEscalate?.(item.id)}
-        onAnyway={() => onAnyway?.(item.id)}
-      />
-    )
+  if (role === 'question') {
+    return <QuestionCard item={item} onAnswer={onAnswerQuestion} disabled={busy && !item.askId} />
   }
   if (role === 'plan') {
     return (
@@ -392,18 +678,11 @@ function Msg({
     )
   }
   if (role === 'reasoning') return <Reasoning text={item.text} ms={item.ms} />
+  if (role === 'trace') return <TurnTrace events={item.events} ms={item.ms} onOpenArtifact={onOpenArtifact} />
+  // A tool call that never got folded into an assistant turn -- a turn that was
+  // stopped, or history whose assistant row is missing. Still a line, not a card.
   if (role === 'tool') {
-    return (
-      <ToolCallCard
-        call={{
-          name: item.name,
-          arguments: item.arguments ?? {},
-          content: item.content,
-          status: item.isError ? 'error' : 'done',
-        }}
-        running={false}
-      />
-    )
+    return <TurnTrace events={[{ type: 'tool', call: { name: item.name, arguments: item.arguments, content: item.content, status: item.isError ? 'error' : 'done' } }]} />
   }
   if (role === 'assistant') {
     // A turn that only called tools has nothing to say yet, and labelling each
@@ -412,29 +691,43 @@ function Msg({
     if (!item.text && item.toolCalls?.length) {
       // With the panel open the calls are drawn there, and an assistant turn
       // that only called tools has nothing left to say in the transcript.
-      if (asideTools) return null
-      return <>{item.toolCalls.map((c, i) => <ToolCallCard key={i} call={c} running={false} />)}</>
+      return <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
     }
+    /* No name over the answer. Two speakers alternating down one column is
+       already unambiguous from shape alone -- the question is a bubble against
+       the right edge, the answer is prose across the page -- and a label on
+       every turn is a word the eye has to step over to reach the sentence it
+       came for. The controls come with the hover instead of sitting in the
+       reading line permanently. */
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
-        <div className="msg-role">
-          amethyst
-          <CopyButton text={item.text} label="Copy this answer" />
-          <PinButton item={item} onPin={onPin} />
-        </div>
+        {/* What it did comes before what it says. The work happened first, and
+            an answer that arrives under its own working is the order the turn
+            actually ran in. */}
+        {item.toolCalls?.length > 0 && (
+          <TurnTrace
+            events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
+            ms={item.ms}
+            onOpenArtifact={onOpenArtifact}
+          />
+        )}
         {item.text && <div className="msg-body"><Markdown text={item.text} /></div>}
-        {!asideTools && item.toolCalls?.map((c, i) => <ToolCallCard key={i} call={c} running={false} />)}
+        {item.text && (
+          <div className="msg-actions">
+            <CopyButton text={item.text} label="Copy this answer" />
+            <PinButton item={item} onPin={onPin} />
+          </div>
+        )}
       </div>
     )
   }
   return (
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
-      <div className="msg-role">
-        you
+      <div className="msg-body msg-body--plain">{item.text}</div>
+      <div className="msg-actions">
         <CopyButton text={item.text} label="Copy" />
         <PinButton item={item} onPin={onPin} />
       </div>
-      <div className="msg-body msg-body--plain">{item.text}</div>
     </div>
   )
 }
@@ -449,59 +742,45 @@ function Msg({
 
    Rendered through the shared SidePanel into the shell's slot, so the panel
    belongs to the workbench while its contents belong to whichever view is open. */
-function RunPanel({ steps, live, liveReasoning, running, onClose, totals }) {
+/* The panel holds documents, and nothing else.
+
+   It used to hold the run: every tool call and stretch of reasoning, moved out
+   of the transcript whenever there was room for them. Two things killed that.
+   The trace is a folded line in the conversation now, so there is nothing left
+   to get out of the way of -- and moving the machinery meant a turn whose whole
+   output was a document showed an empty answer and no sign it had done
+   anything, because the only record of the write had been filtered out of the
+   chat and parked behind a tab. */
+function ArtifactSide({
+  artifacts, activeArtifact, onSelectArtifact, streamingArtifact, freshArtifact, onClose,
+  expanded, onToggleExpand,
+}) {
+  const active = artifacts.find((a) => a.id === activeArtifact) || artifacts[artifacts.length - 1] || null
   return (
     <SidePanel
-      title="Steps"
+      title="Artifacts"
       eyebrow="Chat"
-      count={steps.length}
+      count={artifacts.length}
       onClose={onClose}
-      closeLabel="Hide the steps panel"
-      live
+      closeLabel="Hide the artifacts panel"
       footer={
-        totals && (
+        active && (
           <>
-            <span>{totals.steps} step{totals.steps === 1 ? '' : 's'}</span>
-            <span>{totals.tools} tool{totals.tools === 1 ? '' : 's'}</span>
-            <span className="mono">{formatDuration(totals.durationMs)}</span>
+            <span className="mono">{active.language || active.media_type || 'text'}</span>
+            {active.version > 1 && <span className="mono">v{active.version}</span>}
           </>
         )
       }
     >
-      {steps.length === 0 && !running && (
-        <p className="wb-panel-empty">
-          Nothing has run yet. Tool calls, reasoning and what a turn cost show up here
-          as the agent works.
-        </p>
-      )}
-
-      {steps.map((item) => {
-        if (item.kind === 'reasoning') {
-          return <Reasoning key={item.id} text={item.text} ms={item.ms} />
-        }
-        if (item.kind === 'cost') return null
-        return (
-          <ToolCallCard
-            key={item.id}
-            call={{
-              name: item.name,
-              arguments: item.arguments ?? {},
-              content: item.content,
-              status: item.isError ? 'error' : 'done',
-            }}
-            running={false}
-          />
-        )
-      })}
-
-      {running && liveReasoning && <Reasoning text={liveReasoning} live />}
-      {running && live && <ToolCallCard call={live} running />}
-      {running && !live && !liveReasoning && (
-        <div className="thinking">
-          working
-          <span className="thinking-dots"><i /><i /><i /></span>
-        </div>
-      )}
+      <ArtifactPanel
+        artifacts={artifacts}
+        activeId={activeArtifact}
+        onSelect={onSelectArtifact}
+        streamingId={streamingArtifact}
+        freshId={freshArtifact}
+        expanded={expanded}
+        onToggleExpand={onToggleExpand}
+      />
     </SidePanel>
   )
 }
@@ -510,12 +789,16 @@ export default function Chat() {
   const {
     health, refreshHealth, setView, toast, registerChat,
     conversations, refreshConvs, activeId, setActiveId, setRenaming,
-    refreshCaps, setCapabilitiesTab,
+    caps, setCapEnabled, refreshCaps, setCapabilitiesTab,
     workspace, setWorkspace, notify,
     panel, setPanel, compact, view,
+    panelExpanded, setPanelExpanded, togglePanelExpanded,
+    pendingPrompt, setPendingPrompt,
   } = useApp()
 
   const [items, setItems] = useState([])
+  // Why the transcript is empty, when it is empty because the fetch failed.
+  const [loadError, setLoadError] = useState(null)
   const [turnState, setTurnState] = useState('idle')
   const [stopping, setStopping] = useState(false)
   const [liveTool, setLiveTool] = useState(null)
@@ -525,6 +808,34 @@ export default function Chat() {
   const [pending, setPending] = useState([])
   const [elsewhere, setElsewhere] = useState([])
   const [input, setInput] = useState('')
+  /* Documents the agent wrote, keyed by id and in the order they opened. The
+     stream has always carried these; nothing was listening. `streamingArtifact`
+     is the one currently being written, which is what tells the panel to tail
+     the end of the file instead of leaving the scroll where the reader put it. */
+  const [artifacts, setArtifacts] = useState([])
+  const [activeArtifact, setActiveArtifact] = useState(null)
+  const [streamingArtifact, setStreamingArtifact] = useState(null)
+  /* Which document this turn produced. Distinct from `streamingArtifact`, which
+     is only true between `artifact_open` and `artifact_done` -- today the
+     server knows the whole file before it dispatches the tool, so those two
+     events land in the same React batch and the flag is false again by the time
+     anything is painted. This one stays set until the next turn starts, and it
+     is what tells the panel a document is new rather than being browsed. */
+  const [freshArtifact, setFreshArtifact] = useState(null)
+
+  useEffect(() => {
+    if (pendingPrompt) {
+      setInput(pendingPrompt)
+      setPendingPrompt(null)
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          textareaRef.current.selectionStart = textareaRef.current.value.length
+          textareaRef.current.selectionEnd = textareaRef.current.value.length
+        }
+      }, 50)
+    }
+  }, [pendingPrompt, setPendingPrompt])
   const [plusOpen, setPlusOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [draft, setDraft] = useState({ provider: '', model: '' })
@@ -533,10 +844,9 @@ export default function Chat() {
   const [attachments, setAttachments] = useState([])
   // Plan mode is a real instruction, not a mode flag: it is prepended to the
   // message so the model outlines the work before touching anything.
-  /* Three modes now, so a boolean stopped being enough. `chat` answers and
-     acts, `plan` hands back an approvable plan with mutating tools withheld,
-     and `reasoning` starts on the heavy tier -- the model the fast one asks for
-     when it escalates. */
+  /* `chat` answers and acts; `plan` hands back an approvable plan with
+     mutating tools withheld. A boolean would do, but the field is what the
+     backend takes and a third mode has been added before. */
   const [mode, setMode] = useState('chat')
   const [atBottom, setAtBottom] = useState(true)
   const [lastSent, setLastSent] = useState('')
@@ -588,15 +898,67 @@ export default function Chat() {
   const setStatus = useCallback((next) => { liveRef.current.status = next; setLiveStatus(next) }, [])
   const setReasoning = useCallback((t) => { liveRef.current.reasoning = t; setLiveReasoning(t) }, [])
 
+  /* Loading a transcript has three outcomes, and two of them used to render
+     identically. A conversation with no rows and a conversation whose rows
+     could not be fetched both ended as `items = []`, which draws the landing
+     hero -- so opening either one from the history column looked like the
+     click had bounced back to the front page. The error is kept so the
+     transcript can say which of the three happened. */
   const loadMessages = useCallback(async (cid) => {
+    setLoadError(null)
     if (!cid) { setItems([]); return }
     try {
       setItems(historyToItems(await api.messages(cid)))
     } catch (err) {
       toast(err.message, 'bad')
       setItems([])
+      setLoadError(err.message)
     }
   }, [toast])
+
+  /* Artifacts from an earlier session. The stream fills these in as they are
+     written, but a conversation reopened tomorrow has to fetch its own -- the
+     list is metadata, so the content is read lazily, one document at a time, by
+     the effect below. */
+  const loadArtifacts = useCallback(async (cid) => {
+    if (!cid) { setArtifacts([]); setActiveArtifact(null); return }
+    try {
+      const rows = await api.artifacts(cid)
+      // Newest first from the server; oldest first here, so the panel's order
+      // matches the order the conversation produced them in.
+      const ordered = [...rows].reverse()
+      setArtifacts(ordered)
+      setActiveArtifact((id) => (ordered.some((a) => a.id === id) ? id : ordered[ordered.length - 1]?.id ?? null))
+    } catch {
+      // A conversation with no artifacts and a server that cannot say so look
+      // the same from here, and neither is worth a toast over the transcript.
+      setArtifacts([])
+      setActiveArtifact(null)
+    }
+  }, [])
+
+  // Content for whichever artifact is on screen, fetched once. `text` is
+  // undefined for a row that came from the list and present for one that came
+  // off the stream, which is exactly the test for "does this need reading".
+  useEffect(() => {
+    const row = artifacts.find((a) => a.id === activeArtifact)
+    if (!row || row.text !== undefined) return undefined
+    let live = true
+    api.artifact(row.id)
+      .then((full) => {
+        if (!live) return
+        setArtifacts((prev) => prev.map((a) => (
+          a.id === full.id ? { ...a, text: full.content ?? '', missing: full.missing } : a
+        )))
+      })
+      .catch((err) => {
+        if (!live) return
+        setArtifacts((prev) => prev.map((a) => (
+          a.id === row.id ? { ...a, text: '', missing: err.message } : a
+        )))
+      })
+    return () => { live = false }
+  }, [activeArtifact, artifacts])
 
   // A reload lands here with a conversation id from the last session, so the
   // transcript has to be fetched before anything is typed.
@@ -608,7 +970,9 @@ export default function Chat() {
   useEffect(() => {
     if (runningRef.current) return
     loadMessages(activeId)
-  }, [activeId, loadMessages])
+    loadArtifacts(activeId)
+    refreshCaps(activeId)
+  }, [activeId, loadMessages, loadArtifacts, refreshCaps])
 
   const selectConversation = useCallback((cid) => {
     if (turnState !== 'idle') { toast('Finish or stop this turn first', 'amber'); return }
@@ -726,6 +1090,27 @@ export default function Chat() {
         setTool(null)
         break
       }
+      // The model asking before it builds the wrong thing. The turn is
+      // suspended on the other end of this, so the card is the only thing that
+      // can resume it.
+      case 'question_required':
+        pushAssistant()
+        setItems((prev) => (prev.some((it) => it.askId === evt.id) ? prev : [...prev, {
+          id: nextId(),
+          kind: 'question',
+          askId: evt.id,
+          questions: evt.questions ?? [],
+          settled: null,
+        }]))
+        break
+      // It stopped waiting -- answered here, answered elsewhere, or timed out.
+      // Marked settled either way so a stale card cannot be submitted into a
+      // future nothing is holding.
+      case 'question_settled':
+        setItems((prev) => prev.map((it) => (
+          it.askId === evt.id && !it.settled ? { ...it, settled: it.answers ?? [] } : it
+        )))
+        break
       case 'confirmation_required':
         // The turn is suspended until this is answered. The frame carries the
         // request id, which polling cannot supply unambiguously when two calls
@@ -764,25 +1149,6 @@ export default function Chat() {
       // inside the loop and none of it was visible: the composer said
       // "Thinking" from the moment a turn opened until the first token, whether
       // the wait was retrieval, a cold connector or a provider retry.
-      // The fast model handing the job over. The message that caused it travels
-      // with the card: approving re-sends it in reasoning mode, and declining
-      // re-sends it in chat, where the backend withholds the tool because the
-      // transcript already records the request.
-      case 'escalation':
-        pushAssistant()
-        setItems((prev) => {
-          const asked = [...prev].reverse().find((it) => it.kind === 'user')
-          return [...prev, {
-            id: nextId(),
-            kind: 'escalation',
-            reason: evt.reason ?? '',
-            from_model: evt.from_model ?? '',
-            to_model: evt.to_model ?? '',
-            message: asked?.text ?? '',
-            settled: false,
-          }]
-        })
-        break
       case 'status':
         setStatus(evt.state ? { state: evt.state, tool: evt.tool, server: evt.server } : null)
         break
@@ -822,6 +1188,65 @@ export default function Chat() {
       // is done by having arrived: the `beat()` wrapping onEvent has already
       // reset the silence watchdog, and the byte kept the socket alive.
       case 'ping': break
+
+      /* The document, as it is written. `artifact_open` arrives before the
+         tool runs, so the panel shows a file that may still be refused at the
+         permission gate; `artifact_done` is what says whether it reached the
+         disk, and carries the version the row ended up with. */
+      case 'artifact_open': {
+        const opened = {
+          id: evt.id,
+          path: evt.path,
+          title: evt.title,
+          media_type: evt.media_type,
+          language: evt.language,
+          text: '',
+          version: 1,
+          bytes: 0,
+        }
+        setArtifacts((prev) => {
+          const at = prev.findIndex((a) => a.id === evt.id)
+          // Rewriting the same path is a new version of one artifact, not a
+          // second one -- the server decides ids on exactly that basis.
+          if (at === -1) return [...prev, opened]
+          const next = [...prev]
+          /* Metadata is refreshed; text is not thrown away. An open for a
+             document that already has content means the same file is being
+             announced twice, and `opened.text` is empty -- taking it would
+             blank a document mid-read and then refill it from the next delta. */
+          next[at] = {
+            ...next[at],
+            ...opened,
+            text: next[at].text ?? opened.text,
+            version: next[at].version,
+          }
+          return next
+        })
+        setActiveArtifact(evt.id)
+        setStreamingArtifact(evt.id)
+        setFreshArtifact(evt.id)
+        setPanel(true)
+        break
+      }
+      case 'artifact_delta':
+        setArtifacts((prev) => prev.map((a) => (
+          a.id === evt.id ? { ...a, text: (a.text ?? '') + (evt.text ?? '') } : a
+        )))
+        break
+      case 'artifact_done':
+        setArtifacts((prev) => prev.map((a) => (
+          a.id === evt.id
+            ? {
+                ...a,
+                bytes: evt.bytes ?? (a.text ?? '').length,
+                version: evt.version || a.version,
+                error: evt.is_error ? (evt.message || 'the file was not written') : null,
+              }
+            : a
+        )))
+        setStreamingArtifact((id) => (id === evt.id ? null : id))
+        break
+
       default:
         /* A frame added on the server used to vanish here without trace, which
            is how you spend an afternoon wondering why the backend's new event
@@ -829,9 +1254,9 @@ export default function Chat() {
         console.warn('[amethyst] unhandled turn frame', evt.type, evt) // eslint-disable-line no-console
         break
     }
-  }, [pushAssistant, pushNote, settle, setBuffer, setReasoning, setTool, setStatus, notifyDone])
+  }, [pushAssistant, pushNote, settle, setBuffer, setReasoning, setTool, setStatus, notifyDone, setPanel])
 
-  const openTurn = useCallback(async (cid, message, mode = 'chat') => {
+  const openTurn = useCallback(async (cid, message, mode = 'chat', files = []) => {
     const token = ++turnTokenRef.current
     runningRef.current = cid
     settledRef.current = false
@@ -870,6 +1295,7 @@ export default function Chat() {
         message,
         workspace: workspace.trim() || null,
         mode,
+        attachments: files,
         onEvent: (evt) => { beat(); onEvent(evt) },
         signal: controller.signal,
       })
@@ -878,6 +1304,12 @@ export default function Chat() {
       // stream it no longer needs, not a turn someone interrupted.
       if (err.name === 'AbortError') { if (!settledRef.current) pushNote('warning', 'Stopped.') }
       else pushNote('error', err.message)
+      /* Whatever went wrong has now been said once. Without this the `finally`
+         below added "The turn ended without a result" underneath it, so a
+         single dropped connection printed two red rows that described the same
+         event -- and the second one implied a turn that had run and returned
+         nothing, which is not what happened. */
+      settledRef.current = true
     } finally {
       clearTimeout(watchdog)
       if (turnTokenRef.current === token) {
@@ -945,31 +1377,29 @@ export default function Chat() {
     )))
   }, [])
 
-  /* Both buttons re-send the same message; only the mode differs. There is no
-     resume endpoint and there should not be one -- the turn ended, nothing ran,
-     and a second turn is exactly what this is. "Answer anyway" needs no flag:
-     the backend withholds the tool when the last assistant message is the
-     escalation record, which survives a reload where a flag here would not. */
-  const answerEscalation = useCallback(async (itemId, mode) => {
-    if (turnState !== 'idle' || !activeId) return
-    let message = ''
-    setItems((prev) => prev.map((it) => {
-      if (it.id !== itemId) return it
-      message = it.message
-      return { ...it, settled: mode === 'reasoning' ? 'escalated' : 'declined' }
-    }))
-    if (!message) return
-    try {
-      abortRef.current?.abort()
-      await openTurn(activeId, message, mode)
-    } catch (err) {
-      toast(err.message, 'bad')
-      setTurnState('idle')
-    }
-  }, [turnState, activeId, openTurn, toast])
+  /* Resume a turn that is suspended on a question.
 
-  const escalate = useCallback((itemId) => answerEscalation(itemId, 'reasoning'), [answerEscalation])
-  const answerAnyway = useCallback((itemId) => answerEscalation(itemId, 'chat'), [answerEscalation])
+     Nothing is re-sent: the turn is still open, holding a future, with
+     everything it had already read still in its context. That is the whole
+     reason this is a card rather than a new message -- answering in the
+     composer would end one turn and start another, and the model would have to
+     reconstruct what it already knew. */
+  const answerQuestion = useCallback(async (askId, answers) => {
+    try {
+      await api.answerQuestion(askId, answers)
+      setItems((prev) => prev.map((it) => (
+        it.askId === askId ? { ...it, settled: answers } : it
+      )))
+    } catch (err) {
+      // The commonest failure is a turn that stopped waiting -- it timed out
+      // and carried on, or the user pressed Stop. Say so and settle the card,
+      // rather than leaving a button that will never work.
+      toast(err.message, 'bad')
+      setItems((prev) => prev.map((it) => (
+        it.askId === askId ? { ...it, settled: answers } : it
+      )))
+    }
+  }, [toast])
 
   const discardPlan = useCallback((itemId) => {
     // Local only. Nothing ran, so there is nothing to undo on the server, and
@@ -980,9 +1410,46 @@ export default function Chat() {
   const send = useCallback(async () => {
     const typed = input.trim()
     if ((!typed && attachments.length === 0) || turnState !== 'idle') return
-    const attached = attachments.length
-      ? `\n\nAttached files (read them with view_file):\n${attachments.map((f) => `- ${f.path}`).join('\n')}`
+    // A new turn: whatever the last one wrote is no longer new.
+    setFreshArtifact(null)
+    /* Only the files the model cannot be shown. An image now travels as a
+       content block it can actually look at (see `_with_images` in the
+       director), so naming its path here as well would invite it to write the
+       path down instead of describing the picture -- which is exactly what put
+       `/home/wayne/.amethyst/attachments/…/Screenshot.png` into a GitHub issue
+       where the screenshot belonged. */
+    const sending = attachments
+    const unviewable = sending.filter((f) => !String(f.content_type || '').startsWith('image/'))
+    const attached = unviewable.length
+      ? `\n\nAttached files (read them with view_file):\n${unviewable.map((f) => `- ${f.path}`).join('\n')}`
       : ''
+
+    // Auto-enable mentioned plugins
+    if (caps.connectors) {
+      const lower = typed.toLowerCase()
+      const words = typed.split(/\s+/)
+      const mentions = words.filter(w => w.startsWith('@')).map(w => w.slice(1).toLowerCase())
+      for (const cap of caps.connectors) {
+        const titleClean = (cap.title || cap.name).replace(/\s+/g, '').toLowerCase()
+        const nameClean = (cap.name || '').replace(/\s+/g, '').toLowerCase()
+        const titleRaw = (cap.title || '').toLowerCase()
+        const isMentioned =
+          mentions.includes(titleClean) ||
+          mentions.includes(nameClean) ||
+          (titleClean && lower.includes(`@${titleClean}`)) ||
+          (nameClean && lower.includes(`@${nameClean}`)) ||
+          (titleRaw && lower.includes(`@${titleRaw}`))
+        if (isMentioned && !cap.enabled) {
+          try {
+            await setCapEnabled(cap, true)
+            toast(`Auto-enabled ${cap.title || cap.name}`, 'ok')
+          } catch (e) {
+            console.error('Failed to auto-enable', cap.name, e)
+          }
+        }
+      }
+    }
+
     /* No prefix any more. It used to prepend "Plan first: ..." to the user's
        own message, which meant the instruction was persisted into the
        transcript and replayed on every later iteration and every later turn --
@@ -1020,14 +1487,16 @@ export default function Chat() {
       // after `done`. Let go of it before opening the next one on the same
       // conversation, so two readers are never live at once.
       abortRef.current?.abort()
-      await openTurn(cid, message, mode)
+      // Sent before the composer is cleared, because clearing it is what makes
+      // `attachments` empty again.
+      await openTurn(cid, message, mode, sending)
     } catch (err) {
       toast(err.message, 'bad')
       setTurnState('idle')
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    refreshConvs, openTurn, toast, setActiveId,
+    refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled,
   ])
 
   const stop = useCallback(async () => {
@@ -1145,75 +1614,88 @@ export default function Chat() {
   }, [refreshPending, turnState])
 
   const runAc = useCallback((value, cid) => {
-    const m = value.match(/\/[\w-]{1,}$/)
-    if (!m) { setAcItems([]); return }
+    const m = value.match(/([/@])([\w-]*)$/)
+    if (!m || (m[1] === '/' && m[2].length === 0)) { setAcItems([]); return }
+    const prefix = m[1]
+    const query = m[2].toLowerCase()
+
     clearTimeout(acTimerRef.current)
-    acTimerRef.current = setTimeout(async () => {
-      try {
-        setAcItems((await api.skillSearch(m[0].slice(1), cid)).slice(0, 6))
-        setAcIndex(0)
-      } catch { setAcItems([]) }
-    }, 160)
-  }, [])
+    if (prefix === '/') {
+      acTimerRef.current = setTimeout(async () => {
+        try {
+          const items = await api.skillSearch(query, cid)
+          setAcItems(items.slice(0, 6).map(it => ({ ...it, acType: 'skill' })))
+          setAcIndex(0)
+        } catch { setAcItems([]) }
+      }, 160)
+    } else if (prefix === '@') {
+      const available = caps.connectors || []
+      const matches = available.filter((c) => 
+        (c.name.toLowerCase().includes(query) || (c.title && c.title.toLowerCase().includes(query)))
+      )
+      setAcItems(matches.slice(0, 6).map(it => ({ ...it, acType: 'plugin' })))
+      setAcIndex(0)
+    }
+  }, [caps.connectors])
 
   const acceptAc = useCallback((item) => {
     if (!item) return
-    const m = input.match(/\/[\w-]*$/)
+    const m = input.match(/([/@])[\w-]*$/)
     const start = m ? m.index : input.length
-    setInput(input.slice(0, start) + '/' + item.name + ' ')
+    if (item.acType === 'skill') {
+      setInput(input.slice(0, start) + '/' + item.name + ' ')
+    } else {
+      setInput(input.slice(0, start) + '@' + (item.title || item.name).replace(/\s+/g, '') + ' ')
+    }
     setAcItems([])
     textareaRef.current?.focus()
   }, [input])
 
   const onDecide = useCallback((id) => setPending((p) => p.filter((x) => x.id !== id)), [])
 
+  /* Turns animate in as they arrive, but a conversation opened from the rail is
+     forty of them arriving at once -- which is a page that shudders rather than
+     a message that lands. So a freshly loaded transcript is marked settled for
+     one frame's worth of paint, and only what comes after it animates. */
+  const [settledStream, setSettledStream] = useState(true)
+  useEffect(() => {
+    setSettledStream(true)
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setSettledStream(false)))
+    return () => cancelAnimationFrame(id)
+  }, [activeId])
+
+  // Opening a document from the conversation: show the panel, and select the
+  // one the card names if it is still on screen.
+  const openArtifacts = useCallback(() => setPanel(true), [setPanel])
+
   const rendered = useMemo(() => buildRendered(items), [items])
 
-  /* Where the machinery goes.
+  /* What the agent did belongs next to what it said, always.
 
-     With the panel open and room to put it, tool calls, reasoning and the cost
-     line move out of the transcript. With it closed -- or on a phone, where
-     there is no fourth column to move them to -- they stay inline exactly as
-     they were, so nothing is ever unreachable. The toggle in the bar is what
-     chooses, and it is the only thing that changes. */
-  const asideTools = panel && !compact
-  const MACHINERY = useMemo(() => new Set(['tool', 'reasoning', 'cost']), [])
+     Tool calls used to move into the side panel whenever it was open, which
+     made sense while they were bordered cards taller than the answer. They are
+     a folded line now, so there is nothing to get out of the way of -- and
+     moving them had a cost that was never worth it: a turn whose entire output
+     was a document got its `create_artifact` call filtered out of the
+     transcript and its text left empty, so the conversation showed nothing at
+     all. The panel is for the documents themselves now, and only those. */
+  const transcript = useMemo(() => foldTraces(rendered), [rendered])
 
-  const transcript = useMemo(
-    () => (asideTools ? rendered.filter((i) => !MACHINERY.has(i.kind)) : rendered),
-    [rendered, asideTools, MACHINERY],
-  )
 
-  /* The panel's own list: the same items, plus the tool calls that arrive
-     attached to an assistant turn rather than as steps of their own. */
-  const steps = useMemo(() => {
-    if (!asideTools) return []
-    const out = []
-    for (const item of rendered) {
-      if (item.kind === 'tool' || item.kind === 'reasoning') { out.push(item); continue }
-      if (item.kind === 'assistant' && item.toolCalls?.length) {
-        item.toolCalls.forEach((c, i) => out.push({
-          id: `${item.id}-call-${i}`,
-          kind: 'tool',
-          name: c.name,
-          arguments: c.arguments,
-          content: c.content,
-          isError: c.status === 'error',
-        }))
-      }
-    }
-    return out
-  }, [rendered, asideTools])
 
-  const totals = useMemo(() => {
-    for (let i = rendered.length - 1; i >= 0; i -= 1) {
-      if (rendered[i].kind === 'cost') return rendered[i]
-    }
-    return null
-  }, [rendered])
   const pins = useMemo(() => rendered.filter((i) => i.pinned && i.text), [rendered])
 
-  const isEmpty = rendered.length === 0 && turnState === 'idle'
+  /* Nothing on screen, for one of three reasons.
+     The hero -- "What needs doing?" and the openers -- belongs to exactly one
+     of them: no conversation is open. An *open* conversation that happens to
+     hold no messages is a different fact and has to look different, because
+     the two rendered the same before and clicking a row in the history column
+     landed on the front page. That is the whole bug: a turn that fails before
+     its first write leaves a titled conversation with no rows behind it, and
+     opening one of those was indistinguishable from opening nothing. */
+  const isBlank = rendered.length === 0 && turnState === 'idle'
+  const isEmpty = isBlank && !activeId
+  const openedEmpty = isBlank && Boolean(activeId) && !loadError
   /* "Nobody has signed in yet" is not a failure, and the server has said so
      since connectors shipped -- `connectors_awaiting_sign_in` exists for
      exactly this. The banner showed both in the same red sentence, which made
@@ -1227,6 +1709,12 @@ export default function Chat() {
   const errorSig = `err:${connectorErrors.map(([n, e]) => `${n}=${e}`).join('|')}`
   const signInSig = `signin:${[...awaitingSignIn].sort().join(',')}`
   const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'no model'
+  // How many connectors are actually switched on for the next message. Rides on
+  // the + chip in place of the dock that used to spell the same fact out.
+  const liveTools = useMemo(
+    () => (caps.connectors ?? []).filter((c) => c.enabled).length,
+    [caps.connectors],
+  )
   // Follow the stream, but never yank the view away from someone reading back.
   const onScroll = useCallback(() => {
     const el = scrollRef.current
@@ -1242,9 +1730,14 @@ export default function Chat() {
 
   const composer = (
     <div className={`composer-wrap${isEmpty ? ' composer-wrap--hero' : ''}`}>
+      {/* Both composer menus open upward, always. They opened downward on the
+          front page back when the composer was a strip in the middle of an
+          empty screen and the menu was four rows; the composer is now a tall
+          object and the menu holds a connector list, and below it there is a
+          quarter of the room there is above it. */}
       {plusOpen && (
         <PlusMenu
-          placement={isEmpty ? 'down' : 'up'}
+          placement="up"
           conversationId={activeId}
           workspace={workspace}
           onWorkspace={setWorkspace}
@@ -1256,7 +1749,7 @@ export default function Chat() {
 
       {modelOpen && (
         <ModelMenu
-          placement={isEmpty ? 'down' : 'up'}
+          placement="up"
           provider={active?.provider ?? draftProvider}
           model={active?.model ?? draftModel}
           scoped={Boolean(activeId)}
@@ -1275,8 +1768,20 @@ export default function Chat() {
               onMouseEnter={() => setAcIndex(i)}
               onClick={() => acceptAc(item)}
             >
-              <span className="ac-name">/{item.name}</span>
-              <span className="ac-desc">{item.description}</span>
+              {item.acType === 'plugin' ? (
+                 <>
+                   <span className="ac-name">
+                     <ServiceIcon name={item.name} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     @{item.title || item.name}
+                   </span>
+                   <span className="ac-desc">{item.description}</span>
+                 </>
+              ) : (
+                 <>
+                   <span className="ac-name">/{item.name}</span>
+                   <span className="ac-desc">{item.description}</span>
+                 </>
+              )}
             </button>
           ))}
         </div>
@@ -1302,8 +1807,8 @@ export default function Chat() {
           </div>
         )}
 
-        <textarea
-          ref={textareaRef}
+        <SmoothTextarea
+          textareaRef={textareaRef}
           rows={1}
           value={input}
           placeholder={turnState === 'running' ? 'Working — Esc stops it' : 'Type / for skills'}
@@ -1355,14 +1860,21 @@ export default function Chat() {
         )}
 
         <div className="composer-bar">
+          {/* The count is the whole reason the connector dock could go. What
+              anybody actually read off that scrolling row was "how many things
+              is this thing holding" -- one number, which fits here, next to the
+              control that opens the list it summarises. */}
           <button
             type="button"
             className={`composer-chip${plusOpen ? ' active' : ''}`}
             onClick={() => { setPlusOpen((o) => !o); setModelOpen(false) }}
             title={`Files, skills, connectors, memory — ${MOD_LABEL}+/`}
-            aria-label="Files, skills, connectors, memory"
+            aria-label={liveTools === 0
+              ? 'Files, skills, connectors, memory'
+              : `Files, skills, connectors, memory — ${liveTools} connector${liveTools === 1 ? '' : 's'} running`}
           >
             <Icon name="plus" size={16} />
+            {liveTools > 0 && <span className="composer-chip-count">{liveTools}</span>}
           </button>
 
           <div className="composer-modes">
@@ -1522,17 +2034,22 @@ export default function Chat() {
           <div className="hero-stack">
             <div className="hero">
               <h1>What needs doing?</h1>
+              <p className="hero-sub">
+                One agent with the run of your files, shell, tasks and calendar.
+              </p>
             </div>
             {composer}
             <div className="hero-hints">
-              {OPENERS.map((o) => (
+              {OPENERS.map((o, i) => (
                 <button
-                  key={o}
+                  key={o.text}
                   type="button"
                   className="hero-hint"
-                  onClick={() => { setInput(o); textareaRef.current?.focus() }}
+                  style={{ '--i': i }}
+                  onClick={() => { setInput(o.text); textareaRef.current?.focus() }}
                 >
-                  {o}
+                  <Icon name={o.icon} size={14} />
+                  {o.text}
                 </button>
               ))}
             </div>
@@ -1579,33 +2096,73 @@ export default function Chat() {
                 )}
               </div>
             )}
-            <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
-              <div className="chat-stream">
+            {/* The transcript fades at whichever edge it actually runs past,
+                so a reply that continues above the fold says so without a rule
+                across the page. */}
+            <FadeScrollArea className="chat-scroll" scrollRef={scrollRef} onScroll={onScroll} fadeHeight={28}>
+              <div className={`chat-stream${settledStream ? ' is-settled' : ''}`}>
+                {loadError && (
+                  <div className="chat-note chat-note--bad" role="status">
+                    <Icon name="alert" size={14} />
+                    <span>This conversation&rsquo;s messages could not be loaded. {loadError}</span>
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={() => loadMessages(activeId)}
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+                {openedEmpty && (
+                  <div className="chat-note" role="status">
+                    <Icon name="chat" size={14} />
+                    <span>
+                      <strong>{active?.title || 'This conversation'}</strong> has no messages yet.
+                      {' '}Its first turn never reached the transcript — ask again below.
+                    </span>
+                  </div>
+                )}
                 {transcript.map((item) => (
                   <div key={item.id} data-item={item.id} className="stream-item">
                     <Msg
                       item={item}
-                      asideTools={asideTools}
+                      onOpenArtifact={openArtifacts}
                       onPin={onPin}
                       busy={turnState !== 'idle'}
                       onApprovePlan={approvePlan}
-                      onEscalate={escalate}
-                      onAnyway={answerAnyway}
+                      onAnswerQuestion={answerQuestion}
                       onDiscardPlan={discardPlan}
                       onEditPlanStep={editPlanStep}
                     />
                   </div>
                 ))}
-                {turnState === 'running' && !liveTool && (
-                  <div className="msg msg-assistant">
-                    <div className="msg-role">amethyst</div>
-                    {!asideTools && liveReasoning && <Reasoning text={liveReasoning} live={!liveBuffer} />}
+                {turnState === 'running' && (
+                  <div className="msg msg-assistant is-live">
+                    {/* One running trace for the whole turn, rather than a card
+                        that appears for the current call and vanishes when the
+                        next one starts. What it has already done stays on
+                        screen while it does the next thing. */}
+                    {/* Only what is in flight. Everything the turn has already
+                        finished is in `transcript` -- `foldTraces` picks the
+                        settled tool rows up as they land -- so listing the same
+                        steps again here drew every one of them twice, the
+                        document card included. */}
+                    {(liveTool || (liveReasoning && !liveBuffer)) && (
+                      <TurnTrace
+                        events={[]}
+                        live={liveTool}
+                        reasoning={Boolean(liveReasoning) && !liveBuffer}
+                        running
+                      />
+                    )}
+                    {liveReasoning && <Reasoning text={liveReasoning} live={!liveBuffer} />}
                     {liveBuffer ? (
                       <div className="msg-body">
                         <Markdown text={liveBuffer} />
                         <span className="tele-cursor" />
                       </div>
-                    ) : !liveReasoning && (
+                    ) : !liveReasoning && !liveTool && (
                       /* It said "Thinking" from the moment a turn opened
                          until the first token, whether the wait was the vault
                          search, a cold connector, a provider retry or the model.
@@ -1617,9 +2174,22 @@ export default function Chat() {
                     )}
                   </div>
                 )}
-                {turnState === 'running' && liveTool && !asideTools && <ToolCallCard call={liveTool} running />}
               </div>
-            </div>
+            </FadeScrollArea>
+            {/* The map of the conversation, down the right edge. */}
+            <TurnRail
+              items={transcript}
+              scrollRef={scrollRef}
+              onJump={(id) => {
+                const el = scrollRef.current?.querySelector(`[data-item="${id}"]`)
+                // The rail is a deliberate move away from the bottom, so it also
+                // switches the stream off follow -- otherwise the next token
+                // yanks the view straight back.
+                setAtBottom(false)
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+            />
+
             {!atBottom && (
               <button
                 type="button"
@@ -1634,14 +2204,16 @@ export default function Chat() {
         )}
       </div>
 
-      {asideTools && view === 'chat' && (
-        <RunPanel
-          steps={steps}
-          live={liveTool}
-          liveReasoning={liveReasoning}
-          running={turnState === 'running'}
-          totals={totals}
-          onClose={() => setPanel(false)}
+      {panel && !compact && view === 'chat' && (
+        <ArtifactSide
+          artifacts={artifacts}
+          activeArtifact={activeArtifact}
+          onSelectArtifact={setActiveArtifact}
+          streamingArtifact={streamingArtifact}
+          freshArtifact={freshArtifact}
+          expanded={panelExpanded}
+          onToggleExpand={togglePanelExpanded}
+          onClose={() => { setPanelExpanded(false); setPanel(false) }}
         />
       )}
 

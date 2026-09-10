@@ -167,7 +167,7 @@ export const api = {
   providerModels: (name) => j(`/providers/${encodeURIComponent(name)}/models`),
 
   // Tiers: which model does which job. `default` is the go-to model; `fast` is
-  // the quick cheap one; `heavy` is what the fast model escalates to.
+  // the quick cheap one; `heavy` is the slow careful one.
   settings: () => j('/settings'),
   updateSettings: (patch) => j('/settings', json('PATCH', patch)),
 
@@ -183,17 +183,40 @@ export const api = {
   deleteConversation: (id) => j(`/conversations/${id}`, json('DELETE')),
   deleteAllConversations: () => j('/conversations', json('DELETE')),
   messages: (id) => j(`/conversations/${id}/messages`),
+
+  /* Artifacts. The stream announces them as they are written (`artifact_open`,
+     `artifact_delta`, `artifact_done`), so these two are for the other case:
+     opening a conversation that produced documents in an earlier session. The
+     list is metadata only -- the file is the artifact -- and `artifact` reads
+     one back off disk, which is why it can answer with `missing` set. */
+  artifacts: (conversationId) => j(`/conversations/${conversationId}/artifacts`),
+  artifact: (artifactId) => j(`/artifacts/${encodeURIComponent(artifactId)}`),
   pinMessage: (id, messageId, pinned) =>
     j(`/conversations/${id}/messages/${messageId}/pin`, json('POST', { pinned })),
 
   // `mode` is 'chat' or 'plan'. It is a field rather than a sentence glued to
   // the message: the sentence landed in the transcript and was replayed on
   // every later turn, and the server had no idea the mode existed.
-  turn: async ({ conversationId, message, workspace, mode, onEvent, signal }) => {
+  turn: async ({ conversationId, message, workspace, mode, attachments, onEvent, signal }) => {
     const res = await fetch(`${BASE}/conversations/${conversationId}/turn`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, workspace, mode: mode || 'chat' }),
+      /* Attachments travel as structured data, not as a line of prose appended
+         to the prompt. An image the model is meant to look at cannot be
+         described to it as a filesystem path -- that is what produced an issue
+         body containing `/home/wayne/.amethyst/attachments/…/Screenshot.png`
+         where the screenshot should have been. */
+      body: JSON.stringify({
+        message,
+        workspace,
+        mode: mode || 'chat',
+        attachments: (attachments || []).map((f) => ({
+          path: f.path,
+          name: f.name,
+          media_type: f.content_type || null,
+          bytes: f.bytes ?? null,
+        })),
+      }),
       signal,
     })
     if (!res.ok || !res.body) {
@@ -225,6 +248,12 @@ export const api = {
   // Stops the turn on the server. Aborting the browser's read only closes the
   // response: the loop behind it keeps calling models and tools.
   stopTurn: (id) => j(`/conversations/${id}/turn/stop`, json('POST', {})),
+
+  // A turn suspended on a clarifying question. `answerQuestion` is what
+  // resumes it; the turn is holding a future on the other end.
+  questions: (conversationId) =>
+    j(`/questions${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
+  answerQuestion: (id, answers) => j(`/questions/${id}`, json('POST', { answers })),
 
   confirmations: () => j('/confirmations'),
   decideConfirmation: (id, { allow, remember }) =>

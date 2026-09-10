@@ -218,6 +218,77 @@ async def write_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     return ToolResult.ok(f"wrote {len(args.get('content') or '')} characters to {path}{note}")
 
 
+#: Extension -> (media type, highlight language). What the panel needs to know
+#: to render an artifact, decided from the path rather than asked of the model:
+#: a model that has already chosen a filename has already said what this is,
+#: and asking twice is a second chance to disagree with itself.
+ARTIFACT_TYPES = {
+    ".md": ("text/markdown", None),
+    ".markdown": ("text/markdown", None),
+    ".txt": ("text/plain", None),
+    ".html": ("text/html", "html"),
+    ".css": ("text/css", "css"),
+    ".py": ("text/x-python", "python"),
+    ".js": ("text/javascript", "javascript"),
+    ".jsx": ("text/javascript", "jsx"),
+    ".ts": ("text/typescript", "typescript"),
+    ".tsx": ("text/typescript", "tsx"),
+    ".json": ("application/json", "json"),
+    ".yaml": ("application/yaml", "yaml"),
+    ".yml": ("application/yaml", "yaml"),
+    ".toml": ("application/toml", "toml"),
+    ".sh": ("text/x-shellscript", "bash"),
+    ".sql": ("application/sql", "sql"),
+    ".rs": ("text/x-rust", "rust"),
+    ".go": ("text/x-go", "go"),
+}
+
+
+def artifact_type(path: Path) -> tuple[str, str | None]:
+    """How to render this artifact. Unknown extensions read as plain text."""
+    return ARTIFACT_TYPES.get(path.suffix.lower(), ("text/plain", None))
+
+
+async def create_artifact(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    """Write a file, and say that it is the deliverable.
+
+    Identical to `write_file` in what it does to the disk -- it calls it -- and
+    different in one respect the model cannot express any other way: the name
+    says this output is a document the user wants to look at, not a config the
+    agent happened to touch on the way to something else.
+
+    The declaration is a tool *name* rather than a flag on `write_file` because
+    of ordering. JSON key order belongs to the model, so a `artifact: true`
+    argument can arrive after the `content` it qualifies -- and by then the
+    interface has either buffered the whole document, losing the progressive
+    render this exists for, or opened a panel it must now retract. A tool's
+    name arrives in the first fragment of the call, before any argument, on
+    every provider. See ADR-0020.
+    """
+    result = await write_file(args, ctx)
+    if result.is_error:
+        return result
+
+    path, _ = _resolve(ctx, args["path"])
+    media_type, language = artifact_type(path)
+    title = (args.get("title") or "").strip() or path.name
+    # Reported back to the model in its own terms. It has no panel to look at,
+    # so "shown to the user" is the only way it learns that this landed
+    # somewhere different from an ordinary write.
+    return ToolResult.ok(
+        f"{result.content}\nShown to the user as an artifact: {title} ({media_type})",
+        artifacts=[
+            {
+                "type": "artifact",
+                "path": str(path),
+                "title": title,
+                "media_type": media_type,
+                "language": language,
+            }
+        ],
+    )
+
+
 async def edit_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     path, _ = _resolve(ctx, args["path"])
     if not path.exists():
@@ -321,6 +392,37 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
                 "required": ["path", "content"],
             },
             handler=write_file,
+            risk=RiskLevel.MEDIUM,
+            touches_paths=True,
+        ),
+        Tool(
+            name="create_artifact",
+            description=(
+                "Write a file AND show it to the user in the side panel. Use this"
+                " instead of write_file whenever the file IS the thing the user"
+                " asked for -- a document, a README, an email draft, a script, a"
+                " report, a config they asked you to produce. Use plain write_file"
+                " for files you are only touching along the way. The panel renders"
+                " markdown as markdown and code with highlighting, so write the"
+                " real content, not a description of it."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": _PATH_PROP,
+                    "content": {"type": "string", "description": "The whole file"},
+                    "title": {
+                        "type": "string",
+                        "description": "What to call it in the panel. Defaults to the"
+                        " filename.",
+                    },
+                },
+                "required": ["path", "content"],
+            },
+            handler=create_artifact,
+            # Deliberately the same risk as `write_file`, which it calls: a tool
+            # that writes to the filesystem outside the permission gate because
+            # its output is nicely rendered would be a hole in the gate.
             risk=RiskLevel.MEDIUM,
             touches_paths=True,
         ),

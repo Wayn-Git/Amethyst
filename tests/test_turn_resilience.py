@@ -425,3 +425,32 @@ async def test_the_final_step_forces_an_answer_not_an_iteration_guard(db, script
     assert client.seen_tools[-1] == [], "no tools are offered on the final step"
     assert any(FINAL_STEP_INSTRUCTION in sys for sys in client.seen_system)
     assert answer_of(events)
+
+
+async def test_a_turn_that_cannot_resolve_a_model_still_keeps_the_question(db, monkeypatch):
+    """The user's message is written before anything that can fail.
+
+    It used to be persisted after the fallback chain was built and the first
+    model resolved, so an unconfigured provider -- or a model name that would
+    not resolve -- ended the turn with nothing in the transcript at all. The
+    interface titles a conversation from its first message before sending, so
+    what that left behind was a titled conversation holding no rows, and
+    opening one of those from the history column drew the empty-chat landing
+    page. The click looked like it had bounced back to the front page.
+
+    Mutation check: move `self._persist(conversation_id, "user", ...)` back
+    below the `resolve(...)` call in `Director._run`.
+    """
+
+    def refuse(*a, **k):
+        raise RuntimeError("no API key for provider 'fake'")
+
+    monkeypatch.setattr("backend.agent.director.resolve", refuse)
+
+    cid = ConversationRepository().create("fake", "fake-1")
+    events = await run(Director(registry(), memory=False, retrieval=False), cid, "why is it broken?")
+
+    assert terminals(events) == ["error"], "the turn ends on an error frame, not an exception"
+    history = MessageRepository().history(cid)
+    assert [m.role for m in history] == ["user"], "the question survives a turn that never ran"
+    assert history[0].content == "why is it broken?"

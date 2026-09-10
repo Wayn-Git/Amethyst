@@ -9,6 +9,7 @@ unreliable" is not a provider quirk.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 from collections.abc import AsyncIterator
@@ -16,7 +17,12 @@ from typing import Any
 
 import httpx
 
-from backend.runtime.failures import FailureKind, classify_status, should_retry
+from backend.runtime.failures import (
+    FailureKind,
+    classify_status,
+    classify_stream_error,
+    should_retry,
+)
 
 MAX_RETRIES = 3
 TRANSIENT_EXCEPTIONS = (
@@ -45,9 +51,17 @@ class ProviderError(RuntimeError):
         kind: FailureKind = FailureKind.NON_RETRYABLE,
         status: int | None = None,
         body: str | None = None,
+        retry_after: float | None = None,
     ) -> None:
         super().__init__(message)
         self.kind = kind
+        #: Seconds until this provider says it will answer again, from its own
+        #: `retry-after` or `x-ratelimit-reset-*` header. Carried on the error
+        #: because the header is seen here, where the provider's *name* is not
+        #: known -- the loop has the name and records the exhaustion. Without
+        #: it, "groq is rate limited" was remembered for a flat five minutes
+        #: whether it said five seconds or an hour.
+        self.retry_after = retry_after
         self.status = status
         self.body = body
 
@@ -67,6 +81,85 @@ class ProviderStreamError(ProviderError):
     Anthropic adapters raise it, and Anthropic was importing it -- along with a
     private helper -- across module boundaries to do so.
     """
+
+
+#: Headers a provider uses to say when its limit resets. Ordered by how
+#: directly they answer the question: `retry-after` is seconds until this exact
+#: request may be repeated, the rest are seconds (or a duration like `5.8s`)
+#: until the bucket refills.
+RESET_HEADERS = (
+    "retry-after",
+    "x-ratelimit-reset-tokens",
+    "x-ratelimit-reset-requests",
+    "x-ratelimit-reset",
+)
+
+#: Anything longer than this is treated as "not now" rather than a wait. A
+#: provider that says it resets in an hour is exhausted for the purposes of
+#: this turn, and pinning an availability entry for an hour on one header is
+#: how a provider stays dark long after it recovered.
+MAX_RESET_SECONDS = 900.0
+
+
+def _duration(raw: str) -> float | None:
+    """Seconds from a header value.
+
+    Providers write this several ways: `5`, `5.835`, `5.8s`, `1m30s`. Groq
+    sends the `s` suffix, which `float()` alone rejects -- so a rate limit that
+    said exactly when it would clear was read as saying nothing at all.
+    """
+    text = raw.strip().lower()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        pass
+
+    # `Retry-After` is allowed to be an HTTP-date, and the unit scanner below
+    # reads one as a very large number of seconds -- clamped, but still wrong,
+    # and wrong in the direction that leaves a healthy provider dark.
+    if "," in text or ":" in text:
+        try:
+            from email.utils import parsedate_to_datetime
+
+            when = parsedate_to_datetime(raw.strip())
+        except (TypeError, ValueError):
+            return None
+        if when is None:
+            return None
+        from datetime import datetime, timezone
+
+        now = datetime.now(when.tzinfo or timezone.utc)
+        return max(0.0, (when - now).total_seconds())
+
+    units = {"ms": 0.001, "h": 3600.0, "m": 60.0, "s": 1.0}
+    total, number, index, matched = 0.0, "", 0, False
+    while index < len(text):
+        char = text[index]
+        if char.isdigit() or char == ".":
+            number += char
+            index += 1
+            continue
+        unit = "ms" if text[index : index + 2] == "ms" else char
+        if unit in units and number:
+            total += float(number) * units[unit]
+            matched = True
+            number = ""
+        index += len(unit)
+    return total if matched else None
+
+
+def reset_after(headers: Any) -> float | None:
+    """How long this provider says its limit needs, or None if it did not say."""
+    for name in RESET_HEADERS:
+        raw = headers.get(name)
+        if not raw:
+            continue
+        seconds = _duration(str(raw))
+        if seconds is not None and seconds > 0:
+            return min(seconds, MAX_RESET_SECONDS)
+    return None
 
 
 def backoff(attempt: int) -> float:
@@ -192,6 +285,7 @@ async def post_json(
             raise ProviderHTTPError(
                 f"{url} returned {last_error}",
                 kind=classify_status(response.status_code, body),
+                retry_after=reset_after(response.headers),
                 status=response.status_code,
                 body=body,
             )
@@ -219,6 +313,41 @@ async def post_json(
     )
 
 
+def _replay_delay(data: str, attempt: int, max_retries: int) -> float | None:
+    """How long to wait before replaying a stream that failed inside its own body.
+
+    Some OpenAI-compatible gateways report a transient failure as HTTP 200 with
+    SSE headers and an `error` object in the first frame, rather than as a
+    status code. NVIDIA's does: an overloaded model answers
+    `{"error":{"message":"Service temporarily overloaded","type":
+    "service_unavailable","code":503}}` over a 200. The retry loop below only
+    ever looked at `response.status_code`, so the same 503 was retried three
+    times when it arrived as a status and *zero* times when it arrived as a
+    body -- which turned one transient hiccup into a dead turn, on the one
+    provider that reports failure this way.
+
+    Returns None when the frame is not an error, when the error is permanent (a
+    model that does not exist will not exist on the retry either), or when the
+    attempts are spent. Only ever consulted before the first frame has been
+    handed on, so replaying cannot duplicate output that is already on screen --
+    the same rule the dropped-stream path applies.
+    """
+    if attempt >= max_retries or '"error"' not in data:
+        return None
+    try:
+        payload = json.loads(data)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    error = payload.get("error")
+    if not error:
+        return None
+    if not should_retry(classify_stream_error(error)):
+        return None
+    return backoff(attempt)
+
+
 async def stream_sse(
     url: str,
     *,
@@ -235,6 +364,9 @@ async def stream_sse(
     """
     for attempt in range(max_retries + 1):
         started = False
+        # Set when the body itself reported a transient failure before any
+        # frame was handed on; the request is replayed after the wait.
+        replay: float | None = None
         try:
             async with _client(timeout).stream(
                 "POST",
@@ -251,6 +383,7 @@ async def stream_sse(
                         raise ProviderHTTPError(
                             f"{url} returned {error}",
                             kind=classify_status(response.status_code, body),
+                            retry_after=reset_after(response.headers),
                             status=response.status_code,
                             body=body,
                         )
@@ -261,10 +394,26 @@ async def stream_sse(
                     if not line.startswith("data:"):
                         continue
                     data = line[5:].strip()
-                    if data and data != "[DONE]":
-                        started = True
-                        yield data
-                return
+                    if not data or data == "[DONE]":
+                        continue
+                    if not started:
+                        replay = _replay_delay(data, attempt, max_retries)
+                        if replay is not None:
+                            break
+                    started = True
+                    yield data
+            if replay is not None:
+                log.warning(
+                    "%s reported a transient failure inside a 200 response before any"
+                    " token; replaying in full (attempt %d/%d): %s",
+                    url,
+                    attempt + 1,
+                    max_retries,
+                    data[:200],
+                )
+                await asyncio.sleep(replay)
+                continue
+            return
         except TRANSIENT_EXCEPTIONS as exc:
             if started or attempt == max_retries:
                 # Once bytes have moved, a different provider cannot take over

@@ -16,13 +16,6 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.agent.escalation import (
-    ESCALATE_TOOL,
-    ESCALATE_TOOL_NAME,
-    REASONING_INSTRUCTION,
-    parse_escalation,
-    was_escalated,
-)
 from backend.agent.planning import (
     EXECUTE_INSTRUCTION,
     PLAN_INSTRUCTION,
@@ -50,7 +43,7 @@ from backend.db.repositories import ConversationRepository, MessageRepository
 from backend.runtime import availability
 from backend.runtime.chain import AttemptBudget, Link, announcement, build_chain, reason_for
 from backend.runtime.failures import FailureKind, should_fall_back, should_retry
-from backend.runtime.registry import resolve, resolve_tier
+from backend.runtime.registry import resolve
 from backend.runtime.types import ModelParameters, ModelResponse, ToolCall
 from backend.tools.base import ToolContext, ToolResult
 from backend.tools.registry import ToolRegistry
@@ -175,6 +168,8 @@ class Event:
     type: str  # assistant_delta | reasoning_delta | assistant_text | tool_call
     # | confirmation_required | tool_result | status | plan | step_started
     # | step_done | warning | guard | error | done | memory
+    # | artifact_open | artifact_delta | artifact_done
+    # | question_required | question_settled
     data: dict[str, Any] = field(default_factory=dict)
 
 
@@ -185,6 +180,7 @@ class Event:
 #: the model itself. They are a closed set so an interface can style them and so
 #: a new one cannot appear unannounced.
 STATUSES = (
+    "starting",       # the API is building the agent: connectors coming up
     "retrieving",     # searching the vault for context
     "recalling",      # reading long-term memory
     "thinking",       # waiting on the model
@@ -281,6 +277,185 @@ def _cost(iterations: int, tool_calls: int, started: float) -> dict[str, Any]:
     }
 
 
+# What the model can actually be shown. Anything else stays a path.
+_VIEWABLE = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+# Providers reject oversized images outright, and a 20MB screenshot is a failed
+# turn rather than a slow one.
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def _with_images(wire: list[dict[str, Any]], attachments: list[dict[str, Any]] | None):
+    """Attach images to the last user message as content blocks.
+
+    The interface used to append attachments to the prompt as a line of text --
+    `Attached files (read them with view_file): - /home/.../Screenshot.png` --
+    which meant the model never saw a single pixel. Asked to put that screenshot
+    in a GitHub issue it pasted the path, because the path was all it had.
+
+    Every provider adapter already understands `{"type": "image", ...}` blocks
+    (`openai_compat`, `anthropic` and `google` all convert them, and
+    `runtime/vision.py` has been building them for video frames all along).
+    Nothing was producing them for chat attachments; this does.
+
+    Non-image files keep the old treatment: the path plus a nudge toward
+    `view_file`, which is the right answer for a PDF or a CSV.
+    """
+    if not attachments:
+        return wire
+
+    import base64
+    from pathlib import Path
+
+    blocks: list[dict[str, Any]] = []
+    for item in attachments:
+        media = str(item.get("media_type") or "").lower()
+        path = item.get("path")
+        if media not in _VIEWABLE or not path:
+            continue
+        try:
+            raw = Path(path).read_bytes()
+        except OSError as exc:
+            log.warning("could not read the attachment %s: %s", path, exc)
+            continue
+        if len(raw) > _MAX_IMAGE_BYTES:
+            log.warning("attachment %s is %d bytes; too large to send", path, len(raw))
+            continue
+        blocks.append({
+            "type": "image",
+            "media_type": media,
+            "data": base64.b64encode(raw).decode("utf-8"),
+        })
+
+    if not blocks:
+        return wire
+
+    # The last user turn is the one the files were attached to.
+    for i in range(len(wire) - 1, -1, -1):
+        if wire[i].get("role") != "user":
+            continue
+        said = wire[i].get("content")
+        text = said if isinstance(said, str) else ""
+        patched = list(wire)
+        patched[i] = {
+            "role": "user",
+            "content": [{"type": "text", "text": text}, *blocks],
+        }
+        return patched
+
+    return wire
+
+
+class _LiveArtifacts:
+    """Turns streamed tool arguments into a document appearing on screen.
+
+    `create_artifact` carries a whole file in its arguments, so a turn that
+    writes one used to show nothing at all until the model had finished
+    emitting it -- often the longest silence in a session. The OpenAI-compatible
+    adapter now yields the JSON prefix as it grows, and this reads the `content`
+    value out of it and sends the difference.
+
+    One instance per attempt, because the ids it hands out have to match the
+    ones `_artifact_opening` computes for the same paths, and because a retry
+    against a different provider starts the document again from nothing.
+
+    Anthropic and Google do not stream arguments, so nothing here ever fires for
+    them and `_artifact_opening` sends the whole file exactly as before.
+    """
+
+    def __init__(self, director: "Director", conversation_id: str) -> None:
+        self._director = director
+        self._conversation_id = conversation_id
+        # index -> {"id", "path", "sent"}
+        self._open: dict[int, dict[str, Any]] = {}
+
+    def feed(self, chunk: Any):
+        """Events for one `tool_arguments` fragment. Yields nothing for most."""
+        if chunk.tool_name != self._director.ARTIFACT_TOOL:
+            return
+        raw = chunk.arguments_so_far or ""
+        index = chunk.tool_index or 0
+
+        from backend.runtime.partial_json import partial_string
+
+        state = self._open.get(index)
+        if state is None:
+            # The path has to be complete before anything can be announced --
+            # it decides the artifact's id, its media type and its language. A
+            # document whose `content` arrives before its `path` simply waits.
+            path = partial_string(raw, "path")
+            if not path or f'"{path}"' not in raw:
+                return
+            opened = self._announce(path, partial_string(raw, "title"))
+            if opened is None:
+                return
+            state, event = opened
+            self._open[index] = state
+            yield event
+
+        content = partial_string(raw, "content")
+        if len(content) <= len(state["sent"]):
+            return
+        # Only ever the difference, and only when it really is a continuation.
+        delta = (
+            content[len(state["sent"]):]
+            if content.startswith(state["sent"])
+            else content
+        )
+        state["sent"] = content
+        yield Event("artifact_delta", {"id": state["id"], "text": delta})
+
+    def opened(self, call: ToolCall) -> bool:
+        """Whether this document was already announced from the stream."""
+        return self._state_for(call) is not None
+
+    def sent_for(self, call: ToolCall) -> str:
+        """How much of this call's document already reached the panel.
+
+        Matched on the resolved path rather than the index, because by dispatch
+        time the call has been assembled and its position in the stream is no
+        longer something the caller knows.
+        """
+        state = self._state_for(call)
+        return state["sent"] if state else ""
+
+    def _state_for(self, call: ToolCall):
+        if call.name != self._director.ARTIFACT_TOOL:
+            return None
+        path = self._director._artifact_path(call)
+        if path is None:
+            return None
+        for state in self._open.values():
+            if state["path"] == path:
+                return state
+        return None
+
+    def _announce(self, raw_path: str, title: str):
+        """The `artifact_open` for a path, or None if it cannot be resolved."""
+        from pathlib import Path
+
+        from backend.db.repositories import ArtifactRepository
+        from backend.tools.builtin.filesystem import artifact_type
+
+        resolved = self._director._artifact_path(ToolCall(id="", name=self._director.ARTIFACT_TOOL, arguments={"path": raw_path}))
+        if resolved is None:
+            return None
+
+        media_type, language = artifact_type(Path(resolved))
+        artifact_id = ArtifactRepository.identify(self._conversation_id, resolved)
+        state = {"id": artifact_id, "path": resolved, "sent": ""}
+        event = Event(
+            "artifact_open",
+            {
+                "id": artifact_id,
+                "path": resolved,
+                "title": title.strip() or Path(resolved).name,
+                "media_type": media_type,
+                "language": language,
+            },
+        )
+        return state, event
+
+
 class Director:
     def __init__(
         self,
@@ -315,6 +490,7 @@ class Director:
         conversation_id: str,
         user_message: str,
         cancel: asyncio.Event | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[Event]:
         """Errors are data, all the way out to the interface.
 
@@ -331,7 +507,7 @@ class Director:
         # was in the transcript either, so reloading did not bring it back.
         shown: list[str] = []
         try:
-            async for event in self._run(conversation_id, user_message, cancel):
+            async for event in self._run(conversation_id, user_message, cancel, attachments):
                 if event.type in ("assistant_delta", "assistant_text"):
                     shown.append(event.data.get("text") or "")
                 yield event
@@ -346,6 +522,18 @@ class Director:
             # closes the stream on it. It carries the partial answer so the
             # reader has the work as well as the reason.
             yield Event("error", {"message": message, "text": partial})
+        except GeneratorExit:
+            # The reader is gone and there is nobody to yield to.
+            #
+            # `GeneratorExit` is a BaseException, so it used to land in the
+            # handler below and be answered with an `error` frame -- and
+            # yielding while a generator is being closed is exactly what Python
+            # refuses: "async generator ignored GeneratorExit". The turn then
+            # unwound through that RuntimeError instead of through its own
+            # `finally`, which is how a tool call the model had just asked for
+            # never got its result row written. Say nothing, let the close
+            # proceed, and leave the clean-up to `finally`.
+            raise
         except BaseException as exc:
             # `except Exception` does not catch CancelledError, which is what a
             # server shutdown, a reload, or Starlette dropping the task raises
@@ -362,17 +550,39 @@ class Director:
                 },
             )
             raise
+        finally:
+            # However this turn ended, it does not get to leave a tool call
+            # nobody answered behind it. See `_close_open_tool_calls`.
+            self._close_open_tool_calls(conversation_id)
 
     async def _run(
         self,
         conversation_id: str,
         user_message: str,
         cancel: asyncio.Event | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[Event]:
         conversation = self.conversations.get(conversation_id)
         if conversation is None:
             yield Event("error", {"message": f"unknown conversation {conversation_id}"})
             return
+
+        # "/weekly-review do the thing" pins that skill for this turn, mirroring
+        # the slash menu in the interface. The marker is stripped so the model
+        # sees the request, not the routing syntax.
+        pinned, user_message = extract_skill_invocations(user_message)
+        # Written before anything that can fail.
+        #
+        # This used to sit after the chain was built and the model resolved,
+        # which meant an unconfigured provider or a model that would not
+        # resolve ended the turn with the question never reaching the
+        # transcript. The interface names a conversation from its first message
+        # before sending, so what that left behind was a titled conversation
+        # holding no rows at all -- and opening one of those from the history
+        # column drew the empty-chat landing page, which reads as the click
+        # having bounced. The question is the user's, not the model's: it is
+        # kept whether or not anything answers it.
+        self._persist(conversation_id, "user", user_message)
 
         # The chosen provider, then whatever else could answer if it cannot.
         # Built once per turn rather than per iteration: it costs a read of
@@ -386,39 +596,88 @@ class Director:
         )
         budget = AttemptBudget()
         active = 0
-        # Reasoning mode runs on the `heavy` tier -- the model the user chose to
-        # wait for. It is resolved rather than assumed: a machine with no tier
-        # configured for it answers on the conversation's own model, which is
-        # slower to nobody and wrong for nobody.
-        reasoning = self.mode == "reasoning"
-        heavy = resolve_tier("heavy") if reasoning else None
-        model = heavy or resolve(
-            chain[0].provider,
-            chain[0].model,
-            max_retries=budget.allowance(len(chain) - 1) - 1,
-        )
-
-        # "/weekly-review do the thing" pins that skill for this turn, mirroring
-        # the slash menu in the interface. The marker is stripped so the model
-        # sees the request, not the routing syntax.
-        pinned, user_message = extract_skill_invocations(user_message)
-        self._persist(conversation_id, "user", user_message)
+        # None until a link resolves. The walk below can exhaust the chain
+        # without ever assigning one, and the check after it is what turns
+        # that into an error frame rather than a NameError.
+        model = None
+        # Resolving the *first* link was the one model call in the turn
+        # with nothing behind it.
+        #
+        # Everywhere else -- an empty reply, a rate limit, a server error --
+        # the loop moves `active` along the chain and answers on the next
+        # provider. Here it did not: a provider that could not even be
+        # resolved (no key, an endpoint that would not answer, a model name
+        # the provider has retired) raised straight out of the turn, and
+        # the user got an error where the fallback they had configured
+        # would have got them an answer. The chain is walked instead, and
+        # the skip is announced the same way a mid-turn switch is.
+        last_error: Exception | None = None
+        # A provider already known to be out of quota is stepped over
+        # before it is asked.
+        #
+        # `build_chain` skips exhausted providers when it picks the
+        # *alternatives*, but the chosen one goes in unconditionally --
+        # so a turn started on a provider that 429'd a minute ago spent
+        # its first attempt proving that again. The step is announced,
+        # never silent: the user picked that model, and an answer from
+        # somewhere else without a word is worse than the wait.
+        while active < len(chain) - 1:
+            known = availability.cached(chain[active].provider)
+            if known is None or known.available:
+                break
+            skipped = chain[active]
+            active += 1
+            log.warning(
+                "%s is %s; starting on %s instead",
+                skipped.provider,
+                "exhausted" if known.exhausted else "unavailable",
+                chain[active].provider,
+            )
+            yield Event("status", {"state": "switching", "provider": chain[active].provider})
+            yield Event(
+                "warning",
+                {
+                    "message": announcement(
+                        skipped,
+                        "is out of quota" if known.exhausted else "is unavailable",
+                        chain[active],
+                    )
+                },
+            )
+        while active < len(chain):
+            try:
+                model = resolve(
+                    chain[active].provider,
+                    chain[active].model,
+                    max_retries=budget.allowance(len(chain) - 1 - active) - 1,
+                )
+                break
+            except Exception as exc:
+                last_error = exc
+                failed = chain[active]
+                log.warning("%s could not be resolved: %s", failed.provider, exc)
+                availability.record_failure(failed.provider, FailureKind.UNREACHABLE)
+                active += 1
+                if active >= len(chain):
+                    break
+                yield Event(
+                    "status", {"state": "switching", "provider": chain[active].provider}
+                )
+                yield Event(
+                    "warning",
+                    {
+                        "message": announcement(
+                            failed, "could not be reached", chain[active]
+                        )
+                    },
+                )
+        if model is None:
+            raise last_error or RuntimeError("no configured provider could be reached")
 
         # Fetched once for the turn, not once per iteration: it answers the
         # question the user actually asked, and search_documents is there for
         # everything the model only discovers it needs mid-turn.
         planning = self.mode == "plan"
-        # Whether this turn may hand itself over. Only from an ordinary chat
-        # turn, only when there is a heavier model to hand it to, and never
-        # twice: the transcript already carries the last request, so a user who
-        # chose "answer anyway" is not asked the same question again.
-        escalate_to = (
-            resolve_tier("heavy")
-            if not planning and not reasoning
-            else None
-        )
-        if escalate_to is not None and was_escalated(self.messages.history(conversation_id)):
-            escalate_to = None
         # A turn is "executing" when the message approves a plan. Progress
         # through it is *reported* by the model rather than inferred from which
         # tools it happened to call -- inferring it would be inventing a
@@ -500,6 +759,8 @@ class Director:
             # `stream: true`, and that answer still has to be delivered.
             streamed = False
             streamed_text: list[str] = []
+            # Said once, however many links the chain tries.
+            blind_noted = False
 
             # One answer, from however many providers it takes to get one.
             while True:
@@ -537,8 +798,6 @@ class Director:
                     # The old prefix lived in the message, so a conversation
                     # asked for a plan once kept being asked for one forever.
                     system_prompt = f"{system_prompt}\n\n{PLAN_INSTRUCTION}"
-                if reasoning:
-                    system_prompt = f"{system_prompt}\n\n{REASONING_INSTRUCTION}"
                 tool_schemas = (
                     self.registry.schemas(
                         hidden_servers=hidden_servers,
@@ -553,11 +812,6 @@ class Director:
                     # it on every chat turn would be a tool with nothing to
                     # describe, which models call anyway.
                     tool_schemas = [*tool_schemas, STEP_TOOL]
-                if escalate_to is not None and tool_schemas is not None:
-                    # Offered, never registered: there is nothing to dispatch,
-                    # the director answers it. Same shape as `submit_plan` and
-                    # `begin_step`, and for the same reason.
-                    tool_schemas = [*tool_schemas, ESCALATE_TOOL]
                 if planning and tool_schemas is not None:
                     # Offered by the director, not registered: it changes
                     # nothing, so there is nothing to dispatch, and a tool that
@@ -617,6 +871,29 @@ class Director:
                             {"message": "earlier messages could not be read for this turn"},
                         )
                 wire = [{"role": "system", "content": system_prompt}, *budgeted]
+                # Images the user attached to *this* turn, put back onto the
+                # message they were attached to. They are not in `history`,
+                # because the transcript stores what was said and a screenshot
+                # is not text -- see `_with_images`.
+                #
+                # Gated on the model that is actually about to answer, not on
+                # the one the user picked. A vision request that falls back to a
+                # text-only link used to send the image anyway: Nvidia answers
+                # `400 Received multimodal data but multimodal processing is not
+                # enabled`, so one transient 503 upstream turned "what is in this
+                # screenshot" into a failed turn.
+                if attachments:
+                    if model.capabilities.vision:
+                        wire = _with_images(wire, attachments)
+                    elif not blind_noted:
+                        blind_noted = True
+                        yield Event(
+                            "warning",
+                            {
+                                "message": f"{chain[active].provider} cannot look at images,"
+                                " so this turn was sent without them",
+                            },
+                        )
                 if nudge:
                     # Cleared once a call succeeds, not here: a fallback
                     # attempt has to carry the same instruction.
@@ -720,6 +997,11 @@ class Director:
                 response = None
                 streamed = False
                 streamed_text = []
+                # Reset per attempt, and defined whether or not the provider
+                # streams: the dispatch loop below asks it how much of a
+                # document already reached the panel, and Anthropic and Google
+                # never take the streaming branch at all.
+                live_artifacts = _LiveArtifacts(self, conversation_id)
                 yield Event("status", {"state": "planning" if planning else "thinking"})
                 try:
                     if (
@@ -744,6 +1026,12 @@ class Director:
                                 yield Event("assistant_delta", {"text": chunk.text})
                             elif chunk.type == "reasoning" and chunk.text:
                                 yield Event("reasoning_delta", {"text": chunk.text})
+                            elif chunk.type == "tool_arguments":
+                                # A document being written, one fragment at a
+                                # time. Only `create_artifact` is streamed this
+                                # way; every other tool is silent until dispatch.
+                                for event in live_artifacts.feed(chunk):
+                                    yield event
                             elif chunk.type == "done":
                                 response = chunk.response
                         streamed = bool(streamed_text)
@@ -783,7 +1071,19 @@ class Director:
                     # A retryable failure exhausted its allowance before it
                     # was raised; a non-retryable one cost exactly one call.
                     budget.spend(allowance if should_retry(kind) else 1)
-                    availability.record_failure(chain[active].provider, kind)
+                    # A rate limit is remembered for as long as the provider
+                    # asked for, not for a flat five minutes. Groq answers
+                    # "try again in 5.835s" and used to be written off for the
+                    # rest of the sulk anyway; a provider that says an hour was
+                    # let back in after five minutes to fail again.
+                    if kind in (FailureKind.RATE_LIMITED, FailureKind.NON_RETRYABLE_RATE_LIMIT):
+                        availability.record_exhausted(
+                            chain[active].provider,
+                            retry_after=getattr(exc, "retry_after", None),
+                            message=reason_for(kind),
+                        )
+                    else:
+                        availability.record_failure(chain[active].provider, kind)
 
                     # Not once text is on screen: a second provider would start
                     # its answer underneath the half the user is already reading.
@@ -930,36 +1230,6 @@ class Director:
                     yield event
                 return
 
-            if escalate_to is not None:
-                asked = next(
-                    (c for c in response.tool_calls if c.name == ESCALATE_TOOL_NAME), None
-                )
-                if asked is not None:
-                    escalation = parse_escalation(
-                        asked.arguments,
-                        from_model=f"{model.provider}/{model.model}",
-                        to_model=f"{escalate_to.provider}/{escalate_to.model}",
-                    )
-                    # Persisted as the assistant's own words, like a plan. It is
-                    # what the user reads if they reload, and it is what stops
-                    # the tool being offered again on the retry -- "answer
-                    # anyway" works because the transcript remembers being asked.
-                    self._persist(
-                        conversation_id, "assistant", escalation.as_markdown()
-                    )
-                    self.conversations.touch(conversation_id)
-                    yield Event("escalation", escalation.as_dict())
-                    yield Event("status", {"state": "completed"})
-                    yield Event(
-                        "done",
-                        {
-                            "text": escalation.as_markdown(),
-                            "iterations": iteration + 1,
-                            **_cost(iteration + 1, tool_calls_made, started),
-                        },
-                    )
-                    return
-
             if planning:
                 submitted = next(
                     (c for c in response.tool_calls if c.name == PLAN_TOOL_NAME), None
@@ -1048,6 +1318,22 @@ class Director:
                         },
                     )
                     yield Event("tool_call", {"name": call.name, "arguments": call.arguments})
+                    # An artifact opens before the write, not after it.
+                    #
+                    # The panel is a view of the document being produced, so it
+                    # has to exist while it is being produced -- and dispatch
+                    # here can suspend for as long as a confirmation prompt
+                    # takes to be answered. Announcing afterwards would mean the
+                    # panel appeared, fully written, at the moment the user
+                    # pressed Allow. `artifact_done` below carries whether the
+                    # write actually succeeded. See ADR-0020.
+                    for event in self._artifact_opening(
+                        conversation_id,
+                        call,
+                        already_sent=live_artifacts.sent_for(call),
+                        already_open=live_artifacts.opened(call),
+                    ):
+                        yield event
                     # Dispatch can suspend the turn waiting on a confirmation,
                     # so its events have to reach the interface before it
                     # returns -- awaiting the result first would announce the
@@ -1086,6 +1372,8 @@ class Director:
                     "tool_result",
                     {"name": call.name, "content": result.content, "is_error": result.is_error},
                 )
+                for event in self._artifact_closing(conversation_id, call, result):
+                    yield event
 
                 if cancel is not None and cancel.is_set():
                     yield Event("status", {"state": "cancelled"})
@@ -1309,6 +1597,193 @@ class Director:
             return get_connection()
         except Exception:
             return None
+
+    #: The one tool whose output is a deliverable rather than a step. Named
+    #: here rather than sniffed from arguments because the *name* is what
+    #: arrives first in a streamed tool call -- which is the whole reason the
+    #: declaration is a tool at all. See ADR-0020.
+    ARTIFACT_TOOL = "create_artifact"
+
+    #: What a tool row says when its call never got to run.
+    INTERRUPTED_TOOL_RESULT = (
+        "This tool call did not complete: the turn ended before a result came"
+        " back. Nothing was done. Call it again if the work still needs doing."
+    )
+
+    def _close_open_tool_calls(self, conversation_id: str) -> None:
+        """Answer every tool call this conversation left hanging.
+
+        The chat-completions format requires each entry in an assistant
+        message's `tool_calls` to be followed by a `tool` message carrying the
+        same id. A turn that dies between the model asking for a tool and the
+        result being written leaves one that nothing answers -- and from then
+        on *every* later turn in that conversation ships a malformed array.
+
+        Recorded from a real conversation on 2026-09-09, where the model called
+        `fetch__mcp__fetch` and the turn ended before the result: the history
+        that left behind drew `400 "Tool choice is none, but model called a
+        tool"` from groq, `400 "Bad input: oneOf at '/' not met"` from
+        cloudflare, and a 200 with an empty answer from nvidia. One interrupted
+        turn, and the conversation was dead on every provider -- which is what
+        "the model has lost the project" actually was.
+
+        Written as a real row rather than patched over on the way to the wire,
+        because the model should read what happened: a tool it asked for did
+        not run, and it may ask again. `to_wire_messages` heals the same shape
+        defensively, for the conversations broken before this existed.
+        """
+        try:
+            history = self.messages.history(conversation_id)
+        except Exception as exc:
+            log.warning("could not read %s back to close its tool calls: %s", conversation_id, exc)
+            return
+
+        answered = {m.tool_call_id for m in history if m.role == "tool" and m.tool_call_id}
+        for message in history:
+            for call in message.tool_calls or []:
+                call_id = call.get("id")
+                if not call_id or call_id in answered:
+                    continue
+                answered.add(call_id)
+                function = call.get("function", call)
+                self._persist(
+                    conversation_id,
+                    "tool",
+                    self.INTERRUPTED_TOOL_RESULT,
+                    tool_call_id=call_id,
+                    tool_name=function.get("name") or "unknown",
+                    is_error=True,
+                )
+
+    def _artifact_path(self, call: ToolCall) -> str | None:
+        """Where this call will write, resolved the way the tool will resolve it."""
+        raw = (call.arguments or {}).get("path")
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        from pathlib import Path
+
+        root = Path(self.workspace_root or Path.cwd()).expanduser().resolve()
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = root / path
+        return str(path.resolve())
+
+    def _artifact_opening(
+        self, conversation_id: str, call: ToolCall, *, already_sent: str = "", already_open: bool = False,
+    ):
+        """Announce an artifact and hand over its content.
+
+        Two events rather than one because the shape is the streaming shape.
+        When the provider streamed the arguments, `_LiveArtifacts` has already
+        opened this document and sent most of it; `already_sent` is how much,
+        so this emits only the tail rather than the file twice. When the
+        provider did not stream -- Anthropic and Google still do not -- nothing
+        was sent, and this emits the whole thing exactly as it always did.
+        """
+        if call.name != self.ARTIFACT_TOOL:
+            return
+        path = self._artifact_path(call)
+        if path is None:
+            return
+
+        from pathlib import Path
+
+        from backend.db.repositories import ArtifactRepository
+        from backend.tools.builtin.filesystem import artifact_type
+
+        media_type, language = artifact_type(Path(path))
+        arguments = call.arguments or {}
+        title = str(arguments.get("title") or "").strip() or Path(path).name
+        artifact_id = ArtifactRepository.identify(conversation_id, path)
+        # Announced once. When the arguments streamed, `_LiveArtifacts` already
+        # opened this document and the panel has been filling ever since --
+        # opening it a second time restarts it from empty, which is a document
+        # blinking out and back in the middle of being read.
+        if not already_open:
+            yield Event(
+                "artifact_open",
+                {
+                    "id": artifact_id,
+                    "path": path,
+                    "title": title,
+                    "media_type": media_type,
+                    "language": language,
+                },
+            )
+        content = arguments.get("content")
+        if isinstance(content, str) and content:
+            # Only what the live stream has not already shown. The prefix check
+            # matters: if the two disagree the streamed text was wrong, and the
+            # authoritative version is this one, so send all of it.
+            tail = content[len(already_sent):] if content.startswith(already_sent) else content
+            if tail:
+                yield Event("artifact_delta", {"id": artifact_id, "text": tail})
+
+    def _artifact_closing(self, conversation_id: str, call: ToolCall, result: ToolResult):
+        """Close the artifact, and say whether the file was actually written.
+
+        `artifact_open` fires before dispatch, which can be refused at the
+        permission gate or fail on the disk. Without this the panel would show
+        a document that does not exist as though it had been saved.
+
+        The row is written here rather than at open for the same reason: an
+        artifact recorded before the write would survive a denied confirmation
+        as a version of a file nobody has.
+        """
+        if call.name != self.ARTIFACT_TOOL:
+            return
+        path = self._artifact_path(call)
+        if path is None:
+            return
+
+        from pathlib import Path
+
+        from backend.db.repositories import ArtifactRepository
+        from backend.tools.builtin.filesystem import artifact_type
+
+        artifact_id = ArtifactRepository.identify(conversation_id, path)
+        if result.is_error:
+            yield Event(
+                "artifact_done",
+                {
+                    "id": artifact_id,
+                    "bytes": 0,
+                    "version": 0,
+                    "is_error": True,
+                    "message": result.content,
+                },
+            )
+            return
+
+        arguments = call.arguments or {}
+        content = arguments.get("content") or ""
+        media_type, language = artifact_type(Path(path))
+        title = str(arguments.get("title") or "").strip() or Path(path).name
+        version = 1
+        try:
+            row = ArtifactRepository().record(
+                conversation_id,
+                path,
+                title=title,
+                media_type=media_type,
+                language=language,
+                size=len(content),
+            )
+            version = int(row["version"])
+        except Exception as exc:
+            # The same bargain `_persist` makes: the document is on disk and on
+            # screen, and losing the row that lets it be reopened later is not a
+            # reason to fail the turn that produced it.
+            log.warning("could not record the artifact for %s: %s", path, exc)
+        yield Event(
+            "artifact_done",
+            {
+                "id": artifact_id,
+                "bytes": len(content),
+                "version": version,
+                "is_error": False,
+            },
+        )
 
     def _persist(self, *args: Any, **kwargs: Any) -> None:
         """Write to the transcript, and never fail a turn over it.

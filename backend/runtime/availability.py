@@ -26,11 +26,14 @@ with no way out is how "start Ollama and it still says unavailable" happens.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
 
 from backend.config import ProviderConfig
 from backend.runtime.failures import FailureKind
+
+log = logging.getLogger(__name__)
 
 #: How long a probe result is trusted. Short enough that starting a local server
 #: is noticed within one health poll or two, long enough that a picker render
@@ -55,6 +58,11 @@ class Availability:
     #: "probe" or "observed" -- so an interface can say whether this was checked
     #: or merely remembered.
     source: str = "probe"
+    #: Out of quota, as opposed to unreachable or broken. The distinction is
+    #: what a person needs to debug this: "wait" and "fix it" are different
+    #: instructions, and a status page that says only "unavailable" makes the
+    #: reader guess which one they are looking at.
+    exhausted: bool = False
 
 
 _cache: dict[str, tuple[float, Availability]] = {}
@@ -102,12 +110,63 @@ def record_failure(name: str, kind: FailureKind, message: str = "") -> None:
     )
 
 
+def record_exhausted(name: str, *, retry_after: float | None, message: str = "") -> None:
+    """Remember that this provider is out of quota, and until when.
+
+    Distinct from `record_failure` in the one respect that matters: the
+    provider usually says how long it needs, in `retry-after` or an
+    `x-ratelimit-reset-*` header, and a flat five-minute sulk both keeps a
+    provider dark for five minutes when it asked for six seconds and lets one
+    through after five when it asked for an hour. Honouring the number is the
+    difference between routing around a limit and guessing at it.
+
+    Floored at ten seconds because a provider that just refused will refuse the
+    retry that lands 800ms later, and clamped by `FAILURE_TTL_SECONDS` because a
+    remembered failure is a guess about the future and a long guess is a bad one.
+    """
+    wait = FAILURE_TTL_SECONDS if retry_after is None else max(10.0, min(retry_after, FAILURE_TTL_SECONDS))
+    # A warning, not an info line: `amethyst serve` configures uvicorn's log
+    # level and leaves everything else on the root logger, whose default is
+    # WARNING -- so an info line here is written to nobody. A provider going
+    # dark is the one thing a person debugging routing needs to see without
+    # having to reproduce it.
+    log.warning(
+        "%s is exhausted for the next %.0fs: %s", name, wait, message or "rate limited"
+    )
+    _cache[name] = (
+        time.monotonic() + wait,
+        Availability(
+            name=name,
+            available=False,
+            reason=message or "the account's rate limit or quota was exceeded",
+            source="observed",
+            exhausted=True,
+        ),
+    )
+
+
 def record_success(name: str) -> None:
     """A provider that just answered is available, whatever was remembered."""
     _cache[name] = (
         time.monotonic() + PROBE_TTL_SECONDS,
         Availability(name=name, available=True, source="observed"),
     )
+
+
+def clears_in(name: str) -> float | None:
+    """Seconds until a remembered failure stops being believed, if one is held.
+
+    The status surface's other half: "groq is exhausted" without "for another
+    47 seconds" is a fact nobody can act on -- it cannot tell waiting from
+    something being genuinely broken.
+    """
+    entry = _cache.get(name)
+    if entry is None:
+        return None
+    expires, value = entry
+    if value.available:
+        return None
+    return max(0.0, expires - time.monotonic())
 
 
 def cached(name: str) -> Availability | None:

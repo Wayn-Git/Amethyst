@@ -33,10 +33,7 @@ const SECTIONS = [
   { id: 'data', label: 'Data', icon: 'trash' },
 ]
 
-// Every one of these is a full view in the rail. The nav links to them so that
-// looking for skills in the settings finds them, rather than finding a smaller
-// second copy.
-const PAGES = forSettings()
+
 
 /* The three answers, in the order they are chosen. `system` first because it
    is the one that needs no decision — an application that opens in the wrong
@@ -115,9 +112,59 @@ function General() {
 
       <DailyRhythm />
 
+      <BetaPages />
       <TurnNotifications />
 
     </div>
+  )
+}
+
+/* The pages that are not finished yet, and the switch that admits them.
+ *
+ * Mail and Automations both work and both still move under you -- so they are
+ * behind this rather than in the rail of every install. Off means gone: not in
+ * the rail, not in the command palette, not on a digit shortcut, and not
+ * routed, so their addresses land back on Chat. Anything less is a switch that
+ * says "off" over a page you can still walk into. */
+function BetaPages() {
+  const { betaPages, setBetaPages, toast, view, setView } = useApp()
+
+  const toggle = () => {
+    const next = !betaPages
+    setBetaPages(next)
+    // Turning them off while standing on one would leave the page on screen
+    // with no way back to it and no rail entry to say where you are.
+    if (!next && (view === 'mail' || view === 'automations')) setView('chat')
+    toast(next ? 'Beta pages are on — Mail and Automations are in the rail' : 'Beta pages are off', 'ok')
+  }
+
+  return (
+    <>
+      <h3>Beta</h3>
+      <p className="set-note">
+        Pages that work but are still changing. Turning this off hides them everywhere —
+        the rail, the command palette, the keyboard shortcuts and their addresses.
+      </p>
+      <div className="set-rows">
+        <div className="set-row">
+          <span>
+            Beta pages
+            <span className="set-sub">Mail and Automations.</span>
+          </span>
+          <span className="set-row-tail">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={betaPages}
+              className={`btn btn--small${betaPages ? ' btn--primary' : ' btn--ghost'}`}
+              onClick={toggle}
+            >
+              {betaPages ? 'On' : 'Off'}
+            </button>
+          </span>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -479,7 +526,7 @@ function nameFor(baseUrl) {
 const ROLE_META = [
   { id: 'default', label: 'Go-to model', hint: 'The everyday default a new conversation starts on.' },
   { id: 'fast', label: 'Fast', hint: 'The quick, cheap model — hand-offs and the memory extractor.' },
-  { id: 'heavy', label: 'Heavy', hint: 'What the fast model escalates to for hard reasoning.' },
+  { id: 'heavy', label: 'Heavy', hint: 'The slow, careful model.' },
 ]
 
 /* Assign a provider and model to each job (the `tiers:` block of providers.yaml).
@@ -981,7 +1028,11 @@ const PANELS = {
 }
 
 export default function Settings() {
-  const { overlay, setOverlay, setView } = useApp()
+  const { overlay, setOverlay, setView, betaPages } = useApp()
+  // Every one of these is a full view. The nav links to them so that looking
+  // for skills in the settings finds them, rather than finding a smaller
+  // second copy -- and beta pages appear here only once they are switched on.
+  const pages = forSettings(betaPages)
   const [section, setSection] = useState('general')
   const open = overlay === 'settings'
   const panelRef = useRef(null)
@@ -1008,7 +1059,7 @@ export default function Settings() {
             </button>
           ))}
           <div className="set-nav-group">Pages</div>
-          {PAGES.map((page) => (
+          {pages.map((page) => (
             <button
               key={page.id}
               type="button"

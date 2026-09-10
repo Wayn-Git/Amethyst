@@ -919,7 +919,7 @@ async def test_changing_the_workspace_does_not_shut_the_manager_down(amethyst_ho
             self.rebinds += 1
             return 0
 
-        async def reconcile(self):
+        async def reconcile(self, *, deadline=None):
             return {}
 
         def state(self):

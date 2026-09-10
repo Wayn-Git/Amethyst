@@ -939,8 +939,8 @@ def test_a_declared_tool_cap_reaches_the_model_that_has_one():
 def test_tiers_name_a_model_per_job_and_ignore_the_ones_that_cannot_work(tmp_path):
     """A tier answers "how hard is this work"; the fallback chain answers "this
     provider is down". Keeping them apart is the point: a quota trip absorbed by
-    a slower provider is an outage, and an escalation is a decision the model
-    made, and an interface showing them as one thing would be lying about one.
+    a slower provider is an outage, a tier is a choice about the work, and an
+    interface showing them as one thing would be lying about one of them.
 
     A tier naming an unconfigured provider is dropped rather than raised — a
     typo in one must not stop the other two or the file from loading.
@@ -978,8 +978,7 @@ tiers:
 
 def test_no_tiers_is_the_ordinary_case_not_a_failure(tmp_path):
     """A machine with one provider has nothing to tier, and every caller falls
-    back to the conversation's own model. `resolve_tier` returning None is what
-    withholds the escalation tool, so it must not raise.
+    back to the conversation's own model, so this must not raise.
 
     Mutation check: raise from `load_tiers` when the block is missing.
     """
@@ -1378,3 +1377,70 @@ def test_the_http_timeout_keeps_connect_fast_but_read_generous():
 
     tiny = _as_timeout(3.0)
     assert tiny.connect == 3.0, "connect never exceeds the budget itself"
+
+
+async def test_a_provider_that_will_not_resolve_hands_over_to_the_next_one(db, monkeypatch):
+    """Resolving the *first* link was the one model call with nothing behind it.
+
+    Every other failure in a turn -- an empty reply, a rate limit, a server
+    error -- walks the chain and answers on the next provider. The initial
+    `resolve` did not: a provider with no key, an endpoint that would not
+    answer, or a model name the provider has retired raised straight out of the
+    turn, so a user with four providers configured got an error instead of an
+    answer.
+
+    Mutation check: replace the resolve loop in `Director._run` with a single
+    `resolve(chain[0].provider, chain[0].model, ...)`.
+    """
+    from backend.runtime.chain import Link
+
+    up = _Answers("the second provider answered")
+    resolved = {"groq": _model("groq", up)}
+
+    monkeypatch.setattr(
+        "backend.agent.director.build_chain",
+        lambda provider, model, **kw: [Link(provider="nvidia", model="n-1"), Link(provider="groq", model="groq-1")],
+    )
+
+    def resolve(provider, model=None, **kw):
+        if provider == "nvidia":
+            raise RuntimeError("no API key for provider 'nvidia'")
+        return resolved[provider]
+
+    monkeypatch.setattr("backend.agent.director.resolve", resolve)
+
+    cid = ConversationRepository().create("nvidia", "n-1")
+    events = [e async for e in Director(_registry(), stream=False, memory=False).run(cid, "hi")]
+    kinds = [e.type for e in events]
+
+    assert "error" not in kinds, "a chain with a working link must not end on an error"
+    assert kinds[-1] == "done"
+    switched = [e for e in events if e.type == "status" and e.data.get("state") == "switching"]
+    assert switched and switched[0].data["provider"] == "groq"
+    warnings = [e.data["message"] for e in events if e.type == "warning"]
+    assert warnings and "nvidia could not be reached" in warnings[0]
+    assert up.calls == 1
+
+
+async def test_a_chain_where_nothing_resolves_still_ends_on_an_error(db, monkeypatch):
+    """The fallback must not swallow the failure when there is no link left.
+
+    Mutation check: `break` out of the resolve loop without re-raising.
+    """
+    from backend.runtime.chain import Link
+
+    monkeypatch.setattr(
+        "backend.agent.director.build_chain",
+        lambda provider, model, **kw: [Link(provider="a", model="1"), Link(provider="b", model="2")],
+    )
+
+    def refuse(provider, model=None, **kw):
+        raise RuntimeError(f"no API key for provider '{provider}'")
+
+    monkeypatch.setattr("backend.agent.director.resolve", refuse)
+
+    cid = ConversationRepository().create("a", "1")
+    events = [e async for e in Director(_registry(), stream=False, memory=False).run(cid, "hi")]
+
+    assert events[-1].type == "error", "the turn still has to say why it could not run"
+    assert "no API key" in events[-1].data["message"]

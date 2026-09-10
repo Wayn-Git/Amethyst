@@ -242,9 +242,9 @@ def configured_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
 #: A tier answers "how hard is this work", which is a different question from
 #: the one `backend/runtime/chain.py` answers ("this provider is down, who else").
 #: Keeping them apart matters: a quota trip falling through to a slower provider
-#: is an outage being absorbed, and an escalation is a decision the model made,
-#: and an interface that showed them as the same thing would be lying about one
-#: of them.
+#: is an outage being absorbed, and a tier is a choice about the work, and an
+#: interface that showed them as the same thing would be lying about one of
+#: them.
 TIERS = ("fast", "default", "heavy")
 
 

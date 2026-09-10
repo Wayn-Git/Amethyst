@@ -41,7 +41,7 @@ from backend.db.repositories import (
 from backend.instagram.runner import InstagramRunner
 from backend.journal.runner import JournalRunner
 from backend.mcp import live
-from backend.mcp.manager import MCPManager
+from backend.mcp.manager import STARTUP_DEADLINE_SECONDS, MCPManager
 from backend.reminders import ReminderRunner
 from backend.runtime import availability
 from backend.runtime.http import close_clients
@@ -211,15 +211,18 @@ async def _manager_with(name: str):
     config = load_servers().get(name)
     if config is None:
         return manager
-    async with _registry_lock:
-        try:
-            await manager.connect_server(config, interactive=False)
-        except Exception as exc:
-            # Reported by the caller in its own words -- SyncUnavailable for a
-            # sync, a toast for a toggle. Raising a connect error out of here
-            # would make every caller unwrap it.
-            log.info("could not start %s on demand: %s", name, exc)
-            _mcp["errors"][name] = str(exc)
+    # Deliberately outside `_registry_lock`. That lock exists to stop two
+    # callers *rebuilding the registry* at once; starting one named server is
+    # already serialised by the manager's own per-server lock, which is what it
+    # was added for. Holding the global one here made the reminder loop -- which
+    # asks for the To Do connector on every tick -- take the lock a turn needs,
+    # on a timer, for as long as that connector took to answer.
+    #
+    # Bounded as well, and not cancelled at the deadline: it lands when it
+    # lands, and `_mcp["errors"]` is resynced by the next reconcile.
+    await manager.start_one(config, deadline=STARTUP_DEADLINE_SECONDS)
+    if name in manager.errors:
+        _mcp["errors"][name] = manager.errors[name]
     return manager
 
 
@@ -303,8 +306,10 @@ async def _lifespan(_: FastAPI):
     # rows read `starting` in the meantime, which is exactly what that
     # state exists to say.
     async def _start_connectors() -> None:
+        began = time.monotonic()
         try:
-            await _registry_for(None)
+            await _registry_for(None, reconcile_deadline=BOOT_STARTUP_SECONDS)
+            log.info("connectors started in %.1fs", time.monotonic() - began)
         except Exception:
             log.exception("the boot-time connector start failed")
 
@@ -347,6 +352,20 @@ TERMINAL_EVENTS = frozenset({"done", "error", "guard"})
 # is one a proxy drops and the interface's watchdog gives up on. A frame every
 # few seconds keeps the socket demonstrably alive without inventing progress.
 HEARTBEAT_SECONDS = 10.0
+
+# How long the head of a turn waits for connectors to come up before answering
+# on the ones that are ready. Their own ceilings (180s to answer, 300s waiting
+# on a sign-in) are the right ceilings for a connector and the wrong ones for
+# somebody who has just pressed Enter -- see `MCPManager._settle`. Anything
+# slower keeps starting in the background and is there for the next turn.
+TURN_STARTUP_SECONDS = 8.0
+
+# The same ceiling for the boot-time connector start. It holds the registry
+# lock while it runs, and a turn that arrives during it queues behind that
+# lock -- so an unbounded boot pass made the *first* message of a session wait
+# out the slowest connector's 180s (or 300s) ceiling even though the turn's own
+# reconcile was bounded. Slower servers keep coming up in the background.
+BOOT_STARTUP_SECONDS = 10.0
 
 _HEARTBEAT = object()
 
@@ -444,7 +463,11 @@ async def _await_confirmation(request: ConfirmationRequest) -> bool:
 
 
 async def _registry_for(
-    workspace: str | None, *, reuse_any: bool = False, start_connectors: bool = True
+    workspace: str | None,
+    *,
+    reuse_any: bool = False,
+    start_connectors: bool = True,
+    reconcile_deadline: float | None = None,
 ):
     """The tool registry for a workspace, building or rebuilding it if needed.
 
@@ -455,88 +478,146 @@ async def _registry_for(
     MCP subprocess, killing the live browser with them, twice each interval.
     A scheduled turn wants the tools that are already running, not a workspace
     of its own.
+
+    `reconcile_deadline` bounds *the caller's* wait, including the wait for the
+    lock itself.
+
+    Bounding only the reconcile was not enough. The lock serialises every
+    caller, and the ones that are not on a request path -- the boot pass, the
+    browser loop, a connector being brought into the live registry -- pass no
+    deadline because waiting is fine for them. A turn arriving behind one of
+    those queued on the lock with nothing bounding it, which is the shape of
+    the bug this exists to stop: the browser held an open request, no bytes in
+    it, until the fetch failed. A caller that has a user waiting answers on the
+    tools that are already up instead, and the connectors still coming up land
+    in the registry for the next turn.
     """
     root = str(Path(workspace).expanduser().resolve()) if workspace else str(Path.cwd())
 
-    async with _registry_lock:
-        if not start_connectors and _mcp["registry"] is None:
-            # Build the registry and the manager, and start nothing. The caller
-            # wants one named connector, not twelve subprocesses -- and on this
-            # machine five of those contend for a single port, so "start
-            # everything" is not a cheap default to fall back on.
-            registry = build_default_registry(
-                ConfirmationService(callback=_await_confirmation), workspace_root=root
-            )
-            manager = MCPManager(registry, open_browser=False)
-            _mcp.update(
-                {"manager": manager, "registry": registry, "workspace": root, "errors": {}}
-            )
-            live.set_manager(manager)
-            return registry, root
+    if reconcile_deadline is None:
+        async with _registry_lock:
+            return await _registry_locked(root, reuse_any, start_connectors, None)
 
-        if reuse_any and _mcp["registry"] is not None:
-            root = _mcp["workspace"]
+    try:
+        await asyncio.wait_for(_registry_lock.acquire(), reconcile_deadline)
+    except TimeoutError:
+        if _mcp["registry"] is not None:
+            log.info("registry busy; answering on the connectors already up")
+            return _mcp["registry"], _mcp["workspace"]
+        # Nothing has been built yet and somebody else is building it. The
+        # builtins alone are 30 tools and cost a tenth of a second, which is a
+        # far better answer than a turn that never starts. Deliberately not
+        # stored in `_mcp`: the pass holding the lock owns that.
+        log.info("registry busy and none built yet; answering on builtins alone")
+        return build_default_registry(
+            ConfirmationService(callback=_await_confirmation), workspace_root=root
+        ), root
+    try:
+        return await _registry_locked(root, reuse_any, start_connectors, reconcile_deadline)
+    finally:
+        _registry_lock.release()
 
-        # A different workspace root needs different *builtin* tools, and
-        # nothing else. Connectors are processes holding sessions; which folder
-        # the file tools are sandboxed to is not their business. This used to
-        # rebuild both, so every alternation between a turn's workspace and the
-        # `None` every other caller passes tore down every connector and
-        # respawned it -- which is what put "Connection closed" behind three
-        # tool calls in a row, for three different servers at once.
-        if _mcp["registry"] is not None and _mcp["workspace"] != root:
-            log.info("workspace changed to %s; rebuilding builtins, keeping connectors", root)
-            registry = build_default_registry(
-                ConfirmationService(callback=_await_confirmation), workspace_root=root
-            )
-            _mcp["manager"].rebind(registry)
-            _mcp.update({"registry": registry, "workspace": root})
 
-        if _mcp["registry"] is not None and _mcp["workspace"] == root:
-            # Pick up connectors switched on or off since the registry was
-            # built. Without this the toggle only took effect on restart, so a
-            # connector the user turned on in the interface stayed unusable.
-            for name, outcome in (await _mcp["manager"].reconcile()).items():
-                # A connector whose tools are in the registry is working, whatever
-                # this pass reported. Recording the failure anyway is what put a
-                # permanently degraded banner over connectors the agent was
-                # calling successfully -- see `MCPManager.is_ready`.
-                if isinstance(outcome, int) or _mcp["manager"].is_ready(name):
-                    _mcp["errors"].pop(name, None)
-                else:
-                    _mcp["errors"][name] = str(outcome)
-            # A server that is no longer configured cannot be degraded.
-            for name in [n for n in _mcp["errors"] if n not in _mcp["manager"].state()]:
-                del _mcp["errors"][name]
-            return _mcp["registry"], root
+async def _registry_locked(
+    root: str,
+    reuse_any: bool,
+    start_connectors: bool,
+    reconcile_deadline: float | None,
+):
+    """`_registry_for`'s body, with the registry lock already held."""
+    if not start_connectors:
+        if _mcp["registry"] is not None:
+            # Somebody has already built one, and this caller said to start
+            # nothing. Falling through to the reconcile below started every
+            # switched-on connector -- which is precisely what
+            # `start_connectors=False` exists to prevent -- and held the API's
+            # registry lock for as long as that took. The reminder loop asks
+            # for the To Do connector on every tick through this path, so that
+            # was a lock a turn could not have, on a timer, for the life of the
+            # process. Hand back what is already built.
+            return _mcp["registry"], (_mcp["workspace"] if reuse_any else root)
 
-        if _mcp["manager"] is not None:
-            await _mcp["manager"].shutdown()
-
+        # Build the registry and the manager, and start nothing. The caller
+        # wants one named connector, not twelve subprocesses -- and on this
+        # machine five of those contend for a single port, so "start
+        # everything" is not a cheap default to fall back on.
         registry = build_default_registry(
             ConfirmationService(callback=_await_confirmation), workspace_root=root
         )
         manager = MCPManager(registry, open_browser=False)
-        errors: dict[str, str] = {}
-        try:
-            # connect_all reports per-server outcomes rather than raising: an int
-            # tool count on success, a message on failure. Keep the failures so
-            # /api/health can say which connector is down instead of the
-            # interface seeing a shorter tool list for no stated reason.
-            for name, outcome in (await manager.connect_all()).items():
-                if not isinstance(outcome, int) and not manager.is_ready(name):
-                    errors[name] = str(outcome)
-        except Exception as exc:  # a broken server must not take the API down
-            errors["*"] = f"{type(exc).__name__}: {exc}"
-
         _mcp.update(
-            {"manager": manager, "registry": registry, "workspace": root, "errors": errors}
+            {"manager": manager, "registry": registry, "workspace": root, "errors": {}}
         )
-        # Published so anything that is not the API can reach a connected server
-        # -- the task tools write to Microsoft To Do through this rather than
-        # spawning a second copy of it with a second sign-in.
         live.set_manager(manager)
         return registry, root
+
+    if reuse_any and _mcp["registry"] is not None:
+        root = _mcp["workspace"]
+
+    # A different workspace root needs different *builtin* tools, and
+    # nothing else. Connectors are processes holding sessions; which folder
+    # the file tools are sandboxed to is not their business. This used to
+    # rebuild both, so every alternation between a turn's workspace and the
+    # `None` every other caller passes tore down every connector and
+    # respawned it -- which is what put "Connection closed" behind three
+    # tool calls in a row, for three different servers at once.
+    if _mcp["registry"] is not None and _mcp["workspace"] != root:
+        log.info("workspace changed to %s; rebuilding builtins, keeping connectors", root)
+        registry = build_default_registry(
+            ConfirmationService(callback=_await_confirmation), workspace_root=root
+        )
+        _mcp["manager"].rebind(registry)
+        _mcp.update({"registry": registry, "workspace": root})
+
+    if _mcp["registry"] is not None and _mcp["workspace"] == root:
+        # Pick up connectors switched on or off since the registry was
+        # built. Without this the toggle only took effect on restart, so a
+        # connector the user turned on in the interface stayed unusable.
+        for name, outcome in (
+            await _mcp["manager"].reconcile(deadline=reconcile_deadline)
+        ).items():
+            # A connector whose tools are in the registry is working, whatever
+            # this pass reported. Recording the failure anyway is what put a
+            # permanently degraded banner over connectors the agent was
+            # calling successfully -- see `MCPManager.is_ready`.
+            if isinstance(outcome, int) or _mcp["manager"].is_ready(name):
+                _mcp["errors"].pop(name, None)
+            else:
+                _mcp["errors"][name] = str(outcome)
+        # A server that is no longer configured cannot be degraded.
+        for name in [n for n in _mcp["errors"] if n not in _mcp["manager"].state()]:
+            del _mcp["errors"][name]
+        return _mcp["registry"], root
+
+    if _mcp["manager"] is not None:
+        await _mcp["manager"].shutdown()
+
+    registry = build_default_registry(
+        ConfirmationService(callback=_await_confirmation), workspace_root=root
+    )
+    manager = MCPManager(registry, open_browser=False)
+    errors: dict[str, str] = {}
+    try:
+        # connect_all reports per-server outcomes rather than raising: an int
+        # tool count on success, a message on failure. Keep the failures so
+        # /api/health can say which connector is down instead of the
+        # interface seeing a shorter tool list for no stated reason.
+        for name, outcome in (
+            await manager.connect_all(deadline=reconcile_deadline)
+        ).items():
+            if not isinstance(outcome, int) and not manager.is_ready(name):
+                errors[name] = str(outcome)
+    except Exception as exc:  # a broken server must not take the API down
+        errors["*"] = f"{type(exc).__name__}: {exc}"
+
+    _mcp.update(
+        {"manager": manager, "registry": registry, "workspace": root, "errors": errors}
+    )
+    # Published so anything that is not the API can reach a connected server
+    # -- the task tools write to Microsoft To Do through this rather than
+    # spawning a second copy of it with a second sign-in.
+    live.set_manager(manager)
+    return registry, root
 
 
 class _LazyDirector:
@@ -556,11 +637,16 @@ class _LazyDirector:
             yield event
 
 
-async def _director(workspace: str | None = None, mode: str = "chat") -> Director:
+async def _director(
+    workspace: str | None = None,
+    mode: str = "chat",
+    *,
+    reconcile_deadline: float | None = None,
+) -> Director:
     from backend.agent.director import Guards
     from backend.config import load_max_iterations
 
-    registry, root = await _registry_for(workspace)
+    registry, root = await _registry_for(workspace, reconcile_deadline=reconcile_deadline)
     # The loop ceiling is a user setting now (Settings -> General), read per
     # turn so a change lands on the next message. Everything else in Guards
     # keeps its default -- the wall-clock and tool-call stops are not the ones
@@ -652,10 +738,10 @@ async def health() -> dict[str, Any]:
         # than filtered out of `providers`: a provider the user configured on
         # purpose should stay visible with a reason, not vanish.
         "providers_unavailable": unavailable,
-        # Which model does which job, so the interface can name the one it is
-        # about to escalate to rather than saying "a bigger one". Empty on a
-        # machine that has not tiered anything, which is not a fault: every
-        # caller falls back to the conversation's own model.
+        # Which model does which job, so the interface can name one rather than
+        # saying "a bigger one". Empty on a machine that has not tiered
+        # anything, which is not a fault: every caller falls back to the
+        # conversation's own model.
         "tiers": {
             name: {"provider": tier.provider, "model": tier.model}
             for name, tier in load_tiers().items()
@@ -829,9 +915,9 @@ def list_tiers() -> dict[str, Any]:
     """Which model does which job, plus what a picker needs to reassign one.
 
     A tier answers "how hard is this work": `fast` for a quick cheap turn,
-    `default` for the everyday go-to model, `heavy` for the model the fast one
-    can escalate to. Empty tiers are the ordinary case, not a fault -- a caller
-    with no assignment falls back to the conversation's own model.
+    `default` for the everyday go-to model, `heavy` for the slow careful one.
+    Empty tiers are the ordinary case, not a fault -- a caller with no
+    assignment falls back to the conversation's own model.
     """
     from backend.config import TIERS, configured_providers, load_tiers
 
@@ -1194,6 +1280,120 @@ def get_messages(conversation_id: str) -> list[dict[str, Any]]:
     ]
 
 
+class QuestionAnswers(BaseModel):
+    answers: list[str]
+
+
+@app.get("/api/questions")
+def outstanding_questions(conversation_id: str | None = None) -> list[dict[str, Any]]:
+    """Questions a turn is currently suspended on.
+
+    A turn survives the page and the card that asked does not, so a reload
+    would otherwise leave the user watching a turn that never finishes with
+    nothing on screen explaining what it is waiting for. Same recovery the
+    confirmation prompt already has.
+    """
+    from backend.agent import questions
+
+    return questions.outstanding(conversation_id)
+
+
+@app.post("/api/questions/{ask_id}")
+def answer_question(ask_id: str, body: QuestionAnswers) -> dict[str, str]:
+    """Hand the answers back to the turn waiting on them."""
+    from backend.agent import questions
+
+    if not questions.answer(ask_id, list(body.answers)):
+        # Gone rather than never-existed: the turn was stopped, or it timed out
+        # and carried on. Either way the answer has nowhere to go, and saying
+        # so beats a silent 200 that looks like it landed.
+        raise HTTPException(404, "no question is waiting on that answer")
+    return {"status": "ok"}
+
+
+@app.get("/api/providers/availability")
+async def provider_availability() -> dict[str, Any]:
+    """Which providers can answer right now, and when the rest come back.
+
+    The debugging surface for routing. `/api/health` already said *whether* a
+    provider was usable; it could not say why, could not tell "out of quota"
+    from "the endpoint is down", and never said when the first of those clears
+    -- so the only way to find out was to send a turn and watch it fail.
+
+    `order` is the chain a new turn would walk, so what the router will
+    actually do can be read off rather than inferred from the config.
+    """
+    from backend.runtime import availability
+    from backend.runtime.chain import declared_order
+
+    configs = configured_providers()
+    surveyed = await availability.survey(configs)
+    rows = []
+    for name, config in configs.items():
+        state = surveyed.get(name)
+        known = availability.cached(name)
+        rows.append(
+            {
+                "name": name,
+                "model": config.default_model,
+                "available": bool(state.available) if state else True,
+                "exhausted": bool(known.exhausted) if known else False,
+                "reason": state.reason if state else "",
+                "source": state.source if state else "assumed",
+                # Seconds until a remembered failure stops being believed.
+                # Null when nothing is remembered against this provider.
+                "clears_in": availability.clears_in(name),
+            }
+        )
+    return {
+        "providers": rows,
+        "order": declared_order() or list(configs),
+        "exhausted": [r["name"] for r in rows if r["exhausted"]],
+    }
+
+
+@app.get("/api/conversations/{conversation_id}/artifacts")
+def list_artifacts(conversation_id: str) -> list[dict[str, Any]]:
+    """Every artifact this conversation produced, newest first.
+
+    Metadata only. The file is the artifact (ADR-0020), so a list of twenty
+    documents costs twenty rows rather than twenty documents.
+    """
+    from backend.db.repositories import ArtifactRepository
+
+    if ConversationRepository().get(conversation_id) is None:
+        raise HTTPException(404, "no such conversation")
+    return ArtifactRepository().list(conversation_id)
+
+
+@app.get("/api/artifacts/{artifact_id}")
+def read_artifact(artifact_id: str) -> dict[str, Any]:
+    """One artifact, with its content read from disk.
+
+    Read rather than stored, which is what makes reopening one from a previous
+    session tell the truth: if the user edited the file in their own editor
+    after the agent wrote it, this returns what is actually there. A row whose
+    file has since been deleted or moved says so rather than 404ing -- the
+    artifact was real, and "it was written and is now gone" is a different fact
+    from "no such artifact".
+    """
+    from backend.db.repositories import ArtifactRepository
+
+    row = ArtifactRepository().get(artifact_id)
+    if row is None:
+        raise HTTPException(404, "no such artifact")
+
+    path = Path(row["path"])
+    content, missing = "", None
+    try:
+        content = path.read_text(errors="replace")
+    except FileNotFoundError:
+        missing = f"{path} is no longer on disk"
+    except OSError as exc:
+        missing = f"cannot read {path}: {exc}"
+    return {**row, "content": content, "missing": missing}
+
+
 class PinMessage(BaseModel):
     pinned: bool = True
 
@@ -1229,20 +1429,28 @@ def list_pins(conversation_id: str) -> list[dict[str, Any]]:
 #: transcript and replayed on every later turn, and nothing on this side even
 #: knew the mode existed -- so the only thing stopping a write in plan mode was
 #: the model choosing to obey prose. See `backend/agent/planning.py`.
-#:
-#: `reasoning` joined them on 2026-08-29. It starts the turn on the `heavy` tier
-#: (`backend/config.py`) instead of the conversation's own model, and is what the
-#: interface sends when the user accepts an escalation the fast model asked for.
-#: Distinct from plan mode rather than folded into it: withholding mutating
-#: tools and handing back an approvable plan is a different job from thinking
-#: harder about one.
-TURN_MODES = frozenset({"chat", "plan", "reasoning"})
+TURN_MODES = frozenset({"chat", "plan"})
+
+
+class Attachment(BaseModel):
+    """One file the user attached to this turn.
+
+    `media_type` is what decides whether the model is shown the file or told
+    where it is: an image becomes a content block it can actually look at,
+    anything else stays a path plus a nudge toward `view_file`.
+    """
+
+    path: str
+    name: str | None = None
+    media_type: str | None = None
+    bytes: int | None = None
 
 
 class TurnRequest(BaseModel):
     message: str
     workspace: str | None = None
     mode: str = "chat"
+    attachments: list[Attachment] = []
 
 
 @app.post("/api/conversations/{conversation_id}/turn")
@@ -1267,11 +1475,6 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
         raise HTTPException(409, "a turn is already running for this conversation")
     cancel = asyncio.Event()
     _active_turns[conversation_id] = cancel
-    try:
-        director = await _director(body.workspace, body.mode)
-    except BaseException:
-        _active_turns.pop(conversation_id, None)
-        raise
 
     def release() -> None:
         if _active_turns.get(conversation_id) is cancel:
@@ -1281,8 +1484,58 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
         # Whether the reader has been told how the turn ended.
         settled = False
         try:
+            # The first frame goes out before anything that can be slow.
+            #
+            # Building the director starts connectors, and a connector is
+            # allowed 180s to answer -- 300s if it says it is waiting on a
+            # sign-in. That await used to sit above this generator, so the
+            # response had not begun: the browser held an open request with no
+            # bytes in it for minutes and then failed the fetch outright
+            # ("NetworkError when attempting to fetch resource"), while this
+            # conversation stayed registered in `_active_turns` and answered
+            # every retry with 409. Moving it inside the stream means the
+            # socket is alive from the first millisecond, the wait is covered
+            # by keepalives, and a failure to build is an `error` frame the
+            # interface can render rather than a dead connection.
+            yield _frame("status", state="starting")
+            began = time.monotonic()
+            build = asyncio.ensure_future(
+                _director(body.workspace, body.mode, reconcile_deadline=TURN_STARTUP_SECONDS)
+            )
+            try:
+                while True:
+                    done, _ = await asyncio.wait({build}, timeout=HEARTBEAT_SECONDS)
+                    if done:
+                        break
+                    yield _frame("ping")
+                director = build.result()
+                # Logged because this is the stretch a user reads as "nothing
+                # is happening": it covers the registry lock and every
+                # connector coming up, and until it appeared in the log there
+                # was no way to tell a slow start from a wedged one.
+                log.info("agent ready in %.1fs", time.monotonic() - began)
+            except asyncio.CancelledError:
+                build.cancel()
+                raise
+            except Exception as exc:
+                log.exception("could not build the agent for this turn")
+                settled = True
+                release()
+                yield _frame("error", message=f"{type(exc).__name__}: {exc}")
+                return
+
             async for event in _with_heartbeats(
-                director.run(conversation_id, body.message, cancel)
+                # Passed only when there is something to pass. `run` grew this
+                # parameter; anything implementing the older three-argument
+                # shape -- the unattended runner, the doubles in the tests --
+                # stays callable, which is the whole point of it being optional.
+                director.run(
+                    conversation_id,
+                    body.message,
+                    cancel,
+                    **({"attachments": [a.model_dump() for a in body.attachments]}
+                       if body.attachments else {}),
+                )
             ):
                 if event is _HEARTBEAT:
                     # A keepalive, not progress. It carries the elapsed seconds
