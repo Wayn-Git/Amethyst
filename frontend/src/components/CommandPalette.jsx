@@ -14,8 +14,6 @@ import { useFocusTrap } from '../hooks/useFocusTrap.js'
    is built from the same store the + menu reads, so a connector toggled from
    here and one toggled from there run the identical code path. */
 
-const VIEWS = forPalette()
-
 /* The same three choices Settings offers, phrased as commands. `sun` for
    daylight, `cpu` for the console, `sliders` for "whatever the machine says". */
 const THEMES = [
@@ -106,7 +104,7 @@ export default function CommandPalette() {
       })
     }
 
-    for (const view of VIEWS) {
+    for (const view of forPalette(app.betaPages)) {
       out.push({
         id: `view:${view.id}`,
         group: 'Go to',
