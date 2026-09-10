@@ -105,3 +105,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25: agent.jobs — durable capped Director jobs, missed-run audit, explicit write approvals, shared-primitives UI; focused backend/UI tests passed.
 - 2026-10-25: agent.delegated — durable queued/running/approval/done/failed board sharing the job lane, persisted trace viewer; focused backend/UI tests passed.
 - 2026-10-25: agent.research — serial Director web-only research, sourced Library note saved after gate approval, unavailable state; focused backend/UI tests passed.
+- 2026-10-25: agent.watchers — persisted serial page/mailbox polling (15-minute floor), reused appeal inbox reader, audited fetches, sys.notify alerts; focused backend/UI tests passed.

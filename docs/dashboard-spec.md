@@ -230,7 +230,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | agent.jobs | Scheduled and recurring agent jobs | dir | v2 | [x] |
 | agent.delegated | Delegated tasks board | dir | v2 | [x] |
 | agent.research | Background research jobs with results | dir, llm | v2 | [x] |
-| agent.watchers | Watchers ("tell me when X changes") | dir, cmp triggers, api | v2 | [ ] |
+| agent.watchers | Watchers ("tell me when X changes") | dir, cmp triggers, api | v2 | [x] |
 | agent.rules | Permission rules manager (always allow, ask, deny) | dir | v2 | [ ] |
 | agent.usage | Model usage meter (tokens, latency, cost) | dir | v2 | [ ] |
 | agent.knows | "What Amethyst knows about me" viewer and editor | lib | v2 | [ ] |

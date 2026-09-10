@@ -309,6 +309,11 @@ MANIFESTS = [
     director_manifest("agent.errors", "Errors and retries"),
     director_manifest("agent.audit", "Tool-call audit log"),
     {
+        **director_manifest("agent.watchers", "Page and mailbox watchers", ("add", "delete")),
+        "tier": "v2",
+        "refresh": {"mode": "poll", "interval_s": 900},
+    },
+    {
         **director_manifest("agent.research", "Background research jobs with results", ("add",)),
         "tier": "v2",
     },

@@ -109,7 +109,7 @@ def apply(conn, action, body):
     conn.execute("DELETE FROM widget_cache WHERE widget_id IN ('feed.rss','feed.news')")
 
 
-async def download(url, feed_id):
+async def download(url, feed_id, *, widget_id="feed.rss"):
     async with httpx.AsyncClient(timeout=5, follow_redirects=False, trust_env=False) as client:
         for _ in range(4):
             await check_url_async(url)
@@ -136,9 +136,9 @@ async def download(url, feed_id):
                     return bytes(content), url
             finally:
                 ExecutionLogRepository().record(
-                    tool_name="rss_read",
+                    tool_name="watcher_read" if widget_id == "agent.watchers" else "rss_read",
                     tool_source="api",
-                    arguments={"feed_id": feed_id},
+                    arguments={"feed_id": feed_id, "widget_id": widget_id},
                     result_summary="Feed read" if succeeded else None,
                     error=None if succeeded else "Feed request failed or redirected",
                     duration_ms=int((time.monotonic() - started) * 1000),

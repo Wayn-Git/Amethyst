@@ -55,4 +55,13 @@ try {
   await page.evaluate(() => window.testMount('Jobs', 'agent.research', { available: true, items: [{ id: 2, title: 'Research fixture', status: 'done', note_id: 123 }] }))
   await page.getByRole('link', { name: 'Open research note' }).waitFor()
   console.log('agent.research UI passed')
+  await page.evaluate(() => window.testMount('Watchers', 'agent.watchers', { items: [] }))
+  await page.getByLabel('Title', { exact: true }).fill('UI watcher fixture')
+  await page.getByLabel('Kind', { exact: true }).selectOption('mailbox')
+  await page.getByLabel('Page URL or Gmail query').fill('subject:fixture')
+  assert.equal(await page.getByLabel('Poll minutes').getAttribute('min'), '15')
+  await page.getByRole('button', { name: 'Review watcher' }).click()
+  await page.getByRole('button', { name: 'Reject change' }).click()
+  await page.getByRole('button', { name: 'Review watcher' }).waitFor()
+  console.log('agent.watchers UI passed')
 } finally { await browser.close() }

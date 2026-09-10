@@ -139,3 +139,14 @@ CREATE TABLE IF NOT EXISTS dashboard_research (
     job_id INTEGER PRIMARY KEY REFERENCES dashboard_jobs(id) ON DELETE CASCADE,
     note_id INTEGER
 );
+CREATE TABLE IF NOT EXISTS dashboard_watchers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('page','mailbox')),
+    target TEXT NOT NULL,
+    interval_s INTEGER NOT NULL CHECK(interval_s >= 900),
+    next_poll TEXT NOT NULL,
+    baseline TEXT,
+    checked_at TEXT,
+    error TEXT
+);

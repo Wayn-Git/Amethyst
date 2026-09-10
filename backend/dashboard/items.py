@@ -299,6 +299,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "agent.watchers":
+        from backend.dashboard.watchers import apply as apply_watch
+
+        return apply_watch(conn, action, body)
     if widget_id == "agent.research":
         from backend.dashboard.research import apply as apply_research
 

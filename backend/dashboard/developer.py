@@ -105,6 +105,21 @@ def apply(conn, widget_id, action, body):
         raise HTTPException(404, "Unknown case action")
 
 
+async def inbox_messages(widget_id, query):
+    result = await read(
+        widget_id,
+        "gmail",
+        "GMAIL_FETCH_EMAILS",
+        {"query": query, "max_results": 50, "verbose": False},
+    )
+    if isinstance(result, dict):
+        result = result.get("data", result)
+    messages = result if isinstance(result, list) else result.get("messages", result.get("emails"))
+    if not isinstance(messages, list):
+        raise ValueError("Invalid inbox response")
+    return [project_email_item(raw) for raw in messages]
+
+
 async def provide(widget_id):
     if widget_id == "dev.recovery":
         return {
@@ -129,22 +144,9 @@ async def provide(widget_id):
         try:
             query = "{" + " ".join(f"from:(@{r['sender_domain']})" for r in watched) + "}"
             query += " after:" + min(r["submitted_on"] for r in watched).replace("-", "/")
-            result = await read(
-                widget_id,
-                "gmail",
-                "GMAIL_FETCH_EMAILS",
-                {"query": query, "max_results": 50, "verbose": False},
-            )
-            if isinstance(result, dict):
-                result = result.get("data", result)
-            messages = (
-                result if isinstance(result, list) else result.get("messages", result.get("emails"))
-            )
-            if not isinstance(messages, list):
-                raise ValueError("Invalid inbox response")
+            messages = await inbox_messages(widget_id, query)
             watch_state = "checked (up to 50 messages)"
-            for raw in messages:
-                mail = project_email_item(raw)
+            for mail in messages:
                 sender = parseaddr(mail["from"])[1].rpartition("@")[2].lower()
                 try:
                     when = parsed(mail["date"])
