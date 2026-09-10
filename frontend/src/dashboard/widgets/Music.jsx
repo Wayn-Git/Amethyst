@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SkipBack, SkipForward } from '@phosphor-icons/react'
 import { StateView } from '../primitives.jsx'
 import { request } from '../api.js'
 import { Button, Chip } from '../../components/ui/bento/index.jsx'
@@ -31,11 +32,11 @@ export default function Music({ data, refresh }) {
       <p>{draft.action} on {data.active_player}?</p>
       <div className="music-controls"><Button size="small" loading={busy} onClick={() => decide(true)}>Approve playback</Button><Button size="small" disabled={busy} onClick={() => decide(false)}>Cancel</Button></div>
     </section> : item ? <>
-      <div className="music-track"><div><strong title={item.title}>{item.title}</strong><p>{item.artists?.join(', ')}</p></div></div>
+      <div className="music-track"><span className="music-art" aria-hidden="true"><Icon name="music" size={32} /></span><div><strong title={item.title}>{item.title}</strong><p>{item.artists?.join(', ')}</p>{data.album && <p className="music-album">{data.album}</p>}</div></div>
       <div className="music-transport"><span className="music-player">{data.active_player} {data.status && <Chip>{data.status}</Chip>}</span><div className="music-controls">
-        <Button size="small" variant="ghost" aria-label="Previous track" disabled={busy || !data.controls?.previous} onClick={() => propose('previous')}><Icon name="arrow-left" size={16} /></Button>
+        <Button size="small" variant="ghost" aria-label="Previous track" disabled={busy || !data.controls?.previous} onClick={() => propose('previous')}><SkipBack size={20} aria-hidden="true" /></Button>
         <Button size="small" variant="primary" aria-label={playing ? 'Pause music' : 'Play music'} disabled={busy || !data.controls?.[playing ? 'pause' : 'play']} onClick={() => propose(playing ? 'pause' : 'play')}><Icon name={playing ? 'pause' : 'play'} size={16} /></Button>
-        <Button size="small" variant="ghost" aria-label="Next track" disabled={busy || !data.controls?.next} onClick={() => propose('next')}><Icon name="arrow-right" size={16} /></Button>
+        <Button size="small" variant="ghost" aria-label="Next track" disabled={busy || !data.controls?.next} onClick={() => propose('next')}><SkipForward size={20} aria-hidden="true" /></Button>
       </div></div>
     </> : <StateView>No desktop player available. Open a music player with desktop media controls.</StateView>}
   </div>

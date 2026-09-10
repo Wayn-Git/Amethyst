@@ -125,3 +125,14 @@
 .bento-foundation .home-widget.widget-adoption .event-countdown .ui-stat { display: flex; align-items: baseline; gap: var(--tile-space-2); flex-wrap: wrap; }
 .bento-foundation .home-widget.widget-adoption .event-countdown .ui-stat > div { font: 500 24px/1.2 var(--ui-font); }
 .bento-foundation .home-widget.widget-adoption .event-countdown .ui-stat > span { font-family: var(--ui-font); }
+
+.bento-foundation .home-widget.widget-adoption .desktop-music { gap: var(--tile-space-6); }
+.bento-foundation .home-widget.widget-adoption .music-art { display: grid; place-items: center; width: 72px; height: 72px; flex: none; border-radius: var(--ui-panel-radius); background: var(--tile-accent); color: var(--tile-accent-text); }
+.bento-foundation .home-widget.widget-adoption .music-track { align-items: flex-start; gap: var(--tile-space-4); }
+.bento-foundation .home-widget.widget-adoption .music-track .music-album { font: var(--tile-label); }
+.bento-foundation .home-widget.widget-adoption .music-transport { display: grid; gap: var(--tile-space-4); border-top: 1px solid var(--ui-border); padding-top: var(--tile-space-4); }
+.bento-foundation .home-widget.widget-adoption .music-player { justify-content: space-between; }
+.bento-foundation .home-widget.widget-adoption .music-controls { justify-content: center; gap: var(--tile-space-2); }
+.bento-foundation .home-widget.widget-adoption .music-transport .music-controls .ui-button { min-width: 44px; min-height: 44px; }
+.bento-foundation .home-widget.widget-adoption .music-transport .music-controls .ui-button[data-variant='primary'] { min-width: 52px; min-height: 52px; }
+@container tile (width < 240px) { .bento-foundation .home-widget.widget-adoption .music-art { width: 48px; height: 48px; } }

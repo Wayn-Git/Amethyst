@@ -11,3 +11,4 @@ Direction: quiet neutral canvas, white and charcoal cards, soft depth, restraine
 - [x] glance.weather: real hourly temperature/rain strip and atmospheric blue surface.
 - [x] glance.clock: analog dial with accessible digital time and timezone.
 - [x] glance.next-event: calendar date hierarchy with real countdown.
+- [x] glance.music: album metadata, music symbol and familiar transport controls.

@@ -12,7 +12,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const calls = []
   let state = 'ok', fail = false
-  const payload = { player_id: 'org.mpris.MediaPlayer2.spotify', active_player: 'spotify', track_id: '/track/1', status: 'Playing', items: [{ title: 'Desktop fixture', artists: ['Fixture artist'] }], controls: { play: true, pause: true, next: true, previous: false } }
+  const payload = { player_id: 'org.mpris.MediaPlayer2.spotify', active_player: 'spotify', album: 'Fixture album', track_id: '/track/1', status: 'Playing', items: [{ title: 'Desktop fixture', artists: ['Fixture artist'] }], controls: { play: true, pause: true, next: true, previous: false } }
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname
     const body = route.request().postDataJSON()
@@ -42,6 +42,7 @@ try {
   })
   const widget = page.locator('[data-widget="glance.music"]')
   await widget.getByText('Desktop fixture', { exact: true }).waitFor()
+  assert.equal(await widget.getByText('Fixture album', { exact: true }).count(), 1)
   assert.equal(await widget.getByRole('link', { name: /Connect/ }).count(), 0)
   assert.equal(await widget.getByLabel('Previous track', { exact: true }).isDisabled(), true)
   await widget.getByLabel('Pause music', { exact: true }).click()
