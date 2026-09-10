@@ -201,3 +201,38 @@ async def test_the_counter_is_per_turn_not_per_process():
     for _ in range(3):
         fresh = ToolContext(conversation_id="c1", events=None)
         assert not (await ask_user({"questions": ["Which one?"]}, fresh)).is_error
+
+
+def test_a_header_names_what_is_being_decided():
+    """The question is a sentence and reads slowly; the header is what the eye
+    lands on, and what makes a stack of answered cards scannable afterwards.
+
+    Mutation check: drop `header` from `Question.as_dict`.
+    """
+    parsed = q.parse([{"question": "Which layout?", "header": "Panel layout"}])
+    assert parsed[0].header == "Panel layout"
+    assert parsed[0].as_dict()["header"] == "Panel layout"
+
+
+def test_an_overlong_header_is_trimmed_not_refused():
+    """A header that wraps is a worse card, not a failed question."""
+    parsed = q.parse([{"question": "Which?", "header": "x" * 90}])
+    assert len(parsed[0].header) == 24
+
+
+def test_a_question_with_no_header_still_works():
+    parsed = q.parse([{"question": "Which?"}])
+    assert parsed[0].header == ""
+    assert parsed[0].as_dict()["header"] == ""
+
+
+def test_multi_select_reaches_the_interface():
+    """The card renders checkboxes off this flag. It was accepted by the parser
+    and published in the payload while the card ignored it entirely -- which is
+    a feature that exists on one side of the wire only.
+
+    Mutation check: drop `multi_select` from `Question.as_dict`.
+    """
+    parsed = q.parse([{"question": "Which of these?", "multi_select": True, "options": ["a", "b"]}])
+    assert parsed[0].as_dict()["multi_select"] is True
+    assert q.parse([{"question": "One only"}])[0].as_dict()["multi_select"] is False
