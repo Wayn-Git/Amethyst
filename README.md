@@ -6,9 +6,29 @@
 
 ---
 
+## 📚 Documentation map
+
+| I want to... | Go to |
+|---|---|
+| Get it running locally, from a clean machine | **[QUICKSTART.md](QUICKSTART.md)** |
+| Configure API keys, OAuth (Google/Microsoft/GitHub/Spotify), and Cloudflare | **[docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md)** |
+| Fix a setup or runtime error | **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** |
+| Expose it beyond `127.0.0.1` safely | **[docs/deployment.md](docs/deployment.md)** |
+| Understand how a subsystem works | **[docs/architecture/](docs/architecture/overview.md)** |
+| Work on the code (dev setup, the traps that have tests) | **[CONTRIBUTING.md](CONTRIBUTING.md)** |
+| Point an AI coding agent (Claude Code, Cursor, opencode, ...) at this repo | **[AGENTS.md](AGENTS.md)** |
+
+Each of those is a single, focused file — this README stays a tour of what
+AMETHYST is, not the full manual.
+
+---
+
 ## ⚡ Quick Start
 
-> 📖 **Full guide:** See [QUICKSTART.md](QUICKSTART.md) for 2-minute setup, connecting Ollama (free local models), and API keys.
+> 📖 **Full guide:** See [QUICKSTART.md](QUICKSTART.md) for the complete
+> step-by-step walkthrough — prerequisites, all three install paths, model
+> setup, and a troubleshooting FAQ. The block below is the two-command
+> version for people who just want to see it run.
 
 ### 1-Line Automated Launcher (macOS / Linux / WSL2)
 
@@ -63,22 +83,12 @@ That turn is three tool calls — a web search, then two fetches — resolved wi
 
 ---
 
-## Manual Installation (pip or uv)
+## Manual installation, and picking a model
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate               # Windows: .venv\Scripts\activate
-pip install -r requirements.txt         # or: uv pip install -r requirements.txt
-
-amethyst init                               # ~/.amethyst, the database, default config
-amethyst doctor                             # what is configured and what is missing
-
-cd frontend && npm install && npm run build
-cd ..
-amethyst serve --open                       # http://127.0.0.1:8000
-```
-
-Point it at a model. Ollama is preconfigured; a cloud provider keeps its key in the OS keychain, never in the config file:
+The step-by-step manual install (pip or uv, no `run.sh`) is in
+[QUICKSTART.md → Manual Installation](QUICKSTART.md#️-option-3-manual-installation).
+Once it's running, point it at a model. Ollama is preconfigured; a cloud
+provider keeps its key in the OS keychain, never in the config file:
 
 ```bash
 amethyst providers catalogue               # what AMETHYST knows how to configure
@@ -97,6 +107,37 @@ providers:
 ```
 
 Configure a second provider and a turn survives the first one being down: it falls back, and says which provider answered. See [providers.md](docs/architecture/providers.md).
+
+---
+
+## The interface, room by room
+
+One React app over the same API the CLI uses. Every image below is a real screenshot of a running instance.
+
+| View | What lives there |
+|---|---|
+| [![Chat](docs/images/view-chat.png)](#chat) **Chat** `⌘1` | The transcript, the composer, the `+` menu — files, skills, connectors, the working directory — and inline permission prompts. |
+| [![Today](docs/images/view-today.png)](#today) **Today** `⌘8` | Calendar, task buckets, unread mail and connected tools on one page, under a briefing written each morning. |
+| [![Tasks](docs/images/view-tasks.png)](#tasks) **Tasks** `⌘2` | Task lists as a board of cards; My Day shows only what you intend to do today. |
+| [![Mail](docs/images/view-mail.png)](#mail) **Mail** `⌘3` *(beta)* | Gmail read directly — not through the connector — with a search that jumps. |
+| [![Skills & connectors](docs/images/view-skills.png)](#skills--connectors) **Skills & connectors** `⌘4` | Two tabs, one page: what is added and what could be. OAuth sign-ins and credentials finish here. |
+| [![Automations](docs/images/view-automations.png)](#automations) **Automations** `⌘5` *(beta)* | A prompt and an interval, run as an ordinary turn while AMETHYST is open. |
+| [![Memory](docs/images/view-memory.png)](#memory) **Memory** `⌘6` | Standing facts extracted after a turn, recalled in later conversations. |
+| [![Library](docs/images/view-library.png)](#library) **Library** `⌘9` | What you have read and saved — fetched, summarised, tagged and searchable. |
+| [![Activity](docs/images/view-activity.png)](#activity) **Activity** `⌘7` | Every tool call, with the decision that allowed it. Reached from Settings. |
+| [![Status](docs/images/view-status.png)](#status) **Status** | Providers, tools, skills and what needs attention. Reached from the degraded banner or the palette (`⌘K`). |
+
+Beta pages (Mail, Automations) are off until **Settings → Beta pages** is enabled.
+
+Every action in the app is also in the command palette (`⌘K`), the `+` menu gathers everything the agent can be given for the next message, and `?` lists every keyboard binding.
+
+![The command palette](docs/images/view-palette.png)
+
+![The composer menu](docs/images/view-plus-menu.png)
+
+![Connectors](docs/images/connectors.png)
+
+Press `?` in the app for every keyboard binding; [interface.md](docs/interface.md) covers how each view is built and why it is this one.
 
 ---
 
@@ -166,7 +207,7 @@ Each of these was exercised end to end, not just wired up.
 
 Everything the agent can be given for the next message hangs off one button beside the composer — files, the working directory, skills, connectors, and the full list of tools it can currently call.
 
-![The composer menu](docs/images/menu.png)
+![The composer menu](docs/images/view-plus-menu.png)
 
 **A web interface** over the same API: streamed answers rendered as markdown, inline permission prompts, a command palette, file attachments, connector setup — catalogue, OAuth, credentials — and a keyboard layer where `?` lists every binding. The side panel is context-aware: run steps on Chat, thread detail on Mail.
 
@@ -190,11 +231,11 @@ Everything the agent can be given for the next message hangs off one button besi
 Interface (CLI · HTTP/SSE API · React app served by the same process)
         │
    Agent Loop ── the single owner of reason → act → observe
-        ├── AI Runtime ......... provider adapters behind one contract
-        ├── Tool Registry ...... one flat namespace; permission gate on every dispatch
-        │     ├── builtin ...... filesystem, shell, desktop, tasks, calendar, web
-        │     └── MCP .......... browser, GitHub, Google, or any server you add
-        └── Retrieval .......... hybrid search over your notes
+         ├── AI Runtime ......... provider adapters behind one contract
+         ├── Tool Registry ...... one flat namespace; permission gate on every dispatch
+         │     ├── builtin ...... filesystem, shell, desktop, tasks, calendar, web
+         │     └── MCP .......... browser, GitHub, Google, or any server you add
+         └── Retrieval .......... hybrid search over your notes
                 │
         SQLite (+vec, +FTS5) · filesystem for documents · OS keychain for secrets
 ```
@@ -218,7 +259,8 @@ backend/          the Python package — API, agent loop, runtime, tools, MCP, r
   db/             schema, connection, repositories
 relay/            the Cloudflare Worker that catches deliveries while you are closed
 frontend/         the React app — built by Vite, served by the same process
-docs/             architecture, ADRs, deployment
+docs/             architecture, ADRs, deployment, configuration, troubleshooting
+AGENTS.md         orientation for an AI coding agent working in this repo
 ```
 
 `backend` is the import name (`from backend.tasks.service import TaskService`); `amethyst` stays the command you type, the keychain service, and the name of `~/.amethyst`.
@@ -228,6 +270,7 @@ docs/             architecture, ADRs, deployment
 - [Journal](docs/architecture/journal.md) · [Library](docs/architecture/library.md) · [Instagram](docs/architecture/instagram.md) · [AI runtime](docs/architecture/ai-runtime.md) · [Providers](docs/architecture/providers.md) · [Modes](docs/architecture/modes.md) · [Tasks](docs/architecture/tasks.md) · [Turns](docs/architecture/turns.md) · [Connectors](docs/architecture/connectors.md) · [Data model](docs/architecture/data-model.md) · [Security](docs/architecture/security.md) · [MCP](docs/architecture/mcp.md) · [MCP OAuth](docs/architecture/mcp-oauth.md) · [Skills](docs/architecture/skills.md)
 - [Decision records](docs/architecture/decisions/) — ADRs with the alternatives and what they cost
 - [Deployment](docs/deployment.md) — exposing it safely, the relay, the container notes
+- [Troubleshooting](docs/TROUBLESHOOTING.md) — setup and runtime errors, grouped by symptom
 - [Ideas](docs/roadmap/ideas.md) — what is wanted next, and what each would actually cost
 
 ---
