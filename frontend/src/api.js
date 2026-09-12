@@ -165,6 +165,13 @@ export const api = {
   // The models this provider's own API lists right now, so the menu offers what
   // the endpoint serves instead of asking the user to retype an id from docs.
   providerModels: (name) => j(`/providers/${encodeURIComponent(name)}/models`),
+  // Switch a provider off without losing its entry or its key -- the middle
+  // state DELETE cannot express.
+  setProviderEnabled: (name, enabled) =>
+    j(`/providers/${encodeURIComponent(name)}`, json('PATCH', { enabled })),
+  // Why the router would pick what it picks: each provider's health, how much
+  // of its declared minute is left, and the ranked decision with its reasons.
+  routing: () => j('/routing'),
 
   // Tiers: which model does which job. `default` is the go-to model; `fast` is
   // the quick cheap one; `heavy` is the slow careful one.
@@ -193,6 +200,14 @@ export const api = {
   artifact: (artifactId) => j(`/artifacts/${encodeURIComponent(artifactId)}`),
   pinMessage: (id, messageId, pinned) =>
     j(`/conversations/${id}/messages/${messageId}/pin`, json('POST', { pinned })),
+  // Pinning the conversation, not an answer inside it: what the sidebar's star
+  // means, and what its Starred section lists.
+  pinConversation: (id, pinned) => j(`/conversations/${id}/pin`, json('POST', { pinned })),
+  // How this conversation's last turn ended, according to the server. The
+  // interface used to be the only thing that knew: `resumable` arrived on the
+  // terminal frame and lived in component state, so a reload lost it and a turn
+  // killed with the process left no trace at all. `{}` means no turn yet.
+  runState: (id) => j(`/conversations/${id}/run`),
 
   // `mode` is 'chat' or 'plan'. It is a field rather than a sentence glued to
   // the message: the sentence landed in the transcript and was replayed on
@@ -268,7 +283,19 @@ export const api = {
   createAutomation: (body) => j('/automations', json('POST', body)),
   updateAutomation: (id, patch) => j(`/automations/${id}`, json('PATCH', patch)),
   deleteAutomation: (id) => j(`/automations/${id}`, json('DELETE')),
+  // Answers with a job, not a result. It used to await the whole run -- up to
+  // three minutes of open request, which a proxy times out and a person reads
+  // as a failure while the run carries on unseen.
   runAutomation: (id) => j(`/automations/${id}/run`, json('POST', {})),
+  // The run in flight for this automation, or the last one. What the page asks
+  // on open, so a reload reconnects to a run rather than offering to start a
+  // second one.
+  automationJob: (id) => j(`/automations/${id}/job`),
+  jobs: (params = '') => j(`/jobs${params}`),
+  job: (id) => j(`/jobs/${id}`),
+  // `reset_steps` clears the ledger of what already happened, so every step runs
+  // again including the ones that sent something. Never the default.
+  actOnJob: (id, action, body = {}) => j(`/jobs/${id}/${action}`, json('POST', body)),
   // Every kept run of one automation. They are out of the conversation rail,
   // so this is where they are read.
   automationRuns: (id) => j(`/automations/${id}/runs`),

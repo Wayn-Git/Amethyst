@@ -55,6 +55,28 @@ class ProviderPreset:
     #: Where a key is issued. None means the endpoint needs no key.
     keys_url: str | None = None
     docs_url: str | None = None
+    #: What this endpoint is good for, which is the one thing the router needs
+    #: that nothing else in the catalogue says. Tags, not scores: "groq is
+    #: fast" is a fact about the endpoint of the same kind as its context
+    #: window, and it ages at the same rate. Deliberately *not* quotas -- every
+    #: real limit is `tokens_per_minute` above, declared per account in
+    #: providers.yaml, because that is the number that changes without warning.
+    #:
+    #: Vocabulary, kept small on purpose: "fast", "large_context", "reasoning",
+    #: "vision", "background", "local". An empty set is the honest answer for a
+    #: preset like OpenRouter whose character is whichever model you name.
+    strengths: frozenset[str] = frozenset()
+    #: One of the providers AMETHYST leans on by default: the set Auto routes
+    #: across before it considers anything else. Not a quality judgement and
+    #: not a lock -- every other provider stays fully usable, and Auto still
+    #: reaches them when no core provider can answer. It is a statement about
+    #: which endpoints this install is expected to always have.
+    core: bool = False
+    #: Whether Auto may pick this provider on its own. False for an endpoint
+    #: that works well enough to configure by hand but not well enough to hand
+    #: a turn to unattended -- it stays in the picker and in an explicitly
+    #: written fallback chain, and the router never chooses it.
+    auto_route: bool = True
     #: A local endpoint: no key, and reachability is the only thing that
     #: determines whether it can answer.
     local: bool = False
@@ -109,6 +131,7 @@ _CONVENTIONAL_ENV = {
 PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ProviderPreset(
         slug="ollama",
+        strengths=frozenset({"local", "offline"}),
         label="Ollama",
         base_url="http://localhost:11434/v1",
         default_model="qwen2.5:7b",
@@ -122,6 +145,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="groq",
+        strengths=frozenset({"fast"}),
         label="Groq",
         base_url="https://api.groq.com/openai/v1",
         default_model="llama-3.3-70b-versatile",
@@ -133,7 +157,50 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         note="Free tier, no card. Fast enough that the round trip stops being the bottleneck.",
     ),
     ProviderPreset(
+        slug="kilocode",
+        core=True,
+        strengths=frozenset({"fast", "cheap"}),
+        label="Kilocode",
+        base_url="https://api.kilo.ai/api/gateway",
+        default_model="stepfun/step-3.7-flash:free",
+        keys_url="https://app.kilo.ai/settings/keys",
+        docs_url="https://kilo.ai/docs",
+        note=(
+            "Gateway over many models. Model ids are namespaced, so pick one from the"
+            " list -- it answers /models, so the picker can fetch them."
+        ),
+    ),
+    ProviderPreset(
+        slug="opencode-zen",
+        core=True,
+        strengths=frozenset({"fast"}),
+        label="OpenCode Zen",
+        # No base URL yet: nobody has confirmed the endpoint, and a guessed one
+        # is worse than none -- it fails on the first round trip with an error
+        # about a host the user never typed. Settings shows this as "needs a
+        # base URL" until it is filled in, which is the honest state.
+        base_url=None,
+        keys_url="https://opencode.ai",
+        docs_url="https://opencode.ai/docs",
+        note="Gateway. Needs its base URL and a model id filled in before it can answer.",
+    ),
+    ProviderPreset(
+        slug="nous",
+        # Deliberately not core, and deliberately not auto-routable: it is
+        # being evaluated. It is offered in the picker and honoured in a
+        # fallback chain someone wrote by hand; Auto will not hand it a turn.
+        auto_route=False,
+        strengths=frozenset({"reasoning"}),
+        label="Nous Portal (Hermes)",
+        base_url="https://inference-api.nousresearch.com/v1",
+        keys_url="https://portal.nousresearch.com",
+        docs_url="https://portal.nousresearch.com/docs",
+        default_model="Hermes-4-70B",
+        note="Under evaluation, so Auto never picks it. Pick it by hand to try it.",
+    ),
+    ProviderPreset(
         slug="cerebras",
+        strengths=frozenset({"fast"}),
         label="Cerebras",
         base_url="https://api.cerebras.ai/v1",
         default_model="llama-3.3-70b",
@@ -143,6 +210,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="openai",
+        strengths=frozenset({"reasoning", "vision"}),
         label="OpenAI",
         base_url="https://api.openai.com/v1",
         default_model="gpt-4o",
@@ -153,6 +221,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="anthropic",
+        strengths=frozenset({"reasoning", "vision"}),
         label="Anthropic",
         base_url="https://api.anthropic.com/v1",
         default_model="claude-sonnet-4-20250514",
@@ -163,6 +232,8 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="google",
+        core=True,
+        strengths=frozenset({"large_context", "reasoning", "vision"}),
         label="Google Gemini",
         default_model="gemini-2.0-flash",
         context_window=1_000_000,
@@ -200,6 +271,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="mistral",
+        core=True,
         label="Mistral",
         base_url="https://api.mistral.ai/v1",
         default_model="mistral-large-latest",
@@ -222,6 +294,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="nvidia",
+        core=True,
         label="NVIDIA NIM",
         base_url="https://integrate.api.nvidia.com/v1",
         keys_url="https://build.nvidia.com",
@@ -279,6 +352,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="ollama-cloud",
+        strengths=frozenset({"background"}),
         label="Ollama Cloud",
         base_url="https://ollama.com/v1",
         default_model="gpt-oss:120b",
@@ -291,6 +365,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ),
     ProviderPreset(
         slug="cloudflare",
+        strengths=frozenset({"background", "cheap"}),
         label="Cloudflare Workers AI",
         # The account id lives in the path, so this is the one preset that does
         # not work as written. Left as a placeholder rather than omitted: the

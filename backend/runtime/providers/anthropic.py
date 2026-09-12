@@ -32,6 +32,10 @@ from backend.secrets import resolve_api_key
 API_VERSION = "2023-06-01"
 DEFAULT_MAX_TOKENS = 4096
 
+#: Where an entry with no `base_url` lands; shared with the liveness probe,
+#: which needs the real endpoint to hit rather than a silent yes.
+DEFAULT_BASE_URL = "https://api.anthropic.com/v1"
+
 
 def _to_anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str | None, list[dict]]:
     """Split out the system prompt and convert tool messages to content blocks."""
@@ -310,7 +314,7 @@ def initialize(
     client = AnthropicClient(
         api_key=api_key,
         model=resolved_model,
-        base_url=config.base_url or "https://api.anthropic.com/v1",
+        base_url=config.base_url or DEFAULT_BASE_URL,
         max_retries=max_retries,
     )
     return ResolvedModel(

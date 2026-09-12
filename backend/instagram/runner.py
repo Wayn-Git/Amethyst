@@ -30,6 +30,9 @@ from backend.instagram.store import InstagramEventStore
 
 log = logging.getLogger(__name__)
 
+#: The kind of durable job one delivery's processing is recorded as.
+JOB_KIND = "instagram_ingest"
+
 TICK_SECONDS = 5.0
 #: How many events one drain will take before yielding, so a large backlog does
 #: not hold the lock for an hour.
@@ -144,7 +147,10 @@ class InstagramRunner:
         Serialised deliberately: two concurrent downloads plus two ffmpeg
         processes while a turn is streaming is not a machine anyone wants.
         """
+        from backend.jobs import JobStore
+
         store = store or InstagramEventStore()
+        jobs = JobStore()
         handled: list[int] = []
         lock = self._lock or asyncio.Lock()
         async with lock:
@@ -153,11 +159,25 @@ class InstagramRunner:
                 event = store.claim_next()
                 if event is None:
                     break
+                # The durable half. The event row is still the queue -- it is
+                # where Meta's re-deliveries collide, and moving that claim into
+                # `jobs` would leave two tables disagreeing about one reel. What
+                # the job adds is the ledger: `reclaim_stale` requeues an event
+                # whose process died, and without this that retry re-sent the
+                # confirmation and skipped the transcript it had not finished.
+                job = jobs.begin(
+                    JOB_KIND,
+                    f"{JOB_KIND}:{event['delivery_key']}",
+                    payload={"event_id": event["id"], "route": event["route"]},
+                )
                 try:
-                    await service.process(event)
+                    status = await service.process(event, job=job, jobs=jobs)
                 except Exception as exc:
                     log.exception("instagram event %s failed", event["id"])
                     store.finish(event["id"], status="failed", note=str(exc))
+                    jobs.fail(job, f"{type(exc).__name__}: {exc}")
+                else:
+                    jobs.complete(job, {"status": status, "event_id": event["id"]})
                 handled.append(event["id"])
         return handled
 

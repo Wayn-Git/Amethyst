@@ -14,9 +14,14 @@ Three things this deliberately does *not* do:
 * **It does not fall back on a bad request.** A 404 for a model name means the
   same thing at the next provider, so the chain stops -- see
   `backend.runtime.failures`.
-* **It does not fall back mid-answer.** Once deltas have reached the interface,
-  a second provider would restart the answer under text the user is already
-  reading. A failure after the first byte is a failure.
+* **It does not *restart* an answer mid-flight.** Once deltas have reached the
+  interface, a second provider starting over underneath text the user is
+  already reading is worse than failing. It may still *continue* one: the
+  Director carries the partial in `state.carried`, which is rebuilt into the
+  wire as an assistant message plus a "carry on from exactly here" nudge, and
+  neither is provider-specific. So a failure after the first byte costs the
+  provider, not the answer -- the one that was talking gets its resumes first,
+  and only then does the chain move on.
 
 The order is decided in three places, most specific first:
 
@@ -31,8 +36,15 @@ The order is decided in three places, most specific first:
          - groq
          - cerebras
 
-3. **providers.yaml's own order**, which is the closest thing to a stated
-   preference that exists without anybody having to configure anything.
+3. **The router's ranking** (`backend/runtime/router.py`), which scores every
+   configured provider against the request actually in hand -- its size, the
+   tools it needs, how much of each provider's declared minute is left, what is
+   reachable. The Director passes this as `order` when the conversation has not
+   stated one of its own.
+4. **providers.yaml's own order**, which is the closest thing to a stated
+   preference that exists without anybody having to configure anything, and
+   which is what the router falls back to when nothing distinguishes two
+   providers.
 """
 
 from __future__ import annotations
@@ -108,7 +120,15 @@ def _usable(name: str, config: ProviderConfig) -> bool:
     a model name, and a guessed model name is the failure this whole phase
     exists to stop. A provider already known to be down is skipped for the same
     reason a picker stops offering it.
+
+    A provider the user switched off is skipped here as well as in the router.
+    Both, not one: the router picks the order, but a conversation carrying its
+    own `fallback` list bypasses the router entirely, and a disabled provider
+    reachable through that list would be a setting that held everywhere except
+    the one place someone had configured by hand.
     """
+    if not config.enabled:
+        return False
     if not config.default_model:
         return False
     known = availability.cached(name)
@@ -148,14 +168,20 @@ def build_chain(
     return chain
 
 
-def announcement(failed: Link, reason: str, using: Link) -> str:
+def announcement(failed: Link, reason: str, using: Link, *, resuming: bool = False) -> str:
     """One line, in the user's terms, saying what happened and what now.
 
     Decided with the user: visible, one line, no stack trace. The provider's own
     error body is already in the audit log; what belongs in the transcript is
     which provider answered, because that changes how the answer should be read.
+
+    `resuming` when there is already half an answer on screen. "answering with"
+    would be wrong there and alarming: the reader can see text above the line,
+    and being told a different provider is answering reads as that text being
+    about to be thrown away. It is being continued.
     """
-    return f"{failed.provider} {reason} — answering with {using} instead"
+    verb = "continuing with" if resuming else "answering with"
+    return f"{failed.provider} {reason} — {verb} {using} instead"
 
 
 def reason_for(kind: FailureKind) -> str:

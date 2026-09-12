@@ -68,12 +68,31 @@ function clampPanel(value) {
 
 function applyTheme(theme) {
   const root = document.documentElement
-  if (theme === 'system') root.removeAttribute('data-theme')
-  else root.setAttribute('data-theme', theme)
+  /* `system` used to *remove* `data-theme`, and leaving it off is what made
+     the two themes unstable.
+
+     The token blocks cope with a missing attribute -- there is a
+     `prefers-color-scheme` copy of the whole dark block for exactly that. But
+     roughly fifteen component rules elsewhere in the stylesheet are written as
+     `[data-theme="light"] .thing { ... }` or `[data-theme="dark"] .thing`, and
+     with no attribute present *none* of them match. A person who has never
+     opened Settings -- which is the default -- got a page whose tokens were
+     dark and whose connector cards, capability tabs and MCP modal were still
+     wearing their light treatment, or the reverse.
+
+     Resolving `system` to whatever the machine currently says, and stamping
+     that, means the attribute is always one of two known values. The media
+     query above re-fires this on the machine's own switch, so it stays true
+     at sunset. The `prefers-color-scheme` copy in the stylesheet stays as the
+     answer for the first paint, before any of this runs. */
+  const resolved = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme
+  root.setAttribute('data-theme', resolved)
   // The browser's own surfaces -- form controls, scrollbars, the address bar --
   // read this, and a light page inside dark chrome is the tell that a theme was
   // bolted on rather than designed.
-  root.style.colorScheme = theme === 'system' ? 'light dark' : theme
+  root.style.colorScheme = resolved
   /* `theme-color` was a fixed `#0b0b0c` in the markup, which paints the address
      bar of a phone in light mode black above a paper-coloured page. Read from
      the stylesheet after the switch, so it is whatever `--canvas` actually
@@ -296,7 +315,7 @@ export function AppProvider({ children }) {
      read again when the machine changes its mind at sunset. */
   useEffect(() => {
     if (theme !== 'system') return undefined
-    const watch = window.matchMedia('(prefers-color-scheme: light)')
+    const watch = window.matchMedia('(prefers-color-scheme: dark)')
     const relay = () => applyTheme('system')
     watch.addEventListener('change', relay)
     return () => watch.removeEventListener('change', relay)

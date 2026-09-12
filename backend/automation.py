@@ -347,12 +347,19 @@ async def run_once(
     *,
     director_for,
     repo: AutomationRepository | None = None,
+    job: Any = None,
+    store: Any = None,
 ) -> dict[str, Any]:
     """Run one automation and record what happened.
 
     `director_for` is passed in rather than imported so this stays testable
     without a server: it takes the deny-everything confirmation callback and
     returns something with `.run(conversation_id, prompt)`.
+
+    `job` and `store`, when given, are the durable job this run belongs to. They
+    are optional because this function is also the one a test calls directly,
+    and because the work does not depend on them -- they are what makes the run
+    survivable, not what makes it happen.
     """
     from backend.config import configured_providers
     from backend.db.repositories import ConversationRepository
@@ -395,12 +402,27 @@ async def run_once(
     if not model and (chosen := providers.get(provider)) is not None:
         model = chosen.default_model
 
-    conversation_id = ConversationRepository().create(
-        provider,
-        model or "default",
-        f"{automation.name} · automation",
-        automation_id=automation.id,
-    )
+    # A step, so a second attempt writes into the transcript the first one
+    # started rather than leaving a half-finished conversation behind and
+    # opening another. The runs list is what a person reads to find out what an
+    # automation did, and one attempt producing three entries made it useless.
+    async def _open_conversation() -> str:
+        return ConversationRepository().create(
+            provider,
+            model or "default",
+            f"{automation.name} · automation",
+            automation_id=automation.id,
+        )
+
+    if job is not None and store is not None:
+        conversation_id = await store.step(job, "conversation", _open_conversation)
+        # Written down before the turn starts, because it is what says where to
+        # look for what the turn did. A job that dies mid-turn is only safe to
+        # repeat if that transcript's tool calls were read-only, and this is how
+        # `replayable_after_crash` finds them.
+        store.checkpoint(job, conversation_id=conversation_id)
+    else:
+        conversation_id = await _open_conversation()
 
     # Scope this run's tools to the saved profile, if one is set, before the
     # director ever builds a schema list -- the same mechanism a human uses to
@@ -477,19 +499,94 @@ async def run_once(
     return {"status": status, "summary": summary, "conversation_id": conversation_id}
 
 
-class AutomationRunner:
-    """Wakes every ten seconds, runs whatever is due, one at a time.
+#: The prefix every job about one automation shares. `live_for` uses it to find
+#: a run already in flight, which is what "reconnect rather than start a second"
+#: is made of.
+JOB_KIND = "automation"
 
-    One at a time on purpose: three automations that come due in the same minute
-    and all reach for the shell are three unattended turns competing over the
-    same machine, and the whole point of the beta is that it does one obvious
-    thing.
+
+def job_prefix(automation_id: int) -> str:
+    return f"{JOB_KIND}:{automation_id}:"
+
+
+def enqueue_run(automation: Automation, *, manual: bool = False) -> Any:
+    """Put one run on the board, or hand back the one already there.
+
+    The key is the automation and the slot it is running for, so the scheduler
+    coming round twice while a run is still going -- a tick that overlapped a
+    long turn, a restart that re-read the same due row -- produces one job rather
+    than two. `manual` stamps the moment instead, so pressing Run now after a
+    finished run really does run it again while a double-click does not.
+    """
+    from backend.jobs import JobStore, enqueue
+
+    store = JobStore()
+    live = store.live_for(job_prefix(automation.id))
+    if live is not None:
+        # Already queued, running, waiting or paused. Whatever the caller wanted
+        # is what this job is doing.
+        return live
+    slot = _iso(_now()) if manual else automation.next_run_at
+    return enqueue(
+        JOB_KIND,
+        f"{job_prefix(automation.id)}{'manual:' if manual else ''}{slot}",
+        payload={"automation_id": automation.id, "manual": manual},
+        store=store,
+    )
+
+
+async def run_job(job, store, *, director_for) -> dict[str, Any]:
+    """Run the automation this job names.
+
+    The job is the durable half and `run_once` is the work, unchanged: the
+    scheduler's path and the "run now" path were already the same one, and this
+    keeps them the same one.
+
+    A run that a previous attempt had already got partway through does not
+    resume mid-turn -- a turn is not resumable, and the loop that owns it says
+    so. What the job adds is that the attempt is *recorded* before it starts, so
+    a crash leaves a row that can be looked at rather than a row still claiming
+    to be running, and that the decision about whether to repeat it is made
+    against the audit trail rather than taken silently.
+    """
+    from backend.jobs import Unretryable
+
+    automation = AutomationRepository().get(job.payload.get("automation_id"))
+    if automation is None:
+        raise Unretryable("this automation no longer exists")
+    if not automation.enabled and not job.payload.get("manual"):
+        raise Unretryable("this automation was switched off before its run started")
+
+    outcome = await run_once(automation, director_for=director_for, job=job, store=store)
+    if outcome.get("status") == "error":
+        # A failed run is a failed job, so the lane's bounded backoff applies to
+        # a provider having a bad minute. The automation's own geometric backoff
+        # is a different clock for a different thing -- how often to try the
+        # *schedule* again -- and `record` has already set it.
+        raise RuntimeError(outcome.get("summary") or "the run failed")
+    return outcome
+
+
+class AutomationRunner:
+    """Wakes every ten seconds and puts whatever is due on the board.
+
+    It stopped being the thing that runs them. Deciding what is due is a
+    schedule question and stays here; running it is a durable job, because a run
+    is minutes long with nobody watching and a crash used to take it with no
+    record that it had ever started. See `backend/jobs/`.
+
+    One at a time is still true and is now the lane's doing rather than a lock's:
+    three automations due in the same minute are three jobs in one lane, and a
+    lane runs one job at a time.
     """
 
     def __init__(self, director_for):
         self.director_for = director_for
         self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
+        #: Nudged when something is enqueued, so a run starts in the same second
+        #: it came due rather than on the lane's next tick.
+        self.lane = None
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -505,33 +602,43 @@ class AutomationRunner:
             pass
         self._task = None
 
-    async def run_now(self, automation: Automation) -> dict[str, Any]:
+    def run_now(self, automation: Automation) -> Any:
         """Run it this second, whatever its schedule says.
 
         `next_run_at` is deliberately not consulted: the interval floor governs
-        how often AMETHYST starts a run by itself, and a person pressing the button
-        has already decided. It still takes the lock, so "run now" queues behind
-        a run in flight rather than putting two unattended turns on the machine
-        at once.
+        how often AMETHYST starts a run by itself, and a person pressing the
+        button has already decided.
+
+        It returns the job rather than the run. The endpoint used to block for
+        as long as the turn took -- up to three minutes -- so the browser held an
+        open request through the whole thing and a proxy timing out looked like a
+        failure while the run carried on. Now the button gets an id back and the
+        page follows it, which is also what makes a reload reconnect to the run
+        instead of starting a second one.
         """
-        async with self._lock:
-            return await run_once(automation, director_for=self.director_for)
+        job = enqueue_run(automation, manual=True)
+        if self.lane is not None:
+            self.lane.nudge()
+        return job
 
     async def _loop(self) -> None:
         while True:
             try:
                 await asyncio.sleep(TICK_SECONDS)
                 for automation in AutomationRepository().due():
-                    async with self._lock:
-                        # Re-read: it may have been switched off or already run
-                        # by "run now" while this tick was waiting on the lock.
-                        fresh = AutomationRepository().get(automation.id)
-                        if fresh is None or not fresh.enabled:
-                            continue
-                        if parse_iso(fresh.next_run_at) > _now():
-                            continue
-                        log.info("running automation %s (%s)", fresh.id, fresh.name)
-                        await run_once(fresh, director_for=self.director_for)
+                    # Re-read: it may have been switched off, or already put on
+                    # the board by "run now", since `due` was evaluated.
+                    fresh = AutomationRepository().get(automation.id)
+                    if fresh is None or not fresh.enabled:
+                        continue
+                    if parse_iso(fresh.next_run_at) > _now():
+                        continue
+                    job = enqueue_run(fresh)
+                    log.info(
+                        "automation %s (%s) is due; job %s", fresh.id, fresh.name, job.id
+                    )
+                    if self.lane is not None:
+                        self.lane.nudge()
             except asyncio.CancelledError:
                 raise
             except Exception:  # one bad tick must not end the runner

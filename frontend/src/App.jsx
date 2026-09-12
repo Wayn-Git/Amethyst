@@ -10,6 +10,7 @@ import PanelResizer from './components/PanelResizer.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
 import { BootScreen, SkeletonView } from './components/Skeleton.jsx'
 import { useApp } from './store.jsx'
+import { API_ORIGIN } from './api.js'
 import { chord, isTyping, MOD_LABEL } from './keys.js'
 import { byDigit, byId, forRoutes } from './nav.js'
 import { COMPONENTS } from './views/registry.js'
@@ -28,6 +29,49 @@ import Chat from './views/Chat.jsx'
    history before it loses the navigation, and a wide one can show all four. */
 
 
+
+/* The daemon's side of the palette.
+
+   The tray process owns the global hotkey, and a chord pressed while this window
+   is behind another one -- or not open at all -- cannot reach the listener
+   below. So the daemon does not try to open the palette; it says that it should
+   be open, two ways, one per case.
+
+   A window that already exists is listening on the control stream, and the
+   palette goes up in the window the user is looking at. When none existed the
+   daemon opened this one, and said so in the address instead.
+
+   EventSource reconnects on its own, which is the whole of "reconnect cleanly"
+   here: the daemon restarting, or this page outliving it, needs no code. */
+function useDaemonSummon() {
+  const { setOverlay } = useApp()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('cmd') === 'palette') {
+      setOverlay('palette')
+      // Strip it: a reload is not a second summons, and the address belongs to
+      // the view rather than to how it was opened.
+      params.delete('cmd')
+      const query = params.toString()
+      window.history.replaceState(
+        {}, '',
+        window.location.pathname + (query ? `?${query}` : '') + window.location.hash,
+      )
+    }
+
+    const stream = new EventSource(`${API_ORIGIN}/api/control/stream`)
+    stream.onmessage = (e) => {
+      try {
+        if (JSON.parse(e.data).type === 'palette') {
+          setOverlay('palette')
+          window.focus()
+        }
+      } catch { /* a frame this build does not know about is not an error */ }
+    }
+    return () => stream.close()
+  }, [setOverlay])
+}
 
 /* Every binding in one listener.
 
@@ -259,6 +303,7 @@ export default function App() {
   // and the palette both say does not exist.
   const routed = useMemo(() => forRoutes(betaPages), [betaPages])
   useGlobalKeys()
+  useDaemonSummon()
   const stageRef = useRef(null)
 
   /* The tab reports where you are. It used to say the same eleven words on

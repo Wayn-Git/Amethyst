@@ -202,16 +202,53 @@ against the fallback model's own context window** — carrying a 200,000-token
 history into a 32,000-token fallback would trade one provider's outage for the
 next one's refusal.
 
-Two things stop a hand-over:
+One thing stops a hand-over: **a non-fallback kind** (see the table).
 
-- **A non-fallback kind** (see the table).
-- **Text already on screen.** A second provider would start its answer
-  underneath the half the user is reading, so a failure after the first byte is
-  a failure. Whatever streamed is still persisted.
+Text already on screen used to stop one too — a second provider would restart
+the answer underneath the half the user was reading, which is worse than
+failing. That reasoning held until resumes shipped. `state.carried` is rebuilt
+into the wire as an assistant message plus `RESUME_AFTER_CUT` ("continue from
+exactly where it stops"), and neither is provider-specific, so a *different*
+provider continues a cut answer exactly the way the same one does.
+
+What the old rule cost: NVIDIA's NIM emits `Error in input stream` inside an
+already-200 body, intermittently, **after** tokens have moved — precisely the
+case the guard excluded. A mid-answer failure could then only be retried on the
+provider that had just failed, and once `max_resumes` ran out the turn died
+holding half a sentence with healthy providers still in the chain. Now the
+provider that was talking gets its two resumes first, and only then does the
+chain move on, carrying the partial.
+
+### When the chain is exhausted
+
+What decides the ending is **what is in hand, not how the connection ended**.
+
+- **An answer, whole or partial** — a `guard` frame, which the interface draws
+  as a neutral note, on the `stopped` phase. The text is persisted as the
+  answer, with no `[model error]` note stapled under it, and `stopped` keeps
+  `AgentState.resumable` true (`carried and phase != "completed"`) so the
+  pickup offer survives a reload (ADR-0021).
+- **Nothing** — an `error` frame on the `failed` phase, as before. A neutral
+  note over an empty turn would hide a real failure.
+
+This used to be one path ending in `error` either way. A turn that streamed a
+*complete* answer and then had its stream fall over on the way out — a provider
+sending an error frame instead of closing cleanly, which NVIDIA's NIM does —
+rendered the whole answer and then a red card saying it had failed. Which is
+the half the reader believes: the work is done, and the interface says it is
+broken.
 
 The user is told in one `warning` frame:
 
 > `nvidia was unreachable — answering with groq/llama-3.3-70b instead`
+
+or, when there is already half an answer on screen:
+
+> `nvidia returned a server error — continuing with groq/llama-3.3-70b instead`
+
+"answering with" would be wrong and alarming there: the reader can see text
+above the line, and being told somebody else is *answering* reads as that text
+being about to be thrown away.
 
 Decided with the user: visible, one line, no stack trace. `warning` is not a
 terminal event, so no plumbing in the API, the frontend or the CLI needed
@@ -271,6 +308,82 @@ YAML for the user to copy.
   `POST /api/providers` added DeepSeek and wrote the entry; a name with `../` in
   it and a custom entry with no base URL were both 400s.
 
+## Routing (ADR-0023)
+
+The chain decides who answers when the chosen provider cannot. The router
+decides who is chosen. It produces an **order**, which `build_chain` already
+took as an argument — so this is a better candidate list, not a second
+mechanism. `backend/runtime/router.py`.
+
+**Where it applies.** Most specific first, which is the same precedence the
+chain already used:
+
+| The conversation says | Head | Order |
+|---|---|---|
+| a provider, and its own `fallback` list | the provider | the list |
+| a provider, no list | the provider | routed |
+| `auto` | routed | routed |
+
+Background work with no conversation (`default_chain`) always routes, except
+that a configured `tiers:` entry still wins the head — a tier is somebody's
+stated choice about that job, and the router is a guess about it.
+
+**What it scores.** Every input is already measured or already in
+providers.yaml; nothing is inferred by a model. Request size and tool count come
+from the same estimator the tokens-per-minute precheck uses, vision from the
+attachments, health from `availability`, local-ness from whether a credential is
+declared, headroom from the ledger below.
+
+Terms are additive and named in one `WEIGHTS` table. Two of them are
+**penalties** rather than bonuses, which is not cosmetic: scored as bonuses,
+declaring a `tokens_per_minute` ceiling or a `context_window` was worth points,
+so the provider that published its limits started ahead of the one that
+published nothing — and an almost-exhausted provider still beat an idle peer.
+As penalties, "nothing declared" and "declared and comfortable" both score zero.
+The window penalty has a deadband for the same reason: a 400-token question does
+not care that the window is 131,072.
+
+**Core is a tier.** Providers marked `core` in the catalogue sort ahead of
+everything else, and scoring decides within each pool. Preferred, never
+exclusive — a provider that cannot answer is not in the ranking at all, so Auto
+reaches the user's own providers whenever no core one can, with no special case.
+`auto_route: false` marks an endpoint under evaluation: offered in the picker,
+honoured in a hand-written fallback chain, never chosen unattended.
+
+**The rate-limit ledger.** `availability.record_usage` counts what each request
+cost against a rolling minute — the provider's own token counts where it reports
+them, the precheck's estimate where it does not. `headroom(config)` answers what
+fraction of the *declared* ceiling is left. An undeclared ceiling answers 1.0:
+unknown is not unlimited, but an unknown ceiling cannot be steered by, and
+guessing one would route around a provider that was fine. In memory, not
+persisted — one uvicorn worker, and a lost window costs at most one 429 that
+`record_exhausted` already absorbs with the provider's own `Retry-After`.
+
+**Total network failure.** When every configured cloud provider is *known* to be
+down (observed, not merely silent), the decision is marked `offline` and a local
+endpoint is hoisted to the head with that as its stated reason. When nothing at
+all can answer, the head is `None` and the caller must say so — the Director
+turns that into one sentence naming each provider's own rejection reason, rather
+than a general "no provider available" that sends someone to look at entries
+that are all correct.
+
+**Explainability.** `RouteDecision.explain()` is persisted on the run row
+(`agent_runs.state.route`) and served by `GET /api/routing`. Every provider
+considered stays in `candidates`, including the excluded ones, each carrying
+either the reasons that moved its score or the reason it was ruled out — a
+provider filtered out of the output cannot answer "why not that one", which is
+the question the surface exists for.
+
+**Switches.** `enabled: false` in providers.yaml is the state between configured
+and deleted: the entry and its key stay, the picker stops offering it. Checked
+in `chain._usable` as well as in the router, because a conversation's own
+fallback list bypasses the router entirely.
+
+**The floor.** A machine that declares no `strengths`, has spent nothing and
+marks nothing core routes in providers.yaml's own order — the ranking's last
+sort key. Routing reorders on evidence; it does not invent a preference where
+there is none.
+
 ## Not built, on purpose
 
 - **A control in the interface for the per-conversation chain.** The column and
@@ -279,3 +392,12 @@ YAML for the user to copy.
 - **Probing cloud providers on a schedule.** Costs latency on every health poll
   to learn what the next turn learns for free.
 - **A generic client with per-provider auth flags.** See the catalogue section.
+- **A local classifier in front of routing.** Checked first, as instructed, and
+  not needed: every routing input is a figure the loop has already measured. A
+  classifier would spend a model call re-deriving them and make the one part of
+  routing that must be explainable the one part that could not be.
+- **Persisted usage history.** Spend over time is a different feature from
+  routing and can be added without touching the router.
+- **Per-model routing.** The router picks a provider; the model is that
+  provider's `default_model`, exactly as the chain already does. Choosing among
+  one provider's models needs per-model metadata that does not exist.

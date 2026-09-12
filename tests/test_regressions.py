@@ -874,6 +874,47 @@ def test_a_message_can_be_pinned_and_the_pin_is_scoped_to_its_conversation(api, 
         assert messages.pinned(mine) == []
 
 
+def test_a_conversation_can_be_pinned_and_stays_in_the_list(api, db):
+    """Pinning a conversation and pinning a message inside one are different
+    things, and the interface offered both under one star -- wired to the
+    message route. So the sidebar's Starred section filtered on a conversation
+    field that did not exist and was empty however much was pinned.
+
+    The pin also has to keep the conversation *in* the list: the list is capped,
+    and a pinned conversation that scrolled off the end would be a bookmark to
+    somewhere you cannot get back to.
+
+    Mutation check: drop `pinned DESC` from `ConversationRepository.list`.
+    """
+    from fastapi.testclient import TestClient
+
+    with TestClient(api.app) as client:
+        def make() -> str:
+            return client.post(
+                "/api/conversations", json={"provider": "ollama", "model": "qwen2.5:7b"}
+            ).json()["id"]
+
+        keep = make()
+        assert client.post(f"/api/conversations/{keep}/pin", json={"pinned": True}).status_code == 200
+
+        # Enough newer conversations to push it well past any reasonable limit.
+        for _ in range(12):
+            make()
+
+        listed = client.get("/api/conversations").json()
+        assert listed[0]["id"] == keep, "a pinned conversation sank down the list"
+        assert listed[0]["pinned"] == 1
+        assert all(row["pinned"] == 0 for row in listed[1:])
+
+        assert client.post(f"/api/conversations/{keep}/pin", json={"pinned": False}).status_code == 200
+        # Not asserted by position: these are all written inside the same
+        # second, so `updated_at` ties and the order among them is arbitrary.
+        unpinned = {row["id"]: row["pinned"] for row in client.get("/api/conversations").json()}
+        assert unpinned[keep] == 0
+
+        assert client.post("/api/conversations/nope/pin", json={"pinned": True}).status_code == 404
+
+
 def test_a_pinned_message_does_not_change_what_the_model_is_sent(db):
     """A pin is a bookmark in a scrolling transcript and nothing more. If it
     ever started reordering or re-weighting history, "pin this" would quietly
@@ -1905,6 +1946,35 @@ def test_a_column_this_version_stopped_writing_is_dropped(tmp_path):
     assert "my_day_on" not in columns
     indexes = {row[1] for row in conn.execute("PRAGMA index_list(tasks)")}
     assert "idx_tasks_my_day" not in indexes
+
+
+def test_a_database_from_before_agent_runs_picks_the_table_up(tmp_path):
+    """A turn's state is no use if only fresh installs have somewhere to put it.
+
+    There is no migration runner and no version table: `CREATE TABLE IF NOT
+    EXISTS` in `schema.sql`, run on every boot, is the whole mechanism. A
+    database that predates the table has to gain it -- and its partial index,
+    which is what the startup sweep queries.
+
+    Mutation check: move the `agent_runs` block out of `schema.sql`.
+    """
+    from backend.db import connection
+
+    conn = connection.connect(tmp_path / "old.db")
+    connection.migrate(conn)
+    # The shape a database from the previous version has.
+    conn.execute("DROP TABLE agent_runs")
+    conn.commit()
+    assert not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'agent_runs'"
+    ).fetchone()
+
+    connection.migrate(conn)
+
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(agent_runs)")}
+    assert {"id", "conversation_id", "phase", "state_version", "state", "checkpoint"} <= columns
+    indexes = {row[1] for row in conn.execute("PRAGMA index_list(agent_runs)")}
+    assert "idx_agent_runs_live" in indexes
 
 
 def test_migrating_twice_changes_nothing(tmp_path):

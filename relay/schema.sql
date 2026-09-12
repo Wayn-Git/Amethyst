@@ -35,3 +35,96 @@ CREATE TABLE IF NOT EXISTS state (
     value      TEXT NOT NULL,
     updated_at INTEGER NOT NULL
 );
+
+-- What the relay owes somebody, and the proof it owes it once.
+--
+-- The ack was `ctx.waitUntil(sendAck(...))`: one fetch, inside the request that
+-- received the delivery, with a catch that logged and moved on. A Graph 500 or a
+-- rate limit lost it silently, inside a window that closes after 24 hours and
+-- cannot be reopened. This is the record that a send was owed, so the Workflow
+-- in src/ack.ts can keep trying and the laptop can see what happened while it
+-- was away.
+--
+-- Keyed by the delivery's body hash, the same key `deliveries` uses. Meta
+-- re-delivering therefore does not buy a second ack, for the same reason it does
+-- not buy a second reel.
+CREATE TABLE IF NOT EXISTS outbound (
+    body_hash  TEXT PRIMARY KEY,
+    sender_id  TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'ack',
+    -- pending | sent | skipped | failed
+    state      TEXT NOT NULL,
+    note       TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outbound_state ON outbound(state, updated_at);
+
+-- ---------------------------------------------------------------- the jobs
+--
+-- The generic half. `deliveries` above is a *transport* -- Meta's exact bytes,
+-- held until the laptop verifies them -- and it stays that way because a parsed
+-- delivery cannot be checked against a signature. This table is the other
+-- thing: work the relay was asked to *do* while the laptop was away, of a kind
+-- named by `kind` rather than built into the Worker.
+--
+-- The shape is deliberately `backend/jobs/`'s: an idempotency key that decides
+-- what "the same job" is, a bounded attempt count, a step ledger, and a result
+-- small enough to live in a row. Two halves of one idea rather than two ideas.
+--
+-- What is NOT here: content. A job's result carries references -- a URL, a
+-- title, an R2 key when there genuinely are bytes -- and the bytes are deleted
+-- the moment the laptop confirms it has them. Cloud retention is a queue's
+-- worth, not a library's.
+CREATE TABLE IF NOT EXISTS jobs (
+    id              TEXT PRIMARY KEY,
+    -- Which registered job type runs this. Unknown kinds are refused at the
+    -- door, so this column never names something nothing can run.
+    kind            TEXT NOT NULL,
+    -- The "same job" test. Chosen from the fact the job is about -- a URL and
+    -- the day, a delivery's body hash -- never randomly, which is what makes a
+    -- phone retrying a share create nothing the second time.
+    idempotency_key TEXT NOT NULL UNIQUE,
+    -- queued | running | waiting | completed | failed | cancelled | synced
+    state           TEXT NOT NULL,
+    -- What the type needs to start, as JSON. Never a credential: the Worker's
+    -- secrets are the Worker's, and a job that needed one would be handing it
+    -- to whoever can read this table.
+    params          TEXT NOT NULL DEFAULT '{}',
+    -- {step, done, total, note} -- what a phone polling this job is shown.
+    progress        TEXT,
+    -- Small JSON the laptop reads. Bytes go to R2 and are named in `artifacts`.
+    result          TEXT,
+    -- JSON array of R2 keys staged for this job, so cleanup needs no listing.
+    artifacts       TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    max_attempts    INTEGER NOT NULL DEFAULT 3,
+    last_error      TEXT,
+    -- Which credential asked for this: 'desktop', 'client' or 'webhook'. A
+    -- remote client may read back only the jobs it created.
+    origin          TEXT NOT NULL DEFAULT 'client',
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    started_at      INTEGER,
+    finished_at     INTEGER,
+    -- When the laptop confirmed it had this. Until then nothing is deleted.
+    synced_at       INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state, created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_kind ON jobs(kind, created_at);
+
+-- The ledger that makes a retry safe.
+--
+-- A step's answer is written down after it returns, so a crash mid-step leaves
+-- no row and the step runs again -- at-least-once for the step in flight,
+-- exactly-once for every step before it. Workflows already replays its own
+-- instance this way; this table is what survives the *instance* being lost, so
+-- a job re-dispatched by the cron does not re-send what the first one sent.
+CREATE TABLE IF NOT EXISTS job_steps (
+    job_id     TEXT NOT NULL,
+    step_key   TEXT NOT NULL,
+    result     TEXT,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (job_id, step_key)
+);

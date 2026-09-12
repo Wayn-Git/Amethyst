@@ -82,7 +82,7 @@ When a new capability is needed, work down this list and stop at the first match
 | Need | Answer | Why |
 |---|---|---|
 | Read a file from the vault | Tool | Local resource, AMETHYST's own code |
-| "Prepare my weekly review": gather tasks, scan notes, draft a summary | Skill | Pure composition of `list_tasks`, `search_documents`, and the model's own writing |
+| "Prepare my weekly review": gather tasks, scan notes, draft a summary | Skill | Pure composition of `list_upcoming`, `search_documents`, and the model's own writing |
 | Search my email | MCP server | An external account, reached through a server that owns its own auth |
 | Create a GitHub issue | MCP server | GitHub publishes one; AMETHYST signs in over OAuth |
 | Click through a web page and fill a form | MCP server | Existing browser-automation server, stateless from AMETHYST's side |

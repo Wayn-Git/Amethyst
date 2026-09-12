@@ -105,7 +105,7 @@ schemas, no instruction on its prompt.
 A closed vocabulary, `director.STATUSES`:
 
 `retrieving · recalling · thinking · planning · generating · tool · connector ·
-retrying · switching · completed · cancelled · failed`
+retrying · resuming · switching · completed · cancelled · failed`
 
 Every one of these already happened inside the loop and none of it was visible.
 The composer said "Thinking" from the moment a turn opened until the first token
@@ -116,6 +116,14 @@ it says what.
 Closed on purpose: an interface can style a known set, and a state added on the
 server without deciding what to call it shows up as its raw name rather than
 silently reading as something else.
+
+These are for display and are never read back. The turn's durable lifecycle is a
+separate, smaller vocabulary — `agent_runs.phase`, listed in
+[ai-runtime.md](ai-runtime.md) — and three of the names here deliberately have no
+phase of their own, because what they describe is already a counter on the state:
+`switching` is which link of the chain is active, `retrying` is how many
+continuations a turn has spent, `resuming` is how many times one answer has been
+picked back up.
 
 ## The turn-cost line
 

@@ -165,6 +165,49 @@ to run," which the tool name alone cannot.
 
 **Redaction is mandatory on the audit path.** Arguments and results pass through a redactor before persistence, matching known credential-shaped fields and patterns. A log that captures tokens is a credential store with worse security properties.
 
+### Agent runs — one row per turn, all of it references
+
+```
+agent_runs
+  id              TEXT PK          -- uuid
+  conversation_id TEXT             -- FK conversations(id) ON DELETE CASCADE
+  phase           TEXT             -- see ai-runtime.md; the durable lifecycle
+  state_version   INT              -- the payload's version, not the schema's
+  state           TEXT             -- the serialized AgentState
+  link            TEXT             -- "provider/model" that answered
+  error           TEXT
+  checkpoint      INT              -- incremented on every write
+  created_at, updated_at
+  INDEX (conversation_id, created_at)
+  PARTIAL INDEX (phase) WHERE phase is not terminal
+```
+
+A JSON blob here, and normalized rows for the transcript above: the two are read
+back differently. A transcript is read selectively, budgeted and truncated by
+query, which is what ADR-0017 normalizes it for. A run state is read whole or not
+at all — the loop wants every counter at once, and nothing ever asks for one of
+them on its own.
+
+**It holds references, never copies.** The user's request is
+`request_message_id`; the tool calls and their results are `tool_message_ids`,
+pointing at rows that already exist in `messages` and `execution_logs`; retrieved
+context is a `memories.id` or a `document_chunks.id` with the label it was shown
+under, never the text. The one thing stored outright is the half-written answer:
+it only reaches `messages` if the turn gives up, so until then this row is its
+only durable home. The loop's repeated-call guard keys on a *digest* of a call's
+arguments for the same reason the audit path redacts them — nothing redacts this
+row.
+
+`phase`, `link`, `error` and `checkpoint` are lifted out of the blob so the
+startup sweep and the run endpoint can query them without parsing every row.
+Both copies are written from one place, so they cannot drift.
+
+`state_version` is versioned separately from the schema on purpose: the column
+never changes shape, so a payload written by an older AMETHYST is a data
+migration (`_UPGRADES` in `backend/agent/state.py`) rather than an `ALTER TABLE`
+the schema bootstrap could do on its own. A payload from a *newer* version is
+refused rather than read with this version's field names.
+
 ## Retrieval notes
 
 One decision shapes the schema above:

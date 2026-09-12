@@ -50,6 +50,7 @@ show_help() {
     echo "  (none)        Builds frontend (if needed), initializes DB, and serves on http://127.0.0.1:8000"
     echo "  --setup       Interactive configuration wizard (API keys, OAuth, Cloudflare, connectors)"
     echo "  --dev         Starts backend with auto-reload and frontend Vite dev server concurrently"
+    echo "  --desktop     Runs in the system tray: stays up with no window open, global hotkey"
     echo "  --doctor      Runs system diagnostics (checks model providers, DB, sandbox, tools)"
     echo "  --build       Forces rebuilding the frontend single-page application"
     echo "  --port <PORT> Specify port (default: 8000)"
@@ -73,6 +74,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --doctor)
             MODE="doctor"
+            shift
+            ;;
+        --desktop|--tray)
+            MODE="desktop"
             shift
             ;;
         --build)
@@ -233,6 +238,15 @@ if [ "$MODE" == "build" ] || [ ! -f "frontend/dist/index.html" ]; then
 fi
 
 # 8. Start AMETHYST
+if [ "$MODE" == "desktop" ]; then
+    echo ""
+    info "${BOLD}Starting AMETHYST in the system tray...${RESET}"
+    info "Application URL: ${BOLD}http://127.0.0.1:${PORT}${RESET}"
+    info "Closing the window leaves it running. Quit from the tray icon."
+    echo ""
+    exec amethyst desktop --port "$PORT"
+fi
+
 if [ "$MODE" == "dev" ]; then
     echo ""
     info "${BOLD}Starting AMETHYST in DEVELOPMENT mode...${RESET}"

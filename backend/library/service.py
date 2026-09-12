@@ -29,7 +29,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from backend.db.connection import get_connection
-from backend.library.store import KINDS, LibraryStore, text_path
+from backend.library.store import KINDS, LibraryStore, text_path, thumbnail_path
 from backend.mcp.ssrf import UnsafeURL, check_url_async
 from backend.media.reel import is_reel_url
 from backend.retrieval import store as index_store
@@ -327,13 +327,16 @@ class LibraryService:
                 title = title or meta["title"]
                 author = meta.get("author") or None
                 site = meta.get("site")
+                yt_thumb_url = meta.get("thumbnail_url") or None
             else:
                 author = site = None
+                yt_thumb_url = None
                 capture_note = "YouTube did not answer for this video's title"
             capture_note = capture_note or "video: title and channel only, no transcript available"
             published_on = None
             text = ""
         else:
+            yt_thumb_url = None
             try:
                 page = await self._fetch(url)
             except UnsafeURL as exc:
@@ -364,6 +367,13 @@ class LibraryService:
 
         note = await self._store_text(item_id, title or url, text, capture_note)
         self.store.update(item_id, capture_note=note or None)
+
+        # YouTube: save the oEmbed thumbnail to disk so the card shows an image.
+        # Done after the item exists so a download failure cannot prevent the
+        # row from being created. Runs inline — it is a single small JPEG.
+        if yt_thumb_url:
+            await self._save_youtube_thumb(item_id, yt_thumb_url)
+
         self._enrich_later(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
@@ -444,6 +454,28 @@ class LibraryService:
         note = await self._store_text(item_id, title, body, "", fetched=False)
         self.store.update(item_id, capture_note=note or None)
         return Captured(as_dict(self.store.get(item_id)))
+
+    async def _save_youtube_thumb(self, item_id: int, thumb_url: str) -> None:
+        """Download a YouTube thumbnail and attach it to the library item.
+
+        Best-effort — a failure is logged but never raised, because the item
+        is already saved and a missing image is better than a missing row.
+        """
+        import httpx as _httpx
+        from backend.web.reader import USER_AGENT
+
+        target = thumbnail_path(item_id)
+        try:
+            async with _httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                resp = await client.get(thumb_url, headers={"User-Agent": USER_AGENT})
+            if resp.status_code == 200:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(resp.content)
+                self.store.update(item_id, thumbnail_path=str(target))
+            else:
+                log.debug("YouTube thumbnail fetch returned %s for item %s", resp.status_code, item_id)
+        except Exception as exc:
+            log.debug("could not save YouTube thumbnail for item %s: %s", item_id, exc)
 
     async def _store_text(
         self,

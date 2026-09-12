@@ -22,7 +22,7 @@ description: >
   and calendar events, and draft a summary note.
 version: 1.0.0
 tags: [productivity, review]
-requires_tools: [list_tasks, search_documents, write_file]
+requires_tools: [list_upcoming, search_documents, write_file]
 ---
 ```
 

@@ -102,8 +102,9 @@ export function ThemeToggleButton({ theme, setTheme, className }) {
     >
       <AnimatePresence mode="wait" initial={false}>
         {isDark ? (
+          /* In dark mode: clicking switches to light → show sun */
           <motion.span
-            key="moon"
+            key="sun"
             initial={{ scale: 0.6, rotate: -40, opacity: 0 }}
             animate={{ scale: 1, rotate: 0, opacity: 1 }}
             exit={{ scale: 0.6, rotate: 40, opacity: 0 }}
@@ -113,15 +114,16 @@ export function ThemeToggleButton({ theme, setTheme, className }) {
             <Icon name="sun" size={15} />
           </motion.span>
         ) : (
+          /* In light mode: clicking switches to dark → show moon */
           <motion.span
-            key="sun"
+            key="moon"
             initial={{ scale: 0.6, rotate: 40, opacity: 0 }}
             animate={{ scale: 1, rotate: 0, opacity: 1 }}
             exit={{ scale: 0.6, rotate: -40, opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="skiper26-icon-wrap"
           >
-            <Icon name="spark" size={15} />
+            <Icon name="moon" size={15} />
           </motion.span>
         )}
       </AnimatePresence>

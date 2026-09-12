@@ -7,13 +7,20 @@ the one thing Khoj's otherwise-good adapters layer got wrong.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from backend.agent.state import STATE_VERSION, TERMINAL, AgentState, UnknownStateVersion
 from backend.db.connection import get_connection, transaction
+
+log = logging.getLogger(__name__)
+
+#: Rendered once for the two queries that ask for a live run.
+_TERMINAL_SQL = ", ".join(f"'{phase}'" for phase in sorted(TERMINAL))
 
 
 def _conn(conn: sqlite3.Connection | None) -> sqlite3.Connection:
@@ -139,16 +146,34 @@ class ConversationRepository:
         15-minute interval writes roughly 192 a day -- enough to push every
         conversation a person actually had off the end of it. They are listed
         per automation instead, by `runs_of`.
+
+        Pinned first, so a pinned conversation cannot fall off the end of the
+        limit -- which is the one thing a pin is for.
         """
         if include_automations:
             return self.conn.execute(
-                "SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?", (limit,)
+                "SELECT * FROM conversations ORDER BY pinned DESC, updated_at DESC LIMIT ?",
+                (limit,),
             ).fetchall()
         return self.conn.execute(
             "SELECT * FROM conversations WHERE automation_id IS NULL"
-            " ORDER BY updated_at DESC LIMIT ?",
+            " ORDER BY pinned DESC, updated_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
+
+    def set_pinned(self, conversation_id: str, pinned: bool) -> bool:
+        """Keep this conversation at the top of the history column, or stop.
+
+        Deliberately not a `touch` -- pinning is not a change to the
+        conversation, and moving `updated_at` would reorder the very list the
+        pin exists to hold still.
+        """
+        cursor = self.conn.execute(
+            "UPDATE conversations SET pinned = ? WHERE id = ?",
+            (1 if pinned else 0, conversation_id),
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
 
     def runs_of(self, automation_id: str, limit: int = 50) -> list[sqlite3.Row]:
         """Every conversation one automation has written, newest first."""
@@ -526,8 +551,8 @@ class ExecutionLogRepository:
                 tool_name,
                 tool_source,
                 json.dumps(redact(arguments)) if arguments is not None else None,
-                result_summary[:2000] if result_summary else None,
-                error,
+                redact(result_summary[:2000]) if result_summary else None,
+                redact(error) if error else None,
                 risk_level,
                 confirmation_decision,
                 duration_ms,
@@ -576,6 +601,150 @@ class McpTrustRepository:
             "INSERT OR IGNORE INTO mcp_trusted_servers (server_name) VALUES (?)", (server_name,)
         )
         self.conn.commit()
+
+
+class AgentRunRepository:
+    """One row per turn, so a turn is not lost with the process running it.
+
+    The state itself is a JSON blob rather than a column per field, which is the
+    opposite of what `messages` does -- and deliberately. A transcript is read
+    back selectively, budgeted and truncated by query, which is why ADR-0017
+    normalizes it. This is read back whole or not at all: the loop wants every
+    counter at once, and nothing else ever asks for one of them on its own.
+    """
+
+    #: Newest runs kept. A turn writes one row and updates it in place, so this
+    #: grows with turns taken rather than with work done inside them -- but
+    #: nothing reads past the current one, and years of finished bookkeeping is
+    #: not worth keeping for a single-user install.
+    KEEP = 500
+
+    def __init__(self, conn: sqlite3.Connection | None = None):
+        self.conn = _conn(conn)
+
+    def open(self, state: AgentState) -> None:
+        self.conn.execute(
+            "INSERT INTO agent_runs (id, conversation_id, phase, state_version, state, link,"
+            " error, checkpoint, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                state.id,
+                state.conversation_id,
+                state.phase,
+                STATE_VERSION,
+                json.dumps(state.to_json()),
+                state.link,
+                state.error,
+                state.checkpoint,
+                state.created_at,
+                state.updated_at,
+            ),
+        )
+        self.conn.commit()
+
+    def save(self, state: AgentState) -> None:
+        """Write the state as it now stands, and count the write.
+
+        `checkpoint` is bumped here rather than by the caller so that every
+        durable version of a state is numbered, including the ones written by a
+        code path that forgot it was checkpointing.
+        """
+        state.checkpoint += 1
+        state.updated_at = _now()
+        self.conn.execute(
+            "UPDATE agent_runs SET phase = ?, state_version = ?, state = ?, link = ?,"
+            " error = ?, checkpoint = ?, updated_at = ? WHERE id = ?",
+            (
+                state.phase,
+                STATE_VERSION,
+                json.dumps(state.to_json()),
+                state.link,
+                state.error,
+                state.checkpoint,
+                state.updated_at,
+                state.id,
+            ),
+        )
+        self.conn.commit()
+        if state.terminal:
+            self.prune()
+
+    def get(self, run_id: str) -> AgentState | None:
+        row = self.conn.execute("SELECT * FROM agent_runs WHERE id = ?", (run_id,)).fetchone()
+        return self._load(row) if row else None
+
+    def latest(self, conversation_id: str) -> AgentState | None:
+        row = self.conn.execute(
+            "SELECT * FROM agent_runs WHERE conversation_id = ?"
+            " ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            (conversation_id,),
+        ).fetchone()
+        return self._load(row) if row else None
+
+    def live(self) -> list[AgentState]:
+        rows = self.conn.execute(
+            f"SELECT * FROM agent_runs WHERE phase NOT IN ({_TERMINAL_SQL})"
+            " ORDER BY created_at"
+        ).fetchall()
+        return [state for state in (self._load(row) for row in rows) if state is not None]
+
+    def interrupt_live(self) -> list[str]:
+        """End every run the last process left running, and say whose they were.
+
+        Called once at startup. With one uvicorn worker -- a non-negotiable, see
+        CLAUDE.md -- a run still in a live phase when the process boots cannot be
+        one somebody else is driving: it is a turn whose process died. Left alone
+        it reads as permanently in flight, which is exactly the "Thinking
+        forever" the interface used to show for a dropped stream.
+
+        Returns the conversation ids, because each of those conversations may
+        also be holding a tool call nothing answered -- the `finally` that
+        repairs that is skipped by a kill.
+        """
+        conversations: list[str] = []
+        for row in self.conn.execute(
+            f"SELECT * FROM agent_runs WHERE phase NOT IN ({_TERMINAL_SQL})"
+        ).fetchall():
+            conversations.append(row["conversation_id"])
+            state = self._load(row)
+            if state is None:
+                # Unreadable, but it must not stay live: a row nothing can load
+                # would be swept again on every boot from here to forever.
+                self.conn.execute(
+                    "UPDATE agent_runs SET phase = 'interrupted', updated_at = ? WHERE id = ?",
+                    (_now(), row["id"]),
+                )
+                self.conn.commit()
+                continue
+            state.enter("interrupted")
+            state.error = state.error or "the process running this turn stopped"
+            self.save(state)
+        return conversations
+
+    def prune(self, *, keep: int | None = None) -> int:
+        cursor = self.conn.execute(
+            "DELETE FROM agent_runs WHERE rowid <"
+            " (SELECT COALESCE(MIN(rowid), 0) FROM"
+            "  (SELECT rowid FROM agent_runs ORDER BY rowid DESC LIMIT ?))",
+            (keep if keep is not None else self.KEEP,),
+        )
+        self.conn.commit()
+        return cursor.rowcount
+
+    @staticmethod
+    def _load(row: sqlite3.Row) -> AgentState | None:
+        """Read one row back, or nothing.
+
+        A state this build cannot read is not an error the caller has to handle:
+        the turn it described is over, and the only cost of answering `None` is
+        that the interface offers no pickup for it. Raising here would take down
+        a conversation list or a startup sweep instead.
+        """
+        try:
+            return AgentState.from_json(json.loads(row["state"]))
+        except (UnknownStateVersion, ValueError, TypeError) as exc:
+            log.warning("could not read agent run %s: %s", row["id"], exc)
+            return None
 
 
 # --------------------------------------------------------------------------

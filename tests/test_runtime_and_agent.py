@@ -326,6 +326,28 @@ def test_audit_log_stores_redacted_arguments(db):
     assert "sk-verysecret" not in stored and "[redacted]" in stored
 
 
+def test_audit_log_redacts_result_summary_and_error(db):
+    from backend.db.repositories import ExecutionLogRepository
+
+    repo = ExecutionLogRepository()
+    repo.record(
+        tool_name="view_file",
+        tool_source="builtin",
+        result_summary=(
+            "the file contains sk-live_abcdefghijklmnopqrst and "
+            "ghp_xyz12345678901234567890"
+        ),
+        error="failed with Bearer sk-deadbeefdeadbeefdeadbeef",
+    )
+    row = repo.recent(1)[0]
+    assert "sk-live_" not in row["result_summary"]
+    assert "[redacted]" in row["result_summary"]
+    assert "ghp_xyz12345678901234567890" not in row["result_summary"]
+    assert "[redacted]" in row["result_summary"]
+    assert "Bearer" not in row["error"]
+    assert "[redacted]" in row["error"]
+
+
 def test_provider_config_holds_a_reference_not_a_secret():
     config = ProviderConfig(name="openai", api_key_ref="amethyst/openai")
     assert config.api_key_ref == "amethyst/openai"

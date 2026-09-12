@@ -37,6 +37,24 @@ export default function ModelMenu({ provider, model, onChange, onClose, scoped, 
 
   const providers = health?.providers ?? []
   const defaults = health?.provider_defaults ?? {}
+  /* The backbone this install leans on, and the ones Auto will not pick.
+     A grouping and a caveat, not a restriction: every provider below is
+     selectable by hand, including the ones Auto leaves alone. */
+  const core = health?.provider_core ?? []
+  const noAuto = health?.provider_no_auto ?? []
+  const canRoute = health?.routing ?? false
+  const groups = useMemo(() => {
+    const filled = [
+      { key: 'core', label: 'core', names: providers.filter((n) => core.includes(n)) },
+      { key: 'mine', label: 'yours', names: providers.filter((n) => !core.includes(n)) },
+    ].filter((g) => g.names.length > 0)
+    // One group is not a grouping. A lone "yours" heading over the whole list
+    // labels nothing and costs a row of the little vertical space this menu
+    // has -- and it is what a machine with no core providers configured, or a
+    // backend too old to report them, renders.
+    return filled.length > 1 ? filled : [{ key: 'all', label: null, names: providers }]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providers.join(','), core.join(',')])
   /* Configured and not answering. Having a key is not the same as being
      reachable: a local endpoint declares no key at all, so `has_key` called
      Ollama configured by definition and this menu offered it while nothing
@@ -92,7 +110,29 @@ export default function ModelMenu({ provider, model, onChange, onClose, scoped, 
             No providers configured. Add one in Settings → Models.
           </div>
         )}
-        {providers.map((name) => {
+        {/* Auto first, and without a model flyout: choosing it is choosing not
+            to name a model. Offered only when something is switched on, because
+            on an empty machine it is a button that can only ever error. */}
+        {canRoute && (
+          <button
+            type="button"
+            className={`menu-row${provider === 'auto' ? ' active' : ''}`}
+            onClick={() => { onChange({ provider: 'auto', model: '' }); onClose() }}
+            onMouseEnter={() => setOpenProvider(null)}
+          >
+            <span className="menu-gutter" />
+            <span className="menu-label">
+              Auto
+              <span className="menu-hint">picks by size, speed and what is answering</span>
+            </span>
+            {provider === 'auto' && <Icon name="check" size={14} />}
+          </button>
+        )}
+
+        {groups.map((group) => (
+          <div key={group.key}>
+            {group.label && <div className="menu-group-head">{group.label}</div>}
+            {group.names.map((name) => {
           const suggested = defaults[name]
           const current = name === provider
           const down = unavailable[name]
@@ -114,14 +154,20 @@ export default function ModelMenu({ provider, model, onChange, onClose, scoped, 
               <span className="menu-label">
                 {name}
                 <span className="menu-hint">
-                  {down ? 'not answering' : (suggested || 'no default model')}
+                  {down
+                    ? 'not answering'
+                    : noAuto.includes(name)
+                      ? `${suggested || 'no default model'} · Auto never picks this`
+                      : (suggested || 'no default model')}
                 </span>
               </span>
               {current && <Icon name="check" size={14} />}
               <Icon name="chevron" size={13} className="menu-caret" />
             </button>
           )
-        })}
+            })}
+          </div>
+        ))}
 
         <div className="menu-sep" />
 

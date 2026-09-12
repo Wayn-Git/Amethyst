@@ -315,6 +315,10 @@ const STATUS_LABELS = {
   tool: 'Running',
   connector: 'Using',
   retrying: 'Continuing',
+  // The stream carrying an answer died and the same provider is being asked to
+  // finish the sentence. Named for what the reader sees -- the answer they are
+  // already reading, picking up again -- not for the failure behind it.
+  resuming: 'Picking up where it stopped',
   switching: 'Switching provider',
   completed: 'Finishing',
   cancelled: 'Stopping',
@@ -633,6 +637,7 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
 
 function Msg({
   item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy, onOpenArtifact,
+  onResume,
 }) {
   const role = item.kind
 
@@ -666,6 +671,19 @@ function Msg({
       <div className={`msg-note ${cls}`}>
         <Icon name={item.tone === 'error' ? 'x' : 'info'} size={14} />
         <span>{item.text}</span>
+        {/* Half an answer is already above this card, and the model can finish
+            it from the transcript -- which is exactly what typing "continue"
+            did. One button, in the place the failure is being read. */}
+        {item.resumable && (
+          <button
+            type="button"
+            className="btn btn--small msg-note-action"
+            disabled={busy}
+            onClick={() => onResume?.()}
+          >
+            Continue the answer
+          </button>
+        )}
       </div>
     )
   }
@@ -808,6 +826,9 @@ export default function Chat() {
   const [pending, setPending] = useState([])
   const [elsewhere, setElsewhere] = useState([])
   const [input, setInput] = useState('')
+  // A question handed in from the palette or the tray hotkey, waiting for the
+  // composer to hold it. See `ask` below for why it cannot just call `send`.
+  const [pendingAsk, setPendingAsk] = useState(null)
   /* Documents the agent wrote, keyed by id and in the order they opened. The
      stream has always carried these; nothing was listening. `streamingArtifact`
      is the one currently being written, which is what tells the panel to tail
@@ -908,7 +929,25 @@ export default function Chat() {
     setLoadError(null)
     if (!cid) { setItems([]); return }
     try {
-      setItems(historyToItems(await api.messages(cid)))
+      const rows = historyToItems(await api.messages(cid))
+      /* How the last turn ended, asked of the server rather than remembered.
+         A turn whose process was killed wrote nothing here before -- it just
+         stopped -- and one that failed with half an answer lost its "Continue
+         the answer" button on reload, because the flag only ever existed on the
+         terminal frame. The run row is the source of truth for both. */
+      const run = await api.runState(cid).catch(() => null)
+      if (run?.resumable) {
+        rows.push({
+          id: nextId(),
+          kind: 'note',
+          tone: 'error',
+          text: run.phase === 'interrupted'
+            ? 'This turn stopped when AMETHYST did. The answer above is unfinished.'
+            : run.error || 'This turn ended before it finished answering.',
+          resumable: true,
+        })
+      }
+      setItems(rows)
     } catch (err) {
       toast(err.message, 'bad')
       setItems([])
@@ -968,24 +1007,49 @@ export default function Chat() {
   // and replace the message that had just been typed with whatever the database
   // had a moment ago -- the "sometimes the prompt does nothing" case.
   useEffect(() => {
-    if (runningRef.current) return
+    // Only the running turn's *own* conversation is protected from the
+    // refetch. Skipping it for any id at all meant that leaving a conversation
+    // mid-turn moved the highlight in the sidebar and left the transcript
+    // showing the conversation you had just left.
+    if (runningRef.current && runningRef.current === activeId) return
     loadMessages(activeId)
     loadArtifacts(activeId)
     refreshCaps(activeId)
   }, [activeId, loadMessages, loadArtifacts, refreshCaps])
 
+  /* Leaving a conversation stops the turn it was running, rather than being
+     refused because of it.
+
+     Refusing is what these did, and a refusal that surfaces only as a toast is
+     indistinguishable from a dead row in the sidebar -- which is exactly how it
+     was reported: "the sidebar doesn't take you to the conversation". A turn
+     that has gone quiet holds the refusal for the full three minutes of the
+     silence watchdog, so the window for it is not small. Clicking another
+     conversation is not an ambiguous gesture: it says stop showing me this one.
+
+     `stop` is defined further down and captured through a ref rather than
+     moved, because `notifyDone` lists `selectConversation` in its dependencies
+     above where `stop` exists. */
+  const stopRef = useRef(null)
+
+  const leaveTurn = useCallback(() => {
+    if (turnState === 'idle') return
+    stopRef.current?.()
+  }, [turnState])
+
   const selectConversation = useCallback((cid) => {
-    if (turnState !== 'idle') { toast('Finish or stop this turn first', 'amber'); return }
+    if (cid === activeId) return
+    leaveTurn()
     setActiveId(cid)
-  }, [turnState, setActiveId, toast])
+  }, [activeId, leaveTurn, setActiveId])
 
   const startFresh = useCallback(() => {
-    if (turnState !== 'idle') { toast('Finish or stop this turn first', 'amber'); return }
+    leaveTurn()
     setActiveId(null)
     setItems([])
     setInput('')
     setTimeout(() => textareaRef.current?.focus(), 0)
-  }, [turnState, setActiveId, toast])
+  }, [leaveTurn, setActiveId])
 
   const pushAssistant = useCallback(() => {
     const { buffer, reasoning, reasoningStart } = liveRef.current
@@ -1001,9 +1065,9 @@ export default function Chat() {
     }
   }, [setBuffer, setReasoning])
 
-  const pushNote = useCallback((tone, text) => {
+  const pushNote = useCallback((tone, text, extras) => {
     pushAssistant()
-    setItems((prev) => [...prev, { id: nextId(), kind: 'note', tone, text: text ?? '' }])
+    setItems((prev) => [...prev, { id: nextId(), kind: 'note', tone, text: text ?? '', ...extras }])
   }, [pushAssistant])
 
   /* The stream is closed. Everything it said is already on screen.
@@ -1180,7 +1244,14 @@ export default function Chat() {
         settle()
         break
       case 'guard': pushNote('guard', evt.reason); notifyDone('Turn stopped', evt.reason); settle(); break
-      case 'error': pushNote('error', evt.message); notifyDone('Turn failed', evt.message); settle(); break
+      case 'error':
+        // `resumable` means half an answer is in the transcript, so the card
+        // offers to finish it rather than leaving the reader to type
+        // "continue" -- which is what they were doing, several times a session.
+        pushNote('error', evt.message, { resumable: Boolean(evt.resumable) })
+        notifyDone('Turn failed', evt.message)
+        settle()
+        break
       // Not terminal: the loop is continuing a turn that came back empty or
       // truncated, and the composer stays disabled while it does.
       case 'warning': pushNote('warning', evt.message); break
@@ -1369,6 +1440,22 @@ export default function Chat() {
     }
   }, [turnState, activeId, openTurn, toast])
 
+  /* Finish an answer the provider cut in half.
+
+     The transcript already holds the partial and the `[model error]` line
+     under it, so this needs nothing the model cannot already read -- it is the
+     same ordinary turn the user was typing by hand, minus the typing. */
+  const resumeAnswer = useCallback(async () => {
+    if (turnState !== 'idle' || !activeId) return
+    try {
+      abortRef.current?.abort()
+      await openTurn(activeId, 'continue', 'chat')
+    } catch (err) {
+      toast(err.message, 'bad')
+      setTurnState('idle')
+    }
+  }, [turnState, activeId, openTurn, toast])
+
   const editPlanStep = useCallback((itemId, index, title) => {
     setItems((prev) => prev.map((it) => (
       it.id === itemId
@@ -1512,6 +1599,8 @@ export default function Chat() {
     }
   }, [activeId, toast])
 
+  useEffect(() => { stopRef.current = stop }, [stop])
+
   const applyModel = useCallback(async (patch) => {
     if (!activeId) { setDraft((d) => ({ ...d, ...patch })); return }
     try {
@@ -1532,6 +1621,30 @@ export default function Chat() {
       toast(err.message, 'bad')
     }
   }, [activeId, toast])
+
+  /* Ask something without typing it here.
+
+     The palette and the tray's global hotkey both end up here: a question is
+     put in the composer and sent as though it had been typed, so there is one
+     send path and the turn, the attachments and the plugin mentions all behave
+     identically.
+
+     Two steps rather than one because `send` reads `input` from this render --
+     calling it in the same tick as `setInput` would send the previous contents.
+     Marking it pending instead lets the next render, which has the text, do it. */
+  const ask = useCallback((text) => {
+    const question = String(text || '').trim()
+    if (!question) return
+    setInput(question)
+    setPendingAsk(question)
+  }, [])
+
+  useEffect(() => {
+    if (pendingAsk === null) return
+    if (turnState !== 'idle') return  // a turn is running; the composer keeps it
+    setPendingAsk(null)
+    send()
+  }, [pendingAsk, turnState, send])
 
   const focusComposer = useCallback((seed) => {
     const el = textareaRef.current
@@ -1581,6 +1694,7 @@ export default function Chat() {
       startFresh,
       selectConversation,
       focusComposer,
+      ask,
       toggleMemory,
       togglePin,
       openPlus: () => setPlusOpen(true),
@@ -1588,7 +1702,7 @@ export default function Chat() {
       beginRename: (cid) => setRenaming(cid),
       turnRunning: turnState === 'running',
     })
-  }, [registerChat, stop, startFresh, selectConversation, focusComposer, toggleMemory, togglePin, turnState, setRenaming])
+  }, [registerChat, stop, startFresh, selectConversation, focusComposer, ask, toggleMemory, togglePin, turnState, setRenaming])
 
   // Prompts arrive on the stream; this fetch recovers anything a reload left
   // suspended, since the turn survives the page and the stream does not.
@@ -1730,14 +1844,21 @@ export default function Chat() {
 
   const composer = (
     <div className={`composer-wrap${isEmpty ? ' composer-wrap--hero' : ''}`}>
-      {/* Both composer menus open upward, always. They opened downward on the
-          front page back when the composer was a strip in the middle of an
-          empty screen and the menu was four rows; the composer is now a tall
-          object and the menu holds a connector list, and below it there is a
-          quarter of the room there is above it. */}
+      {/* Direction follows the composer. In a conversation the composer sits at
+          the bottom of the window, so a menu has to open upward -- below it
+          there is a quarter of the room there is above it.
+
+          On the front page it does not: the composer is a hero block in the
+          middle of an empty screen, and a menu opening upward from there runs
+          off the top. `useMenuFit` then clamps `.menu-body` to whatever is
+          left, so the menu rendered at one height and immediately resized to
+          another -- and because it is anchored by its *bottom* edge, every row
+          already on screen jumped as the connector list and the model list
+          finished loading. Opening downward anchors the top edge instead, so
+          late-arriving rows extend the menu rather than move it. */}
       {plusOpen && (
         <PlusMenu
-          placement="up"
+          placement={isEmpty ? 'down' : 'up'}
           conversationId={activeId}
           workspace={workspace}
           onWorkspace={setWorkspace}
@@ -1749,7 +1870,7 @@ export default function Chat() {
 
       {modelOpen && (
         <ModelMenu
-          placement="up"
+          placement={isEmpty ? 'down' : 'up'}
           provider={active?.provider ?? draftProvider}
           model={active?.model ?? draftModel}
           scoped={Boolean(activeId)}
@@ -2134,6 +2255,7 @@ export default function Chat() {
                       onAnswerQuestion={answerQuestion}
                       onDiscardPlan={discardPlan}
                       onEditPlanStep={editPlanStep}
+                      onResume={resumeAnswer}
                     />
                   </div>
                 ))}

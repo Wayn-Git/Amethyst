@@ -4,7 +4,7 @@ import { useApp } from '../store.jsx'
 import { MOD_LABEL } from '../keys.js'
 import { forRail } from '../nav.js'
 import { prefetchView } from '../views/registry.js'
-import { fmtDate } from '../api.js'
+import { api, fmtDate } from '../api.js'
 import { useConfirm } from './ui/ConfirmDialog.jsx'
 import { useDismiss } from '../hooks/useDismiss.js'
 import {
@@ -32,10 +32,24 @@ function bucketOf(iso) {
 
 function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
   const [menu, setMenu] = useState(false)
+  /* Which way the menu opens. Downwards unless the row is close enough to the
+     bottom of the rail that the menu would be cut off by it -- which is what
+     happened to every conversation near the end of the list, usually taking
+     Delete with it. Measured when it opens rather than guessed from the row's
+     index, because the rail scrolls. */
+  const [up, setUp] = useState(false)
   const ref = useRef(null)
   const confirm = useConfirm()
 
   useDismiss(ref, menu, { onAway: () => setMenu(false) })
+
+  const openMenu = useCallback(() => {
+    const row = ref.current?.getBoundingClientRect()
+    const rail = ref.current?.closest('.wb-sidebar')?.getBoundingClientRect()
+    // 132px is the menu at its tallest: three items and its padding.
+    if (row && rail) setUp(rail.bottom - row.bottom < 132)
+    setMenu((m) => !m)
+  }, [])
 
   return (
     <div className={`sb-conv-item${active ? ' is-active' : ''}${menu ? ' menu-open' : ''}`} ref={ref}>
@@ -58,7 +72,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
           className="sb-conv-more-btn"
           onClick={(e) => {
             e.stopPropagation()
-            setMenu((m) => !m)
+            openMenu()
           }}
           title="Conversation options"
           aria-label="Conversation options"
@@ -69,7 +83,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
       </div>
 
       {menu && (
-        <div className="sb-conv-menu" role="menu">
+        <div className={`sb-conv-menu${up ? ' is-up' : ''}`} role="menu">
           {onTogglePin && (
             <button
               type="button"
@@ -119,7 +133,7 @@ export default function Sidebar() {
     compact, railOpen, toggleRail, closeRail,
     conversations, activeId, chat,
     renaming, setRenaming, renameConversation, deleteConversation,
-    theme, setTheme, betaPages,
+    theme, setTheme, betaPages, refreshConvs, toast,
   } = useApp()
 
   // Beta pages appear here only once they are switched on in Settings, and
@@ -130,6 +144,13 @@ export default function Sidebar() {
   const [showSearchInput, setShowSearchInput] = useState(false)
   const [starredOpen, setStarredOpen] = useState(true)
   const [recentsOpen, setRecentsOpen] = useState(true)
+  /* A section clips its contents only while its height is moving.
+  
+     It clipped them always, which is fine for the collapse animation and wrong
+     for everything else: the row menu is positioned just below its row, so on
+     any row near the bottom of a section the menu was cut off -- Delete was
+     usually the half that disappeared. */
+  const [collapsing, setCollapsing] = useState({ starred: false, recents: false })
 
   const firstRef = useRef(null)
 
@@ -159,10 +180,20 @@ export default function Sidebar() {
     return { starred: starList, recents: recentList }
   }, [conversations, filter])
 
-  const togglePin = useCallback((conv) => {
-    // Toggle pinned state
-    chat?.togglePin?.()
-  }, [chat])
+  /* Pin the conversation this row is for.
+     
+     It used to accept `conv`, ignore it, and call the chat view's own pin --
+     which pins the last *message* of whatever conversation happened to be open.
+     So starring a row in the sidebar wrote a bit on a different object
+     entirely, and Starred, which filters on `c.pinned`, stayed empty forever. */
+  const togglePin = useCallback(async (conv) => {
+    try {
+      await api.pinConversation(conv.id, !conv.pinned)
+      await refreshConvs()
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }, [refreshConvs, toast])
 
   return (
     <aside
@@ -278,8 +309,15 @@ export default function Sidebar() {
                 </span>
                 <span className="sb-place-label">{place.label}</span>
                 {place.beta && <span className="sb-beta-pill">BETA</span>}
+                {/* Two elements, not one string. `{MOD_LABEL}{digit}` renders
+                    "Ctrl8" on anything that is not a Mac, and in a mono face
+                    at 11px the lowercase L and the 1 are the same glyph -- the
+                    hint for Ctrl+8 read as "Ctr18". The separator is the fix;
+                    on a Mac it is still just "⌘8" with a hair of air. */}
                 {place.digit && (
-                  <span className="sb-shortcut-badge">{MOD_LABEL}{place.digit}</span>
+                  <span className="sb-shortcut-badge">
+                    <kbd>{MOD_LABEL}</kbd><kbd>{place.digit}</kbd>
+                  </span>
                 )}
               </SkiperNavItem>
             )
@@ -315,11 +353,16 @@ export default function Sidebar() {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="sb-section-body"
+                className={`sb-section-body${collapsing.starred ? ' is-collapsing' : ''}`}
+                onAnimationStart={() => setCollapsing((c) => ({ ...c, starred: true }))}
+                onAnimationComplete={() => setCollapsing((c) => ({ ...c, starred: false }))}
               >
                 {starred.length === 0 ? (
                   <div className="sb-empty-starred">
-                    <span>Pin chats with {MOD_LABEL}+P</span>
+                    {/* Says the gesture that fills this section. It used to
+                        name {MOD_LABEL}+P, which pins the newest *answer* in
+                        the open conversation and never puts a row here. */}
+                    <span>Pin a chat from its ⋯ menu</span>
                   </div>
                 ) : (
                   starred.map((c) => (
@@ -392,7 +435,9 @@ export default function Sidebar() {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="sb-section-body"
+                className={`sb-section-body${collapsing.recents ? ' is-collapsing' : ''}`}
+                onAnimationStart={() => setCollapsing((c) => ({ ...c, recents: true }))}
+                onAnimationComplete={() => setCollapsing((c) => ({ ...c, recents: false }))}
               >
                 {recents.length === 0 ? (
                   <div className="sb-empty-recents">

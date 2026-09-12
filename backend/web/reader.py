@@ -233,7 +233,13 @@ async def youtube_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] |
     author = (data.get("author_name") or "").strip()
     if not title:
         return None
-    return {"title": title, "author": author, "site": "YouTube"}
+    result: dict[str, str] = {"title": title, "author": author, "site": "YouTube"}
+    # YouTube's oEmbed response includes a thumbnail_url — pass it through so
+    # the caller can save it to disk. It is usually the hqdefault.jpg image.
+    thumb = (data.get("thumbnail_url") or "").strip()
+    if thumb:
+        result["thumbnail_url"] = thumb
+    return result
 
 
 async def _get_following_redirects(

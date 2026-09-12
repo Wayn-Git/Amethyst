@@ -40,6 +40,22 @@ documents = [
     "openpyxl>=3.1",
     "python-pptx>=1.0",
 ]
+# The tray process: an icon, a global hotkey, and the autostart entry. Optional
+# because the daemon is the server, and the server needs none of it -- `amethyst
+# serve` is unchanged and `amethyst desktop` says what to install if it is asked
+# for without these.
+desktop = [
+    # A window of AMETHYST's own, so the hotkey raises something instead of asking a
+    # browser to. Uses the system webview -- WebKit2GTK on Linux, Edge on Windows,
+    # Cocoa on macOS -- so it ships no engine of its own. On Linux that means the
+    # distribution's PyGObject and WebKit2GTK have to be reachable from this
+    # environment (a venv made with --system-site-packages, or the packages
+    # installed into it); without them AMETHYST falls back to the browser and says so.
+    "pywebview>=5.0",
+    "pystray>=0.19",
+    "pynput>=1.7",
+    "pillow>=10",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
@@ -48,6 +64,9 @@ dev = [
 
 [project.scripts]
 amethyst = "backend.cli:main"
+# The keyboard shortcut's own entry point. See backend.desktop.main_palette
+# for why it does not go through the `amethyst` CLI.
+amethyst-palette = "backend.desktop:main_palette"
 
 [build-system]
 requires = ["hatchling"]
