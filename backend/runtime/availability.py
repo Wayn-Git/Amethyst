@@ -28,12 +28,43 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import deque
 from dataclasses import dataclass
 
 from backend.config import ProviderConfig
 from backend.runtime.failures import FailureKind
+from backend.runtime.providers import anthropic, google, ollama, openai_compat
 
 log = logging.getLogger(__name__)
+
+#: Every adapter's fallback endpoint, keyed the way `registry.resolve` keys
+#: them: `config.provider or config.name`, with unknown names falling through
+#: to the OpenAI-compatible adapter. `None` means "no base URL is ever right"
+#: -- which is nobody today, but the honest answer if an adapter ever ships
+#: that derives its endpoint some other way.
+_DEFAULT_BASE_URLS: dict[str, str] = {
+    "openai": openai_compat.DEFAULT_BASE_URL,
+    "openai-compatible": openai_compat.DEFAULT_BASE_URL,
+    "anthropic": anthropic.DEFAULT_BASE_URL,
+    "google": google.DEFAULT_BASE_URL,
+    "gemini": google.DEFAULT_BASE_URL,
+    "ollama": ollama.DEFAULT_BASE_URL,
+}
+
+
+def resolve_base_url(config: ProviderConfig) -> str:
+    """The endpoint a request to this provider would actually hit.
+
+    An entry without a `base_url` is not an entry without an endpoint -- the
+    adapter fills one in at initialise time, and pretending otherwise is how
+    Ping came to answer `available` without touching the network: `_probe_now`
+    saw an empty string and said yes without asking anyone. The probe and the
+    picker need the same URL the turn itself would use, from the same table.
+    """
+    if config.base_url:
+        return config.base_url.rstrip("/")
+    adapter_key = config.provider or config.name
+    return _DEFAULT_BASE_URLS.get(adapter_key, openai_compat.DEFAULT_BASE_URL)
 
 #: How long a probe result is trusted. Short enough that starting a local server
 #: is noticed within one health poll or two, long enough that a picker render
@@ -68,6 +99,29 @@ class Availability:
 _cache: dict[str, tuple[float, Availability]] = {}
 _locks: dict[str, asyncio.Lock] = {}
 
+#: How long a minute is, for the purpose of a tokens-per-minute ceiling. The
+#: providers that publish one mean a rolling window rather than a wall-clock
+#: minute, so this is one too: a fixed minute lets a burst land at :59 and
+#: another at :01 and calls both of them within budget.
+WINDOW_SECONDS = 60.0
+
+#: The fraction of a declared ceiling above which a provider stops being the
+#: obvious choice. Not a limit and not a quota -- a provider over this still
+#: answers, it just loses to an idle peer when there is one. Every real number
+#: comes from `tokens_per_minute` in providers.yaml; this is only where the
+#: router starts steering away from it.
+HEADROOM_FLOOR = 0.8
+
+#: What has been spent at each provider inside the window: (monotonic, tokens).
+#:
+#: Not persisted, for the same reason `_cache` is not. AMETHYST runs one
+#: uvicorn worker by design (see CLAUDE.md), so there is no second process to
+#: stay coherent with, and the cost of losing the window to a restart is at
+#: most one 429 -- which `record_exhausted` already absorbs, with the
+#: provider's own `Retry-After` rather than a guess. A table would buy
+#: durability for a number that is stale after sixty seconds.
+_usage: dict[str, deque[tuple[float, int]]] = {}
+
 
 def forget(name: str | None = None) -> None:
     """Drop what is remembered, for one provider or all of them.
@@ -79,6 +133,62 @@ def forget(name: str | None = None) -> None:
         _cache.clear()
     else:
         _cache.pop(name, None)
+
+
+def forget_usage(name: str | None = None) -> None:
+    """Drop the spend window, for one provider or all of them."""
+    if name is None:
+        _usage.clear()
+    else:
+        _usage.pop(name, None)
+
+
+def record_usage(name: str, tokens: int) -> None:
+    """Count what a request cost this provider, against its minute.
+
+    Called with the provider's own reported token counts where it returns them
+    and an estimate where it does not. An estimate is worth recording: the
+    question this feeds is "is this provider near its ceiling", and being
+    roughly right about that beats knowing nothing, which is what the system
+    knew before -- a tokens-per-minute limit could only be discovered by
+    tripping it.
+    """
+    if tokens <= 0:
+        return
+    window = _usage.setdefault(name, deque())
+    window.append((time.monotonic(), tokens))
+    _trim(window)
+
+
+def _trim(window: deque[tuple[float, int]]) -> None:
+    cutoff = time.monotonic() - WINDOW_SECONDS
+    while window and window[0][0] < cutoff:
+        window.popleft()
+
+
+def spent(name: str) -> tuple[int, int]:
+    """Tokens and requests recorded for this provider inside the window."""
+    window = _usage.get(name)
+    if not window:
+        return (0, 0)
+    _trim(window)
+    return (sum(tokens for _, tokens in window), len(window))
+
+
+def headroom(config: ProviderConfig) -> float:
+    """How much of this provider's declared minute is left, from 1.0 to 0.0.
+
+    `tokens_per_minute is None` means no ceiling has been declared, which is
+    not the same as there being none -- but an undeclared ceiling cannot be
+    steered by, so it answers 1.0 and the provider competes on everything else.
+    Guessing a number here is the one thing this must not do: a wrong ceiling
+    would route around a provider that was fine, silently and forever.
+    """
+    ceiling = config.tokens_per_minute
+    if not ceiling:
+        return 1.0
+    used, _ = spent(config.name)
+    return max(0.0, 1.0 - used / ceiling)
 
 
 def record_failure(name: str, kind: FailureKind, message: str = "") -> None:
@@ -124,7 +234,11 @@ def record_exhausted(name: str, *, retry_after: float | None, message: str = "")
     retry that lands 800ms later, and clamped by `FAILURE_TTL_SECONDS` because a
     remembered failure is a guess about the future and a long guess is a bad one.
     """
-    wait = FAILURE_TTL_SECONDS if retry_after is None else max(10.0, min(retry_after, FAILURE_TTL_SECONDS))
+    wait = (
+        FAILURE_TTL_SECONDS
+        if retry_after is None
+        else max(10.0, min(retry_after, FAILURE_TTL_SECONDS))
+    )
     # A warning, not an info line: `amethyst serve` configures uvicorn's log
     # level and leaves everything else on the root logger, whose default is
     # WARNING -- so an info line here is written to nobody. A provider going
@@ -212,10 +326,7 @@ async def probe(config: ProviderConfig) -> Availability:
 async def _probe_now(config: ProviderConfig) -> Availability:
     import httpx
 
-    base = (config.base_url or "").rstrip("/")
-    if not base:
-        # Nothing to probe against; the adapter's own default will have to do.
-        return Availability(name=config.name, available=True)
+    base = resolve_base_url(config)
 
     try:
         async with httpx.AsyncClient(timeout=PROBE_TIMEOUT_SECONDS) as client:

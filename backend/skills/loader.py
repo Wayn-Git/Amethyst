@@ -130,26 +130,88 @@ def scan(skills_dir: Path | None = None) -> tuple[list[Skill], list[SkillLoadErr
     return skills, errors
 
 
+#: Written beside a seeded skill, holding the hash of what was seeded. It is
+#: how an untouched copy is told apart from one the user has edited -- the only
+#: question that matters when a newer version of the same skill ships.
+SEED_MARKER = ".seeded"
+
+#: Builtin skills that no longer ship under that name, and what replaced them.
+#: `psok-intro` described the project by its old name, and it sat in every
+#: existing install alongside `amethyst-intro` saying much the same thing about
+#: a product that had been renamed -- two skills disagreeing about what the
+#: system is called is worse for a model than one.
+RETIRED_BUILTINS = {"psok-intro": "amethyst-intro"}
+
+
+def _digest(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def seed_builtin_skills(skills_dir: Path | None = None) -> list[str]:
-    """Copy shipped skills into the user's directory without clobbering edits."""
+    """Install shipped skills, updating the ones the user has not edited.
+
+    This used to skip any directory that already existed, which meant a fix to
+    a shipped skill never reached anybody who had run the application before --
+    the copy in `~/.amethyst/skills` was written once, on the first run, and
+    never again. Every edit to a builtin was therefore invisible to every
+    existing install, which is most of what "the skills are out of date" means.
+
+    An edited copy is still never clobbered: the marker records what was
+    installed, so a file that no longer matches it is the user's, and is left
+    exactly where it is.
+    """
     import shutil
 
     source = Path(__file__).parent / "builtin"
     target = skills_dir or paths().skills_dir
     target.mkdir(parents=True, exist_ok=True)
-    if not source.exists():
-        return []
 
-    seeded = []
+    changed: list[str] = []
+
+    for name, replacement in RETIRED_BUILTINS.items():
+        stale = target / name
+        if stale.is_dir() and (target / replacement).is_dir():
+            shutil.rmtree(stale)
+            changed.append(f"-{name}")
+
+    if not source.exists():
+        return changed
+
     for child in source.iterdir():
         if not child.is_dir():
             continue
-        dest = target / child.name
-        if dest.exists():
+        shipped = child / "SKILL.md"
+        if not shipped.exists():
             continue
-        shutil.copytree(child, dest)
-        seeded.append(child.name)
-    return seeded
+        dest = target / child.name
+        installed = dest / "SKILL.md"
+
+        if not dest.exists():
+            shutil.copytree(child, dest)
+            (dest / SEED_MARKER).write_text(_digest(shipped))
+            changed.append(child.name)
+            continue
+
+        marker = dest / SEED_MARKER
+        if not installed.exists() or not marker.exists():
+            # Either predates the marker or is not ours to touch. Left alone:
+            # replacing something a person may have written is worse than
+            # leaving a stale copy they can delete.
+            continue
+        if marker.read_text().strip() != _digest(installed):
+            continue  # edited since it was seeded
+        if _digest(shipped) == _digest(installed):
+            continue  # already current
+
+        shutil.copy2(shipped, installed)
+        marker.write_text(_digest(shipped))
+        changed.append(child.name)
+
+    if changed:
+        forget_scan_cache()
+    return changed
 
 
 def format_catalogue(skills: list[Skill]) -> str:

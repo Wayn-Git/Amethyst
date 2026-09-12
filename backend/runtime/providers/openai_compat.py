@@ -41,6 +41,11 @@ from backend.secrets import resolve_api_key
 #: budget thinking has not answered" guard below never saw it.
 REASONING_FIELDS = ("reasoning_content", "reasoning")
 
+#: Where an entry with no `base_url` lands. Every unknown provider name falls
+#: through to this adapter, and liveness probes need the real endpoint to hit
+#: rather than a silent yes -- see `backend/runtime/availability.py`.
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
 
 def _reasoning_of(payload: dict) -> str | None:
     """The thinking in a message or a delta, whichever field carries it."""
@@ -446,7 +451,7 @@ def initialize(
     resolved_model = model or config.default_model
     if not resolved_model:
         raise ValueError(f"no model specified for provider '{config.name}'")
-    base_url = config.base_url or "https://api.openai.com/v1"
+    base_url = config.base_url or DEFAULT_BASE_URL
     api_key = resolve_api_key(ref=config.api_key_ref, env=config.api_key_env)
     client = OpenAICompatClient(
         base_url=base_url, api_key=api_key, model=resolved_model, max_retries=max_retries
@@ -465,3 +470,47 @@ def initialize(
             tokens_per_minute=config.tokens_per_minute,
         ),
     )
+
+
+def list_models(payload: Any) -> list[dict[str, Any]]:
+    """The model ids out of an OpenAI-style `/models` body, free flagged where known.
+
+    Lives here rather than in the route that renders it: this is the shape
+    *this adapter's* endpoints answer with, and the route must not know one
+    provider's body from another's (ADR-0001). Google overrides it.
+
+    Shapes vary: OpenAI/Groq/Cerebras return `{"data": [{"id": ...}]}`,
+    OpenRouter adds a `pricing` object per entry, and a few return a bare list.
+    Unknown shapes yield nothing rather than a guess -- the picker's free-text
+    field is the fallback, not an invented id.
+    """
+    rows = payload.get("data") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        model_id = row.get("id") or row.get("name")
+        if not model_id:
+            continue
+        pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
+        # Zero prompt-and-completion price, or the `:free` suffix OpenRouter uses.
+        priced_free = pricing and all(
+            _is_zero(pricing.get(k)) for k in ("prompt", "completion") if k in pricing
+        )
+        out.append(
+            {
+                "id": str(model_id),
+                "free": bool(priced_free) or str(model_id).endswith(":free"),
+            }
+        )
+    out.sort(key=lambda m: (not m["free"], m["id"]))
+    return out
+
+
+def _is_zero(value: Any) -> bool:
+    try:
+        return float(value) == 0.0
+    except (TypeError, ValueError):
+        return False

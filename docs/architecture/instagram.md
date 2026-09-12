@@ -84,6 +84,31 @@ possible**, and the download, the transcription, the enrichment and the reply ar
 each wrapped so a failure writes a sentence into `capture_note` and carries on.
 The item survives all of them failing — the library's existing rule, unchanged.
 
+### Why one delivery is also a durable job
+
+The queue survived a crash; the *pipeline inside one delivery* did not. Two
+defects came straight out of that, and both were real:
+
+- **The confirmation went twice.** `_maybe_reply` ran before `store.finish`, so
+  an event `reclaim_stale` requeued after a crash in that gap told the sender
+  "Saved: …" a second time for one reel.
+- **A transcript could be silently skipped.** A crash during transcription left
+  the library row already written, so the retry took the `already_logged` path,
+  reported "already in the library", and never came back for the audio. Partial
+  work read as complete work.
+
+So the drain opens a durable job per delivery (`JobStore.begin`, keyed on
+`delivery_key`) and `process` runs its steps through that job's ledger:
+`capture`, `thumbnail`, `transcript`, `enrich`, `reply`. A retry re-enters from
+the top, replays what finished, and runs only what did not. `instagram_events`
+keeps its own claim — it is where Meta's re-deliveries collide, and two tables
+disagreeing about one reel would be worse than one table with a ledger beside
+it. See [jobs.md](jobs.md).
+
+`_resolve` is deliberately **not** a step. It is a read, and Instagram's asset
+URLs expire in about a week — a recorded one would be handed to a download now
+guaranteed to fail, which is the opposite of what replaying is for.
+
 ## Security
 
 **Its only authentication is the HMAC signature**, because Meta will not send a
@@ -150,6 +175,23 @@ unsubscribed with every later reel gone and nothing saying so.
 the delivery, sends a receipt while this machine is away, and refreshes the
 60-day token on a daily cron -- the one job that genuinely cannot live here,
 since a token that lapses during an absence cannot be refreshed at all.
+
+The receipt is a **Cloudflare Workflow**, not a fetch. It was
+`ctx.waitUntil(sendAck(...))` inside the request handler, with a `catch` that
+logged and moved on, so a Graph 500 or a rate limit lost it silently -- inside a
+24-hour messaging window that cannot be reopened. It is now a job
+(`relay/src/jobs/types/instagram_ack.ts`) on the relay's generic durable layer:
+the Workflow retries each step with bounded backoff and records the outcome in
+`outbound`, which the laptop reads back on its next poll, and the job's
+idempotency key is the delivery's body hash, so a re-delivery reconnects to the
+job that exists rather than starting a second one. It is the same step-ledger
+idea as [jobs.md](jobs.md) on this machine, deliberately -- and it was the
+bespoke version of it first.
+
+This is the *only* work that moved. Nothing else here could: the download,
+ffmpeg, the transcription and the library need a disk and a machine, and ADR-0004
+makes the filesystem the source of truth for text. Capture moves to the relay;
+processing does not.
 
 `backend/instagram/relay.py` collects from it on a fifteen-second poll, ahead of
 the drain in the same tick. A relayed delivery and a direct one land in the same

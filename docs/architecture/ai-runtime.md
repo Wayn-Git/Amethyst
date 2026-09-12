@@ -212,7 +212,7 @@ turn as it happens. The API forwards them verbatim as SSE frames.
 | `tool_result` | `name`, `content`, `is_error` | What it returned. |
 | `warning` | `message` | The turn continues but something was lost, e.g. a truncated stream. |
 | `guard` | `reason` | A limit, or the user's stop request, ended the turn. |
-| `error` | `message` | The turn failed. Always the last event. |
+| `error` | `message`, `text`, `resumable` | The turn failed. Always the last event. `text` is whatever already reached the reader; `resumable` says there is half an answer in the transcript to carry on from, and is also readable afterwards from `GET /api/conversations/{id}/run`. |
 | `done` | `text`, `iterations` | The turn finished. |
 
 **The answer arrives exactly once.** A streaming provider produces
@@ -247,6 +247,33 @@ Every turn writes normalized message rows (user, assistant, and tool messages, w
 
 Two tables rather than one because their retention policies differ: conversation history is the user's data and is kept, while the audit log is operational and prunable. Recorded in [ADR-0017](decisions/0017-conversation-message-persistence-model.md).
 
+A third, `agent_runs`, holds one row per turn: the loop's own bookkeeping, so a turn survives the process running it. See [ADR-0021](decisions/0021-agent-run-state.md).
+
+### The phase of a turn
+
+`agent_runs.phase` is the durable lifecycle, and the only value the loop reads back:
+
+| Phase | Meaning |
+|---|---|
+| `preparing` | the user's message is written; context and the fallback chain are being assembled |
+| `reasoning` | waiting on a model, or picking an answer back up after its stream died |
+| `acting` | dispatching the tools the model asked for |
+| `awaiting_approval` | suspended on the permission gate |
+| `awaiting_input` | suspended on a clarifying question |
+| `completed` | the turn answered |
+| `stopped` | a guard ended it: time, iterations, or tool calls |
+| `cancelled` | the user pressed Stop |
+| `failed` | the chain gave up, or something raised |
+| `interrupted` | the process died mid-turn; written by the sweep at startup |
+
+Every legal move between them is written out in `TRANSITIONS` (`backend/agent/state.py`); `AgentState.enter` refuses anything else. The last five are terminal.
+
+This is a different vocabulary from the `status` frames in the event table above, and deliberately so. Those are for display — an interface styles them — and three of them name something whose durable fact is already a number on the state: `switching` is `active`, `retrying` is `continuations`, `resuming` is `resumes`. A phase for each would be the same fact stored twice.
+
+**Suspension is observed, not re-plumbed.** The permission gate and the question service each announce before they block (`confirmation_required`, `question_required`), and the loop reads the phase off those frames as they pass through. Neither service knows the run row exists, so what the gate allows, escalates and asks about is unchanged by any of this.
+
+**Nothing resumes itself.** The sweep at startup retires an orphaned run and closes the tool calls it left unanswered; it does not re-enter the loop. Re-entering would fire model calls with no reader attached and re-run calls the user had already approved, and [automation.md](automation.md) already holds the line that a failed run does not retry within itself.
+
 ## Component boundaries
 
 | Component | Responsibility |
@@ -256,6 +283,7 @@ Two tables rather than one because their retention policies differ: conversation
 | `runtime/types.py` | `ResolvedModel`, `Capabilities`, normalized message and response shapes |
 | `agent/director.py` | The loop and its guards; the only owner of the cycle |
 | `agent/prompt.py` | Prompt assembly and token budgeting |
+| `agent/state.py` | `AgentState`, the phases, and the transition table |
 | `tools/registry.py` | The flat namespace and dispatch (see [components.md](components.md)) |
 
 The Director imports the runtime and the tool registry. Neither imports the Director. Provider modules import neither.

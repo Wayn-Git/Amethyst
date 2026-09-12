@@ -8,6 +8,7 @@ import Badge from './ui/Badge.jsx'
 import BrandKit from './BrandKit.jsx'
 import { useModalDismiss, onOverlayMouseDown } from '../hooks/useModalDismiss.js'
 import { useFocusTrap } from '../hooks/useFocusTrap.js'
+import Switch from './ui/Switch.jsx'
 
 /* Settings, and only settings.
 
@@ -50,62 +51,68 @@ function General() {
 
   return (
     <div className="set-panel">
-      <h3>Appearance</h3>
-      <div className="theme-picker" role="radiogroup" aria-label="Colour theme">
-        {THEME_CHOICES.map((choice) => (
-          <button
-            key={choice.id}
-            type="button"
-            role="radio"
-            aria-checked={theme === choice.id}
-            className={`theme-swatch theme-swatch--${choice.id}${theme === choice.id ? ' is-on' : ''}`}
-            onClick={() => setTheme(choice.id)}
-          >
-            {/* The swatch is the palette itself rather than a word for it, so
-                picking one is a comparison instead of a guess. */}
-            <span className="theme-chip" aria-hidden="true">
-              <i className="theme-chip-bg" />
-              <i className="theme-chip-fg" />
-              <i className="theme-chip-live" />
+      <div className="set-card">
+        <h3>Appearance</h3>
+        <div className="theme-picker" role="radiogroup" aria-label="Colour theme">
+          {THEME_CHOICES.map((choice) => (
+            <button
+              key={choice.id}
+              type="button"
+              role="radio"
+              aria-checked={theme === choice.id}
+              className={`theme-swatch theme-swatch--${choice.id}${theme === choice.id ? ' is-on' : ''}`}
+              onClick={() => setTheme(choice.id)}
+            >
+              {/* The swatch is the palette itself rather than a word for it, so
+                  picking one is a comparison instead of a guess. */}
+              <span className="theme-chip" aria-hidden="true">
+                <i className="theme-chip-bg" />
+                <i className="theme-chip-fg" />
+                <i className="theme-chip-live" />
+              </span>
+              <span className="theme-swatch-text">
+                <span className="theme-swatch-label">{choice.label}</span>
+                <span className="theme-swatch-hint">{choice.hint}</span>
+              </span>
+              {theme === choice.id && <Icon name="check" size={14} />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-card">
+        <h3>This machine</h3>
+        <div className="set-rows">
+          <div className="set-row">
+            <span>API</span>
+            <span className={healthError ? 'set-bad' : 'set-ok'}>
+              {healthError ? healthError : `reachable · ${health?.status ?? 'unknown'}`}
             </span>
-            <span className="theme-swatch-text">
-              <span className="theme-swatch-label">{choice.label}</span>
-              <span className="theme-swatch-hint">{choice.hint}</span>
-            </span>
-            {theme === choice.id && <Icon name="check" size={14} />}
+          </div>
+          <div className="set-row">
+            <span>Tools</span><span>{health?.tools ?? '—'} builtin + connected</span>
+          </div>
+          <div className="set-row">
+            <span>Skills</span>
+            <span>{health?.skills ?? '—'} installed{health?.skill_errors ? `, ${health.skill_errors} broken` : ''}</span>
+          </div>
+          <div className="set-row">
+            <span>Connector tools</span><span>{health?.mcp_tools ?? 0} live</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="set-card">
+        <h3>Working directory</h3>
+        <p className="set-note">
+          File and shell tools are confined here. Empty means the directory the API was started in.
+        </p>
+        <div className="set-inline">
+          <input value={draft} placeholder="~/notes" onChange={(e) => setDraft(e.target.value)} />
+          <button type="button" className="btn btn--primary btn--small" onClick={() => setWorkspace(draft.trim())}>
+            Save
           </button>
-        ))}
-      </div>
-
-      <h3>This machine</h3>
-      <div className="set-rows">
-        <div className="set-row">
-          <span>API</span>
-          <span className={healthError ? 'set-bad' : 'set-ok'}>
-            {healthError ? healthError : `reachable · ${health?.status ?? 'unknown'}`}
-          </span>
         </div>
-        <div className="set-row">
-          <span>Tools</span><span>{health?.tools ?? '—'} builtin + connected</span>
-        </div>
-        <div className="set-row">
-          <span>Skills</span>
-          <span>{health?.skills ?? '—'} installed{health?.skill_errors ? `, ${health.skill_errors} broken` : ''}</span>
-        </div>
-        <div className="set-row">
-          <span>Connector tools</span><span>{health?.mcp_tools ?? 0} live</span>
-        </div>
-      </div>
-
-      <h3>Working directory</h3>
-      <p className="set-note">
-        File and shell tools are confined here. Empty means the directory the API was started in.
-      </p>
-      <div className="set-inline">
-        <input value={draft} placeholder="~/notes" onChange={(e) => setDraft(e.target.value)} />
-        <button type="button" className="btn btn--primary btn--small" onClick={() => setWorkspace(draft.trim())}>
-          Save
-        </button>
       </div>
 
       <IterationLimit />
@@ -139,7 +146,7 @@ function BetaPages() {
   }
 
   return (
-    <>
+    <div className="set-card">
       <h3>Beta</h3>
       <p className="set-note">
         Pages that work but are still changing. Turning this off hides them everywhere —
@@ -152,19 +159,15 @@ function BetaPages() {
             <span className="set-sub">Mail and Automations.</span>
           </span>
           <span className="set-row-tail">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={betaPages}
-              className={`btn btn--small${betaPages ? ' btn--primary' : ' btn--ghost'}`}
-              onClick={toggle}
-            >
-              {betaPages ? 'On' : 'Off'}
-            </button>
+            <Switch
+              on={betaPages}
+              onChange={toggle}
+              label="Beta pages"
+            />
           </span>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -185,7 +188,7 @@ function TurnNotifications() {
   }
 
   return (
-    <>
+    <div className="set-card">
       <h3>Notifications</h3>
       <p className="set-note">
         A desktop notification when a turn finishes, so you can tab away from a long one.
@@ -198,19 +201,15 @@ function TurnNotifications() {
             <span className="set-sub">Uses your browser&apos;s notifications — it will ask permission once.</span>
           </span>
           <span className="set-row-tail">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={notifyOnDone}
-              className={`btn btn--small${notifyOnDone ? ' btn--primary' : ' btn--ghost'}`}
-              onClick={toggle}
-            >
-              {notifyOnDone ? 'On' : 'Off'}
-            </button>
+            <Switch
+              on={notifyOnDone}
+              onChange={toggle}
+              label="Notify when a turn finishes"
+            />
           </span>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -251,7 +250,7 @@ function DailyRhythm() {
   const hours = Array.from({ length: 24 }, (_, h) => h)
 
   return (
-    <>
+    <div className="set-card">
       <h3>Daily rhythm</h3>
       <p className="set-note">
         When the morning briefing and the evening check-in are filed. Both run while AMETHYST is
@@ -273,15 +272,12 @@ function DailyRhythm() {
             >
               {hours.map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
             </select>
-            <button
-              type="button"
-              className={`btn btn--small${state.briefing_enabled ? ' btn--primary' : ''}`}
-              aria-pressed={state.briefing_enabled}
+            <Switch
+              on={state.briefing_enabled}
               disabled={saving}
-              onClick={() => save({ briefing_enabled: !state.briefing_enabled })}
-            >
-              {state.briefing_enabled ? 'On' : 'Off'}
-            </button>
+              onChange={() => save({ briefing_enabled: !state.briefing_enabled })}
+              label="Morning briefing"
+            />
           </span>
         </div>
         <div className="set-row">
@@ -300,15 +296,12 @@ function DailyRhythm() {
             >
               {hours.map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
             </select>
-            <button
-              type="button"
-              className={`btn btn--small${state.review_enabled ? ' btn--primary' : ''}`}
-              aria-pressed={state.review_enabled}
+            <Switch
+              on={state.review_enabled}
               disabled={saving}
-              onClick={() => save({ review_enabled: !state.review_enabled })}
-            >
-              {state.review_enabled ? 'On' : 'Off'}
-            </button>
+              onChange={() => save({ review_enabled: !state.review_enabled })}
+              label="Evening check-in"
+            />
           </span>
         </div>
         <div className="set-row">
@@ -325,19 +318,16 @@ function DailyRhythm() {
             >
               {WEEKDAYS.map((day, i) => <option key={day} value={i}>{day}</option>)}
             </select>
-            <button
-              type="button"
-              className={`btn btn--small${state.weekly_enabled ? ' btn--primary' : ''}`}
-              aria-pressed={state.weekly_enabled}
+            <Switch
+              on={state.weekly_enabled}
               disabled={saving}
-              onClick={() => save({ weekly_enabled: !state.weekly_enabled })}
-            >
-              {state.weekly_enabled ? 'On' : 'Off'}
-            </button>
+              onChange={() => save({ weekly_enabled: !state.weekly_enabled })}
+              label="Weekly review"
+            />
           </span>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -368,7 +358,7 @@ function IterationLimit() {
   }
 
   return (
-    <>
+    <div className="set-card">
       <h3>Steps per turn</h3>
       <p className="set-note">
         How many tool calls and model round trips one message may take before the turn is made
@@ -388,7 +378,7 @@ function IterationLimit() {
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -445,7 +435,7 @@ function AddProviderForm({ preset, onDone, onCancel }) {
   }
 
   return (
-    <div className="set-panel set-subpanel">
+    <div className="set-subpanel">
       <h3>{preset ? `Add ${preset.label}` : 'Add a provider'}</h3>
       {preset?.note && <p className="set-note">{preset.note}</p>}
 
@@ -570,7 +560,7 @@ function RolesEditor({ providers, defaults, unavailable }) {
   if (providers.length === 0) return null
 
   return (
-    <>
+    <div className="set-card">
       <h3>Roles</h3>
       <p className="set-note">
         Which model does which job. The go-to model is where a new conversation starts; an
@@ -591,7 +581,7 @@ function RolesEditor({ providers, defaults, unavailable }) {
           />
         ))}
       </div>
-    </>
+    </div>
   )
 }
 
@@ -693,6 +683,10 @@ function Models() {
   // 'busy' while the request is in flight. Kept here rather than in the row so
   // "Ping all" can fill every row at once.
   const [pinged, setPinged] = useState({})
+  // What the router would do right now, and why. Read-only: this panel
+  // explains routing, it does not configure it -- the inputs it scores are the
+  // provider rows above and the tiers below.
+  const [routing, setRouting] = useState(null)
 
   const load = useCallback(async () => {
     try {
@@ -700,6 +694,9 @@ function Models() {
       setCatalogue(data.catalogue)
       setConfigured(data.configured)
     } catch (err) { toast(err.message, 'bad') }
+    // Best-effort and separate: a routing read that fails must not blank the
+    // provider list, which is the part of this panel that has to work.
+    try { setRouting(await api.routing()) } catch { setRouting(null) }
   }, [toast])
 
   useEffect(() => { load() }, [load])
@@ -739,6 +736,20 @@ function Models() {
     }
   }
 
+  const toggle = async (name, enabled) => {
+    // Optimistic: the switch is the one control here where a round trip's
+    // delay reads as the click not having registered.
+    setConfigured((list) => list.map((p) => (p.name === name ? { ...p, enabled } : p)))
+    try {
+      await api.setProviderEnabled(name, enabled)
+      load()
+      refreshHealth?.()
+    } catch (err) {
+      setConfigured((list) => list.map((p) => (p.name === name ? { ...p, enabled: !enabled } : p)))
+      toast(err.message, 'bad')
+    }
+  }
+
   const remove = async (name) => {
     try {
       await api.removeProvider(name)
@@ -754,67 +765,156 @@ function Models() {
 
   return (
     <div className="set-panel">
-      <div className="set-head-row">
-        <h3>Providers</h3>
-        {configured.length > 0 && (
-          <button type="button" className="btn btn--ghost btn--small" onClick={pingAll}>
-            Ping all
-          </button>
-        )}
-      </div>
-      <p className="set-note">
-        Keys live in the OS keychain; <span className="mono">providers.yaml</span> holds only a
-        reference. A provider with no key is listed and not offered. Ping checks the endpoint
-        now, whatever the badge last remembered.
-      </p>
-      <div className="set-rows">
-        {configured.length === 0 && <div className="set-row"><span>none configured</span></div>}
-        {configured.map((p) => (
-          <div className="set-row" key={p.name}>
-            <span>
-              {p.name}
-              <span className="set-sub">{p.default_model || 'no default model'}</span>
-            </span>
-            <span className="set-row-tail">
-              {!p.has_key && <Badge>needs a key</Badge>}
-              {p.has_key && !p.available && (
-                <Badge title={p.unavailable_reason}>not answering</Badge>
-              )}
-              {p.has_key && p.available && <Badge>ready</Badge>}
-              {pinged[p.name] === 'busy' && <span className="set-sub">pinging…</span>}
-              {pinged[p.name] && pinged[p.name] !== 'busy' && (
-                <Badge title={pinged[p.name].reason || undefined}>
-                  {pinged[p.name].available
-                    ? `answered${pinged[p.name].latency_ms != null ? ` · ${pinged[p.name].latency_ms}ms` : ''}`
-                    : 'no answer'}
-                </Badge>
-              )}
-              <button
-                type="button"
-                className="btn btn--ghost btn--small"
-                disabled={pinged[p.name] === 'busy'}
-                onClick={() => pingOne(p.name)}
-              >
-                Ping
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost btn--small"
-                onClick={() => remove(p.name)}
-              >
-                Remove
-              </button>
-            </span>
+      <div className="set-card">
+        <div className="set-head-row">
+          <h3>Providers</h3>
+          {configured.length > 0 && (
+            <button type="button" className="btn btn--ghost btn--small" onClick={pingAll}>
+              Ping all
+            </button>
+          )}
+        </div>
+        <p className="set-note">
+          Keys live in the OS keychain; <span className="mono">providers.yaml</span> holds only a
+          reference. A provider with no key is listed and not offered. Ping checks the endpoint
+          now, whatever the badge last remembered.
+        </p>
+        <div className="set-rows">
+          {configured.length === 0 && <div className="set-row"><span>none configured</span></div>}
+          {[
+            { key: 'core', label: 'Core — what Auto reaches for first' },
+            { key: 'mine', label: 'Yours — Auto uses these when no core one can answer' },
+          ].map((group) => {
+            const rows = configured.filter((p) => (group.key === 'core' ? p.core : !p.core))
+            if (rows.length === 0) return null
+            return (
+          <div key={group.key}>
+            <div className="set-group-head">{group.label}</div>
+            {rows.map((p) => (
+            <div className={`set-row${p.enabled ? '' : ' set-row--off'}`} key={p.name}>
+              <span>
+                {p.name}
+                <span className="set-sub">
+                  {p.default_model || 'no default model'}
+                  {!p.auto_route && ' · Auto never picks this'}
+                </span>
+              </span>
+              <span className="set-row-tail">
+                {!p.enabled && <Badge>off</Badge>}
+                {!p.has_key && <Badge>needs a key</Badge>}
+                {p.has_key && !p.available && (
+                  <Badge tone="bad" title={p.unavailable_reason}>not answering</Badge>
+                )}
+                {p.has_key && p.available && <Badge tone="ok">ready</Badge>}
+                {pinged[p.name] === 'busy' && <span className="set-sub">pinging…</span>}
+                {pinged[p.name] && pinged[p.name] !== 'busy' && (
+                  <Badge
+                    tone={pinged[p.name].available ? 'ok' : 'bad'}
+                    title={pinged[p.name].reason || undefined}
+                  >
+                    {pinged[p.name].available
+                      ? <>
+                          answered
+                          {pinged[p.name].latency_ms != null && (
+                            <> · <span className="set-ms">{pinged[p.name].latency_ms}ms</span></>
+                          )}
+                        </>
+                      : 'no answer'}
+                  </Badge>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  disabled={pinged[p.name] === 'busy'}
+                  onClick={() => pingOne(p.name)}
+                >
+                  Ping
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={() => remove(p.name)}
+                >
+                  Remove
+                </button>
+                {/* Off, not gone: the entry and its key both stay, which is
+                    what Remove cannot do. */}
+                <Switch
+                  on={p.enabled}
+                  label={`Use ${p.name}`}
+                  onChange={(next) => toggle(p.name, next)}
+                />
+              </span>
+            </div>
+            ))}
           </div>
+            )
+          })}
+        </div>
+
+        {/* A provider that has a key and still cannot answer is the case `has_key`
+            alone could never see: a local endpoint declares no key at all, so it
+            reported itself configured while nothing was listening on its port. */}
+        {Object.entries(unavailable).map(([name, reason]) => (
+          <p className="set-note" key={name}>{name}: {reason}</p>
         ))}
       </div>
 
-      {/* A provider that has a key and still cannot answer is the case `has_key`
-          alone could never see: a local endpoint declares no key at all, so it
-          reported itself configured while nothing was listening on its port. */}
-      {Object.entries(unavailable).map(([name, reason]) => (
-        <p className="set-note" key={name}>{name}: {reason}</p>
-      ))}
+      {/* Routing, explained rather than configured. Nothing here is an input:
+          the router scores the providers above and the tiers below, and this is
+          what it currently makes of them. Routing that cannot be inspected is
+          routing nobody can trust -- "why did it not use Groq" has an answer,
+          and it should not take reading the log to find it. */}
+      {routing && (
+        <div className="set-card">
+          <div className="set-head-row">
+            <h3>Routing</h3>
+            <button type="button" className="btn btn--ghost btn--small" onClick={load}>
+              Refresh
+            </button>
+          </div>
+          <p className="set-note">
+            What <span className="mono">Auto</span> would pick for an ordinary turn right now.
+            A big or picture-carrying question scores differently — size, tools and what is
+            answering all count.
+            {routing.decision?.offline && ' Nothing on the network is reachable, so a local model wins.'}
+          </p>
+          <div className="set-rows">
+            {routing.decision?.candidates?.map((c, i) => (
+              <div
+                className={`set-row${c.rejected ? ' set-row--off' : ''}`}
+                key={c.provider}
+              >
+                <span>
+                  {!c.rejected && <span className="set-rank">{i + 1}</span>}
+                  {c.provider}
+                  <span className="set-sub">
+                    {c.rejected || c.reasons?.join(' · ') || 'nothing for or against it'}
+                  </span>
+                </span>
+                <span className="set-row-tail">
+                  {i === 0 && !c.rejected && <Badge tone="ok">would answer</Badge>}
+                  {(() => {
+                    const p = routing.providers?.find((x) => x.name === c.provider)
+                    if (!p?.tokens_per_minute) return null
+                    return (
+                      <span
+                        className="set-headroom"
+                        title={`${p.spent_tokens.toLocaleString()} of ${p.tokens_per_minute.toLocaleString()} tokens this minute`}
+                      >
+                        <span
+                          className="set-headroom-fill"
+                          style={{ width: `${Math.round(p.headroom * 100)}%` }}
+                        />
+                      </span>
+                    )
+                  })()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {adding !== null ? (
         <AddProviderForm
@@ -823,7 +923,7 @@ function Models() {
           onCancel={() => setAdding(null)}
         />
       ) : (
-        <>
+        <div className="set-card">
           <h3>Add one</h3>
           <div className="set-rows">
             {unlisted.map((p) => (
@@ -861,13 +961,13 @@ function Models() {
               </span>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       <RolesEditor providers={providers} defaults={defaults} unavailable={unavailable} />
 
       {active && (
-        <>
+        <div className="set-card">
           <h3>This conversation</h3>
           <div className="set-inline">
             <select value={active.provider} onChange={(e) => apply({ provider: e.target.value, model: defaults[e.target.value] || active.model })}>
@@ -885,7 +985,7 @@ function Models() {
             />
           </div>
           <p className="set-note">The adapter is resolved fresh every turn, so this takes effect immediately.</p>
-        </>
+        </div>
       )}
     </div>
   )
@@ -903,34 +1003,36 @@ function Permissions() {
 
   return (
     <div className="set-panel">
-      <h3>Runs without asking</h3>
-      <p className="set-note">
-        Kept by operation key rather than tool name — approving a read-only shell command never
-        approved a destructive one.
-      </p>
-      {rows.length === 0 && <div className="set-empty">Nothing is approved in advance. Every gated call asks.</div>}
-      <div className="set-rows">
-        {rows.map((row) => (
-          <div className="set-row" key={row.operation_key}>
-            <span className="mono">{row.operation_key}</span>
-            <span className="set-row-tail">
-              <Badge>{row.risk_level}</Badge>
-              <button
-                type="button"
-                className="btn btn--ghost btn--small"
-                onClick={async () => {
-                  try {
-                    await api.revokeApproval(row.operation_key)
-                    toast(`${row.operation_key} will ask again`, 'ok')
-                    load()
-                  } catch (err) { toast(err.message, 'bad') }
-                }}
-              >
-                Revoke
-              </button>
-            </span>
-          </div>
-        ))}
+      <div className="set-card">
+        <h3>Runs without asking</h3>
+        <p className="set-note">
+          Kept by operation key rather than tool name — approving a read-only shell command never
+          approved a destructive one.
+        </p>
+        {rows.length === 0 && <div className="set-empty">Nothing is approved in advance. Every gated call asks.</div>}
+        <div className="set-rows">
+          {rows.map((row) => (
+            <div className="set-row" key={row.operation_key}>
+              <span className="mono">{row.operation_key}</span>
+              <span className="set-row-tail">
+                <Badge>{row.risk_level}</Badge>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={async () => {
+                    try {
+                      await api.revokeApproval(row.operation_key)
+                      toast(`${row.operation_key} will ask again`, 'ok')
+                      load()
+                    } catch (err) { toast(err.message, 'bad') }
+                  }}
+                >
+                  Revoke
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -988,32 +1090,34 @@ function Data() {
 
   return (
     <div className="set-panel">
-      <h3>Clear stored data</h3>
-      <p className="set-note">
-        Both are immediate and cannot be undone. Tasks, the activity trail, indexed documents
-        and your signed-in accounts are not touched by either.
-      </p>
-      <div className="set-rows">
-        <DangerRow
-          label="Conversations"
-          note="Every conversation and its transcript. Automation runs are kept."
-          count={conversations.length}
-          confirmLabel="Delete all"
-          onConfirm={async () => { await deleteAllConversations(); refreshConvs() }}
-        />
-        <DangerRow
-          label="Memories"
-          note="Every fact AMETHYST has remembered about you. It stops recalling them."
-          count={facts}
-          confirmLabel="Forget all"
-          onConfirm={async () => {
-            try {
-              const { superseded } = await api.forgetAllMemories()
-              toast(`Forgot ${superseded} fact${superseded === 1 ? '' : 's'}`, 'ok')
-              load()
-            } catch (err) { toast(err.message, 'bad') }
-          }}
-        />
+      <div className="set-card">
+        <h3>Clear stored data</h3>
+        <p className="set-note">
+          Both are immediate and cannot be undone. Tasks, the activity trail, indexed documents
+          and your signed-in accounts are not touched by either.
+        </p>
+        <div className="set-rows">
+          <DangerRow
+            label="Conversations"
+            note="Every conversation and its transcript. Automation runs are kept."
+            count={conversations.length}
+            confirmLabel="Delete all"
+            onConfirm={async () => { await deleteAllConversations(); refreshConvs() }}
+          />
+          <DangerRow
+            label="Memories"
+            note="Every fact AMETHYST has remembered about you. It stops recalling them."
+            count={facts}
+            confirmLabel="Forget all"
+            onConfirm={async () => {
+              try {
+                const { superseded } = await api.forgetAllMemories()
+                toast(`Forgot ${superseded} fact${superseded === 1 ? '' : 's'}`, 'ok')
+                load()
+              } catch (err) { toast(err.message, 'bad') }
+            }}
+          />
+        </div>
       </div>
     </div>
   )
@@ -1034,12 +1138,21 @@ export default function Settings() {
   // second copy -- and beta pages appear here only once they are switched on.
   const pages = forSettings(betaPages)
   const [section, setSection] = useState('general')
+  const [version, setVersion] = useState(null)
   const open = overlay === 'settings'
   const panelRef = useRef(null)
   const close = useCallback(() => setOverlay(null), [setOverlay])
 
   useModalDismiss(open, close)
   useFocusTrap(panelRef, open)
+
+  // The build's own version line, for the foot of the nav. `health` surveys
+  // providers over the network; `ping` is the one route that touches nothing
+  // and still knows, and the only other thing it says is "ok".
+  useEffect(() => {
+    if (!open || version) return
+    api.ping().then((p) => setVersion(p.version)).catch(() => {})
+  }, [open, version])
 
   if (!open) return null
   const Panel = PANELS[section] || General
@@ -1055,7 +1168,8 @@ export default function Settings() {
               className={`set-nav-item${section === item.id ? ' active' : ''}`}
               onClick={() => setSection(item.id)}
             >
-              <Icon name={item.icon} size={15} /> {item.label}
+              <Icon name={item.icon} size={15} />
+              <span className="set-nav-label">{item.label}</span>
             </button>
           ))}
           <div className="set-nav-group">Pages</div>
@@ -1066,10 +1180,12 @@ export default function Settings() {
               className="set-nav-item set-nav-item--away"
               onClick={() => { setView(page.id); setOverlay(null) }}
             >
-              <Icon name={page.icon} size={15} /> {page.label}
+              <Icon name={page.icon} size={15} />
+              <span className="set-nav-label">{page.label}</span>
               <Icon name="chevron" size={12} className="set-nav-away" />
             </button>
           ))}
+          <div className="set-nav-foot">{version ? `AMETHYST · v${version}` : 'AMETHYST'}</div>
         </nav>
         <div className="set-content">
           <div className="set-head">
@@ -1078,7 +1194,12 @@ export default function Settings() {
               <Icon name="x" size={16} />
             </button>
           </div>
-          <Panel />
+          {/* Keyed by section so switching panels is a fresh entrance rather
+              than a hard cut -- the one place motion earns its keep, and off
+              entirely for anyone who asked the system for stillness. */}
+          <div className="set-panel-frame" key={section}>
+            <Panel />
+          </div>
         </div>
       </div>
     </div>

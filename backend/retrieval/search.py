@@ -196,16 +196,30 @@ class SearchService:
 
     async def context_for(self, query: str, *, budget_chars: int = 6000) -> str:
         """Assemble retrieved context for the system prompt, within a budget."""
+        text, _ = await self.context_and_hits(query, budget_chars=budget_chars)
+        return text
+
+    async def context_and_hits(
+        self, query: str, *, budget_chars: int = 6000
+    ) -> tuple[str, list[SearchHit]]:
+        """The same block, and the hits that actually fitted in it.
+
+        Two returns rather than a second search: the agent loop records what its
+        prompt was built from (`backend/agent/state.py`), and the hits the budget
+        cut are not part of that -- they never reached the model.
+        """
         hits = await self.search(query, limit=6)
         if not hits:
-            return ""
+            return "", []
 
         blocks: list[str] = []
-        used = 0
+        used: list[SearchHit] = []
+        size = 0
         for hit in hits:
             block = f"[{hit.label}]\n{hit.content}"
-            if used + len(block) > budget_chars:
+            if size + len(block) > budget_chars:
                 break
             blocks.append(block)
-            used += len(block)
-        return "\n\n".join(blocks)
+            used.append(hit)
+            size += len(block)
+        return "\n\n".join(blocks), used

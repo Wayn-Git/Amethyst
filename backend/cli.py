@@ -884,6 +884,45 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_desktop(args: argparse.Namespace) -> int:
+    """Run AMETHYST in the tray, or arrange for login to do it.
+
+    The same server `serve` runs, with somewhere to live while no window is
+    open: an icon, a global hotkey, and a way to quit that is not closing a
+    terminal.
+    """
+    from backend import desktop
+
+    if args.install_autostart:
+        print(f"AMETHYST will start at login: {desktop.install_autostart()}")
+        return 0
+    if args.uninstall_autostart:
+        removed = desktop.uninstall_autostart()
+        print(f"removed {removed}" if removed else "nothing was set to start at login")
+        return 0
+    return desktop.run_tray(
+        host=args.host,
+        port=args.port,
+        hotkey=args.hotkey or desktop.DEFAULT_HOTKEY,
+        log_level=args.log_level,
+        open_browser=args.open,
+        native_window=not args.no_window,
+    )
+
+
+def cmd_palette(args: argparse.Namespace) -> int:
+    """Open the command palette in the running interface.
+
+    Exists as a command so that a desktop environment can bind a key to it.
+    That is the supported route on Wayland, which refuses the global grab
+    `amethyst desktop` would otherwise use.
+    """
+    from backend import desktop
+
+    desktop.summon_palette(args.port)
+    return 0
+
+
 def cmd_share_token(args: argparse.Namespace) -> int:
     """Create, show the state of, or revoke the capture token.
 
@@ -1671,6 +1710,29 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--open", action="store_true", help="open a browser once it is up")
     serve.add_argument("--log-level", default="info")
     serve.set_defaults(func=cmd_serve)
+
+    desk = sub.add_parser("desktop", help="run in the system tray, always available")
+    desk.add_argument("--host", default="127.0.0.1", help="bind address (default: loopback only)")
+    desk.add_argument("--port", type=int, default=8000)
+    desk.add_argument("--hotkey", default=None, help="global chord for the palette")
+    desk.add_argument("--open", action="store_true", help="open a browser once it is up")
+    desk.add_argument("--log-level", default="warning")
+    desk.add_argument(
+        "--no-window",
+        action="store_true",
+        help="do not open a window of its own; use the browser",
+    )
+    desk.add_argument(
+        "--install-autostart", action="store_true", help="start the tray at login"
+    )
+    desk.add_argument(
+        "--uninstall-autostart", action="store_true", help="stop starting it at login"
+    )
+    desk.set_defaults(func=cmd_desktop)
+
+    pal = sub.add_parser("palette", help="open the command palette in the interface")
+    pal.add_argument("--port", type=int, default=8000)
+    pal.set_defaults(func=cmd_palette)
 
     _add_mcp_commands(sub)
 

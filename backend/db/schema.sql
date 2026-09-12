@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- because the right fallback for a long careful piece of work is not the
     -- right one for a throwaway question.
     fallback               TEXT,
+    -- Kept at the top of the history column instead of sinking down it as
+    -- newer conversations arrive. Distinct from `messages.pinned`, which marks
+    -- one answer inside one conversation: the interface offered both under the
+    -- same star, and the star wrote the message bit -- so a "starred" section
+    -- filtered on a column that did not exist and was permanently empty.
+    pinned                 INTEGER NOT NULL DEFAULT 0,
     created_at             TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -514,3 +520,97 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_path
     ON artifacts(conversation_id, path);
 CREATE INDEX IF NOT EXISTS idx_artifact_recent
     ON artifacts(conversation_id, updated_at DESC);
+
+-- One row per turn: the loop's own bookkeeping, so a turn survives the process
+-- that was running it.
+--
+-- Not a second transcript. The messages a turn produced stay normalized in
+-- `messages` (ADR-0017) and this row holds their ids; retrieved context is
+-- referenced by row id, never copied. What is here is what has nowhere else to
+-- live: how many times an answer was picked up after a dropped stream, which
+-- chain link answered, the half-written text that only reaches `messages` if the
+-- turn gives up, and the phase a restart reads to know the process died mid-turn.
+--
+-- `phase`, `link`, `error` and `checkpoint` are lifted out of the JSON because
+-- the boot sweep and the run endpoint have to query them without parsing every
+-- blob -- the same call `automations.last_status` makes. Both copies are written
+-- from `AgentRunRepository.save` alone, so they cannot drift.
+CREATE TABLE IF NOT EXISTS agent_runs (
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    phase           TEXT NOT NULL,
+    state_version   INTEGER NOT NULL DEFAULT 1,
+    state           TEXT NOT NULL,      -- the serialized AgentState
+    link            TEXT,               -- "provider/model" that answered
+    error           TEXT,
+    checkpoint      INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_agent_runs_conv ON agent_runs(conversation_id, created_at);
+-- The sweep at boot reads exactly this set: with one uvicorn worker, a run still
+-- in a live phase when the process starts is by definition one the last process
+-- did not finish.
+CREATE INDEX IF NOT EXISTS idx_agent_runs_live ON agent_runs(phase)
+    WHERE phase NOT IN ('completed', 'stopped', 'cancelled', 'failed', 'interrupted');
+
+-- Durable jobs: work that has nobody watching it.
+--
+-- A conversation turn is not here. It is interactive, it is fast, and
+-- `agent_runs` already records it -- moving it onto a queue would cost a
+-- round trip through SQLite for no benefit anyone can see. What is here is the
+-- work that used to be a Python coroutine and nothing else: an automation that
+-- runs for minutes with no reader, and an Instagram delivery that arrives while
+-- the machine is asleep. A crash took both, and the retry re-ran every tool call
+-- the first attempt had already made.
+--
+-- `idempotency_key` is what makes pressing Run twice run once. It is chosen from
+-- the fact the job is about -- an automation and the minute it came due, a
+-- delivery and its key -- never randomly, because a random key would make every
+-- press a new job, which is the behaviour this replaces.
+CREATE TABLE IF NOT EXISTS jobs (
+    id               TEXT PRIMARY KEY,
+    kind             TEXT NOT NULL,
+    idempotency_key  TEXT NOT NULL,
+    state            TEXT NOT NULL DEFAULT 'queued',
+    payload          TEXT NOT NULL DEFAULT '{}',   -- what the handler starts from
+    checkpoint       TEXT NOT NULL DEFAULT '{}',   -- what it has worked out since
+    result           TEXT,
+    attempts         INTEGER NOT NULL DEFAULT 0,
+    max_attempts     INTEGER NOT NULL DEFAULT 3,
+    next_attempt_at  TEXT,        -- when a waiting job becomes claimable
+    lease_expires_at TEXT,        -- a running job's claim; reclaimed when it lapses
+    lease_owner      TEXT,
+    run_id           TEXT,        -- agent_runs.id, when this job ran a turn
+    last_error       TEXT,
+    blocked_on       TEXT,        -- why a waiting job is waiting, in a sentence
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    started_at       TEXT,
+    finished_at      TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_key ON jobs(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_jobs_lane ON jobs(kind, state, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_recent ON jobs(created_at DESC);
+
+-- What has already happened inside a job, so a retry does not do it twice.
+--
+-- This is the whole of the idempotency guarantee and it is deliberately the
+-- mechanism Cloudflare Workflows uses, so the local and remote halves of durable
+-- execution are one idea in two places. A handler wraps each externally visible
+-- operation in `JobStore.step(job, key, ...)`; on a retry the handler runs again
+-- from the top and every step that finished returns its recorded answer instead
+-- of calling out a second time.
+--
+-- The row is written *after* the operation returns, so a crash mid-step leaves
+-- no row and the step runs again. That is at-least-once for the step and
+-- exactly-once for everything after it -- which is the strongest guarantee
+-- available without the far side offering an idempotency key, and the reason
+-- `safe` exists: a step marked unsafe is never retried automatically.
+CREATE TABLE IF NOT EXISTS job_steps (
+    job_id     TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    step_key   TEXT NOT NULL,
+    result     TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (job_id, step_key)
+);

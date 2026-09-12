@@ -23,9 +23,16 @@ from backend.runtime.failures import (
     should_fall_back,
     should_retry,
 )
-from backend.runtime.http import ProviderHTTPError
-from backend.runtime.types import Capabilities, ModelResponse, ResolvedModel, ToolSchema
+from backend.runtime.http import ProviderHTTPError, ProviderStreamError
+from backend.runtime.types import (
+    Capabilities,
+    ModelResponse,
+    ResolvedModel,
+    ToolCall,
+    ToolSchema,
+)
 from backend.security.confirmation import ConfirmationService, auto_approve
+from backend.tools.base import RiskLevel, Tool, ToolResult
 from backend.tools.registry import ToolRegistry
 
 
@@ -402,9 +409,15 @@ class _Answers:
     def __init__(self, text: str = "answered"):
         self.text = text
         self.calls = 0
+        #: The wire each call was given. Kept so a test can assert what a
+        #: provider was actually *told*, not merely that it was reached --
+        #: "the next provider continued the answer" and "the next provider
+        #: started a new one" look identical from a call count.
+        self.seen: list[list[dict]] = []
 
     async def complete(self, messages, tools=None, params=None):
         self.calls += 1
+        self.seen.append(messages)
         return ModelResponse(text=self.text)
 
 
@@ -594,11 +607,30 @@ async def test_a_failed_provider_is_not_retried_on_every_later_iteration(db, mon
     assert up.calls == 2
 
 
-async def test_a_failure_after_the_first_token_is_not_handed_over(db, monkeypatch):
-    """A second provider would start its answer underneath the half already on
-    screen, so text having streamed ends the chain.
+async def test_a_failure_after_the_first_token_is_continued_by_the_next_provider(
+    db, monkeypatch
+):
+    """A half-written answer survives the provider writing it going down.
 
-    Mutation check: drop `not streamed_text` from `can_hand_over`.
+    This used to be the opposite rule, and the reasoning behind it was sound
+    right up until resumes shipped: a second provider would *restart* the
+    answer underneath the half the user was already reading, which is worse
+    than failing. But `state.carried` is rebuilt into the wire as an assistant
+    message plus `RESUME_AFTER_CUT`, and neither is provider-specific -- so a
+    different provider continues a cut answer exactly the way the same one
+    does, and the objection no longer holds.
+
+    What the old rule cost, in the real database: NVIDIA's NIM emits
+    `Error in input stream` intermittently *after* tokens have moved, which is
+    exactly the case the guard excluded. A mid-answer failure could only be
+    retried on the provider that had just failed, and once `max_resumes` ran
+    out the turn died holding half a sentence with two healthy providers still
+    sitting in the chain.
+
+    The resumes still come first -- the provider that was talking gets its two
+    tries before anyone else is asked -- and only then does the chain move on.
+
+    Mutation check: restore `not streamed_text` in `can_hand_over`.
     """
     from backend.runtime.types import StreamEvent
 
@@ -633,10 +665,116 @@ async def test_a_failure_after_the_first_token_is_not_handed_over(db, monkeypatc
     cid = ConversationRepository().create("nvidia", "nvidia-1")
     events = [e async for e in Director(_registry(), stream=True, memory=False).run(cid, "hi")]
 
-    assert events[-1].type == "error"
-    assert never.calls == 0
+    assert events[-1].type == "done", "the turn finished instead of dying mid-sentence"
+    assert dying.calls == 3, "the provider that was talking gets its two resumes first"
+    assert never.calls == 1, "then the next provider is asked to continue it"
+
+    # What already reached the user is never withdrawn, and the hand-over is
+    # announced as a continuation rather than as somebody else answering.
     deltas = [e.data["text"] for e in events if e.type == "assistant_delta"]
-    assert deltas == ["half an ans"], "what reached the user stays"
+    assert deltas[:3] == ["half an ans"] * 3, "what reached the user stays"
+    warning = next(e for e in events if e.type == "warning")
+    assert "continuing with" in warning.data["message"]
+
+    # The partial is what the next provider was given, so it continues rather
+    # than starting the answer again.
+    sent = never.seen[-1]
+    assert any(
+        m.get("role") == "assistant" and "half an ans" in (m.get("content") or "")
+        for m in sent
+    ), "the next provider was handed the half already on screen"
+
+
+class _ToolThenBlip:
+    """Opens with a tool call, then falters -- streaming no prose at any point.
+
+    This is a free model on an aggregator mid-session, and the shape matters:
+    the turn's work is already done and written down when the stream falls over.
+    """
+
+    def __init__(self, fail_times: int = 1):
+        self.fail_times = fail_times
+        self.calls = 0
+        self.failures = 0
+
+    async def complete(self, messages, tools=None, params=None):
+        self.calls += 1
+        if self.calls == 1:
+            return ModelResponse(
+                tool_calls=[ToolCall(id="1", name="log_library_item", arguments={})]
+            )
+        if self.failures < self.fail_times:
+            self.failures += 1
+            raise ProviderStreamError(
+                "Error in input stream",
+                kind=classify_stream_error("Error in input stream"),
+            )
+        return ModelResponse(text="logged it")
+
+
+def _tool_registry() -> ToolRegistry:
+    async def handler(args, ctx):
+        return ToolResult.ok("Logged: Rick Roll (video, general)")
+
+    registry = ToolRegistry(ConfirmationService(auto_approve))
+    registry.register(
+        Tool(
+            name="log_library_item",
+            description="d",
+            parameters={"type": "object", "properties": {}},
+            handler=handler,
+            risk=RiskLevel.LOW,
+        )
+    )
+    return registry
+
+
+async def test_a_blip_after_a_tool_call_is_retried_even_with_nothing_on_screen(
+    db, monkeypatch
+):
+    """One provider, a tool call, and a stream that falters with no prose written.
+
+    The resume used to require that text had already streamed, which a turn that
+    opens with a tool call never has -- so with no link to hand over to, a
+    recoverable blip killed a turn whose tool had already run and been recorded.
+    The user saw a red `Error in input stream` sitting under a tool result that
+    had plainly succeeded.
+
+    Mutation check: restore `bool(streamed_text or state.carried) and` to
+    `can_resume` in `Director._run`.
+    """
+    flaky = _ToolThenBlip()
+    _patch_chain(monkeypatch, ["kilocode"], {"kilocode": _model("kilocode", flaky)})
+
+    cid = ConversationRepository().create("kilocode", "kilocode-1")
+    events = [
+        e
+        async for e in Director(_tool_registry(), stream=False, memory=False).run(
+            cid, "add rick roll to my library"
+        )
+    ]
+    kinds = [e.type for e in events]
+
+    assert [e.data.get("message") for e in events if e.type == "error"] == []
+    assert kinds[-1] == "done", "the turn died on a blip it could have retried"
+    assert flaky.failures == 1 and flaky.calls == 3, "it re-asked the same provider"
+
+
+async def test_a_provider_that_only_ever_falters_still_gives_up(db, monkeypatch):
+    """The retry is bounded. Resumes are capped, so a dead provider ends the turn."""
+    hopeless = _ToolThenBlip(fail_times=99)
+    _patch_chain(monkeypatch, ["kilocode"], {"kilocode": _model("kilocode", hopeless)})
+
+    cid = ConversationRepository().create("kilocode", "kilocode-1")
+    events = [
+        e
+        async for e in Director(_tool_registry(), stream=False, memory=False).run(
+            cid, "add rick roll to my library"
+        )
+    ]
+
+    assert [e.type for e in events][-1] != "done"
+    assert hopeless.failures <= 4, "it must not retry forever"
 
 
 async def test_extraction_uses_the_model_that_answered_not_the_one_that_failed(db, monkeypatch):
@@ -1195,6 +1333,137 @@ def test_ping_all_reports_every_provider(client, monkeypatch, amethyst_home):
     results = client.post("/api/providers/ping-all").json()["results"]
     assert results["groq"]["available"] is True
     assert results["nvidia"]["available"] is False
+
+
+def test_resolve_base_url_fills_the_adapter_default(client):
+    """An entry with no `base_url` still has an endpoint -- the adapter's own
+    default -- and anything that wants to hit the provider has to use the same
+    one a turn would, rather than reading the empty field and guessing.
+
+    Mutation check: return `config.base_url or ""` from `resolve_base_url`.
+    """
+    assert (
+        availability.resolve_base_url(ProviderConfig(name="google", provider="google"))
+        == "https://generativelanguage.googleapis.com/v1beta"
+    )
+    assert (
+        availability.resolve_base_url(ProviderConfig(name="anthropic"))
+        == "https://api.anthropic.com/v1"
+    )
+    # An unknown name falls through to the compatible adapter, same as resolve().
+    assert (
+        availability.resolve_base_url(ProviderConfig(name="my-proxy"))
+        == "https://api.openai.com/v1"
+    )
+    # A declared base URL is used as written, without a trailing slash added twice.
+    assert (
+        availability.resolve_base_url(ProviderConfig(name="x", base_url="http://x:1/v1/"))
+        == "http://x:1/v1"
+    )
+
+
+async def test_a_probe_without_a_base_url_still_hits_the_network(monkeypatch):
+    """Ping used to answer "available" without touching the network: `_probe_now`
+    read the entry's empty `base_url`, gave up, and said yes -- so pinging Google
+    (whose catalogue entry ships no base URL) reported 0ms forever, up or down.
+
+    Mutation check: restore the `if not base: return available=True` shortcut.
+    """
+    import httpx
+
+    seen = {"url": ""}
+
+    def handler(request):
+        # Scoped to the google endpoint so the dead-port case below still
+        # "fails" -- anything else on the wire raises, which is what a
+        # connection-refused looks like to the probe.
+        if "generativelanguage" not in str(request.url):
+            raise httpx.ConnectError("connection refused")
+        seen["url"] = str(request.url)
+        return httpx.Response(401)
+
+    class MockedClient(httpx.AsyncClient):
+        def __init__(self, *args, **kwargs):
+            kwargs["transport"] = httpx.MockTransport(handler)
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockedClient)
+
+    result = await availability.ping(ProviderConfig(name="google", provider="google"))
+    assert result.available is True, "a 401 still proves the endpoint is there"
+    assert seen["url"] == "https://generativelanguage.googleapis.com/v1beta/models", (
+        "the probe hit the adapter's real default endpoint, not a made-up one"
+    )
+
+    # And the same entry pointed at a dead port says so, rather than yes.
+    down = await availability.ping(ProviderConfig(name="local", base_url="http://127.0.0.1:9/v1"))
+    assert down.available is False
+    assert "nothing answered" in down.reason
+
+
+def test_the_model_list_uses_the_adapter_default_too(client, monkeypatch, amethyst_home):
+    """`/api/providers/{name}/models` had the same empty-`base_url` defect as
+    the ping, one reason away: the list came back empty and blamed the user for
+    a field the adapter fills in. With the resolver it reads the same endpoint
+    the turn would use.
+
+    Mutation check: read `(config.base_url or "").rstrip("/")` back in the route.
+
+    The mocked body is Google's own shape, not OpenAI's. It used to be the
+    latter, which made the test pass while describing a reply Google has never
+    sent: the real endpoint answers `{"models": [{"name": "models/..."}]}` and
+    wants its key in `x-goog-api-key`, and a Bearer header gets a 401 -- which
+    showed up in the picker as an empty list for a key that was answering chat
+    completions perfectly well.
+    """
+    import httpx
+
+    from backend.config import paths
+
+    path = paths().providers_yaml
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        """
+providers:
+  - name: google
+    provider: google
+    api_key_env: GEMINI_KEY
+"""
+    )
+    monkeypatch.setenv("GEMINI_KEY", "g")
+
+    def handler(request):
+        assert "generativelanguage" in str(request.url), "the adapter default was used"
+        assert request.headers.get("x-goog-api-key") == "g", "Google's own auth header"
+        assert "authorization" not in request.headers, "a Bearer header here is a 401"
+        return httpx.Response(
+            200,
+            json={
+                "models": [
+                    {
+                        "name": "models/gemini-2.0-flash",
+                        "supportedGenerationMethods": ["generateContent"],
+                    },
+                    # An embedding model, which cannot take a chat turn and must
+                    # not be offered in a model picker.
+                    {
+                        "name": "models/text-embedding-004",
+                        "supportedGenerationMethods": ["embedContent"],
+                    },
+                ]
+            },
+        )
+
+    class MockedClient(httpx.AsyncClient):
+        def __init__(self, *args, **kwargs):
+            kwargs["transport"] = httpx.MockTransport(handler)
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockedClient)
+
+    body = client.get("/api/providers/google/models").json()
+    assert [m["id"] for m in body["models"]] == ["gemini-2.0-flash"]
+    assert body["reason"] == ""
 
 
 def test_the_model_list_parses_openai_and_openrouter_shapes():

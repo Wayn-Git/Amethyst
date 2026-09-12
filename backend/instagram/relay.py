@@ -123,6 +123,7 @@ class RelayClient:
         self.timeout = timeout
 
     async def sync(self, *, ack: list[int], config: dict[str, Any],
+                   job_ack: list[str] | None = None,
                    limit: int = BATCH) -> dict[str, Any]:
         if not self.url or not self.token:
             raise RelayError("the relay has no URL or no token stored")
@@ -130,7 +131,12 @@ class RelayClient:
             response = await _client(self.timeout).post(
                 f"{self.url}/sync",
                 headers={"Authorization": f"Bearer {self.token}"},
-                json={"ack": ack, "config": config, "limit": limit},
+                json={
+                    "ack": ack,
+                    "job_ack": job_ack or [],
+                    "config": config,
+                    "limit": limit,
+                },
                 timeout=self.timeout,
             )
         except httpx.HTTPError as exc:
@@ -161,6 +167,10 @@ class RelayPoller:
         self._client = client
         self._library = library
         self._pending_ack: list[int] = []
+        #: Finished jobs taken last time. Same discipline as `_pending_ack`, and
+        #: for the same reason: a job acknowledged before its result is applied
+        #: is one a sync that died halfway would throw away.
+        self._pending_job_ack: list[str] = []
 
     @property
     def client(self) -> RelayClient:
@@ -201,14 +211,19 @@ class RelayPoller:
         # The per-row check lives in `_take`.
 
         ack, self._pending_ack = self._pending_ack, []
+        job_ack, self._pending_job_ack = self._pending_job_ack, []
         try:
-            payload = await self.client.sync(ack=ack, config=self._config())
+            payload = await self.client.sync(
+                ack=ack, job_ack=job_ack, config=self._config()
+            )
         except RelayError as exc:
             # Put them back: nothing was deleted at the relay, so they still need
             # acknowledging, and re-acknowledging one twice is a no-op there.
             self._pending_ack = ack + self._pending_ack
+            self._pending_job_ack = job_ack + self._pending_job_ack
             log.warning("relay sync failed: %s", exc)
-            return {"synced": False, "pulled": 0, "queued": 0, "acked": 0, "error": str(exc)}
+            return {"synced": False, "pulled": 0, "queued": 0, "acked": 0,
+                    "jobs": 0, "error": str(exc)}
 
         self._apply_rotated_token(payload)
 
@@ -236,7 +251,91 @@ class RelayPoller:
             "pulled": pulled,
             "queued": int(payload.get("queued") or 0),
             "acked": len(ack),
+            "jobs": await self._collect_jobs(payload),
         }
+
+    # -- the durable job layer's half of the round trip -------------------
+
+    async def _collect_jobs(self, payload: dict[str, Any]) -> int:
+        """Apply what the relay finished while this machine was off.
+
+        `docs/architecture/jobs.md` has the why. The relay runs the work whose
+        deadline a closed laptop cannot meet; this is where its result stops
+        being a row in D1 and becomes something in the library. Nothing is
+        acknowledged here -- an id goes on `_pending_job_ack` and is confirmed
+        on the *next* sync, which is what makes a crash in the middle re-offer
+        the job rather than lose it.
+        """
+        jobs = (payload.get("jobs") or {}).get("ready") or []
+        taken = 0
+        for job in jobs:
+            job_id = job.get("id")
+            if not isinstance(job_id, str) or not job_id:
+                continue
+            result = await self._collect(job)
+            if result is None:
+                # Held: something transient stopped it, and acknowledging now
+                # would delete a result nothing has applied. The next sync is
+                # offered it again; the relay's prune is the deadline.
+                continue
+            if result:
+                taken += 1
+            self._pending_job_ack.append(job_id)
+        return taken
+
+    async def _collect(self, job: dict[str, Any]) -> bool | None:
+        """One finished job. True applied, False nothing to apply, None held."""
+        from backend.library.service import KINDS, LibraryError, LibraryService
+
+        kind = job.get("kind")
+        if job.get("state") == "failed":
+            # Acknowledged, not retried. The relay spent its attempts already,
+            # and a job whose fetch fails there fails here for the same reason.
+            log.warning(
+                "the relay gave up on a %s job: %s",
+                kind,
+                job.get("last_error") or "no reason given",
+            )
+            return False
+        if kind == "instagram_ack":
+            # The receipt was the work, and it happened on the relay. There is
+            # nothing to bring home but the fact that it is done.
+            return False
+
+        result = job.get("result") or {}
+        url = (result.get("url") or "").strip() if isinstance(result.get("url"), str) else ""
+        if kind not in ("url_ingest", "document_fetch", "media_fetch") or not url:
+            # A kind this machine does not know, from a relay running ahead of
+            # it. Acknowledged rather than held: a row nobody here will ever be
+            # able to apply must not be re-offered on every poll forever.
+            log.warning("the relay finished a %s job this machine has no use for", kind)
+            return False
+
+        # ponytail: the URL, not the staged bytes. R2 is commented out in
+        # wrangler.jsonc, so `staged` is False on every deployment that has not
+        # deliberately turned it on -- and the relay's own comment says the
+        # machine fetches them itself in that case. Collecting an artifact from
+        # `GET /jobs/{id}/artifact/{key}` is the upgrade path when it is on.
+        # The relay takes any word as a kind; the library takes seven. A phone
+        # that said "pdf" meant something about the link, not nothing, so the
+        # capture happens without it rather than being refused for it.
+        wanted = result.get("kind")
+        try:
+            await (self._library or LibraryService()).capture_url(
+                url,
+                kind=wanted if wanted in KINDS else None,
+                notes=result.get("note") or None,
+                title=result.get("title") or None,
+            )
+        except LibraryError as exc:
+            # The same rule every other door into the library follows: a fetch
+            # that went wrong is not a reason to keep asking for it.
+            log.warning("a relayed %s job could not be logged: %s", kind, exc)
+            return False
+        except Exception as exc:  # a crash mid-capture is transient until proven otherwise
+            log.warning("applying a relayed %s job failed: %s", kind, exc)
+            return None
+        return True
 
     def _apply_rotated_token(self, payload: dict[str, Any]) -> None:
         """The relay's cron refreshes the 60-day token; this is how it comes home.

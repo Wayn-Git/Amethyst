@@ -48,6 +48,10 @@ export function SkiperNavItem({
       type="button"
       onClick={onClick}
       title={title}
+      /* The purple pill said "you are here" to anyone looking at it and to
+         nobody using a screen reader; `aria-current` is the half of that
+         statement the markup was missing. */
+      aria-current={active ? 'page' : undefined}
       className={cn('skiper-nav-item', active && 'is-active', className)}
       whileHover={{ x: 2 }}
       whileTap={{ scale: 0.98 }}

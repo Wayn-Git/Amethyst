@@ -63,7 +63,7 @@ export default function Memory() {
 
   return (
     <div className="view" ref={rootRef}>
-      <div className="view-inner">
+      <div className="view-inner view-inner--wide">
         <header className="vheader" data-enter>
           <div>
             <h1>What AMETHYST remembers</h1>

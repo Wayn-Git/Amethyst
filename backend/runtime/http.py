@@ -416,12 +416,20 @@ async def stream_sse(
             return
         except TRANSIENT_EXCEPTIONS as exc:
             if started or attempt == max_retries:
-                # Once bytes have moved, a different provider cannot take over
-                # cleanly either -- half an answer is already on screen -- so
-                # this is not a fallback opportunity, only a failure.
+                # Once bytes have moved this layer cannot replay the request --
+                # it would send the whole answer twice -- so it stops here and
+                # says what kind of failure it was.
+                #
+                # It used to call that `NON_RETRYABLE`, on the reasoning that a
+                # different provider could not take over cleanly with half an
+                # answer already on screen. True, and still true; but the
+                # director can now ask the *same* provider to continue the
+                # sentence it was writing, and it decides that from the kind.
+                # Calling a dropped socket unrecoverable took that decision
+                # away from the only layer holding the partial.
                 raise ProviderHTTPError(
                     f"{url} stream failed: {exc}",
-                    kind=(FailureKind.NON_RETRYABLE if started else FailureKind.UNREACHABLE),
+                    kind=(FailureKind.UPSTREAM_UNHEALTHY if started else FailureKind.UNREACHABLE),
                 ) from exc
             # Nothing had arrived yet, so replaying is safe -- but it is a whole
             # request, and the provider may well have generated a response it

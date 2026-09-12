@@ -20,8 +20,12 @@ agreeing about arithmetic.
 
 ## Decision 1: who decides it is time
 
-**This process, while `amethyst serve` is running.** A background task wakes every
-thirty seconds, reads the due rows off an index, and runs them one at a time.
+**This process, while `amethyst serve` is running.** A background task wakes every ten
+seconds, reads the due rows off an index, and puts them on the job board one at a
+time; a lane runs them. Splitting the two is what lets a run survive the process
+that started it — deciding what is due takes milliseconds, running it takes
+minutes, and a crash during the minutes used to leave no record that the run had
+begun.
 
 The alternative — a cron-like daemon independent of the API — keeps automations
 running when nothing is up to serve them, and the question that settles it is
@@ -56,7 +60,10 @@ period. Below the tick an "automation" would be a busy loop wearing a schedule.
 
 "Run now" ignores all of this. The floor governs how often AMETHYST starts a run by
 itself; a person pressing the button has already decided. It still queues behind
-a run in flight, so two unattended turns never share the machine.
+a run in flight, so two unattended turns never share the machine — that is the
+job lane's doing rather than a lock's now, and it is stricter: pressing the
+button while a run is going hands back *that* run rather than queueing a second
+one behind it. See [jobs.md](jobs.md).
 
 ## Decision 2: what the permission gate does with nobody watching
 
@@ -96,8 +103,14 @@ interactive turn running at that moment.
 - **No cron expressions.** An interval, from a fixed list.
 - **No trigger other than the clock.** Not "when a file changes", not "when mail
   arrives".
-- **No retry within a run.** A run that fails does not try again sooner; it
-  only reschedules later than usual (below).
+- **No retry of the *schedule* within a run.** A run that fails does not bring
+  its next scheduled run forward; it only pushes it later than usual (below).
+
+  A run *is* now retried a bounded number of times as a job, which is a
+  different clock for a different thing: the geometric backoff below asks "how
+  often should this automation be tried at all", and the job's backoff asks
+  "did the provider have a bad minute". Two attempts, minutes apart, then the
+  job stops and the schedule takes over. See [jobs.md](jobs.md).
 - **Nothing that can answer a permission prompt.** See above. If that changes,
   it needs its own design, not a flag.
 

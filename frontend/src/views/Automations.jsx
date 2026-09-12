@@ -275,7 +275,12 @@ export default function Automations() {
 
   useEffect(() => { load() }, [load])
 
-  // A run in flight changes `last_status` on the server, not here.
+  /* A run in flight changes `last_status` on the server, not here.
+
+     It also keeps that status across a reload now, because the run is a durable
+     job rather than an awaited request: pressing Run hands back a job id and
+     the row goes on saying "Running…" whether or not this tab is the one that
+     started it. */
   useEffect(() => {
     if (!rows.some((r) => r.last_status === 'running')) return undefined
     const tick = setInterval(load, 4000)
@@ -286,11 +291,19 @@ export default function Automations() {
     setBusy(`${row.id}:${action}`)
     try {
       if (action === 'run') {
-        const result = await api.runAutomation(row.id)
+        /* The job, not the result. A run that was already going hands back the
+           same job rather than queueing a second one behind it, so pressing the
+           button twice -- or on two tabs -- starts one run. The outcome arrives
+           through `load` below, on the same poll that was already watching for
+           it. */
+        const job = await api.runAutomation(row.id)
         toast(
-          result.status === 'ok' ? `“${row.name}” ran` : `“${row.name}”: ${result.summary}`,
-          result.status === 'ok' ? 'ok' : result.status === 'blocked' ? 'amber' : 'bad',
+          job.state === 'running' || job.state === 'queued'
+            ? `“${row.name}” is running`
+            : `“${row.name}”: ${job.blocked_on || job.last_error || job.state}`,
+          job.state === 'failed' ? 'bad' : job.blocked_on ? 'amber' : 'ok',
         )
+        await load()
       } else if (action === 'toggle') {
         await api.updateAutomation(row.id, { enabled: !row.enabled })
       } else if (action === 'delete') {

@@ -81,8 +81,10 @@ class FakeRelay:
         self.url = RELAY_URL
         self.token = RELAY_TOKEN
 
-    async def sync(self, *, ack, config, limit=25):
-        self.calls.append({"ack": list(ack), "config": config, "limit": limit})
+    async def sync(self, *, ack, config, job_ack=(), limit=25):
+        self.calls.append(
+            {"ack": list(ack), "job_ack": list(job_ack), "config": config, "limit": limit}
+        )
         if not self.batches:
             return {"deliveries": [], "queued": 0}
         return self.batches.pop(0)
@@ -194,11 +196,13 @@ async def test_a_failed_call_keeps_what_it_owed(wired):
             super().__init__({"deliveries": [row(raw, row_id=9)]}, {"deliveries": []})
             self.fail_next = False
 
-        async def sync(self, *, ack, config, limit=25):
+        async def sync(self, *, ack, config, job_ack=(), limit=25):
             if self.fail_next:
-                self.calls.append({"ack": list(ack), "config": config, "limit": limit})
+                self.calls.append(
+                    {"ack": list(ack), "job_ack": list(job_ack), "config": config, "limit": limit}
+                )
                 raise relay.RelayError("down")
-            return await super().sync(ack=ack, config=config, limit=limit)
+            return await super().sync(ack=ack, config=config, job_ack=job_ack, limit=limit)
 
     fake = Flaky()
     poller = relay.RelayPoller(fake)
@@ -426,3 +430,192 @@ def test_forgetting_the_relay_clears_both_halves(wired):
 
     assert body["relay"] == {"url": "", "enabled": False, "token": False, "ready": False}
     assert relay.token() is None
+
+
+# -- what the relay finished while this machine was off ------------------
+#
+# The durable job layer's half of the same round trip (docs/architecture/jobs.md).
+# The relay runs the work whose deadline a closed laptop cannot meet; these are
+# the assertions about the result stopping being a row in D1.
+
+
+def ready_job(kind: str, result: dict, *, job_id: str = "j1", state: str = "completed") -> dict:
+    return {
+        "id": job_id,
+        "kind": kind,
+        "state": state,
+        "result": result,
+        "artifacts": [],
+        "last_error": None,
+    }
+
+
+class RecordingLibrary:
+    def __init__(self, error: Exception | None = None):
+        self.captured: list[dict] = []
+        self.error = error
+
+    async def capture_url(self, url, *, kind=None, notes=None, title=None, **_):
+        if self.error is not None:
+            raise self.error
+        self.captured.append({"url": url, "kind": kind, "notes": notes, "title": title})
+
+
+@pytest.mark.asyncio
+async def test_a_link_the_relay_caught_reaches_the_library(wired):
+    library = RecordingLibrary()
+    fake = FakeRelay(
+        {
+            "deliveries": [],
+            "jobs": {
+                "ready": [
+                    ready_job(
+                        "url_ingest",
+                        {"url": "https://example.com/a", "kind": "article",
+                         "note": "read later", "title": "A"},
+                    )
+                ]
+            },
+        }
+    )
+
+    result = await relay.RelayPoller(fake, library=library).sync()
+
+    assert result["jobs"] == 1
+    assert library.captured == [
+        {"url": "https://example.com/a", "kind": "article",
+         "notes": "read later", "title": "A"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_finished_job_is_acknowledged_on_the_next_sync_not_this_one(wired):
+    """Mutation check: acknowledge inside `_collect_jobs` instead of on the next
+    call, and a sync that dies between the answer and the capture deletes a
+    result nothing ever applied."""
+    fake = FakeRelay(
+        {"deliveries": [], "jobs": {"ready": [ready_job("url_ingest",
+                                                        {"url": "https://example.com/a"},
+                                                        job_id="j7")]}},
+        {"deliveries": []},
+    )
+    poller = relay.RelayPoller(fake, library=RecordingLibrary())
+
+    await poller.sync()
+    assert fake.calls[0]["job_ack"] == []
+    await poller.sync()
+    assert fake.calls[1]["job_ack"] == ["j7"]
+
+
+@pytest.mark.asyncio
+async def test_a_job_the_relay_gave_up_on_is_acknowledged_not_retried(wired):
+    """A relay that spent three attempts on a fetch fails here for the same
+    reason. Holding it would re-offer it on every poll for eight days."""
+    library = RecordingLibrary()
+    fake = FakeRelay(
+        {"deliveries": [], "jobs": {"ready": [ready_job(
+            "url_ingest", {"url": "https://example.com/a"}, job_id="j9", state="failed")]}},
+    )
+    poller = relay.RelayPoller(fake, library=library)
+
+    result = await poller.sync()
+
+    assert result["jobs"] == 0
+    assert library.captured == []
+    assert poller._pending_job_ack == ["j9"]
+
+
+@pytest.mark.asyncio
+async def test_a_capture_that_crashes_holds_the_job_rather_than_losing_it(wired):
+    """Mutation check: acknowledge on any exception and a library that was
+    momentarily unavailable costs the link permanently."""
+    fake = FakeRelay(
+        {"deliveries": [], "jobs": {"ready": [ready_job(
+            "url_ingest", {"url": "https://example.com/a"}, job_id="j3")]}},
+    )
+    poller = relay.RelayPoller(fake, library=RecordingLibrary(error=RuntimeError("disk gone")))
+
+    result = await poller.sync()
+
+    assert result["jobs"] == 0
+    assert poller._pending_job_ack == []
+
+
+@pytest.mark.asyncio
+async def test_a_receipt_the_relay_sent_has_nothing_to_bring_home(wired):
+    """`instagram_ack` is work that *is* the outward send. Collecting it would
+    mean capturing a reel the drain already owns."""
+    library = RecordingLibrary()
+    fake = FakeRelay(
+        {"deliveries": [], "jobs": {"ready": [ready_job(
+            "instagram_ack", {"sent": True}, job_id="j2")]}},
+    )
+    poller = relay.RelayPoller(fake, library=library)
+
+    result = await poller.sync()
+
+    assert result["jobs"] == 0
+    assert library.captured == []
+    assert poller._pending_job_ack == ["j2"]
+
+
+@pytest.mark.asyncio
+async def test_a_kind_this_machine_does_not_know_does_not_block_the_queue(wired):
+    """A relay deployed ahead of the machine. Acknowledged, because nothing here
+    will ever be able to apply it and the alternative is a poll that carries it
+    forever."""
+    fake = FakeRelay(
+        {"deliveries": [], "jobs": {"ready": [ready_job(
+            "something_new", {"url": "https://example.com/a"}, job_id="j4")]}},
+    )
+    poller = relay.RelayPoller(fake, library=RecordingLibrary())
+
+    assert (await poller.sync())["jobs"] == 0
+    assert poller._pending_job_ack == ["j4"]
+
+
+@pytest.mark.asyncio
+async def test_a_kind_the_library_does_not_have_is_captured_without_it(wired):
+    """The relay takes any word as a kind and the library takes seven. A phone
+    that said "pdf" meant something about the link, not nothing."""
+    library = RecordingLibrary()
+    fake = FakeRelay(
+        {"deliveries": [], "jobs": {"ready": [ready_job(
+            "document_fetch", {"url": "https://example.com/a.pdf", "kind": "pdf",
+                               "title": "A paper"})]}},
+    )
+
+    await relay.RelayPoller(fake, library=library).sync()
+
+    assert library.captured == [
+        {"url": "https://example.com/a.pdf", "kind": None, "notes": None, "title": "A paper"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_relay_that_could_not_be_reached_keeps_the_job_acks_it_owed(wired):
+    class Flaky(FakeRelay):
+        def __init__(self):
+            super().__init__(
+                {"deliveries": [], "jobs": {"ready": [ready_job(
+                    "url_ingest", {"url": "https://example.com/a"}, job_id="j5")]}},
+                {"deliveries": []},
+            )
+            self.fail_next = False
+
+        async def sync(self, *, ack, config, job_ack=(), limit=25):
+            if self.fail_next:
+                self.calls.append({"ack": list(ack), "job_ack": list(job_ack),
+                                   "config": config, "limit": limit})
+                raise relay.RelayError("down")
+            return await super().sync(ack=ack, config=config, job_ack=job_ack, limit=limit)
+
+    fake = Flaky()
+    poller = relay.RelayPoller(fake, library=RecordingLibrary())
+    await poller.sync()
+    fake.fail_next = True
+    await poller.sync()
+    fake.fail_next = False
+    await poller.sync()
+
+    assert fake.calls[-1]["job_ack"] == ["j5"]

@@ -1,5 +1,5 @@
 /**
- * AMETHYST's relay: the part of Instagram capture that has to be awake.
+ * AMETHYST's relay: the part of AMETHYST that has to be awake.
  *
  * A closed laptop is not a slow endpoint, it is a down one. Meta retries a
  * failed webhook and then disables the subscription, so pointing Meta at a
@@ -13,13 +13,20 @@
  * verifies that signature again before anything reaches the library. A
  * compromised relay can lose a reel; it cannot invent one.
  *
- * What it deliberately does NOT do: download media, run ffmpeg, transcribe,
- * enrich, or hold a library. No free platform has a persistent disk, and
- * ADR-0004 makes the filesystem the source of truth for text. Capture moves
- * here; processing stays on the machine.
+ * It began as one webhook and grew a second half: a **generic durable job
+ * layer** (`src/jobs/`) for work that has to continue while the desktop is
+ * unavailable. Instagram's receipt is now one job type among several rather
+ * than the only thing here that retries. The rule has not changed -- the relay
+ * *captures* and *fetches*; it does not think.
+ *
+ * What it deliberately does NOT do: run the agent, hold a library, run ffmpeg,
+ * transcribe, enrich, or keep anything the machine has collected. No free
+ * platform has a persistent disk, ADR-0004 makes the filesystem the source of
+ * truth for text, and the keys that would pay for a transcription live in the
+ * machine's keychain where a remote client cannot reach them.
  */
 
-export interface Env {
+export interface Env extends JobEnv {
 	DB: D1Database;
 	/** Meta's app secret. Verifies the HMAC on every delivery. */
 	APP_SECRET: string;
@@ -33,6 +40,19 @@ export interface Env {
 	 * not publish an email address to be scraped.
 	 */
 	CONTACT?: string;
+	/**
+	 * The job workflow (src/jobs/workflow.ts). Optional so a relay deployed
+	 * before it existed keeps working: without the binding a job runs inline,
+	 * inside the request that asked for it, and loses only the retries.
+	 */
+	JOBS?: Workflow<JobParams>;
+	/**
+	 * Where a job's bytes are staged, when there are bytes. Optional because R2
+	 * is the one Cloudflare product that wants a card on file, and the promise
+	 * at the top of the README is "nothing, and no card" -- see
+	 * src/jobs/artifacts.ts for what a relay without it does instead.
+	 */
+	ARTIFACTS?: R2Bucket;
 }
 
 /** Meta's deliveries are kilobytes. Matches backend/instagram/signature.py. */
@@ -61,6 +81,31 @@ const TOKEN_REFRESH_DAYS = 14;
 
 const GRAPH = 'https://graph.instagram.com/v23.0';
 
+/** The housekeeping schedule, as written in wrangler.jsonc. */
+const DAILY_CRON = '17 3 * * *';
+
+// The durable job layer. Every retryable piece of work the relay does runs
+// through it, including the Instagram receipt that used to have a Workflow of
+// its own -- see src/jobs/ for the shape and src/jobs/types/ for the work.
+export { JobWorkflow } from './jobs/workflow.ts';
+import { authenticate, bearer, sameSecret } from './auth.ts';
+import {
+	ackJobs,
+	createJob,
+	jobsForSync,
+	readArtifact,
+	readJob,
+	SYNC_BATCH,
+	sweepJobs,
+} from './jobs/api.ts';
+import { dispatch, type JobParams } from './jobs/dispatch.ts';
+import type { JobEnv } from './jobs/registry.ts';
+import { creatableKinds, typeFor } from './jobs/registry.ts';
+import { JobStore, MAX_OPEN_JOBS } from './jobs/store.ts';
+import { publicView } from './jobs/state.ts';
+import { registerJobTypes } from './jobs/types/index.ts';
+import { outboundSummary } from './outbound.ts';
+
 // ---------------------------------------------------------------- primitives
 
 const enc = new TextEncoder();
@@ -84,17 +129,6 @@ function hex(buf: ArrayBuffer): string {
 	return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Constant time, like every other secret comparison in this project. Length is
- * compared first and leaks only the length, which for a hex digest is fixed.
- */
-function sameSecret(a: string, b: string): boolean {
-	if (a.length !== b.length) return false;
-	let diff = 0;
-	for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-	return diff === 0;
-}
-
 function toBase64(buf: ArrayBuffer): string {
 	const bytes = new Uint8Array(buf);
 	let binary = '';
@@ -105,13 +139,6 @@ function toBase64(buf: ArrayBuffer): string {
 /** btoa() is byte-wise, so anything non-ASCII has to be encoded first. */
 function toBase64Utf8(text: string): string {
 	return toBase64(enc.encode(text).buffer as ArrayBuffer);
-}
-
-function bearer(header: string | null): string | null {
-	if (!header) return null;
-	const [scheme, ...rest] = header.split(' ');
-	if (scheme.toLowerCase() !== 'bearer') return null;
-	return rest.join(' ').trim() || null;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -125,7 +152,7 @@ const now = () => Math.floor(Date.now() / 1000);
 
 // -------------------------------------------------------------------- state
 
-async function getState(env: Env, key: string): Promise<string | null> {
+export async function getState(env: Env, key: string): Promise<string | null> {
 	const row = await env.DB.prepare('SELECT value FROM state WHERE key = ?')
 		.bind(key)
 		.first<{ value: string }>();
@@ -141,7 +168,7 @@ async function setState(env: Env, key: string, value: string): Promise<void> {
 		.run();
 }
 
-async function allowedSenders(env: Env): Promise<string[]> {
+export async function allowedSenders(env: Env): Promise<string[]> {
 	try {
 		const raw = await getState(env, 'allow_senders');
 		const parsed = raw ? JSON.parse(raw) : [];
@@ -201,13 +228,12 @@ async function appsecretProof(env: Env, token: string): Promise<string> {
  * the machine is running. Claiming otherwise would be the one thing this
  * codebase does not do.
  */
-async function sendAck(env: Env, senderId: string): Promise<void> {
-	if ((await getState(env, 'reply_on_save')) !== '1') return;
-	const allowed = await allowedSenders(env);
-	if (!allowed.includes(senderId)) return;
-
+export async function sendAckOnce(
+	env: Env,
+	senderId: string,
+): Promise<{ ok: boolean; status: number; detail: string }> {
 	const token = await getState(env, 'access_token');
-	if (!token) return;
+	if (!token) return { ok: false, status: 0, detail: 'no access token' };
 
 	const proof = await appsecretProof(env, token);
 	const url = `${GRAPH}/me/messages?appsecret_proof=${proof}`;
@@ -222,10 +248,14 @@ async function sendAck(env: Env, senderId: string): Promise<void> {
 				},
 			}),
 		});
-		if (!response.ok) console.warn('ack failed', response.status, await response.text());
+		if (response.ok) return { ok: true, status: response.status, detail: '' };
+		const detail = await response.text();
+		console.warn('ack failed', response.status, detail);
+		return { ok: false, status: response.status, detail: detail.slice(0, 300) };
 	} catch (err) {
-		// A confirmation that could not be sent is not a capture that failed.
-		console.warn('ack could not be sent', err);
+		// A network error is exactly the case worth another attempt, so it is
+		// reported as a failure rather than swallowed the way it used to be.
+		return { ok: false, status: 0, detail: String(err) };
 	}
 }
 
@@ -290,13 +320,19 @@ async function delivery(request: Request, env: Env, ctx: ExecutionContext): Prom
 
 	const text = new TextDecoder().decode(raw);
 	const senderId = senderOf(text);
-	const stored = await enqueue(env, 'instagram', await sha256Hex(raw), toBase64(raw), header, senderId);
+	// Computed once: it is both the delivery's identity and the ack's, which is
+	// what makes one re-delivery buy neither a second reel nor a second ack.
+	const bodyHash = await sha256Hex(raw);
+	const stored = await enqueue(env, 'instagram', bodyHash, toBase64(raw), header, senderId);
 
 	// After the response, never before it: Meta wants a 200 in seconds and a
 	// Graph round trip is not something to make it wait for.
 	if (stored && senderId) {
 		ctx.waitUntil(
-			laptopIsAway(env).then((away) => (away ? sendAck(env, senderId) : undefined)),
+			laptopIsAway(env).then((away) =>
+				away ? startJob(env, 'instagram_ack', { sender_id: senderId, body_hash: bodyHash },
+				                'webhook', ctx.waitUntil.bind(ctx)) : undefined,
+			),
 		);
 	}
 	return json({ status: stored ? 'queued' : 'duplicate' });
@@ -383,23 +419,54 @@ async function share(request: Request, env: Env): Promise<Response> {
 			400,
 		);
 	}
-	if ((await queueDepth(env)) >= MAX_QUEUED) return json({ status: 'backlogged' }, 503);
-
-	const body = JSON.stringify({
-		url: payload.url,
-		kind: payload.kind ?? null,
-		note: payload.note ?? null,
-		token: presented,
-	});
-	const queued = await enqueue(
+	// A share is a `url_ingest` job now, not a row in the delivery queue. The
+	// journey it gives the link is the same one -- `LibraryService.capture_url`
+	// on the machine -- but as a job it gets what a queued blob could not: the
+	// fetch happens while the page still exists, a phone can poll it, and a
+	// failure says why instead of vanishing.
+	//
+	// `POST /jobs` with kind `url_ingest` is the same thing said explicitly. This
+	// route stays because it is what is already written into phone shortcuts, and
+	// because "send a link" deserves a URL you can type from memory.
+	return startJob(
 		env,
-		'share',
-		await sha256Hex(enc.encode(body).buffer as ArrayBuffer),
-		toBase64Utf8(body),
-		null,
-		null,
+		'url_ingest',
+		{ url: payload.url, kind: payload.kind ?? null, note: payload.note ?? null },
+		'client',
 	);
-	return json({ status: queued ? 'queued' : 'duplicate' }, 201);
+}
+
+/**
+ * Create and dispatch a job from inside the Worker, rather than from a request
+ * that named a kind. The webhook and `/share` both arrive here.
+ */
+async function startJob(
+	env: Env,
+	kind: string,
+	input: Record<string, unknown>,
+	origin: 'client' | 'desktop' | 'webhook',
+	waitUntil?: (promise: Promise<unknown>) => void,
+): Promise<Response> {
+	registerJobTypes();
+	const type = typeFor(kind);
+	if (!type) return json({ error: `'${kind}' is not a job this relay runs` }, 500);
+	let params: Record<string, unknown>;
+	try {
+		params = type.accept(input);
+	} catch (err) {
+		return json({ error: String(err instanceof Error ? err.message : err) }, 400);
+	}
+	const store = new JobStore(env.DB);
+	if ((await store.openCount()) >= MAX_OPEN_JOBS) {
+		return json({ error: 'the relay is backlogged; try again once the machine has synced' }, 503);
+	}
+	const { job, created } = await store.create(type.kind, type.key(params), {
+		params,
+		maxAttempts: type.maxAttempts,
+		origin,
+	});
+	if (created) await dispatch(env, job, waitUntil);
+	return json({ status: created ? 'queued' : 'duplicate', ...publicView(job) }, created ? 201 : 200);
 }
 
 /**
@@ -416,7 +483,13 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		return json({ error: 'that token is not the one this relay holds' }, 401);
 	}
 
-	let payload: { ack?: number[]; config?: Record<string, unknown>; limit?: number } = {};
+	let payload: {
+		ack?: number[];
+		/** Jobs the machine took last time. Acknowledged late, on purpose. */
+		job_ack?: string[];
+		config?: Record<string, unknown>;
+		limit?: number;
+	} = {};
 	try {
 		payload = (await request.json()) ?? {};
 	} catch {
@@ -448,6 +521,10 @@ async function sync(request: Request, env: Env): Promise<Response> {
 	}
 	await setState(env, 'last_pull_at', String(now()));
 
+	// Before the read below, so a job whose bytes the machine has just confirmed
+	// is gone from this answer rather than offered again.
+	const jobsSynced = await ackJobs(env, payload.job_ack);
+
 	const limit = Math.min(Math.max(Number(payload.limit) || 25, 1), 100);
 	const { results } = await env.DB.prepare(
 		'SELECT id, kind, body, signature, sender_id, received_at FROM deliveries' +
@@ -467,6 +544,17 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		queued: await queueDepth(env),
 		access_token: rotated,
 		token_expires_on: rotated ? await getState(env, 'token_expires_on') : null,
+		// What the relay did on the laptop's behalf while it was away, by state.
+		// Without this the laptop had no way to know an ack had been owed and
+		// never sent -- the send was a fetch inside a request handler, and a
+		// failure was a line in a log nobody reads.
+		outbound: await outboundSummary(env),
+		// The durable job layer's half of the same round trip. `ready` is finished
+		// work waiting to be taken, `pending` is what is still in flight -- which
+		// is how a machine that has been off for a day can tell a quiet relay from
+		// one halfway through five downloads.
+		jobs: await jobsForSync(env, Math.min(limit, SYNC_BATCH)),
+		jobs_synced: jobsSynced,
 	});
 }
 
@@ -639,12 +727,59 @@ export default {
 		if (path === '/share' && request.method === 'POST') return share(request, env);
 		if (path === '/sync' && request.method === 'POST') return sync(request, env);
 
+		// The generic layer. Every route below authenticates first and then asks
+		// the registry -- none of them knows what a job *does*, which is what
+		// makes a new job type a file under src/jobs/types/ and nothing else.
+		if (path === '/jobs' || path.startsWith('/jobs/')) {
+			registerJobTypes();
+			const caller = await authenticate(request, env, (key) => getState(env, key));
+			if (!caller) {
+				return json({ error: 'that token is not one this relay holds' }, 401);
+			}
+			if (path === '/jobs' && request.method === 'POST') {
+				return createJob(request, env, caller, ctx.waitUntil.bind(ctx));
+			}
+			if (path === '/jobs' && request.method === 'GET') {
+				// Deliberately not a listing. The machine gets its list from /sync,
+				// which is one round trip and already knows what it has taken; a
+				// second way to enumerate jobs would be a second thing to keep in
+				// step, and for a client it would be somebody else's jobs.
+				return json({ kinds: creatableKinds(caller) });
+			}
+			const parts = path.split('/').filter(Boolean); // jobs, {id}, artifact, {key…}
+			if (parts.length === 2 && request.method === 'GET') {
+				return readJob(env, caller, parts[1]);
+			}
+			if (parts.length > 3 && parts[2] === 'artifact' && request.method === 'GET') {
+				// The key is a path, so it is the rest of the URL rather than one
+				// segment. It came from the result the machine was just handed.
+				return readArtifact(env, caller, parts[1], parts.slice(3).join('/'));
+			}
+			return json({ error: 'no such endpoint' }, 404);
+		}
+
 		return json({ error: 'no such endpoint' }, 404);
 	},
 
-	async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+		registerJobTypes();
+		// Two schedules, and the difference matters. The frequent one is the job
+		// layer's heartbeat: it is what re-dispatches a job whose Workflow
+		// instance is gone and what promotes one out of its backoff, so a job
+		// that failed at 09:00 is tried again at 09:05 rather than at 03:17
+		// tomorrow. The daily one is the housekeeping that has always been here.
+		const daily = event.cron === DAILY_CRON;
 		ctx.waitUntil(
 			(async () => {
+				try {
+					const swept = await sweepJobs(env, { waitUntil: ctx.waitUntil.bind(ctx) });
+					if (swept.dispatched) {
+						console.log('re-dispatched', swept.dispatched, 'job(s)');
+					}
+				} catch (err) {
+					console.error('the job sweep failed', err);
+				}
+				if (!daily) return;
 				try {
 					await refreshToken(env);
 				} catch (err) {
@@ -654,6 +789,15 @@ export default {
 					await prune(env);
 				} catch (err) {
 					console.error('prune failed', err);
+				}
+				try {
+					// Jobs nobody came back for, and every byte they staged. Per job
+					// rather than one statement, so an R2 object never outlives the row
+					// that names it -- an orphan there is a bucket nothing can clean.
+					const removed = await new JobStore(env.DB).prune(env.ARTIFACTS);
+					if (removed) console.log('pruned', removed, 'job(s)');
+				} catch (err) {
+					console.error('the job prune failed', err);
 				}
 			})(),
 		);
