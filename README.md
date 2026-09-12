@@ -54,8 +54,8 @@ tray + global hotkey desktop mode.
 **Fastest path** (macOS / Linux / WSL2 — Windows: `run.bat`):
 
 ```bash
-git clone https://github.com/Wayn-Git/vault.git
-cd vault
+git clone https://github.com/Wayn-Git/Amethyst.git
+cd Amethyst
 ./run.sh
 ```
 
