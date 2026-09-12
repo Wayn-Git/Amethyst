@@ -1,0 +1,5 @@
+# AMETHYST Development & Testing Dependencies
+# Single source of truth: pyproject.toml
+#
+# Installs all production dependencies plus development extras (pytest, pytest-asyncio, ruff).
+-e .[providers,vector,documents,reels,dev]
