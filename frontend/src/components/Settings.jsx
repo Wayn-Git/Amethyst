@@ -9,6 +9,7 @@ import BrandKit from './BrandKit.jsx'
 import { useModalDismiss, onOverlayMouseDown } from '../hooks/useModalDismiss.js'
 import { useFocusTrap } from '../hooks/useFocusTrap.js'
 import Switch from './ui/Switch.jsx'
+import { HexColorPicker } from 'react-colorful'
 
 /* Settings, and only settings.
 
@@ -46,7 +47,8 @@ const THEME_CHOICES = [
 ]
 
 function General() {
-  const { health, healthError, workspace, setWorkspace, theme, setTheme } = useApp()
+  const [colorDraft, setColorDraft] = useState(null)
+  const { health, healthError, workspace, setWorkspace, theme, setTheme, accentColor, setAccentColor } = useApp()
   const [draft, setDraft] = useState(workspace || '')
 
   return (
@@ -78,6 +80,60 @@ function General() {
             </button>
           ))}
         </div>
+
+                <div className="set-row" style={{ marginTop: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 500 }}>Custom Accent Color</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px', maxWidth: '300px' }}>
+              Pick a hex color from the palette to override the default buttons and highlights.
+            </span>
+            <div style={{ marginTop: '16px' }}>
+              <HexColorPicker 
+                color={(colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')).startsWith('#') ? (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')) : '#' + (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5'))} 
+                onChange={setColorDraft} 
+                style={{ width: '200px', height: '150px' }}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start', minWidth: '150px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>HEX</span>
+              <input
+                type="text"
+                value={colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')}
+                onChange={(e) => {
+                  let val = e.target.value;
+                  if (val && !val.startsWith('#')) val = '#' + val;
+                  setColorDraft(val);
+                }}
+                style={{ width: '90px', padding: '6px 8px', fontSize: '13px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--hairline)', background: 'var(--surface)', color: 'var(--text)' }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+              {(accentColor || colorDraft) && (
+                <button 
+                  type="button" 
+                  className="btn btn--outline" 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => { setColorDraft(null); setAccentColor(''); }}
+                >
+                  Reset
+                </button>
+              )}
+              {colorDraft !== null && colorDraft !== accentColor && (
+                <button 
+                  type="button" 
+                  className="btn btn--primary" 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => { setAccentColor(colorDraft); setColorDraft(null); }}
+                >
+                  Save Color
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div className="set-card">
@@ -1033,6 +1089,60 @@ function Permissions() {
             </div>
           ))}
         </div>
+
+                <div className="set-row" style={{ marginTop: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 500 }}>Custom Accent Color</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px', maxWidth: '300px' }}>
+              Pick a hex color from the palette to override the default buttons and highlights.
+            </span>
+            <div style={{ marginTop: '16px' }}>
+              <HexColorPicker 
+                color={(colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')).startsWith('#') ? (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')) : '#' + (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5'))} 
+                onChange={setColorDraft} 
+                style={{ width: '200px', height: '150px' }}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start', minWidth: '150px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>HEX</span>
+              <input
+                type="text"
+                value={colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')}
+                onChange={(e) => {
+                  let val = e.target.value;
+                  if (val && !val.startsWith('#')) val = '#' + val;
+                  setColorDraft(val);
+                }}
+                style={{ width: '90px', padding: '6px 8px', fontSize: '13px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--hairline)', background: 'var(--surface)', color: 'var(--text)' }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+              {(accentColor || colorDraft) && (
+                <button 
+                  type="button" 
+                  className="btn btn--outline" 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => { setColorDraft(null); setAccentColor(''); }}
+                >
+                  Reset
+                </button>
+              )}
+              {colorDraft !== null && colorDraft !== accentColor && (
+                <button 
+                  type="button" 
+                  className="btn btn--primary" 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => { setAccentColor(colorDraft); setColorDraft(null); }}
+                >
+                  Save Color
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   )
