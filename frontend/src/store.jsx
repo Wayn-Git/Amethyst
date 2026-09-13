@@ -107,6 +107,58 @@ function applyTheme(theme) {
 // Applied before React mounts, so the first paint is already the right colour.
 applyTheme(THEMES.includes(loadPrefs().theme) ? loadPrefs().theme : 'light')
 
+function applyAccentColor(hex) {
+  const root = document.documentElement
+  let styleTag = document.getElementById('custom-accent-style');
+  
+  if (!hex || typeof hex !== 'string') {
+    root.style.removeProperty('--accent')
+    root.style.removeProperty('--accent-hover')
+    root.style.removeProperty('--ember')
+    if (styleTag) styleTag.remove()
+    return
+  }
+  
+  const validHex = hex.startsWith('#') ? hex : '#' + hex;
+  const hoverHex = `color-mix(in srgb, ${validHex} 85%, black)`;
+  
+  root.style.setProperty('--accent', validHex)
+  root.style.setProperty('--accent-hover', hoverHex)
+  root.style.setProperty('--ember', validHex)
+  
+  // The user explicitly requested this to apply to default buttons as well
+  if (!styleTag) {
+    styleTag = document.createElement('style')
+    styleTag.id = 'custom-accent-style'
+    document.head.appendChild(styleTag)
+  }
+  
+  styleTag.innerHTML = `
+    .btn {
+      background: var(--accent) !important;
+      color: var(--on-accent, #ffffff) !important;
+      border-color: transparent !important;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .btn:hover {
+        background: var(--accent-hover) !important;
+      }
+    }
+    .btn--outline {
+      background: transparent !important;
+      color: var(--accent) !important;
+      border-color: var(--accent) !important;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .btn--outline:hover {
+        background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+      }
+    }
+  `
+}
+applyAccentColor(loadPrefs().accentColor)
+
+
 export function AppProvider({ children }) {
   const prefs = useRef(loadPrefs()).current
   const location = useLocation()
@@ -158,6 +210,14 @@ export function AppProvider({ children }) {
      with no conversation in it would be a puzzle rather than a memory. */
   const [panelWidth, setPanelWidthRaw] = useState(() => clampPanel(prefs.panelWidth))
   const [panelExpanded, setPanelExpanded] = useState(false)
+  
+  const [accentColor, setAccentColorRaw] = useState(prefs.accentColor || '')
+  const setAccentColor = useCallback((value) => {
+    setAccentColorRaw(value)
+    applyAccentColor(value)
+    savePrefs({ accentColor: value })
+  }, [])
+
   const [theme, setThemeRaw] = useState(
     () => (THEMES.includes(prefs.theme) ? prefs.theme : 'light'),
   )
@@ -484,6 +544,7 @@ export function AppProvider({ children }) {
     panelWidth, setPanelWidth,
     panelExpanded, setPanelExpanded, togglePanelExpanded,
     theme, setTheme,
+    accentColor, setAccentColor,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
@@ -497,6 +558,7 @@ export function AppProvider({ children }) {
     compact, railOpen, toggleRail, closeRail, panel, setPanel, togglePanel,
     panelWidth, setPanelWidth, panelExpanded, setPanelExpanded, togglePanelExpanded,
     theme, setTheme,
+    accentColor, setAccentColor,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
