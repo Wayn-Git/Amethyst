@@ -4222,23 +4222,32 @@ async def consolidate_library_tags() -> dict[str, Any]:
 
 
 @app.get("/api/search/web")
-async def search_web_endpoint(q: str, limit: int = 8) -> dict[str, Any]:
-    """Web results, and an honest word about where they came from.
+async def search_web_endpoint(q: str, limit: int = 8, offset: int = 0) -> dict[str, Any]:
+    """One page of web results, and an honest word about where they came from.
+
+    `offset` pages through a ranked pool built once per query, so scrolling
+    appends more results without a fresh search. `has_more` tells the client
+    whether another page exists, which is what stops infinite scroll from
+    hammering an exhausted pool.
 
     `source` is here because falling back to Wikipedia silently is the worst of
-    the available behaviours: the results are reasonable, so nothing looks
-    broken, and a person concludes the search is simply bad. It is usually the
-    network -- an ISP that blackholes DuckDuckGo, a scraper Bing has decided to
-    answer with results for the query's first word. Saying so costs one field.
+    the available behaviours: the results look reasonable, so a person concludes
+    the search is simply bad when it is usually the network. Saying so costs one
+    field.
     """
     from backend.web.search_service import configured_search_api, search_web
 
-    results = await search_web(q, limit=limit)
+    results = await search_web(q, limit=limit, offset=offset)
+    # One more than this page tells us whether to offer another, without a count.
+    has_more = len(await search_web(q, limit=1, offset=offset + limit)) > 0
     sources = {r.get("source") for r in results if r.get("source")}
     source = sources.pop() if len(sources) == 1 else "mixed"
     return {
         "query": q,
         "results": results,
+        "offset": offset,
+        "next_offset": offset + len(results),
+        "has_more": has_more,
         "source": source,
         # Only asked when it matters. A search that worked needs no diagnosis.
         "search_api": configured_search_api() if source == "wikipedia" else None,
@@ -4246,10 +4255,17 @@ async def search_web_endpoint(q: str, limit: int = 8) -> dict[str, Any]:
 
 
 @app.get("/api/search/youtube")
-async def search_youtube_endpoint(q: str, limit: int = 8) -> dict[str, Any]:
+async def search_youtube_endpoint(q: str, limit: int = 8, offset: int = 0) -> dict[str, Any]:
     from backend.web.search_service import search_youtube
-    results = await search_youtube(q, limit=limit)
-    return {"query": q, "results": results}
+    results = await search_youtube(q, limit=limit, offset=offset)
+    has_more = len(await search_youtube(q, limit=1, offset=offset + limit)) > 0
+    return {
+        "query": q,
+        "results": results,
+        "offset": offset,
+        "next_offset": offset + len(results),
+        "has_more": has_more,
+    }
 
 
 @app.get("/api/search/images")

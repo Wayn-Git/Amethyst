@@ -25,16 +25,18 @@ zero-cloud setup, or with 20+ cloud providers.
 
 | | |
 |:---|:---|
+| <img src="docs/images/view-chat.png" width="480" alt="Main page"> | **Main** — the chat interface with live agent turns, streaming responses and tool traces |
 | <img src="docs/images/view-today.png" width="480" alt="Today view"> | **Today** — the whole day on one page: morning briefing, events, what is owed |
 | <img src="docs/images/view-tasks.png" width="480" alt="Tasks view"> | **Tasks** — lists and buckets on a board of cards, with a calendar engine that finds free slots and flags conflicts |
 | <img src="docs/images/view-library.png" width="480" alt="Library view"> | **Library** — your knowledge vault: tags, grid or list, ask-chat over anything you saved, stored as plain markdown on disk |
-| <img src="docs/images/view-palette.png" width="480" alt="Command palette"> | **Keyboard-first UI** — command palette (`⌘K`), full shortcut reference on `?`, no mouse required |
-| <img src="docs/images/view-skills.png" width="480" alt="Skills view"> | **Skills & connectors** — Microsoft To Do, Google Workspace, GitHub, Spotify, and more, installed from one page |
+| <img src="docs/images/view-memory.png" width="480" alt="Memory view"> | **Memory** — per-conversation extracted memories that persist context across sessions |
+| <img src="docs/images/view-plugins-overview.png" width="480" alt="Plugin overview"> | **Plugin Overview** — a birds-eye view of all installed connectors and their status |
+| <img src="docs/images/view-plugins.png" width="480" alt="Plugins view"> | **Skills & connectors** — Microsoft To Do, Google Workspace, GitHub, Spotify, and more, installed from one page |
+| <img src="docs/images/view-spotlight.png" width="480" alt="Spotlight"> | **Keyboard-first UI** — command palette (`⌘K`), full shortcut reference on `?`, no mouse required |
+| <img src="docs/images/view-settings.png" width="480" alt="Settings"> | **Settings** — manage providers, permissions, standing approvals, and preferences |
 | <img src="docs/images/turn.png" width="480" alt="Agent turn trace"> | **Live turn trace** — every tool call and argument streams as it happens, so you always know what the agent is doing |
 
-Also: Memory (per-conversation extracted memories), Mail (beta, direct Gmail),
-Automations (beta, a prompt on an interval), a full Activity log, and a
-tray + global hotkey desktop mode.
+Also: Mail (beta, direct Gmail), Automations (beta, a prompt on an interval), a full Activity log, and a tray + global hotkey desktop mode.
 
 ## The agent, briefly
 

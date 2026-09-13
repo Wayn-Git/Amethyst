@@ -1160,10 +1160,30 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
     try {
       const srv = await api.mcpServers(true)
       setServers(srv)
+      return srv
+    } catch {
+      // quiet
+      return null
+    }
+  }, [])
+
+  // When did we last ask the backend to reconnect failed connectors. The poll
+  // observes state every 3s; reconcile is heavier and holds the registry lock,
+  // so it fires only when a server is actually due and at most every 15s.
+  const lastReconcile = useRef(0)
+  const maybeReconnect = useCallback(async (rows) => {
+    if (!rows) return
+    const due = rows.some((r) => r.enabled && !r.ready && (r.retry_in ?? 0) === 0 && r.error)
+    if (!due) return
+    if (Date.now() - lastReconcile.current < 15000) return
+    lastReconcile.current = Date.now()
+    try {
+      await api.mcpReconcile()
+      refreshServers()
     } catch {
       // quiet
     }
-  }, [])
+  }, [refreshServers])
 
   const refresh = useCallback(async () => {
     try {
@@ -1203,7 +1223,7 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
   useEffect(() => {
     let cancelled = false
     const tick = async () => {
-      if (!cancelled) refreshServers()
+      if (!cancelled) refreshServers().then((rows) => !cancelled && maybeReconnect(rows))
       let rows
       try { rows = await api.mcpAuthorizations() } catch { return }
       if (cancelled) return
@@ -1239,7 +1259,7 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
       stop()
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [refresh, refreshHealth, refreshServers])
+  }, [refresh, refreshHealth, refreshServers, maybeReconnect])
 
   const retry = useCallback(async (name) => {
     setAuths((rows) => rows.filter((r) => r.server !== name))

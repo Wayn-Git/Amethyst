@@ -435,6 +435,11 @@ async def run(job: Job, store: JobStore) -> dict[str, Any]:
     except BadBatch as exc:
         raise Unretryable(str(exc)) from exc
 
+    # Start metrics tracking
+    from backend.workers.metrics import get_metrics_store
+    metrics = get_metrics_store()
+    job_metrics = metrics.start_job(job.id, len(spec.nodes))
+
     settled: dict[str, dict[str, Any]] = {}
     # What a previous attempt finished. This is the step ledger doing exactly
     # what it does for any other handler -- a settled node is never re-run.
@@ -507,6 +512,16 @@ async def run(job: Job, store: JobStore) -> dict[str, Any]:
                     outcome = _outcome(node, status="failed", error=f"{type(exc).__name__}: {exc}")
                 settled[node.id] = outcome
                 store.record(job, f"node:{node.id}", outcome)
+                
+                # Record metrics for this node
+                node_duration = outcome.get("provenance", {}).get("seconds", 0)
+                metrics.record_node(
+                    job.id,
+                    node.id,
+                    node.task,
+                    outcome.get("status", "unknown"),
+                    node_duration,
+                )
 
             store.checkpoint(job, progress=_progress(settled, len(spec.nodes)))
 
@@ -551,6 +566,10 @@ async def run(job: Job, store: JobStore) -> dict[str, Any]:
     )
 
     ordered = [settled[node.id] for node in spec.nodes]
+    
+    # Finish metrics tracking
+    metrics.finish_job(job.id)
+    
     return {
         "batch": job.idempotency_key.removeprefix("batch:"),
         "reason": spec.reason,

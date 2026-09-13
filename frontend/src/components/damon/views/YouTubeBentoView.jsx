@@ -1,9 +1,14 @@
 import Icon from '../../Icon.jsx'
 import { copyText } from '../../../api.js'
+import LoadMoreSentinel from '../LoadMoreSentinel.jsx'
 
 export default function YouTubeBentoView({
   results = [],
   loading = false,
+  error = false,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   activeIndex = 0,
   onSelect,
   onToast,
@@ -20,8 +25,8 @@ export default function YouTubeBentoView({
   if (results.length === 0) {
     return (
       <div className="damon-empty-state">
-        <Icon name="play" size={24} />
-        <p>No YouTube videos found for this query.</p>
+        <Icon name={error ? 'alert-triangle' : 'play'} size={24} />
+        <p>{error ? 'YouTube search failed. Check your connection and try again.' : 'No YouTube videos found for this query.'}</p>
       </div>
     )
   }
@@ -33,6 +38,7 @@ export default function YouTubeBentoView({
   }
 
   return (
+    <>
     <div className="damon-youtube-grid" role="listbox" aria-label="YouTube search results">
       {results.map((video, i) => {
         const isSelected = i === activeIndex
@@ -87,5 +93,12 @@ export default function YouTubeBentoView({
         )
       })}
     </div>
+    <LoadMoreSentinel
+      hasMore={hasMore}
+      loading={loadingMore}
+      onLoadMore={onLoadMore}
+      label="More videos…"
+    />
+    </>
   )
 }

@@ -3438,6 +3438,20 @@ html:has(.palette--bar) body {
   font-size: 13.5px;
 }
 
+/* The infinite-scroll sentinel row: a quiet "loading more" strip at the foot of
+   a result list. Full width even inside the YouTube grid. */
+.damon-load-more {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  min-height: 24px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
 .damon-spinner {
   width: 18px;
   height: 18px;
@@ -15492,4 +15506,171 @@ a.text-reveal-wrap {
 @media (max-width: 560px) {
   .media-gallery.is-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
   .media-lightbox { padding: 20px; }
+}
+
+/* ---- parallel jobs ---------------------------------------------------
+   Kraken-style parallel job display. Uses the same tokens as tool-card
+   for visual consistency. Animations are transform/opacity only per
+   Emil Kowalski rules, nothing over 300ms. */
+
+.parallel-job-card {
+  position: relative;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color var(--press) var(--ease-out), box-shadow var(--press) var(--ease-out);
+}
+
+.parallel-job-card.is-running {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-wash);
+}
+
+.parallel-job-card.is-done {
+  border-color: var(--live);
+}
+
+.parallel-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.parallel-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.parallel-pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  animation: parallel-pulse 1.5s ease-out infinite;
+}
+
+@keyframes parallel-pulse {
+  0% { transform: scale(0.85); opacity: 0.8; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+
+.parallel-progress {
+  display: inline-block;
+  width: 48px;
+  height: 3px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  margin-right: 8px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.parallel-progress-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.2s var(--ease-out);
+}
+
+.parallel-nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.parallel-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  transition: border-color var(--press) var(--ease-out);
+}
+
+.parallel-node.pending { border-left: 2px solid var(--text-faint); }
+.parallel-node.running { border-left: 2px solid var(--accent); }
+.parallel-node.ok { border-left: 2px solid var(--live); }
+.parallel-node.failed { border-left: 2px solid var(--coral); }
+
+.parallel-node-indicator {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface-3);
+  flex-shrink: 0;
+}
+
+.parallel-node.ok .parallel-node-indicator { background: var(--live); color: var(--canvas); }
+.parallel-node.failed .parallel-node-indicator { background: var(--coral); color: var(--canvas); }
+
+.parallel-node-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: parallel-spin 0.7s linear infinite;
+}
+
+@keyframes parallel-spin {
+  to { transform: rotate(360deg); }
+}
+
+.parallel-node-id {
+  color: var(--text);
+  font-weight: 500;
+  min-width: 72px;
+  font-size: 11px;
+}
+
+.parallel-node-task {
+  color: var(--text-dim);
+  flex: 1;
+  font-size: 11px;
+}
+
+.parallel-node-time {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.parallel-summary {
+  display: flex;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+}
+
+.parallel-summary-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.parallel-summary-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.parallel-summary-label {
 }

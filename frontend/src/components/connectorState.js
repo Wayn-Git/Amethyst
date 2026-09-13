@@ -16,7 +16,21 @@ export function connectorState(cap, busy) {
   // connector whose tools the agent was calling. The backend only reports an
   // error once the server has genuinely stopped serving them.
   if (live.ready || live.tools > 0) {
-    return { tone: 'live', label: `Ready (${live.tools} tools)`, dot: 'ok' }
+    // A cap that silently dropped tools is why a connector can be "ready" yet
+    // the model never calls half of it -- surface it rather than hide it.
+    const detail =
+      live.truncated > 0 ? `${live.truncated} tools over the limit were not loaded` : undefined
+    return { tone: 'live', label: `Ready (${live.tools} tools)`, dot: 'ok', detail }
+  }
+  // A backed-off server is recovering, not stuck. "reconnecting in Ns" reads as
+  // in-progress; a bare "failed" reads as something the user must fix by hand.
+  if (live.retry_in > 0) {
+    return {
+      tone: 'busy',
+      label: `reconnecting in ${live.retry_in}s`,
+      dot: 'amber',
+      detail: live.error,
+    }
   }
   if (live.error) return { tone: 'error', label: 'failed', dot: 'bad', detail: live.error }
   if (live.connected) return { tone: 'live', label: `Ready (${live.tools} tools)`, dot: 'ok' }

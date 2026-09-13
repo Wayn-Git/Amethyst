@@ -146,6 +146,8 @@ class AgentState:
     call_fingerprints: dict[str, int] = field(default_factory=dict)
     warned_about_tools: bool = False
     warned_about_cap: bool = False
+    #: Logged once per turn when tool selection narrowed what the model was shown.
+    warned_about_selection: bool = False
     degraded: bool = False
     blind_noted: bool = False
     step_open: int | None = None

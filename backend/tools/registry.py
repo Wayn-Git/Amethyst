@@ -7,6 +7,7 @@ truncated, and gets an audit row.
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
@@ -17,6 +18,30 @@ from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSou
 
 MAX_RESULT_CHARS = 100_000
 MCP_DELIMITER = "__mcp__"
+
+#: How long a repeated read may be answered from the last one. Deliberately
+#: short. A longer window saves more calls, but a file the user edits in their
+#: own editor is changed by something this process never sees -- and an agent
+#: that edits from a stale read corrupts work rather than merely wasting time.
+#: Long enough to collapse the re-reads one turn makes, short enough that the
+#: world cannot move far underneath it.
+RESULT_CACHE_TTL_SECONDS = 60.0
+RESULT_CACHE_MAX = 128
+
+#: `RiskLevel.LOW` means "changes nothing", which is *almost* the same as "safe
+#: to answer twice from one run". These are the exceptions, where running the
+#: tool is the point rather than the value it returns:
+#:
+#: * `ask_user` puts a question to the person. Answering the second one from the
+#:   first would skip asking them at all -- the worst possible cache hit.
+#: * the job tools report a lifecycle that moves on its own, so a repeat call is
+#:   asking precisely because the answer may have changed.
+NEVER_CACHE = frozenset({
+    "ask_user",
+    "collect_jobs",
+    "dispatch_parallel_jobs",
+    "index_status",
+})
 
 
 def truncate(text: str, limit: int = MAX_RESULT_CHARS) -> str:
@@ -35,6 +60,8 @@ class ToolRegistry:
         self._tools: dict[str, Tool] = {}
         self.confirmation = confirmation or ConfirmationService()
         self._logs = logs
+        # Repeated reads within a turn, answered once. See RESULT_CACHE_TTL_SECONDS.
+        self._result_cache: dict[str, tuple[float, ToolResult]] = {}
 
     @property
     def logs(self) -> ExecutionLogRepository:
@@ -54,6 +81,11 @@ class ToolRegistry:
         """
         view = ToolRegistry(confirmation=confirmation, logs=self._logs)
         view._tools = self._tools
+        # Shared by reference for the same reason as the tools: a write made
+        # through one view has to invalidate the reads cached in the other, or
+        # an unattended turn's edit leaves an interactive turn reading the file
+        # as it used to be.
+        view._result_cache = self._result_cache
         return view
 
     def register(self, tool: Tool) -> None:
@@ -121,6 +153,24 @@ class ToolRegistry:
             for t in offered
         ]
 
+    def _cache_key(
+        self, tool: Tool, arguments: dict[str, Any], ctx: ToolContext
+    ) -> str | None:
+        """A key for a repeatable read, or None if this call must really run.
+
+        Only `RiskLevel.LOW` tools qualify -- LOW already means "changes
+        nothing" -- minus `NEVER_CACHE`, where the call *is* the point rather
+        than the answer. Keyed by conversation as well as arguments, so one
+        chat can never be served a read taken in another.
+        """
+        if tool.risk is not RiskLevel.LOW or tool.name in NEVER_CACHE:
+            return None
+        try:
+            payload = json.dumps(arguments, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            return None
+        return f"{ctx.conversation_id}:{tool.name}:{payload}"
+
     async def dispatch(
         self,
         name: str,
@@ -179,6 +229,12 @@ class ToolRegistry:
                 f"{outcome.risk.value}-risk operation."
             )
 
+        cache_key = self._cache_key(tool, arguments, ctx)
+        if cache_key is not None:
+            hit = self._result_cache.get(cache_key)
+            if hit is not None and time.monotonic() - hit[0] < RESULT_CACHE_TTL_SECONDS:
+                return hit[1]
+
         started = time.monotonic()
         try:
             result = await tool.handler(arguments, ctx)
@@ -186,6 +242,16 @@ class ToolRegistry:
             result = ToolResult.error(f"{name} failed: {type(exc).__name__}: {exc}")
 
         result.content = truncate(result.content)
+        # Anything that can change the machine invalidates every cached read:
+        # a file written, a task updated or a document edited is exactly the
+        # event that makes an earlier `view_file` or `list_files` a lie.
+        if tool.risk is not RiskLevel.LOW:
+            self._result_cache.clear()
+        elif cache_key is not None and not result.is_error:
+            if len(self._result_cache) >= RESULT_CACHE_MAX:
+                oldest = min(self._result_cache.items(), key=lambda kv: kv[1][0])[0]
+                self._result_cache.pop(oldest, None)
+            self._result_cache[cache_key] = (time.monotonic(), result)
         self.logs.record(
             tool_name=name,
             tool_source=tool.source.value,

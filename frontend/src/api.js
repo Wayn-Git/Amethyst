@@ -464,10 +464,10 @@ export const api = {
   revokeShareToken: () => j('/share/token', json('DELETE')),
 
   // Spotlight search endpoints (Damon)
-  searchWeb: (q, limit = 8, signal) =>
-    j(`/search/web?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
-  searchYouTube: (q, limit = 8, signal) =>
-    j(`/search/youtube?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
+  searchWeb: (q, limit = 8, signal, offset = 0) =>
+    j(`/search/web?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`, { signal }),
+  searchYouTube: (q, limit = 8, signal, offset = 0) =>
+    j(`/search/youtube?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`, { signal }),
   searchImages: (q, limit = 12, signal) =>
     j(`/search/images?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
   searchGitHub: (q, limit = 6, signal) =>

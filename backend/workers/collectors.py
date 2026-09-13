@@ -512,6 +512,165 @@ register(
 )
 
 
+# ---------------------------------------------------- new collectors for parallel jobs
+
+
+async def _web_search(params: dict[str, Any]) -> dict[str, Any]:
+    """Search the web using a search engine API or fallback to scraping."""
+    query = params.get("query") or ""
+    if not query:
+        raise NotConfigured("no query provided")
+    
+    max_results = int(params.get("max_results") or 5)
+    
+    # Try to use the builtin search_web tool if available
+    try:
+        from backend.tools.builtin.web import search_web
+        results = await search_web({"query": query, "max_results": max_results}, None)
+        return {"query": query, "results": results.content if hasattr(results, 'content') else results}
+    except Exception:
+        pass
+    
+    # Fallback: return a placeholder that the model can use
+    return {
+        "query": query,
+        "results": [],
+        "note": f"Web search for '{query}' requires backend.web.search module. Use fetch_url with a search engine URL instead."
+    }
+
+
+register(
+    Collector(
+        name="web_search",
+        run=_web_search,
+        description="Search the web and return results with titles, URLs, and snippets.",
+        may_reason=True,
+    )
+)
+
+
+async def _file_info(params: dict[str, Any]) -> dict[str, Any]:
+    """Get information about files without reading their contents."""
+    paths = params.get("paths") or []
+    if isinstance(paths, str):
+        paths = [paths]
+    
+    import os
+    from pathlib import Path
+    
+    results = []
+    for path_str in paths[:50]:  # Limit to 50 files
+        path = Path(path_str)
+        if path.exists():
+            stat = path.stat()
+            results.append({
+                "path": str(path),
+                "exists": True,
+                "is_file": path.is_file(),
+                "is_dir": path.is_dir(),
+                "size_bytes": stat.st_size,
+                "modified": stat.st_mtime,
+                "extension": path.suffix,
+            })
+        else:
+            results.append({
+                "path": str(path),
+                "exists": False,
+            })
+    
+    return {"files": results, "count": len(results)}
+
+
+register(
+    Collector(
+        name="file_info",
+        run=_file_info,
+        description="Get file metadata (size, type, modified) without reading contents.",
+        local_only=True,
+    )
+)
+
+
+async def _system_info(params: dict[str, Any]) -> dict[str, Any]:
+    """Get system information for debugging or monitoring."""
+    import platform
+    import os
+    from pathlib import Path
+    
+    info = {
+        "platform": platform.system(),
+        "platform_release": platform.release(),
+        "python_version": platform.python_version(),
+        "cpu_count": os.cpu_count(),
+        "cwd": str(Path.cwd()),
+        "home": str(Path.home()),
+        "disk_usage": {},
+    }
+    
+    # Disk usage for key directories
+    for dir_path in [Path.cwd(), Path.home()]:
+        try:
+            stat = shutil.disk_usage(str(dir_path))
+            info["disk_usage"][str(dir_path)] = {
+                "total_gb": round(stat.total / (1024**3), 2),
+                "used_gb": round(stat.used / (1024**3), 2),
+                "free_gb": round(stat.free / (1024**3), 2),
+            }
+        except Exception:
+            pass
+    
+    return info
+
+
+register(
+    Collector(
+        name="system_info",
+        run=_system_info,
+        description="Get system info: platform, CPU, disk usage, Python version.",
+        local_only=True,
+    )
+)
+
+
+async def _git_status(params: dict[str, Any]) -> dict[str, Any]:
+    """Get git status for a repository."""
+    import asyncio
+    
+    repo_path = params.get("path") or "."
+    
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "status", "--porcelain",
+            cwd=repo_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode != 0:
+            return {"error": stderr.decode(), "path": repo_path}
+        
+        lines = stdout.decode().strip().split("\n") if stdout.decode().strip() else []
+        return {
+            "path": repo_path,
+            "changed_files": len(lines),
+            "files": lines[:50],  # Limit output
+            "clean": len(lines) == 0,
+        }
+    except Exception as exc:
+        return {"error": str(exc), "path": repo_path}
+
+
+register(
+    Collector(
+        name="git_status",
+        run=_git_status,
+        description="Get git status: changed files, branch, dirty state.",
+        local_only=True,
+    )
+)
+
+
 # ---------------------------------------------------- declared, not yet possible
 
 

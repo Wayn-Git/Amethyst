@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import Icon from './Icon.jsx'
 import { prettyJSON } from '../api.js'
+import ParallelJobCard from './ParallelJobCard.jsx'
 
 /* What the agent did, as a sentence per action.
 
@@ -29,6 +30,8 @@ import { prettyJSON } from '../api.js'
    -- a URL, a path, a query -- because the tool's name plus its object is the
    whole story and the rest of the JSON is detail. */
 const ACTIONS = {
+  dispatch_parallel_jobs: { icon: 'term', verb: 'Dispatched parallel jobs', gerund: 'Dispatching parallel jobs', noun: 'job', plural: 'jobs', subject: (a) => a.reason || `${a.jobs?.length || 0} tasks` },
+  collect_jobs: { icon: 'term', verb: 'Collected job results', gerund: 'Collecting job results', noun: 'job', plural: 'jobs', subject: (a) => a.job_ids?.join(', ') || 'jobs' },
   search_web: { icon: 'search', verb: 'Searched the web', gerund: 'Searching the web', noun: 'search', plural: 'searches', subject: (a) => a.query },
   fetch_url: { icon: 'globe', verb: 'Opened page', gerund: 'Opening page', noun: 'page', plural: 'pages', subject: (a) => host(a.url) },
   open_url: { icon: 'globe', verb: 'Opened', gerund: 'Opening', noun: 'link', plural: 'links', subject: (a) => host(a.url) },
@@ -187,6 +190,11 @@ function Row({ run, live }) {
   const count = run.items.length
   const only = count === 1 ? run.items[0] : null
   const subject = only && action.subject ? clip(action.subject(only.arguments ?? {})) : null
+
+  // Use specialized ParallelJobCard for parallel jobs
+  if ((run.name === 'dispatch_parallel_jobs' || run.name === 'collect_jobs') && only) {
+    return <ParallelJobCard call={only} running={live} />
+  }
 
   const label = count > 1
     ? `${action.verb.startsWith('Ran') ? 'Ran' : action.verb} ${count} ${action.plural}`

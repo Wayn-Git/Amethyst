@@ -187,6 +187,14 @@ export default function CommandPalette({ bare = false }) {
   const [answerCard, setAnswerCard] = useState(null)
   const [searchingExternal, setSearchingExternal] = useState(false)
   const [answerPending, setAnswerPending] = useState(false)
+  // Which kind, if any, failed to fetch -- so a network error reads as an error
+  // with a retry, not as "no results", which is what a swallowed catch produced.
+  const [searchError, setSearchError] = useState(null)
+  // Infinite scroll: how deep each pool is paged, whether more exists, and
+  // whether a page is in flight. Kept per kind so web and YouTube scroll on
+  // their own. Reset whenever the query changes.
+  const [pageState, setPageState] = useState({})
+  const loadingMoreRef = useRef({})
 
   const listRef = useRef(null)
   const panelRef = useRef(null)
@@ -334,8 +342,14 @@ export default function CommandPalette({ bare = false }) {
       setAnswerCard(null)
       setSearchingExternal(false)
       setAnswerPending(false)
+      setSearchError(null)
+      setPageState({})
       return undefined
     }
+
+    // A new query starts a fresh pool: forget how deep the last one was paged.
+    setSearchError(null)
+    setPageState({})
 
     const ctrl = new AbortController()
     abortCtrlRef.current = ctrl
@@ -351,13 +365,23 @@ export default function CommandPalette({ bare = false }) {
     const applyKind = {
       web: (v) => {
         setWebResults(v?.results || [])
+        setPageState((s) => ({
+          ...s,
+          web: { offset: v?.next_offset ?? (v?.results || []).length, hasMore: !!v?.has_more },
+        }))
         setWebNote(
           v?.source === 'wikipedia' && !v?.search_api
             ? 'No web search provider is set up, and this network blocks the free ones. These are Wikipedia articles.'
             : null,
         )
       },
-      yt: (v) => setYtResults(v?.results || []),
+      yt: (v) => {
+        setYtResults(v?.results || [])
+        setPageState((s) => ({
+          ...s,
+          yt: { offset: v?.next_offset ?? (v?.results || []).length, hasMore: !!v?.has_more },
+        }))
+      },
       img: (v) => setImageResults(v?.results || []),
       gh: (v) => setGithubResults(v?.results || []),
       wiki: (v) => setWikiResult(v?.result || null),
@@ -409,7 +433,13 @@ export default function CommandPalette({ bare = false }) {
           if (!gone()) applyKind[kind](value)
           return value
         })
-        .catch(() => (hits[kind] ? hits[kind].value : null))
+        .catch(() => {
+          // A swallowed failure used to be indistinguishable from "no results".
+          // Only flag it when there is nothing cached to fall back to, so a
+          // stale-but-shown result is not overwritten with an error.
+          if (!gone() && !hits[kind]) setSearchError(kind)
+          return hits[kind] ? hits[kind].value : null
+        })
         .finally(() => {
           pending -= 1
           if (pending === 0 && !gone()) setSearchingExternal(false)
@@ -461,6 +491,46 @@ export default function CommandPalette({ bare = false }) {
       ctrl.abort()
     }
   }, [effectiveQuery, activeMode])
+
+  /* Fetch the next page of a pool and append it, for infinite scroll.
+   *
+   * Appends rather than replaces, dedups on the key each view already uses
+   * (url for web, id for video), and keeps the offset/hasMore cursor moving.
+   * A ref guards against a second call firing while one is in flight -- the
+   * observer can trip several times before state settles.
+   */
+  const loadMore = useCallback(async (kind) => {
+    const page = pageState[kind]
+    if (!page?.hasMore || loadingMoreRef.current[kind]) return
+    const q = effectiveQuery.trim()
+    if (!q) return
+    loadingMoreRef.current[kind] = true
+    setPageState((s) => ({ ...s, [kind]: { ...s[kind], loading: true } }))
+    try {
+      const fetchMore = kind === 'web' ? api.searchWeb : api.searchYouTube
+      const perPage = kind === 'web' ? 8 : 8
+      const value = await fetchMore(q, perPage, undefined, page.offset)
+      const fresh = value?.results || []
+      const seenKey = kind === 'web' ? (r) => r.url : (r) => r.id || r.url
+      const setter = kind === 'web' ? setWebResults : setYtResults
+      setter((prev) => {
+        const seen = new Set(prev.map(seenKey))
+        return [...prev, ...fresh.filter((r) => !seen.has(seenKey(r)))]
+      })
+      setPageState((s) => ({
+        ...s,
+        [kind]: {
+          offset: value?.next_offset ?? page.offset + fresh.length,
+          hasMore: !!value?.has_more,
+          loading: false,
+        },
+      }))
+    } catch {
+      setPageState((s) => ({ ...s, [kind]: { ...s[kind], loading: false, error: true } }))
+    } finally {
+      loadingMoreRef.current[kind] = false
+    }
+  }, [pageState, effectiveQuery])
 
   // Master commands list
   const commands = useMemo(() => {
@@ -960,7 +1030,7 @@ export default function CommandPalette({ bare = false }) {
             <AnswerCardView
               answer={answerCard?.answer}
               sources={answerCard?.sources || []}
-              loading={searchingExternal && !answerCard}
+              loading={(answerPending || searchingExternal) && !answerCard?.answer}
               onOpen={(src) => openUrl(src.url)}
               onToast={toast}
             />
@@ -968,6 +1038,11 @@ export default function CommandPalette({ bare = false }) {
               results={webResults}
               query={effectiveQuery}
               loading={searchingExternal && !answerCard?.answer}
+              note={webNote}
+              error={searchError === 'web' && webResults.length === 0}
+              hasMore={pageState.web?.hasMore}
+              loadingMore={pageState.web?.loading}
+              onLoadMore={() => loadMore('web')}
               activeIndex={index}
               onSelect={(res) => openUrl(res.url)}
               onToast={toast}
@@ -980,6 +1055,10 @@ export default function CommandPalette({ bare = false }) {
           <YouTubeBentoView
             results={ytResults}
             loading={searchingExternal}
+            error={searchError === 'yt' && ytResults.length === 0}
+            hasMore={pageState.yt?.hasMore}
+            loadingMore={pageState.yt?.loading}
+            onLoadMore={() => loadMore('yt')}
             activeIndex={index}
             onSelect={(vid) => openUrl(vid.url)}
             onToast={toast}
@@ -1047,11 +1126,12 @@ export default function CommandPalette({ bare = false }) {
 
         {/* Answer first in universal mode, when the query was a question */}
         {(activeMode === 'all' && answerCard?.answer) ||
-         (activeMode === 'all' && searchingExternal && looksLikeQuestion(effectiveQuery) && !answerCard) ? (
+         (activeMode === 'all' && (searchingExternal || answerPending)
+           && looksLikeQuestion(effectiveQuery) && !answerCard) ? (
           <AnswerCardView
             answer={answerCard?.answer}
             sources={answerCard?.sources || []}
-            loading={searchingExternal && !answerCard?.answer}
+            loading={(answerPending || searchingExternal) && !answerCard?.answer}
             onOpen={(src) => openUrl(src.url)}
             onToast={toast}
           />
