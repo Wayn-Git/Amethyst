@@ -41,6 +41,7 @@ from backend.agent.prompt import (
     tool_schema_tokens,
 )
 from backend.agent.state import AgentState, IllegalTransition
+from backend.agent.widgets import classify_and_extract, to_envelope
 from backend.db.repositories import (
     AgentRunRepository,
     ConversationRepository,
@@ -201,7 +202,7 @@ class Event:
     # | confirmation_required | tool_result | status | plan | step_started
     # | step_done | warning | guard | error | done | memory
     # | artifact_open | artifact_delta | artifact_done
-    # | question_required | question_settled
+    # | question_required | question_settled | widget
     data: dict[str, Any] = field(default_factory=dict)
 
 
@@ -770,6 +771,52 @@ class Director:
         # The request is held by reference: the row above is the user's message,
         # and a second copy on the run row would be the one that goes stale.
         self._open(state)
+
+        # Some requests are answered better by interactive UI than by prose. One
+        # fast-model call decides, and on a clear match the turn ends here with
+        # the widget instead of running the agent loop at all.
+        #
+        # Skipped for plan mode and for anything with attachments: a widget is a
+        # single-shot answer to a self-contained request, and both of those are
+        # turns where the agent has work the classifier cannot see. Everything
+        # uncertain classifies as `none` and falls through to the loop below, so
+        # the cost of this misfiring is a wasted call rather than a lost answer.
+        if self.mode != "plan" and not attachments:
+            widget_started = time.monotonic()
+            widget_type, widget_data, widget_media = await classify_and_extract(user_message)
+            if widget_type != "none" and widget_data is not None:
+                # Persisted as the assistant's own message, fenced, because the
+                # message table has no widget column and the transcript is what
+                # rebuilds the conversation when it is reopened. Media travels
+                # in it as metadata -- titles, URLs, thumbnails -- so reopening
+                # shows the same gallery without searching for it again.
+                envelope = to_envelope(widget_type, widget_data, widget_media)
+                self._persist(conversation_id, "assistant", envelope)
+                self.conversations.touch(conversation_id)
+                # `preparing` does not go straight to `completed`; the call above
+                # was this turn's reasoning, so it is recorded as such.
+                self._checkpoint(state, "reasoning")
+                self._checkpoint(state, "completed")
+                yield Event(
+                    "widget",
+                    {
+                        "widget": {
+                            "type": widget_type,
+                            "data": widget_data,
+                            "media": widget_media,
+                        }
+                    },
+                )
+                yield Event("status", {"state": "completed"})
+                yield Event(
+                    "done",
+                    {
+                        "text": envelope,
+                        "iterations": 1,
+                        **_cost(1, 0, widget_started),
+                    },
+                )
+                return
 
         # The chosen provider, then whatever else could answer if it cannot.
         # Built once per turn rather than per iteration: it costs a read of

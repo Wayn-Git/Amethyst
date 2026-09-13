@@ -55,7 +55,12 @@ export default function LibraryDetailModal({
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)
-  const isProcessing = Boolean(item.isProcessing) || busyAction === 'enrich'
+  const isProcessing =
+    Boolean(item.isProcessing) ||
+    busyAction === 'enrich' ||
+    item.status === 'enriching' ||
+    item.status === 'processing' ||
+    item.status === 'received'
 
   const handleRating = async (stars) => {
     const newRating = rating === stars ? null : stars
@@ -374,6 +379,10 @@ export default function LibraryDetailModal({
             <div className="lib-detail-desc-wrap">
               {isProcessing ? (
                 <div className="lib-detail-skel-wrap">
+                  <div className="lib-card-summarizing-pill" style={{ marginBottom: 12 }}>
+                    <span className="lib-card-spinner" />
+                    <span>{item.kind === 'video' ? 'Summarizing video…' : 'Generating AI summary…'}</span>
+                  </div>
                   <div className="skel" style={{ height: 14, width: '95%', borderRadius: 6, marginBottom: 8 }} />
                   <div className="skel" style={{ height: 14, width: '88%', borderRadius: 6, marginBottom: 8 }} />
                   <div className="skel" style={{ height: 14, width: '65%', borderRadius: 6 }} />
@@ -382,7 +391,7 @@ export default function LibraryDetailModal({
                 <p className="lib-detail-summary-text">{item.summary}</p>
               ) : (
                 <p className="lib-detail-summary-text lib-detail-summary-text--empty">
-                  {item.enrichment_note || 'No AI summary yet — hit Save or Re-summarise below.'}
+                  {item.enrichment_note || (item.kind === 'video' ? 'No video transcript available to summarise.' : 'No AI summary available for this item.')}
                 </p>
               )}
             </div>
@@ -464,12 +473,23 @@ export default function LibraryDetailModal({
                         ) : null}
                       </div>
                       <div className="lib-featured-resource-link">
-                        <span>Featured in {rawKind}</span>
-                        <Icon name="chevron" size={12} />
+                        {rUrl ? (
+                          <>
+                            <span className="mono">{getDomain(rUrl) || 'Visit link'}</span>
+                            <span className="lib-featured-resource-arrow">↗</span>
+                          </>
+                        ) : (
+                          <span>Mentioned in {rawKind}</span>
+                        )}
                       </div>
                     </a>
                   )
                 })}
+              </div>
+            ) : isProcessing ? (
+              <div className="lib-detail-resources-discovering mono">
+                <span className="lib-card-spinner" />
+                <span>Discovering movie, show & tool links…</span>
               </div>
             ) : null}
 

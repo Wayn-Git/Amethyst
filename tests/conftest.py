@@ -51,6 +51,23 @@ def amethyst_home(tmp_path, monkeypatch):
     connection.reset_connection()
 
 
+@pytest.fixture(autouse=True)
+def _no_widget_classifier(monkeypatch):
+    """Widget classification is off unless a test asks for it.
+
+    It runs in front of every turn, and `configured_providers` counts the
+    builtin adapters usable from environment variables -- so even an isolated
+    AMETHYST_HOME offers it a real endpoint to call. Left on, every test that
+    runs a turn made a live network request and waited out the timeout; the
+    agent suite alone went from seconds to minutes.
+
+    `tests/test_widgets.py` overrides this with its own chain.
+    """
+    from backend.agent import widgets
+
+    monkeypatch.setattr(widgets, "default_chain", lambda **kw: [])
+
+
 @pytest.fixture
 def db(amethyst_home):
     return connection.get_connection()

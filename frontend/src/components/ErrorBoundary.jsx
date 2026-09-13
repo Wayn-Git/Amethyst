@@ -22,17 +22,29 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (!this.state.error) return this.props.children
+    const msg = String(this.state.error?.message || this.state.error)
+    const isChunkError =
+      msg.toLowerCase().includes('module script') ||
+      msg.toLowerCase().includes('dynamically imported module') ||
+      msg.toLowerCase().includes('loading chunk')
+
     return (
       <div className="crash">
-        <h2>That view stopped rendering.</h2>
-        <p className="crash-detail">{String(this.state.error?.message || this.state.error)}</p>
+        <h2>{isChunkError ? 'A new version of AMETHYST is ready.' : 'That view stopped rendering.'}</h2>
+        <p className="crash-detail">
+          {isChunkError
+            ? 'The application bundle was updated. Reloading will load the latest interface.'
+            : msg}
+        </p>
         <div className="crash-actions">
-          <button type="button" className="btn btn--primary" onClick={() => this.setState({ error: null })}>
-            Try again
+          <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
+            Reload application
           </button>
-          <button type="button" className="btn" onClick={() => window.location.reload()}>
-            Reload
-          </button>
+          {!isChunkError && (
+            <button type="button" className="btn" onClick={() => this.setState({ error: null })}>
+              Try again
+            </button>
+          )}
         </div>
         <p className="crash-note">
           Your conversations are on the server, not in this page — nothing was lost.

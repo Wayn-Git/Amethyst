@@ -68,6 +68,7 @@ _UPDATABLE = frozenset(
         "media_path",
         "duration_seconds",
         "source_ref",
+        "status",
     }
 )
 
@@ -122,6 +123,45 @@ def media_path(item_id: int, suffix: str) -> Path:
     return media_dir() / f"{item_id:06d}{suffix if suffix.startswith('.') else '.' + suffix}"
 
 
+def app_tag_for_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return None
+    if host.startswith("www."):
+        host = host[4:]
+    if host.startswith("m."):
+        host = host[2:]
+    if "pinterest." in host or host == "pin.it":
+        return "pinterest"
+    if host in ("youtube.com", "youtu.be", "music.youtube.com"):
+        return "youtube"
+    if host in ("instagram.com", "instagr.am"):
+        return "instagram"
+    if host in ("x.com", "twitter.com", "mobile.twitter.com"):
+        return "x"
+    if host in ("github.com", "gist.github.com"):
+        return "github"
+    if host in ("reddit.com", "old.reddit.com"):
+        return "reddit"
+    if host in ("spotify.com", "open.spotify.com"):
+        return "spotify"
+    if "substack.com" in host:
+        return "substack"
+    if host in ("medium.com",):
+        return "medium"
+    if host in ("arxiv.org",):
+        return "arxiv"
+    if host in ("linkedin.com",):
+        return "linkedin"
+    if host in ("tiktok.com",):
+        return "tiktok"
+    return None
+
+
 class LibraryStore:
     def __init__(self, conn: sqlite3.Connection | None = None):
         self.conn = conn or get_connection()
@@ -132,6 +172,34 @@ class LibraryStore:
             self.conn.execute("ALTER TABLE library_items ADD COLUMN category TEXT")
             self.conn.commit()
         except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
+            pass
+
+        try:
+            self.conn.execute("ALTER TABLE library_items ADD COLUMN status TEXT DEFAULT 'ready'")
+            self.conn.commit()
+        except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
+            pass
+
+        try:
+            import json as _json
+            rows = self.conn.execute("SELECT id, url, tags FROM library_items WHERE url IS NOT NULL").fetchall()
+            for r in rows:
+                app = app_tag_for_url(r["url"])
+                if not app:
+                    continue
+                raw_tags = []
+                if r["tags"]:
+                    try:
+                        raw_tags = _json.loads(r["tags"])
+                        if not isinstance(raw_tags, list):
+                            raw_tags = []
+                    except Exception:
+                        raw_tags = []
+                if app not in raw_tags:
+                    raw_tags.append(app)
+                    self.conn.execute("UPDATE library_items SET tags = ? WHERE id = ?", (_json.dumps(raw_tags), r["id"]))
+            self.conn.commit()
+        except Exception:
             pass
 
     def create(

@@ -27,6 +27,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import urlparse
 
 from backend.runtime import availability
 from backend.runtime.failures import FailureKind
@@ -259,6 +260,8 @@ REAL_TEXT_SOURCES = (
     "caption and slide analysis",
     "page",
     "notes",
+    "description",
+    "video description",
 )
 
 PROMPT = """\
@@ -290,7 +293,7 @@ Rules:
   - place/person/link/other.
   `type` must be one of movie|show|travel|destination|food|restaurant|cafe|\
 recipe|tool|product|book|place|person|link|other.
-  `detail` is key information in ten words or fewer. `url` only when the text contains one.
+  `detail` is key information in ten words or fewer. For `url`, provide the direct link from the text or the official tool/service domain (e.g. "chatgpt.com", "github.com"). For movies/shows, url may be omitted.
 - An empty list is the right answer when the text names nothing. Padding a list \
 with things that were not mentioned is the main failure mode here.
 - If the text is too thin to say anything true about, reply \
@@ -371,25 +374,177 @@ def _clean_tag(value: object) -> str | None:
     return tag or None
 
 
-def _clean_resource(entry: object) -> dict | None:
+URL_PATTERN = re.compile(
+    r'(?i)\b(?:https?://[^\s<>"\'\)\]]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|edu|gov|io|ai|app|co|dev|me|tt|tv|so|xyz|tech|info|biz|site|online|cloud|design|store|link|gl|it|to|is|gg|ly|fm)(?:/[^\s<>"\'\)\]]*)?)'
+)
+
+
+def normalize_url(raw: str) -> str:
+    """Normalize a raw string or domain into a proper, clickable http(s) URL."""
+    if not raw or not isinstance(raw, str):
+        return ""
+    url = raw.strip()
+    url = re.sub(r'^[<(\["\']+', "", url)
+    url = re.sub(r'[>)"\'\].,;:!?]+$', "", url)
+    if not url:
+        return ""
+    if " " in url:
+        # Check if a valid URL is embedded inside text (e.g. mobile share sheets)
+        match = URL_PATTERN.search(url)
+        if match:
+            url = match.group(0)
+            url = re.sub(r'^[<(\["\']+', "", url)
+            url = re.sub(r'[>)"\'\].,;:!?]+$', "", url)
+        else:
+            return ""
+    if not re.match(r"^https?://", url, re.I):
+        url = f"https://{url}"
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme in ("http", "https") and parsed.netloc and "." in parsed.netloc:
+            host = parsed.netloc.split(":")[0]
+            parts = host.split(".")
+            if len(parts) >= 2 and len(parts[-1]) >= 2 and not parts[-1].isdigit():
+                return url
+    except Exception:
+        pass
+    return ""
+
+
+def extract_urls(text: str) -> list[str]:
+    """Extract all distinct clickable URLs visibly present in text."""
+    if not text:
+        return []
+    urls: list[str] = []
+    seen: set[str] = set()
+    for m in URL_PATTERN.finditer(text):
+        norm = normalize_url(m.group(0))
+        if norm and norm.lower() not in seen:
+            seen.add(norm.lower())
+            urls.append(norm)
+    return urls
+
+
+KNOWN_TOOL_URLS = {
+    "chatgpt": "https://chatgpt.com",
+    "chat gpt": "https://chatgpt.com",
+    "openai": "https://openai.com",
+    "claude": "https://claude.ai",
+    "anthropic": "https://anthropic.com",
+    "gemini": "https://gemini.google.com",
+    "google gemini": "https://gemini.google.com",
+    "copilot": "https://copilot.microsoft.com",
+    "cursor": "https://cursor.com",
+    "github": "https://github.com",
+    "midjourney": "https://midjourney.com",
+    "perplexity": "https://perplexity.ai",
+    "huggingface": "https://huggingface.co",
+    "hugging face": "https://huggingface.co",
+    "replicate": "https://replicate.com",
+    "ollama": "https://ollama.com",
+    "runway": "https://runwayml.com",
+    "suno": "https://suno.com",
+    "elevenlabs": "https://elevenlabs.io",
+    "figma": "https://figma.com",
+    "notion": "https://notion.so",
+    "linear": "https://linear.app",
+    "raycast": "https://raycast.com",
+    "v0": "https://v0.dev",
+    "bolt": "https://bolt.new",
+    "replit": "https://replit.com",
+    "playtracker": "https://playtracker.net",
+    "supabase": "https://supabase.com",
+    "vercel": "https://vercel.com",
+    "docker": "https://docker.com",
+    "obsidian": "https://obsidian.md",
+    "tailwind": "https://tailwindcss.com",
+    "nextjs": "https://nextjs.org",
+    "react": "https://react.dev",
+    "vue": "https://vuejs.org",
+    "python": "https://python.org",
+    "rust": "https://rust-lang.org",
+    "postgresql": "https://postgresql.org",
+    "slack": "https://slack.com",
+    "discord": "https://discord.com",
+    "spotify": "https://spotify.com",
+    "netflix": "https://netflix.com",
+    "youtube": "https://youtube.com",
+}
+
+
+def resolve_entity_url(name: str, kind: str) -> str:
+    """Resolve a missing entity URL to an authoritative platform link.
+
+    Covers movies/shows (TMDB), books (Goodreads), places/food (Google Maps),
+    music (Spotify), code/repos (GitHub), known tools (official domain), and general (Google).
+    """
+    from urllib.parse import quote_plus
+
+    q = quote_plus(name.strip())
+    name_clean = re.sub(r"[^a-z0-9]", "", name.lower())
+
+    for tool_key, tool_url in KNOWN_TOOL_URLS.items():
+        if name_clean == re.sub(r"[^a-z0-9]", "", tool_key):
+            return tool_url
+
+    if kind in ("movie", "show", "film", "series", "tv", "cinema"):
+        return f"https://www.themoviedb.org/search?query={q}"
+    if kind in ("book", "novel", "reading", "author"):
+        return f"https://www.goodreads.com/search?q={q}"
+    if kind in ("place", "restaurant", "cafe", "food", "travel", "destination", "hotel"):
+        return f"https://www.google.com/maps/search/?api=1&query={q}"
+    if kind in ("music", "song", "artist", "album", "audio", "track", "podcast"):
+        return f"https://open.spotify.com/search/{q}"
+    if kind in ("code", "repo", "library", "framework", "package", "github"):
+        return f"https://github.com/search?q={q}"
+
+    return f"https://www.google.com/search?q={q}"
+
+
+def _clean_resource(entry: object, text_urls: list[str] | None = None) -> dict | None:
     if not isinstance(entry, dict):
         return None
     name = str(entry.get("name") or "").strip()[:120]
     if not name:
         return None
     kind = str(entry.get("type") or "other").strip().lower()
-    url = str(entry.get("url") or "").strip()
+    raw_url = str(entry.get("url") or "").strip()
+
+    normalized = normalize_url(raw_url)
+
+    # If url was display text (e.g. "Dust", "Relay") or empty, see if a matching
+    # URL exists in the source text
+    if not normalized and text_urls:
+        name_lower = re.sub(r"[^a-z0-9]", "", name.lower())
+        for u in text_urls:
+            host = (urlparse(u).hostname or "").lower()
+            host_clean = re.sub(r"[^a-z0-9]", "", host)
+            if name_lower and (name_lower in host_clean or host_clean in name_lower):
+                normalized = u
+                break
+
+    # If the model didn't provide a URL, auto-resolve to an authoritative platform link.
+    # If the model explicitly hallucinated prose (e.g. "probably somewhere in Bristol"),
+    # drop it unless it matches a known tool name.
+    if not normalized:
+        if not raw_url:
+            normalized = resolve_entity_url(name, kind)
+        else:
+            name_clean = re.sub(r"[^a-z0-9]", "", raw_url.lower())
+            for tool_key, tool_url in KNOWN_TOOL_URLS.items():
+                if name_clean == re.sub(r"[^a-z0-9]", "", tool_key):
+                    normalized = tool_url
+                    break
+
     return {
         "type": kind if kind in RESOURCE_TYPES else "other",
         "name": name,
         "detail": str(entry.get("detail") or "").strip()[:200],
-        # A model asked for a url when the text has none will happily invent a
-        # plausible one; anything that is not plainly a link is dropped.
-        "url": url if url.startswith(("http://", "https://")) else "",
+        "url": normalized,
     }
 
 
-def parse_enrichment(text: str) -> Enrichment | None:
+def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
     """Read the model's reply, keeping only what is the right shape."""
     body = (text or "").strip()
     if not body:
@@ -419,11 +574,30 @@ def parse_enrichment(text: str) -> Enrichment | None:
         if tag and tag not in tags:
             tags.append(tag)
 
+    text_urls = extract_urls(source_text) if source_text else []
+
     resources = []
+    seen_urls: set[str] = set()
     for entry in data.get("resources") or []:
-        cleaned = _clean_resource(entry)
+        cleaned = _clean_resource(entry, text_urls=text_urls)
         if cleaned:
             resources.append(cleaned)
+            if cleaned["url"]:
+                seen_urls.add(cleaned["url"].lower())
+
+    # Any URL visibly present in the source content that was not already captured
+    # should be added as an extracted link resource.
+    for u in text_urls:
+        if u.lower() not in seen_urls and len(resources) < MAX_RESOURCES:
+            host = (urlparse(u).hostname or u).lower()
+            link_name = host.removeprefix("www.")
+            resources.append({
+                "type": "link",
+                "name": link_name,
+                "detail": "Link from content",
+                "url": u,
+            })
+            seen_urls.add(u.lower())
 
     raw_cat = str(data.get("category") or "").strip().lower()
     category = raw_cat if raw_cat in CATEGORIES and raw_cat != "general" else infer_category(resources, tags)
@@ -485,7 +659,7 @@ async def enrich_text(
     ]
 
     if client is not None:
-        return await _ask(client, messages, None, None)
+        return await _ask(client, messages, None, None, source_text=body)
 
     links = default_chain(limit=BACKGROUND_FALLBACK_LINKS)
     if not links:
@@ -501,7 +675,7 @@ async def enrich_text(
         except Exception as exc:
             last = Enrichment(note=f"{link.provider} could not be resolved: {exc}")
             continue
-        result = await _ask(model.client, messages, link.provider, link.model)
+        result = await _ask(model.client, messages, link.provider, link.model, source_text=body)
         if not result.empty:
             availability.record_success(link.provider)
             return result
@@ -512,7 +686,9 @@ async def enrich_text(
     return Enrichment(note=f"none of the configured providers answered ({tried}). {reason}")
 
 
-async def _ask(client, messages: list[dict], provider: str | None, model: str | None) -> Enrichment:
+async def _ask(
+    client, messages: list[dict], provider: str | None, model: str | None, source_text: str = ""
+) -> Enrichment:
     try:
         response = await asyncio.wait_for(
             client.complete(messages, tools=None), timeout=ENRICH_TIMEOUT
@@ -530,7 +706,7 @@ async def _ask(client, messages: list[dict], provider: str | None, model: str | 
             )
         return Enrichment(note=f"{provider or 'the model'} could not be reached: {exc}")
 
-    parsed = parse_enrichment(response.text or "")
+    parsed = parse_enrichment(response.text or "", source_text=source_text)
     if parsed is None:
         return Enrichment(
             note="the model did not answer in the expected format", provider=provider, model=model

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
+import { useDismiss } from '../hooks/useDismiss.js'
 import { api } from '../api.js'
 import { SkeletonRows } from '../components/Skeleton.jsx'
 
@@ -143,7 +145,6 @@ function Composer({ lists, presetList, onAdded, onCancel }) {
         important,
         add_to_my_day: myDay,
       })
-      setTitle(''); setDue(''); setRemind(''); setNotes('')
       toast(made.routed_to ? `Task added — ${made.routed_to}` : 'Task added', 'ok')
       onAdded()
     } catch (err) {
@@ -154,7 +155,7 @@ function Composer({ lists, presetList, onAdded, onCancel }) {
   }
 
   return (
-    <form className="task-composer" onSubmit={submit} data-enter>
+    <form className="task-composer" onSubmit={submit}>
       <input
         autoFocus
         value={title}
@@ -215,6 +216,28 @@ function Composer({ lists, presetList, onAdded, onCancel }) {
         deadline; leave both blank and nothing is announced.
       </span>
     </form>
+  )
+}
+
+/* The composer as a dialog. The form is the same one that used to push the
+   board down when it opened; a modal keeps the board where it is, and the
+   pointer does not have to travel to the top of the page to press Add. */
+function TaskModal({ lists, presetList, onAdded, onClose }) {
+  const ref = useRef(null)
+  useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
+  return createPortal(
+    <div className="modal-overlay">
+      <div className="modal task-modal" ref={ref} role="dialog" aria-modal="true" aria-label="New task">
+        <div className="modal-head">
+          <div className="modal-title">New task</div>
+          <button type="button" className="icon-btn modal-close" onClick={onClose} aria-label="Close">
+            <Icon name="x" size={15} />
+          </button>
+        </div>
+        <Composer lists={lists} presetList={presetList} onAdded={onAdded} onCancel={onClose} />
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -546,7 +569,7 @@ export default function Tasks() {
             <button
               type="button"
               className="btn btn--primary btn--small"
-              onClick={() => setAdding((a) => !a)}
+              onClick={() => setAdding(true)}
             >
               <Icon name="plus" size={15} /> New task
             </button>
@@ -667,11 +690,11 @@ export default function Tasks() {
               )}
 
               {adding && (
-                <Composer
+                <TaskModal
                   lists={counts.lists}
                   presetList={counts.lists.find((l) => l.id === view.listId)?.name}
-                  onAdded={load}
-                  onCancel={() => setAdding(false)}
+                  onAdded={() => { setAdding(false); load() }}
+                  onClose={() => setAdding(false)}
                 />
               )}
 

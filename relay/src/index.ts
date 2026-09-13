@@ -35,6 +35,14 @@ export interface Env extends JobEnv {
 	/** What the laptop presents to POST /sync. */
 	RELAY_TOKEN: string;
 	/**
+	 * What a GitHub Actions worker presents to POST /worker/report, and the only
+	 * thing it may do. Optional: a relay without it simply has no worker
+	 * mailbox, and every other route is unchanged. Deliberately the weakest of
+	 * the three -- it lives in two GitHub accounts' Actions secrets, which makes
+	 * it the most exposed and it is worth the least if taken.
+	 */
+	WORKER_TOKEN?: string;
+	/**
 	 * Optional. Where someone asks for their data to be deleted. Left unset, the
 	 * policy page says to message the Instagram account, which is true and does
 	 * not publish an email address to be scraped.
@@ -89,6 +97,7 @@ const DAILY_CRON = '17 3 * * *';
 // its own -- see src/jobs/ for the shape and src/jobs/types/ for the work.
 export { JobWorkflow } from './jobs/workflow.ts';
 import { authenticate, bearer, sameSecret } from './auth.ts';
+import { ackReports, isWorker, pruneReports, report, reportsForSync } from './workers.ts';
 import {
 	ackJobs,
 	createJob,
@@ -386,30 +395,43 @@ async function share(request: Request, env: Env): Promise<Response> {
 	if (raw.byteLength > MAX_BODY_BYTES) return json({ error: 'too large' }, 413);
 	const text = new TextDecoder().decode(raw);
 	const type = (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
-	let payload: { url?: string; kind?: string; note?: string } = {};
+	let payload: { url?: string; text?: string; kind?: string; note?: string } = {};
 	if (type === 'application/x-www-form-urlencoded') {
 		const fields = new URLSearchParams(text);
-		payload = { url: fields.get('url') ?? undefined, kind: fields.get('kind') ?? undefined,
+		payload = { url: fields.get('url') ?? fields.get('text') ?? undefined, kind: fields.get('kind') ?? undefined,
 		            note: fields.get('note') ?? undefined };
 	} else if (type === 'application/json') {
 		try {
 			payload = JSON.parse(text) ?? {};
+			if (!payload.url && payload.text) payload.url = payload.text;
 		} catch {
 			return json({ error: 'that body is not JSON' }, 400);
 		}
 	} else {
-		// text/plain -- and anything unlabelled, because share targets that
-		// send the bare URL often send no content-type at all. What arrives is
-		// either the URL by itself or "url\nnote-ish text"; the first line that
-		// looks like a URL is the URL.
-		const candidate = text
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.find((line) => /^[a-z][a-z0-9+.-]*:\/\//i.test(line));
+		// text/plain -- and anything unlabelled.
+		// If text contains an embedded URL anywhere, extract it.
+		const match = text.match(/https?:\/\/[^\s<>"')\]]+/i);
+		const candidate = match
+			? match[0]
+			: text
+					.split(/\r?\n/)
+					.map((line) => line.trim())
+					.find((line) => /^[a-z][a-z0-9+.-]*:\/\//i.test(line));
 		payload = { url: candidate };
 	}
 	const url = new URL(request.url);
-	payload.url = payload.url || url.searchParams.get('url') || undefined;
+	payload.url = payload.url || url.searchParams.get('url') || url.searchParams.get('text') || undefined;
+	if (payload.url) {
+		const match = payload.url.match(/https?:\/\/[^\s<>"')\]]+/i);
+		if (match) {
+			const raw = payload.url;
+			payload.url = match[0];
+			if (!payload.note) {
+				const extra = raw.replace(match[0], '').trim();
+				if (extra) payload.note = extra;
+			}
+		}
+	}
 	if (!payload.url) {
 		// Self-diagnosing on purpose: "400 Bad Request" in a toast names
 		// nothing. This says what arrived, so the next failure is readable
@@ -487,6 +509,8 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		ack?: number[];
 		/** Jobs the machine took last time. Acknowledged late, on purpose. */
 		job_ack?: string[];
+		/** Worker reports the machine took last time. Late for the same reason. */
+		worker_ack?: string[];
 		config?: Record<string, unknown>;
 		limit?: number;
 	} = {};
@@ -524,6 +548,9 @@ async function sync(request: Request, env: Env): Promise<Response> {
 	// Before the read below, so a job whose bytes the machine has just confirmed
 	// is gone from this answer rather than offered again.
 	const jobsSynced = await ackJobs(env, payload.job_ack);
+	// Same order and the same reason: a report whose result the machine has
+	// just confirmed is gone from this answer rather than offered again.
+	const workersSynced = await ackReports(env, payload.worker_ack);
 
 	const limit = Math.min(Math.max(Number(payload.limit) || 25, 1), 100);
 	const { results } = await env.DB.prepare(
@@ -555,6 +582,10 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		// one halfway through five downloads.
 		jobs: await jobsForSync(env, Math.min(limit, SYNC_BATCH)),
 		jobs_synced: jobsSynced,
+		// What workers running on other people's compute said while the machine
+		// was away. Nothing here is applied by the relay; it is a mailbox.
+		workers: await reportsForSync(env, Math.min(limit, SYNC_BATCH)),
+		workers_synced: workersSynced,
 	});
 }
 
@@ -727,6 +758,16 @@ export default {
 		if (path === '/share' && request.method === 'POST') return share(request, env);
 		if (path === '/sync' && request.method === 'POST') return sync(request, env);
 
+		// The worker mailbox. Its own credential, and one verb: a runner may say
+		// what happened and may not read anything back -- not its own report, not
+		// anybody else's. See src/workers.ts for why that is the whole surface.
+		if (path === '/worker/report' && request.method === 'POST') {
+			if (!isWorker(request, env)) {
+				return json({ error: 'that token is not one this relay holds' }, 401);
+			}
+			return report(request, env);
+		}
+
 		// The generic layer. Every route below authenticates first and then asks
 		// the registry -- none of them knows what a job *does*, which is what
 		// makes a new job type a file under src/jobs/types/ and nothing else.
@@ -796,6 +837,10 @@ export default {
 					// that names it -- an orphan there is a bucket nothing can clean.
 					const removed = await new JobStore(env.DB).prune(env.ARTIFACTS);
 					if (removed) console.log('pruned', removed, 'job(s)');
+					// And reports no laptop ever came back for. A mailbox that is
+					// never emptied stops being a mailbox.
+					const stale = await pruneReports(env);
+					if (stale) console.log('pruned', stale, 'worker report(s)');
 				} catch (err) {
 					console.error('the job prune failed', err);
 				}

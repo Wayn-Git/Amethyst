@@ -60,6 +60,7 @@ from backend.runtime.router import AUTO, auto_routable, is_core
 from backend.security.confirmation import ConfirmationRequest, ConfirmationService
 from backend.skills.loader import scan
 from backend.tools.registry import build_default_registry
+from backend.workers import batch as worker_batch
 
 # The frontend is served from Vite's dev server on another port, so every
 # browser request is cross-origin. Override for a different port or a built
@@ -171,6 +172,33 @@ jobs.register(
 )
 _automation_lane = jobs.JobRunner([AUTOMATION_JOB_KIND], name="automations")
 _runner.lane = _automation_lane
+
+# Fan-out batches (`backend/workers/batch.py`). Its own lane, and that is the
+# point: a batch is enqueued *by* an automation turn as often as by a person, and
+# putting both on one lane would deadlock -- the automation holding the lane
+# while it waits for a batch that cannot be claimed until the automation lets go.
+#
+# `auto_retry_after_crash=True` is honest here where it is not for an automation:
+# every node's outcome is written to the step ledger the moment it settles and
+# every dispatch to GitHub goes through `JobStore.step`, so a reclaimed batch
+# re-runs only what had not finished and never sends a second workflow_dispatch.
+jobs.register(
+    jobs.Handler(
+        kind=worker_batch.KIND,
+        run=worker_batch.run,
+        backoff_base=30.0,
+        backoff_cap=600.0,
+        # One. The graph does its own per-node retries against its own lanes, and
+        # replaying a whole batch from the top would re-do settled nodes' work.
+        max_attempts=1,
+        # Longer than the longest batch may run, so a slow fan-out is never
+        # mistaken for one whose process died. The handler renews this on every
+        # heartbeat anyway; this is the ceiling if it stops heartbeating.
+        lease_seconds=worker_batch.DEFAULT_BATCH_TIMEOUT + 120.0,
+    )
+)
+_worker_lane = jobs.JobRunner([worker_batch.KIND], name="workers")
+worker_batch.lane = _worker_lane
 
 
 async def _live_manager():
@@ -383,6 +411,9 @@ async def _lifespan(_: FastAPI):
     # The lane the runner above puts work into. Started after it, so a tick that
     # fires in the same millisecond finds somewhere to put a job.
     _automation_lane.start()
+    # The fan-out lane. Separate from the one above so a batch a scheduled turn
+    # asked for cannot queue behind the turn that is waiting for it.
+    _worker_lane.start()
     # Reminders take the same rule, for the same reason. Deliberately a second
     # runner rather than another job on the first: the automation loop
     # serializes model turns that can take five minutes, and a reminder queued
@@ -433,6 +464,7 @@ async def _lifespan(_: FastAPI):
     # has already stopped. A job in flight is cancelled and put back with its
     # ledger intact, which is the difference between a shutdown and a loss.
     await _automation_lane.stop()
+    await _worker_lane.stop()
     with contextlib.suppress(asyncio.CancelledError):
         _boot_connectors.cancel()
         await _boot_connectors
@@ -2305,7 +2337,124 @@ def act_on_job(job_id: str, action: str, body: JobAction | None = None) -> dict[
         raise HTTPException(409, f"cannot {action} a {job.state} job ({exc})") from exc
     if job.state == "queued" and job.kind == AUTOMATION_JOB_KIND:
         _automation_lane.nudge()
+    if job.state == "queued" and job.kind == worker_batch.KIND:
+        _worker_lane.nudge()
     return job.to_json()
+
+
+# ---------------------------------------------------------------- workers
+#
+# Where work runs when it does not run here: the two GitHub accounts, the
+# collectors they can be asked for, and what the execution router would decide.
+# Read-mostly -- a batch is created by the agent tool or an automation, not by a
+# request, and it is then an ordinary job at `/api/jobs`.
+
+
+class WorkerAccountPatch(BaseModel):
+    owner: str | None = None
+    repo: str | None = None
+    workflow: str | None = None
+    ref: str | None = None
+    source_repo: str | None = None
+    source_ref: str | None = None
+    enabled: bool | None = None
+
+
+class WorkerSettingsPatch(BaseModel):
+    automation: WorkerAccountPatch | None = None
+    subagent: WorkerAccountPatch | None = None
+    relay_url: str | None = None
+    allow_paid_models: bool | None = None
+
+
+@app.get("/api/workers")
+def get_workers() -> dict[str, Any]:
+    """The two accounts, what they can run, and whether they are set up.
+
+    No credential is withheld here because none is held here: the token refs are
+    named so a person knows what to run `amethyst secrets set` on, and the
+    values live in the OS keychain.
+    """
+    from backend.workers import collectors
+    from backend.workers.accounts import ACCOUNTS, load_workers
+    from backend.workers.router import LANES
+
+    settings = load_workers()
+    return {
+        "accounts": [settings.account(name).as_json() for name in ACCOUNTS],
+        "relay_url": settings.relay_url,
+        "allow_paid_models": settings.allow_paid_models,
+        "collectors": collectors.catalogue(),
+        "lanes": list(LANES),
+    }
+
+
+@app.put("/api/workers")
+def put_workers(body: WorkerSettingsPatch) -> dict[str, Any]:
+    from backend.workers.accounts import ACCOUNTS, load_workers, save_workers
+
+    patch: dict[str, Any] = {}
+    for name in ACCOUNTS:
+        section = getattr(body, name, None)
+        if section is None:
+            continue
+        fields = {k: v for k, v in section.model_dump().items() if v is not None}
+        if fields:
+            patch[name] = fields
+    if body.relay_url is not None:
+        patch["relay_url"] = body.relay_url.strip()
+    if body.allow_paid_models is not None:
+        patch["allow_paid_models"] = body.allow_paid_models
+    if not patch:
+        return get_workers()
+    try:
+        save_workers(patch)
+    except ValueError as exc:
+        # A token in the payload. Refused with the sentence saying where it goes.
+        raise HTTPException(400, str(exc)) from exc
+    load_workers()
+    return get_workers()
+
+
+@app.post("/api/workers/{account}/check")
+async def check_worker(account: str) -> dict[str, Any]:
+    """Can this account actually be dispatched to? A read, so it costs nothing."""
+    from backend.workers.accounts import ACCOUNTS
+    from backend.workers.github import check
+
+    if account not in ACCOUNTS:
+        raise HTTPException(404, f"no such worker account '{account}'")
+    return await check(account)
+
+
+@app.get("/api/workers/route")
+def explain_route(
+    task: str = "",
+    interactive: bool = True,
+    scheduled: bool = False,
+    fanout: int = 1,
+    offline_ok: bool = False,
+) -> dict[str, Any]:
+    """What the execution router would decide, and why.
+
+    Here because "it ran locally again" is only debuggable if the machine will
+    say what it wanted and what stopped it.
+    """
+    from backend.workers import collectors
+    from backend.workers.router import ExecutionRequest, choose
+
+    collector = collectors.get(task) if task else None
+    decision = choose(
+        ExecutionRequest(
+            task=task,
+            interactive=interactive,
+            scheduled=scheduled,
+            fanout=max(1, fanout),
+            offline_ok=offline_ok,
+            needs_local_data=bool(collector and collector.local_only),
+        )
+    )
+    return {**decision.as_json(), "explain": decision.explain()}
 
 
 @app.get("/api/logs")
@@ -3991,22 +4140,41 @@ async def enrich_library_item(item_id: int) -> dict[str, Any]:
 
 
 @app.get("/api/library/{item_id}/thumbnail")
-def library_thumbnail(item_id: int) -> FileResponse:
+async def library_thumbnail(item_id: int) -> FileResponse:
     """The still, by id. The browser is never handed a filesystem path."""
+    from backend.library.service import LibraryService
     from backend.library.store import LibraryStore
 
-    row = LibraryStore().get(item_id)
-    if row is None or not row["thumbnail_path"]:
-        raise HTTPException(404, "there is no thumbnail for that item")
-    path = Path(row["thumbnail_path"])
-    if not path.is_file():
-        raise HTTPException(404, "the thumbnail is missing from disk")
-    return FileResponse(path, media_type="image/jpeg")
+    store = LibraryStore()
+    row = store.get(item_id)
+    if row is None:
+        raise HTTPException(404, f"no library item {item_id}")
+
+    if row["thumbnail_path"]:
+        path = Path(row["thumbnail_path"])
+        if path.is_file():
+            return FileResponse(path, media_type="image/jpeg")
+
+    # If missing or not yet downloaded, try on-demand fetch once
+    if row["url"]:
+        service = LibraryService(store)
+        fetched = await service.fetch_thumbnail_for_item(item_id)
+        if fetched:
+            row = store.get(item_id)
+            if row and row["thumbnail_path"]:
+                path = Path(row["thumbnail_path"])
+                if path.is_file():
+                    return FileResponse(path, media_type="image/jpeg")
+
+    raise HTTPException(404, "there is no thumbnail for that item")
 
 @app.get("/api/library/{item_id}/media")
 def library_media(item_id: int) -> FileResponse:
     """Stream raw media content."""
     import mimetypes
+
+    from backend.library.store import LibraryStore
+
     with get_connection() as conn:
         row = LibraryStore(conn).get(item_id)
     
@@ -4046,6 +4214,205 @@ async def consolidate_library_tags() -> dict[str, Any]:
     return LibraryService().consolidate_tags()
 
 
+# ----------------------------------------------------------------- search
+#
+# External search endpoints for the Damon spotlight palette.
+# No external API keys needed: DuckDuckGo HTML, YouTube scraping, Openverse CC,
+# GitHub public API, and Wikipedia REST API.
+
+
+@app.get("/api/search/web")
+async def search_web_endpoint(q: str, limit: int = 8) -> dict[str, Any]:
+    """Web results, and an honest word about where they came from.
+
+    `source` is here because falling back to Wikipedia silently is the worst of
+    the available behaviours: the results are reasonable, so nothing looks
+    broken, and a person concludes the search is simply bad. It is usually the
+    network -- an ISP that blackholes DuckDuckGo, a scraper Bing has decided to
+    answer with results for the query's first word. Saying so costs one field.
+    """
+    from backend.web.search_service import configured_search_api, search_web
+
+    results = await search_web(q, limit=limit)
+    sources = {r.get("source") for r in results if r.get("source")}
+    source = sources.pop() if len(sources) == 1 else "mixed"
+    return {
+        "query": q,
+        "results": results,
+        "source": source,
+        # Only asked when it matters. A search that worked needs no diagnosis.
+        "search_api": configured_search_api() if source == "wikipedia" else None,
+    }
+
+
+@app.get("/api/search/youtube")
+async def search_youtube_endpoint(q: str, limit: int = 8) -> dict[str, Any]:
+    from backend.web.search_service import search_youtube
+    results = await search_youtube(q, limit=limit)
+    return {"query": q, "results": results}
+
+
+@app.get("/api/search/images")
+async def search_images_endpoint(q: str, limit: int = 12) -> dict[str, Any]:
+    from backend.web.search_service import search_images
+    results = await search_images(q, limit=limit)
+    return {"query": q, "results": results}
+
+
+@app.get("/api/search/github")
+async def search_github_endpoint(q: str, limit: int = 6) -> dict[str, Any]:
+    from backend.web.search_service import search_github
+    results = await search_github(q, limit=limit)
+    return {"query": q, "results": results}
+
+
+@app.get("/api/search/wiki")
+async def search_wiki_endpoint(q: str) -> dict[str, Any]:
+    from backend.web.search_service import search_wikipedia
+    result = await search_wikipedia(q)
+    return {"query": q, "result": result}
+
+
+# An answer card for a question typed into the palette. The articles below it
+# are the evidence; this is the sentence that answers, so the page reads
+# answer-first instead of making every query a link dump.
+#
+# Two sources feed one model call: the web results the articles list is
+# already built from, and the Wikipedia summary the universal mode already
+# asks for. Nothing new is fetched, no tool loop runs, and with no model
+# configured the endpoint says so and the palette shows only the articles --
+# the question is not made to wait on an answer that cannot be written.
+ANSWER_TIMEOUT = 20.0
+ANSWER_MAX_TOKENS = 400
+
+#: The model call is the one metered step on this path, so it is the one worth
+#: answering from memory: the same question asked twice in twelve hours gets
+#: the same card, and a free-tier key spends its tokens on questions the
+#: palette has not already paid for. Sources are cached along with the text
+#: because the article cache hands out the same list anyway.
+ANSWER_TTL = 12 * 3600.0
+ANSWER_CACHE_MAX = 200
+_answer_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+_UNSET = object()
+
+_ANSWER_PROMPT = (
+    "You are answering one question from a few short web snippets. Answer in "
+    "2-4 sentences, plainly, in the user's language. If the snippets disagree "
+    "or do not contain the answer, say so in one sentence rather than guessing. "
+    "Do not mention the snippets, do not cite, do not editorialise."
+)
+
+
+@app.get("/api/search/answer")
+@app.post("/api/search/answer")
+# `Request`, not an optional one: FastAPI injects this parameter itself and
+# refuses to build a field for an optional form of it, taking the whole app down
+# at import. Never optional in practice either -- the body check below is what
+# distinguishes the GET from the POST, not the presence of the request.
+async def search_answer_endpoint(q: str, request: Request) -> dict[str, Any]:
+    import asyncio
+
+    from backend.runtime.registry import default_chain, resolve
+    from backend.runtime.types import ModelParameters
+    from backend.web.search_service import search_web, search_wikipedia
+
+    key = q.strip().lower()
+    hit = _answer_cache.get(key)
+    if hit and time.monotonic() - hit[0] < ANSWER_TTL:
+        return hit[1]
+
+    # The web mode already fetched the article list for the same query; the
+    # answer is written from the same evidence, so it is POSTed here rather
+    # than fetched a second time. One search for both, on the path where the
+    # user is looking at both. A wiki the caller hands over is the same
+    # deal -- and an explicit null means the caller decided there is no wiki
+    # for this query, so nothing is asked of Wikipedia either.
+    prefetched: list[dict] | None = None
+    wiki_prefetched: Any = _UNSET
+    if request.headers.get("content-type", "").startswith("application/json"):
+        with contextlib.suppress(Exception):
+            body = await request.json()
+            if isinstance(body, dict) and isinstance(body.get("results"), list):
+                prefetched = body["results"]
+                if "wiki" in body:
+                    wiki_prefetched = body["wiki"]
+
+    async def _gather() -> tuple[list[dict], dict | None]:
+        async def _web() -> list[dict]:
+            return prefetched if prefetched else await search_web(q, limit=5)
+
+        if wiki_prefetched is not _UNSET:
+            return await _web(), wiki_prefetched or None
+
+        web, wiki = await asyncio.gather(
+            _web(), search_wikipedia(q), return_exceptions=True
+        )
+        if isinstance(web, BaseException):
+            web = []
+        if isinstance(wiki, BaseException):
+            wiki = None
+        return web, wiki
+
+    results, wiki = await _gather()
+    snippets = "\n\n".join(
+        f"[{i + 1}] {r.get('title', '')} ({r.get('domain', '')}): {r.get('snippet', '')}"
+        for i, r in enumerate(results[:5])
+        if r.get("snippet") or r.get("title")
+    )
+    if wiki and (wiki.get("extract") or wiki.get("summary")):
+        snippets += f"\n\n[6] Wikipedia: {wiki.get('extract') or wiki.get('summary')}"
+
+    if not snippets.strip():
+        return {"query": q, "answer": None, "sources": [], "error": None}
+
+    context = f"Question: {q}\n\nSnippets:\n{snippets}"
+    links = default_chain(limit=2)
+    if not links:
+        return {
+            "query": q,
+            "answer": None,
+            "sources": results[:5],
+            "error": "no model is configured, so there is no answer card -- the results below are the evidence.",
+        }
+
+    last_error: str | None = None
+    for link in links:
+        try:
+            model = resolve(link.provider, link.model)
+            response = await asyncio.wait_for(
+                model.client.complete(
+                    [
+                        {"role": "system", "content": _ANSWER_PROMPT},
+                        {"role": "user", "content": context},
+                    ],
+                    tools=None,
+                    params=ModelParameters(max_tokens=ANSWER_MAX_TOKENS),
+                ),
+                timeout=ANSWER_TIMEOUT,
+            )
+            answer = (response.text or "").strip()
+            if answer:
+                payload = {
+                    "query": q,
+                    "answer": answer,
+                    "sources": results[:5],
+                    "provider": link.provider,
+                    "model": link.model,
+                    "error": None,
+                }
+                _answer_cache[key] = (time.monotonic(), payload)
+                if len(_answer_cache) > ANSWER_CACHE_MAX:
+                    oldest = min(_answer_cache.items(), key=lambda item: item[1][0])[0]
+                    _answer_cache.pop(oldest, None)
+                return payload
+        except Exception as exc:
+            last_error = str(exc)
+            continue
+    return {"query": q, "answer": None, "sources": results[:5], "error": last_error}
+
+
+
 # ----------------------------------------------------------------- share
 #
 # One capture-only endpoint so a phone can send AMETHYST a link. See backend/share.py
@@ -4054,7 +4421,8 @@ async def consolidate_library_tags() -> dict[str, Any]:
 
 
 class ShareBody(BaseModel):
-    url: str
+    url: str | None = None
+    text: str | None = None
     kind: str | None = None
     note: str | None = None
 
@@ -4103,9 +4471,13 @@ async def share_capture(body: ShareBody, request: Request) -> dict[str, Any]:
     if not share.check(share.bearer(request.headers.get("authorization"))):
         raise HTTPException(401, "that token is not the one this instance holds")
 
+    target = (body.url or body.text or "").strip()
+    if not target:
+        raise HTTPException(400, "a url is required")
+
     try:
         captured = await LibraryService().capture_url(
-            body.url, kind=body.kind, notes=body.note
+            target, kind=body.kind, notes=body.note
         )
     except LibraryError as exc:
         raise HTTPException(400, str(exc)) from exc

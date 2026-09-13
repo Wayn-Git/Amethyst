@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
+import BrandMark from '../../components/BrandMark.jsx'
 import ServiceIcon from '../../components/ServiceIcon.jsx'
 import { useApp } from '../../store.jsx'
 import { api, copyText } from '../../api.js'
@@ -1100,7 +1101,7 @@ function ConnectModal({ server, onClose, onLogin }) {
         <button className="conn-modal-close" onClick={onClose}><Icon name="x" size={20} /></button>
         <div className="conn-modal-header">
           <div className="conn-modal-icons">
-             <Icon name="brand" size={24} /> <span style={{ color: '#555', margin: '0 4px', fontSize: 24, lineHeight: 1 }}>···</span> <ServiceIcon name={server.name} size={24} />
+             <BrandMark size={24} /> <span style={{ color: '#555', margin: '0 4px', fontSize: 24, lineHeight: 1 }}>···</span> <ServiceIcon name={server.name} size={24} />
           </div>
           <h2>Connect {server.title || server.name}</h2>
           <p>Developed by OpenAI</p>

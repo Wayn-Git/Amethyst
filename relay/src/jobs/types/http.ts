@@ -22,9 +22,14 @@ export class Refusal extends Unretryable {}
 export function safeUrl(raw: unknown): string {
 	const text = typeof raw === 'string' ? raw.trim() : '';
 	if (!text) throw new Refusal('a url is required');
+	let candidate = text;
+	const match = text.match(/https?:\/\/[^\s<>"')\]]+/i);
+	if (match) {
+		candidate = match[0];
+	}
 	let url: URL;
 	try {
-		url = new URL(text.includes('://') ? text : `https://${text}`);
+		url = new URL(candidate.includes('://') ? candidate : `https://${candidate}`);
 	} catch {
 		throw new Refusal(`'${text.slice(0, 80)}' is not a url`);
 	}

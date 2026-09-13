@@ -320,6 +320,7 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
           <SkeletonGrid cards={6} />
         </>
       )}
+      {loading && shown.length > 0 && <div className="dir-empty dir-empty--quiet">Refreshing…</div>}
 
       <div className="dir-grid" data-enter>
         {shown.map((row) => {

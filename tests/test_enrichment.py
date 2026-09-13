@@ -234,3 +234,59 @@ async def test_with_no_model_configured_the_words_survive_and_the_reason_is_give
 @pytest.mark.parametrize("value", ["", "not json at all", "{", "[]"])
 def test_a_reply_that_is_not_an_object_is_no_enrichment(db, value):
     assert parse_enrichment(value) is None
+
+
+def test_extracted_links_are_normalized_and_not_substituted_with_text(db):
+    source = """
+    Check out these tools:
+    * Letta: https://letta.com
+    * Relay.app: relay.app/pricing
+    * Zapier Agents: https://zapier.com/agents
+    * Dust: dust.tt
+    """
+    # Model returns "Dust" as plain text url or misses the scheme
+    reply = json.dumps({
+        "summary": "AI tools review",
+        "tags": ["tools", "ai"],
+        "resources": [
+            {"type": "tool", "name": "Letta", "url": "https://letta.com"},
+            {"type": "tool", "name": "Relay.app", "url": "relay.app"},
+            {"type": "tool", "name": "Zapier Agents", "url": "https://zapier.com/agents"},
+            {"type": "tool", "name": "Dust", "url": "Dust"},  # display text substituted
+        ],
+    })
+    parsed = parse_enrichment(reply, source_text=source)
+    assert parsed is not None
+    res_by_name = {r["name"]: r for r in parsed.resources}
+    assert res_by_name["Letta"]["url"] == "https://letta.com"
+    assert res_by_name["Relay.app"]["url"] == "https://relay.app"
+    assert res_by_name["Zapier Agents"]["url"] == "https://zapier.com/agents"
+    # Dust is resolved to https://dust.tt from the source text, NOT plain text "Dust"
+    assert res_by_name["Dust"]["url"] == "https://dust.tt"
+
+
+def test_movie_and_known_tools_auto_resolve_urls(db):
+    """When a reel or post identifies entities without explicit links,
+    the system auto-resolves to authoritative search/platform URLs (TMDB, Goodreads, Google Maps, etc.)."""
+    reply = json.dumps({
+        "summary": "Meme with movie, tool, book, and place",
+        "tags": ["ai", "cinema", "reading"],
+        "resources": [
+            {"type": "movie", "name": "Margin Call", "detail": "2011 film", "url": ""},
+            {"type": "tool", "name": "ChatGPT", "detail": "AI assistant", "url": ""},
+            {"type": "tool", "name": "Claude", "detail": "Anthropic AI", "url": ""},
+            {"type": "book", "name": "Atomic Habits", "detail": "James Clear", "url": ""},
+            {"type": "place", "name": "Blue Bottle Coffee", "detail": "Oakland", "url": ""},
+            {"type": "music", "name": "Starboy", "detail": "The Weeknd", "url": ""},
+        ],
+    })
+    parsed = parse_enrichment(reply, source_text="")
+    assert parsed is not None
+    res_by_name = {r["name"]: r for r in parsed.resources}
+    assert "themoviedb.org/search?query=Margin+Call" in res_by_name["Margin Call"]["url"]
+    assert res_by_name["ChatGPT"]["url"] == "https://chatgpt.com"
+    assert res_by_name["Claude"]["url"] == "https://claude.ai"
+    assert "goodreads.com/search?q=Atomic+Habits" in res_by_name["Atomic Habits"]["url"]
+    assert "google.com/maps/search/?api=1&query=Blue+Bottle+Coffee" in res_by_name["Blue Bottle Coffee"]["url"]
+    assert "spotify.com/search/Starboy" in res_by_name["Starboy"]["url"]
+

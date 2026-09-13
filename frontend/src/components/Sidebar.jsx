@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
+import BrandMark from './BrandMark.jsx'
 import { useApp } from '../store.jsx'
 import { MOD_LABEL } from '../keys.js'
 import { forRail } from '../nav.js'
@@ -205,9 +206,7 @@ export default function Sidebar() {
       {/* 1. Header (Screenshot 1 & 2): Logo/App Mark + Search + Sidebar Toggle + Compose */}
       <div className="sb-header">
         <div className="sb-header-brand">
-          <span className="sb-brand-mark" aria-hidden="true">
-            <Icon name="spark" size={15} />
-          </span>
+          <BrandMark size={34} />
           <span className="sb-brand-name">AMETHYST</span>
         </div>
 

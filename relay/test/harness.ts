@@ -94,14 +94,18 @@ export interface TestEnv {
 	ARTIFACTS?: any;
 	JOBS?: undefined;
 	RELAY_TOKEN: string;
+	WORKER_TOKEN?: string;
 }
 
-export function testEnv(options: { bucket?: FakeBucket; relayToken?: string } = {}): TestEnv {
+export function testEnv(
+	options: { bucket?: FakeBucket; relayToken?: string; workerToken?: string } = {},
+): TestEnv {
 	return {
 		DB: new FakeD1(),
 		ARTIFACTS: options.bucket,
 		JOBS: undefined,
 		RELAY_TOKEN: options.relayToken ?? 'a-relay-token',
+		WORKER_TOKEN: options.workerToken ?? 'a-worker-token',
 	};
 }
 

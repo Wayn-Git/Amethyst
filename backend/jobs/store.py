@@ -195,7 +195,15 @@ class JobStore:
         The two together on purpose: a handler that has made progress is a
         handler that is still alive, and a heartbeat written at a different
         moment from the progress it proves is a heartbeat that can outlive it.
+
+        Refused once the row is terminal, for the same reason `complete` is:
+        `save` writes every column, so a heartbeat from a handler that has not
+        noticed it was cancelled would put `running` back over the cancel --
+        and the handler would then never notice, because noticing means reading
+        the state it had just overwritten.
         """
+        if self.settled(job):
+            return job
         job.checkpoint.update(fields)
         job.lease(OWNER)
         return self.save(job)
@@ -288,7 +296,35 @@ class JobStore:
 
     # ---- finishing
 
+    def settled(self, job: Job) -> bool:
+        """Did the row go terminal while the handler was still holding it?
+
+        A handler runs against an in-memory copy of the job, so a person
+        pressing Cancel on a batch that has been running for four minutes moves
+        the *row* and nothing else -- and the handler then finished, called
+        `complete`, and wrote `completed` straight over the cancel. The cancel
+        looked like it had failed because it had.
+
+        Asked of the row rather than of the copy, and only ever to refuse a
+        move: a handler cannot un-cancel itself, and a long-running one is the
+        only kind this can happen to. The copy is brought up to date so the
+        caller sees what the row actually says.
+
+        Idempotent, which is not incidental. It answers "is the row finished",
+        not "has this call noticed yet" -- and the copy it just corrected must
+        not make the next caller's answer different. A version that skipped
+        already-corrected copies had the handler's heartbeat consume the only
+        notice of a cancel, so the handler carried on for the full timeout.
+        """
+        row = self.conn.execute("SELECT state FROM jobs WHERE id = ?", (job.id,)).fetchone()
+        if row is None or row["state"] not in TERMINAL:
+            return False
+        job.state = row["state"]
+        return True
+
     def complete(self, job: Job, result: dict[str, Any] | None = None) -> Job:
+        if self.settled(job):
+            return job
         job.result = result
         job.last_error = None
         job.blocked_on = None
@@ -303,6 +339,8 @@ class JobStore:
         automation, a delivery that names nothing. Spending three attempts and
         an hour of backoff to prove that again is not resilience.
         """
+        if self.settled(job):
+            return job
         job.release()
         if not retry:
             job.last_error = error

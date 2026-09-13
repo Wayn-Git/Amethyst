@@ -4,7 +4,7 @@ import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api } from '../api.js'
-import { SkeletonRows } from '../components/Skeleton.jsx'
+import { SkeletonLibraryGrid } from '../components/Skeleton.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 
@@ -69,8 +69,9 @@ export default function Library() {
   // Token and tracking refs
   const loadToken = useRef(0)
   const activeProcessingIds = useRef(new Set())
+  const [processingTrigger, setProcessingTrigger] = useState(0)
 
-  useViewEntrance(rootRef, [loaded])
+  useViewEntrance(rootRef, [])
 
   // Persist layout choice
   const handleLayoutChange = (nextLayout) => {
@@ -117,10 +118,16 @@ export default function Library() {
         // Mark items that are still processing in background
         const merged = data.items.map((it) => {
           const isProcessing =
-            !it.enriched_at &&
-            !it.enrichment_note &&
-            it.text_source !== 'none' &&
-            activeProcessingIds.current.has(it.id)
+            it.status === 'received' ||
+            it.status === 'processing' ||
+            it.status === 'enriching' ||
+            (!it.enriched_at &&
+              !it.enrichment_note &&
+              (it.kind === 'video' || it.text_source !== 'none') &&
+              activeProcessingIds.current.has(it.id))
+          if (isProcessing) {
+            activeProcessingIds.current.add(it.id)
+          }
           return isProcessing ? { ...it, isProcessing: true } : it
         })
 
@@ -132,16 +139,19 @@ export default function Library() {
       setTagCounts(data.tag_counts || {})
       setError(null)
     } catch (err) {
-      if (loadToken.current !== token) return
-      setError(err.message)
+      if (loadToken.current === token) setError(err.message)
     } finally {
-      if (loadToken.current === token) setLoaded(true)
+      setLoaded(true)
     }
   }, [query, selectedKind, selectedCategory, selectedTag, order])
 
   // Debounced search query & filter reload
   useEffect(() => {
-    const timer = setTimeout(load, query ? 250 : 0)
+    if (!query) {
+      load()
+      return
+    }
+    const timer = setTimeout(load, 250)
     return () => clearTimeout(timer)
   }, [load, query])
 
@@ -170,7 +180,7 @@ export default function Library() {
     setParams(params, { replace: true })
   }, [params, setParams, openAddModal])
 
-  // Active poller for items whose background enrichment is still running
+  // Active poller for items whose background enrichment or processing is running
   useEffect(() => {
     if (activeProcessingIds.current.size === 0) return
 
@@ -184,18 +194,27 @@ export default function Library() {
       for (const id of ids) {
         try {
           const updated = await api.libraryItem(id)
-          if (updated.enriched_at || updated.enrichment_note) {
+          const isDone =
+            updated.status === 'ready' ||
+            updated.status === 'failed' ||
+            Boolean(updated.enriched_at || updated.enrichment_note || updated.summary)
+          if (isDone) {
             activeProcessingIds.current.delete(id)
             setItems((prev) =>
               prev.map((it) => (it.id === id ? { ...updated, isProcessing: false } : it))
             )
-            toast(`Enriched: ${updated.title}`, 'ok')
+            toast(`Ready: ${updated.title}`, 'ok')
             // Refresh counts & tag index
             api.library().then((res) => {
               setCounts(res.counts || {})
               setCategoryCounts(res.category_counts || {})
               setTagCounts(res.tag_counts || {})
             }).catch(() => {})
+          } else {
+            // Update in place to display progressive metadata and status updates
+            setItems((prev) =>
+              prev.map((it) => (it.id === id ? { ...updated, isProcessing: true } : it))
+            )
           }
         } catch {
           activeProcessingIds.current.delete(id)
@@ -204,7 +223,7 @@ export default function Library() {
     }, 1800)
 
     return () => clearInterval(interval)
-  }, [items, toast])
+  }, [processingTrigger, toast])
 
   // General background sync poll (every 10s, visibility-gated)
   useEffect(() => {
@@ -260,7 +279,7 @@ export default function Library() {
 
       // 1. Immediately insert optimistic item at the top!
       setItems((prev) => [optimisticItem, ...prev])
-      setShowQuickAdd(false)
+      setShowAddModal(false)
       setSaving(true)
 
       try {
@@ -269,6 +288,7 @@ export default function Library() {
 
         if (isStillEnriching) {
           activeProcessingIds.current.add(saved.id)
+          setProcessingTrigger((t) => t + 1)
         }
 
         // 2. Seamlessly upgrade the optimistic item to real item
@@ -382,6 +402,20 @@ export default function Library() {
     [counts]
   )
 
+  const appCounts = useMemo(() => {
+    const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify']
+    const countsMap = {}
+    for (const app of known) {
+      if (tagCounts[app]) countsMap[app] = tagCounts[app]
+    }
+    for (const it of items) {
+      if (it.app && !countsMap[it.app]) {
+        countsMap[it.app] = (countsMap[it.app] || 0) + 1
+      }
+    }
+    return countsMap
+  }, [tagCounts, items])
+
   const activeFilterCount =
     (selectedKind ? 1 : 0) +
     (selectedCategory ? 1 : 0) +
@@ -443,19 +477,21 @@ export default function Library() {
         <div className={`lib-container ${railOpen ? 'lib-container--with-rail' : ''}`}>
           <AnimatePresence>
             {railOpen && (
-              <motion.div
+              <motion.aside
                 key="tag-rail-wrapper"
+                className="lib-rail-wrapper"
                 initial={{ width: 0, opacity: 0, marginRight: 0 }}
-                animate={{ width: 240, opacity: 1, marginRight: 20 }}
+                animate={{ width: 252, opacity: 1, marginRight: 20 }}
                 exit={{ width: 0, opacity: 0, marginRight: 0 }}
-                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-                style={{ overflow: 'hidden', flexShrink: 0 }}
+                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                style={{ flexShrink: 0 }}
               >
                 <LibraryTagRail
                   total={total}
                   counts={counts}
                   categoryCounts={categoryCounts}
                   tagCounts={tagCounts}
+                  appCounts={appCounts}
                   selectedKind={selectedKind}
                   selectedCategory={selectedCategory}
                   selectedTag={selectedTag}
@@ -466,14 +502,14 @@ export default function Library() {
                   isOpen={railOpen}
                   onClose={() => setRailOpen(false)}
                 />
-              </motion.div>
+              </motion.aside>
             )}
           </AnimatePresence>
 
           <main className="lib-main-content">
-            {!loaded ? (
-              <div className="lib-loading-skeleton" aria-hidden="true">
-                <SkeletonRows rows={6} controls={2} />
+            {!loaded && items.length === 0 ? (
+              <div className="lib-loading-skeleton">
+                <SkeletonLibraryGrid cards={9} />
               </div>
             ) : error ? (
               <ErrorState message={error} onRetry={load} />

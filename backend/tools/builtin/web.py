@@ -53,23 +53,32 @@ def _real_url(href: str) -> str:
     return href
 
 
-async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
-    query = (args.get("query") or "").strip()
-    if not query:
-        return ToolResult.error("search_web needs a query")
-    limit = max(1, min(int(args.get("limit") or 6), 15))
+SEARXNG_URL = "https://searx.be/search"
 
+_SEARXNG_FALLBACKS = [
+    "https://searx.be/search",
+    "https://search.inetol.net/search",
+]
+
+
+async def _search_duckduckgo(query: str, limit: int) -> list[str] | None:
+    """Returns a list of result strings, or None when DDG is unavailable."""
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as client:
-            response = await client.get(
-                SEARCH_URL.format(query=quote_plus(query)),
-                headers={"User-Agent": USER_AGENT},
-            )
-    except httpx.HTTPError as exc:
-        return ToolResult.error(f"the search request failed: {exc}")
-
-    if response.status_code != 200:
-        return ToolResult.error(f"the search endpoint returned HTTP {response.status_code}")
+            for attempt in range(3):
+                if attempt:
+                    import asyncio
+                    await asyncio.sleep(attempt)  # 0, 1, 2 s backoff
+                response = await client.get(
+                    SEARCH_URL.format(query=quote_plus(query)),
+                    headers={"User-Agent": USER_AGENT},
+                )
+                if response.status_code == 200:
+                    break
+            else:
+                return None  # all retries exhausted
+    except httpx.HTTPError:
+        return None
 
     hits = []
     for match in _RESULT.finditer(response.text):
@@ -81,11 +90,52 @@ async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
         hits.append(f"{title}\n{url}" + (f"\n{snippet}" if snippet else ""))
         if len(hits) >= limit:
             break
+    return hits  # may be empty list; caller distinguishes from None
+
+
+async def _search_searxng(query: str, limit: int) -> list[str] | None:
+    """SearXNG JSON API — no key, structured output, multiple public instances."""
+    params = {"q": query, "format": "json", "language": "en", "safesearch": "0"}
+    for base in _SEARXNG_FALLBACKS:
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+                r = await client.get(base, params=params, headers={"User-Agent": USER_AGENT})
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            results = data.get("results") or []
+            hits = []
+            for item in results[:limit]:
+                title = (item.get("title") or "").strip()
+                url = (item.get("url") or "").strip()
+                snippet = (item.get("content") or "").strip()
+                if not title or not url:
+                    continue
+                hits.append(f"{title}\n{url}" + (f"\n{snippet}" if snippet else ""))
+            if hits:
+                return hits
+        except Exception:
+            continue
+    return None
+
+
+async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    query = (args.get("query") or "").strip()
+    if not query:
+        return ToolResult.error("search_web needs a query")
+    limit = max(1, min(int(args.get("limit") or 6), 15))
+
+    # Try DuckDuckGo first; it needs no key and usually works.
+    hits = await _search_duckduckgo(query, limit)
+
+    # Fall back to SearXNG when DDG is rate-limiting (returns 202, 429, etc.).
+    if not hits:
+        hits = await _search_searxng(query, limit)
 
     if not hits:
         return ToolResult.ok(
-            f"No results came back for {query!r}. The search page may have changed shape;"
-            " fetch_url on a specific address still works."
+            f"No results came back for {query!r}. Both DuckDuckGo and SearXNG are"
+            " unavailable or returned nothing. Try fetch_url on a specific address."
         )
     return ToolResult.ok("\n\n".join(hits))
 

@@ -1,0 +1,84 @@
+# Scheduled collection for AMETHYST: briefings, feeds, watched pages.
+#
+# Copy this into the automation account's worker repository as
+# .github/workflows/automation.yml. It holds no code of ours: it checks out
+# AMETHYST at the ref the dispatch names and runs one module.
+#
+# Nothing in `inputs` is a credential. The secrets below belong to this
+# repository and are set by hand, once -- see
+# backend/workers/workflows/README.md.
+name: amethyst-automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: The id AMETHYST chose. The worker reports under it.
+        required: true
+      task:
+        description: Which collector to run.
+        required: true
+      params:
+        description: Its parameters, as JSON.
+        required: false
+        default: "{}"
+      relay_url:
+        description: Where to report the result.
+        required: true
+      source_repo:
+        description: Which AMETHYST repository to check out, as owner/name.
+        required: true
+      source_ref:
+        description: Which commit, branch or tag of it.
+        required: false
+        default: main
+
+# one run per job id; a schedule that fires twice runs once.
+concurrency:
+  group: amethyst-automation-${{ inputs.job_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out AMETHYST
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.source_repo }}
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # No cache: a dependency cache on a public runner is a place collected
+      # data can end up by accident, and the install is thirty seconds.
+      - name: Install
+        run: pip install --no-cache-dir -e .
+
+      - name: Run the task
+        env:
+          AMETHYST_RELAY_URL: ${{ inputs.relay_url }}
+          AMETHYST_WORKER_TOKEN: ${{ secrets.AMETHYST_WORKER_TOKEN }}
+          AMETHYST_ALLOW_PAID: ${{ vars.AMETHYST_ALLOW_PAID }}
+          # Optional. Only a free-tier key belongs here unless the variable
+          # above is deliberately set.
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}
+        run: |
+          python -m backend.workers.remote \
+            --job-id "${{ inputs.job_id }}" \
+            --task "${{ inputs.task }}" \
+            --params "${{ inputs.params }}" \
+            --relay-url "${{ inputs.relay_url }}"
+
+      # Deliberately no upload-artifact step. Results go to the relay; a
+      # GitHub artifact would be collected personal data sitting in somebody
+      # else's storage for ninety days.

@@ -80,6 +80,16 @@ class ProviderPreset:
     #: A local endpoint: no key, and reachability is the only thing that
     #: determines whether it can answer.
     local: bool = False
+    #: Whether using this endpoint costs money. A fact about the account, not
+    #: about the model, and declared rather than inferred: several `note` fields
+    #: below already say "Free tier, no card" in prose, and a background worker
+    #: deciding whether it may spend by grepping English is a worker that starts
+    #: charging the day somebody rewords a sentence.
+    #:
+    #: `local` is free by construction and does not need this. What this marks is
+    #: the *hosted* endpoints with a no-card tier -- which is what
+    #: `backend/workers/llm.py` will use and what it refuses to go past.
+    free: bool = False
     note: str = ""
 
     @property
@@ -154,6 +164,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         tokens_per_minute=8_000,
         keys_url="https://console.groq.com/keys",
         docs_url="https://console.groq.com/docs/models",
+        free=True,
         note="Free tier, no card. Fast enough that the round trip stops being the bottleneck.",
     ),
     ProviderPreset(
@@ -206,6 +217,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         default_model="llama-3.3-70b",
         keys_url="https://cloud.cerebras.ai",
         docs_url="https://inference-docs.cerebras.ai/introduction",
+        free=True,
         note="Free tier. The other fast open-weights option.",
     ),
     ProviderPreset(
@@ -319,6 +331,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         default_model="deepseek-ai/DeepSeek-V4-Flash-0731",
         keys_url="https://modelscope.cn/my/myaccesstoken",
         docs_url="https://modelscope.cn/docs/model-service/API-Inference/intro",
+        free=True,
         note=(
             "Alibaba's. 50 models on a free tier with no card, strongest on the"
             " Qwen and DeepSeek families. Ids are namespaced by owner."
@@ -331,6 +344,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         default_model="gpt-oss-120b",
         keys_url="https://endpoints.ai.cloud.ovh.net",
         docs_url="https://endpoints.ai.cloud.ovh.net/catalog",
+        free=True,
         note=(
             "EU-hosted, 24 open models, permanently free. There is an anonymous"
             " tier at roughly two requests a minute per IP -- enough to prove it"
@@ -344,6 +358,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         default_model="deepseek-v4-flash",
         keys_url="https://token.llm7.io",
         docs_url="https://api.llm7.io/v1/models",
+        free=True,
         note=(
             "44 models behind one free OpenAI-compatible endpoint, including"
             " proxied frontier ones. A relay rather than a host: what you send"
@@ -374,7 +389,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         # ACCOUNT_ID fails visibly where a wrong one would fail as a 404 nobody
         # could explain.
         base_url="https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID/ai/v1",
-        default_model="@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        default_model="@cf/meta/llama-3.1-8b-instruct-fast",
         keys_url="https://dash.cloudflare.com/profile/api-tokens",
         docs_url="https://developers.cloudflare.com/workers-ai/models/",
         note=(

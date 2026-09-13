@@ -13,7 +13,11 @@ import { useLayoutEffect } from 'react'
      hang past the bottom of the window on its own. Its inner `.menu-scroll`
      takes the difference.
 
-   Re-runs on `deps` (list lengths, which panel is open) and on resize.
+   Re-runs on `deps` (list lengths, which panel is open) and on resize. A
+   ResizeObserver watches the menu itself, because the one answer deps cannot
+   cover is the list that arrives after the menu was measured — the provider
+   that answers a beat after the menu opened was taller than the screen with no
+   way to scroll it.
 */
 export function useMenuFit(ref, deps = []) {
   useLayoutEffect(() => {
@@ -43,7 +47,17 @@ export function useMenuFit(ref, deps = []) {
 
     fit()
     window.addEventListener('resize', fit)
-    return () => window.removeEventListener('resize', fit)
+
+    // Refit when the menu's own size changes — rows arriving after the open,
+    // a flyout opening, a list swapping for its filtered copy — without every
+    // caller having to name each one in deps.
+    const observer = new ResizeObserver(fit)
+    observer.observe(menu)
+
+    return () => {
+      window.removeEventListener('resize', fit)
+      observer.disconnect()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
 }

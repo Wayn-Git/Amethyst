@@ -124,6 +124,7 @@ class RelayClient:
 
     async def sync(self, *, ack: list[int], config: dict[str, Any],
                    job_ack: list[str] | None = None,
+                   worker_ack: list[str] | None = None,
                    limit: int = BATCH) -> dict[str, Any]:
         if not self.url or not self.token:
             raise RelayError("the relay has no URL or no token stored")
@@ -134,6 +135,7 @@ class RelayClient:
                 json={
                     "ack": ack,
                     "job_ack": job_ack or [],
+                    "worker_ack": worker_ack or [],
                     "config": config,
                     "limit": limit,
                 },
@@ -171,6 +173,10 @@ class RelayPoller:
         #: for the same reason: a job acknowledged before its result is applied
         #: is one a sync that died halfway would throw away.
         self._pending_job_ack: list[str] = []
+        #: Worker reports taken last time. A third list rather than a shared one
+        #: because they are acknowledged on a different route at the relay, and
+        #: a failed sync must put each back where it came from.
+        self._pending_worker_ack: list[str] = []
 
     @property
     def client(self) -> RelayClient:
@@ -212,18 +218,20 @@ class RelayPoller:
 
         ack, self._pending_ack = self._pending_ack, []
         job_ack, self._pending_job_ack = self._pending_job_ack, []
+        worker_ack, self._pending_worker_ack = self._pending_worker_ack, []
         try:
             payload = await self.client.sync(
-                ack=ack, job_ack=job_ack, config=self._config()
+                ack=ack, job_ack=job_ack, worker_ack=worker_ack, config=self._config()
             )
         except RelayError as exc:
             # Put them back: nothing was deleted at the relay, so they still need
             # acknowledging, and re-acknowledging one twice is a no-op there.
             self._pending_ack = ack + self._pending_ack
             self._pending_job_ack = job_ack + self._pending_job_ack
+            self._pending_worker_ack = worker_ack + self._pending_worker_ack
             log.warning("relay sync failed: %s", exc)
             return {"synced": False, "pulled": 0, "queued": 0, "acked": 0,
-                    "jobs": 0, "error": str(exc)}
+                    "jobs": 0, "workers": 0, "error": str(exc)}
 
         self._apply_rotated_token(payload)
 
@@ -252,7 +260,46 @@ class RelayPoller:
             "queued": int(payload.get("queued") or 0),
             "acked": len(ack),
             "jobs": await self._collect_jobs(payload),
+            "workers": self._collect_workers(payload),
         }
+
+    # -- the worker mailbox's half of the round trip ----------------------
+
+    def _collect_workers(self, payload: dict[str, Any]) -> int:
+        """Take what workers said while this machine was elsewhere.
+
+        A batch waiting on a remote node reads `worker_reports`, so this is the
+        step that unblocks it -- see `backend/workers/batch.py`. Nothing is
+        applied and nothing is interpreted here: the row is written down and the
+        handler that asked for it decides what it means.
+
+        Acknowledged on the *next* sync like everything else, so a crash between
+        taking a result and writing it re-offers the result rather than losing
+        it. Re-acknowledging one twice is a no-op at the relay.
+        """
+        rows = payload.get("workers") or []
+        if not rows:
+            return 0
+        from backend.workers.reports import WorkerReportStore
+
+        store = WorkerReportStore()
+        taken = 0
+        for row in rows:
+            stored = store.apply(row)
+            if stored is None:
+                # Not a report. Acknowledged anyway: leaving it would block the
+                # batch behind it forever, and it is garbage rather than work.
+                job_id = row.get("job_id") if isinstance(row, dict) else None
+                if isinstance(job_id, str) and job_id:
+                    self._pending_worker_ack.append(job_id)
+                continue
+            taken += 1
+            # Only a settled report is acknowledged: a `running` one is deleted
+            # at the relay by nothing, but confirming it early would mark it
+            # synced and the result still to come would be a second row race.
+            if stored.terminal:
+                self._pending_worker_ack.append(stored.job_id)
+        return taken
 
     # -- the durable job layer's half of the round trip -------------------
 
@@ -266,7 +313,36 @@ class RelayPoller:
         on the *next* sync, which is what makes a crash in the middle re-offer
         the job rather than lose it.
         """
-        jobs = (payload.get("jobs") or {}).get("ready") or []
+        jobs_payload = payload.get("jobs") or {}
+        jobs = jobs_payload.get("ready") or []
+        pending = jobs_payload.get("pending") or []
+
+        # Stage any in-flight url_ingest jobs immediately so the library displays
+        # a progressive skeleton card as soon as the Cloudflare relay receives the link.
+        from backend.library.store import LibraryStore
+        store = LibraryStore()
+        for p in pending:
+            if isinstance(p, dict) and p.get("kind") == "url_ingest":
+                params = p.get("params") or {}
+                p_url = (params.get("url") or "").strip()
+                if p_url and store.by_url(p_url) is None:
+                    try:
+                        from backend.library.store import app_tag_for_url
+                        app_tag = app_tag_for_url(p_url)
+                        item_id = store.create(
+                            kind=params.get("kind") or "article",
+                            title=p_url,
+                            url=p_url,
+                            notes=params.get("note"),
+                        )
+                        store.update(
+                            item_id,
+                            status="received",
+                            tags=json.dumps([app_tag]) if app_tag else None,
+                        )
+                    except Exception as exc:
+                        log.debug("could not stage pending relay url %s: %s", p_url, exc)
+
         taken = 0
         for job in jobs:
             job_id = job.get("id")
@@ -289,8 +365,27 @@ class RelayPoller:
 
         kind = job.get("kind")
         if job.get("state") == "failed":
-            # Acknowledged, not retried. The relay spent its attempts already,
-            # and a job whose fetch fails there fails here for the same reason.
+            # If the relay could not fetch the page (e.g. Cloudflare Worker IP blocked with 403
+            # or login wall), the user still intentionally shared this link. Capture it on desktop!
+            params = job.get("params") or {}
+            fallback_url = (params.get("url") or "").strip() if isinstance(params.get("url"), str) else ""
+            if kind == "url_ingest" and fallback_url:
+                log.info(
+                    "relay gave up on %s (%s); attempting direct capture on desktop",
+                    fallback_url,
+                    job.get("last_error") or "no reason given",
+                )
+                try:
+                    wanted = params.get("kind")
+                    await (self._library or LibraryService()).capture_url(
+                        fallback_url,
+                        kind=wanted if wanted in KINDS else None,
+                        notes=params.get("note") or None,
+                    )
+                    return True
+                except Exception as exc:
+                    log.warning("direct capture for failed relay job %s failed: %s", fallback_url, exc)
+                    return False
             log.warning(
                 "the relay gave up on a %s job: %s",
                 kind,
