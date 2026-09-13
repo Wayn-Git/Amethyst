@@ -115,18 +115,20 @@ Every arrow in that walkthrough is a component boundary that exists in the diagr
 | Layer | Owns | Explicitly does not own |
 |---|---|---|
 | Interface | Rendering, input, streaming display, confirmation prompts | Any knowledge of providers, tools, or storage |
-| Agent loop | The reason/act/observe cycle, prompt assembly, termination, trajectory persistence | How any individual tool works; which provider is in use beyond a name |
+| Agent loop | The reason/act/observe cycle, prompt assembly, termination, trajectory persistence, the turn's own state and its phases | How any individual tool works; which provider is in use beyond a name |
 | AI runtime | Provider adapters, credential resolution, parameter and schema translation, capability declaration | Tool semantics; conversation state |
 | Tool registry & dispatcher | The flat namespace, schema exposure, the permission gate, result normalization, audit logging | What any tool does internally |
 | Local computer | Filesystem, shell, limited desktop launches, sandboxing | Anything network-facing |
 | MCP client | Transports, connection lifecycle, discovery, namespacing, circuit breaking | What external servers do |
 | Scheduling engine | Date resolution, conflict detection, free-slot search | Deciding what the user wants |
+| Durable jobs | Unattended work that must survive a crash: its states, its retries, and the ledger that stops a retry repeating an outward call | Interactive turns, which stay on the agent loop |
 | Retrieval | Chunking, embedding, hybrid search, context budgeting | Where documents come from |
 | Data layer | Persistence, migrations, transactional integrity | Business rules |
 
 ## Reading order
 
 - [components.md](components.md) — precise definitions of Tool, Skill, MCP Tool, and Agent, and the rule for choosing between them
+- [jobs.md](jobs.md) — which workloads are durable jobs, which deliberately are not, and why
 - [ai-runtime.md](ai-runtime.md) — the provider abstraction and the agent loop
 - [providers.md](providers.md) — the provider catalogue, the failure taxonomy and the fallback chain
 - [connectors.md](connectors.md) — connector setup: what is offered, what is said, and what state it is in

@@ -7,7 +7,15 @@
     "types": ["@cloudflare/workers-types"],
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // Relative imports name the .ts file. Node runs the tests directly off
+    // source (`node --test test/*.test.ts`) and ESM will not guess an
+    // extension; esbuild, which is what wrangler bundles with, resolves the
+    // explicit one the same as the bare specifier.
+    "allowImportingTsExtensions": true
   },
+  // Not `test/`: those files are Node's, not a Worker's, and typechecking
+  // them here would mean pulling @types/node in beside @cloudflare/workers-types
+  // for two globals. `npm test` runs them.
   "include": ["src/**/*.ts"]
 }

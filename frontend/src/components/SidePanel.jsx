@@ -28,6 +28,10 @@ export default function SidePanel({
   onClose,
   closeLabel,
   children,
+  // A row of tabs under the head, for a panel that holds more than one thing.
+  // Rendered outside `.wb-panel-body` so it does not scroll with the contents
+  // and is not caught by the body's stagger on mount.
+  tabs,
   live = false,
 }) {
   const host = typeof document === 'undefined' ? null : document.getElementById('wb-panel')
@@ -45,13 +49,26 @@ export default function SidePanel({
     return undefined
   }, [])
 
-  // Streaming: the panel is owned by a live view (Chat's steps) and fresh
-  // blocks should be seen to arrive without moving anything else.
-  const firstRun = useRef(true)
+  /* Streaming: a fresh block should be seen to arrive without moving anything
+     else.
+
+     This had no dependency array, so it ran on *every* render and faded the
+     panel's last child from zero on each one. With a document streaming into
+     the panel that is a render per delta, and typing in the composer re-renders
+     the view too -- which is the whole of the "the artifact window flickers
+     while the model writes and while I type" report. It now fires only when the
+     number of blocks actually changes, which is the event it was always trying
+     to describe. */
+  const blockCount = useRef(0)
   useEffect(() => {
-    if (!live || !bodyRef.current) return undefined
-    if (firstRun.current) { firstRun.current = false; return undefined }
-    const items = bodyRef.current.querySelectorAll('.wb-panel-body > *')
+    const body = bodyRef.current
+    if (!live || !body) return undefined
+    const items = body.querySelectorAll('.wb-panel-body > *')
+    const seen = blockCount.current
+    blockCount.current = items.length
+    // First paint is the mount animation's job, and a block leaving is not an
+    // arrival.
+    if (seen === 0 || items.length <= seen) return undefined
     const last = items[items.length - 1]
     if (last) streamIn(last)
     return undefined
@@ -74,6 +91,7 @@ export default function SidePanel({
           </button>
         )}
       </div>
+      {tabs && <div className="wb-panel-tabs" role="tablist">{tabs}</div>}
       <div className="wb-panel-body" ref={bodyRef}>{children}</div>
       {footer && <div className="wb-panel-foot">{footer}</div>}
     </div>

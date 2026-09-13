@@ -18,7 +18,14 @@ Two more deadlines run while a laptop is closed:
   lapsed there is no recovery but a re-paste by hand.
 
 This Worker answers the 200, holds the delivery, sends the receipt, and keeps
-the token alive. Everything else — the download, ffmpeg, the transcription, the
+the token alive. The receipt is a **Workflow**, not a fetch: it used to be one
+`ctx.waitUntil(sendAck(...))` inside the request handler, so a Graph 500 or a
+rate limit lost it silently — inside a window that closes after 24 hours and
+cannot be reopened. `src/jobs/` retries each step with backoff, and the job's
+idempotency key is the delivery's body hash, so a re-delivery reconnects to the
+job that exists rather than buying a second receipt.
+It is the same step-ledger idea as `backend/jobs/` on the machine, deliberately,
+so there is one thing to understand rather than two. Everything else — the download, ffmpeg, the transcription, the
 enrichment, the library — stays on your machine, because no free platform has a
 persistent disk and ADR-0004 makes the filesystem the source of truth for text.
 
@@ -37,7 +44,9 @@ A compromised relay can lose a reel. It cannot invent one.
 ## What it costs
 
 Nothing, and no card. Cloudflare's Workers free plan is 100,000 requests a day
-with no cold start; D1 is 5 GB and 100,000 row-writes a day. A laptop polling
+with no cold start; D1 is 5 GB and 100,000 row-writes a day; Workflows is
+included in the same free plan, and the only one here fires when a delivery
+arrives while the laptop is away. A laptop polling
 every fifteen seconds is about 5,800 requests a day. R2 is the Cloudflare
 product that wants a card on file, and this design does not use it — Meta's own
 attachment URLs live about seven days, which covers any realistic absence.

@@ -23,7 +23,57 @@ from backend.runtime.types import (
 from backend.secrets import resolve_api_key
 
 BASE = "https://generativelanguage.googleapis.com/v1beta"
+#: Alias for the probe's sake, which reads `DEFAULT_BASE_URL` from every
+#: adapter rather than knowing each one's private name for it.
+DEFAULT_BASE_URL = BASE
 _ALLOWED_KEYS = {"type", "description", "properties", "items", "required", "enum", "nullable"}
+
+
+def auth_headers(key: str) -> dict[str, str]:
+    """How this endpoint wants to be told who is asking.
+
+    Not `Authorization: Bearer`. The Generative Language API takes the key in
+    `x-goog-api-key`, and answers a Bearer header with a flat 401 -- which read
+    as a bad key in the model picker while the very same key was answering
+    chat completions two functions away.
+    """
+    return {"x-goog-api-key": key} if key else {}
+
+
+def list_models(payload: Any) -> list[dict[str, Any]]:
+    """Model ids out of Google's `/models` body.
+
+    A different shape from everyone else's: `{"models": [{"name":
+    "models/gemini-flash-latest", ...}]}` rather than `{"data": [{"id": ...}]}`,
+    and the id carries a `models/` prefix the API does not accept back.
+
+    Both quirks stay here rather than in the route that renders the list --
+    a provider name outside `runtime/providers/` is the abstraction leaking
+    (ADR-0001), and this is the second place Google's auth style would have
+    had to be special-cased.
+    """
+    if not isinstance(payload, dict):
+        return []
+    rows = payload.get("models")
+    if not isinstance(rows, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = row.get("name") or row.get("baseModelId")
+        if not isinstance(name, str) or not name:
+            continue
+        # Only the models that can actually take a chat turn. The same list
+        # carries embedding and token-counting models, and offering one of
+        # those in a model picker produces a 400 on the first message.
+        methods = row.get("supportedGenerationMethods")
+        if isinstance(methods, list) and not any(
+            m in ("generateContent", "streamGenerateContent") for m in methods
+        ):
+            continue
+        out.append({"id": name.removeprefix("models/"), "free": False})
+    return out
 
 
 def sanitize_schema(schema: Any) -> Any:

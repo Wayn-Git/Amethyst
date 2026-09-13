@@ -74,11 +74,22 @@ class StreamEvent:
     `text` and `reasoning` events carry deltas; the final `done` event carries the
     fully assembled response, including tool calls, which cannot be acted on until
     their arguments have finished arriving.
+
+    `tool_arguments` is the exception to that last sentence. The call still
+    cannot be *dispatched* early, but `create_artifact` carries a whole document
+    in its arguments, and a caller that knows the shape of a particular tool can
+    show what has arrived so far rather than leaving the screen empty for as long
+    as the model takes to write the file. `arguments_so_far` is the raw JSON
+    prefix -- not parsed, not valid on its own -- and `tool_index` distinguishes
+    the calls in a turn that makes several.
     """
 
-    type: str  # text | reasoning | done
+    type: str  # text | reasoning | tool_arguments | done
     text: str | None = None
     response: ModelResponse | None = None
+    tool_name: str | None = None
+    tool_index: int | None = None
+    arguments_so_far: str | None = None
 
 
 class ChatClient(Protocol):

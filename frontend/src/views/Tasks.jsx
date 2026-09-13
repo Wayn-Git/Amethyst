@@ -41,14 +41,72 @@ function isOverdue(task) {
   return new Date(task.due_at.replace(' ', 'T')) < new Date(new Date().toDateString())
 }
 
-/* What the reminder loop will do with this row, in the row's own words.
-   `reminder_at` when set, otherwise the deadline, and nothing at all when there
-   is neither -- which is the honest answer, not a silent default. */
+function parse(value) {
+  if (!value) return null
+  const date = new Date(value.replace(' ', 'T'))
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/* The day a card leads with: named while the name still means something, dated
+   once it does not. */
+function dayLabel(value) {
+  const date = parse(value)
+  if (!date) return null
+  const days = Math.round(
+    (new Date(date.toDateString()) - new Date(new Date().toDateString())) / 86400000,
+  )
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Tomorrow'
+  if (days === -1) return 'Yesterday'
+  // The year only when it is not this one: "8 Sept 2026" in 2026 is a date
+  // stamp, where "8 Sept" is a day.
+  const year = date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
+  return date.toLocaleDateString([], { day: 'numeric', month: 'short', year })
+}
+
+/* Midnight is what a date with no time looks like once it has been stored as a
+   timestamp, and printing "12.00 AM" under every all-day task would be reading
+   the storage back rather than the task. */
+function clock(value) {
+  const date = parse(value)
+  if (!date || (date.getHours() === 0 && date.getMinutes() === 0)) return null
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+/* Scheduled to due when a task has both, one time when it has one.
+
+   Only when the two are in that order, though: `scheduled_at` is when to start
+   and `due_at` is the deadline, and nothing stops a task being scheduled for
+   the afternoon of a morning deadline. Printing that pair as a range gives
+   "14:30 - 09:30", which reads as a bug in the clock. */
+function span(task) {
+  const start = clock(task.scheduled_at)
+  const end = clock(task.due_at)
+  if (start && end && parse(task.scheduled_at) < parse(task.due_at)) return `${start} – ${end}`
+  return end || start
+}
+
+/* Which of the six dot colours each list wears, in the rail and on its chips.
+
+   Local decoration only: Graph's `todoTaskList` carries no colour field, so a
+   stored one would be a colour the phone can never agree with. Assigned by
+   creation order rather than hashed from the name, because a hash collides --
+   five lists over six colours is more likely to repeat one than not, and two
+   lists sharing a colour is what the colour is there to prevent. New lists land
+   at the end, so an existing list keeps its colour when one is added. */
+function huesByList(lists) {
+  const order = [...lists].sort((a, b) => a.id - b.id)
+  return new Map(order.map((list, i) => [list.id, i % 6]))
+}
+
+/* What the reminder loop will do with this row, in the row's own words -- and
+   nothing when the deadline chip beside it already says so. The fallback to
+   `due_at` used to be spelled out, which put "was due 8 Sept, 09:30" and
+   "reminder 8 Sept, 09:30" next to each other on the same card. */
 function reminder(task) {
-  const at = task.reminder_at || task.due_at
-  if (!at) return null
   if (task.reminded_at) return `reminded ${when(task.reminded_at)}`
-  return `reminder ${when(at)}`
+  if (task.reminder_at) return `reminder ${when(task.reminder_at)}`
+  return null
 }
 
 /* Adding a task without a model call.
@@ -157,6 +215,142 @@ function Composer({ lists, presetList, onAdded, onCancel }) {
         deadline; leave both blank and nothing is announced.
       </span>
     </form>
+  )
+}
+
+/* One tile.
+
+   Pulled out of the list so the open pile and the done pile can be the same
+   card rather than two that drift apart. */
+function TaskCard({ task, lists, myDayListId, hues, view, busy, patch, drop }) {
+  const done = task.status === 'done'
+  const late = isOverdue(task)
+  const listName = lists.find((l) => l.id === task.list_id)?.name
+  const inMyDay = myDayListId != null && task.list_id === myDayListId
+  const note = reminder(task)
+  const day = dayLabel(task.due_at || task.scheduled_at)
+  const hours = span(task)
+  /* What colours the tile. The list was here first and had to go: a real
+     account keeps nearly everything open in one list, so colouring by list
+     painted twenty-seven tiles the same pink, and a board where every card is
+     one colour is a board with no colour in it. When a task is due differs
+     card to card, and is what someone is scanning for anyway. */
+  const state = done ? 'done'
+    : late ? 'late'
+      : day === 'Today' ? 'today'
+        : (task.due_at || task.scheduled_at) ? 'soon' : 'none'
+  // Naming the list is worth a tag in a bucket that mixes several, and is
+  // twenty-seven copies of one word in a view that is already one list.
+  const showList = Boolean(listName) && (view.listId
+    ? view.listId !== task.list_id
+    : !(view.bucket === 'my_day' && inMyDay))
+
+  return (
+    <article
+      className={`task-card${done ? ' task-row--done' : ''}${late ? ' task-row--late' : ''}${day ? '' : ' task-card--undated'}`}
+      data-state={state}
+    >
+      {/* The day leads the card and the controls close it, the way the boards
+          this is drawn from open every tile. */}
+      <div className="task-card-top">
+        {day && (
+          <span className={`task-badge${late ? ' task-badge--late' : ''}`}>
+            <Icon name={task.important && !late ? 'star' : 'clock'} size={11} />
+            {late ? `was due ${day}` : day}
+          </span>
+        )}
+
+        <div className="task-tools">
+          {/* The sun moves the task between its list and My Day, because that
+              is what My Day is. To Do has no move, so the server recreates the
+              task there and deletes the original -- the toast says "moved",
+              not "tagged", since the task really does leave its list. */}
+          <button
+            type="button"
+            className={`icon-btn task-sun${inMyDay ? ' is-on' : ''}`}
+            disabled={busy}
+            title={inMyDay ? 'Move out of My Day' : 'Move into My Day'}
+            aria-pressed={inMyDay}
+            aria-label={`Move ${task.title} into My Day`}
+            onClick={() => patch(
+              task,
+              { add_to_my_day: !inMyDay },
+              inMyDay ? 'Moved out of My Day' : 'Moved into My Day',
+            )}
+          >
+            <Icon name="sun" size={14} />
+          </button>
+
+          <button
+            type="button"
+            className={`icon-btn task-star${task.important ? ' is-on' : ''}`}
+            disabled={busy}
+            title={task.important ? 'Not important' : 'Mark important'}
+            aria-pressed={Boolean(task.important)}
+            aria-label={`Mark ${task.title} important`}
+            onClick={() => patch(task, { important: !task.important })}
+          >
+            <Icon name="star" size={14} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn task-drop"
+            disabled={busy}
+            title="Cancel this task"
+            aria-label={`Cancel ${task.title}`}
+            onClick={() => drop(task)}
+          >
+            <Icon name="x" size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div className="task-row">
+        <button
+          type="button"
+          className={`task-check${done ? ' task-check--on' : ''}`}
+          disabled={busy}
+          aria-label={done ? `Mark ${task.title} not done` : `Mark ${task.title} done`}
+          aria-pressed={done}
+          onClick={() => patch(task, { status: done ? 'todo' : 'done' })}
+        >
+          {done && <Icon name="check" size={12} />}
+        </button>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h3 className="task-title">{task.title}</h3>
+          {task.notes && <div className="task-note">{task.notes}</div>}
+        </div>
+      </div>
+
+      {/* The foot: the hours on the left, the tags on the right. */}
+      {(hours || showList || note || late) && (
+        <div className="task-card-foot">
+          {hours && <span className="task-hours">{hours}</span>}
+
+          {showList && (
+            <span className="task-chip task-chip--list">
+              <i className="task-hue-dot" data-hue={hues.get(task.list_id) ?? 5} aria-hidden="true" />
+              {listName}
+            </span>
+          )}
+          {note && <span className="task-chip">{note}</span>}
+
+          {/* Missed cards carry their answer. Rescheduling by hand is the step
+              people skip, which is how a list of overdue tasks becomes a list
+              nobody opens. */}
+          {late && (
+            <button
+              type="button"
+              className="task-chip task-chip--do"
+              disabled={busy}
+              onClick={() => patch(task, { due_date_hint: 'tomorrow' }, 'Due tomorrow')}
+            >
+              Tomorrow
+            </button>
+          )}
+        </div>
+      )}
+    </article>
   )
 }
 
@@ -313,6 +507,21 @@ export default function Tasks() {
     }
   }, [load, toast])
 
+  const hues = useMemo(() => huesByList(counts.lists), [counts.lists])
+
+  /* Done tasks are a record, not a pile of work, and this account has 91 of
+     them -- opening My Day on twenty greyed-out tiles buries the four that are
+     left to do. So they are parked under their own count and expand when
+     asked. The Completed bucket is the exception: there they are the point. */
+  const [showDone, setShowDone] = useState(false)
+  const [main, parked] = useMemo(() => {
+    if (view.bucket === 'completed') return [tasks, []]
+    return [
+      tasks.filter((t) => t.status !== 'done'),
+      tasks.filter((t) => t.status === 'done'),
+    ]
+  }, [tasks, view.bucket])
+
   const active = useMemo(() => {
     if (view.listId) {
       const found = counts.lists.find((l) => l.id === view.listId)
@@ -412,7 +621,9 @@ export default function Tasks() {
                 aria-current={view.listId === l.id}
                 onClick={() => setViewKey({ bucket: 'all', listId: l.id })}
               >
-                <Icon name={l.external_id ? 'list' : 'alert'} size={15} />
+                {l.external_id
+                  ? <i className="task-hue-dot task-rail-dot" data-hue={hues.get(l.id) ?? 5} aria-hidden="true" />
+                  : <Icon name="alert" size={15} />}
                 <span className="task-rail-label">{l.name}</span>
                 <span className="task-rail-count">{l.open}</span>
               </button>
@@ -420,17 +631,38 @@ export default function Tasks() {
           </nav>
 
           <section className="task-pane">
-            <div className="card card-pad">
-              <div className="card-title">
-                {active.label} · {loaded ? tasks.length : '—'}
+            <div className="task-board">
+              {/* The head a board column wears: what this pile is, how big it
+                  is, and the one button that adds to it. */}
+              <div className="task-head">
+                {view.listId && (
+                  <i
+                    className="task-hue-dot task-head-dot"
+                    data-hue={hues.get(view.listId) ?? 5}
+                    aria-hidden="true"
+                  />
+                )}
+                <span className="task-head-name">{active.label}</span>
+                <span className="task-head-count">{loaded ? main.length : '—'}</span>
+                <button
+                  type="button"
+                  className="icon-btn task-head-add"
+                  title="New task"
+                  aria-label="New task"
+                  aria-expanded={adding}
+                  onClick={() => setAdding((a) => !a)}
+                >
+                  <Icon name={adding ? 'x' : 'plus'} size={15} />
+                </button>
               </div>
               {active.blurb && <div className="task-pane-blurb">{active.blurb}</div>}
+              {/* The distinction that matters, in one line rather than four.
+                  It was a paragraph, which is a paragraph of small print over
+                  the board every time this page opens. */}
               {view.bucket === 'my_day' && !view.listId && (
                 <div className="task-pane-blurb">
-                  This is your Microsoft To Do list called <strong>My Day</strong> &mdash; the
-                  same one on your phone, under Lists. Press the sun to move a task in or out.
-                  It is <em>not</em> To Do&rsquo;s own My Day at the top of its sidebar: that
-                  one is not in the API, so nothing added there can be seen from here.
+                  The <strong>My Day</strong> list on your phone, under Lists — not To Do&rsquo;s own
+                  My Day overlay, which its API does not expose. The sun moves a task in or out.
                 </div>
               )}
 
@@ -459,7 +691,7 @@ export default function Tasks() {
                 </div>
               )}
 
-              {loaded && !error && tasks.length === 0 && view.bucket === 'my_day' && !view.listId && (
+              {loaded && !error && main.length === 0 && parked.length === 0 && view.bucket === 'my_day' && !view.listId && (
                 <div className="empty-state empty-state--do" style={{ padding: 18 }}>
                   <Icon name="sun" size={20} />
                   <div>
@@ -498,7 +730,7 @@ export default function Tasks() {
                 </div>
               )}
 
-              {loaded && !error && tasks.length === 0 && !(view.bucket === 'my_day' && !view.listId) && (
+              {loaded && !error && main.length === 0 && parked.length === 0 && !(view.bucket === 'my_day' && !view.listId) && (
                 <div className="empty-state" style={{ padding: 18 }}>
                   <Icon name="check" size={20} />
                   {view.bucket === 'missed'
@@ -507,107 +739,61 @@ export default function Tasks() {
                 </div>
               )}
 
-              {tasks.map((task) => {
-                const done = task.status === 'done'
-                const late = isOverdue(task)
-                const listName = counts.lists.find((l) => l.id === task.list_id)?.name
-                const inMyDay = counts.my_day_list_id != null
-                  && task.list_id === counts.my_day_list_id
-                return (
-                  <div
-                    className={`server-row task-row${done ? ' task-row--done' : ''}${late ? ' task-row--late' : ''}`}
-                    key={task.id}
+              <div className="task-cards">
+              {main.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  lists={counts.lists}
+                  myDayListId={counts.my_day_list_id}
+                  hues={hues}
+                  view={view}
+                  busy={busyTask === task.id}
+                  patch={patch}
+                  drop={drop}
+                />
+              ))}
+
+              {/* The tile that adds a tile, at the end of the pile it adds to. */}
+              {loaded && !error && !adding && (
+                <button type="button" className="task-add-tile" onClick={() => setAdding(true)}>
+                  <Icon name="plus" size={15} /> Add task
+                </button>
+              )}
+              </div>
+
+              {parked.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    className="task-done-toggle"
+                    aria-expanded={showDone}
+                    onClick={() => setShowDone((v) => !v)}
                   >
-                    <button
-                      type="button"
-                      className={`task-check${done ? ' task-check--on' : ''}`}
-                      disabled={busyTask === task.id}
-                      aria-label={done ? `Mark ${task.title} not done` : `Mark ${task.title} done`}
-                      aria-pressed={done}
-                      onClick={() => patch(task, { status: done ? 'todo' : 'done' })}
-                    >
-                      {done && <Icon name="check" size={12} />}
-                    </button>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="server-name task-title">{task.title}</div>
-                      {/* Only the overdue fact is amber. Colouring the whole
-                          line turns a list of five late tasks into a wall of
-                          warning, which says less than one marked word does. */}
-                      <div className="server-target">
-                        {listName && <span>{listName}</span>}
-                        {task.due_at && (
-                          <span className={late ? 'task-late-flag' : undefined}>
-                            {late ? 'was due' : 'due'} {when(task.due_at)}
-                          </span>
-                        )}
-                        {task.scheduled_at && <span>scheduled {when(task.scheduled_at)}</span>}
-                        {reminder(task) && <span>{reminder(task)}</span>}
-                        {inMyDay && <span>my day</span>}
-                      </div>
-                      {task.notes && <div className="server-target">{task.notes}</div>}
+                    <Icon name="chevron" size={13} className={showDone ? 'task-done-caret is-open' : 'task-done-caret'} />
+                    Done
+                    <span className="task-head-count">{parked.length}</span>
+                  </button>
+
+                  {showDone && (
+                    <div className="task-cards">
+                      {parked.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          lists={counts.lists}
+                          myDayListId={counts.my_day_list_id}
+                          hues={hues}
+                          view={view}
+                          busy={busyTask === task.id}
+                          patch={patch}
+                          drop={drop}
+                        />
+                      ))}
                     </div>
-
-                    {/* Missed rows carry their answer. Rescheduling by hand is
-                        the step people skip, which is how a list of overdue
-                        tasks becomes a list nobody opens. */}
-                    {late && (
-                      <div className="task-actions">
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--small"
-                          disabled={busyTask === task.id}
-                          onClick={() => patch(task, { due_date_hint: 'tomorrow' }, 'Due tomorrow')}
-                        >
-                          Tomorrow
-                        </button>
-                      </div>
-                    )}
-
-                    {/* The sun moves the task between its list and My Day,
-                        because that is what My Day is. To Do has no move, so the
-                        server recreates the task there and deletes the original
-                        -- the toast says "moved", not "tagged", since the task
-                        really does leave the list it was in. */}
-                    <button
-                      type="button"
-                      className={`icon-btn task-sun${inMyDay ? ' is-on' : ''}`}
-                      disabled={busyTask === task.id}
-                      title={inMyDay ? 'Move out of My Day' : 'Move into My Day'}
-                      aria-pressed={inMyDay}
-                      aria-label={`Move ${task.title} into My Day`}
-                      onClick={() => patch(
-                        task,
-                        { add_to_my_day: !inMyDay },
-                        inMyDay ? 'Moved out of My Day' : 'Moved into My Day',
-                      )}
-                    >
-                      <Icon name="sun" size={14} />
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`icon-btn task-star${task.important ? ' is-on' : ''}`}
-                      disabled={busyTask === task.id}
-                      title={task.important ? 'Not important' : 'Mark important'}
-                      aria-pressed={Boolean(task.important)}
-                      aria-label={`Mark ${task.title} important`}
-                      onClick={() => patch(task, { important: !task.important })}
-                    >
-                      <Icon name="star" size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn task-drop"
-                      disabled={busyTask === task.id}
-                      title="Cancel this task"
-                      aria-label={`Cancel ${task.title}`}
-                      onClick={() => drop(task)}
-                    >
-                      <Icon name="x" size={14} />
-                    </button>
-                  </div>
-                )
-              })}
+                  )}
+                </>
+              )}
             </div>
 
             <div className="card card-pad" style={{ marginTop: 18 }}>

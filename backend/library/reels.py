@@ -87,9 +87,10 @@ class ReelCapture:
         scratch = Path(tempfile.mkdtemp(prefix="amethyst-reel-"))
         try:
             reel = await self._open(url, scratch, settings)
-            return await self._store(reel, notes=notes, settings=settings)
-        finally:
+            return await self._store(reel, notes=notes, settings=settings, scratch=scratch)
+        except Exception:
             shutil.rmtree(scratch, ignore_errors=True)
+            raise
 
     async def _open(self, url: str, scratch: Path, settings: InstagramSettings) -> Reel:
         """Metadata, and the video too when there is any point in having it.
@@ -107,7 +108,7 @@ class ReelCapture:
             cookies_from_browser=settings.cookies_from_browser or None,
         )
 
-    async def _store(self, reel: Reel, *, notes: str | None, settings: InstagramSettings):
+    async def _store(self, reel: Reel, *, notes: str | None, settings: InstagramSettings, scratch: Path | None = None):
         text = reel.caption
         source = "caption" if reel.has_text else "none"
         note = "" if reel.has_text else NO_CAPTION_NOTE
@@ -129,24 +130,42 @@ class ReelCapture:
             duration_seconds=int(reel.duration) if reel.duration else None,
         )
         if captured.already_logged:
+            if scratch:
+                shutil.rmtree(scratch, ignore_errors=True)
             return captured
 
         item_id = captured.item["id"]
-        notes_out = [captured.item.get("capture_note") or ""]
-        thumb_url = reel.thumbnail_url or (reel.slide_urls[0] if reel.slide_urls else None)
-        notes_out.append(await self._add_thumbnail(item_id, thumb_url))
-        notes_out.append(await self._process_content(item_id, reel, settings))
 
-        if settings.enrich:
+        async def process_models():
             try:
-                await self.library.enrich(item_id)
-            except Exception as exc:  # enrichment is the last thing, never the item
-                log.warning("enrichment failed for library item %s: %s", item_id, exc)
+                notes_out = [captured.item.get("capture_note") or ""]
+                thumb_url = reel.thumbnail_url or (reel.slide_urls[0] if reel.slide_urls else None)
+                notes_out.append(await self._add_thumbnail(item_id, thumb_url))
+                notes_out.append(await self._process_content(item_id, reel, settings))
 
-        combined = " · ".join(n for n in notes_out if n) or None
-        self.library.store.update(item_id, capture_note=combined)
+                if settings.enrich:
+                    try:
+                        await self.library.enrich(item_id)
+                    except Exception as exc:  # enrichment is the last thing, never the item
+                        log.warning("enrichment failed for library item %s: %s", item_id, exc)
+
+                combined = " · ".join(n for n in notes_out if n) or None
+                self.library.store.update(item_id, capture_note=combined)
+            finally:
+                if scratch:
+                    shutil.rmtree(scratch, ignore_errors=True)
+
+        import asyncio
+        from backend.library.service import _BACKGROUND_TASKS
+        try:
+            task = asyncio.get_running_loop().create_task(process_models())
+            _BACKGROUND_TASKS.add(task)
+            task.add_done_callback(_BACKGROUND_TASKS.discard)
+        except RuntimeError:
+            if scratch:
+                shutil.rmtree(scratch, ignore_errors=True)
+
         from backend.library.service import as_dict
-
         return type(captured)(as_dict(self.library.store.get(item_id)))
 
     async def _add_thumbnail(self, item_id: int, url: str | None) -> str:

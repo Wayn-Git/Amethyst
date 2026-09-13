@@ -2,9 +2,10 @@
   "name": "amethyst-relay",
   "version": "0.1.0",
   "private": true,
-  "description": "Always-on receiver for AMETHYST's Instagram webhook and phone shares.",
+  "description": "Always-on receiver and durable background job layer for AMETHYST.",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "schema": "wrangler d1 execute amethyst-relay --remote --file=./schema.sql",

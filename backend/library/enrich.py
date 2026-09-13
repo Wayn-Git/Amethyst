@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 #: Below this a "summary" is a restatement of the title. A one-line caption is
 #: not something to be summarised.
-MIN_ENRICHABLE_CHARS = 400
+MIN_ENRICHABLE_CHARS = 15
 MAX_ENRICH_CHARS = 24_000
 ENRICH_TIMEOUT = 90.0
 #: Nobody is waiting on this, so it walks further than a turn would. The journal's

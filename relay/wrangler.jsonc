@@ -11,10 +11,13 @@
   "workers_dev": true,
   "preview_urls": false,
 
-  // One cron, once a day. It refreshes the Instagram access token before it can
-  // lapse and prunes rows the laptop has already taken. The free plan allows
-  // five triggers and fifteen minutes of wall clock each; this needs neither.
-  "triggers": { "crons": ["17 3 * * *"] },
+  // Two crons. The five-minute one is the job layer's heartbeat: it re-dispatches
+  // a job whose Workflow instance was lost and promotes one whose backoff has run
+  // out, so a failure at 09:00 is retried at 09:05. The daily one refreshes the
+  // Instagram access token before it can lapse and prunes what the laptop has
+  // already taken. The free plan allows five triggers and fifteen minutes of wall
+  // clock each; two sweeps of a table with tens of rows needs neither.
+  "triggers": { "crons": ["*/5 * * * *", "17 3 * * *"] },
 
   "d1_databases": [
     {
@@ -26,10 +29,50 @@
     }
   ],
 
+  // One Workflow for every kind of job, not one per kind. A Workflow binding is
+  // a deploy-time declaration, so a binding per job type would mean editing this
+  // file and redeploying to add a capability -- exactly the plumbing the registry
+  // in src/jobs/registry.ts exists to remove. `src/jobs/workflow.ts` reads the
+  // job's kind at run time and runs whatever that type declares.
+  //
+  // Workflows is what makes a step retryable with backoff and refuses a duplicate
+  // instance id, which is what makes one delivery buy exactly one receipt. It is
+  // included in the Workers free plan, so the promise at the top of the README
+  // still holds.
+  //
+  // This replaces the `amethyst-ack` / `AckWorkflow` binding. Redeploying retires
+  // that Workflow; any instance still in flight at that moment is lost, and the
+  // five-minute sweep re-dispatches the job it belonged to.
+  "workflows": [
+    {
+      "name": "amethyst-jobs",
+      "binding": "JOBS",
+      "class_name": "JobWorkflow"
+    }
+  ],
+
+  // Staging for jobs that move bytes -- a PDF to extract, an audio file to
+  // transcribe on the machine. Commented out on purpose: R2 is the one
+  // Cloudflare product that wants a card on file, and the README promises
+  // "nothing, and no card". Without it `document_fetch` and `media_fetch` still
+  // run and still report what they found; they just say `staged: false` and the
+  // machine fetches the bytes itself when it comes back. Uncomment, run
+  // `wrangler r2 bucket create amethyst-relay-artifacts`, and redeploy if you
+  // would rather the relay held them.
+  //
+  // "r2_buckets": [
+  //   { "binding": "ARTIFACTS", "bucket_name": "amethyst-relay-artifacts" }
+  // ],
+
   "observability": { "enabled": true }
 
   // Three secrets, set with `wrangler secret put`, never in this file:
   //   APP_SECRET    - Meta's app secret. Verifies every delivery's signature.
   //   VERIFY_TOKEN  - echoed back during Meta's one-time handshake.
-  //   RELAY_TOKEN   - what the laptop presents to POST /sync.
+  //   RELAY_TOKEN   - what the laptop presents to POST /sync and /jobs.
+  //
+  // A fourth credential is NOT a secret here: the share token a phone presents to
+  // POST /jobs lives in the machine's keychain and is mirrored into D1 on every
+  // sync, so rotating it there revokes it here. See src/auth.ts for what each of
+  // the two can ask for.
 }

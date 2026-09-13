@@ -156,15 +156,15 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Which model does which job. The server has published this since
-            escalation shipped and nothing read it, so the one place that could
-            answer "what will Reasoning mode actually cost me" never did. */}
+        {/* Which model does which job. The server publishes it and nothing
+            else reads it, so this is the one place that answers "which model
+            am I actually going to get". */}
         {tiers.length > 0 && (
           <div className="card card-pad dash-tiers" data-enter>
             <div className="card-title">model tiers</div>
             <p className="set-note" style={{ marginTop: 0 }}>
-              What each job runs on. The composer’s Reasoning mode, and the escalation the
-              fast model asks for, both land on the heavy tier.
+              What each job runs on. A conversation uses its own model; these are
+              the assignments other work falls back to.
             </p>
             <div className="set-rows">
               {tiers.map(([name, tier]) => (

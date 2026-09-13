@@ -165,9 +165,16 @@ export const api = {
   // The models this provider's own API lists right now, so the menu offers what
   // the endpoint serves instead of asking the user to retype an id from docs.
   providerModels: (name) => j(`/providers/${encodeURIComponent(name)}/models`),
+  // Switch a provider off without losing its entry or its key -- the middle
+  // state DELETE cannot express.
+  setProviderEnabled: (name, enabled) =>
+    j(`/providers/${encodeURIComponent(name)}`, json('PATCH', { enabled })),
+  // Why the router would pick what it picks: each provider's health, how much
+  // of its declared minute is left, and the ranked decision with its reasons.
+  routing: () => j('/routing'),
 
   // Tiers: which model does which job. `default` is the go-to model; `fast` is
-  // the quick cheap one; `heavy` is what the fast model escalates to.
+  // the quick cheap one; `heavy` is the slow careful one.
   settings: () => j('/settings'),
   updateSettings: (patch) => j('/settings', json('PATCH', patch)),
 
@@ -183,17 +190,48 @@ export const api = {
   deleteConversation: (id) => j(`/conversations/${id}`, json('DELETE')),
   deleteAllConversations: () => j('/conversations', json('DELETE')),
   messages: (id) => j(`/conversations/${id}/messages`),
+
+  /* Artifacts. The stream announces them as they are written (`artifact_open`,
+     `artifact_delta`, `artifact_done`), so these two are for the other case:
+     opening a conversation that produced documents in an earlier session. The
+     list is metadata only -- the file is the artifact -- and `artifact` reads
+     one back off disk, which is why it can answer with `missing` set. */
+  artifacts: (conversationId) => j(`/conversations/${conversationId}/artifacts`),
+  artifact: (artifactId) => j(`/artifacts/${encodeURIComponent(artifactId)}`),
   pinMessage: (id, messageId, pinned) =>
     j(`/conversations/${id}/messages/${messageId}/pin`, json('POST', { pinned })),
+  // Pinning the conversation, not an answer inside it: what the sidebar's star
+  // means, and what its Starred section lists.
+  pinConversation: (id, pinned) => j(`/conversations/${id}/pin`, json('POST', { pinned })),
+  // How this conversation's last turn ended, according to the server. The
+  // interface used to be the only thing that knew: `resumable` arrived on the
+  // terminal frame and lived in component state, so a reload lost it and a turn
+  // killed with the process left no trace at all. `{}` means no turn yet.
+  runState: (id) => j(`/conversations/${id}/run`),
 
   // `mode` is 'chat' or 'plan'. It is a field rather than a sentence glued to
   // the message: the sentence landed in the transcript and was replayed on
   // every later turn, and the server had no idea the mode existed.
-  turn: async ({ conversationId, message, workspace, mode, onEvent, signal }) => {
+  turn: async ({ conversationId, message, workspace, mode, attachments, onEvent, signal }) => {
     const res = await fetch(`${BASE}/conversations/${conversationId}/turn`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, workspace, mode: mode || 'chat' }),
+      /* Attachments travel as structured data, not as a line of prose appended
+         to the prompt. An image the model is meant to look at cannot be
+         described to it as a filesystem path -- that is what produced an issue
+         body containing `/home/wayne/.amethyst/attachments/…/Screenshot.png`
+         where the screenshot should have been. */
+      body: JSON.stringify({
+        message,
+        workspace,
+        mode: mode || 'chat',
+        attachments: (attachments || []).map((f) => ({
+          path: f.path,
+          name: f.name,
+          media_type: f.content_type || null,
+          bytes: f.bytes ?? null,
+        })),
+      }),
       signal,
     })
     if (!res.ok || !res.body) {
@@ -226,6 +264,12 @@ export const api = {
   // response: the loop behind it keeps calling models and tools.
   stopTurn: (id) => j(`/conversations/${id}/turn/stop`, json('POST', {})),
 
+  // A turn suspended on a clarifying question. `answerQuestion` is what
+  // resumes it; the turn is holding a future on the other end.
+  questions: (conversationId) =>
+    j(`/questions${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
+  answerQuestion: (id, answers) => j(`/questions/${id}`, json('POST', { answers })),
+
   confirmations: () => j('/confirmations'),
   decideConfirmation: (id, { allow, remember }) =>
     j(`/confirmations/${id}`, json('POST', { allow, remember })),
@@ -239,7 +283,19 @@ export const api = {
   createAutomation: (body) => j('/automations', json('POST', body)),
   updateAutomation: (id, patch) => j(`/automations/${id}`, json('PATCH', patch)),
   deleteAutomation: (id) => j(`/automations/${id}`, json('DELETE')),
+  // Answers with a job, not a result. It used to await the whole run -- up to
+  // three minutes of open request, which a proxy times out and a person reads
+  // as a failure while the run carries on unseen.
   runAutomation: (id) => j(`/automations/${id}/run`, json('POST', {})),
+  // The run in flight for this automation, or the last one. What the page asks
+  // on open, so a reload reconnects to a run rather than offering to start a
+  // second one.
+  automationJob: (id) => j(`/automations/${id}/job`),
+  jobs: (params = '') => j(`/jobs${params}`),
+  job: (id) => j(`/jobs/${id}`),
+  // `reset_steps` clears the ledger of what already happened, so every step runs
+  // again including the ones that sent something. Never the default.
+  actOnJob: (id, action, body = {}) => j(`/jobs/${id}/${action}`, json('POST', body)),
   // Every kept run of one automation. They are out of the conversation rail,
   // so this is where they are read.
   automationRuns: (id) => j(`/automations/${id}/runs`),

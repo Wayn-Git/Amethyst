@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@thesvg/mcp-server": "^0.8.2"
+  }
+}

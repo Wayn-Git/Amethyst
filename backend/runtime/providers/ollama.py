@@ -15,6 +15,10 @@ from backend.runtime.types import Capabilities, ResolvedModel
 
 DEFAULT_BASE = "http://localhost:11434"
 
+#: The OpenAI-shim endpoint a probe or a picker hits; `_native_base` strips the
+#: `/v1` when Ollama's own API is wanted instead.
+DEFAULT_BASE_URL = f"{DEFAULT_BASE}/v1"
+
 
 def _native_base(base_url: str | None) -> str:
     """Strip the /v1 OpenAI shim to reach Ollama's own API."""
@@ -28,7 +32,7 @@ def initialize(
     resolved_model = model or config.default_model
     if not resolved_model:
         raise ValueError(f"no model specified for provider '{config.name}'")
-    base = config.base_url or f"{DEFAULT_BASE}/v1"
+    base = config.base_url or DEFAULT_BASE_URL
     client = OpenAICompatClient(
         base_url=base, api_key=None, model=resolved_model, max_retries=max_retries
     )

@@ -12,8 +12,11 @@
     "test:markdown": "node tests/markdown.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/ibm-plex-sans": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
     "@gsap/react": "^2.1.2",
     "@phosphor-icons/react": "^2.1.10",
+    "@thesvg/mcp-server": "^0.8.2",
     "framer-motion": "^13.2.0",
     "gsap": "^3.15.0",
     "react": "^19.2.8",

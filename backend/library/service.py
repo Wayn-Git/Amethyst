@@ -29,7 +29,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from backend.db.connection import get_connection
-from backend.library.store import KINDS, LibraryStore, text_path
+from backend.library.store import KINDS, LibraryStore, text_path, thumbnail_path
 from backend.mcp.ssrf import UnsafeURL, check_url_async
 from backend.media.reel import is_reel_url
 from backend.retrieval import store as index_store
@@ -145,6 +145,9 @@ async def _rendered_if_empty(url: str, page):
 
 
 class LibraryService:
+    #: Why the last `search` ran without its vector half, if it did.
+    last_search_degraded: str | None = None
+
     def __init__(self, store: LibraryStore | None = None, indexer=None, fetcher=None):
         # Injected so a test never reaches the network or an embedding server,
         # and so the share endpoint and the tool share one implementation.
@@ -324,13 +327,16 @@ class LibraryService:
                 title = title or meta["title"]
                 author = meta.get("author") or None
                 site = meta.get("site")
+                yt_thumb_url = meta.get("thumbnail_url") or None
             else:
                 author = site = None
+                yt_thumb_url = None
                 capture_note = "YouTube did not answer for this video's title"
             capture_note = capture_note or "video: title and channel only, no transcript available"
             published_on = None
             text = ""
         else:
+            yt_thumb_url = None
             try:
                 page = await self._fetch(url)
             except UnsafeURL as exc:
@@ -361,6 +367,13 @@ class LibraryService:
 
         note = await self._store_text(item_id, title or url, text, capture_note)
         self.store.update(item_id, capture_note=note or None)
+
+        # YouTube: save the oEmbed thumbnail to disk so the card shows an image.
+        # Done after the item exists so a download failure cannot prevent the
+        # row from being created. Runs inline — it is a single small JPEG.
+        if yt_thumb_url:
+            await self._save_youtube_thumb(item_id, yt_thumb_url)
+
         self._enrich_later(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
@@ -441,6 +454,28 @@ class LibraryService:
         note = await self._store_text(item_id, title, body, "", fetched=False)
         self.store.update(item_id, capture_note=note or None)
         return Captured(as_dict(self.store.get(item_id)))
+
+    async def _save_youtube_thumb(self, item_id: int, thumb_url: str) -> None:
+        """Download a YouTube thumbnail and attach it to the library item.
+
+        Best-effort — a failure is logged but never raised, because the item
+        is already saved and a missing image is better than a missing row.
+        """
+        import httpx as _httpx
+        from backend.web.reader import USER_AGENT
+
+        target = thumbnail_path(item_id)
+        try:
+            async with _httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                resp = await client.get(thumb_url, headers={"User-Agent": USER_AGENT})
+            if resp.status_code == 200:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(resp.content)
+                self.store.update(item_id, thumbnail_path=str(target))
+            else:
+                log.debug("YouTube thumbnail fetch returned %s for item %s", resp.status_code, item_id)
+        except Exception as exc:
+            log.debug("could not save YouTube thumbnail for item %s: %s", item_id, exc)
 
     async def _store_text(
         self,
@@ -742,28 +777,74 @@ class LibraryService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict]:
-        if tag:
+        # The store does the filtering.
+        #
+        # `category` used to be handled here instead: read 5000 rows, keep the
+        # ones that match in Python, then slice. `LibraryStore.list` has taken
+        # a `category` argument the whole time -- this read the entire table to
+        # do in memory what an indexed WHERE does, and silently truncated at
+        # 5000 items.
+        if not category:
             rows = self.store.list(
-                kind=kind, category=category, tag=tag, order=order, limit=limit, offset=offset
+                kind=kind, tag=tag, order=order, limit=limit, offset=offset
             )
             return [as_dict(row) for row in rows]
-        if category:
-            all_rows = self.store.list(kind=kind, order=order, limit=5000)
-            items = [as_dict(row) for row in all_rows]
-            matched = [it for it in items if it.get("category") == category]
-            return matched[offset : offset + limit]
-        return [
-            as_dict(row)
-            for row in self.store.list(kind=kind, order=order, limit=limit, offset=offset)
-        ]
+
+        # A category filter has to find what `as_dict` *calls* an item, not
+        # only what the column stores. Items filed as null or 'general' get an
+        # inferred category on the way out, so filtering on the column alone
+        # returned nineteen movies out of a chip that said twenty-one -- the
+        # count and the filter disagreeing about the same word. Two narrowed
+        # queries: the ones stored under this category, plus the unfiled ones
+        # whose inference lands on it.
+        rows = list(
+            self.store.list(kind=kind, tag=tag, category=category, order=order, limit=5000)
+        )
+        rows += self.store.unfiled(kind=kind, tag=tag, order=order)
+        items: list[dict] = []
+        seen: set[int] = set()
+        for row in rows:
+            # A row stored as 'general' is in both queries; `as_dict` decides
+            # once what it is called and that answer is what gets matched.
+            if row["id"] in seen:
+                continue
+            seen.add(row["id"])
+            item = as_dict(row)
+            if item.get("category") == category:
+                items.append(item)
+        reverse = str(order).lower() != "asc"
+        items.sort(key=lambda i: (i.get("consumed_on") or "", i["id"]), reverse=reverse)
+        return items[offset : offset + limit]
 
     def category_counts(self) -> dict[str, int]:
-        all_items = [as_dict(row) for row in self.store.list(limit=500)]
-        c: dict[str, int] = {}
-        for it in all_items:
-            cat = it.get("category") or "general"
-            c[cat] = c.get(cat, 0) + 1
-        return c
+        """How many items sit under each category.
+
+        Counted in SQL. This used to read the first 500 rows and tally them in
+        Python, so on a library of any size it reported the composition of the
+        most recent 500 items as though it were the whole shelf -- and the
+        interface's category chips, which read this, were quietly wrong.
+        Items with no category are still reported under 'general', which is
+        what the interface calls them.
+        """
+        counts = {
+            name: n
+            for name, n in self.store.category_counts().items()
+            if name and name != "general"
+        }
+        # The unfiled rows are the only ones that need Python. `as_dict` infers
+        # a category for an item stored as null or 'general', so counting the
+        # stored column alone would disagree with what the same items say when
+        # they are listed -- the interface would show a chip labelled with a
+        # number that no filter reproduces. Bounded to the unfiled subset
+        # rather than the whole table.
+        unfiled = self.store.conn.execute(
+            "SELECT * FROM library_items WHERE category IS NULL OR category = ''"
+            " OR category = 'general'"
+        ).fetchall()
+        for row in unfiled:
+            name = as_dict(row).get("category") or "general"
+            counts[name] = counts.get(name, 0) + 1
+        return counts
 
     def tag_counts(self) -> dict[str, int]:
         try:
@@ -808,7 +889,12 @@ class LibraryService:
         query = (query or "").strip()
         if not query:
             return []
-        hits = await SearchService().search(query, limit=limit * 3, source="library")
+        searcher = SearchService()
+        hits = await searcher.search(query, limit=limit * 3, source="library")
+        # Recorded on the service so a caller can say the result is a floor
+        # rather than a total. With the embedder unreachable this is keyword
+        # matching alone, and half this library's titles are an emoji.
+        self.last_search_degraded = searcher.degraded
         if not hits:
             return []
 
@@ -852,11 +938,26 @@ def _excerpt(content: str, *, limit: int = 320) -> str:
 
 
 def describe(item: dict) -> str:
-    """One line about an item, for a model reading a tool result."""
+    """One line about an item, for a model reading a tool result.
+
+    Category and tags are part of the line because they are what the user
+    asks in. "Which movies have I saved" is answered by `category=movie` or
+    `tag=cinema`, and a result that printed neither left the model unable to
+    see the classification it had just filtered on -- or to group by it when
+    it had not. Half this library's titles are an emoji and nothing else; the
+    tags are the only readable thing about those rows.
+    """
     bits = [item["title"]]
     if item.get("author"):
         bits.append(f"by {item['author']}")
-    bits.append(f"({item['kind']}, logged {item['consumed_on']})")
+    facts = [item["kind"]]
+    if item.get("category"):
+        facts.append(item["category"])
+    facts.append(f"logged {item['consumed_on']}")
+    bits.append(f"({', '.join(facts)})")
+    tags = item.get("tags")
+    if tags:
+        bits.append(f"[{', '.join(tags)}]")
     if item.get("capture_note"):
         bits.append(f"-- {item['capture_note']}")
     return " ".join(bits)

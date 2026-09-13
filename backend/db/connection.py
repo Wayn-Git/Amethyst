@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -18,7 +19,15 @@ log = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
-_connection: sqlite3.Connection | None = None
+# One connection per thread. See `get_connection` for why a shared one is not
+# an option, and `reset_connection` for how these are retired.
+_local = threading.local()
+_lock = threading.Lock()
+_open: set[sqlite3.Connection] = set()
+_migrated = False
+# Bumped by `reset_connection`, so a thread holding a retired connection opens
+# a new one rather than using a closed handle.
+_generation = 0
 
 
 def _configure(conn: sqlite3.Connection) -> None:
@@ -287,20 +296,62 @@ def _add_missing_columns(conn: sqlite3.Connection) -> None:
 
 
 def get_connection() -> sqlite3.Connection:
-    """Process-wide connection, created and migrated on first use."""
-    global _connection
-    if _connection is None:
-        _connection = connect()
-        migrate(_connection)
-    return _connection
+    """This thread's connection, created and migrated on first use.
+
+    One connection per thread, not one per process.
+
+    `sqlite3.Connection` is not safe for concurrent use, and
+    `check_same_thread=False` only silences the guard -- it does not make it
+    safe. FastAPI runs every `def` endpoint on a threadpool worker, and this
+    process also runs five background loops (automations, reminders, the
+    journal, Instagram, the browser), so a single shared connection was being
+    driven from a dozen threads at once. Two `execute()` calls interleaving on
+    one connection is exactly the "bad parameter or other API misuse"
+    `InterfaceError` and the "tuple index out of range" that were coming back
+    as 500s from /api/capabilities while a turn was starting.
+
+    WAL is what makes this cheap: readers do not block the writer and the
+    writer does not block readers, which is why the mode was chosen in the
+    first place. `busy_timeout` covers two writers meeting.
+    """
+    conn = getattr(_local, "conn", None)
+    if conn is not None and getattr(_local, "generation", None) == _generation:
+        return conn
+
+    conn = connect()
+    with _lock:
+        global _migrated
+        # The schema is brought up once per database, not once per thread: the
+        # migration is idempotent but it is also seconds of work, and running
+        # it from two threads at once is the same race this fixes.
+        if not _migrated:
+            migrate(conn)
+            _migrated = True
+        _open.add(conn)
+    _local.conn = conn
+    _local.generation = _generation
+    return conn
 
 
 def reset_connection() -> None:
-    """Drop the cached connection. Used by tests and by AMETHYST_HOME changes."""
-    global _connection
-    if _connection is not None:
-        _connection.close()
-    _connection = None
+    """Drop every cached connection. Used by tests and by AMETHYST_HOME changes.
+
+    The generation counter is what retires the ones held by other threads:
+    closing a connection a sleeping worker still has a reference to would hand
+    it a `ProgrammingError` on wake, so each thread notices its own is stale
+    and opens a fresh one.
+    """
+    global _migrated, _generation
+    with _lock:
+        for conn in _open:
+            try:
+                conn.close()
+            except Exception:  # already closed, or closed from its own thread
+                pass
+        _open.clear()
+        _migrated = False
+        _generation += 1
+    _local.conn = None
 
 
 @contextmanager

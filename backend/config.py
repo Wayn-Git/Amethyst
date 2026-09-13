@@ -138,6 +138,21 @@ class ProviderConfig:
     #: system prompt plus tool schemas alone already exceed on a machine with
     #: more than a couple of connectors. `None` means unknown, not unlimited.
     tokens_per_minute: int | None = None
+    #: Whether the router and the fallback chain may pick this provider.
+    #:
+    #: Distinct from `has_key`, which answers whether it *could* answer. A user
+    #: who is saving a metered key for something else wants the entry kept, its
+    #: key kept, and the provider not offered -- which `remove_provider` cannot
+    #: express, because it drops the entry and the next Settings visit re-adds
+    #: it from the catalogue. Not read by `configured_providers`: a disabled
+    #: provider must stay visible in Settings or there is no way to switch it
+    #: back on.
+    enabled: bool = True
+    #: What this endpoint is good for, as free-form tags the router scores
+    #: against -- "fast", "large_context", "reasoning", "background", "local".
+    #: Empty means the catalogue's tags for this slug are used instead, so the
+    #: user's file wins over the catalogue without having to restate it.
+    strengths: frozenset[str] = frozenset()
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -165,6 +180,20 @@ def _positive_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return number if number > 0 else None
+
+
+def _tags(value: Any) -> frozenset[str]:
+    """A `strengths:` list, normalised, or empty when the line is absent or junk.
+
+    Empty and "wrong shape" deliberately collapse to the same answer: the
+    router treats an empty set as "ask the catalogue", so a typo falls back to
+    the known-good tags rather than routing on nothing.
+    """
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return frozenset()
+    return frozenset(str(tag).strip().lower() for tag in value if str(tag).strip())
 
 
 def has_key(config: ProviderConfig) -> bool:
@@ -242,9 +271,9 @@ def configured_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
 #: A tier answers "how hard is this work", which is a different question from
 #: the one `backend/runtime/chain.py` answers ("this provider is down, who else").
 #: Keeping them apart matters: a quota trip falling through to a slower provider
-#: is an outage being absorbed, and an escalation is a decision the model made,
-#: and an interface that showed them as the same thing would be lying about one
-#: of them.
+#: is an outage being absorbed, and a tier is a choice about the work, and an
+#: interface that showed them as the same thing would be lying about one of
+#: them.
 TIERS = ("fast", "default", "heavy")
 
 
@@ -318,6 +347,8 @@ def load_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
             "context_window",
             "max_tools",
             "tokens_per_minute",
+            "enabled",
+            "strengths",
         }
         cfg = ProviderConfig(
             name=entry["name"],
@@ -329,6 +360,10 @@ def load_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
             context_window=_positive_int(entry.get("context_window")),
             max_tools=_positive_int(entry.get("max_tools")),
             tokens_per_minute=_positive_int(entry.get("tokens_per_minute")),
+            # Absent means enabled. Only an explicit `false` switches a provider
+            # off, so a file written before this field existed reads as it did.
+            enabled=entry.get("enabled") is not False,
+            strengths=_tags(entry.get("strengths")),
             extra={k: v for k, v in entry.items() if k not in known},
         )
         out[cfg.name] = cfg
@@ -543,6 +578,34 @@ def add_provider(entry: dict[str, Any], path: Path | None = None) -> None:
     else:
         entries.append(entry)
     save_providers(entries, path)
+
+
+def set_provider_enabled(name: str, enabled: bool, path: Path | None = None) -> bool:
+    """Switch one provider on or off, keeping its entry and its key.
+
+    The middle state `remove_provider` cannot express. Dropping an entry throws
+    away the base URL and the model id, and the next Settings visit offers to
+    re-add it from the catalogue, so "stop using this one" and "I have never
+    heard of this one" were the same gesture. The key is untouched either way --
+    the same reason DELETE leaves it in the keychain.
+
+    Returns whether there was an entry to change. A provider that is not in the
+    file is not an error here: the caller asked for a state, and "absent" is
+    already that state for every purpose the router has.
+    """
+    entries = provider_entries(path)
+    for entry in entries:
+        if entry.get("name") == name:
+            if enabled:
+                # Written as an absence rather than `enabled: true`: the default
+                # is enabled, and a file full of restated defaults is one where
+                # the lines that mean something stop standing out.
+                entry.pop("enabled", None)
+            else:
+                entry["enabled"] = False
+            save_providers(entries, path)
+            return True
+    return False
 
 
 def remove_provider(name: str, path: Path | None = None) -> bool:

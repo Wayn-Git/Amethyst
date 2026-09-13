@@ -120,11 +120,38 @@ class IngestService:
 
     # -- the work --------------------------------------------------------
 
-    async def process(self, event) -> str:
-        """Act on one claimed event. Returns the terminal status."""
+    async def process(self, event, *, job=None, jobs=None) -> str:
+        """Act on one claimed event. Returns the terminal status.
+
+        `job` and `jobs` are the durable record of this delivery's processing
+        (`backend/jobs/`). Optional, because a test calls this directly and the
+        work does not depend on them -- but the drain always passes them, and
+        without them a retry repeats everything.
+
+        What a retry used to do, and what the ledger stops:
+
+        - **A second confirmation.** The reply went out before `finish`, so an
+          event reclaimed after a crash in that gap sent "Saved: …" twice for
+          one reel.
+        - **A silently transcript-less item.** A crash during transcription left
+          the library row already written, so the retry took the
+          `already_logged` path, reported "already in the library" and never
+          came back for the audio.
+
+        `_resolve` is deliberately *not* a step. It is a read, so repeating it
+        costs nothing, and Instagram's asset URLs expire in about seven days --
+        a recorded one would be handed to a download that is now guaranteed to
+        fail, which is the opposite of what replaying is for.
+        """
         route = event["route"]
         sender = event["sender_id"]
         payload: dict[str, Any] = json.loads(event["payload"])
+
+        async def step(key, run, *, default=None):
+            """One externally visible or expensive operation, done once."""
+            if job is None or jobs is None:
+                return await run()
+            return await jobs.step(job, key, run)
 
         refusal = self.refuse_reason(route, sender)
         if refusal:
@@ -153,12 +180,28 @@ class IngestService:
             )
             return "ignored"
 
-        captured = await self.library.capture_media(**details["item"])
-        item_id = captured.item["id"]
-        if captured.already_logged:
+        async def _capture():
+            captured = await self.library.capture_media(**details["item"])
+            return {
+                "item_id": captured.item["id"],
+                "title": captured.item["title"],
+                # The answer from the *first* attempt. Read back from the ledger
+                # on a retry, so a crash partway through does not come back as
+                # "already in the library" and skip the work it had not done.
+                "already_logged": bool(captured.already_logged),
+            }
+
+        capture = await step("capture", _capture)
+        item_id = capture["item_id"]
+        title = capture["title"]
+
+        if capture["already_logged"]:
             # Still worth answering. Someone re-sending a reel wants to know
             # where it went, and silence reads as the thing having been dropped.
-            await self._maybe_reply(sender, captured.item["title"], already=True)
+            await step(
+                "reply:already",
+                lambda: self._maybe_reply(sender, title, already=True),
+            )
             self.store.finish(
                 event["id"],
                 status="done",
@@ -168,20 +211,41 @@ class IngestService:
             return "done"
 
         notes: list[str] = [details["item"].get("capture_note") or ""]
-        notes.append(await self._add_thumbnail(item_id, details.get("thumbnail_url")))
-        notes.append(await self._add_transcript(item_id, details.get("media_url")))
+        notes.append(
+            await step(
+                "thumbnail",
+                lambda: self._add_thumbnail(item_id, details.get("thumbnail_url")),
+            )
+            or ""
+        )
+        # The expensive one: a download, ffmpeg, and a transcription API. Its own
+        # step so a crash in the model call does not buy the download again.
+        notes.append(
+            await step(
+                "transcript",
+                lambda: self._add_transcript(item_id, details.get("media_url")),
+            )
+            or ""
+        )
 
         if self.settings.enrich:
-            try:
-                await self.library.enrich(item_id)
-            except Exception as exc:  # enrichment is the last thing, never the item
-                log.warning("enrichment failed for library item %s: %s", item_id, exc)
+            async def _enrich():
+                try:
+                    await self.library.enrich(item_id)
+                except Exception as exc:  # enrichment is the last thing, never the item
+                    log.warning("enrichment failed for library item %s: %s", item_id, exc)
+                return True
+
+            await step("enrich", _enrich)
 
         note = " · ".join(n for n in notes if n) or None
         if note:
             self.library.store.update(item_id, capture_note=note)
 
-        await self._maybe_reply(sender, captured.item["title"])
+        # Last, and exactly once. This is the operation the whole ledger exists
+        # for: it is visible to somebody else, and Instagram offers no
+        # idempotency key of its own to lean on.
+        await step("reply:saved", lambda: self._maybe_reply(sender, title))
         self.store.finish(event["id"], status="done", library_item_id=item_id)
         return "done"
 
@@ -379,15 +443,22 @@ class IngestService:
 
     async def _maybe_reply(
         self, sender_id: str | None, title: str, *, already: bool = False
-    ) -> None:
+    ) -> bool:
+        """Tell the sender it landed. Returns whether the attempt was made.
+
+        A bool rather than None because the caller records the answer in the
+        step ledger, and a step whose result is `None` reads the same as a step
+        that has not run.
+        """
         if not (self.settings.reply_on_save and sender_id):
-            return
+            return False
         message = f"Already saved: {title}" if already else f"Saved: {title}"
         try:
             await self.client.send_text(sender_id, message)
         except InstagramError as exc:
             # A confirmation that could not be sent is not a capture that failed.
             log.info("could not reply to %s: %s", sender_id, exc)
+        return True
 
 
 def _title_from(caption: str) -> str:

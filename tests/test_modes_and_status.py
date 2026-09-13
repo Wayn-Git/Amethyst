@@ -417,18 +417,26 @@ def test_no_status_is_declared_without_being_emitted():
     """A name in the list that nothing sends is a reserved enum slot, which the
     ground rules forbid. `generating` was exactly that.
 
+    Both emitters are scanned. `starting` is sent by the API rather than the
+    loop -- it covers building the director, which happens before a director
+    exists to announce anything -- but it is still one of the turn's states and
+    still has to be in the closed set an interface styles from.
+
     Mutation check: add a state to `STATUSES` and do not emit it.
     """
     import re
     from pathlib import Path
 
-    source = Path("backend/agent/director.py").read_text()
-    emitted = set(re.findall(r'"state": "(\w+)"', source))
-    emitted |= {
-        name
-        for pair in re.findall(r'"state": "(\w+)" if [^,]+ else "(\w+)"', source)
-        for name in pair
-    }
+    emitted: set[str] = set()
+    for path in ("backend/agent/director.py", "backend/api/main.py"):
+        source = Path(path).read_text()
+        emitted |= set(re.findall(r'"state": "(\w+)"', source))
+        emitted |= set(re.findall(r'state="(\w+)"', source))
+        emitted |= {
+            name
+            for pair in re.findall(r'"state": "(\w+)" if [^,]+ else "(\w+)"', source)
+            for name in pair
+        }
     assert set(STATUSES) - emitted == set()
 
 
@@ -445,146 +453,50 @@ async def test_generating_is_announced_when_the_answer_starts(db, monkeypatch):
     assert states.index("thinking") < states.index("generating")
 
 
-# --- escalation: the fast model asking for the slow one ---------------------
+# --- the modes that exist ---------------------------------------------------
 
 
-def _heavy(monkeypatch, provider="nvidia", model="deepseek-v4-pro"):
-    """A resolvable `heavy` tier, without a providers.yaml or a network."""
-    heavy = ResolvedModel(
-        provider=provider,
-        model=model,
-        client=_Scripted([]),
-        capabilities=Capabilities(streaming=False, context_window=32_000),
-    )
-    monkeypatch.setattr(
-        "backend.agent.director.resolve_tier", lambda tier, **k: heavy if tier == "heavy" else None
-    )
-    return heavy
+def test_reasoning_is_not_a_mode(client, amethyst_home):
+    """Two modes, and the third is not coming back through a side door.
 
+    `reasoning` started a turn on the heavy tier and appended an instruction
+    telling the model to think harder. It went because wanting a better answer
+    is a reason to pick a better model, which the model picker already does --
+    a second control for the same intent is one the user has to reason about.
+    Escalation went with it: its whole 'yes' path was a resend in reasoning
+    mode, and a button with nowhere to send is worse than no button.
 
-@pytest.mark.asyncio
-async def test_the_model_can_hand_a_hard_job_to_a_bigger_one(db, monkeypatch):
-    """The only party that knows the job is too big is the model doing it. A
-    classifier would cost a round trip on every message to answer a question
-    most messages do not raise, and a heuristic on message length guesses
-    silently -- so the model says so, through a tool the director offers,
-    never registers, and answers itself.
-
-    The turn ends. Nothing has run, exactly as in plan mode, and the interface
-    asks before the slower model is spent.
-
-    Mutation check: stop appending `ESCALATE_TOOL` in `Director.run`, or
-    dispatch the call instead of intercepting it.
+    Mutation check: add "reasoning" back to `TURN_MODES`.
     """
-    from backend.agent.escalation import ESCALATE_TOOL_NAME, ESCALATION_MARKER
-
-    client = _Scripted([
-        ModelResponse(
-            text=None,
-            tool_calls=[ToolCall(id="1", name=ESCALATE_TOOL_NAME,
-                                 arguments={"reason": "this needs a schema migration designed"})],
-        )
-    ])
-    _patch(monkeypatch, client)
-    _heavy(monkeypatch)
-
-    cid = ConversationRepository().create("fake", "fake-1", "t")
-    director = Director(registry=_registry(), retrieval=None, memory=None)
-    events = await _run(director, cid, "redesign the task schema")
-
-    assert ESCALATE_TOOL_NAME in client.seen_tools[0], "offered on an ordinary chat turn"
-
-    escalations = [e for e in events if e.type == "escalation"]
-    assert len(escalations) == 1
-    assert escalations[0].data["reason"] == "this needs a schema migration designed"
-    assert escalations[0].data["to_model"] == "nvidia/deepseek-v4-pro"
-    assert escalations[0].data["from_model"] == "fake/fake-1"
-    assert [e.type for e in events][-1] == "done", "the turn ends; nothing runs"
-
-    stored = MessageRepository().history(cid)
-    assert str(stored[-1].content).startswith(ESCALATION_MARKER), (
-        "persisted as the assistant's own words, so a reload still shows the question"
-    )
-
-
-@pytest.mark.asyncio
-async def test_the_same_question_is_not_asked_twice(db, monkeypatch):
-    """"Answer anyway" is the user re-sending the message. Without this the fast
-    model would escalate again and the two buttons would be one button.
-
-    Read from the transcript rather than from a flag on the request: a flag in
-    the interface does not survive a reload, and the transcript does.
-
-    Mutation check: drop the `was_escalated` guard in `Director.run`.
-    """
-    from backend.agent.escalation import ESCALATE_TOOL_NAME
-
-    client = _Scripted([ModelResponse(text="fine, here it is")])
-    _patch(monkeypatch, client)
-    _heavy(monkeypatch)
-
-    cid = ConversationRepository().create("fake", "fake-1", "t")
-    messages = MessageRepository()
-    messages.append(cid, "user", "redesign the task schema")
-    messages.append(cid, "assistant", "**Escalation requested.** it is big\n\nneeds more")
-
-    director = Director(registry=_registry(), retrieval=None, memory=None)
-    await _run(director, cid, "redesign the task schema")
-
-    assert ESCALATE_TOOL_NAME not in client.seen_tools[0], (
-        "the transcript already carries the request; asking again is a loop"
-    )
-
-
-@pytest.mark.asyncio
-async def test_no_heavy_tier_means_no_offer(db, monkeypatch):
-    """An offer AMETHYST cannot honour is worse than no offer. A machine with one
-    provider has nothing to escalate to, and the tool is simply absent rather
-    than present and failing.
-
-    Mutation check: offer `ESCALATE_TOOL` regardless of `resolve_tier`.
-    """
-    from backend.agent.escalation import ESCALATE_TOOL_NAME
-
-    client = _Scripted([ModelResponse(text="answered")])
-    _patch(monkeypatch, client)
-    monkeypatch.setattr("backend.agent.director.resolve_tier", lambda tier, **k: None)
-
-    cid = ConversationRepository().create("fake", "fake-1", "t")
-    director = Director(registry=_registry(), retrieval=None, memory=None)
-    await _run(director, cid, "do a thing")
-
-    assert ESCALATE_TOOL_NAME not in client.seen_tools[0]
-
-
-@pytest.mark.asyncio
-async def test_reasoning_mode_runs_on_the_heavy_tier_and_does_not_offer_to_escalate(
-    db, monkeypatch
-):
-    """The user already chose to wait. Offering the bigger model to the bigger
-    model would be a loop with a confirmation in it.
-
-    Mutation check: resolve the conversation's own model in reasoning mode, or
-    keep offering the tool.
-    """
-    from backend.agent.escalation import ESCALATE_TOOL_NAME
-
-    client = _Scripted([ModelResponse(text="thought about it")])
-    _patch(monkeypatch, client)
-    heavy = _heavy(monkeypatch)
-    heavy.client = client
-
-    cid = ConversationRepository().create("fake", "fake-1", "t")
-    director = Director(registry=_registry(), retrieval=None, memory=None, mode="reasoning")
-    await _run(director, cid, "think hard about this")
-
-    assert ESCALATE_TOOL_NAME not in client.seen_tools[0]
-    assert "reasoning" in client.seen_system[0], "the mode reaches the system prompt"
-
-
-def test_reasoning_is_a_mode_the_api_accepts(client, amethyst_home):
-    """Mutation check: drop "reasoning" from `TURN_MODES`."""
     from backend.api.main import TURN_MODES
 
-    assert TURN_MODES == {"chat", "plan", "reasoning"}
+    assert TURN_MODES == {"chat", "plan"}
 
+
+def test_the_turn_endpoint_refuses_the_mode_that_was_removed(client, db):
+    """A stale interface -- or an old tab -- must get a clear refusal rather
+    than a turn that quietly runs as something else.
+    """
+    from backend.db.repositories import ConversationRepository
+
+    cid = ConversationRepository().create("fake", "fake-1")
+    response = client.post(
+        f"/api/conversations/{cid}/turn",
+        json={"message": "hi", "mode": "reasoning"},
+    )
+
+    assert response.status_code == 400
+    assert "reasoning" in response.json()["detail"]
+
+
+def test_nothing_imports_the_escalation_module(client):
+    """The module is gone; an import left behind would be an ImportError on
+    the first turn rather than at import time, because it was imported inside
+    the loop.
+    """
+    import importlib
+
+    import pytest as _pytest
+
+    with _pytest.raises(ModuleNotFoundError):
+        importlib.import_module("backend.agent.escalation")

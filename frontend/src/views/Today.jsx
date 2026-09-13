@@ -59,7 +59,7 @@ function Unavailable({ reason }) {
 
 export default function Today() {
   const rootRef = useRef(null)
-  const { toast, setView, health } = useApp()
+  const { toast, setView, health, betaPages } = useApp()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState('')
@@ -229,9 +229,14 @@ export default function Today() {
               <Panel
                 title="inbox"
                 action={
-                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setView('mail')}>
-                    Open
-                  </button>
+                  /* Only when Mail is switched on. With the beta pages off its
+                     route is not registered, so this button navigated to a page
+                     that immediately bounced back to Chat. */
+                  betaPages ? (
+                    <button type="button" className="btn btn--ghost btn--small" onClick={() => setView('mail')}>
+                      Open
+                    </button>
+                  ) : null
                 }
               >
                 {degraded.mail ? (

@@ -45,20 +45,54 @@ function savePrefs(patch) {
 // process already holds.
 const HEALTH_INTERVAL = 8000
 
-/* Which palette to paint. 'system' follows the machine, and is the default:
-   an application that ignores a laptop set to light at 9am is one more thing to
-   go and configure. The chosen value is written to the document element so the
-   stylesheet -- not JavaScript -- owns every colour. */
+/* Which palette to paint. The palette this interface was drawn for is the light
+   one -- warm parchment, ink text, hairlines instead of shadows -- so light is
+   what an unconfigured install gets, rather than whatever the laptop happens to
+   be set to. 'system' is still selectable and still follows the machine; it is
+   just no longer the answer nobody chose. The chosen value is written to the
+   document element so the stylesheet -- not JavaScript -- owns every colour. */
 const THEMES = ['system', 'dark', 'light']
+
+/* The panel has to stay wide enough to hold a line of code and narrow enough to
+   leave a conversation beside it. A stored value from a wider monitor is
+   clamped on load rather than trusted. */
+export const PANEL_MIN = 300
+export const PANEL_MAX = 900
+const PANEL_DEFAULT = 372
+
+function clampPanel(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return PANEL_DEFAULT
+  return Math.min(PANEL_MAX, Math.max(PANEL_MIN, Math.round(n)))
+}
 
 function applyTheme(theme) {
   const root = document.documentElement
-  if (theme === 'system') root.removeAttribute('data-theme')
-  else root.setAttribute('data-theme', theme)
+  /* `system` used to *remove* `data-theme`, and leaving it off is what made
+     the two themes unstable.
+
+     The token blocks cope with a missing attribute -- there is a
+     `prefers-color-scheme` copy of the whole dark block for exactly that. But
+     roughly fifteen component rules elsewhere in the stylesheet are written as
+     `[data-theme="light"] .thing { ... }` or `[data-theme="dark"] .thing`, and
+     with no attribute present *none* of them match. A person who has never
+     opened Settings -- which is the default -- got a page whose tokens were
+     dark and whose connector cards, capability tabs and MCP modal were still
+     wearing their light treatment, or the reverse.
+
+     Resolving `system` to whatever the machine currently says, and stamping
+     that, means the attribute is always one of two known values. The media
+     query above re-fires this on the machine's own switch, so it stays true
+     at sunset. The `prefers-color-scheme` copy in the stylesheet stays as the
+     answer for the first paint, before any of this runs. */
+  const resolved = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme
+  root.setAttribute('data-theme', resolved)
   // The browser's own surfaces -- form controls, scrollbars, the address bar --
   // read this, and a light page inside dark chrome is the tell that a theme was
   // bolted on rather than designed.
-  root.style.colorScheme = theme === 'system' ? 'light dark' : theme
+  root.style.colorScheme = resolved
   /* `theme-color` was a fixed `#0b0b0c` in the markup, which paints the address
      bar of a phone in light mode black above a paper-coloured page. Read from
      the stylesheet after the switch, so it is whatever `--canvas` actually
@@ -71,7 +105,7 @@ function applyTheme(theme) {
 }
 
 // Applied before React mounts, so the first paint is already the right colour.
-applyTheme(THEMES.includes(loadPrefs().theme) ? loadPrefs().theme : 'system')
+applyTheme(THEMES.includes(loadPrefs().theme) ? loadPrefs().theme : 'light')
 
 export function AppProvider({ children }) {
   const prefs = useRef(loadPrefs()).current
@@ -115,8 +149,17 @@ export function AppProvider({ children }) {
      goes so the transcript can be prose. Persisted, because whether you want
      to watch the steps is a standing preference rather than a per-page one. */
   const [panel, setPanelRaw] = useState(prefs.panel !== false)
+  /* How wide the side panel is, and whether it has taken over the window.
+
+     Width is a preference because it is a decision about this screen and this
+     pair of eyes -- it should survive a reload the way the rail's own state
+     does. Expanded is deliberately *not* persisted: filling the window is
+     something you do to read one document, and coming back tomorrow to an app
+     with no conversation in it would be a puzzle rather than a memory. */
+  const [panelWidth, setPanelWidthRaw] = useState(() => clampPanel(prefs.panelWidth))
+  const [panelExpanded, setPanelExpanded] = useState(false)
   const [theme, setThemeRaw] = useState(
-    () => (THEMES.includes(prefs.theme) ? prefs.theme : 'system'),
+    () => (THEMES.includes(prefs.theme) ? prefs.theme : 'light'),
   )
   // Which half of Skills & connectors is open. In the store because the + menu
   // and the palette both send you to one side or the other.
@@ -129,6 +172,16 @@ export function AppProvider({ children }) {
   const setView = useCallback((next) => {
     navigate(pathFor(next))
     savePrefs({ view: next })
+  }, [navigate])
+
+  const [pendingPrompt, setPendingPrompt] = useState(null)
+
+  const openChatWithPrompt = useCallback((prompt) => {
+    setActiveIdRaw(null)
+    savePrefs({ activeId: null })
+    setPendingPrompt(prompt)
+    navigate(pathFor('chat'))
+    savePrefs({ view: 'chat' })
   }, [navigate])
 
   // Reopen where you left off, but only from the bare root: a direct visit or
@@ -169,6 +222,20 @@ export function AppProvider({ children }) {
     setThemeRaw(value)
     applyTheme(value)
     savePrefs({ theme: value })
+  }, [])
+
+  /* Beta pages -- Mail and Automations -- are hidden until this is on.
+
+     Off by default, and per-browser like the rest of `prefs`: it decides what
+     this interface shows, not what the server will do, so it has no business
+     in the backend settings. `nav.js` is where "hidden" is spelled out; every
+     surface that lists pages reads it from there rather than keeping its own
+     idea of which ones exist. */
+  const [betaPages, setBetaPagesRaw] = useState(prefs.betaPages === true)
+  const setBetaPages = useCallback((next) => {
+    const value = Boolean(next)
+    setBetaPagesRaw(value)
+    savePrefs({ betaPages: value })
   }, [])
 
   /* Desktop notification when a turn finishes, so a long turn does not need
@@ -225,6 +292,19 @@ export function AppProvider({ children }) {
     return !open
   }), [])
 
+  /* Written on every pointer move during a drag, so the value is clamped here
+     rather than at the call site and the preference is only persisted at the
+     end of a drag -- `savePrefs` reads and rewrites the whole blob, and doing
+     that sixty times a second for the length of a drag is a lot of JSON for a
+     number that is about to change again. */
+  const setPanelWidth = useCallback((value, { persist = true } = {}) => {
+    const next = clampPanel(value)
+    setPanelWidthRaw(next)
+    if (persist) savePrefs({ panelWidth: next })
+  }, [])
+
+  const togglePanelExpanded = useCallback(() => setPanelExpanded((on) => !on), [])
+
   // Picking a place is the end of the drawer's job. Leaving it open over the
   // page someone just asked for is the classic mobile-nav bug.
   useEffect(() => { setDrawer(false) }, [location.pathname])
@@ -235,7 +315,7 @@ export function AppProvider({ children }) {
      read again when the machine changes its mind at sunset. */
   useEffect(() => {
     if (theme !== 'system') return undefined
-    const watch = window.matchMedia('(prefers-color-scheme: light)')
+    const watch = window.matchMedia('(prefers-color-scheme: dark)')
     const relay = () => applyTheme('system')
     watch.addEventListener('change', relay)
     return () => watch.removeEventListener('change', relay)
@@ -401,18 +481,26 @@ export function AppProvider({ children }) {
     sidebar, setSidebar,
     compact, railOpen, toggleRail, closeRail,
     panel, setPanel, togglePanel,
+    panelWidth, setPanelWidth,
+    panelExpanded, setPanelExpanded, togglePanelExpanded,
     theme, setTheme,
+    betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
+    pendingPrompt, setPendingPrompt, openChatWithPrompt,
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
     view, setView, server, health, healthError, refreshHealth, toasts, toast, overlay,
     conversations, refreshConvs, activeId, setActiveId, caps, refreshCaps,
     setCapEnabled, busyCap, workspace, setWorkspace, sidebar, setSidebar,
-    compact, railOpen, toggleRail, closeRail, panel, setPanel, togglePanel, theme, setTheme,
+    compact, railOpen, toggleRail, closeRail, panel, setPanel, togglePanel,
+    panelWidth, setPanelWidth, panelExpanded, setPanelExpanded, togglePanelExpanded,
+    theme, setTheme,
+    betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
+    pendingPrompt, openChatWithPrompt,
     renaming, renameConversation, deleteConversation, deleteAllConversations,
   ])
 

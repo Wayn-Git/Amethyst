@@ -431,7 +431,15 @@ async def test_an_unconfigured_provider_becomes_an_error_event(db):
 
 def test_the_turn_stream_never_dies_without_saying_why(api, db):
     """The same defect through the HTTP surface: the stream must carry an
-    error event rather than the response body ending mid-flight."""
+    error event rather than the response body ending mid-flight.
+
+    The body opens on `status: starting`, which the API sends before it builds
+    the director. Building one starts connectors, and a connector may take
+    minutes to answer or fail; that await used to happen before the response
+    began, so a slow one left the browser holding an open request with no bytes
+    in it until the fetch failed outright. The first frame is now the proof the
+    socket is alive.
+    """
     import json
 
     from fastapi.testclient import TestClient
@@ -448,8 +456,9 @@ def test_the_turn_stream_never_dies_without_saying_why(api, db):
                 if line.startswith("data: ")
             ]
 
-    assert [e["type"] for e in events] == ["status", "error"]
-    assert events[0]["state"] == "failed", "an interface styles the turn off this"
+    assert [e["type"] for e in events] == ["status", "status", "error"]
+    assert events[0]["state"] == "starting", "the stream says it is alive first"
+    assert events[1]["state"] == "failed", "an interface styles the turn off this"
     assert events[-1]["type"] == "error", "and closes the stream on this"
 
 
@@ -569,11 +578,11 @@ async def test_concurrent_turns_share_one_mcp_manager(api, db, tmp_path, monkeyp
             built.append(self)
             self.registry = registry
 
-        async def connect_all(self, *, conversation_id=None):
+        async def connect_all(self, *, conversation_id=None, interactive=False, deadline=None):
             await asyncio.sleep(0.01)
             return {}
 
-        async def reconcile(self):
+        async def reconcile(self, *, deadline=None):
             return {}
 
         async def shutdown(self):
@@ -865,6 +874,47 @@ def test_a_message_can_be_pinned_and_the_pin_is_scoped_to_its_conversation(api, 
         assert messages.pinned(mine) == []
 
 
+def test_a_conversation_can_be_pinned_and_stays_in_the_list(api, db):
+    """Pinning a conversation and pinning a message inside one are different
+    things, and the interface offered both under one star -- wired to the
+    message route. So the sidebar's Starred section filtered on a conversation
+    field that did not exist and was empty however much was pinned.
+
+    The pin also has to keep the conversation *in* the list: the list is capped,
+    and a pinned conversation that scrolled off the end would be a bookmark to
+    somewhere you cannot get back to.
+
+    Mutation check: drop `pinned DESC` from `ConversationRepository.list`.
+    """
+    from fastapi.testclient import TestClient
+
+    with TestClient(api.app) as client:
+        def make() -> str:
+            return client.post(
+                "/api/conversations", json={"provider": "ollama", "model": "qwen2.5:7b"}
+            ).json()["id"]
+
+        keep = make()
+        assert client.post(f"/api/conversations/{keep}/pin", json={"pinned": True}).status_code == 200
+
+        # Enough newer conversations to push it well past any reasonable limit.
+        for _ in range(12):
+            make()
+
+        listed = client.get("/api/conversations").json()
+        assert listed[0]["id"] == keep, "a pinned conversation sank down the list"
+        assert listed[0]["pinned"] == 1
+        assert all(row["pinned"] == 0 for row in listed[1:])
+
+        assert client.post(f"/api/conversations/{keep}/pin", json={"pinned": False}).status_code == 200
+        # Not asserted by position: these are all written inside the same
+        # second, so `updated_at` ties and the order among them is arbitrary.
+        unpinned = {row["id"]: row["pinned"] for row in client.get("/api/conversations").json()}
+        assert unpinned[keep] == 0
+
+        assert client.post("/api/conversations/nope/pin", json={"pinned": True}).status_code == 404
+
+
 def test_a_pinned_message_does_not_change_what_the_model_is_sent(db):
     """A pin is a bookmark in a scrolling transcript and nothing more. If it
     ever started reordering or re-weighting history, "pin this" would quietly
@@ -952,7 +1002,7 @@ def test_a_turn_stops_counting_as_running_at_its_terminal_frame(api, db, monkeyp
             seen.append({"when": "after done", "running": conversation_id in api._active_turns})
             yield Event("memory", {"created": [], "superseded": []})
 
-    async def fake_director(workspace, mode="chat"):
+    async def fake_director(workspace, mode="chat", *, reconcile_deadline=None):
         return Director()
 
     monkeypatch.setattr(api, "_director", fake_director)
@@ -1898,6 +1948,35 @@ def test_a_column_this_version_stopped_writing_is_dropped(tmp_path):
     assert "idx_tasks_my_day" not in indexes
 
 
+def test_a_database_from_before_agent_runs_picks_the_table_up(tmp_path):
+    """A turn's state is no use if only fresh installs have somewhere to put it.
+
+    There is no migration runner and no version table: `CREATE TABLE IF NOT
+    EXISTS` in `schema.sql`, run on every boot, is the whole mechanism. A
+    database that predates the table has to gain it -- and its partial index,
+    which is what the startup sweep queries.
+
+    Mutation check: move the `agent_runs` block out of `schema.sql`.
+    """
+    from backend.db import connection
+
+    conn = connection.connect(tmp_path / "old.db")
+    connection.migrate(conn)
+    # The shape a database from the previous version has.
+    conn.execute("DROP TABLE agent_runs")
+    conn.commit()
+    assert not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'agent_runs'"
+    ).fetchone()
+
+    connection.migrate(conn)
+
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(agent_runs)")}
+    assert {"id", "conversation_id", "phase", "state_version", "state", "checkpoint"} <= columns
+    indexes = {row[1] for row in conn.execute("PRAGMA index_list(agent_runs)")}
+    assert "idx_agent_runs_live" in indexes
+
+
 def test_migrating_twice_changes_nothing(tmp_path):
     import sqlite3
 
@@ -2190,3 +2269,86 @@ def test_runs_written_before_the_column_existed_are_adopted(tmp_path, monkeypatc
     assert dict(conn.execute("SELECT id, automation_id FROM conversations").fetchall()) == rows
     assert isinstance(conn, sqlite3.Connection)
     connection.reset_connection()
+
+
+def test_the_turn_says_it_is_alive_before_it_builds_the_agent(api, db, monkeypatch):
+    """A slow start must not read as a dead connection.
+
+    Building the director starts connectors, and a connector is allowed 180s to
+    answer -- 300s if it claims to be waiting on a sign-in. That await used to
+    sit above the response generator, so nothing had been sent: the browser
+    held an open request with no bytes in it, eventually failed the fetch
+    ("NetworkError when attempting to fetch resource"), and the conversation
+    stayed registered in `_active_turns` so every retry came back 409.
+
+    Mutation check: move the `_director(...)` await back above `stream()`.
+    """
+    import asyncio
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from backend.agent.director import Event
+    from backend.db.repositories import ConversationRepository
+
+    monkeypatch.setattr(api, "HEARTBEAT_SECONDS", 0.02)
+
+    class Director:
+        async def run(self, conversation_id, message, cancel=None):
+            yield Event("done", {"text": "hello"})
+
+    async def slow_director(workspace, mode="chat", *, reconcile_deadline=None):
+        # Stands in for a connector that will not come up quickly.
+        await asyncio.sleep(0.2)
+        return Director()
+
+    monkeypatch.setattr(api, "_director", slow_director)
+
+    with TestClient(api.app) as client:
+        cid = ConversationRepository().create("ollama", "qwen2.5:7b")
+        with client.stream("POST", f"/api/conversations/{cid}/turn", json={"message": "hi"}) as r:
+            assert r.status_code == 200
+            events = [
+                json.loads(line.removeprefix("data: "))
+                for line in r.iter_lines()
+                if line.startswith("data: ")
+            ]
+
+    kinds = [e["type"] for e in events]
+    assert kinds[0] == "status" and events[0]["state"] == "starting", (
+        "the first frame goes out before anything that can be slow"
+    )
+    assert "ping" in kinds[: kinds.index("done")], "the wait is covered by keepalives"
+    assert kinds[-1] == "done"
+    assert cid not in api._active_turns
+
+
+def test_an_agent_that_cannot_be_built_is_an_error_frame_not_a_stuck_turn(api, db, monkeypatch):
+    """And the conversation is released, so the next message is not a 409.
+
+    Mutation check: drop the `release()` from the build's `except` branch.
+    """
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from backend.db.repositories import ConversationRepository
+
+    async def broken_director(workspace, mode="chat", *, reconcile_deadline=None):
+        raise RuntimeError("the connector manager is wedged")
+
+    monkeypatch.setattr(api, "_director", broken_director)
+
+    with TestClient(api.app) as client:
+        cid = ConversationRepository().create("ollama", "qwen2.5:7b")
+        with client.stream("POST", f"/api/conversations/{cid}/turn", json={"message": "hi"}) as r:
+            assert r.status_code == 200
+            events = [
+                json.loads(line.removeprefix("data: "))
+                for line in r.iter_lines()
+                if line.startswith("data: ")
+            ]
+
+    assert [e["type"] for e in events] == ["status", "error"]
+    assert "the connector manager is wedged" in events[-1]["message"]
+    assert cid not in api._active_turns, "a failed build must not leave the turn registered"

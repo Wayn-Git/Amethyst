@@ -186,3 +186,29 @@ Yes! Simply run:
 ./run.sh --dev
 ```
 This starts the backend on port `8000` and the Vite dev server on `http://127.0.0.1:5173`.
+
+---
+
+## 🗺️ Your First Five Minutes
+
+Now that the app is open at http://127.0.0.1:8000, here is the fastest path to a useful answer:
+
+1. **Pick a model** — the model selector beside the composer lists every configured provider. Ollama models appear automatically if Ollama is running.
+2. **Send one line** — try `summarise ~/Documents` or `what meetings do I have this week?`. The agent decides which tools to use.
+3. **Approve carefully** — anything that writes or runs asks first, naming the *operation* (`write_file`, `run_shell_command:read-only`), not just the tool. Approving a read-only command never approves a destructive one.
+4. **Press `?`** — every keyboard binding in the app, one screen.
+5. **Turn on beta pages** — Settings (`⌘,`) → **Beta pages** adds Mail and Automations to the rail.
+
+### Q: `Error: address already in use` or the port is taken?
+Another AMETHYST (or something else) is on port 8000:
+```bash
+./run.sh --port 8001
+```
+Or stop the old one first (`Ctrl+C` in its terminal).
+
+### Q: The model replies "not configured" or no provider appears?
+- Ollama: check it is running (`curl http://127.0.0.1:11434`) and you pulled a model (`ollama run llama3.2`).
+- Cloud: the key did not reach the process — keys in `.env` are read at start, so restart after editing. `amethyst doctor` says exactly which providers are up.
+
+### Q: The turn just stopped — is that a bug?
+A permission prompt suspends the turn until answered; check for an amber prompt above the composer, or another conversation holding it (announced as a line above the transcript). `Escape` denies, `Enter` allows, `R` arms "remember this decision".

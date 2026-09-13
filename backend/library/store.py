@@ -251,6 +251,38 @@ class LibraryStore:
         params.extend([limit, offset])
         return self.conn.execute(sql, params).fetchall()
 
+    def unfiled(
+        self,
+        *,
+        kind: str | None = None,
+        tag: str | None = None,
+        order: str = "desc",
+    ) -> list[sqlite3.Row]:
+        """Rows with no category of their own.
+
+        `LibraryService.as_dict` infers a category for exactly these, so a
+        filter or a count that only looked at the stored column disagreed with
+        what the same items say when they are listed -- a chip reading 21 that
+        showed 19 when clicked. Narrowed in SQL so the inference, which is
+        Python, runs over the unfiled rows rather than the whole table.
+        """
+        sql = "SELECT DISTINCT library_items.* FROM library_items"
+        params: list = []
+        where = ["(category IS NULL OR category = '' OR category = 'general')"]
+        if tag:
+            sql += ", json_each(library_items.tags)"
+            where.append("json_each.value = ?")
+            params.append(tag)
+        if kind:
+            where.append("kind = ?")
+            params.append(kind)
+        sql += " WHERE " + " AND ".join(where)
+        order_dir = "ASC" if str(order).lower() == "asc" else "DESC"
+        sql += (
+            f" ORDER BY library_items.consumed_on {order_dir}, library_items.id {order_dir}"
+        )
+        return self.conn.execute(sql, params).fetchall()
+
     def consumed_on(self, day: str) -> list[sqlite3.Row]:
         """Everything logged for one local calendar day. The journal's signal."""
         return self.conn.execute(
