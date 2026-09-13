@@ -212,3 +212,52 @@ Or stop the old one first (`Ctrl+C` in its terminal).
 
 ### Q: The turn just stopped — is that a bug?
 A permission prompt suspends the turn until answered; check for an amber prompt above the composer, or another conversation holding it (announced as a line above the transcript). `Escape` denies, `Enter` allows, `R` arms "remember this decision".
+
+---
+
+## 🚀 New Features
+
+### Parallel Execution
+
+Run multiple data-gathering tasks simultaneously for faster research:
+
+```
+# Example: Research multiple topics at once
+dispatch_parallel_jobs([
+  {task: "web_search", params: {query: "AI news"}},
+  {task: "web_search", params: {query: "climate change"}},
+  {task: "urls", params: {urls: ["https://example.com"]}},
+])
+```
+
+**Available tasks:** `urls`, `web_search`, `gmail`, `github_activity`, `git_status`, `file_info`, `system_info`, `briefing`, `todo`, `rss`
+
+**Auto-correction:** Common mistakes are automatically fixed:
+- `fetch_url` → `urls`
+- `search` → `web_search`
+- `git` → `git_status`
+
+### Smart File Reading
+
+Files are read intelligently with hard limits:
+- **50KB max** file size
+- **2,000 lines** maximum
+- **2,000 characters** per line
+- **Binary detection** — automatically handles binary files
+- **Image recognition** — shows images as base64
+
+**Pagination for large files:**
+```python
+view_file("large_file.py", offset=100, limit=50)  # Lines 100-150
+```
+
+### LLM Intelligence Rules
+
+The agent follows strict rules to prevent mistakes:
+1. **Never guess tool names** — Must check available tools first
+2. **Never retry failed tools** — Must understand why it failed
+3. **Never generate fake data** — Must tell user honestly what happened
+4. **Always have fallback strategy** — Primary → Alternative → Manual
+5. **Tool inspection protocol** — Mandatory check before every tool call
+
+These rules ensure the agent is reliable and transparent. See [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for details.
