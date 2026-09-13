@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import Icon from './components/Icon.jsx'
+import BrandMark from './components/BrandMark.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
 import Shortcuts from './components/Shortcuts.jsx'
@@ -64,7 +65,12 @@ function useDaemonSummon() {
     stream.onmessage = (e) => {
       try {
         if (JSON.parse(e.data).type === 'palette') {
-          setOverlay('palette')
+          // When native desktop is running with pywebview, the native spotlight window is raised.
+          // The main workbench window should not open an overlapping duplicate palette!
+          if (document.documentElement.dataset.native === '1') {
+            return
+          }
+          setOverlay((prev) => (prev === 'palette' ? null : 'palette'))
           window.focus()
         }
       } catch { /* a frame this build does not know about is not an error */ }
@@ -110,7 +116,11 @@ function useGlobalKeys() {
         return
       }
 
-      if (combo === 'mod+k') { e.preventDefault(); setOverlay(overlay === 'palette' ? null : 'palette'); return }
+      if (combo === 'mod+k') {
+        e.preventDefault()
+        setOverlay((curr) => (curr === 'palette' ? null : 'palette'))
+        return
+      }
       if (combo === 'mod+shift+o') { e.preventDefault(); setView('chat'); chat.startFresh?.(); return }
       if (combo === 'mod+l') { e.preventDefault(); setView('chat'); chat.focusComposer?.(); return }
       if (combo === 'mod+/') { e.preventDefault(); setView('chat'); chat.openPlus?.(); return }
@@ -168,13 +178,13 @@ function WorkbenchBar() {
       {(!railOpen || compact) && (
         <div className="wb-bar-left-controls">
           <span className="wb-bar-brand">
-            <Icon name="spark" size={15} />
+            <BrandMark size={28} />
             <span>AMETHYST</span>
           </span>
           <button
             type="button"
             className="icon-btn"
-            onClick={() => setOverlay('palette')}
+            onClick={() => setOverlay((curr) => (curr === 'palette' ? null : 'palette'))}
             title={`Search — ${MOD_LABEL}+K`}
             aria-label="Search"
           >
@@ -209,7 +219,7 @@ function WorkbenchBar() {
         <button
           type="button"
           className={compact ? 'icon-btn' : 'wb-search'}
-          onClick={() => setOverlay('palette')}
+          onClick={() => setOverlay((curr) => (curr === 'palette' ? null : 'palette'))}
           title="Command palette"
           aria-label="Command palette"
         >
@@ -295,9 +305,20 @@ function Toasts() {
 
 export default function App() {
   const {
-    view, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
+    view, setView, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
     betaPages,
   } = useApp()
+
+  useEffect(() => {
+    window.__amethyst_navigate = (pathOrId) => {
+      const id = pathOrId.replace(/^\//, '')
+      setView(id || 'chat')
+    }
+    return () => {
+      delete window.__amethyst_navigate
+    }
+  }, [setView])
+
   // Beta pages are not routed while they are switched off, so their addresses
   // fall through to the redirect below rather than rendering a page the rail
   // and the palette both say does not exist.

@@ -12,6 +12,8 @@ import PlusMenu from '../components/PlusMenu.jsx'
 import ModelMenu from '../components/ModelMenu.jsx'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
+import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
+import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
 import { MOD_LABEL } from '../keys.js'
 
 /* The composer is the interface. Everything else — which skills are live, which
@@ -198,11 +200,16 @@ function historyToItems(rows) {
       return { id: nextId(), rowId: m.id, kind: 'user', text: m.content, pinned: Boolean(m.pinned) }
     }
     if (m.role === 'assistant') {
+      // A widget was persisted as a fenced block in its own message, because
+      // the message table has no column for one. This is what rebuilds it when
+      // the conversation is reopened; `null` for every ordinary answer.
+      const widget = parseWidgetEnvelope(m.content ?? '')
       return {
         id: nextId(),
         rowId: m.id,
         kind: 'assistant',
-        text: m.content ?? '',
+        text: widget ? '' : (m.content ?? ''),
+        widget,
         pinned: Boolean(m.pinned),
         callsRaw: Array.isArray(m.tool_calls) ? m.tool_calls : [],
       }
@@ -729,8 +736,13 @@ function Msg({
             onOpenArtifact={onOpenArtifact}
           />
         )}
-        {item.text && <div className="msg-body"><Markdown text={item.text} /></div>}
-        {item.text && (
+        {/* A widget is the answer, not a decoration on one: the turn that
+            produced it never generated prose, so there is nothing to render
+            alongside. An unknown widget type renders as null, which is why the
+            markdown branch stays reachable below. */}
+        {item.widget && <div className="msg-body"><WidgetRenderer widget={item.widget} /></div>}
+        {!item.widget && item.text && <div className="msg-body"><Markdown text={item.text} /></div>}
+        {!item.widget && item.text && (
           <div className="msg-actions">
             <CopyButton text={item.text} label="Copy this answer" />
             <PinButton item={item} onPin={onPin} />
@@ -1137,6 +1149,19 @@ export default function Chat() {
       case 'assistant_text':
         setBuffer(evt.text ?? '')
         break
+      // The turn answered with UI instead of prose. It streamed no deltas, so
+      // there is nothing in the buffer to flush into -- the item is pushed
+      // whole, the way a tool result is.
+      case 'widget':
+        pushAssistant()
+        setItems((prev) => [...prev, {
+          id: nextId(),
+          kind: 'assistant',
+          text: '',
+          widget: evt.widget,
+          callsRaw: [],
+        }])
+        break
       case 'tool_call':
         pushAssistant()
         setTool({ name: evt.name, arguments: evt.arguments ?? {}, status: 'running' })
@@ -1240,7 +1265,9 @@ export default function Chat() {
             durationMs: evt.duration_ms,
           }])
         }
-        notifyDone('Reply ready', evt.text)
+        // A widget turn's text is the fenced payload it was persisted as, which
+        // is not something to read out in a desktop notification.
+        notifyDone('Reply ready', parseWidgetEnvelope(evt.text) ? 'An interactive answer is ready.' : evt.text)
         settle()
         break
       case 'guard': pushNote('guard', evt.reason); notifyDone('Turn stopped', evt.reason); settle(); break

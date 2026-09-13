@@ -614,3 +614,40 @@ CREATE TABLE IF NOT EXISTS job_steps (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (job_id, step_key)
 );
+
+-- ------------------------------------------------------- the worker mailbox
+--
+-- What a worker running somewhere else said about a job this machine started.
+--
+-- A GitHub Actions runner cannot reach a laptop: there is no address, and half
+-- the time there is no laptop. So a worker reports to the Cloudflare relay --
+-- the same always-on mailbox a closed laptop already uses for Instagram -- and
+-- `RelayPoller` brings the reports here on the sync it was making anyway. This
+-- table is where a report stops being a row in D1 and becomes something the
+-- batch handler polling for it can read.
+--
+-- Keyed by the job id *this machine generated* before dispatching, which is
+-- what makes the round trip correlatable at all: `workflow_dispatch` returns no
+-- run id, so the only shared name between the two sides is the one we chose.
+--
+-- Transient by design, like the relay's own tables. A report is deleted once
+-- the batch that asked for it has settled; nothing here is a record of what
+-- happened, which lives in `jobs.result`.
+CREATE TABLE IF NOT EXISTS worker_reports (
+    -- `{batch_job_id}:{node_id}` -- deterministic, so a replayed dispatch
+    -- reattaches to the run already in flight instead of starting a second one.
+    job_id     TEXT PRIMARY KEY,
+    -- queued | running | completed | failed. The worker's own word for it.
+    state      TEXT NOT NULL,
+    -- {done, total, note} -- what a person watching the batch is shown.
+    progress   TEXT,
+    result     TEXT,
+    error      TEXT,
+    -- Which account ran it: 'automation' or 'subagent'. Provenance, and the
+    -- only place the two are distinguished after the fact.
+    lane       TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_reports_state ON worker_reports(state, updated_at);

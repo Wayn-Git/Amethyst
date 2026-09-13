@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon.jsx'
+import BrandMark from './BrandMark.jsx'
 
 /* The frame the interface draws while it is waiting for its first answer.
 
@@ -85,6 +86,38 @@ export function SkeletonGrid({ cards = 6 }) {
   )
 }
 
+/** One bento library card: 16:9 media, source line, title, excerpt lines. */
+export function SkeletonLibraryCard({ tall = false } = {}) {
+  return (
+    <div className="skel-lib-card" aria-hidden="true">
+      <div className="skel-lib-media" style={tall ? { aspectRatio: '16 / 10' } : undefined} />
+      <div className="skel-lib-body">
+        <div className="skel-lib-source">
+          <Skeleton w={12} h={12} r={4} />
+          <Skeleton w={72} h={9} />
+        </div>
+        <Skeleton w="88%" h={13} />
+        <Skeleton w="100%" h={9} />
+        <Skeleton w="72%" h={9} />
+      </div>
+      <div className="skel-lib-foot">
+        <Skeleton w={58} h={9} />
+      </div>
+    </div>
+  )
+}
+
+/** The bento column layout the library grid is made of. */
+export function SkeletonLibraryGrid({ cards = 9 }) {
+  return (
+    <div className="skel-lib-grid" aria-hidden="true">
+      {Array.from({ length: cards }, (_, i) => (
+        <SkeletonLibraryCard key={i} tall={i % 3 === 1} />
+      ))}
+    </div>
+  )
+}
+
 /** A whole view's worth: the header, then its body. */
 export function SkeletonView({ rows = 5, aside = false }) {
   return (
@@ -141,7 +174,7 @@ export function BootScreen({ server, onRetry }) {
     <div className="boot" role="status" aria-live="polite">
       <div className="boot-inner">
         <div className={`boot-mark${down ? ' is-down' : ''}`}>
-          <Icon name={down ? 'alert' : 'spark'} size={22} />
+          {down ? <Icon name="alert" size={22} /> : <BrandMark size={46} />}
         </div>
         <h1 className="boot-title">{down ? 'The backend did not answer' : 'Waking the backend'}</h1>
         <p className="boot-note">

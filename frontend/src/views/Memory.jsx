@@ -134,7 +134,7 @@ export default function Memory() {
         )}
 
         {facts.length > 0 && (
-          <div className="card card-pad" data-enter>
+          <div className="card card-pad mem-facts" data-enter>
             <div className="card-title">live facts</div>
             {facts.map((f) => (
               <div className="server-row" key={f.id}>

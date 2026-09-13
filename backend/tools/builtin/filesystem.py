@@ -403,8 +403,11 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
                 " asked for -- a document, a README, an email draft, a script, a"
                 " report, a config they asked you to produce. Use plain write_file"
                 " for files you are only touching along the way. The panel renders"
-                " markdown as markdown and code with highlighting, so write the"
-                " real content, not a description of it."
+                " markdown as markdown and code with highlighting; HTML files run"
+                " live in a sandboxed iframe with full JavaScript and CDN access,"
+                " so charts, diagrams and interactive visualizations should use"
+                " Chart.js, D3, or Plotly from a CDN rather than hand-drawn SVG."
+                " Follow the interactive-artifacts skill for quality requirements."
             ),
             parameters={
                 "type": "object",

@@ -146,3 +146,30 @@ def test_the_throttle_is_deliberately_fail_closed(client):
         share.check("wrong")
 
     assert share.check(token) is False
+
+
+def test_share_capture_accepts_raw_text_and_mobile_share_sheets(client, captures):
+    """When a phone share sheet sends text with an embedded URL, it extracts the URL cleanly."""
+    token = client.post("/api/share/token").json()["token"]
+    response = client.post(
+        "/api/share/capture",
+        json={"text": "Check out this pin on Pinterest: https://pin.it/abc1234"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert len(captures) == 1
+    assert "https://pin.it/abc1234" in captures[0]
+
+
+def test_share_capture_handles_pinterest_links(client, captures):
+    """International pinterest domains and standard URLs work seamlessly."""
+    token = client.post("/api/share/token").json()["token"]
+    response = client.post(
+        "/api/share/capture",
+        json={"url": "https://in.pinterest.com/pin/123456789012345678/"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert len(captures) == 1
+    assert "https://in.pinterest.com/pin/123456789012345678/" in captures[0]
+

@@ -616,3 +616,162 @@ async def test_a_library_scoped_search_is_not_starved_by_the_vault(db, workspace
         f"every library match must be reachable, not just the ones that outrank"
         f" the vault -- got {len(hits)}"
     )
+
+
+async def test_youtube_capture_extracts_description_and_sets_text_source(db, monkeypatch):
+    import backend.library.service as svc_mod
+
+    monkeypatch.setattr(
+        svc_mod,
+        "_extract_youtube_info",
+        lambda url: {
+            "title": "Sample YouTube Video",
+            "uploader": "Test Channel",
+            "description": "This is a detailed video description explaining https://example.com/demo and tools.",
+            "thumbnail": "https://example.com/thumb.jpg",
+            "duration": 120,
+        },
+    )
+    captured = await service().capture_url("https://www.youtube.com/watch?v=12345678")
+    assert captured.item["title"] == "Sample YouTube Video"
+    assert captured.item["author"] == "Test Channel"
+    assert captured.item["kind"] == "video"
+    assert captured.item["text_source"] == "video description"
+    assert captured.item["duration_seconds"] == 120
+    assert captured.item["text_path"] is not None
+    from pathlib import Path
+
+    content = Path(captured.item["text_path"]).read_text(encoding="utf-8")
+    assert "This is a detailed video description" in content
+
+
+async def test_pinterest_capture_fetches_oembed_and_tags_app(db, monkeypatch):
+    import backend.library.service as svc_mod
+    import backend.web.reader as reader_mod
+
+    async def mock_pinterest_oembed(url, **kwargs):
+        return {
+            "title": "Minimalist Ceramic Cup",
+            "author": "DesignStudio",
+            "site": "Pinterest",
+            "thumbnail_url": "https://i.pinimg.com/736x/ab/cd/ef.jpg",
+        }
+
+    monkeypatch.setattr(reader_mod, "pinterest_oembed", mock_pinterest_oembed)
+    monkeypatch.setattr(svc_mod, "pinterest_oembed", mock_pinterest_oembed)
+
+    async def mock_fetch(url):
+        return FetchedPage(
+            url=url,
+            final_url=url,
+            title="Minimalist Ceramic Cup",
+            text="Handmade ceramic cups in white and earth tones.",
+            site="Pinterest",
+            author="DesignStudio",
+            image="https://i.pinimg.com/736x/ab/cd/ef.jpg",
+        )
+
+    svc = service(fetcher=mock_fetch)
+    saved_thumbs = []
+
+    async def mock_save_thumb(item_id, thumb_url):
+        saved_thumbs.append((item_id, thumb_url))
+        LibraryStore().update(item_id, thumbnail_path="/tmp/fake_thumb.jpg")
+
+    monkeypatch.setattr(svc, "_save_thumb", mock_save_thumb)
+
+    captured = await svc.capture_url("https://www.pinterest.com/pin/123456789/")
+    assert captured.item["title"] == "Minimalist Ceramic Cup"
+    assert captured.item["author"] == "DesignStudio"
+    assert captured.item["app"] == "pinterest"
+    assert "pinterest" in captured.item["tags"]
+    assert len(saved_thumbs) == 1
+    assert saved_thumbs[0][1] == "https://i.pinimg.com/736x/ab/cd/ef.jpg"
+
+
+async def test_general_website_captures_og_thumbnail_and_app_tag(db, monkeypatch):
+    async def mock_fetch(url):
+        return FetchedPage(
+            url=url,
+            final_url=url,
+            title="GitHub Octoverse 2026",
+            text="The state of open source software and developer trends in 2026. " * 10,
+            site="GitHub",
+            author="GitHub",
+            image="https://github.blog/wp-content/uploads/2026/header.png",
+        )
+
+    svc = service(fetcher=mock_fetch)
+    saved_thumbs = []
+
+    async def mock_save_thumb(item_id, thumb_url):
+        saved_thumbs.append((item_id, thumb_url))
+        LibraryStore().update(item_id, thumbnail_path="/tmp/github_thumb.jpg")
+
+    monkeypatch.setattr(svc, "_save_thumb", mock_save_thumb)
+
+    captured = await svc.capture_url("https://github.com/features/actions")
+    assert captured.item["app"] == "github"
+    assert "github" in captured.item["tags"]
+    assert len(saved_thumbs) == 1
+    assert saved_thumbs[0][1] == "https://github.blog/wp-content/uploads/2026/header.png"
+
+
+async def test_mobile_share_sheet_url_extraction(db, monkeypatch):
+    from backend.web.reader import is_pinterest
+
+    # International domains
+    assert is_pinterest("https://in.pinterest.com/pin/123456/")
+    assert is_pinterest("https://pin.it/4k7XYZ")
+    assert is_pinterest("https://www.pinterest.com/pin/987654/")
+
+    async def mock_fetch(url):
+        return FetchedPage(
+            url=url,
+            final_url=url,
+            title="Spring Outfit Ideas",
+            text="Trendy outfits for spring and summer with linen shirts.",
+            site="Pinterest",
+            author="StyleGuide",
+            image="https://i.pinimg.com/736x/ab/cd/ef.jpg",
+        )
+
+    svc = service(fetcher=mock_fetch)
+    captured = await svc.capture_url("Check out this Pin on Pinterest: https://pin.it/4k7XYZ Spring Outfit Ideas")
+    assert captured.item["url"] == "https://pin.it/4k7XYZ"
+    assert captured.item["app"] == "pinterest"
+    assert captured.item["status"] in ("enriching", "ready")
+    assert captured.item["notes"] == "Spring Outfit Ideas"
+
+
+async def test_failed_relay_url_ingest_recovery(db):
+    from backend.instagram.relay import RelayPoller
+
+    captured_calls = []
+
+    class DummyLibrary:
+        async def capture_url(self, url, **kwargs):
+            captured_calls.append((url, kwargs))
+            return None
+
+    poller = RelayPoller(library=DummyLibrary())
+    failed_job = {
+        "id": "job_123",
+        "kind": "url_ingest",
+        "state": "failed",
+        "last_error": "refused: the source answered 403",
+        "params": {
+            "url": "https://pin.it/6O3mF4X",
+            "kind": "article",
+            "note": "Shared from iPhone",
+        },
+    }
+
+    result = await poller._collect(failed_job)
+    assert result is True
+    assert len(captured_calls) == 1
+    assert captured_calls[0][0] == "https://pin.it/6O3mF4X"
+    assert captured_calls[0][1]["notes"] == "Shared from iPhone"
+
+
+

@@ -462,7 +462,33 @@ export const api = {
   shareStatus: () => j('/share'),
   rotateShareToken: () => j('/share/token', json('POST')),
   revokeShareToken: () => j('/share/token', json('DELETE')),
+
+  // Spotlight search endpoints (Damon)
+  searchWeb: (q, limit = 8, signal) =>
+    j(`/search/web?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
+  searchYouTube: (q, limit = 8, signal) =>
+    j(`/search/youtube?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
+  searchImages: (q, limit = 12, signal) =>
+    j(`/search/images?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
+  searchGitHub: (q, limit = 6, signal) =>
+    j(`/search/github?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
+  searchWiki: (q, signal) =>
+    j(`/search/wiki?q=${encodeURIComponent(q)}`, { signal }),
+  // The palette passes the article list and wiki card it already shows as
+  // the evidence, so an answer never re-searches what is already on screen.
+  // `wiki` is only sent when the caller decided it: `null` means "no wiki
+  // for this", `undefined` means "you decide".
+  searchAnswer: (q, signal, results = null, wiki = undefined) =>
+    results
+      ? j('/search/answer?q=' + encodeURIComponent(q), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(wiki === undefined ? { results } : { results, wiki }),
+          signal,
+        })
+      : j(`/search/answer?q=${encodeURIComponent(q)}`, { signal }),
 }
+
 
 /** Parse a timestamp the *server* wrote, which is UTC and does not say so.
  *
@@ -535,4 +561,21 @@ export async function copyText(text) {
   } catch {
     return false
   }
+}
+
+/** Open a link from wherever the interface is running.
+ *
+ *  In a browser tab, `window.open` is the right call. In the frameless
+ *  pywebview spotlight it is a silent no-op -- WebKitGTK has no new-window
+ *  policy for a frameless window, so a clicked result did nothing at all.
+ *  The bridge hands the URL to the OS browser instead, which is where a
+ *  link from a floating bar always belonged.
+ */
+export function openUrl(url) {
+  if (!url) return
+  if (window.pywebview?.api?.open_external) {
+    window.pywebview.api.open_external(url)
+    return
+  }
+  window.open(url, '_blank', 'noopener')
 }

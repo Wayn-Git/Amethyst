@@ -66,17 +66,23 @@ export const urlIngest: JobType<JobEnv> = {
 					// The machine opens these properly (backend/library/reels.py).
 					return { skipped: 'that host serves a login wall to anything without a session' };
 				}
-				const found = await get(url, { accept: 'text/html,*/*' });
-				const html = found.content_type.startsWith('text/')
-					? new TextDecoder().decode(found.body.slice(0, 64 * 1024))
-					: '';
-				return {
-					status: found.status,
-					final_url: found.final_url,
-					content_type: found.content_type,
-					bytes: found.bytes,
-					title: html ? titleOf(html) : null,
-				};
+				try {
+					const found = await get(url, { accept: 'text/html,*/*' });
+					const html = found.content_type.startsWith('text/')
+						? new TextDecoder().decode(found.body.slice(0, 64 * 1024))
+						: '';
+					return {
+						status: found.status,
+						final_url: found.final_url,
+						content_type: found.content_type,
+						bytes: found.bytes,
+						title: html ? titleOf(html) : null,
+					};
+				} catch (err) {
+					return {
+						skipped: `fetch deferred to desktop: ${err instanceof Error ? err.message : String(err)}`,
+					};
+				}
 			},
 		},
 	],

@@ -128,3 +128,42 @@ CREATE TABLE IF NOT EXISTS job_steps (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (job_id, step_key)
 );
+
+-- ---------------------------------------------------------- the worker mailbox
+--
+-- What a worker running on somebody else's compute said about a job the laptop
+-- started. A mailbox, exactly like `deliveries` above and for exactly the same
+-- reason: a GitHub Actions runner cannot reach a laptop -- there is no address,
+-- and half the time there is no laptop -- so it reports here and the laptop
+-- collects on the /sync poll it was already making.
+--
+-- Deliberately NOT the `jobs` table. A job there is work *this relay runs*: the
+-- sweep re-dispatches it, `promoteDue` promotes it out of backoff, a Workflow
+-- instance executes its steps. A worker report is none of those things -- there
+-- is nothing here to run -- and parking rows in `jobs` to use it as storage
+-- would mean the sweep periodically trying to execute a mailbox.
+--
+-- `job_id` is chosen by the laptop before dispatch, because `workflow_dispatch`
+-- returns no run id: the only name both sides share is the one we picked.
+--
+-- Transient, like everything else here. A row lives until the laptop confirms
+-- it, and the daily cron clears whatever nobody came back for.
+CREATE TABLE IF NOT EXISTS worker_reports (
+    job_id     TEXT PRIMARY KEY,
+    -- queued | running | completed | failed
+    state      TEXT NOT NULL,
+    -- {done, total, note} -- progress, so a batch can say more than "waiting".
+    progress   TEXT,
+    -- Small JSON. A worker with more than this to say sends references.
+    result     TEXT,
+    error      TEXT,
+    -- 'automation' or 'subagent'. Which account ran it, and nothing else about it.
+    lane       TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    -- When the laptop confirmed it had this. Set on the sync *after* the one
+    -- that handed it over, the same late acknowledgement `deliveries` uses.
+    synced_at  INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_unsynced ON worker_reports(synced_at, updated_at);

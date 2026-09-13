@@ -261,6 +261,7 @@ def build_default_registry(
         social,
         tasks,
         web,
+        workers,
     )
 
     registry = ToolRegistry(confirmation=confirmation)
@@ -277,6 +278,7 @@ def build_default_registry(
     registry.register_all(social.tools())
     registry.register_all(ask.tools())
     registry.register_all(sharing.tools())
+    registry.register_all(workers.tools())
     return registry
 
 

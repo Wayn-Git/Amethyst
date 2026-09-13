@@ -42,22 +42,52 @@ export default function AddContentModal({
 
 
 
-  // Extract all valid HTTP/HTTPS URLs from pasted text
+  // Normalize candidate URL string (strips trailing punctuation, guarantees scheme)
+  const normalizeCandidate = (raw) => {
+    let u = (raw || '').trim().replace(/^[<"'(]+|[>"'),;.]+$/g, '')
+    if (!u) return null
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(u)) {
+      u = `https://${u}`
+    }
+    try {
+      const parsed = new URL(u)
+      if (!parsed.hostname || !parsed.hostname.includes('.')) return null
+      return parsed.href
+    } catch {
+      return null
+    }
+  }
+
+  // Extract all valid HTTP/HTTPS URLs from pasted text (handles newlines, commas, bare domains like pin.it, dust.tt)
   const extractUrls = (text) => {
-    const matches = text.match(/https?:\/\/[^\s,]+/gi) || []
-    return [...new Set(matches.map((u) => u.trim()))]
+    if (!text) return []
+    const results = []
+    const addIfValid = (candidate) => {
+      const norm = normalizeCandidate(candidate)
+      if (norm && !results.includes(norm)) {
+        results.push(norm)
+      }
+    }
+
+    // Split on whitespace, commas, or newlines
+    const tokens = text.split(/[\s,;\n\r]+/).map((t) => t.trim()).filter(Boolean)
+    for (const token of tokens) {
+      addIfValid(token)
+    }
+
+    // Also regex match any URLs embedded in prose
+    const matches = text.match(/https?:\/\/[^\s<>"'()]+|\b[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+\.[a-z]{2,}(?:\/[^\s<>"'()]*)?/gi) || []
+    for (const m of matches) {
+      addIfValid(m)
+    }
+
+    return results
   }
 
   // Handle URL submission
   const handleUrlSubmit = async (e) => {
     e?.preventDefault()
     const urls = extractUrls(urlInput)
-    if (!urls.length && urlInput.trim()) {
-      const candidate = `https://${urlInput.trim()}`
-      if (/^https?:\/\/[a-z0-9.-]+\.[a-z]{2,}/i.test(candidate)) {
-        urls.push(candidate)
-      }
-    }
 
     if (!urls.length) {
       toast?.('Please enter at least one valid web link', 'bad')

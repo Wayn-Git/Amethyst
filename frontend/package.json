@@ -9,7 +9,11 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "smoke": "node tests/smoke.mjs",
-    "test:markdown": "node tests/markdown.mjs"
+    "test:markdown": "node tests/markdown.mjs",
+    "test:widgets": "node tests/widgets.mjs",
+    "test:renderers": "node tests/renderers.mjs",
+    "test:media": "node tests/media.mjs",
+    "test:spotlight": "node tests/spotlight.mjs"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
@@ -17,8 +21,10 @@
     "@gsap/react": "^2.1.2",
     "@phosphor-icons/react": "^2.1.10",
     "@thesvg/mcp-server": "^0.8.2",
+    "chart.js": "^4.5.1",
     "framer-motion": "^13.2.0",
     "gsap": "^3.15.0",
+    "leaflet": "^1.9.4",
     "react": "^19.2.8",
     "react-colorful": "^5.8.1",
     "react-dom": "^19.2.8",

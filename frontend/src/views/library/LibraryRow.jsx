@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api, fmtDate } from '../../api.js'
 import { KIND_ICON, getDomain, getFaviconUrl } from './LibraryCard.jsx'
@@ -14,7 +14,8 @@ function LibraryRowComponent({
 }) {
   const isOptimistic = Boolean(item.isOptimistic)
   const isProcessing = Boolean(item.isProcessing)
-  const hasThumbnail = Boolean(item.thumbnail_path)
+  const [thumbFailed, setThumbFailed] = useState(false)
+  const hasThumbnail = Boolean(item.thumbnail_path) && !thumbFailed
   const domain = getDomain(item.url, item.site)
   const favicon = getFaviconUrl(item.url)
 
@@ -25,11 +26,11 @@ function LibraryRowComponent({
 
   return (
     <article
+      data-item-id={item.id}
       className={`card lib-row ${isOptimistic ? 'lib-row--optimistic' : ''} ${
         isProcessing ? 'lib-row--processing' : ''
       }`}
       onClick={handleRowClick}
-      data-enter
       tabIndex={0}
       role="button"
       aria-label={`View ${item.title || 'resource'}`}
@@ -49,6 +50,7 @@ function LibraryRowComponent({
             src={api.thumbnailUrl(item.id)}
             alt=""
             loading="lazy"
+            onError={() => setThumbFailed(true)}
           />
         ) : (
           <div className="lib-row-icon-fallback">
@@ -152,12 +154,19 @@ function LibraryRowComponent({
                     href={r.url}
                     target="_blank"
                     rel="noreferrer"
+                    className="lib-resource-link"
+                    title={`${r.name}: ${r.url}`}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {r.name}
+                    <Icon name="link" size={11} />
+                    <span className="lib-resource-link-name">{r.name}</span>
+                    {getDomain(r.url) && (
+                      <span className="lib-resource-domain mono">{getDomain(r.url)}</span>
+                    )}
+                    <span className="lib-resource-arrow">↗</span>
                   </a>
                 ) : (
-                  r.name
+                  <span className="lib-resource-name">{r.name}</span>
                 )}
                 {r.detail ? <span className="lib-resource-detail"> — {r.detail}</span> : null}
               </li>

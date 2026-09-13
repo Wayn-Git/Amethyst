@@ -37,12 +37,23 @@ from backend.mcp.ssrf import UnsafeURL, check_url_async
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = "Mozilla/5.0 (compatible; AMETHYST/0.1; +https://github.com/)"
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+DEFAULT_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Ch-Ua": '"Chromium";v="131", "Not_A Brand";v="24"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+}
 MAX_PAGE_BYTES = 2_000_000
 #: The text kept after reduction. Well above a long article, well below the
 #: point where chunking and embedding stop being interactive.
 MAX_TEXT_CHARS = 120_000
-MAX_REDIRECTS = 5
+MAX_REDIRECTS = 10
 DEFAULT_TIMEOUT = 25.0
 
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "music.youtube.com"}
@@ -64,6 +75,7 @@ class FetchedPage:
     published_on: str | None = None
     content_type: str = ""
     truncated: bool = False
+    image: str | None = None
     #: Why the text is thin or absent, when it is. Empty when nothing is amiss.
     note: str = ""
 
@@ -119,8 +131,23 @@ _META_KEYS = {
     "date": "published_on",
     "og:description": "description",
     "description": "description",
+    "og:image": "image",
+    "og:image:url": "image",
+    "og:image:secure_url": "image",
+    "twitter:image": "image",
+    "twitter:image:src": "image",
+    "image": "image",
+    "thumbnail": "image",
 }
 
+_LINK_IMG = re.compile(
+    r"""<link\s+[^>]*rel=["'](?:image_src|apple-touch-icon|icon)["'][^>]*href=["']([^"']+)["']""",
+    re.IGNORECASE,
+)
+_LINK_IMG2 = re.compile(
+    r"""<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:image_src|apple-touch-icon|icon)["']""",
+    re.IGNORECASE,
+)
 _ISO_DAY = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
@@ -152,11 +179,50 @@ def extract_metadata(page: str) -> dict[str, str]:
         if not found["published_on"]:
             del found["published_on"]
 
+    if "image" not in found:
+        m_img = _LINK_IMG.search(page[:200_000]) or _LINK_IMG2.search(page[:200_000])
+        if m_img:
+            found["image"] = html.unescape(m_img.group(1)).strip()
+
     return {k: v for k, v in found.items() if v}
 
 
 def is_youtube(url: str) -> bool:
     return (urlparse(url).hostname or "").lower() in YOUTUBE_HOSTS
+
+
+PINTEREST_HOSTS = {"pinterest.com", "www.pinterest.com", "pin.it"}
+PINTEREST_OEMBED_URL = "https://www.pinterest.com/oembed.json?url={url}"
+
+
+def is_pinterest(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host == "pin.it" or host == "pinterest.com" or host.endswith(".pinterest.com") or "pinterest." in host
+
+
+async def pinterest_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:
+    """Fetch pin title, author, and high-res thumbnail via Pinterest's public oEmbed."""
+    try:
+        async with httpx.AsyncClient(headers=DEFAULT_HEADERS, timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(PINTEREST_OEMBED_URL.format(url=quote(url, safe="")))
+            if resp.status_code == 200:
+                data = resp.json()
+                title = (data.get("title") or "").strip()
+                author = (data.get("author_name") or "").strip()
+                thumb = (data.get("thumbnail_url") or "").strip()
+                if thumb:
+                    thumb = thumb.replace("/236x/", "/736x/")
+                return {
+                    "title": title or "Pinterest Pin",
+                    "author": author or None,
+                    "site": "Pinterest",
+                    "thumbnail_url": thumb or None,
+                }
+    except Exception as exc:
+        log.debug("Pinterest oEmbed failed for %s: %s", url, exc)
+    return None
 
 
 #: X serves a JavaScript shell to an ordinary fetch, so a captured link has
@@ -187,7 +253,7 @@ async def x_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get(
                 X_OEMBED_URL.format(url=quote(url, safe="")),
-                headers={"User-Agent": USER_AGENT},
+                headers=DEFAULT_HEADERS,
             )
         if response.status_code != 200:
             return None
@@ -221,7 +287,7 @@ async def youtube_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] |
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get(
                 OEMBED_URL.format(url=quote(url, safe="")),
-                headers={"User-Agent": USER_AGENT},
+                headers=DEFAULT_HEADERS,
             )
         if response.status_code != 200:
             return None
@@ -250,7 +316,7 @@ async def _get_following_redirects(
     for _ in range(MAX_REDIRECTS + 1):
         await check_url_async(current)
         response = await client.get(
-            current, headers={"User-Agent": USER_AGENT}, timeout=timeout
+            current, headers=DEFAULT_HEADERS, timeout=timeout
         )
         if response.status_code not in (301, 302, 303, 307, 308):
             return response
@@ -322,6 +388,12 @@ async def fetch_readable(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> Fetch
         note = "the page returned no readable text"
 
     title = meta.get("title") or _title_from_url(final_url)
+    image_url = meta.get("image")
+    if image_url:
+        image_url = urljoin(final_url, image_url)
+    elif content_type.startswith("image/"):
+        image_url = final_url
+
     return FetchedPage(
         url=url,
         final_url=final_url,
@@ -332,6 +404,7 @@ async def fetch_readable(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> Fetch
         published_on=meta.get("published_on"),
         content_type=content_type,
         truncated=truncated,
+        image=image_url,
         note=note,
     )
 

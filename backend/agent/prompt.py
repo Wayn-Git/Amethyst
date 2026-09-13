@@ -78,6 +78,11 @@ found there.
 CHARS_PER_TOKEN = 4
 RESERVED_FOR_RESPONSE = 4096
 
+# Skills that are inlined on every turn — the model never needs to discover or
+# load these; they are always active.  Keep the list short: each entry costs
+# the skill's full text on every request.
+_ALWAYS_PINNED: frozenset[str] = frozenset({"interactive-artifacts"})
+
 
 def environment_block(workspace_root: str | None) -> str:
     now = datetime.now()
@@ -102,7 +107,7 @@ def build_system_prompt(
     parts = [override or BASE_PROMPT, environment_block(workspace_root)]
 
     skills, _ = scan()
-    pinned = set(pinned_skills or [])
+    pinned = set(pinned_skills or []) | _ALWAYS_PINNED
 
     # Only advertise what is switched on for this conversation. Every installed
     # skill used to be injected on every turn, so the catalogue grew without
@@ -114,8 +119,9 @@ def build_system_prompt(
     if catalogue:
         parts.append(catalogue)
 
-    # A skill the user invoked explicitly is inlined in full, so the model acts
-    # on it immediately instead of spending a turn reading it back.
+    # Skills that are always pinned (e.g. interactive-artifacts) and skills the
+    # user explicitly invoked (/skill-name) are both inlined in full so the
+    # model can act on them without spending a turn reading the file.
     for skill in visible:
         if skill.name in pinned:
             parts.append(_inline_skill(skill))

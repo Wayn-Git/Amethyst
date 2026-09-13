@@ -24,10 +24,38 @@ const LOADERS = {
   dash: () => import('./Dashboard.jsx'),
 }
 
+function lazyWithRetry(componentImport) {
+  return lazy(async () => {
+    const pageHasAlreadyBeenForceRefreshed = JSON.parse(
+      window.sessionStorage.getItem('amethyst_chunk_retry') || 'false',
+    )
+
+    try {
+      const component = await componentImport()
+      window.sessionStorage.setItem('amethyst_chunk_retry', 'false')
+      return component
+    } catch (error) {
+      const msg = String(error?.message || error).toLowerCase()
+      const isChunkError =
+        msg.includes('module script') ||
+        msg.includes('dynamically imported module') ||
+        msg.includes('loading chunk') ||
+        msg.includes('failed to fetch')
+
+      if (!pageHasAlreadyBeenForceRefreshed && isChunkError) {
+        window.sessionStorage.setItem('amethyst_chunk_retry', 'true')
+        window.location.reload()
+        return new Promise(() => {})
+      }
+      throw error
+    }
+  })
+}
+
 export const COMPONENTS = {
   chat: Chat,
   ...Object.fromEntries(
-    Object.entries(LOADERS).map(([id, load]) => [id, lazy(load)]),
+    Object.entries(LOADERS).map(([id, load]) => [id, lazyWithRetry(load)]),
   ),
 }
 

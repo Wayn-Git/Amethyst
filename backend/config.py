@@ -74,6 +74,11 @@ class Paths:
         return self.config_dir / "sandbox.yaml"
 
     @property
+    def workers_yaml(self) -> Path:
+        """The two remote worker accounts. See backend/workers/accounts.py."""
+        return self.config_dir / "workers.yaml"
+
+    @property
     def library_media_dir(self) -> Path:
         """Thumbnails and video for library items. See library/store.media_dir."""
         return self.library_dir / "media"

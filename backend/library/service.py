@@ -23,13 +23,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
 from backend.db.connection import get_connection
-from backend.library.store import KINDS, LibraryStore, text_path, thumbnail_path
+from backend.library.store import KINDS, LibraryStore, app_tag_for_url, text_path, thumbnail_path
 from backend.mcp.ssrf import UnsafeURL, check_url_async
 from backend.media.reel import is_reel_url
 from backend.retrieval import store as index_store
@@ -39,8 +40,10 @@ from backend.retrieval.search import SearchService
 from backend.web.reader import (
     FetchError,
     fetch_readable,
+    is_pinterest,
     is_x_post,
     is_youtube,
+    pinterest_oembed,
     x_oembed,
     youtube_oembed,
 )
@@ -69,6 +72,9 @@ _KIND_BY_HOST = {
     "x.com": "post",
     "twitter.com": "post",
     "mobile.twitter.com": "post",
+    "pinterest.com": "post",
+    "www.pinterest.com": "post",
+    "pin.it": "post",
     "arxiv.org": "paper",
     "www.arxiv.org": "paper",
 }
@@ -111,13 +117,26 @@ def as_dict(row) -> dict:
     # above this line has to know that.
     tags = _json_list(data.get("tags"))
     resources = _json_list(data.get("resources"))
+
+    app_tag = app_tag_for_url(data.get("url"))
+    if app_tag and app_tag not in tags:
+        tags.append(app_tag)
+
     data["tags"] = tags
     data["resources"] = resources
+    data["app"] = app_tag
 
     cat = data.get("category")
     if not cat or cat == "general":
         cat = infer_category(resources, tags, kind=data.get("kind", ""))
     data["category"] = cat or "general"
+
+    # Explicit lifecycle status: 'received' | 'processing' | 'enriching' | 'ready' | 'failed'
+    status = data.get("status")
+    if not status or status not in ("received", "processing", "enriching", "ready", "failed"):
+        status = "ready"
+    data["status"] = status
+
     return data
 
 
@@ -142,6 +161,27 @@ async def _rendered_if_empty(url: str, page):
 
     rendered = await fetch_rendered(url)
     return rendered if rendered is not None else page
+
+
+def _extract_youtube_info(url: str) -> dict | None:
+    """Extract YouTube metadata (title, uploader, description, thumbnail) via yt-dlp.
+
+    Runs with skip_download=True so no video media is fetched. Returns None on failure.
+    """
+    try:
+        import yt_dlp
+
+        opts = {
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": False,
+        }
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            return ydl.extract_info(url, download=False)
+    except Exception as exc:
+        log.debug("yt-dlp extraction failed for %s: %s", url, exc)
+        return None
 
 
 class LibraryService:
@@ -181,11 +221,17 @@ class LibraryService:
         questions: the URL catches the same page arriving twice, the ref catches
         the same *bookmark* arriving twice after its page was moved or renamed.
         """
-        url = (url or "").strip()
+        from backend.library.enrich import normalize_url
+
+        raw_input = str(url or "").strip()
+        url = normalize_url(raw_input)
         if not url:
             raise LibraryError("a url is needed")
-        if "://" not in url:
-            url = f"https://{url}"
+        if not notes and raw_input != url:
+            surrounding = raw_input.replace(url, "").strip()
+            surrounding = re.sub(r"^(check out|look what i found|found on|shared from)[^:\n]*:?\s*", "", surrounding, flags=re.I).strip()
+            if surrounding:
+                notes = surrounding[:2000]
         if kind and kind not in KINDS:
             raise LibraryError(f"unknown kind '{kind}'. One of: {', '.join(KINDS)}")
 
@@ -312,31 +358,83 @@ class LibraryService:
                     source_ref=source_ref,
                 )
                 note = await self._store_text(item_id, title or url, text, capture_note)
-                self.store.update(item_id, capture_note=note or None)
+                app_tag = app_tag_for_url(url)
+                updates = {"capture_note": note or None}
+                if app_tag:
+                    updates["tags"] = json.dumps([app_tag])
+                self.store.update(item_id, **updates)
+                self._enrich_later(item_id)
                 return Captured(as_dict(self.store.get(item_id)))
             # Rung 3: the note names whichever rung was the last one tried.
             if x_note:
                 capture_note = x_note
 
         page = None
+        author: str | None = None
+        site: str | None = None
+        text_source = "none"
+        duration_seconds = None
+        thumb_url: str | None = None
         if is_youtube(url):
-            # YouTube's watch page is a script bundle; oEmbed is the only thing
-            # it will state plainly, and it does not carry a transcript.
-            meta = await youtube_oembed(url)
-            if meta:
-                title = title or meta["title"]
-                author = meta.get("author") or None
-                site = meta.get("site")
-                yt_thumb_url = meta.get("thumbnail_url") or None
+            info = None
+            try:
+                info = await asyncio.wait_for(
+                    asyncio.to_thread(_extract_youtube_info, url), timeout=10.0
+                )
+            except (asyncio.TimeoutError, Exception) as exc:
+                log.debug("youtube extraction timeout or error for %s: %s", url, exc)
+
+            if info:
+                title = title or info.get("title")
+                author = info.get("uploader") or info.get("channel") or None
+                site = "youtube.com"
+                thumb_url = info.get("thumbnail") or None
+                duration_seconds = int(info.get("duration")) if info.get("duration") else None
+                text = (info.get("description") or "").strip()
+                if text:
+                    text_source = "video description"
+                capture_note = ""
             else:
-                author = site = None
-                yt_thumb_url = None
-                capture_note = "YouTube did not answer for this video's title"
-            capture_note = capture_note or "video: title and channel only, no transcript available"
+                meta = await youtube_oembed(url)
+                if meta:
+                    title = title or meta["title"]
+                    author = meta.get("author") or None
+                    site = meta.get("site")
+                    thumb_url = meta.get("thumbnail_url") or None
+                else:
+                    author = None
+                    site = None
+                    thumb_url = None
+                    capture_note = "YouTube did not answer for this video's title"
+                capture_note = capture_note or "video: title and channel only, no transcript available"
+                text = ""
             published_on = None
-            text = ""
+        elif is_pinterest(url):
+            site = "Pinterest"
+            meta = await pinterest_oembed(url)
+            if meta:
+                title = title or meta.get("title")
+                author = meta.get("author") or None
+                thumb_url = meta.get("thumbnail_url")
+            try:
+                page = await self._fetch(url)
+                if page:
+                    title = title or page.title
+                    author = author or page.author
+                    site = site or page.site
+                    published_on = page.published_on
+                    text = page.text if page else ""
+                    if not thumb_url and page.image:
+                        thumb_url = page.image
+            except Exception as exc:
+                log.debug("pinterest page fetch failed for %s: %s", url, exc)
+                text = ""
+                published_on = None
+            if not text and title:
+                text = title
+                text_source = "title"
+            capture_note = ""
         else:
-            yt_thumb_url = None
             try:
                 page = await self._fetch(url)
             except UnsafeURL as exc:
@@ -349,6 +447,8 @@ class LibraryService:
             site = page.site if page else None
             published_on = page.published_on if page else None
             text = page.text if page else ""
+            if page and page.image:
+                thumb_url = page.image
             if page and page.note:
                 capture_note = page.note
 
@@ -366,13 +466,23 @@ class LibraryService:
         )
 
         note = await self._store_text(item_id, title or url, text, capture_note)
-        self.store.update(item_id, capture_note=note or None)
+        initial_status = "enriching" if (is_youtube(url) or (text and len(text.strip()) >= 15)) else "ready"
+        updates = {"capture_note": note or None, "status": initial_status}
+        if text_source != "none":
+            updates["text_source"] = text_source
+        if duration_seconds is not None:
+            updates["duration_seconds"] = duration_seconds
 
-        # YouTube: save the oEmbed thumbnail to disk so the card shows an image.
-        # Done after the item exists so a download failure cannot prevent the
-        # row from being created. Runs inline — it is a single small JPEG.
-        if yt_thumb_url:
-            await self._save_youtube_thumb(item_id, yt_thumb_url)
+        # Automatically tag item according to originating app/platform
+        app_tag = app_tag_for_url(url)
+        if app_tag:
+            updates["tags"] = json.dumps([app_tag])
+
+        self.store.update(item_id, **updates)
+
+        # Save the thumbnail to disk so the card shows an image across all websites
+        if thumb_url:
+            await self._save_thumb(item_id, thumb_url)
 
         self._enrich_later(item_id)
         return Captured(as_dict(self.store.get(item_id)))
@@ -408,6 +518,10 @@ class LibraryService:
                 await self.enrich(item_id)
             except Exception as exc:  # the item is captured and searchable already
                 log.info("auto-enrichment failed for library item %s: %s", item_id, exc)
+                try:
+                    self.store.update(item_id, status="ready", enrichment_note=f"Enrichment note: {exc}")
+                except Exception:
+                    pass
 
         try:
             task = asyncio.get_running_loop().create_task(run())
@@ -455,27 +569,74 @@ class LibraryService:
         self.store.update(item_id, capture_note=note or None)
         return Captured(as_dict(self.store.get(item_id)))
 
-    async def _save_youtube_thumb(self, item_id: int, thumb_url: str) -> None:
-        """Download a YouTube thumbnail and attach it to the library item.
+    async def _save_thumb(self, item_id: int, thumb_url: str) -> None:
+        """Download a thumbnail and attach it to the library item.
 
         Best-effort — a failure is logged but never raised, because the item
         is already saved and a missing image is better than a missing row.
         """
         import httpx as _httpx
-        from backend.web.reader import USER_AGENT
+        from backend.web.reader import DEFAULT_HEADERS
 
         target = thumbnail_path(item_id)
         try:
             async with _httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                resp = await client.get(thumb_url, headers={"User-Agent": USER_AGENT})
-            if resp.status_code == 200:
+                resp = await client.get(thumb_url, headers=DEFAULT_HEADERS)
+            if resp.status_code == 200 and resp.content and len(resp.content) >= 1024:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(resp.content)
                 self.store.update(item_id, thumbnail_path=str(target))
             else:
-                log.debug("YouTube thumbnail fetch returned %s for item %s", resp.status_code, item_id)
+                log.debug("thumbnail fetch returned %s (bytes: %d) for item %s", resp.status_code, len(resp.content) if resp.content else 0, item_id)
         except Exception as exc:
-            log.debug("could not save YouTube thumbnail for item %s: %s", item_id, exc)
+            log.debug("could not save thumbnail for item %s: %s", item_id, exc)
+
+    async def _save_youtube_thumb(self, item_id: int, thumb_url: str) -> None:
+        await self._save_thumb(item_id, thumb_url)
+
+    async def fetch_thumbnail_for_item(self, item_id: int) -> bool:
+        """Fetch or backfill thumbnail for an item that currently lacks one."""
+        row = self.store.get(item_id)
+        if not row or not row["url"]:
+            return False
+
+        url = row["url"]
+        thumb_url = None
+        if is_youtube(url):
+            try:
+                info = await asyncio.to_thread(_extract_youtube_info, url)
+                if info and info.get("thumbnail"):
+                    thumb_url = info.get("thumbnail")
+            except Exception:
+                pass
+            if not thumb_url:
+                meta = await youtube_oembed(url)
+                if meta and meta.get("thumbnail_url"):
+                    thumb_url = meta.get("thumbnail_url")
+        elif is_pinterest(url):
+            meta = await pinterest_oembed(url)
+            if meta and meta.get("thumbnail_url"):
+                thumb_url = meta.get("thumbnail_url")
+            if not thumb_url:
+                try:
+                    page = await self._fetch(url)
+                    if page and page.image:
+                        thumb_url = page.image
+                except Exception:
+                    pass
+        else:
+            try:
+                page = await self._fetch(url)
+                if page and page.image:
+                    thumb_url = page.image
+            except Exception:
+                pass
+
+        if thumb_url:
+            await self._save_thumb(item_id, thumb_url)
+            updated = self.store.get(item_id)
+            return bool(updated and updated["thumbnail_path"])
+        return False
 
     async def _store_text(
         self,
@@ -588,14 +749,17 @@ class LibraryService:
             source_ref=source_ref,
         )
         note = await self._store_text(item_id, title, text, capture_note, fetched=False)
-        self.store.update(
-            item_id,
-            capture_note=note or None,
-            text_source=text_source,
-            thumbnail_path=thumbnail_path,
-            media_path=media_path,
-            duration_seconds=duration_seconds,
-        )
+        app_tag = app_tag_for_url(url)
+        updates = {
+            "capture_note": note or None,
+            "text_source": text_source,
+            "thumbnail_path": thumbnail_path,
+            "media_path": media_path,
+            "duration_seconds": duration_seconds,
+        }
+        if app_tag:
+            updates["tags"] = json.dumps([app_tag])
+        self.store.update(item_id, **updates)
         return Captured(as_dict(self.store.get(item_id)))
 
     async def replace_text(
@@ -665,16 +829,38 @@ class LibraryService:
             heading = "Caption"
         elif text_source == "caption and transcript":
             heading = "Caption and Transcript"
+        elif text_source in ("video description", "description"):
+            heading = "Description"
+
+        self.store.update(item_id, status="enriching")
 
         result = await enrichment.enrich_text(
             body, title=row["title"], kind=row["kind"], text_source=text_source, client=client
         )
 
+        existing_tags = _json_list(row["tags"])
+        app_tag = app_tag_for_url(row["url"])
+        raw_tags = list(result.tags or [])
+        if not raw_tags and existing_tags:
+            raw_tags = existing_tags
+        canon = enrichment.canonicalize_tags(raw_tags)
+        if not canon and raw_tags:
+            clean_tags = [t.strip().lower() for t in raw_tags if isinstance(t, str) and t.strip()]
+            canon = clean_tags[:enrichment.MAX_TAGS]
+        combined_tags = []
+        for t in canon:
+            if t != app_tag and t not in combined_tags:
+                combined_tags.append(t)
+        if app_tag and app_tag not in combined_tags:
+            combined_tags.append(app_tag)
+        combined_tags = combined_tags[:enrichment.MAX_TAGS + 1]
+
         self.store.update(
             item_id,
+            status="ready",
             category=result.category,
             summary=result.summary,
-            tags=json.dumps(list(result.tags)) if result.tags else None,
+            tags=json.dumps(combined_tags) if combined_tags else None,
             resources=json.dumps(list(result.resources)) if result.resources else None,
             enrichment_note=result.note,
             enrichment_model=(
@@ -857,6 +1043,20 @@ class LibraryService:
             return {row["tag"]: row["count"] for row in rows}
         except Exception:
             return {}
+
+    def app_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        try:
+            rows = self.store.conn.execute(
+                "SELECT url FROM library_items WHERE url IS NOT NULL"
+            ).fetchall()
+            for row in rows:
+                app = app_tag_for_url(row["url"])
+                if app:
+                    counts[app] = counts.get(app, 0) + 1
+        except Exception:
+            pass
+        return counts
 
     def consolidate_tags(self) -> dict[str, int]:
         """Normalize and consolidate all existing tags in SQLite to canonical topics."""

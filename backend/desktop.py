@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import sys
 import threading
 
@@ -44,6 +45,11 @@ DEFAULT_PORT = 8000
 #: Set when the window may really close instead of hiding. Closing it is normally
 #: "put AMETHYST away", not "quit"; this is how the one real quit gets through.
 _QUITTING = threading.Event()
+
+#: Whether the spotlight window is up. pywebview does not expose visibility,
+#: and the process is the only one that shows or hides it, so it keeps the
+#: flag itself and the hotkey becomes a toggle: summon while open puts it away.
+_spotlight_up = threading.Event()
 
 
 def url_for(port: int, path: str = "/") -> str:
@@ -355,24 +361,156 @@ def _stop_on_signal(signals, shutdown) -> None:
     threading.Thread(target=wait, name="amethyst-signals", daemon=True).start()
 
 
-def _icon_image():
-    """The tray glyph, drawn rather than shipped -- it is four points."""
-    from PIL import Image, ImageDraw
+def _logo_path() -> "pathlib.Path | None":
+    """Absolute path to the amethyst logo SVG shipped with the frontend.
 
-    image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    Resolves relative to this file's location so it works regardless of
+    working directory.  Returns None when the file cannot be found.
+    """
+    from pathlib import Path
+
+    candidate = Path(__file__).parent.parent / "frontend" / "public" / "favicon.svg"
+    return candidate if candidate.exists() else None
+
+
+def _icon_image():
+    """The tray glyph — renders the real SVG logo when possible.
+
+    GdkPixbuf (present on Linux with GTK) can rasterise SVG directly, so this
+    gives us a crisp 256 × 256 RGBA image from the same source the browser
+    favicon uses.  Falls back to the hand-drawn diamond on macOS / Windows or
+    when the SVG is missing, so nothing breaks there.
+    """
+    from PIL import Image
+
+    svg = _logo_path()
+    if svg is not None:
+        try:
+            import gi
+
+            gi.require_version("GdkPixbuf", "2.0")
+            from gi.repository import GdkPixbuf
+
+            pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(svg), 256, 256, True)
+            raw = pb.get_pixels()
+            mode = "RGBA" if pb.get_has_alpha() else "RGB"
+            img = Image.frombytes(mode, (pb.get_width(), pb.get_height()), raw, "raw", mode, pb.get_rowstride())
+            return img.convert("RGBA")
+        except Exception:
+            pass
+
+    # Fallback: draw a simple amethyst-coloured diamond
+    from PIL import ImageDraw
+
+    image = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    draw.polygon([(32, 3), (61, 26), (32, 61), (3, 26)], fill=(139, 92, 246, 255))
-    draw.polygon([(32, 3), (61, 26), (32, 26)], fill=(167, 139, 250, 255))
+    draw.polygon([(128, 12), (244, 104), (128, 244), (12, 104)], fill=(139, 92, 246, 255))
+    draw.polygon([(128, 12), (244, 104), (128, 104)], fill=(167, 139, 250, 255))
     return image
+
+
+def _icon_png_path() -> "str | None":
+    """Write the icon image to a temp file and return its path.
+
+    ``webview.start(icon=...)`` and GTK's ``set_icon_from_file`` both need a
+    file path, not a PIL Image.  We write once per process; the file is cleaned
+    up when the process exits.
+    """
+    import atexit
+    import tempfile
+
+    try:
+        img = _icon_image()
+        fd, path = tempfile.mkstemp(suffix=".png", prefix="amethyst_icon_")
+        import os
+
+        os.close(fd)
+        img.save(path, "PNG")
+        atexit.register(lambda p=path: __import__("os").unlink(p) if __import__("os").path.exists(p) else None)
+        return path
+    except Exception:
+        return None
+
+
+def _install_xdg_assets() -> None:
+    """Write the icon + .desktop file so GNOME Wayland shows the right icon.
+
+    On Wayland (GNOME Shell), ``set_icon_from_file`` on the GTK window is
+    ignored for the dock and the alt-tab switcher.  The compositor resolves the
+    icon by matching the window's ``app_id`` (= WM_CLASS on X11, which GTK
+    derives from ``argv[0]`` stem = ``amethyst``) to a ``.desktop`` file, and
+    then reads the ``Icon=`` field from it.
+
+    This function:
+      1. Writes a 256 × 256 PNG into the hicolor icon theme directory so the
+         name ``amethyst`` resolves to the gem mark.
+      2. Writes / updates ``~/.local/share/applications/amethyst.desktop``
+         with ``Icon=amethyst`` and ``StartupWMClass=amethyst``.
+
+    It is idempotent and silently does nothing when it cannot write.
+    """
+    import os
+    import shlex
+    import sys
+    from pathlib import Path
+
+    try:
+        # 1. Icon PNG --------------------------------------------------------
+        icon_dir = Path.home() / ".local" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+        icon_dir.mkdir(parents=True, exist_ok=True)
+        icon_dest = icon_dir / "amethyst.png"
+        try:
+            img = _icon_image()
+            img.save(str(icon_dest), "PNG")
+        except Exception:
+            pass  # fall back: no icon but desktop entry still lands
+
+        # 2. .desktop entry --------------------------------------------------
+        app_dir = Path.home() / ".local" / "share" / "applications"
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        exe = sys.argv[0]  # full path to the amethyst console script
+        if not os.path.isabs(exe):
+            import shutil
+
+            exe = shutil.which(exe) or exe
+
+        entry = app_dir / "amethyst.desktop"
+        entry.write_text(
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=AMETHYST\n"
+            "GenericName=Personal OS\n"
+            "Comment=Personal operating system — one agent over your files, tasks and services\n"
+            f"Exec={shlex.quote(exe)} desktop\n"
+            "Terminal=false\n"
+            "Icon=amethyst\n"
+            "StartupWMClass=amethyst\n"
+            "Categories=Utility;Office;\n"
+            "Keywords=AI;assistant;agent;notes;\n"
+        )
+
+        # 3. Refresh icon cache (best-effort) --------------------------------
+        import subprocess
+
+        with contextlib.suppress(Exception):
+            subprocess.run(
+                ["gtk-update-icon-cache", "-f", "-t", str(icon_dir.parent.parent.parent)],
+                timeout=3,
+                capture_output=True,
+            )
+    except Exception:
+        pass
 
 
 class _SpotlightBridge:
     """What the palette page may ask of the process that owns its window.
 
-    Two things, and both are about windows rather than data: put me away, and
-    open the full application. Everything the palette actually *does* -- asking,
-    logging, resuming a job -- it does over the API like any other client, so
-    this stays a window manager and not a second back door into AMETHYST.
+    Three things, and all of them are about windows rather than data: put me
+    away, open the full application, and open this link outside of me.
+    Everything the palette actually *does* -- asking, logging, resuming a job
+    -- it does over the API like any other client, so this stays a window
+    manager and not a second back door into AMETHYST.
     """
 
     def __init__(self) -> None:
@@ -383,12 +521,37 @@ class _SpotlightBridge:
         if self.spotlight is not None:
             with contextlib.suppress(Exception):
                 self.spotlight.hide()
+            # The toggle flag tracks this window, and the bridge is one of the
+            # two things that ever hides it (Esc from the page is the other,
+            # and it comes through here).
+            _spotlight_up.clear()
 
-    def open_main(self) -> None:
+    def open_main(self, path: str = "") -> None:
         """For the commands that are a place rather than an action."""
         if self.main is not None:
+            if path:
+                clean_path = "/" + path.lstrip("/")
+                with contextlib.suppress(Exception):
+                    self.main.evaluate_js(
+                        f"window.__amethyst_navigate && window.__amethyst_navigate('{clean_path}')"
+                    )
             _present(self.main)
         self.hide()
+
+    def open_external(self, url: str) -> None:
+        """Open a link in the browser the machine uses for links.
+
+        `window.open` inside a frameless pywebview window is a no-op: there is
+        no tab to open into and no new-window decision for WebKitGTK to make,
+        so a result clicked in the bar silently did nothing. The OS browser is
+        where a link from a floating bar was always going to end up.
+        """
+        if not re.match(r"^https?://", url or ""):
+            return
+        import webbrowser
+
+        webbrowser.open(url)
+
 
 
 def _hide_rather_than_close(window) -> None:
@@ -403,6 +566,33 @@ def _hide_rather_than_close(window) -> None:
         return bool(_QUITTING.is_set())  # False cancels the close
 
     window.events.closing += _closing
+
+
+def _corners_are_free() -> bool:
+    """Whether a transparent spotlight window costs anything here.
+
+    The spotlight is a frameless window with a rounded card inside it. If the
+    window itself is an opaque rectangle, its corners are square and the card's
+    rounded ones sit inside a visible band -- which is the "squared corners"
+    everyone sees and nobody can point at.
+
+    Making the window transparent fixes it, and whether that is free depends
+    entirely on the display server:
+
+    * **Wayland** -- every surface is ARGB already and the compositor does the
+      blending. The flag costs nothing, so the corners are real.
+    * **X11** -- asking for an RGBA visual drops WebKitGTK off its accelerated
+      compositing path and everything after it is painted in software. That is
+      a stuttering window in exchange for two corners, which is the wrong
+      trade, so the band stays and `background_color` paints it.
+
+    Anything that is not clearly Wayland is treated as X11. The failure of a
+    wrong guess is one-directional on purpose: guessing X11 costs a cosmetic
+    band, guessing Wayland costs a window that stutters.
+    """
+    return bool(os.environ.get("WAYLAND_DISPLAY")) or (
+        os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+    )
 
 
 def _build_windows(port: int):
@@ -431,21 +621,40 @@ def _build_windows(port: int):
     spotlight = webview.create_window(
         "AMETHYST",
         url_for(port, "/?spotlight=1&native=1"),
-        width=720,
-        height=460,
+        width=760,
+        height=520,
         frameless=True,
         easy_drag=True,
         on_top=True,
         hidden=True,
-        # Deliberately *not* transparent. An RGBA visual drops WebKitGTK off its
-        # accelerated compositing path, and everything after that is painted in
-        # software -- which is what "laggy" was. Rounded corners are not worth a
-        # window that stutters, so the card fills this one edge to edge.
+        # The card inside paints its own rounded corners; this is the colour
+        # behind them when the window cannot be transparent.
+        background_color="#131317",
+        # True corners where they are free, a painted band where they are not.
+        # See `_corners_are_free` -- on X11 an RGBA visual costs WebKitGTK its
+        # accelerated compositing path and everything after that is drawn in
+        # software, which is what "laggy" was. On Wayland every surface is
+        # already ARGB and the compositor does the blending, so the same flag
+        # costs nothing and the window's corners become the card's corners.
+        transparent=_corners_are_free(),
         js_api=bridge,
     )
     bridge.spotlight, bridge.main = spotlight, main
     for window in (main, spotlight):
         _hide_rather_than_close(window)
+
+    # `shown` fires on every reveal, not only the first -- `_present` calls
+    # `show()` again each summon -- which makes it the one hook that covers both
+    # the window's first appearance and every hide/show cycle after it. The
+    # page does the focusing; all this does is tell it that it is visible, the
+    # one thing a page cannot know about its own window.
+    def _spotlight_shown():
+        with contextlib.suppress(Exception):
+            spotlight.evaluate_js(
+                "window.__amethyst_spotlight_shown && window.__amethyst_spotlight_shown()"
+            )
+
+    spotlight.events.shown += _spotlight_shown
     return main, spotlight, bridge
 
 
@@ -551,6 +760,10 @@ def run_tray(
         return 1
     print(f"AMETHYST is running at {url_for(port)}")
 
+    # Register icon + .desktop file so GNOME Wayland resolves the gem icon in
+    # the dock and the alt-tab switcher.  Idempotent; safe to call every boot.
+    _install_xdg_assets()
+
     problem = _hotkey_unavailable_reason() or _start_hotkey(
         hotkey, lambda: summon_palette(port)
     )
@@ -635,14 +848,30 @@ def run_tray(
         # The bar, not the application: a hotkey is for doing one thing without
         # going anywhere, and opening a full window over what somebody was doing
         # is the behaviour they asked to be rid of.
-        api.on_palette(lambda: _present(spotlight, pinned=True))
+        #
+        # A hotkey is a toggle, not a doorbell. pywebview does not expose
+        # visibility, but this process is the only one that shows or hides the
+        # spotlight, so a flag it keeps itself is the truth -- and pressing the
+        # summon again while the bar is up puts it away, the way every other
+        # spotlight on the machine behaves.
+        def _toggle_spotlight():
+            if _spotlight_up.is_set():
+                with contextlib.suppress(Exception):
+                    spotlight.hide()
+                _spotlight_up.clear()
+                return
+            _spotlight_up.set()
+            _present(spotlight, pinned=True)
+
+        api.on_palette(_toggle_spotlight)
         if icon is not None:
             # The GTK loop webview is about to start is the one it hooks into.
             with contextlib.suppress(Exception):
                 icon.run_detached()
         print("its window stays hidden until you ask for it")
+        icon_path = _icon_png_path()
         try:
-            webview.start()  # blocks the main thread, which GTK requires
+            webview.start(icon=icon_path)  # blocks the main thread, which GTK requires
         except KeyboardInterrupt:
             pass
         finally:

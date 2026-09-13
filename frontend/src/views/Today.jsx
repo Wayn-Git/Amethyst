@@ -3,9 +3,10 @@ import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api, fmtDate } from '../api.js'
-import { SkeletonCard } from '../components/Skeleton.jsx'
+import Skeleton, { SkeletonText } from '../components/Skeleton.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
+import { KIND_ICON } from './library/LibraryCard.jsx'
 
 /* The day, on one page.
  *
@@ -36,9 +37,12 @@ function clock(value) {
   return time || ''
 }
 
-function Panel({ title, action, children }) {
+function Panel({ title, action, wide, children }) {
   return (
-    <section className="card card-pad today-panel" data-enter>
+    <section
+      className={`card card-pad today-panel${wide ? ' today-panel--wide' : ''}`}
+      data-enter
+    >
       <div className="today-panel-head">
         <span className="card-title">{title}</span>
         {action}
@@ -162,7 +166,33 @@ export default function Today() {
         </header>
 
         {!data ? (
-          <SkeletonCard title rows={4} />
+          /* The outline of what is coming, not one grey rectangle: a briefing
+             card, then the 2x2 panel grid, so the arrival of the real thing is
+             a fade and not a layout jump. */
+          <div aria-hidden="true">
+            <div className="card card-pad today-skel-briefing">
+              <Skeleton w={120} h={11} style={{ marginBottom: 12 }} />
+              <SkeletonText lines={3} />
+            </div>
+            <div className="today-grid">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div
+                  className={`card card-pad today-panel${i === 4 ? ' today-panel--wide' : ''}`}
+                  key={i}
+                >
+                  <Skeleton w={100} h={11} style={{ marginBottom: 14 }} />
+                  {Array.from({ length: 3 - (i % 2) }, (_, r) => (
+                    <Skeleton
+                      key={r}
+                      w={`${72 + ((r * 13 + i * 7) % 20)}%`}
+                      h={12}
+                      style={{ marginBottom: 10 }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <>
             <Briefing
@@ -181,10 +211,19 @@ export default function Today() {
                 }
               >
                 {signals.calendar.total === 0 ? (
-                  <p className="today-empty">Nothing scheduled.</p>
+                  /* An empty calendar is a fact about the day, not a fault in
+                     the page: green state, the one thing worth doing with a
+                     free morning, and a way to do it. */
+                  <div className="today-free">
+                    <Icon name="check" size={15} />
+                    <div>
+                      <div className="today-free-title">The day is clear</div>
+                      <div className="today-free-sub">Nothing on the calendar</div>
+                    </div>
+                  </div>
                 ) : (
-                  <ul className="today-list">
-                    {signals.calendar.items.map((event, i) => (
+                  <ul className="today-list today-list--capped">
+                    {signals.calendar.items.slice(0, 6).map((event, i) => (
                       <li className="today-row" key={i}>
                         <span className="today-when mono">{clock(event.starts_at)}</span>
                         <span className="today-what">
@@ -213,16 +252,45 @@ export default function Today() {
                   <span><b>{signals.tasks.completed_count}</b> done today</span>
                 </div>
                 {signals.tasks.overdue.length > 0 ? (
-                  <ul className="today-list">
+                  <ul className="today-list today-list--capped">
                     {signals.tasks.overdue.slice(0, 6).map((task, i) => (
-                      <li className="today-row" key={i}>
+                      /* A due date that has passed is the one date on this
+                         page that means attention: it wears the confirming
+                         colour rather than the quiet one the schedule uses. */
+                      <li className="today-row today-row--late" key={i}>
                         <span className="today-when mono">{String(task.due_at || '').slice(5, 10)}</span>
                         <span className="today-what">{task.title}</span>
                       </li>
                     ))}
                   </ul>
+                ) : signals.tasks.completed.length > 0 ? (
+                  /* No debt is worth celebrating only with the things already
+                     finished today — real rows, not a second empty state. */
+                  <>
+                    <ul className="today-list today-list--capped">
+                      {signals.tasks.completed.slice(0, 4).map((task, i) => (
+                        <li className="today-row today-row--done" key={i}>
+                          <span className="today-when mono">
+                            <Icon name="check" size={12} />
+                          </span>
+                          <span className="today-what">{task.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {signals.tasks.completed_count > 4 && (
+                      <p className="today-more">
+                        +{signals.tasks.completed_count - 4} more finished
+                      </p>
+                    )}
+                  </>
                 ) : (
-                  <p className="today-empty">Nothing overdue.</p>
+                  <div className="today-free today-free--flat">
+                    <Icon name="check" size={15} />
+                    <div>
+                      <div className="today-free-title">Nothing owed</div>
+                      <div className="today-free-sub">No overdue, none finished yet</div>
+                    </div>
+                  </div>
                 )}
               </Panel>
 
@@ -249,8 +317,44 @@ export default function Today() {
                 )}
               </Panel>
 
+              {/* Connected tools, read from the health the store already polls —
+                  asking /api/today for them would put a probe of every provider
+                  on the page most likely to be opened first. It sits beside the
+                  inbox because both are a row of figures with a Manage/Open at
+                  the head: two stat panels, one shape. */}
+              <section className="card card-pad today-panel" data-enter>
+                <div className="today-panel-head">
+                  <span className="card-title">connected tools</span>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--small"
+                    onClick={() => setView('capabilities')}
+                  >
+                    Manage
+                  </button>
+                </div>
+                {!health ? (
+                  <p className="today-empty">Checking…</p>
+                ) : (
+                  <div className="today-counts">
+                    <span><b>{connectors.tools}</b> connector tools live</span>
+                    {connectors.awaiting.length > 0 && (
+                      <span className="is-late">{connectors.awaiting.join(', ')} — not signed in</span>
+                    )}
+                    {connectors.broken.length > 0 && (
+                      <span className="is-late">{connectors.broken.join(', ')} — not answering</span>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* Logged today spans the full grid width and splits its rows into
+                  two columns: a day's reading grows sideways with the page
+                  instead of stretching it, and six rows become three lines of
+                  height on a desktop screen. */}
               <Panel
                 title="logged today"
+                wide
                 action={
                   <button type="button" className="btn btn--ghost btn--small" onClick={() => setView('library')}>
                     Library
@@ -258,23 +362,43 @@ export default function Today() {
                 }
               >
                 {signals.library.total === 0 ? (
-                  <p className="today-empty">Nothing logged yet today.</p>
+                  <div className="today-free today-free--flat">
+                    <Icon name="book" size={15} />
+                    <div>
+                      <div className="today-free-title">Nothing logged yet</div>
+                      <div className="today-free-sub">Read anything and it lands here</div>
+                    </div>
+                  </div>
                 ) : (
-                  <ul className="today-list">
-                    {signals.library.items.map((item, i) => (
-                      /* No time column here: what a library row wants said is
-                         what it was, and `article` truncated to fit a clock
-                         reads as a typo. */
-                      <li className="today-row today-row--flat" key={i}>
-                        <span className="today-what">
-                          {item.title}
-                          <span className="today-sub">
-                            {[item.kind, item.author].filter(Boolean).join(' · ')}
+                  <>
+                    <ul className="today-list today-list--capped today-list--split">
+                      {signals.library.items.slice(0, 6).map((item, i) => (
+                        /* No time column here: what a library row wants said is
+                           what it was, and `article` truncated to fit a clock
+                           reads as a typo. The mark says the kind so the sub
+                           line is free to name the author alone. */
+                        <li className="today-row today-row--flat" key={i}>
+                          <Icon className="today-kind" name={KIND_ICON[item.kind] || 'link'} size={15} />
+                          <span className="today-what">
+                            {item.title}
+                            {item.author ? <span className="today-sub">{item.author}</span> : null}
                           </span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                        </li>
+                      ))}
+                    </ul>
+                    {signals.library.total > 6 && (
+                      <p className="today-more">
+                        +{signals.library.total - 6} more in the{' '}
+                        <button
+                          type="button"
+                          className="today-more-link"
+                          onClick={() => setView('library')}
+                        >
+                          Library
+                        </button>
+                      </p>
+                    )}
+                  </>
                 )}
               </Panel>
             </div>
@@ -289,35 +413,6 @@ export default function Today() {
               onGenerate={() => generate('daily')}
               onSubmit={submitReview}
             />
-
-            {/* Connected tools, read from the health the store already polls —
-                asking /api/today for them would put a probe of every provider
-                on the page most likely to be opened first. */}
-            <section className="card card-pad" data-enter>
-              <div className="today-panel-head">
-                <span className="card-title">connected tools</span>
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--small"
-                  onClick={() => setView('capabilities')}
-                >
-                  Manage
-                </button>
-              </div>
-              {!health ? (
-                <p className="today-empty">Checking…</p>
-              ) : (
-                <div className="today-counts">
-                  <span><b>{connectors.tools}</b> connector tools live</span>
-                  {connectors.awaiting.length > 0 && (
-                    <span className="is-late">{connectors.awaiting.join(', ')} — not signed in</span>
-                  )}
-                  {connectors.broken.length > 0 && (
-                    <span className="is-late">{connectors.broken.join(', ')} — not answering</span>
-                  )}
-                </div>
-              )}
-            </section>
           </>
         )}
       </div>

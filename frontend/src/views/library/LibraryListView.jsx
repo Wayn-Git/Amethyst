@@ -13,23 +13,28 @@ export default function LibraryListView({
   onTagClick,
 }) {
   const containerRef = useRef(null)
+  const animatedIdsRef = useRef(new Set())
   const groups = useMemo(() => groupItemsByDate(items), [items])
 
   useEffect(() => {
     if (!containerRef.current) return
-    const rows = Array.from(containerRef.current.querySelectorAll('.lib-row:not([data-animated="true"])'))
-    if (!rows.length) return
-
-    rows.forEach(r => r.setAttribute('data-animated', 'true'))
+    const rows = Array.from(containerRef.current.querySelectorAll('.lib-row'))
+    const newRows = rows.filter((r) => {
+      const id = r.getAttribute('data-item-id')
+      if (!id || animatedIdsRef.current.has(id)) return false
+      animatedIdsRef.current.add(id)
+      return true
+    })
+    if (!newRows.length) return
 
     gsap.fromTo(
-      rows,
-      { autoAlpha: 0, y: 14 },
+      newRows,
+      { autoAlpha: 0, y: 10 },
       {
         autoAlpha: 1,
         y: 0,
-        duration: 0.35,
-        stagger: { each: 0.03, from: 'start' },
+        duration: 0.3,
+        stagger: { each: 0.02, from: 'start', max: 0.12 },
         ease: 'power2.out',
         clearProps: 'transform,visibility,opacity',
       }
