@@ -38,6 +38,58 @@ zero-cloud setup, or with 20+ cloud providers.
 
 Also: Mail (beta, direct Gmail), Automations (beta, a prompt on an interval), a full Activity log, and a tray + global hotkey desktop mode.
 
+## Parallel Execution
+
+Amethyst can run multiple data-gathering tasks simultaneously, dramatically
+speeding up research and data collection:
+
+```python
+# Example: Research multiple topics at once
+dispatch_parallel_jobs([
+  {task: "web_search", params: {query: "AI news"}},
+  {task: "web_search", params: {query: "climate change"}},
+  {task: "urls", params: {urls: ["https://example.com"]}},
+  {task: "github_activity", params: {username: "user"}},
+])
+```
+
+**Key features:**
+- **Task auto-correction** — Common mistakes like `fetch_url` → `urls` are
+  automatically fixed
+- **Error recovery** — Clear error messages guide the agent to use correct tools
+- **Progress tracking** — Real-time status updates in the UI
+- **Smart routing** — Fast tasks run locally, slow tasks use remote workers
+
+**Available tasks:** `urls`, `web_search`, `gmail`, `github_activity`,
+`git_status`, `file_info`, `system_info`, `briefing`, `todo`, `rss`
+
+## Smart File Reading
+
+Amethyst reads files intelligently, preventing common issues:
+
+- **Binary detection** — Automatically detects and handles binary files
+- **Image recognition** — Shows images as base64 with metadata
+- **Hard limits** — 50KB max, 2000 lines, 2000 chars per line
+- **Pagination** — Use `offset` and `limit` for large files
+- **Truncation notices** — Clearly shows when data is truncated
+
+**Example:**
+```bash
+view_file("large_file.py", offset=100, limit=50)  # Lines 100-150
+```
+
+## LLM Intelligence Rules
+
+The agent follows strict rules to prevent common mistakes:
+
+1. **Never guess tool names** — Must check available tools before use
+2. **Never retry failed tools** — Must understand why it failed first
+3. **Never generate fake data** — Must tell user honestly what happened
+4. **Always have fallback strategy** — Primary → Alternative → Manual
+5. **Tool inspection protocol** — Mandatory check before every tool call
+
+These rules ensure the agent is reliable and transparent about its capabilities.
+
 ## The agent, briefly
 
 - **Reason → act → observe.** The Director picks the tools; you watch it work.
@@ -50,6 +102,10 @@ Also: Mail (beta, direct Gmail), Automations (beta, a prompt on an interval), a 
   catalogue.
 - **MCP connectors.** Any Model Context Protocol server — stdio, SSE, or
   streamable HTTP — registers into one flat tool registry.
+- **Parallel execution.** Run multiple data-gathering tasks simultaneously with
+  automatic task name correction and error recovery.
+- **Smart file reading.** Binary detection, image handling, pagination, and
+  hard limits prevent token explosion and improve performance.
 
 ## Quick start
 
@@ -108,13 +164,18 @@ or point `providers.yaml` at any OpenAI-compatible endpoint.
 | [docs/interface.md](docs/interface.md) | The web UI: views, keyboard bindings, design rationale |
 | [docs/deployment.md](docs/deployment.md) | Local single-process vs. Vercel + Render split deploy |
 | [docs/architecture/overview.md](docs/architecture/overview.md) | Layer diagram, request lifecycle, design principles, ADRs |
+| [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) | Parallel execution, smart file reading, LLM intelligence rules |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, conventions, rules of the codebase |
 
 ## Project layout
 
 ```
 backend/     FastAPI app, agent loop, tools, connectors, CLI
+  agent/     Director, prompt, tool selector, state management
+  tools/     Built-in tools (filesystem, shell, workers, etc.)
+  workers/   Parallel job execution, collectors, metrics, templates
 frontend/    React 19 + Vite SPA (chat, today, tasks, library, …)
+  components/ UI components including ParallelJobCard for job visualization
 relay/       Cloudflare Worker: holds Instagram/webhook captures while
              your machine sleeps
 agents/      Bundled skills (plain SKILL.md files)
