@@ -162,6 +162,19 @@ class AnthropicClient:
             # Budget must leave room for the response itself.
             budget = min(p.thinking_budget, max(1024, max_tokens - 1024))
             payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
+        elif p.reasoning_effort and p.reasoning_effort != "none":
+            # Map reasoning_effort to Anthropic's thinking budget.
+            # Anthropic doesn't have native effort levels, so we map to budget.
+            effort_to_budget = {
+                "low": 2048,
+                "medium": 8192,
+                "high": 32768,
+                "xhigh": 65536,
+                "max": 100000,
+            }
+            budget = effort_to_budget.get(p.reasoning_effort, 32768)
+            budget = min(budget, max(1024, max_tokens - 1024))
+            payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
         return payload
 
     def _headers(self) -> dict[str, str]:

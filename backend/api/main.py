@@ -337,6 +337,10 @@ async def _lifespan(_: FastAPI):
     _control_loop = asyncio.get_running_loop()
     paths().ensure()
     get_connection()
+    # Load models.dev catalog for reasoning effort metadata.
+    # Fetches from remote on first boot, caches locally, refreshes daily.
+    from backend.runtime import models_dev_catalog
+    models_dev_catalog.init()
     # Shipped skills, brought up to date on every boot rather than only by
     # `amethyst init`. Init runs once in a lifetime, so before this a fix to a
     # builtin skill reached new installs and nobody else -- the agent went on
@@ -669,7 +673,7 @@ async def _registry_for(
     tools that are already up instead, and the connectors still coming up land
     in the registry for the next turn.
     """
-    root = str(Path(workspace).expanduser().resolve()) if workspace else str(Path.cwd())
+    root = str(Path(workspace).expanduser().resolve()) if workspace else str(Path('~/Documents/amethyst').expanduser().resolve())
 
     if reconcile_deadline is None:
         async with _registry_lock:
@@ -819,18 +823,77 @@ async def _director(
     mode: str = "chat",
     *,
     reconcile_deadline: float | None = None,
+    effort: str | None = None,
+    variant: str | None = None,
+    model_id: str | None = None,
+    conversation_id: str | None = None,
+    guard: str | None = None,
 ) -> Director:
     from backend.agent.director import Guards
     from backend.config import load_max_iterations
+    from backend.runtime.types import ModelParameters
+    from backend.runtime.variant_store import resolve, set_session_effort
+    from backend.security.confirmation import ConfirmationService, ConfirmationRequest
 
     registry, root = await _registry_for(workspace, reconcile_deadline=reconcile_deadline)
-    # The loop ceiling is a user setting now (Settings -> General), read per
-    # turn so a change lands on the next message. Everything else in Guards
-    # keeps its default -- the wall-clock and tool-call stops are not the ones
-    # people hit, the iteration count is.
-    guards = Guards(max_iterations=load_max_iterations())
-    return Director(registry, workspace_root=root, stream=True, mode=mode, guards=guards)
 
+    # Dynamic permission gating based on the UI's requested guard mode.
+    #
+    # ConfirmationService.check() has its own logic: LOW risk tools are
+    # auto-approved, MEDIUM tools may be covered by stored "always allow"
+    # preferences. Simply swapping the callback is not enough for modes
+    # that need to override those defaults (read-only must block writes
+    # even if the user previously allowed them; full-access must skip the
+    # prompt even for HIGH risk tools).
+    #
+    # The fix: subclass ConfirmationService and override check() itself.
+    if guard and guard != "guard":
+        from backend.tools.base import ToolSource
+        
+        class GuardedConfirmationService(ConfirmationService):
+            async def check(self, tool, arguments, context=None):
+                risk, reason = self.evaluate_risk(tool, arguments)
+                
+                if guard == "full-access":
+                    return ConfirmationOutcome(True, "full_access", risk)
+                
+                if guard == "read-only":
+                    # Allow read-only tools (LOW risk), block everything else
+                    if risk is RiskLevel.LOW:
+                        return ConfirmationOutcome(True, "auto", risk)
+                    return ConfirmationOutcome(False, "read_only_blocked", risk)
+                
+                if guard == "guard-auto-edit":
+                    # Auto-approve file edits, prompt for everything else
+                    if risk is RiskLevel.LOW:
+                        return ConfirmationOutcome(True, "auto", risk)
+                    if tool.name in ("replace_file_content", "multi_replace_file_content", "write_to_file", "create_document", "edit_file"):
+                        return ConfirmationOutcome(True, "auto_edit", risk)
+                    # Fall through to normal confirmation for commands etc
+                    return await super().check(tool, arguments, context)
+                
+                return await super().check(tool, arguments, context)
+        
+        from backend.security.confirmation import ConfirmationOutcome
+        guarded = GuardedConfirmationService(callback=_await_confirmation)
+        registry = registry.with_confirmation(guarded)
+
+    guards = Guards(max_iterations=load_max_iterations())
+    # Resolve effort: override > saved > session > catalog default
+    resolved_effort = resolve(model_id, override=variant or effort, conversation_id=conversation_id) if model_id else effort
+    # Remember the effort used in this conversation for next time
+    if conversation_id and resolved_effort:
+        set_session_effort(conversation_id, resolved_effort)
+    params = ModelParameters(reasoning_effort=resolved_effort) if resolved_effort else None
+    return Director(registry, workspace_root=root, stream=True, mode=mode, guards=guards, params=params)
+
+
+
+@app.get("/api/delay")
+async def delay_endpoint(ms: int = 1200):
+    await asyncio.sleep(ms / 1000.0)
+    from fastapi.responses import Response
+    return Response(content=b"", media_type="image/png")
 
 @app.get("/api/ping")
 def ping() -> dict[str, Any]:
@@ -1487,7 +1550,16 @@ async def provider_models(name: str) -> dict[str, Any]:
     except Exception as exc:
         return {"name": name, "models": [], "reason": f"{type(exc).__name__}: {exc}"}
 
-    return {"name": name, "models": parse(payload), "reason": ""}
+    models = parse(payload)
+    from backend.runtime.reasoning_catalog import capabilities_for
+    for m in models:
+        # If the adapter already populated capabilities (e.g. from OpenRouter), keep them
+        if "capabilities" not in m:
+            # Pass any provider-returned reasoning metadata as hints
+            provider_caps = m.get("_provider_reasoning")
+            m["capabilities"] = capabilities_for(m.get("id", ""), provider_caps)
+
+    return {"name": name, "models": models, "reason": ""}
 
 
 #: The OpenAI-shaped `/models` parser, which belongs to the adapter that owns
@@ -1513,6 +1585,48 @@ def remove_provider_route(name: str) -> dict[str, Any]:
     return {"status": "removed", "name": name}
 
 
+@app.get("/api/variant/{model_id:path}")
+def get_variant(model_id: str, conversation_id: str | None = None) -> dict[str, Any]:
+    """Return the saved reasoning effort for a model, its supported levels, and the resolved default."""
+    from backend.runtime.variant_store import get_saved, get_session_effort, resolve
+    from backend.runtime.reasoning_catalog import effort_levels as get_effort_levels
+
+    saved = get_saved(model_id)
+    session = get_session_effort(conversation_id) if conversation_id else None
+    resolved = resolve(model_id, conversation_id=conversation_id)
+    supported = get_effort_levels(model_id)
+    return {
+        "model_id": model_id,
+        "saved": saved,
+        "session": session,
+        "resolved": resolved,
+        "supported": list(supported),
+    }
+
+
+class SetVariantRequest(BaseModel):
+    effort: str
+
+
+@app.put("/api/variant/{model_id:path}")
+def set_variant(model_id: str, body: SetVariantRequest) -> dict[str, Any]:
+    """Persist the reasoning effort for a model."""
+    from backend.runtime.variant_store import set_saved, resolve
+    from backend.runtime.reasoning_catalog import effort_levels as get_effort_levels
+
+    supported = get_effort_levels(model_id)
+    if supported and body.effort not in supported:
+        raise HTTPException(400, f"'{body.effort}' not in supported efforts: {list(supported)}")
+    set_saved(model_id, body.effort)
+    resolved = resolve(model_id)
+    return {
+        "model_id": model_id,
+        "saved": body.effort,
+        "resolved": resolved,
+        "supported": list(supported),
+    }
+
+
 class CreateConversation(BaseModel):
     provider: str
     model: str
@@ -1520,14 +1634,15 @@ class CreateConversation(BaseModel):
 
 
 @app.get("/api/conversations")
-def list_conversations(include_automations: bool = False) -> list[dict[str, Any]]:
+def list_conversations(include_automations: bool = False, archived: bool = False) -> list[dict[str, Any]]:
     """Conversations for the rail. Scheduled runs are listed per automation instead.
 
     They shared this list's fixed limit, so a pair of 15-minute automations
     filled it and pushed real conversations off the end.
     """
     return [dict(r) for r in ConversationRepository().list(
-        include_automations=include_automations
+        include_automations=include_automations,
+        archived=archived
     )]
 
 
@@ -1659,7 +1774,7 @@ def delete_all_conversations(include_automations: bool = False) -> dict[str, Any
 
 
 @app.delete("/api/conversations/{conversation_id}")
-def delete_conversation(conversation_id: str) -> dict[str, str]:
+def delete_conversation(conversation_id: str, archive: bool = False) -> dict[str, str]:
     """Delete a conversation and its transcript.
 
     Refused while a turn is streaming: the loop holds the id, may be suspended
@@ -1668,6 +1783,10 @@ def delete_conversation(conversation_id: str) -> dict[str, str]:
     """
     if conversation_id in _active_turns:
         raise HTTPException(409, "a turn is running in this conversation; stop it first")
+    if archive:
+        if not ConversationRepository().set_archived(conversation_id, True):
+            raise HTTPException(404, "no such conversation")
+        return {"status": "archived"}
     if not ConversationRepository().delete(conversation_id):
         raise HTTPException(404, "no such conversation")
     return {"status": "deleted"}
@@ -1917,6 +2036,7 @@ class TurnRequest(BaseModel):
     attachments: list[Attachment] = []
     guard: str | None = None
     effort: str | None = None
+    variant: str | None = None
     model: str | None = None
 
 
@@ -1967,7 +2087,7 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
             yield _frame("status", state="starting")
             began = time.monotonic()
             build = asyncio.ensure_future(
-                _director(body.workspace, body.mode, reconcile_deadline=TURN_STARTUP_SECONDS)
+                _director(body.workspace, body.mode, reconcile_deadline=TURN_STARTUP_SECONDS, effort=body.effort, variant=body.variant, model_id=body.model, conversation_id=conversation_id, guard=body.guard)
             )
             try:
                 while True:
@@ -5042,6 +5162,113 @@ async def today() -> dict[str, Any]:
         # rather than showing a zero it did not measure.
         "degraded": signals.degraded,
     }
+
+
+@app.get("/api/analytics/activity")
+def get_analytics_activity() -> dict[str, Any]:
+    """Real activity metrics queried directly from the local SQLite database.
+
+    Reports actual turns taken, completion/failure rates, per-model distribution,
+    daily activity timeline, tool execution frequencies, and token volume estimates.
+    Zero mock data.
+    """
+    import sqlite3
+    from backend.config import paths
+
+    db_path = paths().home / "amethyst.db"
+    if not db_path.is_file():
+        return {
+            "total_runs": 0,
+            "completed_runs": 0,
+            "failed_runs": 0,
+            "models": [],
+            "daily": [],
+            "tools": [],
+            "tokens": {"total": 0, "input": 0, "output": 0, "is_estimated": True},
+            "messages_count": 0,
+        }
+
+    try:
+        conn = sqlite3.connect(db_path, timeout=5.0)
+        conn.row_factory = sqlite3.Row
+
+        runs_by_phase = {
+            r["phase"]: r["cnt"]
+            for r in conn.execute(
+                "SELECT phase, count(*) as cnt FROM agent_runs GROUP BY phase"
+            ).fetchall()
+        }
+        total_runs = sum(runs_by_phase.values())
+
+        models_raw = conn.execute(
+            "SELECT COALESCE(link, 'unknown') as model, count(*) as cnt"
+            " FROM agent_runs WHERE link IS NOT NULL GROUP BY link ORDER BY cnt DESC"
+        ).fetchall()
+        models = []
+        for r in models_raw:
+            cnt = r["cnt"]
+            pct = round((cnt / total_runs * 100), 1) if total_runs else 0.0
+            models.append({"model": r["model"], "count": cnt, "percentage": pct})
+
+        daily_raw = conn.execute(
+            "SELECT substr(created_at, 1, 10) as day, count(*) as cnt,"
+            " sum(case when phase in ('failed', 'cancelled', 'interrupted') then 1 else 0 end) as failed_cnt"
+            " FROM agent_runs GROUP BY day ORDER BY day ASC LIMIT 90"
+        ).fetchall()
+        daily = [dict(r) for r in daily_raw]
+
+        tools_raw = conn.execute(
+            "SELECT tool_name, count(*) as cnt, round(avg(duration_ms), 1) as avg_ms"
+            " FROM execution_logs GROUP BY tool_name ORDER BY cnt DESC LIMIT 12"
+        ).fetchall()
+        tools = [dict(r) for r in tools_raw]
+
+        msg_row = conn.execute(
+            "SELECT count(*) as total, sum(length(content)) as total_chars,"
+            " sum(case when role = 'user' then length(content) else 0 end) as user_chars,"
+            " sum(case when role = 'assistant' then length(content) else 0 end) as asst_chars"
+            " FROM messages"
+        ).fetchone()
+
+        conn.close()
+
+        total_chars = (msg_row["total_chars"] if msg_row else 0) or 0
+        user_chars = (msg_row["user_chars"] if msg_row else 0) or 0
+        asst_chars = (msg_row["asst_chars"] if msg_row else 0) or 0
+
+        est_input_tokens = round(user_chars / 4)
+        est_output_tokens = round(asst_chars / 4)
+        est_total_tokens = est_input_tokens + est_output_tokens
+
+        return {
+            "total_runs": total_runs,
+            "completed_runs": runs_by_phase.get("completed", 0),
+            "failed_runs": runs_by_phase.get("failed", 0)
+            + runs_by_phase.get("cancelled", 0)
+            + runs_by_phase.get("interrupted", 0),
+            "models": models,
+            "daily": daily,
+            "tools": tools,
+            "tokens": {
+                "total": est_total_tokens,
+                "input": est_input_tokens,
+                "output": est_output_tokens,
+                "is_estimated": True,
+            },
+            "messages_count": (msg_row["total"] if msg_row else 0) or 0,
+        }
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "total_runs": 0,
+            "completed_runs": 0,
+            "failed_runs": 0,
+            "models": [],
+            "daily": [],
+            "tools": [],
+            "tokens": {"total": 0, "input": 0, "output": 0, "is_estimated": True},
+            "messages_count": 0,
+        }
 
 
 # ------------------------------------------------------------------- the app

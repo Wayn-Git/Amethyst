@@ -139,7 +139,7 @@ class ConversationRepository:
             "SELECT * FROM conversations WHERE id = ?", (conversation_id,)
         ).fetchone()
 
-    def list(self, limit: int = 50, *, include_automations: bool = False) -> list[sqlite3.Row]:
+    def list(self, limit: int = 50, *, include_automations: bool = False, archived: bool = False) -> list[sqlite3.Row]:
         """Conversations, newest first. Scheduled runs are excluded by default.
 
         They share this list's fixed limit, and a pair of automations on a
@@ -150,16 +150,25 @@ class ConversationRepository:
         Pinned first, so a pinned conversation cannot fall off the end of the
         limit -- which is the one thing a pin is for.
         """
+        arch_val = 1 if archived else 0
         if include_automations:
             return self.conn.execute(
-                "SELECT * FROM conversations ORDER BY pinned DESC, updated_at DESC LIMIT ?",
-                (limit,),
+                "SELECT * FROM conversations WHERE archived = ? ORDER BY pinned DESC, updated_at DESC LIMIT ?",
+                (arch_val, limit),
             ).fetchall()
         return self.conn.execute(
-            "SELECT * FROM conversations WHERE automation_id IS NULL"
+            "SELECT * FROM conversations WHERE automation_id IS NULL AND archived = ?"
             " ORDER BY pinned DESC, updated_at DESC LIMIT ?",
-            (limit,),
+            (arch_val, limit),
         ).fetchall()
+
+    def set_archived(self, conversation_id: str, archived: bool) -> bool:
+        cursor = self.conn.execute(
+            "UPDATE conversations SET archived = ? WHERE id = ?",
+            (1 if archived else 0, conversation_id),
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
 
     def set_pinned(self, conversation_id: str, pinned: bool) -> bool:
         """Keep this conversation at the top of the history column, or stop.

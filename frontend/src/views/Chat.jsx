@@ -12,6 +12,7 @@ import { SmoothTextarea, FadeScrollArea } from '../components/ui/skiper/index.js
 import PlusMenu from '../components/PlusMenu.jsx'
 import ModelMenu from '../components/ModelMenu.jsx'
 import EffortMenu from '../components/EffortMenu.jsx'
+import ContextPopover from '../components/ContextPopover.jsx'
 import GuardMenu from '../components/GuardMenu.jsx'
 import { LoaderIcon } from '../components/OnboardingWizard.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
@@ -904,8 +905,11 @@ export default function Chat() {
   const [mode, setMode] = useState('chat')
   const [guard, setGuard] = useState(defaultGuard || 'guard')
   const [effort, setEffort] = useState(defaultEffort || 'high')
+  const [variantInfo, setVariantInfo] = useState(null)
+  const [modelCaps, setModelCaps] = useState(null)
   const [guardOpen, setGuardOpen] = useState(false)
   const [effortOpen, setEffortOpen] = useState(false)
+  const [contextOpen, setContextOpen] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
   const [lastSent, setLastSent] = useState('')
   const [pinsOpen, setPinsOpen] = useState(true)
@@ -977,6 +981,20 @@ export default function Chat() {
   const providers = health?.providers ?? []
   const defaults = health?.provider_defaults ?? {}
   const active = conversations.find((c) => c.id === activeId)
+
+  // Fetch variant info when the active conversation's model changes (or on initial load).
+  useEffect(() => {
+    const modelId = active?.model || ''
+    if (!modelId) { setVariantInfo(null); return }
+    let cancelled = false
+    api.getVariant(modelId, activeId).then((info) => {
+      if (cancelled) return
+      setVariantInfo(info)
+      // Set effort to the resolved default (includes session memory)
+      setEffort(info.resolved || 'high')
+    }).catch(() => { if (!cancelled) setVariantInfo(null) })
+    return () => { cancelled = true }
+  }, [active?.model, activeId])
 
   // What to use when nothing has been chosen: the house default if this machine
   // has it configured, otherwise whatever it does have.
@@ -1121,6 +1139,18 @@ export default function Chat() {
     setInput('')
     setTimeout(() => textareaRef.current?.focus(), 0)
   }, [leaveTurn, setActiveId])
+
+  const cycleEffort = useCallback(() => {
+    if (!variantInfo?.supported?.length) return
+    const levels = variantInfo.supported
+    const current = effort || 'high'
+    const idx = levels.indexOf(current)
+    const next = levels[(idx + 1) % levels.length]
+    setEffort(next)
+    if (activeId && modelId) {
+      api.setVariant(modelId, next).catch(() => {})
+    }
+  }, [variantInfo, effort, activeId, modelId])
 
   const pushAssistant = useCallback(() => {
     const { buffer, reasoning, reasoningStart } = liveRef.current
@@ -1324,6 +1354,11 @@ export default function Chat() {
             durationMs: evt.duration_ms,
           }])
         }
+        // If the provider/model changed (fallback), refresh the conversation list
+        // so the model picker shows the model that actually answered.
+        if (evt.provider && evt.model) {
+          refreshConvs()
+        }
         // A widget turn's text is the fenced payload it was persisted as, which
         // is not something to read out in a desktop notification.
         notifyDone('Reply ready', parseWidgetEnvelope(evt.text) ? 'An interactive answer is ready.' : evt.text)
@@ -1413,7 +1448,7 @@ export default function Chat() {
     }
   }, [pushAssistant, pushNote, settle, setBuffer, setReasoning, setTool, setStatus, notifyDone, setPanel])
 
-  const openTurn = useCallback(async (cid, message, mode = 'chat', files = []) => {
+  const openTurn = useCallback(async (cid, message, mode = 'chat', files = [], opts = {}) => {
     const token = ++turnTokenRef.current
     runningRef.current = cid
     settledRef.current = false
@@ -1453,6 +1488,10 @@ export default function Chat() {
         workspace: workspace.trim() || null,
         mode,
         attachments: files,
+        guard: opts.guard,
+        effort: opts.effort,
+        variant: opts.variant,
+        model: opts.model,
         onEvent: (evt) => { beat(); onEvent(evt) },
         signal: controller.signal,
       })
@@ -1647,7 +1686,7 @@ export default function Chat() {
         refreshConvs()
       }
       abortRef.current?.abort()
-      await openTurn(cid, message, mode, sending, { guard, effort, model: draftModel })
+      await openTurn(cid, message, mode, sending, { guard, effort, variant: effort, model: draftModel })
     } catch (err) {
       toast(err.message, 'bad')
       setTurnState('idle')
@@ -1695,23 +1734,33 @@ export default function Chat() {
   useEffect(() => { stopRef.current = stop }, [stop])
 
   const applyModel = useCallback(async (patch) => {
-    if (!activeId) { setDraft((d) => ({ ...d, ...patch })); return }
-    try {
-      await api.updateConversation(activeId, patch)
-      await refreshConvs()
-    } catch (err) {
-      toast(err.message, 'bad')
-      refreshConvs()
+    const caps = patch.capabilities || {}
+    if (patch.context_length) caps.context_length = patch.context_length
+    setModelCaps(caps)
+    
+    // Clear old variant info immediately to prevent stale levels showing
+    setVariantInfo(null)
+    
+    // Fetch per-model variant info (saved effort, supported levels, default)
+    const modelId = patch.model || ''
+    if (modelId && caps.supports_effort !== false) {
+      try {
+        const info = await api.getVariant(modelId, activeId)
+        setVariantInfo(info)
+        setEffort(info.resolved || 'high')
+      } catch {
+        setVariantInfo(null)
+      }
     }
-  }, [activeId, refreshConvs, toast])
-
-  const toggleMemory = useCallback(async () => {
-    try {
-      const current = await api.memory(activeId || null)
-      const next = await api.toggleMemory(!current.enabled, activeId || null)
-      toast(next.enabled ? 'Memory on — facts are recalled each turn' : 'Memory off', next.enabled ? 'ok' : 'info')
-    } catch (err) {
-      toast(err.message, 'bad')
+    
+    // Create db_patch by picking out only provider and model
+    const db_patch = { provider: patch.provider, model: patch.model }
+    
+    if (!activeId) { setDraft((d) => ({ ...d, ...db_patch })) }
+    else {
+      api.updateConversation(activeId, db_patch).catch((err) => {
+        toast(err.message, 'bad')
+      })
     }
   }, [activeId, toast])
 
@@ -1788,14 +1837,14 @@ export default function Chat() {
       selectConversation,
       focusComposer,
       ask,
-      toggleMemory,
       togglePin,
+      cycleEffort,
       openPlus: () => setPlusOpen(true),
       attach: () => fileRef.current?.click(),
       beginRename: (cid) => setRenaming(cid),
       turnRunning: turnState === 'running',
     })
-  }, [registerChat, stop, startFresh, selectConversation, focusComposer, ask, toggleMemory, togglePin, turnState, setRenaming])
+  }, [registerChat, stop, startFresh, selectConversation, focusComposer, ask, togglePin, cycleEffort, turnState, setRenaming])
 
   // Prompts arrive on the stream; this fetch recovers anything a reload left
   // suspended, since the turn survives the page and the stream does not.
@@ -1915,7 +1964,7 @@ export default function Chat() {
   // exact sentence, and a later "gmail: timed out" is a new one that shows.
   const errorSig = `err:${connectorErrors.map(([n, e]) => `${n}=${e}`).join('|')}`
   const signInSig = `signin:${[...awaitingSignIn].sort().join(',')}`
-  const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'no model'
+  const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'Auto'
     // How many connectors are actually switched on for the next message. Rides on
   // the + chip in place of the dock that used to spell the same fact out.
   const liveTools = useMemo(
@@ -1944,12 +1993,9 @@ export default function Chat() {
   }, [guard])
 
   const effortLabel = useMemo(() => {
-    if (effort === 'off') return 'Off'
-    if (effort === 'low') return 'Low'
-    if (effort === 'medium') return 'Medium'
-    if (effort === 'extra-high') return 'Extra high'
-    if (effort === 'max') return 'Max'
-    return 'High'
+    if (!effort || effort === 'default' || effort === 'high') return 'High'
+    if (effort === 'none') return 'None'
+    return effort.charAt(0).toUpperCase() + effort.slice(1)
   }, [effort])
 
   const contextPct = useMemo(() => {
@@ -1961,10 +2007,11 @@ export default function Chat() {
       if (it.callsRaw) charCount += JSON.stringify(it.callsRaw).length
     }
     const estimatedTokens = Math.round(charCount / 3.8)
-    const windowSize = 32000
+    // Use the selected model's actual context window if available, fallback to 128k
+    const windowSize = modelCaps?.context_length || 128000
     const pct = Math.min(100, Math.max(0, Math.round((estimatedTokens / windowSize) * 100)))
-    return items.length > 0 ? (pct > 0 ? pct : 5) : 0
-  }, [items])
+    return items.length > 0 ? pct : 0
+  }, [items, modelCaps])
 
   const liveThinkingSnippet = useMemo(() => {
     if (liveReasoning) {
@@ -2071,6 +2118,20 @@ export default function Chat() {
                   <span className="inspect-metric-val">{elapsedSec}s</span>
                 </div>
               </div>
+
+              {/* Live reasoning stream */}
+              {liveReasoning && (
+                <>
+                  <div className="inspect-dashed-divider" />
+                  <div className="inspect-thoughts-stream" ref={thoughtsStreamRef}>
+                    <div className="inspect-thoughts-label">
+                      <Icon name="brain" size={12} />
+                      <span>Live reasoning</span>
+                    </div>
+                    <div className="inspect-thoughts-text">{liveReasoning}</div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2098,7 +2159,7 @@ export default function Chat() {
                 ) : turnPhase === 'executing' ? (
                   liveTool?.name ? `Running ${liveTool.name}...` : 'Executing tool...'
                 ) : (
-                  'Working through the next step'
+                  liveThinkingSnippet
                 )}
               </span>
             </div>
@@ -2163,7 +2224,7 @@ export default function Chat() {
         <button
           type="button"
           className={`composer-plus-circle${attachments.length > 0 ? ' has-count' : ''}${plusOpen ? ' active' : ''}`}
-          onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false) }}
+          onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
           title={`Files, skills, connectors, memory — ${MOD_LABEL}+/`}
           aria-label="Add context or actions"
         >
@@ -2275,7 +2336,7 @@ export default function Chat() {
           <button
             type="button"
             className="composer-footer-chip composer-footer-chip--workspace"
-            onClick={() => { setPlusOpen(true); setGuardOpen(false); setEffortOpen(false); setModelOpen(false) }}
+            onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen(true); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setContextOpen(false) }}
             title="Workspace folder"
           >
             <Icon name="folder" size={13} />
@@ -2287,7 +2348,7 @@ export default function Chat() {
             <button
               type="button"
               className={`composer-footer-chip composer-footer-chip--guard${guard === 'full-access' || guard === 'full' ? ' is-full-access' : ''}${guardOpen ? ' is-active' : ''}`}
-              onClick={() => { setGuardOpen((o) => !o); setEffortOpen(false); setModelOpen(false); setPlusOpen(false) }}
+              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setGuardOpen((o) => !o); setEffortOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) }}
               title="Guard mode"
             >
               <Icon name={guard === 'full-access' || guard === 'full' ? 'shield-check' : 'shield'} size={13} className="guard-status-icon" />
@@ -2309,17 +2370,34 @@ export default function Chat() {
             <button
               type="button"
               className={`composer-footer-chip composer-footer-chip--effort${effortOpen ? ' is-active' : ''}`}
-              onClick={() => { setEffortOpen((o) => !o); setGuardOpen(false); setModelOpen(false); setPlusOpen(false) }}
-              title="Reasoning effort"
+              style={{ opacity: (modelCaps && modelCaps.supports_effort === false) ? 0.5 : 1, cursor: (modelCaps && modelCaps.supports_effort === false) ? 'not-allowed' : 'pointer' }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (modelCaps && modelCaps.supports_effort === false) return;
+              }}
+              onClick={(e) => {
+                if (modelCaps && modelCaps.supports_effort === false) {
+                  e.preventDefault();
+                  return;
+                }
+                setEffortOpen((o) => !o); setGuardOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) 
+              }}
+              title={(modelCaps && modelCaps.supports_effort === false) ? "This model does not support reasoning effort" : "Reasoning effort (mod+shift+m to cycle)"}
             >
               <Icon name="lightning" size={13} className="effort-lightning-icon" />
-              <span>{effortLabel}</span>
-              <Icon name="chevron" size={10} className="composer-footer-chevron" />
+              <span>{(modelCaps && modelCaps.supports_effort === false) ? "None" : effortLabel}</span>
+              {(!modelCaps || modelCaps.supports_effort !== false) && <Icon name="chevron" size={10} className="composer-footer-chevron" />}
             </button>
-            {effortOpen && (
+            {effortOpen && (!modelCaps || modelCaps.supports_effort !== false) && (
               <EffortMenu
                 effort={effort}
-                onChange={setEffort}
+                levels={variantInfo?.supported || modelCaps?.effort_levels}
+                onChange={(e) => {
+                  setEffort(e)
+                  // Persist per-model preference
+                  const modelId = draftModel || ''
+                  if (modelId) api.setVariant(modelId, e).catch(() => {})
+                }}
                 onClose={() => setEffortOpen(false)}
                 placement={isEmpty ? 'down' : 'up'}
               />
@@ -2330,26 +2408,43 @@ export default function Chat() {
         {/* Right Cluster */}
         <div className="composer-footer-right">
           {/* Context ring meter */}
-          <div className="composer-footer-context" title={`Context memory usage: ${contextPct}%`}>
-            <svg className="context-donut-svg" width="13" height="13" viewBox="0 0 36 36">
-              <path
-                className="context-donut-track"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="4"
+          <div className="composer-footer-chip-wrap">
+            <button
+              type="button"
+              className={`composer-footer-context${contextOpen ? ' is-active' : ''}`}
+              title={`Context memory usage: ${contextPct}%`}
+              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setContextOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setPlusOpen(false) }}
+            >
+              <svg className="context-donut-svg" width="13" height="13" viewBox="0 0 36 36">
+                <path
+                  className="context-donut-track"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="context-donut-fill"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeDasharray={`${Math.max(contextPct, 1)}, 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span>Context {contextPct}%</span>
+            </button>
+            {contextOpen && (
+              <ContextPopover
+                pct={contextPct}
+                usedTokens={items.length * 150} // Rough approx since true token count isn't exposed yet
+                maxTokens={128000}
+                compactionTokens={90000}
+                onClose={() => setContextOpen(false)}
+                placement={isEmpty ? 'down' : 'up'}
               />
-              <path
-                className="context-donut-fill"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="4"
-                strokeDasharray={`${Math.max(contextPct, 5)}, 100`}
-                strokeLinecap="round"
-              />
-            </svg>
-            <span>Context {Math.max(contextPct, 5)}%</span>
+            )}
           </div>
 
           {/* Model selector chip */}
@@ -2357,7 +2452,7 @@ export default function Chat() {
             <button
               type="button"
               className={`composer-footer-chip composer-footer-chip--model${modelOpen ? ' is-active' : ''}`}
-              onClick={() => { setModelOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setPlusOpen(false) }}
+              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setModelOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setPlusOpen(false); setContextOpen(false) }}
               title="Provider and model"
             >
               <Icon name="globe" size={13} className="model-globe-icon" />

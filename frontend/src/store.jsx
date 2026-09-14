@@ -135,6 +135,7 @@ function applyDensity(density) {
 // Apply persisted values before React mounts.
 applyTextSize(loadPrefs().textSize || 100)
 applyDensity(loadPrefs().density || 'comfortable')
+if (typeof document !== 'undefined') document.documentElement.setAttribute('data-glass', loadPrefs().glassMaterial || 'full')
 
 
 export function AppProvider({ children }) {
@@ -162,7 +163,7 @@ export function AppProvider({ children }) {
   const [overlay, setOverlay] = useState(null) // 'palette' | 'shortcuts' | null
 
   const [conversations, setConversations] = useState([])
-  const [activeId, setActiveIdRaw] = useState(prefs.activeId || null)
+  const [activeId, setActiveIdRaw] = useState((prefs.restoreTabs !== false) ? prefs.activeId || null : null)
   const [caps, setCaps] = useState({ skills: [], connectors: [] })
   const [busyCap, setBusyCap] = useState('')
   const [workspace, setWorkspaceRaw] = useState(prefs.workspace || '')
@@ -246,7 +247,29 @@ export function AppProvider({ children }) {
     savePrefs({ sendWith: value })
   }, [])
 
-  const [onboardingDone, setOnboardingDoneRaw] = useState(prefs.onboardingDone === true)
+  const [archiveChats, setArchiveChatsRaw] = useState(prefs.archiveChats !== false)
+  const setArchiveChats = useCallback((value) => { setArchiveChatsRaw(value); savePrefs({ archiveChats: value }) }, [])
+  const [confirmDestructive, setConfirmDestructiveRaw] = useState(prefs.confirmDestructive !== false)
+  const setConfirmDestructive = useCallback((value) => { setConfirmDestructiveRaw(value); savePrefs({ confirmDestructive: value }) }, [])
+  const [restoreTabs, setRestoreTabsRaw] = useState(prefs.restoreTabs !== false)
+  const setRestoreTabs = useCallback((value) => { setRestoreTabsRaw(value); savePrefs({ restoreTabs: value }) }, [])
+  const [showUsage, setShowUsageRaw] = useState(prefs.showUsage === true)
+  const setShowUsage = useCallback((value) => { setShowUsageRaw(value); savePrefs({ showUsage: value }) }, [])
+
+  const [draftProvider, setDraftProviderRaw] = useState(prefs.draftProvider || 'auto')
+  const setDraftProvider = useCallback((value) => { setDraftProviderRaw(value); savePrefs({ draftProvider: value }) }, [])
+  const [draftModel, setDraftModelRaw] = useState(prefs.draftModel || '')
+  const setDraftModel = useCallback((value) => { setDraftModelRaw(value); savePrefs({ draftModel: value }) }, [])
+
+  const [glassMaterial, setGlassMaterialRaw] = useState(prefs.glassMaterial || 'full')
+  const setGlassMaterial = useCallback((value) => {
+    setGlassMaterialRaw(value)
+    savePrefs({ glassMaterial: value })
+    document.documentElement.setAttribute('data-glass', value)
+  }, [])
+
+
+  const [onboardingDone, setOnboardingDoneRaw] = useState(prefs.onboardingDone ?? true)
   const setOnboardingDone = useCallback((value) => {
     setOnboardingDoneRaw(value)
     savePrefs({ onboardingDone: value })
@@ -460,16 +483,17 @@ export function AppProvider({ children }) {
    *  The open conversation is the one most likely to be deleted, so this has to
    *  answer "what is on screen now" itself rather than leaving Chat pointed at
    *  a row the API will 404 on. */
-  const deleteConversation = useCallback(async (id) => {
+    const deleteConversation = useCallback(async (id) => {
+    const doArchive = loadPrefs().archiveChats !== false;
     try {
-      await api.deleteConversation(id)
+      await api.deleteConversation(id, doArchive)
     } catch (err) {
       toast(err.message, 'bad')
       return false
     }
     const rows = await refreshConvs()
     if (id === activeId) setActiveId(rows.find((c) => c.id !== id)?.id ?? null)
-    toast('Conversation deleted', 'info')
+    toast(doArchive ? 'Conversation archived' : 'Conversation deleted', 'info')
     return true
   }, [activeId, refreshConvs, setActiveId, toast])
 
@@ -584,6 +608,8 @@ export function AppProvider({ children }) {
     defaultGuard, setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
@@ -605,6 +631,8 @@ export function AppProvider({ children }) {
     defaultGuard, setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,

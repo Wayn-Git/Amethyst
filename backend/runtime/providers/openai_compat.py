@@ -32,6 +32,12 @@ from backend.runtime.types import (
     ToolCall,
     ToolSchema,
 )
+from backend.runtime.reasoning_catalog import (
+    is_reasoning_model,
+    effort_levels,
+    default_effort,
+    capabilities_for,
+)
 from backend.secrets import resolve_api_key
 
 #: What a provider calls the chain-of-thought it returns beside the answer.
@@ -55,9 +61,6 @@ def _reasoning_of(payload: dict) -> str | None:
             return value
     return None
 
-
-# Models that reject `reasoning_effort` alongside function tools on chat-completions.
-_REASONING_MODELS = ("o1", "o3", "o4", "gpt-5")
 
 __all__ = ["OpenAICompatClient", "ProviderHTTPError", "ProviderStreamError", "initialize"]
 
@@ -238,7 +241,7 @@ class OpenAICompatClient:
         # Provider quirk, absorbed here so the loop never learns about it: some
         # reasoning models reject reasoning_effort when function tools are present.
         if p.reasoning_effort and p.reasoning_effort != "none":
-            if not (tools and self.model.startswith(_REASONING_MODELS)):
+            if not (tools and is_reasoning_model(self.model)):
                 payload["reasoning_effort"] = p.reasoning_effort
         return payload
 
@@ -471,7 +474,7 @@ def initialize(
             tools=True,
             streaming=True,
             vision="gpt-4o" in resolved_model.lower() or "vision" in resolved_model.lower(),
-            reasoning=resolved_model.lower().startswith(_REASONING_MODELS),
+            reasoning=is_reasoning_model(resolved_model),
             context_window=_context_window(resolved_model, config.context_window),
             max_tools=config.max_tools,
             tokens_per_minute=config.tokens_per_minute,
@@ -506,12 +509,30 @@ def list_models(payload: Any) -> list[dict[str, Any]]:
         priced_free = pricing and all(
             _is_zero(pricing.get(k)) for k in ("prompt", "completion") if k in pricing
         )
-        out.append(
-            {
-                "id": str(model_id),
-                "free": bool(priced_free) or str(model_id).endswith(":free"),
+        model_dict = {
+            "id": str(model_id),
+            "free": bool(priced_free) or str(model_id).endswith(":free"),
+        }
+        
+        # OpenRouter provides architecture and reasoning metadata
+        if "context_length" in row:
+            model_dict["context_length"] = row["context_length"]
+            
+        if "reasoning" in row and isinstance(row["reasoning"], dict):
+            reasoning = row["reasoning"]
+            model_dict["capabilities"] = {
+                "supports_effort": True,
+                "effort_levels": reasoning.get("supported_efforts", ["low", "medium", "high"]),
+                "default_effort": reasoning.get("default_effort", "high")
             }
-        )
+            # Store raw provider reasoning metadata for catalog fallback
+            model_dict["_provider_reasoning"] = {
+                "supports_effort": True,
+                "effort_levels": reasoning.get("supported_efforts", ["low", "medium", "high"]),
+                "default_effort": reasoning.get("default_effort", "high"),
+            }
+        
+        out.append(model_dict)
     out.sort(key=lambda m: (not m["free"], m["id"]))
     return out
 

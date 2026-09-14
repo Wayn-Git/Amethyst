@@ -22,6 +22,12 @@ export function onConfirmState(fn) {
  * Resolves true if confirmed, false if cancelled or dismissed.
  */
 export function confirm(options) {
+  let prefs;
+  try { prefs = JSON.parse(localStorage.getItem('amethyst.ui.v1')) || {}; } catch (e) { prefs = {}; }
+  if (prefs.confirmDestructive === false) {
+    return Promise.resolve(true);
+  }
+
   return new Promise((resolve) => {
     state = { ...options, resolve }
     emit()

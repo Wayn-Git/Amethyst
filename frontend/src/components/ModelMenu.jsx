@@ -275,7 +275,7 @@ export default function ModelMenu({
                       type="button"
                       className={`model-menu-item${isSelected ? ' is-active' : ''}`}
                       onClick={() => {
-                        onChange({ provider: group.provider, model: m.id })
+                        onChange({ provider: group.provider, model: m.id, capabilities: m.capabilities, context_length: m.context_length })
                         onClose()
                       }}
                     >
@@ -323,7 +323,7 @@ export default function ModelMenu({
                 type="button"
                 className={`model-menu-item model-menu-item--auto${provider === 'auto' ? ' is-active' : ''}`}
                 onClick={() => {
-                  onChange({ provider: 'auto', model: '' })
+                  onChange({ provider: 'auto', model: '', capabilities: null })
                   onClose()
                 }}
               >

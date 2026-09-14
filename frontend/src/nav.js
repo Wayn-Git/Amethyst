@@ -27,6 +27,7 @@ export const NAV = [
   // degraded/offline banner or the command palette. That's an existing
   // product decision, not an oversight this file is fixing.
   { id: 'dash', path: '/dash', label: 'Status', icon: 'dash' },
+  { id: 'settings', path: '/settings', label: 'Settings', icon: 'sliders' },
 ]
 
 /* Beta pages are off until someone turns them on in Settings, and "off" means

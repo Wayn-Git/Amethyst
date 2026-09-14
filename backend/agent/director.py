@@ -923,6 +923,14 @@ class Director:
                 # known. The conversation's own provider column is what the user
                 # picked, not what replied -- and after a switch those differ.
                 state.link = str(chain[state.active])
+                try:
+                    self.conversations.update(
+                        conversation_id,
+                        provider=chain[state.active].provider,
+                        model=chain[state.active].model,
+                    )
+                except Exception:
+                    log.debug("failed to persist fallback model to conversation", exc_info=True)
                 break
             except Exception as exc:
                 last_error = exc
@@ -1308,6 +1316,14 @@ class Director:
                                 max_retries=budget.allowance(len(chain) - 1 - state.active) - 1,
                             )
                             state.link = str(chain[state.active])
+                            try:
+                                self.conversations.update(
+                                    conversation_id,
+                                    provider=chain[state.active].provider,
+                                    model=chain[state.active].model,
+                                )
+                            except Exception:
+                                log.debug("failed to persist fallback model to conversation", exc_info=True)
                             log.warning(
                                 "%s %s (%s); falling back to %s",
                                 failed, reason, kind, chain[state.active],
@@ -1549,6 +1565,14 @@ class Director:
                             max_retries=budget.allowance(len(chain) - 1 - state.active) - 1,
                         )
                         state.link = str(chain[state.active])
+                        try:
+                            self.conversations.update(
+                                conversation_id,
+                                provider=chain[state.active].provider,
+                                model=chain[state.active].model,
+                            )
+                        except Exception:
+                            log.debug("failed to persist fallback model to conversation", exc_info=True)
                         log.warning(
                             "%s failed (%s): %s; falling back to %s",
                             failed, kind, raw_message, chain[state.active],
@@ -1735,6 +1759,8 @@ class Director:
                     {
                         "text": delivered,
                         "iterations": iteration + 1,
+                        "provider": chain[state.active].provider,
+                        "model": chain[state.active].model,
                         **_cost(iteration + 1, state.tool_calls_made, started),
                     },
                 )

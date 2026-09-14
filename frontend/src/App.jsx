@@ -5,7 +5,6 @@ import BrandMark from './components/BrandMark.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
 import Shortcuts from './components/Shortcuts.jsx'
-import Settings from './components/Settings.jsx'
 import OnboardingWizard from './components/OnboardingWizard.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
@@ -127,10 +126,11 @@ function useGlobalKeys() {
       if (combo === 'mod+/') { e.preventDefault(); setView('chat'); chat.openPlus?.(); return }
       if (combo === 'mod+u') { e.preventDefault(); setView('chat'); chat.attach?.(); return }
       if (combo === 'mod+b') { e.preventDefault(); toggleRail(); return }
-      if (combo === 'mod+,') { e.preventDefault(); setOverlay(overlay === 'settings' ? null : 'settings'); return }
+      if (combo === 'mod+,') { e.preventDefault(); setView(view === 'settings' ? 'chat' : 'settings'); return }
       if (combo === 'mod+arrowup') { e.preventDefault(); cycleConversation(-1); return }
       if (combo === 'mod+arrowdown') { e.preventDefault(); cycleConversation(1); return }
       if (combo === 'mod+m') { e.preventDefault(); chat.toggleMemory?.(); return }
+      if (combo === 'mod+shift+m') { e.preventDefault(); chat.cycleEffort?.(); return }
       if (combo === 'mod+p') { e.preventDefault(); setView('chat'); chat.togglePin?.(); return }
       if (combo === 'f2' && activeId) { e.preventDefault(); setView('chat'); chat.beginRename?.(activeId); return }
 
@@ -260,7 +260,7 @@ function WorkbenchBar() {
         <button
           type="button"
           className="icon-btn"
-          onClick={() => setOverlay('settings')}
+          onClick={() => setView('settings')}
           title={`Settings — ${MOD_LABEL}+,`}
           aria-label="Settings"
         >
@@ -369,7 +369,7 @@ export default function App() {
           string is treated as false, which quietly left the page behind the
           drawer fully tabbable. */}
       <div className="wb-main stage" ref={stageRef} inert={drawerOpen}>
-        <WorkbenchBar />
+        {view !== 'settings' && <WorkbenchBar />}
         {/* Chat stays mounted, outside <Routes>: unmounting it mid-turn
             would drop the stream. */}
         <main className={`main${isChat ? '' : ' main--hidden'}`}>
@@ -397,6 +397,7 @@ export default function App() {
       {/* The panel is a slot rather than a component: whichever view is open
           fills it through a portal, and it collapses on its own when nothing
           has anything to put there. */}
+      {view !== 'settings' && (
       <aside
         className="wb-panel"
         id="wb-panel"
@@ -406,9 +407,10 @@ export default function App() {
       >
         <PanelResizer />
       </aside>
+      )}
       <CommandPalette />
       <Shortcuts />
-      <Settings />
+      
       <OnboardingWizard />
       <ConfirmDialogHost />
       <Toasts />

@@ -3,16 +3,33 @@ import { motion } from 'framer-motion'
 import Icon from './Icon.jsx'
 import { useDismiss } from '../hooks/useDismiss.js'
 
-const EFFORT_LEVELS = [
-  { id: 'off', icon: 'brain', label: 'Off', desc: 'Answer directly, no reasoning' },
-  { id: 'low', icon: 'brain', label: 'Low', desc: 'Fastest and cheapest' },
-  { id: 'medium', icon: 'brain', label: 'Medium', desc: 'Balanced for routine work' },
-  { id: 'high', icon: 'brain', label: 'High', desc: 'Default. Good for most tasks' },
-]
+const ALL_LEVELS = {
+  'none':   { id: 'none',   icon: 'brain', label: 'None',   desc: 'No reasoning, answer directly' },
+  'low':    { id: 'low',    icon: 'brain', label: 'Low',    desc: 'Fastest and cheapest' },
+  'medium': { id: 'medium', icon: 'brain', label: 'Medium', desc: 'Balanced for routine work' },
+  'high':   { id: 'high',   icon: 'brain', label: 'High',   desc: 'Default. Good for most tasks' },
+  'xhigh':  { id: 'xhigh',  icon: 'brain', label: 'Extra high', desc: 'Deeper reasoning' },
+  'max':    { id: 'max',    icon: 'brain', label: 'Max',    desc: 'Maximum reasoning effort' },
+}
 
-export default function EffortMenu({ effort, onChange, onClose, placement = 'down' }) {
+const DEFAULT_LEVELS = [ALL_LEVELS['none'], ALL_LEVELS['low'], ALL_LEVELS['medium'], ALL_LEVELS['high']]
+
+export default function EffortMenu({ effort, levels, onChange, onClose, placement = 'down' }) {
   const ref = useRef(null)
   useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
+
+  const currentLevels = (levels && levels.length > 0)
+    ? levels.map(level => {
+        const predefined = ALL_LEVELS[level];
+        if (predefined) return predefined;
+        return {
+          id: level,
+          icon: 'brain',
+          label: level.charAt(0).toUpperCase() + level.slice(1),
+          desc: `Use ${level} reasoning effort`
+        };
+      })
+    : DEFAULT_LEVELS;
 
   return (
     <motion.div
@@ -25,7 +42,7 @@ export default function EffortMenu({ effort, onChange, onClose, placement = 'dow
     >
       <div className="effort-menu-head">Reasoning effort</div>
       <div className="effort-menu-list">
-        {EFFORT_LEVELS.map((e) => {
+        {currentLevels.map((e) => {
           const active = effort === e.id
           return (
             <button

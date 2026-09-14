@@ -24,11 +24,11 @@ const GUARD_MODES = [
 ]
 
 const EFFORT_LEVELS = [
-  { id: 'off', label: 'Off', desc: 'Answer directly, no reasoning' },
+  { id: 'none', label: 'None', desc: 'Answer directly, no reasoning' },
   { id: 'low', label: 'Low', desc: 'Fastest and cheapest' },
   { id: 'medium', label: 'Medium', desc: 'Balanced for routine work' },
   { id: 'high', label: 'High', desc: 'Default. Good for most tasks' },
-  { id: 'extra-high', label: 'Extra high', desc: 'Deeper reasoning' },
+  { id: 'xhigh', label: 'Extra high', desc: 'Deeper reasoning' },
   { id: 'max', label: 'Max', desc: 'Maximum reasoning effort' },
 ]
 
