@@ -49,4 +49,10 @@ try {
   await page.getByRole('button', { name: 'Approve change' }).click()
   await page.getByRole('button', { name: 'Review job', exact: true }).waitFor()
   console.log('agent.delegated UI passed')
+  await page.evaluate(() => window.testMount('Jobs', 'agent.research', { available: false, items: [] }))
+  await page.getByText('not available', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('form').count(), 0)
+  await page.evaluate(() => window.testMount('Jobs', 'agent.research', { available: true, items: [{ id: 2, title: 'Research fixture', status: 'done', note_id: 123 }] }))
+  await page.getByRole('link', { name: 'Open research note' }).waitFor()
+  console.log('agent.research UI passed')
 } finally { await browser.close() }

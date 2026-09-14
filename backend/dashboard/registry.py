@@ -308,6 +308,10 @@ MANIFESTS = [
     director_manifest("need.approvals", "Permission approvals", ("approve", "deny")),
     director_manifest("agent.errors", "Errors and retries"),
     director_manifest("agent.audit", "Tool-call audit log"),
+    {
+        **director_manifest("agent.research", "Background research jobs with results", ("add",)),
+        "tier": "v2",
+    },
     {**director_manifest("agent.delegated", "Delegated tasks board", ("add",)), "tier": "v2"},
     {
         **director_manifest("agent.jobs", "Scheduled and recurring agent jobs", ("add", "delete")),

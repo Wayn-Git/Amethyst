@@ -135,3 +135,7 @@ CREATE TABLE IF NOT EXISTS dashboard_job_traces (
     run_id INTEGER PRIMARY KEY REFERENCES dashboard_job_runs(id),
     trace_json TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS dashboard_research (
+    job_id INTEGER PRIMARY KEY REFERENCES dashboard_jobs(id) ON DELETE CASCADE,
+    note_id INTEGER
+);

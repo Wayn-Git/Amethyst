@@ -140,13 +140,32 @@ async def execute(run_id, job, factory=director_for):
             with transaction() as conn:
                 conn.execute("UPDATE dashboard_job_runs SET status='running' WHERE id=?", (run_id,))
 
+    research_job = (
+        get_connection()
+        .execute("SELECT 1 FROM dashboard_research WHERE job_id=?", (job.get("id"),))
+        .fetchone()
+    )
+    answer, urls = "", set()
     status, error = "done", None
     try:
         director = await factory(approve)
+        if research_job:
+            from backend.dashboard import research
+
+            research.restrict(director, approve)
         async with asyncio.timeout(180):
             async for event in director.run(conversation, job["prompt"]):
+                if research_job:
+                    if event.type == "assistant_delta":
+                        answer += event.data.get("text", event.data.get("content", ""))
+                    elif event.type == "assistant_text":
+                        answer = event.data.get("text", answer)
+                    elif event.type == "tool_result" and not event.data.get("is_error"):
+                        urls.update(research.sources(str(event.data.get("content", ""))))
                 if event.type in ("error", "guard"):
                     status, error = "failed", str(event.data)[:1000]
+            if research_job and status == "done":
+                await research.save(job, answer, urls, approve)
     except asyncio.CancelledError:
         status, error = "failed", "Interrupted; not replayed"
         raise
@@ -165,7 +184,8 @@ async def execute(run_id, job, factory=director_for):
                 (status, error, traces[-1].turn_id if traces else None, run_id),
             )
             conn.execute(
-                "DELETE FROM widget_cache WHERE widget_id IN ('agent.jobs','agent.delegated')"
+                "DELETE FROM widget_cache WHERE widget_id IN "
+                "('agent.jobs','agent.delegated','agent.research')"
             )
         log.info("widget=agent.jobs run=%s result=%s", run_id, status)
 

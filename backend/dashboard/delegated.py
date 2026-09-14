@@ -26,7 +26,12 @@ def apply(conn, action, body):
     conn.execute("INSERT INTO dashboard_delegated(job_id) VALUES(?)", (job_id,))
 
 
-async def provide():
+async def provide(include_research=False):
+    research_ids = (
+        set()
+        if include_research
+        else {r[0] for r in get_connection().execute("SELECT job_id FROM dashboard_research")}
+    )
     return {
         "items": [
             {
@@ -43,5 +48,6 @@ async def provide():
                 "LEFT JOIN dashboard_job_runs r ON r.id=(SELECT MAX(id) FROM dashboard_job_runs "
                 "WHERE job_id=j.id) ORDER BY j.id DESC LIMIT 50"
             )
+            if row["id"] not in research_ids
         ]
     }

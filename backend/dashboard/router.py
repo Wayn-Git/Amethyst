@@ -176,6 +176,11 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "agent.research":
+            from backend.dashboard.jobs import JobInput
+            from backend.dashboard.research import draft as research_draft
+
+            return research_draft(action, JobInput.model_validate(body))
         if widget_id == "agent.delegated":
             from backend.dashboard.delegated import draft as delegated_draft
             from backend.dashboard.jobs import JobInput
