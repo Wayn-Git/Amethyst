@@ -95,6 +95,28 @@ try {
   assert.deepEqual(await widget('glance.sun').locator('.adoption-time').allTextContents(), ['06:12', '18:24'])
   assert.equal(await widget('glance.sun').locator('svg[role="img"]').count(), 0)
   assert.equal(await widget('glance.next-event').locator('.ui-stat > div').innerText(), '60min')
+  assert.equal(await widget('glance.next-event').locator('.event-day').innerText(), '26')
+  assert.match(await widget('glance.next-event').locator('.event-summary time').innerText(), /12:30/)
+  assert.match(await widget('glance.next-event').locator('.event-calendar').getAttribute('aria-label'), /Monday/)
+  const originalEvent = fixtures.glance['glance.next-event'].items[0]
+  fixtures.glance['glance.next-event'].items = [{ ...originalEvent, start: '2026-10-27T00:30:00+05:30', all_day: true }]
+  await page.evaluate(() => window.renderGroup(11))
+  await widget('glance.next-event').getByText('27', { exact: true }).waitFor()
+  assert.equal(await widget('glance.next-event').getByText('All day', { exact: true }).count(), 1)
+  fixtures.glance['glance.next-event'].items = [{ ...originalEvent, start: null }]
+  await page.evaluate(() => window.renderGroup(12))
+  await widget('glance.next-event').getByText('Start time unavailable', { exact: true }).waitFor()
+  assert.equal(await widget('glance.next-event').locator('.event-calendar').count(), 0)
+  fixtures.glance['glance.next-event'].items = [originalEvent]
+  const originalWeather = fixtures.glance['glance.weather']
+  fixtures.glance['glance.weather'] = { temperature: 0, timezone: 'Asia/Kolkata', hours: [{ time: '2026-10-26T00:00', temperature: 0, rain: 0 }, { time: '2026-10-26T01:00', temperature: null, rain: null }] }
+  await page.evaluate(() => window.renderGroup(13))
+  await widget('glance.weather').getByLabel('Chance of rain 0%', { exact: true }).waitFor()
+  assert.deepEqual(await widget('glance.weather').locator('.weather-hours time').allTextContents(), ['00:00', '01:00'], 'forecast keeps provider local wall times')
+  assert.equal(await widget('glance.weather').getByLabel('Chance of rain unavailable', { exact: true }).count(), 1)
+  assert.equal(await widget('glance.weather').getByLabel('Temperature unavailable', { exact: true }).count(), 1)
+  fixtures.glance['glance.weather'] = originalWeather
+  await page.evaluate(() => window.renderGroup(14))
   assert.equal(await widget('glance.travel').locator('.adoption-route').innerText(), '12 minutes driving from home')
   assert.equal(await widget('glance.travel').locator('ul').evaluate(n => getComputedStyle(n).listStyleType), 'none')
   await widget('glance.travel').getByText('Home location settings', { exact: true }).click()

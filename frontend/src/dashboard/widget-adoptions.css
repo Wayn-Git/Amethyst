@@ -112,3 +112,16 @@
 .bento-foundation .home-widget.widget-adoption .glance-clock-face .home-clock .clock-digits { font: 500 24px/1.2 var(--ui-font); letter-spacing: -.03em; }
 .bento-foundation .home-widget.widget-adoption .glance-clock-face .clock-period { color: var(--tile-muted); font: var(--tile-label); }
 .bento-foundation .home-widget.widget-adoption .glance-clock-face .clock-date { margin-top: var(--tile-space-2); }
+
+.bento-foundation .home-widget.widget-adoption .event-calendar { display: flex; align-items: center; gap: var(--tile-space-4); }
+.bento-foundation .home-widget.widget-adoption .event-day { color: var(--tile-calendar); font: 300 60px/1 var(--ui-font); letter-spacing: -.06em; }
+.bento-foundation .home-widget.widget-adoption .event-calendar > div { display: grid; gap: var(--tile-space-1); }
+.bento-foundation .home-widget.widget-adoption .event-calendar strong { font: 500 14px/20px var(--ui-font); }
+.bento-foundation .home-widget.widget-adoption .event-calendar span:not(.event-day) { color: var(--tile-muted); font: var(--tile-label); font-family: var(--ui-font); }
+.bento-foundation .home-widget.widget-adoption .event-summary { display: grid; gap: var(--tile-space-2); padding-left: var(--tile-space-3); border-left: 3px solid var(--tile-action); }
+.bento-foundation .home-widget.widget-adoption .event-summary > strong { font: var(--tile-title); }
+.bento-foundation .home-widget.widget-adoption .event-summary > p { margin: 0; }
+.bento-foundation .home-widget.widget-adoption .event-countdown { padding-top: var(--tile-space-3); border-top: 1px solid var(--ui-border); }
+.bento-foundation .home-widget.widget-adoption .event-countdown .ui-stat { display: flex; align-items: baseline; gap: var(--tile-space-2); flex-wrap: wrap; }
+.bento-foundation .home-widget.widget-adoption .event-countdown .ui-stat > div { font: 500 24px/1.2 var(--ui-font); }
+.bento-foundation .home-widget.widget-adoption .event-countdown .ui-stat > span { font-family: var(--ui-font); }
