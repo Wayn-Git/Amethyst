@@ -1,3 +1,4 @@
+import Settings from './Settings.jsx'
 import { lazy } from 'react'
 import Chat from './Chat.jsx'
 
@@ -22,6 +23,7 @@ const LOADERS = {
   library: () => import('./Library.jsx'),
   logs: () => import('./Logs.jsx'),
   dash: () => import('./Dashboard.jsx'),
+  // settings eager
 }
 
 function lazyWithRetry(componentImport) {
@@ -54,6 +56,7 @@ function lazyWithRetry(componentImport) {
 
 export const COMPONENTS = {
   chat: Chat,
+  settings: Settings,
   ...Object.fromEntries(
     Object.entries(LOADERS).map(([id, load]) => [id, lazyWithRetry(load)]),
   ),

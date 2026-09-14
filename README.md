@@ -25,16 +25,70 @@ zero-cloud setup, or with 20+ cloud providers.
 
 | | |
 |:---|:---|
+| <img src="docs/images/view-chat.png" width="480" alt="Main page"> | **Main** — the chat interface with live agent turns, streaming responses and tool traces |
 | <img src="docs/images/view-today.png" width="480" alt="Today view"> | **Today** — the whole day on one page: morning briefing, events, what is owed |
 | <img src="docs/images/view-tasks.png" width="480" alt="Tasks view"> | **Tasks** — lists and buckets on a board of cards, with a calendar engine that finds free slots and flags conflicts |
 | <img src="docs/images/view-library.png" width="480" alt="Library view"> | **Library** — your knowledge vault: tags, grid or list, ask-chat over anything you saved, stored as plain markdown on disk |
-| <img src="docs/images/view-palette.png" width="480" alt="Command palette"> | **Keyboard-first UI** — command palette (`⌘K`), full shortcut reference on `?`, no mouse required |
-| <img src="docs/images/view-skills.png" width="480" alt="Skills view"> | **Skills & connectors** — Microsoft To Do, Google Workspace, GitHub, Spotify, and more, installed from one page |
+| <img src="docs/images/view-memory.png" width="480" alt="Memory view"> | **Memory** — per-conversation extracted memories that persist context across sessions |
+| <img src="docs/images/view-plugins-overview.png" width="480" alt="Plugin overview"> | **Plugin Overview** — a birds-eye view of all installed connectors and their status |
+| <img src="docs/images/view-plugins.png" width="480" alt="Plugins view"> | **Skills & connectors** — Microsoft To Do, Google Workspace, GitHub, Spotify, and more, installed from one page |
+| <img src="docs/images/view-spotlight.png" width="480" alt="Spotlight"> | **Keyboard-first UI** — command palette (`⌘K`), full shortcut reference on `?`, no mouse required |
+| <img src="docs/images/view-settings.png" width="480" alt="Settings"> | **Settings** — manage providers, permissions, standing approvals, and preferences |
 | <img src="docs/images/turn.png" width="480" alt="Agent turn trace"> | **Live turn trace** — every tool call and argument streams as it happens, so you always know what the agent is doing |
 
-Also: Memory (per-conversation extracted memories), Mail (beta, direct Gmail),
-Automations (beta, a prompt on an interval), a full Activity log, and a
-tray + global hotkey desktop mode.
+Also: Mail (beta, direct Gmail), Automations (beta, a prompt on an interval), a full Activity log, and a tray + global hotkey desktop mode.
+
+## Parallel Execution
+
+Amethyst can run multiple data-gathering tasks simultaneously, dramatically
+speeding up research and data collection:
+
+```python
+# Example: Research multiple topics at once
+dispatch_parallel_jobs([
+  {task: "web_search", params: {query: "AI news"}},
+  {task: "web_search", params: {query: "climate change"}},
+  {task: "urls", params: {urls: ["https://example.com"]}},
+  {task: "github_activity", params: {username: "user"}},
+])
+```
+
+**Key features:**
+- **Task auto-correction** — Common mistakes like `fetch_url` → `urls` are
+  automatically fixed
+- **Error recovery** — Clear error messages guide the agent to use correct tools
+- **Progress tracking** — Real-time status updates in the UI
+- **Smart routing** — Fast tasks run locally, slow tasks use remote workers
+
+**Available tasks:** `urls`, `web_search`, `gmail`, `github_activity`,
+`git_status`, `file_info`, `system_info`, `briefing`, `todo`, `rss`
+
+## Smart File Reading
+
+Amethyst reads files intelligently, preventing common issues:
+
+- **Binary detection** — Automatically detects and handles binary files
+- **Image recognition** — Shows images as base64 with metadata
+- **Hard limits** — 50KB max, 2000 lines, 2000 chars per line
+- **Pagination** — Use `offset` and `limit` for large files
+- **Truncation notices** — Clearly shows when data is truncated
+
+**Example:**
+```bash
+view_file("large_file.py", offset=100, limit=50)  # Lines 100-150
+```
+
+## LLM Intelligence Rules
+
+The agent follows strict rules to prevent common mistakes:
+
+1. **Never guess tool names** — Must check available tools before use
+2. **Never retry failed tools** — Must understand why it failed first
+3. **Never generate fake data** — Must tell user honestly what happened
+4. **Always have fallback strategy** — Primary → Alternative → Manual
+5. **Tool inspection protocol** — Mandatory check before every tool call
+
+These rules ensure the agent is reliable and transparent about its capabilities.
 
 ## The agent, briefly
 
@@ -48,6 +102,10 @@ tray + global hotkey desktop mode.
   catalogue.
 - **MCP connectors.** Any Model Context Protocol server — stdio, SSE, or
   streamable HTTP — registers into one flat tool registry.
+- **Parallel execution.** Run multiple data-gathering tasks simultaneously with
+  automatic task name correction and error recovery.
+- **Smart file reading.** Binary detection, image handling, pagination, and
+  hard limits prevent token explosion and improve performance.
 
 ## Quick start
 
@@ -106,13 +164,18 @@ or point `providers.yaml` at any OpenAI-compatible endpoint.
 | [docs/interface.md](docs/interface.md) | The web UI: views, keyboard bindings, design rationale |
 | [docs/deployment.md](docs/deployment.md) | Local single-process vs. Vercel + Render split deploy |
 | [docs/architecture/overview.md](docs/architecture/overview.md) | Layer diagram, request lifecycle, design principles, ADRs |
+| [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) | Parallel execution, smart file reading, LLM intelligence rules |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, conventions, rules of the codebase |
 
 ## Project layout
 
 ```
 backend/     FastAPI app, agent loop, tools, connectors, CLI
+  agent/     Director, prompt, tool selector, state management
+  tools/     Built-in tools (filesystem, shell, workers, etc.)
+  workers/   Parallel job execution, collectors, metrics, templates
 frontend/    React 19 + Vite SPA (chat, today, tasks, library, …)
+  components/ UI components including ParallelJobCard for job visualization
 relay/       Cloudflare Worker: holds Instagram/webhook captures while
              your machine sleeps
 agents/      Bundled skills (plain SKILL.md files)

@@ -27,7 +27,7 @@ const WAKE_ATTEMPT_TIMEOUT = 9000
 const WAKE_GAP = 1500
 const WAKE_GIVE_UP_AFTER = 90000
 
-let state = { phase: 'waking', since: Date.now(), attempts: 0, error: null }
+let state = { phase: 'ready', since: Date.now(), attempts: 0, error: null }
 const watchers = new Set()
 
 function publish(patch) {
@@ -178,6 +178,11 @@ export const api = {
   settings: () => j('/settings'),
   updateSettings: (patch) => j('/settings', json('PATCH', patch)),
 
+  activity: () => j('/analytics/activity'),
+  confirmationPreferences: () => j('/confirmations/preferences'),
+  revokeConfirmationPreference: (opKey) =>
+    j('/confirmations/preferences/' + encodeURIComponent(opKey), json('DELETE')),
+
   tiers: () => j('/tiers'),
   setTier: (tier, provider, model) =>
     j(`/tiers/${encodeURIComponent(tier)}`, json('PUT', { provider, model })),
@@ -187,7 +192,7 @@ export const api = {
   createConversation: (provider, model, title) =>
     j('/conversations', json('POST', { provider, model, title })),
   updateConversation: (id, patch) => j(`/conversations/${id}`, json('PATCH', patch)),
-  deleteConversation: (id) => j(`/conversations/${id}`, json('DELETE')),
+  deleteConversation: (id, archive = false) => j(`/conversations/${id}${archive ? '?archive=true' : ''}`, json('DELETE')),
   deleteAllConversations: () => j('/conversations', json('DELETE')),
   messages: (id) => j(`/conversations/${id}/messages`),
 
@@ -198,6 +203,7 @@ export const api = {
      one back off disk, which is why it can answer with `missing` set. */
   artifacts: (conversationId) => j(`/conversations/${conversationId}/artifacts`),
   artifact: (artifactId) => j(`/artifacts/${encodeURIComponent(artifactId)}`),
+  gitStatus: () => j('/git-status'),
   pinMessage: (id, messageId, pinned) =>
     j(`/conversations/${id}/messages/${messageId}/pin`, json('POST', { pinned })),
   // Pinning the conversation, not an answer inside it: what the sidebar's star
@@ -209,10 +215,18 @@ export const api = {
   // killed with the process left no trace at all. `{}` means no turn yet.
   runState: (id) => j(`/conversations/${id}/run`),
 
+  // Per-model reasoning effort persistence.
+  getVariant: (modelId, conversationId) => {
+    const params = conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''
+    return j(`/variant/${encodeURIComponent(modelId)}${params}`)
+  },
+  setVariant: (modelId, effort) =>
+    j(`/variant/${encodeURIComponent(modelId)}`, json('PUT', { effort })),
+
   // `mode` is 'chat' or 'plan'. It is a field rather than a sentence glued to
   // the message: the sentence landed in the transcript and was replayed on
   // every later turn, and the server had no idea the mode existed.
-  turn: async ({ conversationId, message, workspace, mode, attachments, onEvent, signal }) => {
+  turn: async ({ conversationId, message, workspace, mode, attachments, guard, effort, variant, model, onEvent, signal }) => {
     const res = await fetch(`${BASE}/conversations/${conversationId}/turn`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -231,6 +245,10 @@ export const api = {
           media_type: f.content_type || null,
           bytes: f.bytes ?? null,
         })),
+        guard: guard || null,
+        effort: effort || null,
+        variant: variant || null,
+        model: model || null,
       }),
       signal,
     })
@@ -464,10 +482,10 @@ export const api = {
   revokeShareToken: () => j('/share/token', json('DELETE')),
 
   // Spotlight search endpoints (Damon)
-  searchWeb: (q, limit = 8, signal) =>
-    j(`/search/web?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
-  searchYouTube: (q, limit = 8, signal) =>
-    j(`/search/youtube?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
+  searchWeb: (q, limit = 8, signal, offset = 0) =>
+    j(`/search/web?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`, { signal }),
+  searchYouTube: (q, limit = 8, signal, offset = 0) =>
+    j(`/search/youtube?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`, { signal }),
   searchImages: (q, limit = 12, signal) =>
     j(`/search/images?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
   searchGitHub: (q, limit = 6, signal) =>

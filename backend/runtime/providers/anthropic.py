@@ -126,6 +126,7 @@ class AnthropicClient:
         params: ModelParameters | None,
         *,
         stream: bool = False,
+        cache_system: bool = False,
     ) -> dict[str, Any]:
         p = params or ModelParameters()
         system, converted = _to_anthropic_messages(messages)
@@ -139,12 +140,20 @@ class AnthropicClient:
         if stream:
             payload["stream"] = True
         if system:
-            payload["system"] = system
+            if cache_system:
+                payload["system"] = [
+                    {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
+                ]
+            else:
+                payload["system"] = system
         if tools:
-            payload["tools"] = [
+            tool_list = [
                 {"name": t.name, "description": t.description, "input_schema": t.parameters}
                 for t in tools
             ]
+            if cache_system and tool_list:
+                tool_list[-1]["cache_control"] = {"type": "ephemeral"}
+            payload["tools"] = tool_list
         if p.temperature is not None:
             payload["temperature"] = p.temperature
         if p.stop:
@@ -152,6 +161,19 @@ class AnthropicClient:
         if p.thinking_budget:
             # Budget must leave room for the response itself.
             budget = min(p.thinking_budget, max(1024, max_tokens - 1024))
+            payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
+        elif p.reasoning_effort and p.reasoning_effort != "none":
+            # Map reasoning_effort to Anthropic's thinking budget.
+            # Anthropic doesn't have native effort levels, so we map to budget.
+            effort_to_budget = {
+                "low": 2048,
+                "medium": 8192,
+                "high": 32768,
+                "xhigh": 65536,
+                "max": 100000,
+            }
+            budget = effort_to_budget.get(p.reasoning_effort, 32768)
+            budget = min(budget, max(1024, max_tokens - 1024))
             payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
         return payload
 
@@ -170,7 +192,9 @@ class AnthropicClient:
         data = await post_json(
             f"{self.base_url}/messages",
             headers=self._headers(),
-            payload=self._build_payload(messages, tools, params),
+            payload=self._build_payload(
+                messages, tools, params, cache_system=getattr(self, "_cache_system", False)
+            ),
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
@@ -208,7 +232,10 @@ class AnthropicClient:
         Anthropic streams typed content blocks rather than one delta shape, so
         text, thinking and tool input each arrive on their own event names.
         """
-        payload = self._build_payload(messages, tools, params, stream=True)
+        payload = self._build_payload(
+            messages, tools, params, stream=True,
+            cache_system=getattr(self, "_cache_system", False),
+        )
 
         text_parts: list[str] = []
         thinking_parts: list[str] = []

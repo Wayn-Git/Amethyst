@@ -31,6 +31,7 @@ from backend.agent.prompt import (
     budget_history,
     build_system_prompt,
     cap_tools,
+    compress_tool_schemas,
     dropped_summary,
     environment_block,
     estimate_tokens,
@@ -41,6 +42,7 @@ from backend.agent.prompt import (
     tool_schema_tokens,
 )
 from backend.agent.state import AgentState, IllegalTransition
+from backend.agent.tool_selector import select_tools
 from backend.agent.widgets import classify_and_extract, to_envelope
 from backend.db.repositories import (
     AgentRunRepository,
@@ -921,6 +923,14 @@ class Director:
                 # known. The conversation's own provider column is what the user
                 # picked, not what replied -- and after a switch those differ.
                 state.link = str(chain[state.active])
+                try:
+                    self.conversations.update(
+                        conversation_id,
+                        provider=chain[state.active].provider,
+                        model=chain[state.active].model,
+                    )
+                except Exception:
+                    log.debug("failed to persist fallback model to conversation", exc_info=True)
                 break
             except Exception as exc:
                 last_error = exc
@@ -999,6 +1009,9 @@ class Director:
         # on screen, and the transcript is where it ends up. `state.carried` is
         # the narrower thing: the half-answer that has nowhere else to live.
         said: list[str] = []
+        # The system prompt without its mode suffix, built on the first round
+        # trip and reused for the rest of the turn. See the assembly below.
+        system_base: str | None = None
         # The transcript as wire messages, assembled once and appended to as the
         # turn writes new rows. Reading the full history from SQLite on every
         # round trip -- with `json.loads` on every tool_calls blob -- made a
@@ -1044,27 +1057,40 @@ class Director:
             while True:
                 links_after = len(chain) - 1 - state.active
                 allowance = budget.allowance(links_after)
-                try:
-                    system_prompt = build_system_prompt(
-                        workspace_root=self.workspace_root,
-                        conversation_id=conversation_id,
-                        pinned_skills=pinned,
-                        retrieved_context=retrieved_context,
-                        memories=recalled,
-                    )
-                except Exception as exc:
-                    # An unreadable skill file, a capability table mid-migration,
-                    # a memory row that will not render. None of that is a reason
-                    # the user cannot have an answer: the model can work from the
-                    # base prompt alone, and it used to lose the whole turn here.
-                    log.warning("system prompt assembly failed, using the base prompt: %s", exc)
-                    system_prompt = f"{BASE_PROMPT}\n\n{environment_block(self.workspace_root)}"
-                    if not state.degraded:
-                        state.degraded = True
-                        yield Event(
-                            "warning",
-                            {"message": "some context could not be assembled for this turn"},
+                # Assembled once per turn, not once per round trip.
+                #
+                # This sat inside the provider-retry loop inside the iteration
+                # loop, so a fifteen-step turn rescanned the skills directory,
+                # re-read the capability table and rebuilt the connector block
+                # fifteen times or more -- for a string whose inputs (workspace,
+                # pinned skills, retrieved context, memories) are all fixed for
+                # the life of the turn. The mode suffixes below are *not* fixed,
+                # so they are still appended per iteration to the cached base.
+                if system_base is None:
+                    try:
+                        system_base = build_system_prompt(
+                            workspace_root=self.workspace_root,
+                            conversation_id=conversation_id,
+                            pinned_skills=pinned,
+                            retrieved_context=retrieved_context,
+                            memories=recalled,
                         )
+                    except Exception as exc:
+                        # An unreadable skill file, a capability table mid-migration,
+                        # a memory row that will not render. None of that is a reason
+                        # the user cannot have an answer: the model can work from the
+                        # base prompt alone, and it used to lose the whole turn here.
+                        log.warning(
+                            "system prompt assembly failed, using the base prompt: %s", exc
+                        )
+                        system_base = f"{BASE_PROMPT}\n\n{environment_block(self.workspace_root)}"
+                        if not state.degraded:
+                            state.degraded = True
+                            yield Event(
+                                "warning",
+                                {"message": "some context could not be assembled for this turn"},
+                            )
+                system_prompt = system_base
                 # Built before the history is budgeted, not after: the schemas go
                 # out on every round trip and measured 29,620 tokens across 132
                 # tools, so budgeting without them overstates the room left by more
@@ -1085,6 +1111,29 @@ class Director:
                     if model.capabilities.tools
                     else None
                 )
+                # Describe the tools this request plausibly needs, not all 178.
+                # The schemas measured 29,620 tokens across 132 tools and go out
+                # on *every* round trip, which is more than a free tier's whole
+                # per-minute allowance -- and a model handed 178 options chooses
+                # worse than one handed twenty. Nothing is unregistered: a tool
+                # left undescribed still dispatches if the model names it.
+                #
+                # What the assistant has said so far is part of the signal, so a
+                # model that announces "let me check GitHub" is offered the
+                # GitHub connector on the very next iteration.
+                if tool_schemas is not None:
+                    tool_schemas, withheld = select_tools(
+                        tool_schemas, f"{user_message}\n{' '.join(said[-3:])}"
+                    )
+                    if withheld and not state.warned_about_selection:
+                        state.warned_about_selection = True
+                        log.info("tool selection offered %d tools, withheld %d",
+                                 len(tool_schemas), withheld)
+                    # Always compress: full descriptions cost ~29K tokens across
+                    # 132 tools. Headline-only cuts to ~8-10K with minimal
+                    # quality loss -- the model calls tools by name, and a
+                    # one-line description is enough to pick the right one.
+                    tool_schemas = compress_tool_schemas(tool_schemas)
                 if not planning and executing and tool_schemas is not None:
                     # Only where there is a plan to be part-way through. Offering
                     # it on every chat turn would be a tool with nothing to
@@ -1267,6 +1316,14 @@ class Director:
                                 max_retries=budget.allowance(len(chain) - 1 - state.active) - 1,
                             )
                             state.link = str(chain[state.active])
+                            try:
+                                self.conversations.update(
+                                    conversation_id,
+                                    provider=chain[state.active].provider,
+                                    model=chain[state.active].model,
+                                )
+                            except Exception:
+                                log.debug("failed to persist fallback model to conversation", exc_info=True)
                             log.warning(
                                 "%s %s (%s); falling back to %s",
                                 failed, reason, kind, chain[state.active],
@@ -1312,6 +1369,13 @@ class Director:
                 # this is the point worth being able to recover to.
                 self._checkpoint(state, "reasoning", budget=budget)
                 yield Event("status", {"state": "planning" if planning else "thinking"})
+                # Set session affinity for provider-side prompt cache. Repeated
+                # turns to the same conversation hit the cached prefix instead
+                # of re-processing system+tools from scratch.
+                if hasattr(model.client, "session_id"):
+                    model.client.session_id = conversation_id
+                if hasattr(model.client, "_build_payload"):
+                    model.client._cache_system = True
                 try:
                     if (
                         self.stream
@@ -1501,6 +1565,14 @@ class Director:
                             max_retries=budget.allowance(len(chain) - 1 - state.active) - 1,
                         )
                         state.link = str(chain[state.active])
+                        try:
+                            self.conversations.update(
+                                conversation_id,
+                                provider=chain[state.active].provider,
+                                model=chain[state.active].model,
+                            )
+                        except Exception:
+                            log.debug("failed to persist fallback model to conversation", exc_info=True)
                         log.warning(
                             "%s failed (%s): %s; falling back to %s",
                             failed, kind, raw_message, chain[state.active],
@@ -1687,6 +1759,8 @@ class Director:
                     {
                         "text": delivered,
                         "iterations": iteration + 1,
+                        "provider": chain[state.active].provider,
+                        "model": chain[state.active].model,
                         **_cost(iteration + 1, state.tool_calls_made, started),
                     },
                 )

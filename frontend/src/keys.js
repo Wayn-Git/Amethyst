@@ -22,13 +22,22 @@ export function isTyping(target) {
 export function chord(e) {
   const parts = []
   if (IS_MAC ? e.metaKey : e.ctrlKey) parts.push('mod')
-  // The other modifier still matters: ctrl+k on a Mac is not the same chord.
   if (IS_MAC ? e.ctrlKey : e.metaKey) parts.push('ctrl')
   if (e.altKey) parts.push('alt')
   if (e.shiftKey) parts.push('shift')
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase()
   parts.push(key)
-  return parts.join('+')
+  const combo = parts.join('+')
+  
+  try {
+     const prefs = JSON.parse(localStorage.getItem('amethyst.ui.v1')) || {}
+     const keybindings = prefs.keybindings || {}
+     for (const [action, mappedCombo] of Object.entries(keybindings)) {
+        if (mappedCombo === combo) return action
+     }
+  } catch (err) {}
+  
+  return combo
 }
 
 /** `mod+shift+o` -> `⌘ ⇧ O`, for display only. */
@@ -55,6 +64,7 @@ export const SHORTCUTS = [
   { group: 'Anywhere', binding: 'mod+u', label: 'Attach a file' },
   { group: 'Anywhere', binding: 'mod+,', label: 'Settings' },
   { group: 'Anywhere', binding: 'mod+m', label: 'Memory on or off' },
+  { group: 'Anywhere', binding: 'mod+shift+m', label: 'Cycle reasoning effort' },
   { group: 'Anywhere', binding: 'mod+b', label: 'Show or hide the rail' },
   { group: 'Anywhere', binding: 'mod+1…9', label: 'Jump to a view' },
   { group: 'Anywhere', binding: 'shift+?', label: 'This list' },

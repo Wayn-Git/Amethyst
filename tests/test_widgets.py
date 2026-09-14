@@ -111,7 +111,10 @@ async def test_none_falls_through_to_the_ordinary_turn(monkeypatch):
     """
     client = _wire(monkeypatch, _Replies('{"type":"none","data":null}'))
 
-    assert await classify_and_extract("explain monads") == ("none", None, [])
+    # Phrased to carry a widget signal ("how do i") so the classifier is
+    # actually consulted -- this test is about a `none` *reply* falling through,
+    # not about the pre-filter that skips the call entirely.
+    assert await classify_and_extract("how do i explain monads") == ("none", None, [])
     # Decided, not retried: `none` is an answer.
     assert client.calls == 1
 
@@ -204,7 +207,9 @@ async def test_a_payload_that_misses_its_schema_is_rejected(monkeypatch):
 async def test_an_invented_type_is_rejected(monkeypatch):
     client = _wire(monkeypatch, _Replies('{"type":"horoscope","data":{}}'))
 
-    assert await classify_and_extract("my horoscope") == ("none", None, [])
+    # Carries a signal ("suggest") so the call is made and its invented type is
+    # what gets rejected.
+    assert await classify_and_extract("suggest my horoscope") == ("none", None, [])
     assert client.calls == 2
 
 
@@ -577,3 +582,27 @@ async def test_media_survives_a_reopened_conversation(db, monkeypatch):
 
     stored = parse_envelope(MessageRepository().history(cid)[-1].content)
     assert stored["media"] == [video]
+
+
+@pytest.mark.asyncio
+async def test_a_link_or_code_skips_the_classifier_call(monkeypatch):
+    """A URL or a code fence can never be a widget, so the fast-model round trip
+    is skipped -- time to first token the turn gets to keep.
+
+    Mutation check: remove the `_certainly_not_a_widget` guard.
+    """
+    from backend.agent import widgets
+
+    def _boom(*a, **k):
+        raise AssertionError("the classifier model was called")
+
+    monkeypatch.setattr(widgets, "resolve", _boom)
+
+    skipped = (
+        "check https://example.com/report",   # a link: go fetch it
+        "fix this ```py\nx=1\n```",           # code
+        "Hi there",                           # a greeting is not a widget
+        "what is the capital of France",      # a plain question is not a widget
+    )
+    for message in skipped:
+        assert await widgets.classify_and_extract(message) == ("none", None, [])

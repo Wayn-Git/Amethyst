@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import BrandMark from '../components/BrandMark.jsx'
 import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
@@ -10,8 +11,14 @@ import TurnRail from '../components/TurnRail.jsx'
 import { SmoothTextarea, FadeScrollArea } from '../components/ui/skiper/index.js'
 import PlusMenu from '../components/PlusMenu.jsx'
 import ModelMenu from '../components/ModelMenu.jsx'
+import EffortMenu from '../components/EffortMenu.jsx'
+import ContextPopover from '../components/ContextPopover.jsx'
+import GuardMenu from '../components/GuardMenu.jsx'
+import { LoaderIcon } from '../components/OnboardingWizard.jsx'
+import MatrixLoader from '../components/MatrixLoader.jsx'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
+import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
 import { MOD_LABEL } from '../keys.js'
@@ -644,7 +651,7 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
 
 function Msg({
   item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy, onOpenArtifact,
-  onResume,
+  onResume, setInput, textareaRef,
 }) {
   const role = item.kind
 
@@ -751,11 +758,25 @@ function Msg({
       </div>
     )
   }
+  const timeStr = item.created_at || item.timestamp
+    ? new Date(item.created_at || item.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : null
+
   return (
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
       <div className="msg-body msg-body--plain">{item.text}</div>
-      <div className="msg-actions">
+      <div className="msg-user-meta">
+        {timeStr && <span className="msg-time">{timeStr}</span>}
         <CopyButton text={item.text} label="Copy" />
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="Edit message"
+          aria-label="Edit message"
+          onClick={() => { setInput(item.text); textareaRef.current?.focus() }}
+        >
+          <Icon name="edit" size={12} />
+        </button>
         <PinButton item={item} onPin={onPin} />
       </div>
     </div>
@@ -824,6 +845,7 @@ export default function Chat() {
     panel, setPanel, compact, view,
     panelExpanded, setPanelExpanded, togglePanelExpanded,
     pendingPrompt, setPendingPrompt,
+    defaultGuard, defaultEffort, agentLoader,
   } = useApp()
 
   const [items, setItems] = useState([])
@@ -881,9 +903,50 @@ export default function Chat() {
      mutating tools withheld. A boolean would do, but the field is what the
      backend takes and a third mode has been added before. */
   const [mode, setMode] = useState('chat')
+  const [guard, setGuard] = useState(defaultGuard || 'guard')
+  const [effort, setEffort] = useState(defaultEffort || 'high')
+  const [variantInfo, setVariantInfo] = useState(null)
+  const [modelCaps, setModelCaps] = useState(null)
+  const [guardOpen, setGuardOpen] = useState(false)
+  const [effortOpen, setEffortOpen] = useState(false)
+  const [contextOpen, setContextOpen] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
   const [lastSent, setLastSent] = useState('')
   const [pinsOpen, setPinsOpen] = useState(true)
+  const [queuedMessages, setQueuedMessages] = useState([])
+  const [elapsedMs, setElapsedMs] = useState(0)
+  const [inspectOpen, setInspectOpen] = useState(false)
+  const inspectCardRef = useRef(null)
+  const thoughtsStreamRef = useRef(null)
+
+  useDismiss(inspectCardRef, inspectOpen, {
+    onAway: () => setInspectOpen(false),
+    onEscape: () => setInspectOpen(false),
+  })
+
+  useEffect(() => {
+    if (turnState !== 'running') setInspectOpen(false)
+  }, [turnState])
+
+  useEffect(() => {
+    if (inspectOpen && thoughtsStreamRef.current) {
+      thoughtsStreamRef.current.scrollTop = thoughtsStreamRef.current.scrollHeight
+    }
+  }, [inspectOpen, liveReasoning])
+
+  // Live stopwatch timer for running turn
+  useEffect(() => {
+    if (turnState !== 'running') {
+      setElapsedMs(0)
+      return
+    }
+    const start = Date.now()
+    setElapsedMs(0)
+    const timer = setInterval(() => {
+      setElapsedMs(Date.now() - start)
+    }, 100)
+    return () => clearInterval(timer)
+  }, [turnState])
   /* Health banners the user has waved away. Keyed by a signature of what the
      banner says, not just "hidden": a connector that starts failing for a new
      reason, or a different connector going down, is a new fact worth showing
@@ -918,6 +981,20 @@ export default function Chat() {
   const providers = health?.providers ?? []
   const defaults = health?.provider_defaults ?? {}
   const active = conversations.find((c) => c.id === activeId)
+
+  // Fetch variant info when the active conversation's model changes (or on initial load).
+  useEffect(() => {
+    const modelId = active?.model || ''
+    if (!modelId) { setVariantInfo(null); return }
+    let cancelled = false
+    api.getVariant(modelId, activeId).then((info) => {
+      if (cancelled) return
+      setVariantInfo(info)
+      // Set effort to the resolved default (includes session memory)
+      setEffort(info.resolved || 'high')
+    }).catch(() => { if (!cancelled) setVariantInfo(null) })
+    return () => { cancelled = true }
+  }, [active?.model, activeId])
 
   // What to use when nothing has been chosen: the house default if this machine
   // has it configured, otherwise whatever it does have.
@@ -1062,6 +1139,18 @@ export default function Chat() {
     setInput('')
     setTimeout(() => textareaRef.current?.focus(), 0)
   }, [leaveTurn, setActiveId])
+
+  const cycleEffort = useCallback(() => {
+    if (!variantInfo?.supported?.length) return
+    const levels = variantInfo.supported
+    const current = effort || 'high'
+    const idx = levels.indexOf(current)
+    const next = levels[(idx + 1) % levels.length]
+    setEffort(next)
+    if (activeId && modelId) {
+      api.setVariant(modelId, next).catch(() => {})
+    }
+  }, [variantInfo, effort, activeId, modelId])
 
   const pushAssistant = useCallback(() => {
     const { buffer, reasoning, reasoningStart } = liveRef.current
@@ -1265,6 +1354,11 @@ export default function Chat() {
             durationMs: evt.duration_ms,
           }])
         }
+        // If the provider/model changed (fallback), refresh the conversation list
+        // so the model picker shows the model that actually answered.
+        if (evt.provider && evt.model) {
+          refreshConvs()
+        }
         // A widget turn's text is the fenced payload it was persisted as, which
         // is not something to read out in a desktop notification.
         notifyDone('Reply ready', parseWidgetEnvelope(evt.text) ? 'An interactive answer is ready.' : evt.text)
@@ -1354,7 +1448,7 @@ export default function Chat() {
     }
   }, [pushAssistant, pushNote, settle, setBuffer, setReasoning, setTool, setStatus, notifyDone, setPanel])
 
-  const openTurn = useCallback(async (cid, message, mode = 'chat', files = []) => {
+  const openTurn = useCallback(async (cid, message, mode = 'chat', files = [], opts = {}) => {
     const token = ++turnTokenRef.current
     runningRef.current = cid
     settledRef.current = false
@@ -1394,6 +1488,10 @@ export default function Chat() {
         workspace: workspace.trim() || null,
         mode,
         attachments: files,
+        guard: opts.guard,
+        effort: opts.effort,
+        variant: opts.variant,
+        model: opts.model,
         onEvent: (evt) => { beat(); onEvent(evt) },
         signal: controller.signal,
       })
@@ -1521,9 +1619,11 @@ export default function Chat() {
     setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, settled: 'discarded' } : it)))
   }, [])
 
-  const send = useCallback(async () => {
-    const typed = input.trim()
-    if ((!typed && attachments.length === 0) || turnState !== 'idle') return
+  const send = useCallback(async (overrideText, overrideFiles) => {
+    const raw = overrideText !== undefined ? overrideText : input
+    const typed = (raw || '').trim()
+    const sending = overrideFiles !== undefined ? overrideFiles : attachments
+    if ((!typed && sending.length === 0) || turnState !== 'idle') return
     // A new turn: whatever the last one wrote is no longer new.
     setFreshArtifact(null)
     /* Only the files the model cannot be shown. An image now travels as a
@@ -1532,7 +1632,6 @@ export default function Chat() {
        path down instead of describing the picture -- which is exactly what put
        `/home/wayne/.amethyst/attachments/…/Screenshot.png` into a GitHub issue
        where the screenshot belonged. */
-    const sending = attachments
     const unviewable = sending.filter((f) => !String(f.content_type || '').startsWith('image/'))
     const attached = unviewable.length
       ? `\n\nAttached files (read them with view_file):\n${unviewable.map((f) => `- ${f.path}`).join('\n')}`
@@ -1564,54 +1663,60 @@ export default function Chat() {
       }
     }
 
-    /* No prefix any more. It used to prepend "Plan first: ..." to the user's
-       own message, which meant the instruction was persisted into the
-       transcript and replayed on every later iteration and every later turn --
-       and nothing enforced it, because the backend had no idea plan mode
-       existed. It is a field on the request now, and the tool schemas are
-       withheld by the registry. */
     const message = `${typed}${attached}`
     if (!message.trim()) return
-    setInput('')
-    setAttachments([])
+    if (overrideText === undefined) {
+      setInput('')
+      setAttachments([])
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    }
     setLastSent(typed)
     setAcItems([])
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
     let cid = activeId
     try {
       if (!cid) {
         if (!draftProvider) { toast('No provider is configured in providers.yaml', 'bad'); return }
-        /* Never invent a model name. Sending 'default' as a placeholder for
-           "health has not answered yet" put that literal string on the wire:
-           NVIDIA replied 404, and every turn in that conversation failed
-           forever with no way to correct it from here. The server fills in the
-           provider's declared default when the field is empty, and refuses
-           when there is none -- which is a rejected send, not a dead
-           conversation. */
         const { id } = await api.createConversation(
           draftProvider,
           draftModel || '',
-          (typed || attachments[0]?.name || 'untitled').slice(0, 56),
+          (typed || sending[0]?.name || 'untitled').slice(0, 56),
         )
         cid = id
         setActiveId(id)
         refreshConvs()
       }
-      // A finished turn's stream can still be open on the memory frame it emits
-      // after `done`. Let go of it before opening the next one on the same
-      // conversation, so two readers are never live at once.
       abortRef.current?.abort()
-      // Sent before the composer is cleared, because clearing it is what makes
-      // `attachments` empty again.
-      await openTurn(cid, message, mode, sending)
+      await openTurn(cid, message, mode, sending, { guard, effort, variant: effort, model: draftModel })
     } catch (err) {
       toast(err.message, 'bad')
       setTurnState('idle')
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled,
+    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled,
   ])
+
+  // Queue context/messages while a turn is actively executing (matches Queue ↵ in screenshot)
+  const handleQueue = useCallback(() => {
+    const typed = input.trim()
+    if (!typed && attachments.length === 0) return
+    setQueuedMessages((prev) => [...prev, { id: nextId(), text: typed, files: [...attachments] }])
+    setInput('')
+    setAttachments([])
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+  }, [input, attachments])
+
+  // Automatically dispatch queued message when the current turn finishes
+  useEffect(() => {
+    if (turnState === 'idle' && queuedMessages.length > 0) {
+      const [next, ...rest] = queuedMessages
+      setQueuedMessages(rest)
+      const timer = setTimeout(() => {
+        send(next.text, next.files)
+      }, 80)
+      return () => clearTimeout(timer)
+    }
+  }, [turnState, queuedMessages, send])
 
   const stop = useCallback(async () => {
     if (!activeId) { abortRef.current?.abort(); return }
@@ -1629,23 +1734,33 @@ export default function Chat() {
   useEffect(() => { stopRef.current = stop }, [stop])
 
   const applyModel = useCallback(async (patch) => {
-    if (!activeId) { setDraft((d) => ({ ...d, ...patch })); return }
-    try {
-      await api.updateConversation(activeId, patch)
-      await refreshConvs()
-    } catch (err) {
-      toast(err.message, 'bad')
-      refreshConvs()
+    const caps = patch.capabilities || {}
+    if (patch.context_length) caps.context_length = patch.context_length
+    setModelCaps(caps)
+    
+    // Clear old variant info immediately to prevent stale levels showing
+    setVariantInfo(null)
+    
+    // Fetch per-model variant info (saved effort, supported levels, default)
+    const modelId = patch.model || ''
+    if (modelId && caps.supports_effort !== false) {
+      try {
+        const info = await api.getVariant(modelId, activeId)
+        setVariantInfo(info)
+        setEffort(info.resolved || 'high')
+      } catch {
+        setVariantInfo(null)
+      }
     }
-  }, [activeId, refreshConvs, toast])
-
-  const toggleMemory = useCallback(async () => {
-    try {
-      const current = await api.memory(activeId || null)
-      const next = await api.toggleMemory(!current.enabled, activeId || null)
-      toast(next.enabled ? 'Memory on — facts are recalled each turn' : 'Memory off', next.enabled ? 'ok' : 'info')
-    } catch (err) {
-      toast(err.message, 'bad')
+    
+    // Create db_patch by picking out only provider and model
+    const db_patch = { provider: patch.provider, model: patch.model }
+    
+    if (!activeId) { setDraft((d) => ({ ...d, ...db_patch })) }
+    else {
+      api.updateConversation(activeId, db_patch).catch((err) => {
+        toast(err.message, 'bad')
+      })
     }
   }, [activeId, toast])
 
@@ -1722,14 +1837,14 @@ export default function Chat() {
       selectConversation,
       focusComposer,
       ask,
-      toggleMemory,
       togglePin,
+      cycleEffort,
       openPlus: () => setPlusOpen(true),
       attach: () => fileRef.current?.click(),
       beginRename: (cid) => setRenaming(cid),
       turnRunning: turnState === 'running',
     })
-  }, [registerChat, stop, startFresh, selectConversation, focusComposer, ask, toggleMemory, togglePin, turnState, setRenaming])
+  }, [registerChat, stop, startFresh, selectConversation, focusComposer, ask, togglePin, cycleEffort, turnState, setRenaming])
 
   // Prompts arrive on the stream; this fetch recovers anything a reload left
   // suspended, since the turn survives the page and the stream does not.
@@ -1849,13 +1964,67 @@ export default function Chat() {
   // exact sentence, and a later "gmail: timed out" is a new one that shows.
   const errorSig = `err:${connectorErrors.map(([n, e]) => `${n}=${e}`).join('|')}`
   const signInSig = `signin:${[...awaitingSignIn].sort().join(',')}`
-  const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'no model'
-  // How many connectors are actually switched on for the next message. Rides on
+  const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'Auto'
+    // How many connectors are actually switched on for the next message. Rides on
   // the + chip in place of the dock that used to spell the same fact out.
   const liveTools = useMemo(
     () => (caps.connectors ?? []).filter((c) => c.enabled).length,
     [caps.connectors],
   )
+
+  const activeContextCount = useMemo(() => {
+    const connCount = (caps.connectors ?? []).filter((c) => c.enabled).length
+    const skillCount = (caps.skills ?? []).length
+    const attachCount = attachments.length
+    return connCount + skillCount + attachCount
+  }, [caps.connectors, caps.skills, attachments.length])
+
+  const turnPhase = useMemo(() => {
+    if (liveBuffer) return 'writing'
+    if (liveTool) return 'executing'
+    return 'thinking'
+  }, [liveBuffer, liveTool])
+
+  const guardLabel = useMemo(() => {
+    if (guard === 'read-only') return 'Read only'
+    if (guard === 'guard') return 'Guard'
+    if (guard === 'guard-auto-edit') return 'Guard · auto-edit'
+    return 'Full access'
+  }, [guard])
+
+  const effortLabel = useMemo(() => {
+    if (!effort || effort === 'default' || effort === 'high') return 'High'
+    if (effort === 'none') return 'None'
+    return effort.charAt(0).toUpperCase() + effort.slice(1)
+  }, [effort])
+
+  const contextPct = useMemo(() => {
+    let charCount = 0
+    for (const it of items || []) {
+      if (it.text) charCount += it.text.length
+      if (it.arguments) charCount += JSON.stringify(it.arguments).length
+      if (it.content) charCount += (typeof it.content === 'string' ? it.content.length : JSON.stringify(it.content).length)
+      if (it.callsRaw) charCount += JSON.stringify(it.callsRaw).length
+    }
+    const estimatedTokens = Math.round(charCount / 3.8)
+    // Use the selected model's actual context window if available, fallback to 128k
+    const windowSize = modelCaps?.context_length || 128000
+    const pct = Math.min(100, Math.max(0, Math.round((estimatedTokens / windowSize) * 100)))
+    return items.length > 0 ? pct : 0
+  }, [items, modelCaps])
+
+  const liveThinkingSnippet = useMemo(() => {
+    if (liveReasoning) {
+      const lines = liveReasoning.trim().split('\n').filter(Boolean)
+      const latest = lines[lines.length - 1] || lines[0]
+      return latest.length > 65 ? `${latest.slice(0, 65)}…` : latest
+    }
+    if (liveStatus) return statusLabel(liveStatus)
+    return 'Working through the next step'
+  }, [liveReasoning, liveStatus])
+
+  const elapsedSec = (elapsedMs / 1000).toFixed(1)
+
   // Follow the stream, but never yank the view away from someone reading back.
   const onScroll = useCallback(() => {
     const el = scrollRef.current
@@ -1871,18 +2040,6 @@ export default function Chat() {
 
   const composer = (
     <div className={`composer-wrap${isEmpty ? ' composer-wrap--hero' : ''}`}>
-      {/* Direction follows the composer. In a conversation the composer sits at
-          the bottom of the window, so a menu has to open upward -- below it
-          there is a quarter of the room there is above it.
-
-          On the front page it does not: the composer is a hero block in the
-          middle of an empty screen, and a menu opening upward from there runs
-          off the top. `useMenuFit` then clamps `.menu-body` to whatever is
-          left, so the menu rendered at one height and immediately resized to
-          another -- and because it is anchored by its *bottom* edge, every row
-          already on screen jumped as the connector list and the model list
-          finished loading. Opening downward anchors the top edge instead, so
-          late-arriving rows extend the menu rather than move it. */}
       {plusOpen && (
         <PlusMenu
           placement={isEmpty ? 'down' : 'up'}
@@ -1892,17 +2049,6 @@ export default function Chat() {
           onNavigate={setView}
           onAttach={(file) => setAttachments((list) => [...list, file])}
           onClose={() => { setPlusOpen(false); refreshCaps() }}
-        />
-      )}
-
-      {modelOpen && (
-        <ModelMenu
-          placement={isEmpty ? 'down' : 'up'}
-          provider={active?.provider ?? draftProvider}
-          model={active?.model ?? draftModel}
-          scoped={Boolean(activeId)}
-          onChange={applyModel}
-          onClose={() => setModelOpen(false)}
         />
       )}
 
@@ -1935,7 +2081,126 @@ export default function Chat() {
         </div>
       )}
 
-      <div className="composer">
+      {/* Floating Status Bar & Inspect Card (Screenshots 1, 2, 3) */}
+      {turnState === 'running' && (
+        <div className="chat-thinking-bar-wrap">
+          {/* Elevated Inspect Card (Screenshot 3: anchored above status bar) */}
+          {inspectOpen && (
+            <div className="turn-inspect-card" ref={inspectCardRef}>
+              <div className="inspect-card-header">
+                <div className="inspect-model-badge">
+                  <Icon name="globe" size={14} />
+                  <span className="inspect-model-name">{shownModel}</span>
+                  <span className="inspect-effort-pill">{effortLabel.toLowerCase()}</span>
+                </div>
+              </div>
+
+              <div className="inspect-dashed-divider" />
+
+              <div className="inspect-metrics-table">
+                <div className="inspect-metric-row">
+                  <span className="inspect-metric-label">Context</span>
+                  <span className="inspect-metric-val">{contextPct > 0 ? `${contextPct}%` : 'Not measured yet'}</span>
+                </div>
+                <div className="inspect-metric-row">
+                  <span className="inspect-metric-label">Reasoning</span>
+                  <span className="inspect-metric-val">Turn {transcript.filter((t) => t.kind === 'user').length || 1}</span>
+                </div>
+                <div className="inspect-metric-row">
+                  <span className="inspect-metric-label">Tools</span>
+                  <span className="inspect-metric-val">{liveTools > 0 ? `${liveTools} active` : 'None yet'}</span>
+                </div>
+                <div className="inspect-metric-row">
+                  <span className="inspect-metric-label">
+                    <MatrixLoader phase="thinking" />
+                    Completion
+                  </span>
+                  <span className="inspect-metric-val">{elapsedSec}s</span>
+                </div>
+              </div>
+
+              {/* Live reasoning stream */}
+              {liveReasoning && (
+                <>
+                  <div className="inspect-dashed-divider" />
+                  <div className="inspect-thoughts-stream" ref={thoughtsStreamRef}>
+                    <div className="inspect-thoughts-label">
+                      <Icon name="brain" size={12} />
+                      <span>Live reasoning</span>
+                    </div>
+                    <div className="inspect-thoughts-text">{liveReasoning}</div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Active Status Bar (Screenshots 1, 2, 3) */}
+          <div className="chat-thinking-bar">
+            <div className="thinking-bar-left">
+              <span className="thinking-grid-icon">
+                <MatrixLoader phase={turnPhase} />
+              </span>
+              <button
+                type="button"
+                className={`thinking-trigger-btn thinking-trigger-btn--${turnPhase}${inspectOpen ? ' is-open' : ''}`}
+                onClick={() => setInspectOpen((o) => !o)}
+                title="Toggle thoughts and telemetry"
+                aria-expanded={inspectOpen}
+              >
+                <span>{turnPhase === 'writing' ? 'Writing...' : turnPhase === 'executing' ? 'Executing' : 'Thinking'}</span>
+                {turnPhase !== 'writing' && (
+                  <Icon name="chevron" size={10} className={`thinking-chevron${inspectOpen ? ' is-open' : ''}`} />
+                )}
+              </button>
+              <span className="thinking-status-text">
+                {turnPhase === 'writing' ? (
+                  ''
+                ) : turnPhase === 'executing' ? (
+                  liveTool?.name ? `Running ${liveTool.name}...` : 'Executing tool...'
+                ) : (
+                  liveThinkingSnippet
+                )}
+              </span>
+            </div>
+            <div className="thinking-bar-right">
+              <span className="thinking-timer">{elapsedSec}s</span>
+              <button
+                type="button"
+                className="thinking-pause-btn"
+                onClick={stop}
+                disabled={stopping}
+                title="Pause or stop turn"
+                aria-label="Pause or stop"
+              >
+                <span className="thinking-pause-bars">
+                  <span />
+                  <span />
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Queued message indicator if any message was queued while running */}
+      {queuedMessages.length > 0 && (
+        <div className="composer-queue-preview">
+          <span className="queue-badge">{queuedMessages.length} queued</span>
+          <span className="queue-text">"{queuedMessages[0].text}"</span>
+          <button
+            type="button"
+            className="queue-cancel-btn"
+            onClick={() => setQueuedMessages([])}
+            title="Cancel queue"
+          >
+            <Icon name="x" size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Capsule Composer (Screenshots 1 & 2) */}
+      <div className="composer-capsule">
         {attachments.length > 0 && (
           <div className="composer-files">
             {attachments.map((file) => (
@@ -1955,122 +2220,254 @@ export default function Chat() {
           </div>
         )}
 
-        <SmoothTextarea
-          textareaRef={textareaRef}
-          rows={1}
-          value={input}
-          placeholder={turnState === 'running' ? 'Working — Esc stops it' : 'Type / for skills'}
-          disabled={turnState === 'running'}
-          aria-label="Message"
-          onChange={(e) => {
-            setInput(e.target.value)
-            runAc(e.target.value, activeId)
-            e.target.style.height = 'auto'
-            e.target.style.height = `${Math.min(e.target.scrollHeight, 260)}px`
-          }}
-          onPaste={(e) => {
-            const files = [...(e.clipboardData?.files || [])]
-            if (files.length) { e.preventDefault(); uploadFiles(files) }
-          }}
-          onKeyDown={(e) => {
-            if (acItems.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-              e.preventDefault()
-              setAcIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : acItems.length - 1)) % acItems.length)
-              return
+        {/* Circular + button by default, or capsule pill when attachments exist */}
+        <button
+          type="button"
+          className={`composer-plus-circle${attachments.length > 0 ? ' has-count' : ''}${plusOpen ? ' active' : ''}`}
+          onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+          title={`Files, skills, connectors, memory — ${MOD_LABEL}+/`}
+          aria-label="Add context or actions"
+        >
+          <Icon name="plus" size={13} />
+          {attachments.length > 0 && <span className="composer-plus-count">{attachments.length}</span>}
+        </button>
+
+        {/* Input Textarea */}
+        <div className="composer-input-area">
+          <SmoothTextarea
+            textareaRef={textareaRef}
+            rows={1}
+            value={input}
+            placeholder={
+              turnState === 'running'
+                ? 'Add context while this runs'
+                : (isEmpty ? 'Ask amethyst anything...' : 'Ask for follow-up changes')
             }
-            if (acItems.length && (e.key === 'Enter' || e.key === 'Tab')) {
-              e.preventDefault()
-              acceptAc(acItems[acIndex])
-              return
-            }
-            if (acItems.length && e.key === 'Escape') { e.stopPropagation(); setAcItems([]); return }
-            if (e.key === 'ArrowUp' && !input && lastSent) {
-              e.preventDefault()
-              setInput(lastSent)
-              return
-            }
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
-          }}
-        />
+            aria-label="Message"
+            onChange={(e) => {
+              setInput(e.target.value)
+              runAc(e.target.value, activeId)
+              e.target.style.height = 'auto'
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 260)}px`
+            }}
+            onPaste={(e) => {
+              const files = [...(e.clipboardData?.files || [])]
+              if (files.length) { e.preventDefault(); uploadFiles(files) }
+            }}
+            onKeyDown={(e) => {
+              if (acItems.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault()
+                setAcIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : acItems.length - 1)) % acItems.length)
+                return
+              }
+              if (acItems.length && (e.key === 'Enter' || e.key === 'Tab')) {
+                e.preventDefault()
+                acceptAc(acItems[acIndex])
+                return
+              }
+              if (acItems.length && e.key === 'Escape') {
+                e.stopPropagation()
+                setAcItems([])
+                if (turnState === 'running') stop()
+                return
+              }
+              if (e.key === 'ArrowUp' && !input && lastSent) {
+                e.preventDefault()
+                setInput(lastSent)
+                return
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                if (turnState === 'running') {
+                  handleQueue()
+                } else {
+                  send()
+                }
+              }
+            }}
+          />
+        </div>
 
-        {/* Draft metadata: the draft is a document, so it carries its own
-            facts -- words, and the only honest estimate of the reply's length.
-            Appears only while there is a draft; mono, because these are
-            machine facts, not prose. */}
-        {input.trim() && turnState !== 'running' && (
-          <div className="composer-draft-meta" aria-hidden="true">
-            <span>{input.trim().split(/\s+/).length} words</span>
-            {(() => {
-              const lines = Math.max(1, Math.ceil(input.length / 80))
-              return <span>~{lines * 2}s of reply</span>
-            })()}
-          </div>
-        )}
-
-        <div className="composer-bar">
-          {/* The count is the whole reason the connector dock could go. What
-              anybody actually read off that scrolling row was "how many things
-              is this thing holding" -- one number, which fits here, next to the
-              control that opens the list it summarises. */}
-          <button
-            type="button"
-            className={`composer-chip${plusOpen ? ' active' : ''}`}
-            onClick={() => { setPlusOpen((o) => !o); setModelOpen(false) }}
-            title={`Files, skills, connectors, memory — ${MOD_LABEL}+/`}
-            aria-label={liveTools === 0
-              ? 'Files, skills, connectors, memory'
-              : `Files, skills, connectors, memory — ${liveTools} connector${liveTools === 1 ? '' : 's'} running`}
-          >
-            <Icon name="plus" size={16} />
-            {liveTools > 0 && <span className="composer-chip-count">{liveTools}</span>}
-          </button>
-
-          <div className="composer-modes">
-            {MODES.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                className={`mode${mode === entry.id ? ' active' : ''}`}
-                onClick={() => setMode(entry.id)}
-                title={entry.hint}
-              >
-                {entry.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="composer-bar-right">
-            <button
-              type="button"
-              className={`composer-model${modelOpen ? ' active' : ''}`}
-              onClick={() => { setModelOpen((o) => !o); setPlusOpen(false) }}
-              title="Provider and model"
-            >
-              {shownModel}
-              <Icon name="chevron" size={11} style={{ transform: 'rotate(90deg)', opacity: 0.6 }} />
-            </button>
-            {turnState === 'running' ? (
+        {/* Right side action buttons inside capsule */}
+        <div className="composer-capsule-actions">
+          {turnState === 'running' ? (
+            <>
               <button
                 type="button"
-                className="composer-send composer-send--stop"
+                className="composer-stop-circle"
                 onClick={stop}
                 disabled={stopping}
-                title="Stop this turn on the server — Esc"
+                title="Stop turn — Esc"
                 aria-label="Stop"
               >
-                <Icon name="stop" size={13} />
+                <span className="composer-stop-square" />
               </button>
-            ) : (
               <button
                 type="button"
-                className="composer-send"
-                onClick={send}
-                disabled={!input.trim() && attachments.length === 0}
-                title="Send — Enter"
-                aria-label="Send"
+                className="composer-queue-btn"
+                onClick={handleQueue}
+                title="Queue message to run after current turn — Enter"
+                aria-label="Queue"
               >
-                <Icon name="send" size={15} />
+                <span>Queue</span>
+                <span className="composer-queue-symbol">↵</span>
               </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="composer-send-circle"
+              onClick={() => send()}
+              disabled={!input.trim() && attachments.length === 0}
+              title="Send — Enter"
+              aria-label="Send"
+            >
+              <Icon name="arrow-up" size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Controls Bar (Screenshots 1, 2, 3) */}
+      <div className="composer-footer-bar">
+        {/* Left Cluster */}
+        <div className="composer-footer-left">
+          {/* Workspace chip */}
+          <button
+            type="button"
+            className="composer-footer-chip composer-footer-chip--workspace"
+            onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen(true); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setContextOpen(false) }}
+            title="Workspace folder"
+          >
+            <Icon name="folder" size={13} />
+            <span>{workspace ? (workspace.charAt(0).toUpperCase() + workspace.slice(1)) : 'Amethyst'}</span>
+          </button>
+
+          {/* Guard mode chip */}
+          <div className="composer-footer-chip-wrap">
+            <button
+              type="button"
+              className={`composer-footer-chip composer-footer-chip--guard${guard === 'full-access' || guard === 'full' ? ' is-full-access' : ''}${guardOpen ? ' is-active' : ''}`}
+              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setGuardOpen((o) => !o); setEffortOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) }}
+              title="Guard mode"
+            >
+              <Icon name={guard === 'full-access' || guard === 'full' ? 'shield-check' : 'shield'} size={13} className="guard-status-icon" />
+              <span>{guard === 'guard' ? 'Guard' : guardLabel}</span>
+              <Icon name="chevron" size={10} className="composer-footer-chevron" />
+            </button>
+            {guardOpen && (
+              <GuardMenu
+                guard={guard}
+                onChange={setGuard}
+                onClose={() => setGuardOpen(false)}
+                placement={isEmpty ? 'down' : 'up'}
+              />
+            )}
+          </div>
+
+          {/* Reasoning effort chip */}
+          <div className="composer-footer-chip-wrap">
+            <button
+              type="button"
+              className={`composer-footer-chip composer-footer-chip--effort${effortOpen ? ' is-active' : ''}`}
+              style={{ opacity: (modelCaps && modelCaps.supports_effort === false) ? 0.5 : 1, cursor: (modelCaps && modelCaps.supports_effort === false) ? 'not-allowed' : 'pointer' }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (modelCaps && modelCaps.supports_effort === false) return;
+              }}
+              onClick={(e) => {
+                if (modelCaps && modelCaps.supports_effort === false) {
+                  e.preventDefault();
+                  return;
+                }
+                setEffortOpen((o) => !o); setGuardOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) 
+              }}
+              title={(modelCaps && modelCaps.supports_effort === false) ? "This model does not support reasoning effort" : "Reasoning effort (mod+shift+m to cycle)"}
+            >
+              <Icon name="lightning" size={13} className="effort-lightning-icon" />
+              <span>{(modelCaps && modelCaps.supports_effort === false) ? "None" : effortLabel}</span>
+              {(!modelCaps || modelCaps.supports_effort !== false) && <Icon name="chevron" size={10} className="composer-footer-chevron" />}
+            </button>
+            {effortOpen && (!modelCaps || modelCaps.supports_effort !== false) && (
+              <EffortMenu
+                effort={effort}
+                levels={variantInfo?.supported || modelCaps?.effort_levels}
+                onChange={(e) => {
+                  setEffort(e)
+                  // Persist per-model preference
+                  const modelId = draftModel || ''
+                  if (modelId) api.setVariant(modelId, e).catch(() => {})
+                }}
+                onClose={() => setEffortOpen(false)}
+                placement={isEmpty ? 'down' : 'up'}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Right Cluster */}
+        <div className="composer-footer-right">
+          {/* Context ring meter */}
+          <div className="composer-footer-chip-wrap">
+            <button
+              type="button"
+              className={`composer-footer-context${contextOpen ? ' is-active' : ''}`}
+              title={`Context memory usage: ${contextPct}%`}
+              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setContextOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setPlusOpen(false) }}
+            >
+              <svg className="context-donut-svg" width="13" height="13" viewBox="0 0 36 36">
+                <path
+                  className="context-donut-track"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="context-donut-fill"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeDasharray={`${Math.max(contextPct, 1)}, 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span>Context {contextPct}%</span>
+            </button>
+            {contextOpen && (
+              <ContextPopover
+                pct={contextPct}
+                usedTokens={items.length * 150} // Rough approx since true token count isn't exposed yet
+                maxTokens={128000}
+                compactionTokens={90000}
+                onClose={() => setContextOpen(false)}
+                placement={isEmpty ? 'down' : 'up'}
+              />
+            )}
+          </div>
+
+          {/* Model selector chip */}
+          <div className="composer-footer-chip-wrap">
+            <button
+              type="button"
+              className={`composer-footer-chip composer-footer-chip--model${modelOpen ? ' is-active' : ''}`}
+              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setModelOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setPlusOpen(false); setContextOpen(false) }}
+              title="Provider and model"
+            >
+              <Icon name="globe" size={13} className="model-globe-icon" />
+              <span>{shownModel}</span>
+              <Icon name="chevron" size={10} className="composer-footer-chevron" />
+            </button>
+            {modelOpen && (
+              <ModelMenu
+                placement={isEmpty ? 'down' : 'up'}
+                provider={active?.provider ?? draftProvider}
+                model={active?.model ?? draftModel}
+                scoped={Boolean(activeId)}
+                onChange={applyModel}
+                onClose={() => setModelOpen(false)}
+              />
             )}
           </div>
         </div>
@@ -2283,42 +2680,24 @@ export default function Chat() {
                       onDiscardPlan={discardPlan}
                       onEditPlanStep={editPlanStep}
                       onResume={resumeAnswer}
+                      setInput={setInput}
+                      textareaRef={textareaRef}
                     />
                   </div>
                 ))}
-                {turnState === 'running' && (
+                {turnState === 'running' && (liveTool || liveBuffer) && (
                   <div className="msg msg-assistant is-live">
-                    {/* One running trace for the whole turn, rather than a card
-                        that appears for the current call and vanishes when the
-                        next one starts. What it has already done stays on
-                        screen while it does the next thing. */}
-                    {/* Only what is in flight. Everything the turn has already
-                        finished is in `transcript` -- `foldTraces` picks the
-                        settled tool rows up as they land -- so listing the same
-                        steps again here drew every one of them twice, the
-                        document card included. */}
-                    {(liveTool || (liveReasoning && !liveBuffer)) && (
+                    {liveTool && (
                       <TurnTrace
                         events={[]}
                         live={liveTool}
-                        reasoning={Boolean(liveReasoning) && !liveBuffer}
                         running
                       />
                     )}
-                    {liveReasoning && <Reasoning text={liveReasoning} live={!liveBuffer} />}
-                    {liveBuffer ? (
+                    {liveBuffer && (
                       <div className="msg-body">
                         <Markdown text={liveBuffer} />
                         <span className="tele-cursor" />
-                      </div>
-                    ) : !liveReasoning && !liveTool && (
-                      /* It said "Thinking" from the moment a turn opened
-                         until the first token, whether the wait was the vault
-                         search, a cold connector, a provider retry or the model.
-                         The loop knew which; it just never said. */
-                      <div className="thinking">
-                        {statusLabel(liveStatus)}
-                        <span className="thinking-dots"><i /><i /><i /></span>
                       </div>
                     )}
                   </div>

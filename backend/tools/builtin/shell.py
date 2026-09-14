@@ -23,7 +23,7 @@ from backend.security.sandbox import (
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
 
 DEFAULT_TIMEOUT_S = 30
-MAX_TIMEOUT_S = 120
+MAX_TIMEOUT_S = 300
 MAX_OUTPUT_CHARS = 60_000
 
 
@@ -130,8 +130,19 @@ def _looks_like_sandbox_denial(stderr: str) -> bool:
 def tools() -> list[Tool]:
     sandbox_note = unavailable_reason()
     description = (
-        "Run a shell command. Use execution_mode='sandbox' (default, OS-contained) unless the"
-        " command genuinely needs unrestricted access, in which case use 'direct'."
+        "Run a shell command.\n"
+        "WHEN TO USE: to verify your own work -- run the tests, the linter, the"
+        " type checker, `git status`, `git diff` -- after changing code, and to"
+        " do anything the filesystem tools cannot.\n"
+        "OUTPUT: stdout and stderr, with the exit code. A non-zero exit is"
+        " information to act on, not a dead end: read the error and adapt.\n"
+        "TIPS: set execution_mode='sandbox' (the default, OS-contained) unless"
+        " the command genuinely needs unrestricted access, in which case use"
+        " 'direct', which always asks the user. Set operation_type honestly --"
+        " it can only raise the confirmation requirement, never lower it. Use"
+        " cwd rather than prefixing `cd`.\n"
+        "LIMITS: never commit or push unless the user explicitly asked. Do not"
+        " use this to talk to the user -- text outside tool calls does that."
     )
     if sandbox_note:
         description += f" Note: {sandbox_note}."

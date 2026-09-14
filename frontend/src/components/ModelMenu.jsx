@@ -1,248 +1,347 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import Icon from './Icon.jsx'
+import AiProviderIcon from './AiProviderIcon.jsx'
 import { useApp } from '../store.jsx'
 import { api } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
-import { useMenuFit } from '../hooks/useMenuFit.js'
 import { FadeScrollArea, SmoothInput } from './ui/skiper/index.js'
 
-/* Which model answers the next message.
+/* Fallback model definitions for providers that don't serve a live GET /models endpoint */
+const FALLBACK_MODELS = {
+  cloudflare: [
+    { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', context_length: 131072 },
+    { id: '@cf/meta/llama-3.1-8b-instruct-fast', context_length: 131072 },
+    { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', context_length: 131072 },
+    { id: '@cf/qwen/qwen2.5-coder-32b-instruct', context_length: 32768 },
+  ],
+  groq: [
+    { id: 'llama-3.3-70b-versatile', context_length: 131072 },
+    { id: 'llama-3.1-8b-instant', context_length: 131072 },
+    { id: 'mixtral-8x7b-32768', context_length: 32768 },
+  ],
+  deepseek: [
+    { id: 'deepseek-chat', context_length: 65536 },
+    { id: 'deepseek-reasoner', context_length: 65536 },
+  ],
+  mistral: [
+    { id: 'mistral-large-3', context_length: 262144 },
+    { id: 'codestral-latest', context_length: 262144 },
+    { id: 'ministral-8b-2512', context_length: 131072 },
+  ],
+  moonshot: [
+    { id: 'kimi-k2.7-code', context_length: 262144 },
+    { id: 'moonshot-v1-128k', context_length: 131072 },
+  ],
+  minimax: [
+    { id: 'minimax-m2.5', context_length: 262144 },
+    { id: 'MiniMax-Text-01', context_length: 1048576 },
+  ],
+  nous: [
+    { id: 'Hermes-4-70B', context_length: 131072 },
+    { id: 'Hermes-3-Llama-3.1-8B', context_length: 131072 },
+  ],
+  google: [
+    { id: 'gemini-2.5-pro', context_length: 1048576 },
+    { id: 'gemini-2.5-flash', context_length: 1048576 },
+    { id: 'gemini-flash-latest', context_length: 1048576 },
+  ],
+  openai: [
+    { id: 'gpt-4o', context_length: 131072 },
+    { id: 'gpt-4o-mini', context_length: 131072 },
+    { id: 'o1', context_length: 200000 },
+    { id: 'o3-mini', context_length: 200000 },
+  ],
+  anthropic: [
+    { id: 'claude-3-7-sonnet-latest', context_length: 200000 },
+    { id: 'claude-3-5-sonnet-latest', context_length: 200000 },
+    { id: 'claude-3-5-haiku-latest', context_length: 200000 },
+  ],
+}
 
-   Providers come from providers.yaml, and each declares a default model. A
-   model that is not the declared default is still legitimate -- any name the
-   endpoint accepts works -- so the list is a shortcut, not a whitelist, and the
-   field below it takes anything.
+function fmtContext(bytes) {
+  if (!bytes) return ''
+  const k = Math.round(bytes / 1024)
+  if (k >= 1000) return `${(k / 1000).toFixed(1).replace(/\.0$/, '')}M context`
+  return `${k}K context`
+}
 
-   Two columns, because the two questions are different sizes. Which provider is
-   a short list a person reads; which model is a long one they search -- Nvidia
-   alone answers with well over a hundred names, and asking someone to recognise
-   one of those in a datalist attached to a text field is not asking a question,
-   it is hoping. The provider list opens the model list beside it, the model
-   list has a field at the top that filters it, and the free-text field stays at
-   the bottom for the names the endpoint will accept but does not enumerate. */
-
-export default function ModelMenu({ provider, model, onChange, onClose, scoped, placement = 'up' }) {
+export default function ModelMenu({
+  provider,
+  model,
+  onChange,
+  onClose,
+  placement = 'down',
+}) {
   const { health } = useApp()
   const ref = useRef(null)
-  const [custom, setCustom] = useState(model || '')
-  // The selected provider's live model list. Best-effort: an endpoint that will
-  // not answer leaves the list empty and the free-text field working as before.
-  const [models, setModels] = useState([])
-  const [loading, setLoading] = useState(false)
-  // Which provider's models are on screen. Distinct from `provider`: opening a
-  // provider's list is not the same as having chosen it, and picking a model is
-  // what commits both.
-  const [openProvider, setOpenProvider] = useState(provider || null)
+  const [selectedProvider, setSelectedProvider] = useState('all')
   const [query, setQuery] = useState('')
+  const [modelMap, setModelMap] = useState({})
+  const [loading, setLoading] = useState(true)
 
   const providers = health?.providers ?? []
   const defaults = health?.provider_defaults ?? {}
-  /* The backbone this install leans on, and the ones Auto will not pick.
-     A grouping and a caveat, not a restriction: every provider below is
-     selectable by hand, including the ones Auto leaves alone. */
-  const core = health?.provider_core ?? []
-  const noAuto = health?.provider_no_auto ?? []
   const canRoute = health?.routing ?? false
-  const groups = useMemo(() => {
-    const filled = [
-      { key: 'core', label: 'core', names: providers.filter((n) => core.includes(n)) },
-      { key: 'mine', label: 'yours', names: providers.filter((n) => !core.includes(n)) },
-    ].filter((g) => g.names.length > 0)
-    // One group is not a grouping. A lone "yours" heading over the whole list
-    // labels nothing and costs a row of the little vertical space this menu
-    // has -- and it is what a machine with no core providers configured, or a
-    // backend too old to report them, renders.
-    return filled.length > 1 ? filled : [{ key: 'all', label: null, names: providers }]
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providers.join(','), core.join(',')])
-  /* Configured and not answering. Having a key is not the same as being
-     reachable: a local endpoint declares no key at all, so `has_key` called
-     Ollama configured by definition and this menu offered it while nothing
-     was listening on its port -- nine consecutive `All connection attempts
-     failed` in the real database. Still listed, because the user configured
-     it on purpose; picking one is what says why it will not work. */
-  const unavailable = health?.providers_unavailable ?? {}
 
-  useDismiss(ref, true, {
-    onAway: onClose,
-    onEscape: () => { if (openProvider && openProvider !== provider) setOpenProvider(provider); else onClose() },
-  })
+  useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
 
+  // Concurrently fetch models for all configured providers
   useEffect(() => {
     let live = true
-    if (!openProvider) { setModels([]); return undefined }
     setLoading(true)
-    setModels([])
-    api.providerModels(openProvider)
-      .then((r) => { if (live) setModels(r.models || []) })
-      .catch(() => { if (live) setModels([]) })
-      .finally(() => { if (live) setLoading(false) })
-    return () => { live = false }
-  }, [openProvider])
 
-  // Reset the filter when the list underneath it changes.
-  useEffect(() => { setQuery('') }, [openProvider])
+    const fetchAll = async () => {
+      const results = {}
+      await Promise.allSettled(
+        providers.map(async (p) => {
+          try {
+            const res = await api.providerModels(p)
+            const list = res.models || []
+            if (list.length > 0) {
+              results[p] = list
+            } else if (FALLBACK_MODELS[p]) {
+              results[p] = FALLBACK_MODELS[p]
+            } else if (defaults[p]) {
+              results[p] = [{ id: defaults[p], context_length: 131072 }]
+            } else {
+              results[p] = []
+            }
+          } catch {
+            if (FALLBACK_MODELS[p]) {
+              results[p] = FALLBACK_MODELS[p]
+            } else if (defaults[p]) {
+              results[p] = [{ id: defaults[p], context_length: 131072 }]
+            } else {
+              results[p] = []
+            }
+          }
 
-  const filtered = useMemo(() => {
+          // If currently selected model is from this provider, ensure it's present
+          if (p === provider && model) {
+            const hasIt = (results[p] || []).some((m) => m.id === model)
+            if (!hasIt) {
+              results[p] = [{ id: model, context_length: 131072 }, ...(results[p] || [])]
+            }
+          }
+        })
+      )
+
+      if (live) {
+        setModelMap(results)
+        setLoading(false)
+      }
+    }
+
+    if (providers.length > 0) {
+      fetchAll()
+    } else {
+      setLoading(false)
+    }
+
+    return () => {
+      live = false
+    }
+  }, [providers, defaults, provider, model])
+
+  // Filter models by search query and active provider selection
+  const groupedModels = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return models
-    return models.filter((m) => m.id.toLowerCase().includes(q))
-  }, [models, query])
+    const groups = []
 
-  useMenuFit(ref, [providers.length, openProvider, models.length, filtered.length, loading])
+    for (const p of providers) {
+      if (selectedProvider !== 'all' && selectedProvider !== p) continue
 
-  const pick = (name) => {
-    const suggested = defaults[name]
-    onChange({ provider: name, ...(suggested ? { model: suggested } : {}) })
-    setCustom(suggested || '')
+      let pModels = modelMap[p] || FALLBACK_MODELS[p] || []
+      if (pModels.length === 0 && defaults[p]) {
+        pModels = [{ id: defaults[p], context_length: 131072 }]
+      }
+
+      if (q) {
+        pModels = pModels.filter(
+          (m) => m.id.toLowerCase().includes(q) || p.toLowerCase().includes(q)
+        )
+      }
+
+      if (pModels.length > 0) {
+        groups.push({ provider: p, models: pModels })
+      }
+    }
+
+    return groups
+  }, [providers, selectedProvider, modelMap, defaults, query])
+
+  const hasExactMatch = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+    for (const g of groupedModels) {
+      if (g.models.some((m) => m.id.toLowerCase() === q)) return true
+    }
+    return false
+  }, [groupedModels, query])
+
+  const handleSelectCustom = (customName) => {
+    const clean = customName.trim()
+    if (!clean) return
+    // If selected provider is not all, assign to that provider; else keep current provider
+    const targetProvider = selectedProvider !== 'all' ? selectedProvider : (provider || providers[0] || 'cloudflare')
+    onChange({ provider: targetProvider, model: clean })
+    onClose()
   }
 
-  const freeCount = models.filter((m) => m.free).length
-
   return (
-    <div className={`menu menu--right${placement === "down" ? " menu--down" : ""}`} ref={ref} role="menu">
-      <FadeScrollArea className="menu-body" fadeHeight={20}>
-        <div className="menu-flyout-head">
-          {scoped ? 'model for this conversation' : 'model for the next conversation'}
-        </div>
-        {providers.length === 0 && (
-          <div className="menu-empty">
-            No providers configured. Add one in Settings → Models.
-          </div>
-        )}
-        {/* Auto first, and without a model flyout: choosing it is choosing not
-            to name a model. Offered only when something is switched on, because
-            on an empty machine it is a button that can only ever error. */}
-        {canRoute && (
+    <motion.div
+      className={`model-menu-v2 model-menu-v2--${placement}`}
+      ref={ref}
+      initial={{ opacity: 0, y: placement === 'up' ? 6 : -6, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: placement === 'up' ? 6 : -6, scale: 0.97 }}
+      transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {/* Search bar at top */}
+      <div className="model-menu-search">
+        <Icon name="search" size={15} className="model-menu-search-icon" />
+        <SmoothInput
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search all models..."
+          inputClassName="model-menu-search-input"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && query.trim() && !hasExactMatch) {
+              handleSelectCustom(query)
+            }
+          }}
+          aria-label="Search all models"
+        />
+      </div>
+
+      <div className="model-menu-body">
+        {/* Left Provider Sidebar (matching Screenshot 2) */}
+        <div className="model-menu-sidebar">
+          {/* 1. All Providers button (≡) */}
           <button
             type="button"
-            className={`menu-row${provider === 'auto' ? ' active' : ''}`}
-            onClick={() => { onChange({ provider: 'auto', model: '' }); onClose() }}
-            onMouseEnter={() => setOpenProvider(null)}
+            className={`model-menu-sidebar-btn${selectedProvider === 'all' ? ' is-active' : ''}`}
+            onClick={() => setSelectedProvider('all')}
+            title="All models"
+            aria-label="All models"
           >
-            <span className="menu-gutter" />
-            <span className="menu-label">
-              Auto
-              <span className="menu-hint">picks by size, speed and what is answering</span>
-            </span>
-            {provider === 'auto' && <Icon name="check" size={14} />}
+            <AiProviderIcon provider="all" size={15} />
           </button>
-        )}
 
-        {groups.map((group) => (
-          <div key={group.key}>
-            {group.label && <div className="menu-group-head">{group.label}</div>}
-            {group.names.map((name) => {
-          const suggested = defaults[name]
-          const current = name === provider
-          const down = unavailable[name]
-          return (
+          {/* 2. Provider brand icons */}
+          {providers.map((p) => (
             <button
-              key={name}
+              key={p}
               type="button"
-              className={`menu-row${current ? ' active' : ''}${down ? ' menu-row--down' : ''}`}
-              title={down || undefined}
-              aria-haspopup="menu"
-              aria-expanded={openProvider === name}
-              onClick={() => {
-                pick(name)
-                setOpenProvider(name)
-              }}
-              onMouseEnter={() => setOpenProvider(name)}
+              className={`model-menu-sidebar-btn${selectedProvider === p ? ' is-active' : ''}`}
+              onClick={() => setSelectedProvider(selectedProvider === p ? 'all' : p)}
+              title={p}
+              aria-label={p}
             >
-              <span className="menu-gutter" />
-              <span className="menu-label">
-                {name}
-                <span className="menu-hint">
-                  {down
-                    ? 'not answering'
-                    : noAuto.includes(name)
-                      ? `${suggested || 'no default model'} · Auto never picks this`
-                      : (suggested || 'no default model')}
-                </span>
-              </span>
-              {current && <Icon name="check" size={14} />}
-              <Icon name="chevron" size={13} className="menu-caret" />
+              <AiProviderIcon provider={p} size={16} />
             </button>
-          )
-            })}
-          </div>
-        ))}
-
-        <div className="menu-sep" />
-
-        {/* Anything the endpoint takes but does not list. */}
-        <div className="menu-pad">
-          <label className="menu-field-label" htmlFor="model-name">
-            or type any name
-          </label>
-          <input
-            id="model-name"
-            className="menu-input"
-            value={custom}
-            placeholder="any name the endpoint accepts"
-            onChange={(e) => setCustom(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && custom.trim()) { onChange({ model: custom.trim() }); onClose() }
-            }}
-          />
-          <button
-            type="button"
-            className="btn btn--primary btn--small"
-            style={{ marginTop: 8 }}
-            disabled={!custom.trim() || custom.trim() === model}
-            onClick={() => { onChange({ model: custom.trim() }); onClose() }}
-          >
-            Use this model
-          </button>
+          ))}
         </div>
-      </FadeScrollArea>
 
-      {openProvider && (
-        <div className="menu-flyout menu-flyout--models">
-          <div className="menu-flyout-head">
-            {loading
-              ? `asking ${openProvider}…`
-              : `${models.length} from ${openProvider}${freeCount ? `, ${freeCount} free` : ''}`}
-          </div>
-          {models.length > 0 && (
-            <div className="menu-pad menu-pad--search">
-              <SmoothInput
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search ${openProvider} models…`}
-                inputClassName="menu-input"
-                aria-label={`Search ${openProvider} models`}
-              />
-            </div>
-          )}
-          <FadeScrollArea className="menu-scroll menu-scroll--tall" fadeHeight={18}>
-            {!loading && models.length === 0 && (
-              <div className="menu-empty">
-                {unavailable[openProvider] ? 'Not answering.' : 'It lists no models — type a name below.'}
+        {/* Right Model List with Provider Groups (matching Screenshot 2) */}
+        <div className="model-menu-main">
+          <FadeScrollArea className="model-menu-list" fadeHeight={16}>
+            {loading && Object.keys(modelMap).length === 0 && (
+              <div className="model-menu-loading">Loading models…</div>
+            )}
+
+            {groupedModels.length === 0 && !loading && (
+              <div className="model-menu-empty">
+                {query ? 'No models match your search.' : 'No models available.'}
               </div>
             )}
-            {!loading && models.length > 0 && filtered.length === 0 && (
-              <div className="menu-empty">Nothing matches “{query}”.</div>
-            )}
-            {filtered.map((m) => (
+
+            {groupedModels.map((group) => (
+              <div key={group.provider} className="model-menu-group">
+                <div className="model-menu-group-head">
+                  <span className="model-menu-group-name">
+                    {group.provider}
+                  </span>
+                  <span className="model-menu-group-count">{group.models.length}</span>
+                </div>
+
+                {group.models.map((m) => {
+                  const isSelected = m.id === model && group.provider === provider
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className={`model-menu-item${isSelected ? ' is-active' : ''}`}
+                      onClick={() => {
+                        onChange({ provider: group.provider, model: m.id, capabilities: m.capabilities, context_length: m.context_length })
+                        onClose()
+                      }}
+                    >
+                      <span className="model-menu-item-icon">
+                        <AiProviderIcon model={m.id} provider={group.provider} size={16} />
+                      </span>
+                      <span className="model-menu-item-text">
+                        <span className="model-menu-item-name">{m.id}</span>
+                        <span className="model-menu-item-meta">
+                          {fmtContext(m.context_length)}
+                          {m.free ? ' · free' : ''}
+                        </span>
+                      </span>
+                      {isSelected && (
+                        <Icon name="check" size={15} className="model-menu-check" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+
+            {/* Custom model prompt if query has no exact match */}
+            {query.trim() && !hasExactMatch && (
               <button
-                key={m.id}
                 type="button"
-                className={`menu-row menu-row--model${m.id === model ? ' active' : ''}`}
+                className="model-menu-item model-menu-item--custom"
+                onClick={() => handleSelectCustom(query)}
+              >
+                <span className="model-menu-item-icon">
+                  <Icon name="plus" size={14} />
+                </span>
+                <span className="model-menu-item-text">
+                  <span className="model-menu-item-name">Use custom: {query.trim()}</span>
+                  <span className="model-menu-item-meta">Press Enter to select</span>
+                </span>
+              </button>
+            )}
+          </FadeScrollArea>
+
+          {/* Pinned Auto option at the bottom (matching Screenshot 2) */}
+          {canRoute && (
+            <div className="model-menu-auto-row">
+              <button
+                type="button"
+                className={`model-menu-item model-menu-item--auto${provider === 'auto' ? ' is-active' : ''}`}
                 onClick={() => {
-                  onChange({ provider: openProvider, model: m.id })
+                  onChange({ provider: 'auto', model: '', capabilities: null })
                   onClose()
                 }}
               >
-                <span className="menu-label mono">{m.id}</span>
-                {m.free && <span className="menu-free">free</span>}
-                {m.id === model && <Icon name="check" size={14} />}
+                <span className="model-menu-item-icon model-menu-item-icon--auto">
+                  <AiProviderIcon provider="auto" size={16} />
+                </span>
+                <span className="model-menu-item-text">
+                  <span className="model-menu-item-name">Auto</span>
+                  <span className="model-menu-item-meta">Let Amethyst choose for each message</span>
+                </span>
+                {provider === 'auto' && (
+                  <Icon name="check" size={15} className="model-menu-check" />
+                )}
               </button>
-            ))}
-          </FadeScrollArea>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </motion.div>
   )
 }

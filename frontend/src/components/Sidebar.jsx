@@ -496,7 +496,7 @@ export default function Sidebar() {
         <button
           type="button"
           className="sb-settings-btn"
-          onClick={leave(() => setOverlay('settings'))}
+          onClick={leave(() => setView('settings'))}
           title={`Settings — ${MOD_LABEL}+,`}
           aria-label="Settings"
         >

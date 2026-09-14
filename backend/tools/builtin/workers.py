@@ -20,6 +20,7 @@ jobs list, and Cancel works on it.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from typing import Any
@@ -42,6 +43,72 @@ def _catalogue_sentence() -> str:
         f"{item['name']}{' (this machine only)' if item['local_only'] else ''}"
         for item in collectors.catalogue()
     )
+
+
+def _catalogue_structured() -> list[dict[str, str]]:
+    """Return available tasks in a structured format for easy parsing."""
+    return [
+        {"name": item["name"], "description": item["description"][:100]}
+        for item in collectors.catalogue()
+    ]
+
+
+# Common task name mistakes and their corrections
+_TASK_ALIASES = {
+    "fetch_url": "urls",
+    "fetch": "urls",
+    "read_url": "urls",
+    "read_urls": "urls",
+    "web": "urls",
+    "scrape": "urls",
+    "scrape_url": "urls",
+    "open_url": "urls",
+    "browse": "urls",
+    "search": "web_search",
+    "google": "web_search",
+    "lookup": "web_search",
+    "find": "web_search",
+    "git": "git_status",
+    "status": "git_status",
+    "repo": "git_status",
+    "repository": "git_status",
+    "system": "system_info",
+    "cpu": "system_info",
+    "disk": "system_info",
+    "platform": "system_info",
+    "file": "file_info",
+    "metadata": "file_info",
+    "info": "file_info",
+    "mail": "gmail",
+    "email": "gmail",
+    "inbox": "gmail",
+    "messages": "gmail",
+    "calendar": "briefing",
+    "schedule": "briefing",
+    "tasks": "todo",
+    "todo": "todo",
+    "task": "todo",
+}
+
+
+def _resolve_task_name(name: str) -> str:
+    """Resolve a task name, auto-correcting common mistakes."""
+    # Exact match
+    if collectors.get(name) is not None:
+        return name
+    
+    # Try alias
+    aliased = _TASK_ALIASES.get(name.lower().strip())
+    if aliased and collectors.get(aliased) is not None:
+        return aliased
+    
+    # Try partial match (name is a prefix/substring of an available name only)
+    available = [c["name"] for c in collectors.catalogue()]
+    for available_name in available:
+        if available_name.startswith(name.lower()):
+            return available_name
+    
+    return name  # Return as-is, will fail with good error message
 
 
 def _wait_for(raw: Any, default: float) -> float:
@@ -98,6 +165,19 @@ def _view(job: Any, *, full: bool) -> dict[str, Any]:
         view["timed_out"] = True
     if result.get("cancelled"):
         view["cancelled"] = True
+    
+    # Add streaming summary for quick status
+    if not full and nodes:
+        completed = sum(1 for n in nodes if n.get("status") == "ok")
+        failed = sum(1 for n in nodes if n.get("status") == "failed")
+        running = sum(1 for n in nodes if n.get("status") not in ("ok", "failed", "skipped"))
+        view["summary"] = {
+            "completed": completed,
+            "failed": failed,
+            "running": running,
+            "total": len(nodes),
+        }
+    
     return view
 
 
@@ -109,24 +189,43 @@ async def dispatch_parallel_jobs(args: dict, context: ToolContext) -> ToolResult
             f" an `id`, and `depends_on`. Tasks available: {_catalogue_sentence()}"
         )
 
+    # Validate and auto-correct task names before creating the batch
+    corrected_jobs = []
+    corrections = []
+    for job in jobs_in:
+        if not isinstance(job, dict):
+            continue
+        
+        original_task = job.get("task", "")
+        corrected_task = _resolve_task_name(original_task)
+        
+        # Check if task exists
+        if collectors.get(corrected_task) is None:
+            available = _catalogue_structured()
+            return ToolResult.error(
+                f"Task '{original_task}' not found. Available tasks:\n"
+                + "\n".join(f"  - {t['name']}: {t['description']}" for t in available)
+                + "\n\nCommon aliases: fetch_url→urls, search→web_search, git→git_status, system→system_info"
+            )
+        
+        # Track if we corrected the name
+        if corrected_task != original_task:
+            corrections.append(f"'{original_task}' → '{corrected_task}'")
+        
+        # Create corrected job with resolved task name
+        corrected_job = {**job, "task": corrected_task}
+        corrected_jobs.append(corrected_job)
+
     payload = {
-        "nodes": jobs_in,
+        "nodes": corrected_jobs,
         "timeout_seconds": args.get("timeout_seconds"),
         "conversation_id": context.conversation_id,
-        # Read from the conversation rather than threaded down from the caller.
-        # An automation's turn already opens its conversation with an
-        # `automation_id` on it, so the fact is in the database and a second
-        # copy travelling through Director and ToolContext would be the one that
-        # went stale. This is what sends scheduled work to the automation
-        # account and everything else to the sub-agent one.
         "scheduled": _is_scheduled(context.conversation_id),
         "reason": str(args.get("reason") or "")[:500],
     }
     try:
         spec = worker_batch.BatchSpec.from_payload(payload)
     except worker_batch.BadBatch as exc:
-        # The model can fix every one of these from the sentence, which is why
-        # they are sentences rather than a validation code.
         return ToolResult.error(str(exc))
 
     batch_id = uuid.uuid4().hex[:12]
@@ -151,7 +250,7 @@ async def dispatch_parallel_jobs(args: dict, context: ToolContext) -> ToolResult
             f"{len(spec.nodes)} task(s) still running. Carry on with the turn and call"
             f" collect_jobs with batch_id '{batch_id}' when you need the results."
         )
-    return ToolResult.ok(view)
+    return ToolResult.ok(json.dumps(view, default=str))
 
 
 async def collect_jobs(args: dict, context: ToolContext) -> ToolResult:
@@ -173,7 +272,7 @@ async def collect_jobs(args: dict, context: ToolContext) -> ToolResult:
     view = _view(job, full=job.terminal)
     if not job.terminal:
         view["note"] = "Still running. Call again, or carry on without it."
-    return ToolResult.ok(view)
+    return ToolResult.ok(json.dumps(view, default=str))
 
 
 def tools() -> list[Tool]:
@@ -186,8 +285,10 @@ def tools() -> list[Tool]:
                 " another, and get their results together. Use it whenever a request"
                 " needs more than one lookup, or the same lookup over many inputs"
                 " (a batch of URLs). Tasks run in parallel unless one lists another"
-                " in `depends_on`, in which case it waits and receives the earlier"
-                f" result. Tasks: {tasks}."
+                f" in `depends_on`, in which case it waits and receives the earlier"
+                f" result. Available tasks: {tasks}."
+                " Common aliases are auto-corrected: fetch_url→urls, search→web_search,"
+                " git→git_status, system→system_info, mail→gmail, calendar→briefing."
             ),
             parameters={
                 "type": "object",
@@ -206,7 +307,7 @@ def tools() -> list[Tool]:
                                 },
                                 "task": {
                                     "type": "string",
-                                    "description": f"Which collector to run. One of: {tasks}",
+                                    "description": f"Which collector to run. One of: {tasks}. Aliases: fetch_url→urls, search→web_search, git→git_status, system→system_info, mail→gmail.",
                                 },
                                 "params": {
                                     "type": "object",

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- same star, and the star wrote the message bit -- so a "starred" section
     -- filtered on a column that did not exist and was permanently empty.
     pinned                 INTEGER NOT NULL DEFAULT 0,
+    archived               INTEGER NOT NULL DEFAULT 0,
     created_at             TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
 );

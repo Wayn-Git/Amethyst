@@ -78,6 +78,11 @@ class ExecutionRequest:
     #: Pin a lane. `None` means "decide", which is the useful answer almost
     #: always; a name here still falls back if that lane is not configured.
     prefer: str | None = None
+    #: Estimated seconds for one task. Helps decide if remote is worth the
+    #: round-trip overhead (~2-3s for GitHub Actions boot).
+    estimated_seconds: float = 5.0
+    #: Whether results are needed immediately or can be collected later.
+    streaming: bool = False
 
 
 @dataclass(frozen=True)
@@ -148,8 +153,15 @@ def _preference(request: ExecutionRequest) -> list[tuple[str, str]]:
         wanted.append((AUTOMATION, "a scheduled automation"))
         wanted.append((CLOUDFLARE, "recurring work that should survive a closed laptop"))
     elif request.fanout >= FANOUT:
-        wanted.append((SUBAGENT, f"{request.fanout} tasks dispatched together"))
-        wanted.append((CLOUDFLARE, "a batch that need not wait for this machine"))
+        # Smart routing: if tasks are fast (<3s each), run locally to avoid
+        # remote overhead. If slow or many, use remote for parallelism.
+        total_estimated = request.estimated_seconds * request.fanout
+        if request.fanout >= 10 or total_estimated > 30:
+            wanted.append((SUBAGENT, f"{request.fanout} tasks ({total_estimated:.0f}s estimated)"))
+            wanted.append((CLOUDFLARE, "a batch that need not wait for this machine"))
+        elif request.fanout >= FANOUT:
+            wanted.append((LOCAL, f"{request.fanout} fast tasks, local is quicker"))
+            wanted.append((SUBAGENT, f"fallback for {request.fanout} tasks"))
     elif request.offline_ok and not request.interactive:
         wanted.append((CLOUDFLARE, "durable work with nobody waiting"))
         wanted.append((SUBAGENT, "durable work with nobody waiting"))

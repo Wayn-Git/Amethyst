@@ -391,6 +391,98 @@ def _read(raw: str) -> tuple[str, dict[str, Any] | None, MediaHint | None] | Non
     return (widget_type, validated.model_dump(), hint)
 
 
+#: Words that say a request might actually want one of the eight widget types.
+#: Grouped by the type they point at, so the list stays auditable as types are
+#: added. Generous on purpose -- a word here costs a fast call that returns
+#: `none`, while a word missing costs a widget that would have been nice.
+_WIDGET_SIGNALS = (
+    # recipe / step_guide
+    "recipe", "cook", "bake", "ingredient", "how do i", "how to", "how can i",
+    "steps", "step by step", "guide", "walk me through", "instructions", "set up",
+    "install", "tutorial",
+    # quiz
+    "quiz", "test me", "flashcard", "practice question", "exam", "revise",
+    # comparison
+    "compare", "comparison", " vs ", " versus ", "difference between", "which is better",
+    "pros and cons", "trade-off", "tradeoff",
+    # itinerary
+    "itinerary", "trip", "travel", "visit", "days in", "plan a", "holiday", "vacation",
+    # translation
+    "translate", "translation", "in spanish", "in french", "in german", "in japanese",
+    "in italian", "say in", "how do you say",
+    # chart
+    "chart", "graph", "plot", "visualise", "visualize", "bar chart", "line chart",
+    # options
+    "options", "choose", "pick one", "suggest", "recommend", "ideas for", "alternatives",
+)
+
+#: Technical terms that strongly indicate a development task, not a widget request.
+#: A message containing any of these is almost certainly a coding question even
+#: if it also matches a widget signal like "how to" or "steps".
+_TECHNICAL_MARKERS = (
+    # Code syntax
+    "def ", "class ", "import ", "async ", "await ", "return ",
+    "try:", "except ", "catch ", "throw ", "raise ",
+    "print(", "console.", "require(",
+    # File extensions
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".rb", ".java",
+    ".html", ".css", ".json", ".yaml", ".yml", ".toml", ".xml",
+    ".sql", ".sh", ".bash", ".env", ".git", ".docker",
+    # Dev tools and platforms
+    "npm", "yarn", "pnpm", "bun ", "pip ", "cargo ",
+    "git ", "github", "gitlab", "commit", "branch", "merge",
+    "pull request", "issue #",
+    # Dev concepts
+    "api ", "endpoint", "route ", "handler", "middleware",
+    "database", "sqlite", "postgres", "redis",
+    "schema", "migration", "query ",
+    "deploy", "ci/cd", "pipeline", "build ", "test ", "lint ",
+    "refactor", "compile", "bundle", "transpile",
+    "webpack", "vite", "rollup", "esbuild", "tsc", "eslint",
+    # Languages and frameworks
+    "react", "vue", "angular", "svelte", "nextjs", "nuxt",
+    "fastapi", "flask", "django", "express", "hono",
+    "pydantic", "sqlalchemy", "alembic", "prisma", "drizzle",
+    "pytest", "jest", "vitest", "mocha", "cypress",
+    "kubernetes", "docker", "terraform", "ansible",
+    "nginx", "apache", "caddy",
+    # Error/debug
+    "traceback", "stacktrace", "segfault", "panic",
+    "debug", "error:", "exception",
+)
+
+
+def _certainly_not_a_widget(message: str) -> bool:
+    """Whether to skip the classifier entirely for this message.
+
+    The classifier is a whole fast-model round trip -- ~570ms measured -- taken
+    before the turn's own model is even called, and its prompt says plainly that
+    `none` "is the right answer far more often than not". So most of those calls
+    buy nothing, and on a greeting they are the difference between a turn that
+    feels instant and one that does not.
+
+    Two ways to skip. A URL or a fenced code block means "go do something with
+    this", which no widget type serves. Technical markers (code syntax, file
+    extensions, dev tools) indicate a development task even if a widget signal
+    like "how to" is present. Otherwise the message must carry at least one word
+    suggesting a widget; without one, the classifier's own answer would almost
+    certainly have been `none`.
+
+    The cost of being wrong is bounded and small: the turn is answered normally,
+    in prose, by the full model. A widget is an enhancement to an answer, never
+    the only way to give one.
+    """
+    if "```" in message or "http://" in message or "https://" in message:
+        return True
+    # Technical content overrides widget signals: "how to fix this bug" is a
+    # development task, not a recipe or quiz.
+    lowered = message.lower()
+    if any(marker in lowered for marker in _TECHNICAL_MARKERS):
+        return True
+    lowered_padded = f" {lowered} "
+    return not any(signal in lowered_padded for signal in _WIDGET_SIGNALS)
+
+
 async def classify_and_extract(
     user_message: str,
 ) -> tuple[str, dict[str, Any] | None, list[dict[str, Any]]]:
@@ -404,6 +496,12 @@ async def classify_and_extract(
     usually empty: a widget with no media is the normal case, not a degraded one.
     """
     if not user_message.strip():
+        return ("none", None, [])
+
+    if _certainly_not_a_widget(user_message):
+        # A link or a code block means "go do something with this", never a
+        # recipe or a quiz. Skipping the fast-model call here is time-to-first-
+        # token the turn keeps -- the classifier's own answer would be `none`.
         return ("none", None, [])
 
     if time.monotonic() < _quiet_until:

@@ -1,10 +1,16 @@
 import Icon from '../../Icon.jsx'
 import { copyText, openUrl } from '../../../api.js'
+import LoadMoreSentinel from '../LoadMoreSentinel.jsx'
 
 export default function WebResultsView({
   results = [],
   query = '',
   loading = false,
+  note = null,
+  error = false,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   activeIndex = 0,
   onSelect,
   onToast,
@@ -21,8 +27,8 @@ export default function WebResultsView({
   if (results.length === 0) {
     return (
       <div className="damon-empty-state">
-        <Icon name="globe" size={24} />
-        <p>No web results came back for this.</p>
+        <Icon name={error ? 'alert-triangle' : 'globe'} size={24} />
+        <p>{error ? 'Web search failed. Check your connection and try again.' : 'No web results came back for this.'}</p>
         <div className="damon-fallback-actions">
           <button
             type="button"
@@ -45,6 +51,7 @@ export default function WebResultsView({
 
   return (
     <div className="damon-web-list" role="listbox" aria-label="Web search results">
+      {note && <p className="damon-mixed-note">{note}</p>}
       {results.map((res, i) => {
         const isSelected = i === activeIndex
         return (
@@ -88,6 +95,12 @@ export default function WebResultsView({
           </div>
         )
       })}
+      <LoadMoreSentinel
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+        label="More web results…"
+      />
     </div>
   )
 }

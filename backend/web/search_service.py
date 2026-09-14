@@ -268,45 +268,103 @@ def _bing_real_url(href: str, cite: str) -> str:
     return href
 
 
-async def search_web(query: str, limit: int = 8) -> list[dict[str, Any]]:
-    return await _cached(
-        f"web:{query.strip().lower()}:{limit}", lambda: _search_web_live(query, limit)
-    )
+#: How many results each engine is asked for when building the pool. Larger
+#: than any one page so merge/dedup/rank has something to work with and a reader
+#: can scroll several pages deep without a second network round trip.
+_WEB_POOL_FETCH = 25
 
 
-async def _search_web_live(query: str, limit: int) -> list[dict[str, Any]]:
-    """Ask every engine at once and keep the first honest answer.
+def _norm_url(url: str) -> str:
+    """A URL reduced to what makes two links the same result.
 
-    This used to be a chain: Lite, then Bing if Lite was thin, then Wikipedia
-    if Bing was too. A chain pays for every engine that fails *before* the one
-    that works -- and on a network where DuckDuckGo is simply unreachable, that
-    bill is a 6-second connect timeout on every uncached query, before the
-    engine that would have answered in 300ms is even asked.
-
-    So they run together and the first set that passes the relevance gate wins.
-    Latency is now the *fastest* engine that answers honestly rather than the
-    sum of the ones that do not, and an engine being blocked costs nothing but
-    a cancelled task.
-
-    The gate is unchanged and it is the whole quality bar: both free scrapers
-    answer a flagged client with a maze of real-looking results about something
-    else entirely, so nothing is a result until it has been checked for the
-    query's own words. Losing the race is fine; failing the gate is refusal.
-
-    Wikipedia stays last and outside the race. It always answers and it always
-    passes, so racing it would mean it usually won -- which is how "search"
-    became "search Wikipedia".
+    Scheme, a leading www., a trailing slash and the fragment are noise for
+    dedup -- http vs https and with/without www are the same page, and two
+    engines linking it must not both take a slot.
     """
-    engines = {"api": _search_api, "duckduckgo": _search_ddg_lite, "bing": _search_bing}
+    u = (url or "").strip().lower()
+    u = re.sub(r"^https?://", "", u)
+    u = re.sub(r"^www\.", "", u)
+    return u.split("#")[0].rstrip("/")
+
+
+def _score_result(result: dict, terms: set[str]) -> float:
+    """How well one result answers the query. Title matches count double."""
+    if not terms:
+        return 0.0
+    _word = re.compile(r"\b\w+\b")
+    title = set(_word.findall((result.get("title") or "").lower()))
+    snippet = set(_word.findall((result.get("snippet") or "").lower()))
+    return sum((2 if t in title else 0) + (1 if t in snippet else 0) for t in terms) / len(terms)
+
+
+def _merge_rank_dedup(
+    groups: list[list[dict[str, Any]]], query: str
+) -> list[dict[str, Any]]:
+    """Fold several engines' results into one ranked, de-duplicated list.
+
+    The race used to show a single engine's results; merging three and ranking
+    by query overlap is both more results and better ones. First link to a URL
+    wins its slot (engines are passed best-first), and the whole set is then
+    ordered by relevance so the strongest answers lead regardless of which
+    engine found them.
+    """
+    terms = {t for t in re.split(r"[^a-z0-9]+", query.lower()) if len(t) > 2 and t not in _STOP}
+    seen: set[str] = set()
+    merged: list[dict[str, Any]] = []
+    for group in groups:
+        for result in group:
+            key = _norm_url(result.get("url", ""))
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            result["_score"] = _score_result(result, terms)
+            merged.append(result)
+    merged.sort(key=lambda r: r.get("_score", 0.0), reverse=True)
+    for result in merged:
+        result.pop("_score", None)
+    return merged
+
+
+async def search_web(query: str, limit: int = 8, offset: int = 0) -> list[dict[str, Any]]:
+    """One page of a ranked, cached pool. `offset` pages without re-fetching.
+
+    The pool is cached by query alone (not by limit/offset), so scrolling is
+    free: every page after the first is a slice of results already in memory.
+    """
+    pool = await _cached(f"webpool:{query.strip().lower()}", lambda: _build_web_pool(query))
+    return pool[offset : offset + limit] if offset < len(pool) else []
+
+
+async def _build_web_pool(query: str) -> list[dict[str, Any]]:
+    """Ask every engine at once, then merge, dedup and rank what answers.
+
+    This used to be a chain, then a race that kept the *first* honest answer and
+    threw the rest away. Merging is strictly better: three engines deduped is
+    more results than one, and ranking the union by query overlap puts the
+    strongest answers first regardless of which engine found them. The race's
+    two hard-won properties are kept -- a budget so one blocked engine cannot
+    hold the pool hostage, and orphaning (not cancelling) the stragglers so the
+    DuckDuckGo scraper still finishes and self-pauses.
+
+    The relevance gate is still the quality bar: both free scrapers answer a
+    flagged client with a maze of real-looking results about something else, so
+    an engine's results join the pool only after passing the gate for the
+    query's own words.
+
+    Wikipedia stays the fallback, outside the race: it always answers and always
+    passes, so merging it in would drown genuine results under encyclopaedia
+    articles. It is used only when nothing else cleared the gate.
+    """
+    engines = {"api": _search_api, "bing": _search_bing, "duckduckgo": _search_ddg_lite}
     tasks = {
-        asyncio.create_task(engine(query, limit)): name for name, engine in engines.items()
+        asyncio.create_task(engine(query, _WEB_POOL_FETCH)): name
+        for name, engine in engines.items()
     }
-    winner: list[dict[str, Any]] = []
-    source = ""
+    passed: dict[str, list[dict[str, Any]]] = {}
     deadline = asyncio.get_running_loop().time() + _RACE_BUDGET
     try:
         pending = set(tasks)
-        while pending and not winner:
+        while pending:
             left = deadline - asyncio.get_running_loop().time()
             if left <= 0:
                 break
@@ -319,21 +377,15 @@ async def _search_web_live(query: str, limit: int) -> list[dict[str, Any]]:
                 try:
                     results = task.result() or []
                 except Exception:
-                    # An engine that raised is an engine that did not answer.
-                    # Every one of them catches its own failures; this is here
-                    # so a new one that forgets cannot take the search with it.
+                    # An engine that raised did not answer. Each catches its own
+                    # failures; this guards a new one that forgets to.
                     continue
                 if results and _relevance(results, query) >= 0.2:
-                    winner, source = results, tasks[task]
-                    break
+                    passed[tasks[task]] = results
     finally:
-        # The losers are let go, not cancelled. An engine that is unreachable
-        # learns that by *finishing* -- `_search_ddg_lite` counts its own
-        # refusals and pauses itself once it has seen enough of them. Cancelling
-        # it the moment a faster engine won meant it never finished, never
-        # counted, and never paused, so every query went on paying its connect
-        # timeout forever. Stopping waiting and stopping running are different
-        # things, and only the first one is wanted here.
+        # Stragglers are let go, not cancelled -- see the long note this used to
+        # carry: the DDG scraper only learns it is blocked by *finishing*, and
+        # cancelling it meant it never counted its refusals and never paused.
         for task in tasks:
             if not task.done():
                 _ORPHANS.add(task)
@@ -342,16 +394,21 @@ async def _search_web_live(query: str, limit: int) -> list[dict[str, Any]]:
                 with contextlib.suppress(Exception):
                     task.result()
 
-    if not winner:
-        winner, source = await _search_wikipedia_articles(query, limit), "wikipedia"
-    # Where each result came from, carried on the result itself. The palette
-    # uses it to say *why* an answer looks thin -- an encyclopaedia article for
-    # every query is a reasonable thing to show and an alarming thing to show
-    # without explanation, and "every engine here is blocked" is the sentence
-    # that turns one into the other.
-    for result in winner:
+    # Best-first for dedup: keyed API, then Bing, then DDG. Whoever links a URL
+    # first keeps the slot; ranking then reorders the union by relevance.
+    ordered = [passed[name] for name in ("api", "bing", "duckduckgo") if name in passed]
+    if ordered:
+        pool = _merge_rank_dedup(ordered, query)
+        source = "mixed" if len(ordered) > 1 else next(iter(passed))
+    else:
+        pool = await _search_wikipedia_articles(query, _WEB_POOL_FETCH)
+        source = "wikipedia"
+    # Where each result came from, carried on the result itself, so the palette
+    # can explain a thin answer ("every engine here is blocked") rather than
+    # letting it read as a bad search.
+    for result in pool:
         result.setdefault("source", source)
-    return winner[:limit]
+    return pool
 
 
 #: Engines still running after the race was decided. Held only so the event
@@ -674,86 +731,149 @@ async def _search_bing(query: str, limit: int) -> list[dict[str, Any]]:
         return []
 
 
-async def search_youtube(query: str, limit: int = 8) -> list[dict[str, Any]]:
-    return await _cached(
-        f"yt:{query.strip().lower()}:{limit}", lambda: _search_youtube_live(query, limit)
+#: One growing pool of videos per query, plus the continuation token that
+#: fetches the next batch and the innertube context to fetch it with. A pool is
+#: extended lazily as a reader scrolls past what it already holds, so the arbi-
+#: trary cap is gone without fetching pages nobody looks at.
+_yt_pools: dict[str, dict[str, Any]] = {}
+_yt_lock = asyncio.Lock()  # ponytail: one global lock; per-query if YT ever gets hot
+_YT_POOL_TTL = 900.0
+
+
+def _parse_video_renderer(v: dict[str, Any]) -> dict[str, Any] | None:
+    vid = v.get("videoId")
+    if not vid:
+        return None
+    title_runs = v.get("title", {}).get("runs", [])
+    owner_runs = v.get("ownerText", {}).get("runs", [])
+    thumbs = v.get("thumbnail", {}).get("thumbnails", [])
+    return {
+        "id": vid,
+        "title": title_runs[0].get("text", "") if title_runs else "",
+        "channel": owner_runs[0].get("text", "") if owner_runs else "",
+        "duration": v.get("lengthText", {}).get("simpleText", ""),
+        "thumbnail": thumbs[-1]["url"] if thumbs else f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+        "views": v.get("viewCountText", {}).get("simpleText", ""),
+        "published": v.get("publishedTimeText", {}).get("simpleText", ""),
+        "url": f"https://www.youtube.com/watch?v={vid}",
+    }
+
+
+def _collect_videos(items: list[dict], seen: set[str], out: list[dict]) -> str | None:
+    """Pull video cards out of a list of renderers; return a continuation token."""
+    token = None
+    for item in items:
+        if v := item.get("videoRenderer"):
+            parsed = _parse_video_renderer(v)
+            if parsed and parsed["id"] not in seen:
+                seen.add(parsed["id"])
+                out.append(parsed)
+        elif cont := item.get("continuationItemRenderer"):
+            token = (
+                cont.get("continuationEndpoint", {})
+                .get("continuationCommand", {})
+                .get("token")
+            )
+    return token
+
+
+async def _yt_first_page(query: str) -> dict[str, Any]:
+    """Fetch page one: videos, a continuation token, and the innertube context."""
+    headers = {"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"}
+    client = await _pool_client()
+    resp = await client.get(
+        f"https://www.youtube.com/results?search_query={quote(query)}", headers=headers
     )
+    if resp.status_code != 200:
+        return {"videos": [], "token": None, "ctx": None, "seen": set()}
+    match = re.search(r"var ytInitialData = ({.*?});</script>", resp.text)
+    if not match:
+        return {"videos": [], "token": None, "ctx": None, "seen": set()}
+    data = json.loads(match.group(1))
+    sections = (
+        data.get("contents", {})
+        .get("twoColumnSearchResultsRenderer", {})
+        .get("primaryContents", {})
+        .get("sectionListRenderer", {})
+        .get("contents", [])
+    )
+    seen: set[str] = set()
+    videos: list[dict] = []
+    token = None
+    for sec in sections:
+        items = sec.get("itemSectionRenderer", {}).get("contents", [])
+        token = _collect_videos(items, seen, videos) or token
+    key = re.search(r'"INNERTUBE_API_KEY":"([^"]+)"', resp.text)
+    ver = re.search(r'"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"', resp.text)
+    ctx = {"key": key.group(1), "ver": ver.group(1)} if key and ver else None
+    return {"videos": videos, "token": token, "ctx": ctx, "seen": seen}
 
 
-async def _search_youtube_live(query: str, limit: int) -> list[dict[str, Any]]:
-    """Search YouTube and parse ytInitialData for rich video cards."""
+async def _yt_next_page(pool: dict[str, Any]) -> None:
+    """Grow a pool in place by one continuation batch, best-effort."""
+    token, ctx = pool.get("token"), pool.get("ctx")
+    if not token or not ctx:
+        pool["token"] = None
+        return
+    try:
+        client = await _pool_client()
+        resp = await client.post(
+            f"https://www.youtube.com/youtubei/v1/search?key={ctx['key']}",
+            json={
+                "context": {
+                    "client": {"clientName": "WEB", "clientVersion": ctx["ver"], "hl": "en"}
+                },
+                "continuation": token,
+            },
+            headers={"User-Agent": USER_AGENT, "Content-Type": "application/json"},
+        )
+        if resp.status_code != 200:
+            pool["token"] = None
+            return
+        data = resp.json()
+        items: list[dict] = []
+        for cmd in data.get("onResponseReceivedCommands", []):
+            action = cmd.get("appendContinuationItemsAction", {})
+            for entry in action.get("continuationItems", []):
+                if section := entry.get("itemSectionRenderer"):
+                    items.extend(section.get("contents", []))
+                elif "continuationItemRenderer" in entry:
+                    items.append(entry)
+        pool["token"] = _collect_videos(items, pool["seen"], pool["videos"])
+    except Exception as exc:
+        logger.warning("youtube continuation failed: %s", exc)
+        pool["token"] = None
+
+
+async def search_youtube(query: str, limit: int = 8, offset: int = 0) -> list[dict[str, Any]]:
+    """One page of YouTube results from a pool that grows as it is scrolled.
+
+    Page one parses the results HTML; deeper pages follow the continuation token
+    through YouTube's innertube API, so scrolling keeps yielding results instead
+    of stopping at an arbitrary cap. Failures to continue just stop the pool
+    growing -- the reader keeps what was already found.
+    """
+    import time
+
     q = query.strip()
     if not q:
         return []
-    limit = max(1, min(limit, 20))
-
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-
-    try:
-        client = await _pool_client()
-        resp = await client.get(
-            f"https://www.youtube.com/results?search_query={quote(q)}",
-            headers=headers,
-        )
-        if resp.status_code != 200:
-            return []
-
-        match = re.search(r"var ytInitialData = ({.*?});</script>", resp.text)
-        if not match:
-            return []
-
-        data = json.loads(match.group(1))
-        sections = (
-            data.get("contents", {})
-            .get("twoColumnSearchResultsRenderer", {})
-            .get("primaryContents", {})
-            .get("sectionListRenderer", {})
-            .get("contents", [])
-        )
-
-        videos = []
-        for sec in sections:
-            items = sec.get("itemSectionRenderer", {}).get("contents", [])
-            for item in items:
-                v = item.get("videoRenderer")
-                if not v:
-                    continue
-                vid = v.get("videoId")
-                if not vid:
-                    continue
-
-                title_runs = v.get("title", {}).get("runs", [])
-                title = title_runs[0].get("text", "") if title_runs else ""
-                owner_runs = v.get("ownerText", {}).get("runs", [])
-                channel = owner_runs[0].get("text", "") if owner_runs else ""
-                duration = v.get("lengthText", {}).get("simpleText", "")
-                thumbs = v.get("thumbnail", {}).get("thumbnails", [])
-                thumb = thumbs[-1]["url"] if thumbs else f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
-                views = v.get("viewCountText", {}).get("simpleText", "")
-                published = v.get("publishedTimeText", {}).get("simpleText", "")
-
-                videos.append({
-                    "id": vid,
-                    "title": title,
-                    "channel": channel,
-                    "duration": duration,
-                    "thumbnail": thumb,
-                    "views": views,
-                    "published": published,
-                    "url": f"https://www.youtube.com/watch?v={vid}",
-                })
-                if len(videos) >= limit:
-                    break
-            if len(videos) >= limit:
-                break
-
-        return videos
-    except Exception as exc:
-        logger.error(f"search_youtube failed for {query}: {exc}")
-        return []
+    key = q.lower()
+    async with _yt_lock:
+        pool = _yt_pools.get(key)
+        if pool is None or time.monotonic() - pool.get("at", 0) > _YT_POOL_TTL:
+            pool = await _yt_first_page(q)
+            pool["at"] = time.monotonic()
+            _yt_pools[key] = pool
+            if len(_yt_pools) > _CACHE_MAX:
+                _yt_pools.pop(min(_yt_pools, key=lambda k: _yt_pools[k].get("at", 0)), None)
+        # Grow until this page can be served or YouTube stops handing out tokens.
+        guard = 0
+        while len(pool["videos"]) < offset + limit and pool.get("token") and guard < 10:
+            await _yt_next_page(pool)
+            guard += 1
+    videos = pool["videos"]
+    return videos[offset : offset + limit] if offset < len(videos) else []
 
 
 async def search_images(query: str, limit: int = 12) -> list[dict[str, Any]]:

@@ -107,6 +107,19 @@ _TRANSPORT_FAILURES = (
     "server has been shut down",
     "transport is closed",
     "endofstream",
+    # A dead session phrases itself many ways across stdio/sse/http transports
+    # and anyio wrappers; these are the ones observed leaking through as plain
+    # tool errors, which then failed every later call in the turn silently.
+    "connection reset",
+    "connection lost",
+    "connection aborted",
+    "session closed",
+    "session is closed",
+    "server disconnected",
+    "eof occurred",
+    "peer closed",
+    "process exited",
+    "process has exited",
 )
 
 
@@ -184,6 +197,9 @@ class MCPManager:
         # connector shrug off a transient error -- see `is_ready`.
         self.ready_since: dict[str, float] = {}
         self.hard_failures: dict[str, int] = {}
+        # How many tools a server exposed beyond MAX_TOOLS_PER_SERVER, so the
+        # truncation is surfaced instead of silently swallowing the overflow.
+        self.truncated: dict[str, int] = {}
         # Connects that outran the caller's deadline and were left to finish on
         # their own. Held only so the event loop does not garbage-collect a
         # running task; each removes itself when it settles. A connector that
@@ -405,6 +421,18 @@ class MCPManager:
 
     def _register_tools(self, config: ServerConfig, connection: MCPConnection) -> int:
         registered = 0
+        overflow = len(connection.tools) - MAX_TOOLS_PER_SERVER
+        if overflow > 0:
+            self.truncated[config.name] = overflow
+            log.warning(
+                "%s exposes %d tools; capping at %d, %d not registered",
+                config.name,
+                len(connection.tools),
+                MAX_TOOLS_PER_SERVER,
+                overflow,
+            )
+        else:
+            self.truncated.pop(config.name, None)
         for discovered in connection.tools[:MAX_TOOLS_PER_SERVER]:
             key = mcp_tool_key(discovered.name, config.name)
             if self.registry.get(key):
@@ -494,6 +522,16 @@ class MCPManager:
                     # Deliberately not a third attempt: a server that cannot be
                     # brought back is a fact to report, not one to keep paying a
                     # connect timeout for on every tool call in the turn.
+                    #
+                    # Demote it *now* rather than letting `is_ready`'s cooldown
+                    # keep vouching for a dead session for up to five minutes --
+                    # otherwise `ready_connectors_block` goes on advertising it
+                    # to the model, which calls it and fails again. Dropping the
+                    # dead connection (and its tools) makes readiness false
+                    # immediately; the backoff schedules an honest retry.
+                    await self.disconnect_server(server_name)
+                    self._hold_off(server_name)
+                    self.errors[server_name] = str(retry_exc)
                     return ToolResult.error(
                         guidance.dropped_instruction(server_name, str(retry_exc))
                     )
@@ -622,8 +660,23 @@ class MCPManager:
                 "tools": registered,
                 "error": None if ready else self.errors.get(name),
                 "ready": ready,
+                # Tools this server exposed past the per-server cap; 0 normally.
+                "truncated": self.truncated.get(name, 0),
+                # Seconds until the next reconnect attempt, when backing off. The
+                # UI turns this into "reconnecting in Ns" instead of a bare
+                # "failed" that looks stuck.
+                "retry_in": self._retry_in(name, ready),
             }
         return out
+
+    def _retry_in(self, name: str, ready: bool) -> int:
+        """Whole seconds until this server's backoff lets it retry, else 0."""
+        if ready:
+            return 0
+        due = self.retry_after.get(name)
+        if due is None:
+            return 0
+        return max(0, round(due - time.monotonic()))
 
     async def start_one(self, config: ServerConfig, *, deadline: float | None = None) -> None:
         """Bring one server up, waiting no longer than `deadline`.
@@ -775,6 +828,8 @@ class MCPManager:
                     # from the same manager.
                     "error": None if ready else self.errors.get(name),
                     "ready": ready,
+                    "truncated": self.truncated.get(name, 0),
+                    "retry_in": self._retry_in(name, ready),
                 }
             )
         return out

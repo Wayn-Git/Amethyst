@@ -40,14 +40,14 @@ async def test_search_wikipedia_basic():
     assert wiki["title"] == "Linux"
 
 
-# --------------------------------------------------------------- the race
+# ------------------------------------------------------------ the pool
 #
-# The engines used to be a chain, and a chain pays for every engine that fails
-# before the one that works. On a network where DuckDuckGo cannot be reached at
-# all that was a six-second connect timeout in front of an engine that answers
-# in three hundred milliseconds. These hold the three things that stopped:
-# the fastest honest answer wins, a dead engine cannot hold the race open, and
-# a losing engine still gets to finish and notice it is dead.
+# The engines were a chain, then a race that kept one winner. Now they are
+# merged: every engine that passes the relevance gate joins one deduped, ranked
+# pool, which pages serve slices of. These hold what must not regress -- the
+# union is merged and deduped, a maze is gated out, a blocked engine cannot hold
+# the pool open past the budget, a straggler still finishes so it can self-pause,
+# and pagination slices the pool instead of searching again.
 
 
 def _engine(name, results, *, delay=0.0):
@@ -70,26 +70,31 @@ def _hits(query, n=3):
 
 
 @pytest.mark.asyncio
-async def test_the_fastest_honest_engine_wins(monkeypatch):
-    monkeypatch.setattr(search_service, "_search_api", _engine("tavily", [], delay=0.4))
-    monkeypatch.setattr(
-        search_service, "_search_ddg_lite", _engine("ddg", _hits("otters"), delay=0.3)
-    )
-    monkeypatch.setattr(
-        search_service, "_search_bing", _engine("bing", _hits("otters"), delay=0.01)
-    )
+async def test_engines_are_merged_and_deduped(monkeypatch):
+    """The pool is the union of every honest engine, not just the fastest one --
+    more results, and one slot per URL however many engines linked it."""
+    bing = _hits("otters", 3)  # 0,1,2.example
+    ddg = [
+        {"title": "otters", "url": "https://0.example/otters", "snippet": "otters",
+         "domain": "0.example"},  # duplicate of bing's first
+        {"title": "otters", "url": "https://9.example/otters", "snippet": "otters",
+         "domain": "9.example"},  # new
+    ]
+    monkeypatch.setattr(search_service, "_search_api", _engine("tavily", []))
+    monkeypatch.setattr(search_service, "_search_bing", _engine("bing", bing, delay=0.01))
+    monkeypatch.setattr(search_service, "_search_ddg_lite", _engine("ddg", ddg, delay=0.02))
 
-    started = time.monotonic()
-    results = await search_service._search_web_live("otters", 5)
-    elapsed = time.monotonic() - started
-
-    assert len(results) == 3
-    assert elapsed < 0.25, "the race waited for a slower engine after one had answered"
+    results = await search_service._build_web_pool("otters")
+    domains = [r["domain"] for r in results]
+    assert sorted(domains) == ["0.example", "1.example", "2.example", "9.example"]
+    assert len(domains) == len(set(domains)), "a URL two engines returned took two slots"
 
 
 @pytest.mark.asyncio
-async def test_a_maze_of_unrelated_results_loses_to_an_engine_that_answers(monkeypatch):
-    """Both free scrapers answer a flagged client with real-looking junk."""
+async def test_a_maze_of_unrelated_results_is_kept_out_of_the_pool(monkeypatch):
+    """Both free scrapers answer a flagged client with real-looking junk; an
+    engine whose results miss the query's words fails the gate and never joins
+    the pool, so an honest engine's results are what come back."""
     maze = [{"title": "Best Online Payment", "url": "https://x.test/a", "snippet": "unrelated",
              "domain": "x.test"}]
     monkeypatch.setattr(search_service, "_search_api", _engine("tavily", []))
@@ -98,13 +103,13 @@ async def test_a_maze_of_unrelated_results_loses_to_an_engine_that_answers(monke
         search_service, "_search_ddg_lite", _engine("ddg", _hits("alan turing"), delay=0.05)
     )
 
-    results = await search_service._search_web_live("alan turing", 5)
-    assert [r["domain"] for r in results] != ["x.test"]
+    results = await search_service._build_web_pool("alan turing")
+    assert "x.test" not in [r["domain"] for r in results]
     assert len(results) == 3
 
 
 @pytest.mark.asyncio
-async def test_an_unreachable_engine_cannot_hold_the_race_open(monkeypatch):
+async def test_an_unreachable_engine_cannot_hold_the_pool_open(monkeypatch):
     """A search box that sits for six seconds should have answered at two."""
     async def never(query, limit):
         await asyncio.sleep(30)
@@ -120,14 +125,14 @@ async def test_an_unreachable_engine_cannot_hold_the_race_open(monkeypatch):
     monkeypatch.setattr(search_service, "_search_wikipedia_articles", wiki)
 
     started = time.monotonic()
-    results = await search_service._search_web_live("anything", 5)
+    results = await search_service._build_web_pool("anything")
     assert time.monotonic() - started < 1.0
     assert len(results) == 2, "nothing fell through to Wikipedia"
 
 
 @pytest.mark.asyncio
 async def test_a_losing_engine_still_finishes_so_it_can_notice_it_is_dead(monkeypatch):
-    """Cancelling the loser meant it never counted its own refusals, so it
+    """Cancelling a straggler meant it never counted its own refusals, so it
     never paused itself, so every query went on paying its connect timeout."""
     finished = asyncio.Event()
 
@@ -136,13 +141,35 @@ async def test_a_losing_engine_still_finishes_so_it_can_notice_it_is_dead(monkey
         finished.set()
         return []
 
+    monkeypatch.setattr(search_service, "_RACE_BUDGET", 0.02)
     monkeypatch.setattr(search_service, "_search_api", slow_loser)
     monkeypatch.setattr(search_service, "_search_ddg_lite", _engine("ddg", []))
     monkeypatch.setattr(search_service, "_search_bing", _engine("bing", _hits("q"), delay=0.001))
 
-    await search_service._search_web_live("q", 5)
+    await search_service._build_web_pool("q")
     await asyncio.wait_for(finished.wait(), timeout=2)
     assert finished.is_set()
+
+
+@pytest.mark.asyncio
+async def test_pagination_slices_a_cached_pool_without_refetching(monkeypatch):
+    """`offset` pages a pool built once; a second page is not a second search."""
+    calls = {"n": 0}
+
+    async def engine(query, limit):
+        calls["n"] += 1
+        return _hits(query, 10)
+
+    monkeypatch.setattr(search_service, "_search_api", engine)
+    monkeypatch.setattr(search_service, "_search_bing", _engine("bing", []))
+    monkeypatch.setattr(search_service, "_search_ddg_lite", _engine("ddg", []))
+    search_service._results.clear()
+
+    page1 = await search_service.search_web("otters", limit=4, offset=0)
+    page2 = await search_service.search_web("otters", limit=4, offset=4)
+    assert len(page1) == 4 and len(page2) == 4
+    assert {r["url"] for r in page1}.isdisjoint({r["url"] for r in page2}), "pages overlap"
+    assert calls["n"] == 1, "the second page refetched instead of slicing the pool"
 
 
 @pytest.mark.asyncio
@@ -194,3 +221,34 @@ async def test_a_key_is_used_and_never_leaves_the_header(monkeypatch):
 
 async def _resolved(value):
     return value
+
+
+@pytest.mark.asyncio
+async def test_youtube_pool_grows_by_continuation_as_it_is_scrolled(monkeypatch):
+    """Scrolling past the first batch follows the continuation token instead of
+    stopping at a cap; offset then slices the grown pool."""
+    def _vids(a, b):
+        return [
+            {"id": str(i), "url": f"https://youtu.be/{i}", "title": f"v{i}"} for i in range(a, b)
+        ]
+
+    async def first(query):
+        return {"videos": _vids(0, 10), "token": "T1", "ctx": {"key": "k", "ver": "1"},
+                "seen": {str(i) for i in range(10)}}
+
+    async def nxt(pool):
+        start = len(pool["videos"])
+        pool["videos"].extend(_vids(start, start + 10))
+        pool["seen"].update(str(i) for i in range(start, start + 10))
+        pool["token"] = "T2" if start < 20 else None  # dries up after two pages
+
+    monkeypatch.setattr(search_service, "_yt_first_page", first)
+    monkeypatch.setattr(search_service, "_yt_next_page", nxt)
+    search_service._yt_pools.clear()
+
+    page1 = await search_service.search_youtube("cats", limit=8, offset=0)
+    page3 = await search_service.search_youtube("cats", limit=8, offset=16)
+    assert [v["id"] for v in page1] == [str(i) for i in range(8)]
+    assert [v["id"] for v in page3] == [str(i) for i in range(16, 24)], "pool did not grow"
+    # Past the end of an exhausted pool, an empty page stops infinite scroll.
+    assert await search_service.search_youtube("cats", limit=8, offset=100) == []

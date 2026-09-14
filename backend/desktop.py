@@ -56,6 +56,45 @@ def url_for(port: int, path: str = "/") -> str:
     return f"http://127.0.0.1:{port}{path}"
 
 
+def _launch_desktop_daemon(port: int = DEFAULT_PORT) -> bool:
+    """Bring up the tray app when the palette shortcut is the only thing alive.
+
+    This is the direct path for `amethyst-palette`: if no server is listening on
+    the usual port, the user did not ask for a website tab but for the floating
+    palette itself. Starting the daemon and retrying once is the intended action;
+    only a final failure opens the browser as an emergency fallback.
+    """
+    import pathlib
+    import shutil
+    import subprocess
+
+    venv_exe = pathlib.Path(sys.executable).parent / "amethyst"
+    exe = shutil.which("amethyst") or (str(venv_exe) if venv_exe.exists() else None)
+    argv = [exe, "desktop", "--port", str(port)] if exe else [
+        sys.executable,
+        "-m",
+        "backend.cli",
+        "desktop",
+        "--port",
+        str(port),
+    ]
+
+    repo_root = pathlib.Path(__file__).resolve().parent.parent
+
+    try:
+        subprocess.Popen(
+            argv,
+            cwd=str(repo_root),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
 # --------------------------------------------------------------------- summon
 
 
@@ -97,9 +136,29 @@ def summon_palette(port: int = DEFAULT_PORT, timeout: float = 1.5) -> bool:
             return True
     except Exception:
         # Nothing is serving, it did not answer in time, or it answered with
-        # something this cannot read. Falling through to the browser is the
-        # better failure: the user asked for a palette, not for a diagnosis.
+        # something this cannot read. This is the case where the keyboard shortcut
+        # is the only thing alive; start the daemon and retry once instead of
+        # opening the browser as the first action.
         pass
+
+    if _launch_desktop_daemon(port):
+        import time
+
+        for _ in range(30):
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout) as sock:
+                    sock.sendall(request)
+                    reply = b""
+                    while chunk := sock.recv(4096):
+                        reply += chunk
+                body = reply.rsplit(b"\r\n\r\n", 1)[-1]
+                if json.loads(body).get("delivered"):
+                    return True
+                time.sleep(0.15)
+            except Exception:
+                time.sleep(0.15)
+                continue
+
     import webbrowser
 
     webbrowser.open(url_for(port, "/?cmd=palette"))
