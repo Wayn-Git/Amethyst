@@ -113,6 +113,47 @@ def test_a_window_that_cannot_be_raised_still_answers(client):
 # --------------------------------------------------------------------- summon
 
 
+def test_summon_starts_the_desktop_when_port_is_idle(monkeypatch):
+    """A shortcut should bring up the daemon instead of opening a bare browser."""
+    import socket
+    import webbrowser
+
+    started: list[int] = []
+    opened: list[str] = []
+    monkeypatch.setattr(webbrowser, "open", opened.append)
+    monkeypatch.setattr(desktop, "_launch_desktop_daemon", lambda port: started.append(port) or True)
+
+    class _Sock:
+        def __init__(self):
+            self._count = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def sendall(self, _request):
+            pass
+
+        def recv(self, _size):
+            self._count += 1
+            if self._count == 1:
+                return b'{"delivered": 1}'
+            return b''
+
+    def fake_create_connection(addr, timeout):
+        if not started:
+            raise OSError("not listening")
+        return _Sock()
+
+    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+
+    assert desktop.summon_palette(port=9, timeout=0.05) is True
+    assert started == [9]
+    assert opened == []
+
+
 def test_summon_opens_a_window_when_nothing_answered(monkeypatch):
     """Nothing listening, or nothing serving: the user still asked for a palette."""
     import webbrowser
