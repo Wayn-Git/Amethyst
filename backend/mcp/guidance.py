@@ -98,7 +98,12 @@ _PURPOSES: dict[str, str] = {
     "tavily": "web search tuned for language models",
     "exa": "semantic web search, by meaning rather than keyword",
     "firecrawl": "crawl a site and return clean markdown",
+    "linkedin": "profiles, jobs and the feed — browser-based, ~25s per lookup",
 }
+
+#: Connectors where each tool call involves a real browser session and takes
+#: 15-30 seconds. The model must warn the user before making multiple calls.
+_SLOW_CONNECTORS: frozenset[str] = frozenset({"linkedin", "playwright", "chrome-devtools"})
 
 _connectors_cache: tuple[float, str | None] | None = None
 
@@ -128,19 +133,35 @@ def ready_connectors_block() -> str | None:
         ready = live.ready_connectors()
         configured = load_servers()
         lines = []
+        slow_lines = []
         for name, count in ready.items():
             config = configured.get(name)
             purpose = (config.description if config else None) or _PURPOSES.get(name) or ""
             suffix = f" — {purpose}" if purpose else ""
             lines.append(f"  - {name} ({count} tool{'' if count == 1 else 's'}){suffix}")
-        block = (
-            "<connectors>\n"
-            "These connectors are connected and signed in right now. Their tools are"
-            " already authenticated and reach the live service, so they answer"
-            " questions about it that no builtin tool can.\n"
-            + "\n".join(lines)
-            + "\n</connectors>"
-        ) if lines else None
+            if name in _SLOW_CONNECTORS:
+                slow_lines.append(name)
+        block_parts = []
+        if lines:
+            block_parts.append(
+                "<connectors>\n"
+                "These connectors are connected and signed in right now. Their tools are"
+                " already authenticated and reach the live service, so they answer"
+                " questions about it that no builtin tool can.\n"
+                + "\n".join(lines)
+                + "\n</connectors>"
+            )
+        if slow_lines:
+            block_parts.append(
+                "<slow_connectors>\n"
+                "These connectors use a real browser session and take ~15-30 seconds per"
+                " tool call. When the user asks for multiple lookups (e.g. several people's"
+                " profiles), warn them about the total time before calling any tool. If"
+                " possible, batch all names into a single search query.\n"
+                "Slow connectors: " + ", ".join(slow_lines) + "\n"
+                "</slow_connectors>"
+            )
+        block = "\n\n".join(block_parts) if block_parts else None
     except Exception as exc:
         # A hint, not a gate. The permission gate is the boundary and it runs
         # regardless; failing to describe a connector must not fail the turn.

@@ -198,6 +198,7 @@ export const api = {
      one back off disk, which is why it can answer with `missing` set. */
   artifacts: (conversationId) => j(`/conversations/${conversationId}/artifacts`),
   artifact: (artifactId) => j(`/artifacts/${encodeURIComponent(artifactId)}`),
+  gitStatus: () => j('/git-status'),
   pinMessage: (id, messageId, pinned) =>
     j(`/conversations/${id}/messages/${messageId}/pin`, json('POST', { pinned })),
   // Pinning the conversation, not an answer inside it: what the sidebar's star
@@ -212,7 +213,7 @@ export const api = {
   // `mode` is 'chat' or 'plan'. It is a field rather than a sentence glued to
   // the message: the sentence landed in the transcript and was replayed on
   // every later turn, and the server had no idea the mode existed.
-  turn: async ({ conversationId, message, workspace, mode, attachments, onEvent, signal }) => {
+  turn: async ({ conversationId, message, workspace, mode, attachments, guard, effort, model, onEvent, signal }) => {
     const res = await fetch(`${BASE}/conversations/${conversationId}/turn`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -231,6 +232,9 @@ export const api = {
           media_type: f.content_type || null,
           bytes: f.bytes ?? null,
         })),
+        guard: guard || null,
+        effort: effort || null,
+        model: model || null,
       }),
       signal,
     })

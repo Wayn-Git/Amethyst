@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 
 import Icon from './Icon.jsx'
 import Markdown from './markdown/Markdown.jsx'
+import ArtifactEmptyState from './ArtifactEmptyState.jsx'
 import { FadeScrollArea } from './ui/skiper/index.js'
 
 /* What the agent wrote, while it is writing it.
@@ -270,12 +271,7 @@ export default function ArtifactPanel({
   }, [text, streaming])
 
   if (!active) {
-    return (
-      <p className="wb-panel-empty">
-        Nothing written yet. Documents the agent creates open here as it writes them,
-        with the source alongside.
-      </p>
-    )
+    return <ArtifactEmptyState />
   }
 
   // Still uncovering counts as still being written, so the caret stays.

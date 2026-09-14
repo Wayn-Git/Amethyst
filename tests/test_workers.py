@@ -22,6 +22,7 @@ hundred pages must not become a hundred model calls.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 
 import pytest
@@ -927,8 +928,9 @@ async def test_the_dispatch_tool_hands_back_a_batch_id_rather_than_blocking(db, 
     )
     assert time.monotonic() - started < 2
     assert not result.is_error
-    assert result.content["batch_id"]
-    assert "collect_jobs" in result.content["note"]
+    view = json.loads(result.content)
+    assert view["batch_id"]
+    assert "collect_jobs" in view["note"]
 
 
 async def test_the_dispatch_tool_explains_a_graph_it_cannot_run(db):
@@ -959,8 +961,9 @@ async def test_collecting_a_finished_batch_returns_its_results(db, registry):
         {"batch_id": "done"}, ToolContext(conversation_id="c1", workspace_root=".")
     )
     assert not result.is_error
-    assert result.content["state"] == "completed"
-    assert result.content["nodes"][0]["result"]["v"] == 7
+    view = json.loads(result.content)
+    assert view["state"] == "completed"
+    assert view["nodes"][0]["result"]["v"] == 7
 
 
 def test_a_batch_appears_in_the_jobs_list_like_any_other_work(db, registry):
@@ -1050,7 +1053,7 @@ async def test_asking_not_to_wait_is_honoured(db, registry):
         ToolContext(conversation_id="c1", workspace_root="."),
     )
     assert time.monotonic() - started < 1.0
-    assert result.content["state"] == "queued"
+    assert json.loads(result.content)["state"] == "queued"
 
 
 async def test_a_node_whose_account_refuses_it_falls_back_to_the_next_lane(

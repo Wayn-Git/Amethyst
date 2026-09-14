@@ -384,6 +384,27 @@ I call: web_search  ← CORRECT, exists in my tools
 You MUST answer concisely with fewer than 4 lines of text (not including tool use or code \
 generation), unless user asks for detail.
 
+# Anti-Verbosity (BLAZING FAST)
+
+**Eliminate these patterns entirely:**
+- "Sure! I'd be happy to help you with that." → Just do it.
+- "Let me start by..." → Start by doing it.
+- "First, I'll need to..." → Do it, don't narrate.
+- "Here's what I found:" → Show the findings.
+- "I've completed the task." → The user can see you completed it.
+- "Now I'll proceed to..." → Proceed.
+- Summarizing what you just did unless asked.
+- Explaining your approach unless the user asked "how?"
+- Restating the user's request back to them.
+
+**Response format:**
+- Code changes: just show the diff or the changed code
+- File operations: just show the result
+- Errors: just show the error and your fix
+- Research: just show the findings
+
+**NEVER add:** preamble, postamble, apology, meta-commentary, or "I hope this helps!"
+
 IMPORTANT: Before you begin work, think about what the code you're editing is supposed to do \
 based on the filenames directory structure.
 
@@ -622,6 +643,24 @@ def build_system_prompt(
             return prompt
 
     parts = [override or BASE_PROMPT, environment_block(workspace_root)]
+
+    # Auto-load AGENTS.md from workspace root if it exists. This gives the model
+    # project-specific conventions (lint commands, test frameworks, code style)
+    # without the user having to re-explain them every conversation.
+    if workspace_root:
+        try:
+            from pathlib import Path
+            agents_md = Path(workspace_root) / "AGENTS.md"
+            if agents_md.is_file():
+                content = agents_md.read_text(encoding="utf-8", errors="replace")
+                if content.strip():
+                    parts.append(
+                        f"<project_conventions>\n"
+                        f"These are project-specific conventions from AGENTS.md:\n\n{content}\n"
+                        f"</project_conventions>"
+                    )
+        except Exception:
+            pass
 
     skills, _ = scan()
     pinned = set(pinned_skills or []) | _ALWAYS_PINNED
@@ -959,25 +998,35 @@ def cap_tools(
 
 
 def compress_tool_schemas(tools: list[Any]) -> list[Any]:
-    """Shorten tool descriptions to their headline, keeping every tool.
+    """Shorten tool descriptions while preserving decision-critical information.
 
     Descriptions carry a headline followed by WHEN TO USE / OUTPUT / TIPS /
-    LIMITS guidance. That guidance is what makes a model use a tool *well*, so it
-    is worth its tokens -- right up until the request will not fit, at which
-    point a terse description of every tool beats a rich description of half of
-    them. Dropping tools removes capability; this only removes advice.
+    LIMITS guidance. OUTPUT, TIPS, and LIMITS are operational advice the model
+    can often infer or skip. WHEN TO USE (and WHEN NOT TO USE) is what tells
+    the model *which tool to pick* from a set of similar ones — stripping it
+    causes wrong-tool selection. This function keeps the headline and the
+    WHEN TO USE / WHEN NOT TO USE sections, dropping the rest.
 
     Anything without the multi-line shape is returned untouched.
     """
+    _DECISION_SECTIONS = ("when to use", "when not to use")
     out = []
     for tool in tools:
         description = getattr(tool, "description", "") or ""
-        headline = description.split("\n", 1)[0].strip()
-        if headline and headline != description:
+        lines = description.split("\n")
+        if len(lines) <= 1:
+            out.append(tool)
+            continue
+        # Keep headline (first line) + any WHEN TO USE / WHEN NOT TO USE lines
+        kept = [lines[0].strip()]
+        for line in lines[1:]:
+            stripped = line.strip().lower()
+            if any(stripped.startswith(s) for s in _DECISION_SECTIONS):
+                kept.append(line.strip())
+        compressed = "\n".join(kept)
+        if compressed != description:
             out.append(
-                ToolSchema(
-                    name=tool.name, description=headline, parameters=tool.parameters
-                )
+                ToolSchema(name=tool.name, description=compressed, parameters=tool.parameters)
             )
         else:
             out.append(tool)

@@ -21,8 +21,11 @@ import { evaluateMath } from './damon/calculator.js'
 import { peek, put } from './damon/searchCache.js'
 
 const THEMES = [
-  { id: 'light', icon: 'sun', label: 'Switch to Paper', hint: 'the light palette' },
-  { id: 'dark', icon: 'cpu', label: 'Switch to Graphite', hint: 'the dark palette' },
+  { id: 'paper', icon: 'sun', label: 'Switch to Paper', hint: 'warm light palette' },
+  { id: 'sand', icon: 'sun', label: 'Switch to Sand', hint: 'warm parchment light' },
+  { id: 'graphite', icon: 'cpu', label: 'Switch to Graphite', hint: 'neutral dark palette' },
+  { id: 'ink', icon: 'cpu', label: 'Switch to Ink', hint: 'deepest dark palette' },
+  { id: 'nocturne', icon: 'cpu', label: 'Switch to Nocturne', hint: 'cool blue dark palette' },
   { id: 'system', icon: 'sliders', label: 'Follow the system theme', hint: 'light or dark, as the machine is set' },
 ]
 
@@ -122,7 +125,7 @@ export default function CommandPalette({ bare = false }) {
   const {
     overlay, setOverlay, conversations, activeId, caps,
     setCapEnabled, busyCap, chat, toast, refreshHealth, refreshCaps,
-    theme, setTheme, betaPages,
+    theme, setTheme, betaPages, openOnboarding,
   } = app
 
   const open = bare || overlay === 'palette'
@@ -716,11 +719,22 @@ export default function CommandPalette({ bare = false }) {
         toast('System health refreshed', 'ok')
       },
     })
+    out.push({
+      id: 'onboarding-wizard',
+      group: 'Settings',
+      icon: 'spark',
+      label: 'Launch Setup Wizard',
+      hint: 'Configure appearance, loader, and chat defaults',
+      run: () => {
+        setOverlay(null)
+        openOnboarding()
+      },
+    })
 
     return out
   }, [
     betaPages, handleNavigate, chat, toast, caps, busyCap, setCapEnabled,
-    jobs, automations, theme, setTheme, setOverlay, refreshHealth, refreshCaps,
+    jobs, automations, theme, setTheme, setOverlay, refreshHealth, refreshCaps, openOnboarding,
   ])
 
   // Contextual synthesis dynamic items

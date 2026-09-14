@@ -526,7 +526,7 @@ async def _web_search(params: dict[str, Any]) -> dict[str, Any]:
     # Try to use the builtin search_web tool if available
     try:
         from backend.tools.builtin.web import search_web
-        results = await search_web({"query": query, "max_results": max_results}, None)
+        results = await search_web({"query": query, "limit": max_results}, None)
         return {"query": query, "results": results.content if hasattr(results, 'content') else results}
     except Exception:
         pass
@@ -593,8 +593,9 @@ register(
 
 async def _system_info(params: dict[str, Any]) -> dict[str, Any]:
     """Get system information for debugging or monitoring."""
-    import platform
     import os
+    import platform
+    import shutil
     from pathlib import Path
     
     info = {

@@ -416,6 +416,41 @@ _WIDGET_SIGNALS = (
     "options", "choose", "pick one", "suggest", "recommend", "ideas for", "alternatives",
 )
 
+#: Technical terms that strongly indicate a development task, not a widget request.
+#: A message containing any of these is almost certainly a coding question even
+#: if it also matches a widget signal like "how to" or "steps".
+_TECHNICAL_MARKERS = (
+    # Code syntax
+    "def ", "class ", "import ", "async ", "await ", "return ",
+    "try:", "except ", "catch ", "throw ", "raise ",
+    "print(", "console.", "require(",
+    # File extensions
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".rb", ".java",
+    ".html", ".css", ".json", ".yaml", ".yml", ".toml", ".xml",
+    ".sql", ".sh", ".bash", ".env", ".git", ".docker",
+    # Dev tools and platforms
+    "npm", "yarn", "pnpm", "bun ", "pip ", "cargo ",
+    "git ", "github", "gitlab", "commit", "branch", "merge",
+    "pull request", "issue #",
+    # Dev concepts
+    "api ", "endpoint", "route ", "handler", "middleware",
+    "database", "sqlite", "postgres", "redis",
+    "schema", "migration", "query ",
+    "deploy", "ci/cd", "pipeline", "build ", "test ", "lint ",
+    "refactor", "compile", "bundle", "transpile",
+    "webpack", "vite", "rollup", "esbuild", "tsc", "eslint",
+    # Languages and frameworks
+    "react", "vue", "angular", "svelte", "nextjs", "nuxt",
+    "fastapi", "flask", "django", "express", "hono",
+    "pydantic", "sqlalchemy", "alembic", "prisma", "drizzle",
+    "pytest", "jest", "vitest", "mocha", "cypress",
+    "kubernetes", "docker", "terraform", "ansible",
+    "nginx", "apache", "caddy",
+    # Error/debug
+    "traceback", "stacktrace", "segfault", "panic",
+    "debug", "error:", "exception",
+)
+
 
 def _certainly_not_a_widget(message: str) -> bool:
     """Whether to skip the classifier entirely for this message.
@@ -427,9 +462,11 @@ def _certainly_not_a_widget(message: str) -> bool:
     feels instant and one that does not.
 
     Two ways to skip. A URL or a fenced code block means "go do something with
-    this", which no widget type serves. Otherwise the message must carry at
-    least one word suggesting a widget; without one, the classifier's own answer
-    would almost certainly have been `none`.
+    this", which no widget type serves. Technical markers (code syntax, file
+    extensions, dev tools) indicate a development task even if a widget signal
+    like "how to" is present. Otherwise the message must carry at least one word
+    suggesting a widget; without one, the classifier's own answer would almost
+    certainly have been `none`.
 
     The cost of being wrong is bounded and small: the turn is answered normally,
     in prose, by the full model. A widget is an enhancement to an answer, never
@@ -437,8 +474,13 @@ def _certainly_not_a_widget(message: str) -> bool:
     """
     if "```" in message or "http://" in message or "https://" in message:
         return True
-    lowered = f" {message.lower()} "
-    return not any(signal in lowered for signal in _WIDGET_SIGNALS)
+    # Technical content overrides widget signals: "how to fix this bug" is a
+    # development task, not a recipe or quiz.
+    lowered = message.lower()
+    if any(marker in lowered for marker in _TECHNICAL_MARKERS):
+        return True
+    lowered_padded = f" {lowered} "
+    return not any(signal in lowered_padded for signal in _WIDGET_SIGNALS)
 
 
 async def classify_and_extract(

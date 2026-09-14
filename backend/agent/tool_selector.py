@@ -140,21 +140,106 @@ CATEGORIES: dict[str, dict[str, Any]] = {
 #: are added or renamed -- it is a hint list, not a registry.
 CONNECTOR_HINTS: dict[str, tuple[str, ...]] = {
     "github": ("github", "repo", "repository", "pull request", "pr ", "issue", "commit", "branch"),
-    "gmail": ("mail", "email", "inbox", "message", "reply", "send to"),
-    "mail": ("mail", "email", "inbox", "message", "reply"),
-    "todo": ("todo", "task", "to-do", "reminder"),
-    "calendar": ("calendar", "event", "meeting", "schedule"),
-    "drive": ("drive", "spreadsheet", "sheet", "doc", "google doc"),
-    "memory": ("remember", "memory", "recall", "note"),
-    "slack": ("slack", "channel", "dm"),
-    "notion": ("notion", "page", "database"),
-    "linear": ("linear", "ticket", "issue"),
+    "googleworkspace": (
+        "google", "gmail", "email", "mail", "inbox", "message", "reply",
+        "calendar", "event", "meeting", "schedule", "appointment",
+        "drive", "spreadsheet", "sheet", "docs", "document", "slides",
+        "tasks", "to-do", "reminder",
+    ),
+    "googlegmail": ("gmail", "email", "mail", "inbox", "message", "reply", "send to"),
+    "googlecalendar": ("calendar", "event", "meeting", "schedule", "appointment", "book"),
+    "googledrive": ("drive", "spreadsheet", "sheet", "google doc"),
+    "microsofttodo": ("todo", "task", "to-do", "reminder"),
+    "playwright": ("browser", "browse", "navigate", "click", "screenshot", "scrape", "playwright"),
+    "chromedevtools": ("chrome", "devtools", "performance", "network request"),
+    "vercel": ("deploy", "vercel", "deployment", "hosting"),
+    "linkedin": ("linkedin", "profile", "network", "connection"),
+    "spotify": ("spotify", "music", "play", "playlist", "song", "album"),
+    "tavily": ("tavily", "ai search"),
+    "exa": ("exa", "semantic search", "neural search"),
+    "firecrawl": ("firecrawl", "crawl", "web scrape"),
+    "memory": ("remember", "memory", "recall", "note", "knowledge"),
+    "fetch": ("fetch", "url", "webpage"),
 }
 
 #: Never offer more than this many connectors' tool sets on one turn. A single
 #: connector can carry forty tools; three is already a large menu, and the cap
 #: is what keeps a vague request from pulling the whole catalogue back in.
 MAX_MCP_SERVERS = 3
+
+#: Task-intent patterns: multi-word phrases that strongly indicate a specific
+#: workflow. Matched before category words to provide higher-signal selection.
+_TASK_INTENTS: list[tuple[str, tuple[str, ...]]] = [
+    # Code editing workflows
+    ("fix the bug", ("grep_files", "view_file", "edit_file", "run_shell_command")),
+    ("fix bug", ("grep_files", "view_file", "edit_file", "run_shell_command")),
+    ("fix error", ("grep_files", "view_file", "edit_file", "run_shell_command")),
+    ("fix issue", ("grep_files", "view_file", "edit_file", "run_shell_command")),
+    ("debug", ("grep_files", "view_file", "run_shell_command")),
+    ("refactor", ("grep_files", "view_file", "edit_file")),
+    ("rename", ("grep_files", "view_file", "edit_file")),
+    ("move file", ("view_file", "write_file", "delete_file")),
+    ("copy file", ("view_file", "write_file")),
+    # Creation workflows
+    ("create project", ("list_files", "write_file", "run_shell_command")),
+    ("new project", ("list_files", "write_file", "run_shell_command")),
+    ("scaffold", ("list_files", "write_file", "run_shell_command")),
+    ("init ", ("list_files", "write_file", "run_shell_command")),
+    ("create component", ("grep_files", "view_file", "write_file")),
+    ("new component", ("grep_files", "view_file", "write_file")),
+    ("create file", ("list_files", "write_file")),
+    ("new file", ("list_files", "write_file")),
+    ("write file", ("list_files", "write_file")),
+    ("write script", ("list_files", "view_file", "write_file")),
+    # Analysis workflows
+    ("how does", ("grep_files", "view_file", "list_files")),
+    ("what does", ("grep_files", "view_file", "list_files")),
+    ("explain", ("grep_files", "view_file", "list_files")),
+    ("find where", ("grep_files", "view_file")),
+    ("search for", ("grep_files", "search_documents")),
+    ("look for", ("grep_files", "search_documents")),
+    # Testing workflows
+    ("run test", ("run_shell_command",)),
+    ("run lint", ("run_shell_command",)),
+    ("run typecheck", ("run_shell_command",)),
+    ("check ", ("run_shell_command", "grep_files")),
+    # Document workflows
+    ("create document", ("create_document",)),
+    ("create report", ("create_document",)),
+    ("create readme", ("create_artifact",)),
+    ("write readme", ("create_artifact",)),
+    ("write document", ("create_document",)),
+    ("write report", ("create_document",)),
+    # Web workflows
+    ("search web", ("search_web",)),
+    ("google ", ("search_web",)),
+    ("look up online", ("search_web", "fetch_url")),
+    ("fetch url", ("fetch_url",)),
+    ("open url", ("fetch_url", "open_url")),
+    # Connector-specific workflows
+    ("check my email", ("dispatch_parallel_jobs",)),
+    ("check email", ("dispatch_parallel_jobs",)),
+    ("read my email", ("dispatch_parallel_jobs",)),
+    ("send email", ("dispatch_parallel_jobs",)),
+    ("check my calendar", ("dispatch_parallel_jobs",)),
+    ("what's on my calendar", ("dispatch_parallel_jobs",)),
+    ("create event", ("dispatch_parallel_jobs",)),
+    ("schedule meeting", ("dispatch_parallel_jobs",)),
+    ("check github", ("dispatch_parallel_jobs",)),
+    ("github notifications", ("dispatch_parallel_jobs",)),
+    ("create issue", ("dispatch_parallel_jobs",)),
+    ("create pull request", ("dispatch_parallel_jobs",)),
+    ("browse the web", ("dispatch_parallel_jobs",)),
+    ("open a browser", ("dispatch_parallel_jobs",)),
+    ("take a screenshot", ("dispatch_parallel_jobs",)),
+    ("scrape a page", ("dispatch_parallel_jobs",)),
+    ("deploy to vercel", ("dispatch_parallel_jobs",)),
+    ("check vercel", ("dispatch_parallel_jobs",)),
+    ("play music", ("dispatch_parallel_jobs",)),
+    ("search spotify", ("dispatch_parallel_jobs",)),
+    ("check linkedin", ("dispatch_parallel_jobs",)),
+    ("search linkedin", ("dispatch_parallel_jobs",)),
+]
 
 
 def _matches(text: str, words: tuple[str, ...]) -> bool:
@@ -180,13 +265,22 @@ def select_tools(
         haystack = (text or "").lower()
 
         wanted: set[str] = set(CORE)
+
+        # Phase 1: Task-intent matching. Multi-word phrases are higher-signal
+        # than single keywords — "fix the bug" means grep+view+edit+shell, not
+        # just "shell" from matching "fix".
+        for phrase, tools in _TASK_INTENTS:
+            if phrase in haystack:
+                wanted.update(tools)
+
+        # Phase 2: Category keyword matching (existing logic, lower priority)
         for spec in CATEGORIES.values():
             if _matches(haystack, spec["words"]):
                 wanted.update(spec["tools"])
 
-        # Which connectors this request points at. A connector is offered when
-        # its name is said, when one of its own tool names is said, or when a
-        # hint word for it appears.
+        # Phase 3: Connector matching. A connector is offered when its name is
+        # said, when one of its own tool names is said, or when a hint word for
+        # it appears.
         by_server: dict[str, list[Any]] = {}
         for schema in schemas:
             server = _server_of(getattr(schema, "name", ""))

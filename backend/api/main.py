@@ -1072,6 +1072,33 @@ async def health() -> dict[str, Any]:
     }
 
 
+@app.get("/api/git-status")
+async def git_status() -> dict[str, Any]:
+    """Git status for the current workspace."""
+    workspace = _mcp.get("workspace") or os.getcwd()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "status", "--porcelain",
+            cwd=workspace,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode != 0:
+            return {"error": stderr.decode(), "path": workspace, "clean": True, "files": []}
+        
+        lines = stdout.decode().strip().split("\n") if stdout.decode().strip() else []
+        return {
+            "path": workspace,
+            "changed_files": len(lines),
+            "files": lines[:50],
+            "clean": len(lines) == 0,
+        }
+    except Exception as exc:
+        return {"error": str(exc), "path": workspace, "clean": True, "files": []}
+
+
 # --- providers ---------------------------------------------------------------
 #
 # The Settings panel used to say "configured in ~/.amethyst/config/providers.yaml",
@@ -1888,6 +1915,9 @@ class TurnRequest(BaseModel):
     workspace: str | None = None
     mode: str = "chat"
     attachments: list[Attachment] = []
+    guard: str | None = None
+    effort: str | None = None
+    model: str | None = None
 
 
 @app.post("/api/conversations/{conversation_id}/turn")

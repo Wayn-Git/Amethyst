@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
 import Shortcuts from './components/Shortcuts.jsx'
 import Settings from './components/Settings.jsx'
+import OnboardingWizard from './components/OnboardingWizard.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
@@ -408,6 +409,7 @@ export default function App() {
       <CommandPalette />
       <Shortcuts />
       <Settings />
+      <OnboardingWizard />
       <ConfirmDialogHost />
       <Toasts />
     </div>

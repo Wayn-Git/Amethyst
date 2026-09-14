@@ -47,8 +47,12 @@ NEVER_CACHE = frozenset({
 def truncate(text: str, limit: int = MAX_RESULT_CHARS) -> str:
     if len(text) <= limit:
         return text
-    head = text[: limit - 200]
-    return f"{head}\n\n[... truncated, {len(text) - limit + 200} characters omitted ...]"
+    head_size = int(limit * 0.6)
+    tail_size = int(limit * 0.3)
+    head = text[:head_size]
+    tail = text[-tail_size:]
+    omitted = len(text) - head_size - tail_size
+    return f"{head}\n\n[... {omitted} characters omitted ...]\n\n{tail}"
 
 
 class ToolRegistry:

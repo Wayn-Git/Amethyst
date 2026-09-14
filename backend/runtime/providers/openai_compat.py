@@ -185,6 +185,10 @@ class OpenAICompatClient:
         #: a three-provider chain costs the same order of wall clock as one
         #: provider rather than three times it.
         self.max_retries = max_retries
+        #: Session ID for provider-side prompt cache affinity. Set per-turn by
+        #: the director so repeated turns to the same conversation hit the
+        #: cached prefix instead of re-processing system+tools from scratch.
+        self.session_id: str | None = None
 
     @property
     def _url(self) -> str:
@@ -194,6 +198,9 @@ class OpenAICompatClient:
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        if self.session_id:
+            headers["X-Session-Id"] = self.session_id
+            headers["x-session-affinity"] = self.session_id
         return headers
 
     def _build_payload(

@@ -51,7 +51,7 @@ const HEALTH_INTERVAL = 8000
    be set to. 'system' is still selectable and still follows the machine; it is
    just no longer the answer nobody chose. The chosen value is written to the
    document element so the stylesheet -- not JavaScript -- owns every colour. */
-const THEMES = ['system', 'dark', 'light']
+const THEMES = ['system', 'graphite', 'ink', 'nocturne', 'paper', 'sand']
 
 /* The panel has to stay wide enough to hold a line of code and narrow enough to
    leave a conversation beside it. A stored value from a wider monitor is
@@ -68,35 +68,16 @@ function clampPanel(value) {
 
 function applyTheme(theme) {
   const root = document.documentElement
-  /* `system` used to *remove* `data-theme`, and leaving it off is what made
-     the two themes unstable.
-
-     The token blocks cope with a missing attribute -- there is a
-     `prefers-color-scheme` copy of the whole dark block for exactly that. But
-     roughly fifteen component rules elsewhere in the stylesheet are written as
-     `[data-theme="light"] .thing { ... }` or `[data-theme="dark"] .thing`, and
-     with no attribute present *none* of them match. A person who has never
-     opened Settings -- which is the default -- got a page whose tokens were
-     dark and whose connector cards, capability tabs and MCP modal were still
-     wearing their light treatment, or the reverse.
-
-     Resolving `system` to whatever the machine currently says, and stamping
-     that, means the attribute is always one of two known values. The media
-     query above re-fires this on the machine's own switch, so it stays true
-     at sunset. The `prefers-color-scheme` copy in the stylesheet stays as the
-     answer for the first paint, before any of this runs. */
+  /* Resolve `system` to the machine's preference, then stamp it. All six
+     themes (graphite, ink, nocturne, paper, sand + system-resolved) map to
+     either a dark or light colour scheme for the browser chrome. */
   const resolved = theme === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'graphite' : 'paper')
     : theme
   root.setAttribute('data-theme', resolved)
-  // The browser's own surfaces -- form controls, scrollbars, the address bar --
-  // read this, and a light page inside dark chrome is the tell that a theme was
-  // bolted on rather than designed.
-  root.style.colorScheme = resolved
-  /* `theme-color` was a fixed `#0b0b0c` in the markup, which paints the address
-     bar of a phone in light mode black above a paper-coloured page. Read from
-     the stylesheet after the switch, so it is whatever `--canvas` actually
-     resolved to rather than a second copy of the palette kept in sync by hand. */
+  // Dark-family themes: graphite, ink, nocturne. Light-family: paper, sand.
+  const isDark = ['graphite', 'ink', 'nocturne'].includes(resolved)
+  root.style.colorScheme = isDark ? 'dark' : 'light'
   const tag = document.querySelector('meta[name="theme-color"]')
   if (tag) {
     const canvas = getComputedStyle(root).getPropertyValue('--canvas').trim()
@@ -105,58 +86,55 @@ function applyTheme(theme) {
 }
 
 // Applied before React mounts, so the first paint is already the right colour.
-applyTheme(THEMES.includes(loadPrefs().theme) ? loadPrefs().theme : 'light')
+applyTheme(THEMES.includes(loadPrefs().theme) ? loadPrefs().theme : 'graphite')
 
 function applyAccentColor(hex) {
   const root = document.documentElement
-  let styleTag = document.getElementById('custom-accent-style');
-  
+  const styleTag = document.getElementById('custom-accent-style')
+  if (styleTag) styleTag.remove()
+
   if (!hex || typeof hex !== 'string') {
     root.style.removeProperty('--accent')
     root.style.removeProperty('--accent-hover')
+    root.style.removeProperty('--accent-line')
+    root.style.removeProperty('--accent-soft')
+    root.style.removeProperty('--accent-wash')
     root.style.removeProperty('--ember')
-    if (styleTag) styleTag.remove()
+    root.style.removeProperty('--focus-ring')
     return
   }
-  
-  const validHex = hex.startsWith('#') ? hex : '#' + hex;
-  const hoverHex = `color-mix(in srgb, ${validHex} 85%, black)`;
-  
+
+  const validHex = hex.startsWith('#') ? hex : '#' + hex
+  const hoverHex = `color-mix(in srgb, ${validHex} 82%, black)`
+  const softHex = `color-mix(in srgb, ${validHex} 18%, transparent)`
+  const washHex = `color-mix(in srgb, ${validHex} 9%, transparent)`
+  const ringHex = `color-mix(in srgb, ${validHex} 35%, transparent)`
+
   root.style.setProperty('--accent', validHex)
   root.style.setProperty('--accent-hover', hoverHex)
+  root.style.setProperty('--accent-line', validHex)
+  root.style.setProperty('--accent-soft', softHex)
+  root.style.setProperty('--accent-wash', washHex)
   root.style.setProperty('--ember', validHex)
-  
-  // The user explicitly requested this to apply to default buttons as well
-  if (!styleTag) {
-    styleTag = document.createElement('style')
-    styleTag.id = 'custom-accent-style'
-    document.head.appendChild(styleTag)
-  }
-  
-  styleTag.innerHTML = `
-    .btn {
-      background: var(--accent) !important;
-      color: var(--on-accent, #ffffff) !important;
-      border-color: transparent !important;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .btn:hover {
-        background: var(--accent-hover) !important;
-      }
-    }
-    .btn--outline {
-      background: transparent !important;
-      color: var(--accent) !important;
-      border-color: var(--accent) !important;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .btn--outline:hover {
-        background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
-      }
-    }
-  `
+  root.style.setProperty('--focus-ring', ringHex)
 }
 applyAccentColor(loadPrefs().accentColor)
+
+function applyTextSize(pct) {
+  const root = document.documentElement
+  const scale = pct / 100
+  root.style.setProperty('--text-scale', scale)
+  root.style.fontSize = `${scale * 16}px`
+}
+
+function applyDensity(density) {
+  const root = document.documentElement
+  root.setAttribute('data-density', density)
+}
+
+// Apply persisted values before React mounts.
+applyTextSize(loadPrefs().textSize || 100)
+applyDensity(loadPrefs().density || 'comfortable')
 
 
 export function AppProvider({ children }) {
@@ -219,8 +197,63 @@ export function AppProvider({ children }) {
   }, [])
 
   const [theme, setThemeRaw] = useState(
-    () => (THEMES.includes(prefs.theme) ? prefs.theme : 'light'),
+    () => (THEMES.includes(prefs.theme) ? prefs.theme : 'graphite'),
   )
+
+  /* Text size, density, agent loader animation, default guard mode, reasoning
+     effort, and send key — all persisted preferences that shape how the
+     interface feels and behaves. */
+  const [textSize, setTextSizeRaw] = useState(() => {
+    const n = Number(prefs.textSize)
+    return Number.isFinite(n) ? Math.min(200, Math.max(50, n)) : 100
+  })
+  const setTextSize = useCallback((value) => {
+    const n = Math.min(200, Math.max(50, Math.round(value)))
+    setTextSizeRaw(n)
+    applyTextSize(n)
+    savePrefs({ textSize: n })
+  }, [])
+
+  const [density, setDensityRaw] = useState(prefs.density || 'comfortable')
+  const setDensity = useCallback((value) => {
+    const v = value === 'compact' ? 'compact' : 'comfortable'
+    setDensityRaw(v)
+    applyDensity(v)
+    savePrefs({ density: v })
+  }, [])
+
+  const [agentLoader, setAgentLoaderRaw] = useState(prefs.agentLoader || 'pixels')
+  const setAgentLoader = useCallback((value) => {
+    setAgentLoaderRaw(value)
+    savePrefs({ agentLoader: value })
+  }, [])
+
+  const [defaultGuard, setDefaultGuardRaw] = useState(prefs.defaultGuard || 'guard')
+  const setDefaultGuard = useCallback((value) => {
+    setDefaultGuardRaw(value)
+    savePrefs({ defaultGuard: value })
+  }, [])
+
+  const [defaultEffort, setDefaultEffortRaw] = useState(prefs.defaultEffort || 'high')
+  const setDefaultEffort = useCallback((value) => {
+    setDefaultEffortRaw(value)
+    savePrefs({ defaultEffort: value })
+  }, [])
+
+  const [sendWith, setSendWithRaw] = useState(prefs.sendWith || 'enter')
+  const setSendWith = useCallback((value) => {
+    setSendWithRaw(value)
+    savePrefs({ sendWith: value })
+  }, [])
+
+  const [onboardingDone, setOnboardingDoneRaw] = useState(prefs.onboardingDone === true)
+  const setOnboardingDone = useCallback((value) => {
+    setOnboardingDoneRaw(value)
+    savePrefs({ onboardingDone: value })
+  }, [])
+  const openOnboarding = useCallback(() => {
+    setOnboardingDone(false)
+  }, [setOnboardingDone])
   // Which half of Skills & connectors is open. In the store because the + menu
   // and the palette both send you to one side or the other.
   const [capabilitiesTab, setCapabilitiesTabRaw] = useState(prefs.capabilitiesTab || 'skills')
@@ -545,6 +578,13 @@ export function AppProvider({ children }) {
     panelExpanded, setPanelExpanded, togglePanelExpanded,
     theme, setTheme,
     accentColor, setAccentColor,
+    textSize, setTextSize,
+    density, setDensity,
+    agentLoader, setAgentLoader,
+    defaultGuard, setDefaultGuard,
+    defaultEffort, setDefaultEffort,
+    sendWith, setSendWith,
+    onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
@@ -559,6 +599,13 @@ export function AppProvider({ children }) {
     panelWidth, setPanelWidth, panelExpanded, setPanelExpanded, togglePanelExpanded,
     theme, setTheme,
     accentColor, setAccentColor,
+    textSize, setTextSize,
+    density, setDensity,
+    agentLoader, setAgentLoader,
+    defaultGuard, setDefaultGuard,
+    defaultEffort, setDefaultEffort,
+    sendWith, setSendWith,
+    onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,

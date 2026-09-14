@@ -20,6 +20,7 @@ jobs list, and Cancel works on it.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from typing import Any
@@ -101,10 +102,10 @@ def _resolve_task_name(name: str) -> str:
     if aliased and collectors.get(aliased) is not None:
         return aliased
     
-    # Try partial match
+    # Try partial match (name is a prefix/substring of an available name only)
     available = [c["name"] for c in collectors.catalogue()]
     for available_name in available:
-        if name.lower() in available_name.lower() or available_name.lower() in name.lower():
+        if available_name.startswith(name.lower()):
             return available_name
     
     return name  # Return as-is, will fail with good error message
@@ -249,7 +250,7 @@ async def dispatch_parallel_jobs(args: dict, context: ToolContext) -> ToolResult
             f"{len(spec.nodes)} task(s) still running. Carry on with the turn and call"
             f" collect_jobs with batch_id '{batch_id}' when you need the results."
         )
-    return ToolResult.ok(view)
+    return ToolResult.ok(json.dumps(view, default=str))
 
 
 async def collect_jobs(args: dict, context: ToolContext) -> ToolResult:
@@ -271,7 +272,7 @@ async def collect_jobs(args: dict, context: ToolContext) -> ToolResult:
     view = _view(job, full=job.terminal)
     if not job.terminal:
         view["note"] = "Still running. Call again, or carry on without it."
-    return ToolResult.ok(view)
+    return ToolResult.ok(json.dumps(view, default=str))
 
 
 def tools() -> list[Tool]:
@@ -307,10 +308,6 @@ def tools() -> list[Tool]:
                                 "task": {
                                     "type": "string",
                                     "description": f"Which collector to run. One of: {tasks}. Aliases: fetch_url→urls, search→web_search, git→git_status, system→system_info, mail→gmail.",
-                                },
-                                "task": {
-                                    "type": "string",
-                                    "description": f"Which collector to run. One of: {tasks}",
                                 },
                                 "params": {
                                     "type": "object",

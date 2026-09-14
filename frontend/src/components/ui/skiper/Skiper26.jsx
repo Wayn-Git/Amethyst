@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../Icon.jsx'
 import { cn } from '@/lib/utils.js'
@@ -22,11 +22,15 @@ function getThemeTransitionCSS() {
       filter: blur(2px);
     }
     ::view-transition-old(root),
-    [data-theme='dark']::view-transition-old(root) {
+    [data-theme='graphite']::view-transition-old(root),
+    [data-theme='ink']::view-transition-old(root),
+    [data-theme='nocturne']::view-transition-old(root) {
       animation: none;
       z-index: -1;
     }
-    [data-theme='dark']::view-transition-new(root) {
+    [data-theme='graphite']::view-transition-new(root),
+    [data-theme='ink']::view-transition-new(root),
+    [data-theme='nocturne']::view-transition-new(root) {
       animation-name: reveal-dark-bottom-center-blur;
       filter: blur(2px);
     }
@@ -59,8 +63,12 @@ function getThemeTransitionCSS() {
   `
 }
 
+const DARK_THEMES = ['graphite', 'ink', 'nocturne']
+
 export function useSkiperThemeToggle({ theme, setTheme }) {
-  const isDark = theme === 'dark' || (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark = theme === 'system'
+    ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    : DARK_THEMES.includes(theme)
 
   const ensureStyles = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -74,7 +82,7 @@ export function useSkiperThemeToggle({ theme, setTheme }) {
   }, [])
 
   const toggleTheme = useCallback(() => {
-    const nextTheme = isDark ? 'light' : 'dark'
+    const nextTheme = isDark ? 'paper' : 'graphite'
     ensureStyles()
 
     if (typeof document !== 'undefined' && document.startViewTransition) {

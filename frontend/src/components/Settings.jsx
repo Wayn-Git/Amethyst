@@ -10,6 +10,7 @@ import { useModalDismiss, onOverlayMouseDown } from '../hooks/useModalDismiss.js
 import { useFocusTrap } from '../hooks/useFocusTrap.js'
 import Switch from './ui/Switch.jsx'
 import { HexColorPicker } from 'react-colorful'
+import { LoaderIcon } from './OnboardingWizard.jsx'
 
 /* Settings, and only settings.
 
@@ -25,117 +26,34 @@ import { HexColorPicker } from 'react-colorful'
    worse copy of it inside a dialog. */
 
 const SECTIONS = [
-  { id: 'general', label: 'General', icon: 'sliders' },
-  { id: 'models', label: 'Models', icon: 'cpu' },
-  // Not a rail page: this is edited twice a year, and it belongs beside the
-  // other things that change how a turn behaves rather than beside the pages
-  // you open every day.
-  { id: 'brand', label: 'Brand', icon: 'star' },
-  { id: 'permissions', label: 'Permissions', icon: 'key' },
-  { id: 'data', label: 'Data', icon: 'trash' },
+  { id: 'general', label: 'General', icon: 'sliders', group: 'App' },
+  { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'App' },
+  { id: 'models', label: 'Models', icon: 'cpu', group: 'App' },
+  { id: 'brand', label: 'Brand', icon: 'star', group: 'App' },
+  { id: 'permissions', label: 'Permissions', icon: 'key', group: 'Advanced' },
+  { id: 'data', label: 'Data', icon: 'trash', group: 'Advanced' },
 ]
 
 
 
-/* The three answers, in the order they are chosen. `system` first because it
+/* The six answers, in the order they are chosen. `system` first because it
    is the one that needs no decision — an application that opens in the wrong
    palette at 9am is one more thing to go and configure. */
 const THEME_CHOICES = [
-  { id: 'system', label: 'Match the system', hint: 'Follows the machine’s own light or dark setting' },
-  { id: 'dark', label: 'Graphite', hint: 'The console, always' },
-  { id: 'light', label: 'Paper', hint: 'The same panel with the light on' },
+  { id: 'system', label: 'Match the system', hint: 'Follows the machine\u2019s own light or dark setting' },
+  { id: 'graphite', label: 'Graphite', hint: 'The console, always' },
+  { id: 'ink', label: 'Ink', hint: 'The deepest dark' },
+  { id: 'nocturne', label: 'Nocturne', hint: 'Dark with cool blue undertones' },
+  { id: 'paper', label: 'Paper', hint: 'The same panel with the light on' },
+  { id: 'sand', label: 'Sand', hint: 'Warm parchment light' },
 ]
 
 function General() {
-  const [colorDraft, setColorDraft] = useState(null)
-  const { health, healthError, workspace, setWorkspace, theme, setTheme, accentColor, setAccentColor } = useApp()
+  const { health, healthError, workspace, setWorkspace } = useApp()
   const [draft, setDraft] = useState(workspace || '')
 
   return (
     <div className="set-panel">
-      <div className="set-card">
-        <h3>Appearance</h3>
-        <div className="theme-picker" role="radiogroup" aria-label="Colour theme">
-          {THEME_CHOICES.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              role="radio"
-              aria-checked={theme === choice.id}
-              className={`theme-swatch theme-swatch--${choice.id}${theme === choice.id ? ' is-on' : ''}`}
-              onClick={() => setTheme(choice.id)}
-            >
-              {/* The swatch is the palette itself rather than a word for it, so
-                  picking one is a comparison instead of a guess. */}
-              <span className="theme-chip" aria-hidden="true">
-                <i className="theme-chip-bg" />
-                <i className="theme-chip-fg" />
-                <i className="theme-chip-live" />
-              </span>
-              <span className="theme-swatch-text">
-                <span className="theme-swatch-label">{choice.label}</span>
-                <span className="theme-swatch-hint">{choice.hint}</span>
-              </span>
-              {theme === choice.id && <Icon name="check" size={14} />}
-            </button>
-          ))}
-        </div>
-
-                <div className="set-row" style={{ marginTop: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: 500 }}>Custom Accent Color</span>
-            <span style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px', maxWidth: '300px' }}>
-              Pick a hex color from the palette to override the default buttons and highlights.
-            </span>
-            <div style={{ marginTop: '16px' }}>
-              <HexColorPicker 
-                color={(colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')).startsWith('#') ? (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')) : '#' + (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5'))} 
-                onChange={setColorDraft} 
-                style={{ width: '200px', height: '150px' }}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start', minWidth: '150px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>HEX</span>
-              <input
-                type="text"
-                value={colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')}
-                onChange={(e) => {
-                  let val = e.target.value;
-                  if (val && !val.startsWith('#')) val = '#' + val;
-                  setColorDraft(val);
-                }}
-                style={{ width: '90px', padding: '6px 8px', fontSize: '13px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--hairline)', background: 'var(--surface)', color: 'var(--text)' }}
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-              {(accentColor || colorDraft) && (
-                <button 
-                  type="button" 
-                  className="btn btn--outline" 
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                  onClick={() => { setColorDraft(null); setAccentColor(''); }}
-                >
-                  Reset
-                </button>
-              )}
-              {colorDraft !== null && colorDraft !== accentColor && (
-                <button 
-                  type="button" 
-                  className="btn btn--primary" 
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                  onClick={() => { setAccentColor(colorDraft); setColorDraft(null); }}
-                >
-                  Save Color
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-      </div>
-
       <div className="set-card">
         <h3>This machine</h3>
         <div className="set-rows">
@@ -178,6 +96,173 @@ function General() {
       <BetaPages />
       <TurnNotifications />
 
+    </div>
+  )
+}
+
+function Appearance() {
+  const {
+    theme, setTheme,
+    accentColor, setAccentColor,
+    textSize, setTextSize,
+    density, setDensity,
+    agentLoader, setAgentLoader,
+    openOnboarding,
+  } = useApp()
+
+  const ACCENT_PRESETS = [
+    { id: 'blue', hex: '#3b82f6', label: 'Blue' },
+    { id: 'purple', hex: '#8b5cf6', label: 'Purple' },
+    { id: 'green', hex: '#10b981', label: 'Green' },
+    { id: 'amber', hex: '#f59e0b', label: 'Amber' },
+    { id: 'pink', hex: '#ec4899', label: 'Pink' },
+    { id: 'slate', hex: '#64748b', label: 'Slate' },
+  ]
+
+  const AGENT_LOADERS = [
+    { id: 'pixels', label: 'Pixels' },
+    { id: 'halo', label: 'Halo' },
+    { id: 'orbit', label: 'Orbit' },
+    { id: 'wake', label: 'Wake' },
+    { id: 'pulse', label: 'Pulse' },
+    { id: 'shift', label: 'Shift' },
+    { id: 'ellipsis', label: 'Ellipsis' },
+    { id: 'ripple', label: 'Ripple' },
+    { id: 'clock', label: 'Clock' },
+    { id: 'drop', label: 'Drop' },
+    { id: 'scanner', label: 'Scanner' },
+    { id: 'card', label: 'Card' },
+    { id: 'dial', label: 'Dial' },
+    { id: 'beacon', label: 'Beacon' },
+    { id: 'duet', label: 'Duet' },
+    { id: 'tumble', label: 'Tumble' },
+  ]
+
+  return (
+    <div className="set-panel">
+      <div className="set-card">
+        <h3>Theme</h3>
+        <div className="theme-picker" role="radiogroup" aria-label="Colour theme">
+          {THEME_CHOICES.map((choice) => (
+            <button
+              key={choice.id}
+              type="button"
+              role="radio"
+              aria-checked={theme === choice.id}
+              className={`theme-swatch theme-swatch--${choice.id}${theme === choice.id ? ' is-on' : ''}`}
+              onClick={() => setTheme(choice.id)}
+            >
+              <span className="theme-chip" aria-hidden="true">
+                <i className="theme-chip-bg" />
+                <i className="theme-chip-fg" />
+                <i className="theme-chip-live" />
+              </span>
+              <span className="theme-swatch-text">
+                <span className="theme-swatch-label">{choice.label}</span>
+                <span className="theme-swatch-hint">{choice.hint}</span>
+              </span>
+              {theme === choice.id && <Icon name="check" size={14} />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-card">
+        <h3>Accent</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {ACCENT_PRESETS.map((a) => {
+            const isSelected = (accentColor || '#3b82f6').toLowerCase() === a.hex.toLowerCase()
+            return (
+              <button
+                key={a.id}
+                type="button"
+                className={`ob-accent-dot${isSelected ? ' is-active' : ''}`}
+                style={{ '--dot-color': a.hex }}
+                onClick={() => setAccentColor(a.hex)}
+                aria-label={a.label}
+              >
+                {isSelected && <Icon name="check" size={12} weight="bold" />}
+              </button>
+            )
+          })}
+          <span style={{ fontSize: '13px', color: 'var(--text-dim)', marginLeft: '4px' }}>
+            {ACCENT_PRESETS.find((a) => a.hex.toLowerCase() === (accentColor || '#3b82f6').toLowerCase())?.label || 'Blue'}
+          </span>
+        </div>
+      </div>
+
+      <div className="set-card">
+        <h3>Agent loader</h3>
+        <p className="set-note">Choose the thinking indicator animation in the chat stream.</p>
+        <div className="ob-loader-grid" style={{ marginTop: '12px' }}>
+          {AGENT_LOADERS.map((anim) => (
+            <button
+              key={anim.id}
+              type="button"
+              className={`ob-loader-card${agentLoader === anim.id ? ' is-active' : ''}`}
+              onClick={() => setAgentLoader(anim.id)}
+            >
+              <span className="ob-loader-icon">
+                <LoaderIcon type={anim.id} />
+              </span>
+              <span className="ob-loader-label">{anim.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-card">
+        <h3>Text size</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>A</span>
+          <input
+            type="range"
+            min={50}
+            max={200}
+            step={5}
+            value={textSize}
+            onChange={(e) => setTextSize(Number(e.target.value))}
+            style={{ flex: 1, height: '4px', accentColor: 'var(--accent)' }}
+          />
+          <span style={{ fontSize: '18px', color: 'var(--text-faint)' }}>A</span>
+        </div>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: `${textSize / 100 * 16}px`, color: 'var(--text-dim)', marginTop: '12px' }}>
+          The quick brown fox jumps over the lazy dog
+        </p>
+      </div>
+
+      <div className="set-card">
+        <h3>Density</h3>
+        <div className="ob-density-toggle" style={{ width: '100%', maxWidth: '300px' }}>
+          <button
+            type="button"
+            className={`ob-density-btn${density === 'comfortable' ? ' is-active' : ''}`}
+            onClick={() => setDensity('comfortable')}
+          >
+            Comfortable
+          </button>
+          <button
+            type="button"
+            className={`ob-density-btn${density === 'compact' ? ' is-active' : ''}`}
+            onClick={() => setDensity('compact')}
+          >
+            Compact
+          </button>
+        </div>
+      </div>
+
+      <div className="set-card">
+        <h3>Onboarding wizard</h3>
+        <p className="set-note">Re-launch the setup wizard to walk through appearance, loader, and chat defaults.</p>
+        <button
+          type="button"
+          className="btn btn--outline"
+          onClick={() => openOnboarding()}
+          style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Icon name="spark" size={14} /> Launch setup wizard
+        </button>
+      </div>
     </div>
   )
 }
@@ -1089,60 +1174,6 @@ function Permissions() {
             </div>
           ))}
         </div>
-
-                <div className="set-row" style={{ marginTop: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: 500 }}>Custom Accent Color</span>
-            <span style={{ fontSize: '13px', color: 'var(--text-faint)', marginTop: '2px', maxWidth: '300px' }}>
-              Pick a hex color from the palette to override the default buttons and highlights.
-            </span>
-            <div style={{ marginTop: '16px' }}>
-              <HexColorPicker 
-                color={(colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')).startsWith('#') ? (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')) : '#' + (colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5'))} 
-                onChange={setColorDraft} 
-                style={{ width: '200px', height: '150px' }}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start', minWidth: '150px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>HEX</span>
-              <input
-                type="text"
-                value={colorDraft || accentColor || (theme === 'dark' ? '#855bfb' : '#7132f5')}
-                onChange={(e) => {
-                  let val = e.target.value;
-                  if (val && !val.startsWith('#')) val = '#' + val;
-                  setColorDraft(val);
-                }}
-                style={{ width: '90px', padding: '6px 8px', fontSize: '13px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--hairline)', background: 'var(--surface)', color: 'var(--text)' }}
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-              {(accentColor || colorDraft) && (
-                <button 
-                  type="button" 
-                  className="btn btn--outline" 
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                  onClick={() => { setColorDraft(null); setAccentColor(''); }}
-                >
-                  Reset
-                </button>
-              )}
-              {colorDraft !== null && colorDraft !== accentColor && (
-                <button 
-                  type="button" 
-                  className="btn btn--primary" 
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                  onClick={() => { setAccentColor(colorDraft); setColorDraft(null); }}
-                >
-                  Save Color
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
   )
@@ -1235,6 +1266,7 @@ function Data() {
 
 const PANELS = {
   general: General,
+  appearance: Appearance,
   models: Models,
   brand: BrandKit,
   permissions: Permissions,
@@ -1271,30 +1303,45 @@ export default function Settings() {
     <div className="modal-overlay" onMouseDown={onOverlayMouseDown(close)}>
       <div className="settings" ref={panelRef} role="dialog" aria-modal="true" aria-label="Settings">
         <nav className="set-nav">
-          {SECTIONS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`set-nav-item${section === item.id ? ' active' : ''}`}
-              onClick={() => setSection(item.id)}
-            >
-              <Icon name={item.icon} size={15} />
-              <span className="set-nav-label">{item.label}</span>
-            </button>
+          {/* Group sections by their group property */}
+          {Object.entries(
+            SECTIONS.reduce((acc, item) => {
+              const group = item.group || 'Other'
+              if (!acc[group]) acc[group] = []
+              acc[group].push(item)
+              return acc
+            }, {})
+          ).map(([group, items]) => (
+            <div key={group} className="set-nav-group">
+              <div className="set-nav-group-label">{group}</div>
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`set-nav-item${section === item.id ? ' active' : ''}`}
+                  onClick={() => setSection(item.id)}
+                >
+                  <Icon name={item.icon} size={15} />
+                  <span className="set-nav-label">{item.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
-          <div className="set-nav-group">Pages</div>
-          {pages.map((page) => (
-            <button
-              key={page.id}
-              type="button"
-              className="set-nav-item set-nav-item--away"
-              onClick={() => { setView(page.id); setOverlay(null) }}
-            >
-              <Icon name={page.icon} size={15} />
-              <span className="set-nav-label">{page.label}</span>
-              <Icon name="chevron" size={12} className="set-nav-away" />
-            </button>
-          ))}
+          <div className="set-nav-group">
+            <div className="set-nav-group-label">Pages</div>
+            {pages.map((page) => (
+              <button
+                key={page.id}
+                type="button"
+                className="set-nav-item set-nav-item--away"
+                onClick={() => { setView(page.id); setOverlay(null) }}
+              >
+                <Icon name={page.icon} size={15} />
+                <span className="set-nav-label">{page.label}</span>
+                <Icon name="chevron" size={12} className="set-nav-away" />
+              </button>
+            ))}
+          </div>
           <div className="set-nav-foot">{version ? `AMETHYST · v${version}` : 'AMETHYST'}</div>
         </nav>
         <div className="set-content">

@@ -23,7 +23,7 @@ from backend.security.sandbox import (
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
 
 DEFAULT_TIMEOUT_S = 30
-MAX_TIMEOUT_S = 120
+MAX_TIMEOUT_S = 300
 MAX_OUTPUT_CHARS = 60_000
 
 

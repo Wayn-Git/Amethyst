@@ -31,6 +31,7 @@ from backend.agent.prompt import (
     budget_history,
     build_system_prompt,
     cap_tools,
+    compress_tool_schemas,
     dropped_summary,
     environment_block,
     estimate_tokens,
@@ -1120,6 +1121,11 @@ class Director:
                         state.warned_about_selection = True
                         log.info("tool selection offered %d tools, withheld %d",
                                  len(tool_schemas), withheld)
+                    # Always compress: full descriptions cost ~29K tokens across
+                    # 132 tools. Headline-only cuts to ~8-10K with minimal
+                    # quality loss -- the model calls tools by name, and a
+                    # one-line description is enough to pick the right one.
+                    tool_schemas = compress_tool_schemas(tool_schemas)
                 if not planning and executing and tool_schemas is not None:
                     # Only where there is a plan to be part-way through. Offering
                     # it on every chat turn would be a tool with nothing to
@@ -1347,6 +1353,13 @@ class Director:
                 # this is the point worth being able to recover to.
                 self._checkpoint(state, "reasoning", budget=budget)
                 yield Event("status", {"state": "planning" if planning else "thinking"})
+                # Set session affinity for provider-side prompt cache. Repeated
+                # turns to the same conversation hit the cached prefix instead
+                # of re-processing system+tools from scratch.
+                if hasattr(model.client, "session_id"):
+                    model.client.session_id = conversation_id
+                if hasattr(model.client, "_build_payload"):
+                    model.client._cache_system = True
                 try:
                     if (
                         self.stream
