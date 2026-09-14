@@ -1147,10 +1147,11 @@ export default function Chat() {
     const idx = levels.indexOf(current)
     const next = levels[(idx + 1) % levels.length]
     setEffort(next)
-    if (activeId && modelId) {
-      api.setVariant(modelId, next).catch(() => {})
+    const mid = active?.model || ''
+    if (activeId && mid) {
+      api.setVariant(mid, next).catch(() => {})
     }
-  }, [variantInfo, effort, activeId, modelId])
+  }, [variantInfo, effort, activeId, active?.model])
 
   const pushAssistant = useCallback(() => {
     const { buffer, reasoning, reasoningStart } = liveRef.current
