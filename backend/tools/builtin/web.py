@@ -6,15 +6,15 @@ way to look something up unless the user had switched one on, which made
 two tools are read-only and touch nothing on the machine, so they carry the
 same low risk as reading an indexed document.
 
-Search goes through DuckDuckGo's HTML endpoint, which needs no API key. That is
-a deliberate trade: no key to configure, at the cost of a result page whose
-markup is not a contract. When parsing finds nothing, the tool says so plainly
-rather than returning an empty list that reads like "no results".
+Search routes through the optimized search service (multi-engine racing with
+Tavily/Brave/Serper/Bing/DDG + caching) when available, falling back to
+DuckDuckGo HTML scraping when the service is unreachable.
 """
 
 from __future__ import annotations
 
 import html
+import logging
 import re
 from typing import Any
 from urllib.parse import parse_qs, quote_plus, urlparse
@@ -24,6 +24,8 @@ import httpx
 from backend.mcp.ssrf import UnsafeURL
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
 from backend.web.reader import USER_AGENT, FetchError, fetch_readable
+
+log = logging.getLogger(__name__)
 
 SEARCH_URL = "https://html.duckduckgo.com/html/?q={query}"
 
@@ -125,28 +127,60 @@ async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
         return ToolResult.error("search_web needs a query")
     limit = max(1, min(int(args.get("limit") or 6), 15))
 
-    # Try DuckDuckGo first; it needs no key and usually works.
-    hits = await _search_duckduckgo(query, limit)
+    # Route through the optimized search service when available — it races
+    # Tavily/Brave/Serper/Bing/DDG in parallel with a 2.5s budget, caches
+    # results, and handles rate limiting gracefully.
+    hits = await _search_via_service(query, limit)
 
-    # Fall back to SearXNG when DDG is rate-limiting (returns 202, 429, etc.).
+    # Fall back to the no-key scrapers when the service is unreachable.
+    if not hits:
+        hits = await _search_duckduckgo(query, limit)
     if not hits:
         hits = await _search_searxng(query, limit)
 
     if not hits:
         return ToolResult.ok(
-            f"No results came back for {query!r}. Both DuckDuckGo and SearXNG are"
+            f"No results came back for {query!r}. All search engines are"
             " unavailable or returned nothing. Try fetch_url on a specific address."
         )
     return ToolResult.ok("\n\n".join(hits))
+
+
+async def _search_via_service(query: str, limit: int) -> list[str] | None:
+    """Try the optimized search service. Returns None on any failure."""
+    try:
+        from backend.web.search_service import search_web as optimized_search
+
+        results = await optimized_search(query, limit=limit)
+        if not results:
+            return None
+        hits = []
+        for r in results:
+            title = (r.get("title") or "").strip()
+            url = (r.get("url") or "").strip()
+            snippet = (r.get("snippet") or "").strip()
+            if not title or not url:
+                continue
+            hits.append(f"{title}\n{url}" + (f"\n{snippet}" if snippet else ""))
+        return hits if hits else None
+    except Exception as exc:
+        log.debug("search service unavailable, falling back to DDG: %s", exc)
+        return None
 
 
 async def fetch_url(args: dict[str, Any], _: ToolContext) -> ToolResult:
     url = (args.get("url") or "").strip()
     if not url:
         return ToolResult.error("fetch_url needs a url")
+
+    # Try Firecrawl first when the MCP connector is connected — it produces
+    # cleaner markdown than raw HTML stripping.
+    firecrawl_result = await _fetch_via_firecrawl(url)
+    if firecrawl_result is not None:
+        return firecrawl_result
+
+    # Fall back to the built-in reader with SSRF checking at every redirect hop.
     try:
-        # The same guard the MCP transports use, applied at every redirect hop
-        # rather than only to the address the model handed over.
         page = await fetch_readable(url)
     except UnsafeURL as exc:
         return ToolResult.error(str(exc))
@@ -156,6 +190,27 @@ async def fetch_url(args: dict[str, Any], _: ToolContext) -> ToolResult:
     if page.note:
         return ToolResult.ok(f"{page.text}\n\n[{page.note}]" if page.text else f"[{page.note}]")
     return ToolResult.ok(page.text)
+
+
+async def _fetch_via_firecrawl(url: str) -> ToolResult | None:
+    """Try Firecrawl MCP scrape for cleaner markdown. Returns None if unavailable."""
+    try:
+        from backend.mcp.live import connection
+
+        conn = connection("firecrawl")
+        if conn is None:
+            return None
+
+        result = await conn.call("scrape", {"url": url})
+        # Firecrawl returns a dict with 'markdown' or 'content' key
+        if isinstance(result, dict):
+            markdown = result.get("markdown") or result.get("content") or ""
+            if markdown:
+                return ToolResult.ok(markdown)
+        return None
+    except Exception as exc:
+        log.debug("firecrawl scrape failed for %s: %s", url, exc)
+        return None
 
 
 def tools() -> list[Tool]:

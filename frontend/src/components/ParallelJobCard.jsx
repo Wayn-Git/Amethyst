@@ -33,7 +33,6 @@ class ParallelJobErrorBoundary extends Component {
 function ParallelJobCard({ call, running }) {
   const [open, setOpen] = useState(false)
   const [animatedNodes, setAnimatedNodes] = useState([])
-  const canvasRef = useRef(null)
 
   const safeParse = (value, fallback = {}) => {
     if (value === null || value === undefined) return fallback
@@ -65,55 +64,6 @@ function ParallelJobCard({ call, running }) {
     }
   }, [running, nodes.length])
 
-  // Canvas particle animation - subtle purple particles
-  useEffect(() => {
-    if (!running || !canvasRef.current) return
-
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    const particles = []
-    let animationId
-
-    const createParticle = () => ({
-      x: Math.random() * canvas.width,
-      y: canvas.height + 5,
-      vx: (Math.random() - 0.5) * 1.5,
-      vy: -Math.random() * 2 - 0.5,
-      size: Math.random() * 2 + 0.5,
-      life: 1,
-    })
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      if (Math.random() > 0.6) {
-        particles.push(createParticle())
-      }
-
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i]
-        p.x += p.vx
-        p.y += p.vy
-        p.life -= 0.015
-
-        if (p.life <= 0) {
-          particles.splice(i, 1)
-          continue
-        }
-
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(113, 50, 245, ${p.life * 0.3})`
-        ctx.fill()
-      }
-
-      animationId = requestAnimationFrame(animate)
-    }
-
-    animate()
-    return () => cancelAnimationFrame(animationId)
-  }, [running])
-
   const completedCount = nodes.filter(n => n.status === 'ok').length
   const failedCount = nodes.filter(n => n.status === 'failed').length
   const isAllDone = !running && nodes.length > 0
@@ -121,8 +71,6 @@ function ParallelJobCard({ call, running }) {
 
   return (
     <div className={`parallel-job-card${running ? ' is-running' : ''}${isAllDone ? ' is-done' : ''}`}>
-      {running && <canvas ref={canvasRef} className="parallel-particles" width={300} height={40} />}
-
       <button type="button" className="tool-card-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
         <div className="parallel-icon-wrapper">
           <Icon name="term" size={14} />
@@ -187,6 +135,20 @@ function ParallelJobCard({ call, running }) {
                     <span className="parallel-summary-value">{result.summary.total_seconds?.toFixed(1) || '0.0'}s</span>
                     <span className="parallel-summary-label">time</span>
                   </div>
+                </div>
+              </>
+            )}
+
+            {failedCount > 0 && (
+              <>
+                <span className="tool-block-label">errors</span>
+                <div className="parallel-errors">
+                  {nodes.filter(n => n.status === 'failed').map((node, i) => (
+                    <div key={node.id || i} className="parallel-error">
+                      <span className="parallel-error-id">{node.id}</span>
+                      <span className="parallel-error-msg">{node.error || 'Unknown error'}</span>
+                    </div>
+                  ))}
                 </div>
               </>
             )}

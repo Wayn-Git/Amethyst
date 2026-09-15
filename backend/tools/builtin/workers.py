@@ -289,6 +289,9 @@ def tools() -> list[Tool]:
                 f" result. Available tasks: {tasks}."
                 " Common aliases are auto-corrected: fetch_url→urls, search→web_search,"
                 " git→git_status, system→system_info, mail→gmail, calendar→briefing."
+                " IMPORTANT: Task names (like web_search, urls) are NOT standalone tools."
+                " They only work inside dispatch_parallel_jobs. For single web searches,"
+                " use the search_web tool directly."
             ),
             parameters={
                 "type": "object",
@@ -307,7 +310,12 @@ def tools() -> list[Tool]:
                                 },
                                 "task": {
                                     "type": "string",
-                                    "description": f"Which collector to run. One of: {tasks}. Aliases: fetch_url→urls, search→web_search, git→git_status, system→system_info, mail→gmail.",
+                                    "description": (
+                                        f"Which collector to run. One of: {tasks}."
+                                        " Aliases: fetch_url→urls, search→web_search,"
+                                        " git→git_status, system→system_info, mail→gmail."
+                                        " These are task names, NOT standalone tools."
+                                    ),
                                 },
                                 "params": {
                                     "type": "object",

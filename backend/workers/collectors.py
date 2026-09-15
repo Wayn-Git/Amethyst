@@ -516,27 +516,24 @@ register(
 
 
 async def _web_search(params: dict[str, Any]) -> dict[str, Any]:
-    """Search the web using a search engine API or fallback to scraping."""
+    """Search the web via the optimized multi-engine search service."""
+    import logging
+
     query = params.get("query") or ""
     if not query:
         raise NotConfigured("no query provided")
-    
+
     max_results = int(params.get("max_results") or 5)
-    
-    # Try to use the builtin search_web tool if available
-    try:
-        from backend.tools.builtin.web import search_web
-        results = await search_web({"query": query, "limit": max_results}, None)
-        return {"query": query, "results": results.content if hasattr(results, 'content') else results}
-    except Exception:
-        pass
-    
-    # Fallback: return a placeholder that the model can use
-    return {
-        "query": query,
-        "results": [],
-        "note": f"Web search for '{query}' requires backend.web.search module. Use fetch_url with a search engine URL instead."
-    }
+
+    # Route through the optimized search service — races Tavily/Brave/Serper/Bing/DDG
+    # with a 2.5s budget, caches results, handles rate limiting.
+    from backend.web.search_service import search_web as optimized_search
+
+    results = await optimized_search(query, limit=max_results)
+    if not results:
+        # Return empty results without error — a legitimate "no results" case
+        return {"query": query, "results": []}
+    return {"query": query, "results": results}
 
 
 register(
@@ -555,7 +552,6 @@ async def _file_info(params: dict[str, Any]) -> dict[str, Any]:
     if isinstance(paths, str):
         paths = [paths]
     
-    import os
     from pathlib import Path
     
     results = []
@@ -701,3 +697,71 @@ for _name, _why in (
             description=f"Declared, not yet implemented ({_name}).",
         )
     )
+
+
+# ----------------------------------------------------------- subagent runner
+
+
+async def _subagent(params: dict[str, Any]) -> dict[str, Any]:
+    """Run a subagent as a batch node for background execution.
+
+    This collector wraps the SubagentRunner so that subagents can be executed
+    as part of the batch job system, with idempotency, retry, and cancellation.
+    """
+    from backend.agent.agents import get_agent
+    from backend.agent.runner import SubagentRunner
+
+    session_id = params.get("session_id")
+    agent_type_name = params.get("agent_type", "general")
+    prompt = params.get("prompt", "")
+    permissions = params.get("permissions", {})
+    conversation_id = params.get("conversation_id")
+
+    if not session_id:
+        raise NotConfigured("subagent collector requires 'session_id'")
+    if not prompt:
+        raise NotConfigured("subagent collector requires 'prompt'")
+
+    agent_type = get_agent(agent_type_name)
+    if agent_type is None:
+        raise NotConfigured(f"unknown agent type: {agent_type_name}")
+
+    runner = SubagentRunner()
+    result_parts: list[str] = []
+    events: list[dict[str, Any]] = []
+
+    async for event in runner.run(
+        session_id=session_id,
+        agent_type=agent_type,
+        prompt=prompt,
+        permissions=permissions,
+        conversation_id=conversation_id,
+    ):
+        events.append(event)
+        if event["type"] == "delta":
+            result_parts.append(event.get("text", ""))
+        elif event["type"] == "error":
+            return {
+                "result": "".join(result_parts),
+                "error": event.get("message", "Unknown error"),
+                "events": events,
+            }
+
+    return {
+        "result": "".join(result_parts),
+        "events": events,
+    }
+
+
+register(
+    Collector(
+        name="subagent",
+        run=_subagent,
+        description=(
+            "Run a subagent instance for autonomous task execution. "
+            "Requires session_id, agent_type, prompt, and optional permissions."
+        ),
+        local_only=True,
+        may_reason=True,
+    )
+)

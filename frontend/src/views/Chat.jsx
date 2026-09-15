@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import BrandMark from '../components/BrandMark.jsx'
 import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
@@ -14,13 +13,16 @@ import ModelMenu from '../components/ModelMenu.jsx'
 import EffortMenu from '../components/EffortMenu.jsx'
 import ContextPopover from '../components/ContextPopover.jsx'
 import GuardMenu from '../components/GuardMenu.jsx'
-import { LoaderIcon } from '../components/OnboardingWizard.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
+import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
+import AiProviderIcon from '../components/AiProviderIcon.jsx'
+import { BackgroundPattern } from '../components/shared-assets/background-patterns/index.tsx'
+import TerminalDrawer from '../components/TerminalDrawer.jsx'
 import { MOD_LABEL } from '../keys.js'
 
 /* The composer is the interface. Everything else — which skills are live, which
@@ -56,14 +58,40 @@ function markPlan(items, update) {
   return items
 }
 
-/* Three things this machine can actually answer, one per kind of reach it has:
-   the calendar, the vault, the filesystem. Each carries the icon of the thing
-   it touches, so the row reads as a demonstration of range rather than three
-   sentences someone has to parse to find that out. */
-const OPENERS = [
-  { icon: 'clock', text: 'What am I meant to be doing tomorrow?' },
-  { icon: 'search', text: 'Find where I wrote about the deploy error' },
-  { icon: 'folder', text: 'Summarise what changed in this folder today' },
+
+const QUICK_STARTS = [
+  {
+    id: 'todo',
+    icon: 'user',
+    accent: 'purple',
+    title: 'Write a to-do list',
+    subtitle: 'for a personal project or task',
+    prompt: 'Write a detailed and structured to-do list for a personal project with priority levels and next action steps.',
+  },
+  {
+    id: 'email',
+    icon: 'mail',
+    accent: 'amber',
+    title: 'Generate an email',
+    subtitle: 'to reply to a job offer',
+    prompt: 'Generate a polished, professional email replying to a job offer, expressing enthusiasm and asking thoughtful questions about the team and timeline.',
+  },
+  {
+    id: 'summarize',
+    icon: 'chat',
+    accent: 'teal',
+    title: 'Summarize this article',
+    subtitle: 'or text for me in one paragraph',
+    prompt: 'Summarize the following topic or article in one concise, impactful paragraph covering the core insights.',
+  },
+  {
+    id: 'technical',
+    icon: 'code',
+    accent: 'blue',
+    title: 'How does AI work',
+    subtitle: 'in a technical capacity',
+    prompt: 'Explain how modern AI and large language models work in a technical capacity, explaining tokens, transformers, weights, and inference.',
+  },
 ]
 
 let idSeq = 0
@@ -846,6 +874,8 @@ export default function Chat() {
     panelExpanded, setPanelExpanded, togglePanelExpanded,
     pendingPrompt, setPendingPrompt,
     defaultGuard, defaultEffort, agentLoader,
+    userProfile,
+    terminalOpen, toggleTerminal,
   } = useApp()
 
   const [items, setItems] = useState([])
@@ -860,6 +890,16 @@ export default function Chat() {
   const [pending, setPending] = useState([])
   const [elsewhere, setElsewhere] = useState([])
   const [input, setInput] = useState('')
+  const [activeTag, setActiveTag] = useState(null)
+  const [uploadingCount, setUploadingCount] = useState(0)
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours()
+    const timeOfDay = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+    const name = userProfile?.name
+    return name ? `${timeOfDay}, ${name}` : timeOfDay
+  }, [userProfile?.name])
+
   // A question handed in from the palette or the tray hotkey, waiting for the
   // composer to hold it. See `ask` below for why it cannot just call `send`.
   const [pendingAsk, setPendingAsk] = useState(null)
@@ -1070,7 +1110,9 @@ export default function Chat() {
   // off the stream, which is exactly the test for "does this need reading".
   useEffect(() => {
     const row = artifacts.find((a) => a.id === activeArtifact)
-    if (!row || row.text !== undefined) return undefined
+    // Fetch if text is undefined (from list) or empty string (from artifact_open
+    // before deltas arrived). Skip only if content is already loaded.
+    if (!row || (row.text !== undefined && row.text !== '')) return undefined
     let live = true
     api.artifact(row.id)
       .then((full) => {
@@ -1526,12 +1568,15 @@ export default function Chat() {
   // A browser cannot hand the agent a path, so the file is uploaded and the
   // message carries where it landed -- which the ordinary file tools can read.
   const uploadFiles = useCallback(async (files) => {
+    setUploadingCount((c) => c + files.length)
     for (const file of files) {
       try {
         const stored = await api.upload(file)
         setAttachments((list) => [...list, stored])
       } catch (err) {
         toast(`${file.name}: ${err.message}`, 'bad')
+      } finally {
+        setUploadingCount((c) => Math.max(0, c - 1))
       }
     }
   }, [toast])
@@ -1622,7 +1667,10 @@ export default function Chat() {
 
   const send = useCallback(async (overrideText, overrideFiles) => {
     const raw = overrideText !== undefined ? overrideText : input
-    const typed = (raw || '').trim()
+    let typed = (raw || '').trim()
+    if (activeTag && activeTag.name && !typed.toLowerCase().includes(`@${activeTag.name.toLowerCase()}`)) {
+      typed = `@${activeTag.name} ${typed}`.trim()
+    }
     const sending = overrideFiles !== undefined ? overrideFiles : attachments
     if ((!typed && sending.length === 0) || turnState !== 'idle') return
     // A new turn: whatever the last one wrote is no longer new.
@@ -1668,6 +1716,7 @@ export default function Chat() {
     if (!message.trim()) return
     if (overrideText === undefined) {
       setInput('')
+      setActiveTag(null)
       setAttachments([])
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
     }
@@ -1694,7 +1743,7 @@ export default function Chat() {
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled,
+    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag,
   ])
 
   // Queue context/messages while a turn is actively executing (matches Queue ↵ in screenshot)
@@ -1923,7 +1972,16 @@ export default function Chat() {
 
   // Opening a document from the conversation: show the panel, and select the
   // one the card names if it is still on screen.
-  const openArtifacts = useCallback(() => setPanel(true), [setPanel])
+  const openArtifacts = useCallback((path) => {
+    setPanel(true)
+    if (path) {
+      setArtifacts((prev) => {
+        const match = prev.find((a) => a.path === path)
+        if (match) setActiveArtifact(match.id)
+        return prev
+      })
+    }
+  }, [setPanel])
 
   const rendered = useMemo(() => buildRendered(items), [items])
 
@@ -2200,41 +2258,34 @@ export default function Chat() {
         </div>
       )}
 
-      {/* Capsule Composer (Screenshots 1 & 2) */}
-      <div className="composer-capsule">
-        {attachments.length > 0 && (
-          <div className="composer-files">
-            {attachments.map((file) => (
-              <span className="file-chip" key={file.path}>
-                <Icon name="paperclip" size={12} />
-                {file.name}
-                <span className="file-chip-size">{Math.max(1, Math.round(file.bytes / 1024))}kB</span>
-                <button
-                  type="button"
-                  onClick={() => setAttachments((list) => list.filter((f) => f.path !== file.path))}
-                  aria-label={`Remove ${file.name}`}
-                >
-                  <Icon name="x" size={11} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+      {/* Clean Composer Card (Image 1 & 2) */}
+      <div className={`composer-card${isEmpty ? ' composer-card--hero' : ''}`}>
+        <DocumentCardsTray
+          attachments={attachments}
+          uploadingCount={uploadingCount}
+          onRemove={(file) => setAttachments((list) => list.filter((f) => f.path !== file.path))}
+        />
 
-        {/* Circular + button by default, or capsule pill when attachments exist */}
-        <button
-          type="button"
-          className={`composer-plus-circle${attachments.length > 0 ? ' has-count' : ''}${plusOpen ? ' active' : ''}`}
-          onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
-          title={`Files, skills, connectors, memory — ${MOD_LABEL}+/`}
-          aria-label="Add context or actions"
-        >
-          <Icon name="plus" size={13} />
-          {attachments.length > 0 && <span className="composer-plus-count">{attachments.length}</span>}
-        </button>
-
-        {/* Input Textarea */}
-        <div className="composer-input-area">
+        {/* Top Input Row */}
+        <div className="composer-card-input-wrap">
+          {activeTag && (
+            <span className="composer-active-tag">
+              {activeTag.type === 'connector' ? (
+                <ServiceIcon name={activeTag.name} size={12} />
+              ) : (
+                <Icon name="spark" size={12} />
+              )}
+              <span className="composer-active-tag-label">{activeTag.label}</span>
+              <button
+                type="button"
+                className="composer-active-tag-remove"
+                onClick={() => setActiveTag(null)}
+                aria-label={`Remove ${activeTag.label}`}
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </span>
+          )}
           <SmoothTextarea
             textareaRef={textareaRef}
             rows={1}
@@ -2242,7 +2293,7 @@ export default function Chat() {
             placeholder={
               turnState === 'running'
                 ? 'Add context while this runs'
-                : (isEmpty ? 'Ask amethyst anything...' : 'Ask for follow-up changes')
+                : (isEmpty ? 'How can I help you today?' : 'Ask for follow-up changes')
             }
             aria-label="Message"
             onChange={(e) => {
@@ -2289,199 +2340,244 @@ export default function Chat() {
           />
         </div>
 
-        {/* Right side action buttons inside capsule */}
-        <div className="composer-capsule-actions">
-          {turnState === 'running' ? (
-            <>
-              <button
-                type="button"
-                className="composer-stop-circle"
-                onClick={stop}
-                disabled={stopping}
-                title="Stop turn — Esc"
-                aria-label="Stop"
-              >
-                <span className="composer-stop-square" />
-              </button>
-              <button
-                type="button"
-                className="composer-queue-btn"
-                onClick={handleQueue}
-                title="Queue message to run after current turn — Enter"
-                aria-label="Queue"
-              >
-                <span>Queue</span>
-                <span className="composer-queue-symbol">↵</span>
-              </button>
-            </>
-          ) : (
+        {/* Bottom Tools & Actions Row (Matching Image 1) */}
+        <div className="composer-card-bottom-bar">
+          <div className="composer-card-tools-left">
             <button
               type="button"
-              className="composer-send-circle"
-              onClick={() => send()}
-              disabled={!input.trim() && attachments.length === 0}
-              title="Send — Enter"
-              aria-label="Send"
+              className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+              title={`Files, skills, connectors — ${MOD_LABEL}+/`}
+              aria-label="Add attachments or context"
             >
-              <Icon name="arrow-up" size={14} />
+              <Icon name="plus" size={16} />
+              {attachments.length > 0 && <span className="composer-tool-count">{attachments.length}</span>}
             </button>
-          )}
+
+            <button
+              type="button"
+              className="composer-tool-btn"
+              onClick={() => fileRef.current?.click()}
+              title="Attach documents or data"
+              aria-label="Attach documents"
+            >
+              <Icon name="paperclip" size={16} />
+            </button>
+
+            <button
+              type="button"
+              className="composer-tool-btn"
+              onClick={() => {
+                setInput((prev) => (prev ? `${prev} /search ` : '/search '))
+                textareaRef.current?.focus()
+              }}
+              title="Web search & live internet research"
+              aria-label="Web search"
+            >
+              <Icon name="globe" size={16} />
+            </button>
+
+            <button
+              type="button"
+              className={`composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
+              onClick={toggleTerminal}
+              title="Interactive Terminal"
+              aria-label="Toggle terminal"
+            >
+              <Icon name="term" size={16} />
+            </button>
+          </div>
+
+          <div className="composer-card-tools-right">
+            {/* Model selector pill (Image 4) with real model/provider logo */}
+            <div className="composer-model-pill-wrap">
+              <button
+                type="button"
+                className="composer-model-pill"
+                onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+                title="Provider and model"
+              >
+                <AiProviderIcon
+                  provider={active?.provider ?? draftProvider}
+                  model={active?.model ?? draftModel}
+                  size={14}
+                  className="composer-model-provider-icon"
+                />
+                <span className="composer-model-name">{shownModel}</span>
+                <Icon name="chevron" size={9} className="composer-model-chevron" />
+              </button>
+              {modelOpen && (
+                <ModelMenu
+                  placement={isEmpty ? 'down' : 'up'}
+                  provider={active?.provider ?? draftProvider}
+                  model={active?.model ?? draftModel}
+                  scoped={Boolean(activeId)}
+                  onChange={applyModel}
+                  onClose={() => setModelOpen(false)}
+                />
+              )}
+            </div>
+
+            {/* Send / Stop button */}
+            {turnState === 'running' ? (
+              <>
+                <button
+                  type="button"
+                  className="composer-send-circle is-stop"
+                  onClick={stop}
+                  disabled={stopping}
+                  title="Stop turn — Esc"
+                  aria-label="Stop"
+                >
+                  <span className="composer-stop-square" />
+                </button>
+                <button
+                  type="button"
+                  className="composer-queue-btn"
+                  onClick={handleQueue}
+                  title="Queue message to run after current turn — Enter"
+                  aria-label="Queue"
+                >
+                  <span>Queue</span>
+                  <span className="composer-queue-symbol">↵</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="composer-send-circle"
+                onClick={() => send()}
+                disabled={!input.trim() && attachments.length === 0}
+                title="Send — Enter"
+                aria-label="Send"
+              >
+                <Icon name="arrow-up" size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Bottom Controls Bar (Screenshots 1, 2, 3) */}
-      <div className="composer-footer-bar">
-        {/* Left Cluster */}
-        <div className="composer-footer-left">
-          {/* Workspace chip */}
-          <button
-            type="button"
-            className="composer-footer-chip composer-footer-chip--workspace"
-            onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen(true); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setContextOpen(false) }}
-            title="Workspace folder"
-          >
-            <Icon name="folder" size={13} />
-            <span>{workspace ? (workspace.charAt(0).toUpperCase() + workspace.slice(1)) : 'Amethyst'}</span>
-          </button>
-
-          {/* Guard mode chip */}
-          <div className="composer-footer-chip-wrap">
+      {/* Bottom Controls Bar (Only in active conversations) */}
+      {!isEmpty && (
+        <div className="composer-footer-bar">
+          {/* Left Cluster */}
+          <div className="composer-footer-left">
+            {/* Workspace chip */}
             <button
               type="button"
-              className={`composer-footer-chip composer-footer-chip--guard${guard === 'full-access' || guard === 'full' ? ' is-full-access' : ''}${guardOpen ? ' is-active' : ''}`}
-              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setGuardOpen((o) => !o); setEffortOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) }}
-              title="Guard mode"
+              className="composer-footer-chip composer-footer-chip--workspace"
+              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen(true); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setContextOpen(false) }}
+              title="Workspace folder"
             >
-              <Icon name={guard === 'full-access' || guard === 'full' ? 'shield-check' : 'shield'} size={13} className="guard-status-icon" />
-              <span>{guard === 'guard' ? 'Guard' : guardLabel}</span>
-              <Icon name="chevron" size={10} className="composer-footer-chevron" />
+              <Icon name="folder" size={13} />
+              <span>{workspace ? (workspace.charAt(0).toUpperCase() + workspace.slice(1)) : 'Amethyst'}</span>
             </button>
-            {guardOpen && (
-              <GuardMenu
-                guard={guard}
-                onChange={setGuard}
-                onClose={() => setGuardOpen(false)}
-                placement={isEmpty ? 'down' : 'up'}
-              />
-            )}
-          </div>
 
-          {/* Reasoning effort chip */}
-          <div className="composer-footer-chip-wrap">
-            <button
-              type="button"
-              className={`composer-footer-chip composer-footer-chip--effort${effortOpen ? ' is-active' : ''}`}
-              style={{ opacity: (modelCaps && modelCaps.supports_effort === false) ? 0.5 : 1, cursor: (modelCaps && modelCaps.supports_effort === false) ? 'not-allowed' : 'pointer' }}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                if (modelCaps && modelCaps.supports_effort === false) return;
-              }}
-              onClick={(e) => {
-                if (modelCaps && modelCaps.supports_effort === false) {
-                  e.preventDefault();
-                  return;
-                }
-                setEffortOpen((o) => !o); setGuardOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) 
-              }}
-              title={(modelCaps && modelCaps.supports_effort === false) ? "This model does not support reasoning effort" : "Reasoning effort (mod+shift+m to cycle)"}
-            >
-              <Icon name="lightning" size={13} className="effort-lightning-icon" />
-              <span>{(modelCaps && modelCaps.supports_effort === false) ? "None" : effortLabel}</span>
-              {(!modelCaps || modelCaps.supports_effort !== false) && <Icon name="chevron" size={10} className="composer-footer-chevron" />}
-            </button>
-            {effortOpen && (!modelCaps || modelCaps.supports_effort !== false) && (
-              <EffortMenu
-                effort={effort}
-                levels={variantInfo?.supported || modelCaps?.effort_levels}
-                onChange={(e) => {
-                  setEffort(e)
-                  // Persist per-model preference
-                  const modelId = draftModel || ''
-                  if (modelId) api.setVariant(modelId, e).catch(() => {})
+            {/* Guard mode chip */}
+            <div className="composer-footer-chip-wrap">
+              <button
+                type="button"
+                className={`composer-footer-chip composer-footer-chip--guard${guard === 'full-access' || guard === 'full' ? ' is-full-access' : ''}${guardOpen ? ' is-active' : ''}`}
+                onPointerDown={(e) => e.stopPropagation()} onClick={() => { setGuardOpen((o) => !o); setEffortOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) }}
+                title="Guard mode"
+              >
+                <Icon name={guard === 'full-access' || guard === 'full' ? 'shield-check' : 'shield'} size={13} className="guard-status-icon" />
+                <span>{guard === 'guard' ? 'Guard' : guardLabel}</span>
+                <Icon name="chevron" size={10} className="composer-footer-chevron" />
+              </button>
+              {guardOpen && (
+                <GuardMenu
+                  guard={guard}
+                  onChange={setGuard}
+                  onClose={() => setGuardOpen(false)}
+                  placement="up"
+                />
+              )}
+            </div>
+
+            {/* Reasoning effort chip */}
+            <div className="composer-footer-chip-wrap">
+              <button
+                type="button"
+                className={`composer-footer-chip composer-footer-chip--effort${effortOpen ? ' is-active' : ''}`}
+                style={{ opacity: (modelCaps && modelCaps.supports_effort === false) ? 0.5 : 1, cursor: (modelCaps && modelCaps.supports_effort === false) ? 'not-allowed' : 'pointer' }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  if (modelCaps && modelCaps.supports_effort === false) return;
                 }}
-                onClose={() => setEffortOpen(false)}
-                placement={isEmpty ? 'down' : 'up'}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Right Cluster */}
-        <div className="composer-footer-right">
-          {/* Context ring meter */}
-          <div className="composer-footer-chip-wrap">
-            <button
-              type="button"
-              className={`composer-footer-context${contextOpen ? ' is-active' : ''}`}
-              title={`Context memory usage: ${contextPct}%`}
-              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setContextOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setPlusOpen(false) }}
-            >
-              <svg className="context-donut-svg" width="13" height="13" viewBox="0 0 36 36">
-                <path
-                  className="context-donut-track"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
+                onClick={(e) => {
+                  if (modelCaps && modelCaps.supports_effort === false) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setEffortOpen((o) => !o); setGuardOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) 
+                }}
+                title={(modelCaps && modelCaps.supports_effort === false) ? "This model does not support reasoning effort" : "Reasoning effort (mod+shift+m to cycle)"}
+              >
+                <Icon name="lightning" size={13} className="effort-lightning-icon" />
+                <span>{(modelCaps && modelCaps.supports_effort === false) ? "None" : effortLabel}</span>
+                {(!modelCaps || modelCaps.supports_effort !== false) && <Icon name="chevron" size={10} className="composer-footer-chevron" />}
+              </button>
+              {effortOpen && (!modelCaps || modelCaps.supports_effort !== false) && (
+                <EffortMenu
+                  effort={effort}
+                  levels={variantInfo?.supported || modelCaps?.effort_levels}
+                  onChange={(e) => {
+                    setEffort(e)
+                    const modelId = draftModel || ''
+                    if (modelId) api.setVariant(modelId, e).catch(() => {})
+                  }}
+                  onClose={() => setEffortOpen(false)}
+                  placement="up"
                 />
-                <path
-                  className="context-donut-fill"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  strokeDasharray={`${Math.max(contextPct, 1)}, 100`}
-                  strokeLinecap="round"
+              )}
+            </div>
+          </div>
+
+          {/* Right Cluster */}
+          <div className="composer-footer-right">
+            {/* Context ring meter */}
+            <div className="composer-footer-chip-wrap">
+              <button
+                type="button"
+                className={`composer-footer-context${contextOpen ? ' is-active' : ''}`}
+                title={`Context memory usage: ${contextPct}%`}
+                onPointerDown={(e) => e.stopPropagation()} onClick={() => { setContextOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setPlusOpen(false) }}
+              >
+                <svg className="context-donut-svg" width="13" height="13" viewBox="0 0 36 36">
+                  <path
+                    className="context-donut-track"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="context-donut-fill"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeDasharray={`${Math.max(contextPct, 1)}, 100`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>Context {contextPct}%</span>
+              </button>
+              {contextOpen && (
+                <ContextPopover
+                  pct={contextPct}
+                  usedTokens={items.length * 150}
+                  maxTokens={128000}
+                  compactionTokens={90000}
+                  onClose={() => setContextOpen(false)}
+                  placement="up"
                 />
-              </svg>
-              <span>Context {contextPct}%</span>
-            </button>
-            {contextOpen && (
-              <ContextPopover
-                pct={contextPct}
-                usedTokens={items.length * 150} // Rough approx since true token count isn't exposed yet
-                maxTokens={128000}
-                compactionTokens={90000}
-                onClose={() => setContextOpen(false)}
-                placement={isEmpty ? 'down' : 'up'}
-              />
-            )}
+              )}
+            </div>
           </div>
-
-          {/* Model selector chip */}
-          <div className="composer-footer-chip-wrap">
-            <button
-              type="button"
-              className={`composer-footer-chip composer-footer-chip--model${modelOpen ? ' is-active' : ''}`}
-              onPointerDown={(e) => e.stopPropagation()} onClick={() => { setModelOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setPlusOpen(false); setContextOpen(false) }}
-              title="Provider and model"
-            >
-              <Icon name="globe" size={13} className="model-globe-icon" />
-              <span>{shownModel}</span>
-              <Icon name="chevron" size={10} className="composer-footer-chevron" />
-            </button>
-            {modelOpen && (
-              <ModelMenu
-                placement={isEmpty ? 'down' : 'up'}
-                provider={active?.provider ?? draftProvider}
-                model={active?.model ?? draftModel}
-                scoped={Boolean(activeId)}
-                onChange={applyModel}
-                onClose={() => setModelOpen(false)}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* The connector strip that used to sit here reported the same thing the
-          + menu does, in a row of coloured lamps under the field you type in.
-          Two readings of one fact, and the louder one was below the composer. */}
-
-      {isEmpty && (
-        <div className="composer-hint">
-          <span><kbd className="kbd">/</kbd> engages a skill</span>
-          <span><kbd className="kbd">{MOD_LABEL}</kbd><kbd className="kbd">K</kbd> for everything else</span>
         </div>
       )}
     </div>
@@ -2498,7 +2594,16 @@ export default function Chat() {
       />
 
       <div className="chat-main">
-        {elsewhere.length > 0 && (
+        {/* Soft Ambient Accent Glow (Home Page Background) */}
+        <div className={`home-accent-glow${isEmpty ? ' is-home' : ''}`} aria-hidden="true" />
+
+        {isEmpty && (
+          <div className="hero-pattern-wrap" aria-hidden="true">
+            <BackgroundPattern pattern="grid" size="lg" className="hero-pattern-svg" />
+          </div>
+        )}
+
+        {!isEmpty && elsewhere.length > 0 && (
           <div className="chat-banner msg-note msg-note--guard">
             <Icon name="key" size={14} />
             <span>
@@ -2518,7 +2623,7 @@ export default function Chat() {
           </div>
         )}
 
-        {connectorErrors.length > 0 && !dismissedBanners.has(errorSig) && (
+        {!isEmpty && connectorErrors.length > 0 && !dismissedBanners.has(errorSig) && (
           <div className="chat-banner msg-note msg-note--error">
             <Icon name="plug" size={14} />
             <span>
@@ -2545,9 +2650,7 @@ export default function Chat() {
           </div>
         )}
 
-        {/* Amber, not coral, and with the one action that fixes it. A connector
-            nobody has signed in to is a switch waiting to be flipped. */}
-        {awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig) && (
+        {!isEmpty && awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig) && (
           <div className="chat-banner msg-note msg-note--guard">
             <Icon name="key" size={14} />
             <span>
@@ -2578,26 +2681,55 @@ export default function Chat() {
 
         {isEmpty ? (
           <div className="hero-stack">
+            {/* Amethyst Crystal Logo (without background chip/orb) */}
+            <div className="hero-logo-wrap">
+              <svg
+                viewBox="524.5 524 560 560"
+                className="hero-logo-mark"
+                width="54"
+                height="54"
+                aria-label="Amethyst Logo"
+              >
+                <path fill="var(--accent, #873FFF)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z"/>
+                <path fill="var(--accent, #873FFF)" d="M1016 701L928 722L847 986L960 870L1039 846Z"/>
+                <path fill="var(--accent, #873FFF)" d="M595 701L570 845L651 870L763 985L682 722Z"/>
+              </svg>
+            </div>
+
+            {/* Dynamic Greeting & Subtitle (Image 4) */}
             <div className="hero">
-              <h1>What needs doing?</h1>
-              <p className="hero-sub">
-                One agent with the run of your files, shell, tasks and calendar.
+              <h1 className="hero-headline">{greeting}</h1>
+              <p className="hero-subheadline">
+                What's on <span className="hero-gradient-text">your mind?</span>
               </p>
             </div>
+
+            {/* Composer Card */}
             {composer}
-            <div className="hero-hints">
-              {OPENERS.map((o, i) => (
-                <button
-                  key={o.text}
-                  type="button"
-                  className="hero-hint"
-                  style={{ '--i': i }}
-                  onClick={() => { setInput(o.text); textareaRef.current?.focus() }}
-                >
-                  <Icon name={o.icon} size={14} />
-                  {o.text}
-                </button>
-              ))}
+
+            {/* Quick Start 4-Card Grid (Image 4) */}
+            <div className="hero-quick-start">
+              <div className="hero-cards-grid">
+                {QUICK_STARTS.map((card) => (
+                  <button
+                    key={card.id}
+                    type="button"
+                    className="hero-card"
+                    onClick={() => {
+                      setInput(card.prompt)
+                      textareaRef.current?.focus()
+                    }}
+                  >
+                    <div className="hero-card-body">
+                      <h3 className="hero-card-title">{card.title}</h3>
+                      <p className="hero-card-desc">{card.subtitle}</p>
+                    </div>
+                    <div className={`hero-card-icon hero-card-icon--${card.accent}`}>
+                      <Icon name={card.icon} size={15} />
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
@@ -2731,6 +2863,7 @@ export default function Chat() {
             {composer}
           </>
         )}
+        <TerminalDrawer />
       </div>
 
       {panel && !compact && view === 'chat' && (

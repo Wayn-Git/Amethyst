@@ -139,7 +139,13 @@ class ConversationRepository:
             "SELECT * FROM conversations WHERE id = ?", (conversation_id,)
         ).fetchone()
 
-    def list(self, limit: int = 50, *, include_automations: bool = False, archived: bool = False) -> list[sqlite3.Row]:
+    def list(
+        self,
+        limit: int = 50,
+        *,
+        include_automations: bool = False,
+        archived: bool = False,
+    ) -> list[sqlite3.Row]:
         """Conversations, newest first. Scheduled runs are excluded by default.
 
         They share this list's fixed limit, and a pair of automations on a
@@ -153,7 +159,8 @@ class ConversationRepository:
         arch_val = 1 if archived else 0
         if include_automations:
             return self.conn.execute(
-                "SELECT * FROM conversations WHERE archived = ? ORDER BY pinned DESC, updated_at DESC LIMIT ?",
+                "SELECT * FROM conversations WHERE archived = ?"
+                " ORDER BY pinned DESC, updated_at DESC LIMIT ?",
                 (arch_val, limit),
             ).fetchall()
         return self.conn.execute(
@@ -1271,4 +1278,124 @@ class CalendarRepository:
         return self.conn.execute(
             "SELECT * FROM calendar_events WHERE starts_at < ? AND ends_at > ? ORDER BY starts_at",
             (ends_at, starts_at),
+        ).fetchall()
+
+
+class SubagentSessionRepository:
+    """CRUD for subagent_sessions table."""
+
+    def __init__(self, conn: sqlite3.Connection | None = None):
+        self.conn = _conn(conn)
+
+    def create(
+        self,
+        *,
+        session_id: str,
+        parent_conversation_id: str,
+        parent_message_id: str | None = None,
+        agent_type: str,
+        title: str | None = None,
+        depth: int = 0,
+        model: str | None = None,
+        provider: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.conn.execute(
+            "INSERT INTO subagent_sessions"
+            " (id, parent_conversation_id, parent_message_id, agent_type, title,"
+            "  depth, model, provider, metadata)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                session_id,
+                parent_conversation_id,
+                parent_message_id,
+                agent_type,
+                title,
+                depth,
+                model,
+                provider,
+                json.dumps(metadata) if metadata else None,
+            ),
+        )
+        self.conn.commit()
+
+    def get(self, session_id: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM subagent_sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+
+    def children(self, parent_conversation_id: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM subagent_sessions WHERE parent_conversation_id = ?"
+            " ORDER BY created_at",
+            (parent_conversation_id,),
+        ).fetchall()
+
+    def update_status(
+        self,
+        session_id: str,
+        status: str,
+        *,
+        result: str | None = None,
+        error: str | None = None,
+        tokens_input: int | None = None,
+        tokens_output: int | None = None,
+        cost: float | None = None,
+    ) -> None:
+        fields: dict[str, Any] = {"status": status}
+        if result is not None:
+            fields["result"] = result
+        if error is not None:
+            fields["error"] = error
+        if tokens_input is not None:
+            fields["tokens_input"] = tokens_input
+        if tokens_output is not None:
+            fields["tokens_output"] = tokens_output
+        if cost is not None:
+            fields["cost"] = cost
+        if status in ("completed", "failed", "cancelled"):
+            fields["completed_at"] = _now()
+
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        self.conn.execute(
+            f"UPDATE subagent_sessions SET {sets} WHERE id = ?",
+            (*fields.values(), session_id),
+        )
+        self.conn.commit()
+
+    def depth(self, session_id: str) -> int:
+        """Walk parent chain and return depth."""
+        depth = 0
+        current = session_id
+        while True:
+            row = self.conn.execute(
+                "SELECT parent_conversation_id FROM subagent_sessions WHERE id = ?",
+                (current,),
+            ).fetchone()
+            if not row or not row["parent_conversation_id"]:
+                break
+            # Check if parent is itself a subagent
+            parent = self.conn.execute(
+                "SELECT id FROM subagent_sessions WHERE id = ?",
+                (row["parent_conversation_id"],),
+            ).fetchone()
+            if not parent:
+                break
+            depth += 1
+            current = parent["id"]
+        return depth
+
+    def active_in_conversation(self, conversation_id: str) -> list[sqlite3.Row]:
+        """Running subagents for a conversation."""
+        return self.conn.execute(
+            "SELECT * FROM subagent_sessions"
+            " WHERE parent_conversation_id = ? AND status = 'running'"
+            " ORDER BY created_at",
+            (conversation_id,),
+        ).fetchall()
+
+    def list_recent(self, limit: int = 50) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM subagent_sessions ORDER BY created_at DESC LIMIT ?",
+            (limit,),
         ).fetchall()

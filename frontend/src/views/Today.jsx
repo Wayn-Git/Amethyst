@@ -149,8 +149,9 @@ export default function Today() {
   }
 
   return (
-    <div className="view" ref={rootRef}>
-      <div className="view-inner view-inner--wide">
+    <div className="view" ref={rootRef} style={{ position: 'relative', overflow: 'hidden' }}>
+      <div className="home-accent-glow is-home" aria-hidden="true" />
+      <div className="view-inner view-inner--wide" style={{ position: 'relative', zIndex: 1 }}>
         <header className="vheader" data-enter>
           <div>
             <h1>{greeting(now.getHours())}</h1>

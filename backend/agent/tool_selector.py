@@ -59,6 +59,9 @@ CORE = (
     "ask_user",
     "dispatch_parallel_jobs",
     "collect_jobs",
+    "task",
+    "search_web",
+    "fetch_url",
 )
 
 #: Builtin tools grouped by the kind of request that needs them, with the words
@@ -216,6 +219,16 @@ _TASK_INTENTS: list[tuple[str, tuple[str, ...]]] = [
     ("look up online", ("search_web", "fetch_url")),
     ("fetch url", ("fetch_url",)),
     ("open url", ("fetch_url", "open_url")),
+    # Delegation workflows
+    ("delegate", ("task",)),
+    ("subagent", ("task",)),
+    ("use the task", ("task",)),
+    ("spawn", ("task",)),
+    ("hand off", ("task",)),
+    ("hand this off", ("task",)),
+    ("do this in parallel", ("task",)),
+    ("research this", ("task",)),
+    ("explore this", ("task",)),
     # Connector-specific workflows
     ("check my email", ("dispatch_parallel_jobs",)),
     ("check email", ("dispatch_parallel_jobs",)),

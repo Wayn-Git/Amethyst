@@ -26,6 +26,12 @@ const OPENCODE_PATH =
 const ALL_PROVIDERS_PATH =
   'M3 6.5h18v2H3v-2zm0 4.5h18v2H3v-2zm0 4.5h18v2H3v-2z'
 
+const GLM_PATH =
+  'M12 2a1 1 0 0 1 1 1v2.59l1.83-1.83a1 1 0 0 1 1.41 1.41L14.41 7H17a1 1 0 0 1 1 1v2h2.59l-1.83-1.83a1 1 0 0 1 1.41-1.41l3.54 3.54a1 1 0 0 1 0 1.41l-3.54 3.54a1 1 0 0 1-1.41-1.41L20.59 13H18v2a1 1 0 0 1-1 1h-2.59l1.83 1.83a1 1 0 0 1-1.41 1.41L13 17.41V20a1 1 0 0 1-2 0v-2.59l-1.83 1.83a1 1 0 0 1-1.41-1.41L9.59 16H7a1 1 0 0 1-1-1v-2H3.41l1.83 1.83a1 1 0 0 1-1.41 1.41L.29 12.71a1 1 0 0 1 0-1.41l3.54-3.54a1 1 0 0 1 1.41 1.41L3.41 11H6V9a1 1 0 0 1 1-1h2.59L7.76 6.17a1 1 0 0 1 1.41-1.41L11 6.59V3a1 1 0 0 1 1-1z'
+
+const LUNA_PATH =
+  'M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 0 1-5.66-13.66A8 8 0 0 0 16.34 16.34 7.94 7.94 0 0 1 12 20zm5-8a5 5 0 1 1-5-5 5 5 0 0 1 5 5z'
+
 const AUTO_WAND_PATH =
   'M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L8.2 22.8a1 1 0 0 1-.7.3H2.5a1 1 0 0 1-1-1v-5a1 1 0 0 1 .3-.7L14.5 2.5zm1.4 2.8L4.5 16.7v2.8h2.8L18.7 8.1l-2.8-2.8zM18 1.5l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5.5-1.5zm4 5l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4.4-1.1z'
 
@@ -95,6 +101,16 @@ export default function AiProviderIcon({
       return { path: si.siQwen?.path, viewBox: '0 0 24 24' }
     }
 
+    // GLM / ChatGLM / Zhipu
+    if (target.includes('glm') || target.includes('zhipu')) {
+      return { path: GLM_PATH, viewBox: '0 0 24 24' }
+    }
+
+    // Luna
+    if (target.includes('luna')) {
+      return { path: LUNA_PATH, viewBox: '0 0 24 24' }
+    }
+
     // OpenAI / GPT / o1 / o3
     if (target.includes('openai') || target.includes('chatgpt') || target.includes('gpt') || target.includes('o1') || target.includes('o3')) {
       return { path: OPENAI_PATH, viewBox: '0 0 24 24' }
@@ -108,6 +124,16 @@ export default function AiProviderIcon({
     // Cohere
     if (target.includes('cohere') || target.includes('north') || target.includes('command-r')) {
       return { path: COHERE_PATH, viewBox: '0 0 24 24' }
+    }
+
+    // Nex AGI
+    if (target.includes('nex')) {
+      return { path: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5', viewBox: '0 0 24 24' }
+    }
+
+    // Ling / InclusionAI
+    if (target.includes('ling') || target.includes('inclusionai')) {
+      return { path: 'M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-6h2zm0-8h-2V7h2z', viewBox: '0 0 24 24' }
     }
 
     // Nvidia

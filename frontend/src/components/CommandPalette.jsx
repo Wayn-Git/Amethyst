@@ -697,7 +697,7 @@ export default function CommandPalette({ bare = false }) {
       icon: 'sliders',
       label: 'Open Settings',
       binding: 'mod+,',
-      run: () => setOverlay('settings'),
+      run: () => handleNavigate('settings'),
     })
     out.push({
       id: 'shortcuts',

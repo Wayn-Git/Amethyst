@@ -6,6 +6,7 @@ const KINDS = [
   'video',
   'book',
   'podcast',
+  'music',
   'newsletter',
   'paper',
   'post',

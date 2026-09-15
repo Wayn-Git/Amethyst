@@ -41,6 +41,7 @@ NEVER_CACHE = frozenset({
     "collect_jobs",
     "dispatch_parallel_jobs",
     "index_status",
+    "task",
 })
 
 
@@ -329,6 +330,7 @@ def build_default_registry(
         sharing,
         shell,
         social,
+        task,
         tasks,
         web,
         workers,
@@ -349,6 +351,7 @@ def build_default_registry(
     registry.register_all(ask.tools())
     registry.register_all(sharing.tools())
     registry.register_all(workers.tools())
+    registry.register_all(task.tools())
     return registry
 
 

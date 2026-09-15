@@ -124,6 +124,7 @@ function applyTextSize(pct) {
   const root = document.documentElement
   const scale = pct / 100
   root.style.setProperty('--text-scale', scale)
+  root.style.setProperty('--ui-scale', scale)
   root.style.fontSize = `${scale * 16}px`
 }
 
@@ -164,6 +165,14 @@ export function AppProvider({ children }) {
 
   const [conversations, setConversations] = useState([])
   const [activeId, setActiveIdRaw] = useState((prefs.restoreTabs !== false) ? prefs.activeId || null : null)
+  const [userProfile, setUserProfile] = useState(() => {
+    try {
+      const cached = localStorage.getItem('amethyst_user_profile')
+      return cached ? JSON.parse(cached) : null
+    } catch {
+      return null
+    }
+  })
   const [caps, setCaps] = useState({ skills: [], connectors: [] })
   const [busyCap, setBusyCap] = useState('')
   const [workspace, setWorkspaceRaw] = useState(prefs.workspace || '')
@@ -176,10 +185,9 @@ export function AppProvider({ children }) {
      which is what sharing one boolean did -- looks like an application that
      failed to load its page. */
   const [drawer, setDrawer] = useState(false)
-  /* The context panel on the right of the workbench: where a turn's machinery
-     goes so the transcript can be prose. Persisted, because whether you want
-     to watch the steps is a standing preference rather than a per-page one. */
-  const [panel, setPanelRaw] = useState(prefs.panel !== false)
+  // The context panel on the right of the workbench (artifacts / run details).
+  // Defaults to false so each view has its own full clean canvas without unwanted split screen.
+  const [panel, setPanelRaw] = useState(prefs.panel === true)
   /* How wide the side panel is, and whether it has taken over the window.
 
      Width is a preference because it is a decision about this screen and this
@@ -229,6 +237,12 @@ export function AppProvider({ children }) {
     savePrefs({ agentLoader: value })
   }, [])
 
+  const [autoHideTopBar, setAutoHideTopBarRaw] = useState(prefs.autoHideTopBar === true)
+  const setAutoHideTopBar = useCallback((value) => {
+    setAutoHideTopBarRaw(Boolean(value))
+    savePrefs({ autoHideTopBar: Boolean(value) })
+  }, [])
+
   const [defaultGuard, setDefaultGuardRaw] = useState(prefs.defaultGuard || 'guard')
   const setDefaultGuard = useCallback((value) => {
     setDefaultGuardRaw(value)
@@ -266,6 +280,14 @@ export function AppProvider({ children }) {
     setGlassMaterialRaw(value)
     savePrefs({ glassMaterial: value })
     document.documentElement.setAttribute('data-glass', value)
+  }, [])
+
+  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [terminalHeight, setTerminalHeight] = useState(280)
+  const [terminalMinimized, setTerminalMinimized] = useState(false)
+  const toggleTerminal = useCallback(() => {
+    setTerminalOpen((prev) => !prev)
+    setTerminalMinimized(false)
   }, [])
 
 
@@ -555,6 +577,45 @@ export function AppProvider({ children }) {
     }
   }, [activeId, refreshCaps, refreshHealth, toast])
 
+  const refreshUserProfile = useCallback(async () => {
+    try {
+      const p = await api.userProfile()
+      if (p?.name) {
+        setUserProfile(p)
+        try {
+          localStorage.setItem('amethyst_user_profile', JSON.stringify(p))
+        } catch {}
+        return p
+      }
+    } catch {}
+    try {
+      const acc = await api.mailAccount()
+      if (acc?.address) {
+        const email = acc.address
+        const local = email.split('@')[0]
+        const name = local.toLowerCase().includes('wayne') ? 'Wayne' : (local.charAt(0).toUpperCase() + local.slice(1))
+        const profile = { name, full_name: name, email }
+        setUserProfile(profile)
+        return profile
+      }
+    } catch {}
+    return null
+  }, [])
+
+  const updateUserProfile = useCallback(async (patch) => {
+    try {
+      const updated = await api.updateUserProfile(patch)
+      setUserProfile(updated)
+      try {
+        localStorage.setItem('amethyst_user_profile', JSON.stringify(updated))
+      } catch {}
+      return updated
+    } catch (err) {
+      toast(err.message || 'Failed to update profile', 'bad')
+      throw err
+    }
+  }, [toast])
+
   useEffect(() => onServerState(setServer), [])
 
   // Nothing is fetched until the backend answers. Firing the first load against
@@ -565,6 +626,7 @@ export function AppProvider({ children }) {
   useEffect(() => { if (ready) refreshHealth() }, [ready, refreshHealth])
   useEffect(() => { if (ready) refreshConvs() }, [ready, refreshConvs])
   useEffect(() => { if (ready) refreshCaps() }, [ready, refreshCaps])
+  useEffect(() => { if (ready) refreshUserProfile() }, [ready, refreshUserProfile])
 
   // A connector can die between messages and the API only notices at the start
   // of a turn, so the header has to keep asking.
@@ -605,16 +667,21 @@ export function AppProvider({ children }) {
     textSize, setTextSize,
     density, setDensity,
     agentLoader, setAgentLoader,
+    autoHideTopBar, setAutoHideTopBar,
     defaultGuard, setDefaultGuard,
+    guard: defaultGuard, setGuard: setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
     pendingPrompt, setPendingPrompt, openChatWithPrompt,
+    userProfile, refreshUserProfile, updateUserProfile,
+    terminalOpen, setTerminalOpen, toggleTerminal,
+    terminalHeight, setTerminalHeight,
+    terminalMinimized, setTerminalMinimized,
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
@@ -628,17 +695,19 @@ export function AppProvider({ children }) {
     textSize, setTextSize,
     density, setDensity,
     agentLoader, setAgentLoader,
+    autoHideTopBar, setAutoHideTopBar,
     defaultGuard, setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
     pendingPrompt, openChatWithPrompt,
+    userProfile, refreshUserProfile, updateUserProfile,
     renaming, renameConversation, deleteConversation, deleteAllConversations,
+    terminalOpen, toggleTerminal, terminalHeight, terminalMinimized,
   ])
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

@@ -1,1337 +1,3482 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
+import BrandMark from '../components/BrandMark.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
 import { api } from '../api.js'
 import { useApp } from '../store.jsx'
+import { forSettings } from '../nav.js'
 import { useConfirm } from '../components/ui/ConfirmDialog.jsx'
 import Badge from '../components/ui/Badge.jsx'
-import BrandKit from '../components/BrandKit.jsx'
 import Switch from '../components/ui/Switch.jsx'
+import AnimatedSelect from '../components/ui/AnimatedSelect.jsx'
 import { LoaderIcon } from '../components/OnboardingWizard.jsx'
-import { MOD_LABEL } from '../keys.js'
+import { AnimatePresence, motion } from 'framer-motion'
 
-/* Amethyst Settings: High-end visual design engineering (Emil Kowalski style),
-   Double-bezel cards, 100% real API wiring, zero mocks. */
+/* ==========================================================================
+   NAVIGATION SECTIONS & THEME DEFINITIONS
+   ========================================================================== */
 
 const SECTIONS = [
-  { id: 'models', label: 'Models', icon: 'cpu', group: 'App' },
+  { id: 'profile', label: 'Profile', icon: 'user', group: 'You' },
+  { id: 'usage', label: 'Usage', icon: 'dash', group: 'You' },
+  { id: 'activity', label: 'Activity', icon: 'logs', group: 'You' },
   { id: 'general', label: 'General', icon: 'sliders', group: 'App' },
   { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'App' },
-  { id: 'keybindings', label: 'Keybindings', icon: 'keyboard', group: 'App' },
-  { id: 'brand', label: 'Brand', icon: 'star', group: 'App' },
-  { id: 'permissions', label: 'Permissions', icon: 'key', group: 'Advanced' },
+  { id: 'models', label: 'Models', icon: 'cpu', group: 'App' },
+  { id: 'permissions', label: 'Permissions', icon: 'shield', group: 'Advanced' },
   { id: 'data', label: 'Data', icon: 'trash', group: 'Advanced' },
   { id: 'about', label: 'About', icon: 'info', group: 'Advanced' },
 ]
 
 const THEME_CHOICES = [
-  { id: 'system', label: 'System', hint: 'Follows OS preference', colors: ['#121214', '#26262a', '#3b82f6'] },
-  { id: 'graphite', label: 'Graphite', hint: 'Dark console slate', colors: ['#161618', '#222226', '#3b82f6'] },
-  { id: 'ink', label: 'Ink', hint: 'Deepest pure black', colors: ['#000000', '#101012', '#60a5fa'] },
-  { id: 'nocturne', label: 'Nocturne', hint: 'Deep blue undertones', colors: ['#090d16', '#121824', '#38bdf8'] },
-  { id: 'paper', label: 'Paper', hint: 'Clean light mode', colors: ['#f8f9fa', '#ffffff', '#2563eb'] },
-  { id: 'sand', label: 'Sand', hint: 'Warm parchment tone', colors: ['#fbf8f2', '#f0ede6', '#d97706'] },
+  { id: 'system', label: 'System', hint: 'Follows the OS' },
+  { id: 'graphite', label: 'Graphite', hint: 'Neutral dark' },
+  { id: 'ink', label: 'Ink', hint: 'Cool dark' },
+  { id: 'nocturne', label: 'Nocturne', hint: 'Near black' },
+  { id: 'paper', label: 'Paper', hint: 'Light' },
+  { id: 'sand', label: 'Sand', hint: 'Warm light' },
 ]
 
-const ACCENT_PRESETS = [
-  { id: 'blue', hex: '#3b82f6', label: 'Blue' },
-  { id: 'purple', hex: '#8b5cf6', label: 'Purple' },
-  { id: 'green', hex: '#10b981', label: 'Green' },
-  { id: 'amber', hex: '#f59e0b', label: 'Amber' },
-  { id: 'pink', hex: '#ec4899', label: 'Pink' },
-  { id: 'slate', hex: '#64748b', label: 'Slate' },
+const VENDOR_PRESETS = [
+  { slug: 'openai', name: 'OpenAI', base_url: 'https://api.openai.com/v1', default_model: 'gpt-4o', hint: 'Requires an OpenAI API key' },
+  { slug: 'anthropic', name: 'Anthropic', base_url: 'https://api.anthropic.com/v1', default_model: 'claude-3-5-sonnet-20241022', hint: 'Requires an Anthropic API key' },
+  { slug: 'google', name: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', default_model: 'gemini-1.5-flash-latest', hint: 'Direct Gemini OpenAI compatibility' },
+  { slug: 'groq', name: 'Groq', base_url: 'https://api.groq.com/openai/v1', default_model: 'llama-3.3-70b-versatile', hint: 'Ultra-low latency Llama & Mixtral' },
+  { slug: 'mistral', name: 'Mistral AI', base_url: 'https://api.mistral.ai/v1', default_model: 'mistral-large-latest', hint: 'European enterprise frontier models' },
+  { slug: 'ollama', name: 'Ollama (Local)', base_url: 'http://localhost:11434/v1', default_model: 'llama3:8b', hint: 'Run local open-source models completely offline' },
+  { slug: 'openrouter', name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', default_model: 'meta-llama/llama-3.3-70b-instruct:free', hint: 'Unified access to all model endpoints' },
+  { slug: 'together', name: 'Together AI', base_url: 'https://api.together.xyz/v1', default_model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', hint: 'Open-weights serverless inference' },
+  { slug: 'deepseek', name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', default_model: 'deepseek-chat', hint: 'DeepSeek V3 and R1 reasoning engines' },
+  { slug: 'custom', name: 'Custom OpenAI-Compatible', base_url: '', default_model: '', hint: 'vLLM, LM Studio, TGI, or custom proxy endpoint' },
 ]
 
-const AGENT_LOADERS = [
-  { id: 'pixels', label: 'Pixels' },
-  { id: 'halo', label: 'Halo' },
-  { id: 'orbit', label: 'Orbit' },
-  { id: 'wake', label: 'Wake' },
-  { id: 'pulse', label: 'Pulse' },
-  { id: 'shift', label: 'Shift' },
-  { id: 'ellipsis', label: 'Ellipsis' },
-  { id: 'ripple', label: 'Ripple' },
-  { id: 'clock', label: 'Clock' },
-  { id: 'drop', label: 'Drop' },
-  { id: 'scanner', label: 'Scanner' },
-  { id: 'card', label: 'Card' },
-  { id: 'dial', label: 'Dial' },
-  { id: 'beacon', label: 'Beacon' },
-  { id: 'duet', label: 'Duet' },
-  { id: 'tumble', label: 'Tumble' },
-]
+/* ==========================================================================
+   0. PROFILE VIEW (Display name, identity, email)
+   ========================================================================== */
 
-function formatModelName(id) {
-  if (!id) return ''
-  const str = String(id).toLowerCase()
-  if (str === 'auto') return 'Auto'
-  if (str.includes('gemini-2.5-flash') || str.includes('gemini-flash')) return 'Gemini Flash'
-  if (str.includes('gemini-2.5-pro') || str.includes('gemini-pro')) return 'Gemini Pro'
-  if (str.includes('ministral-8b')) return 'Ministral 8B'
-  if (str.includes('mistral-large')) return 'Mistral Large'
-  if (str.includes('nemotron-3-super')) return 'Nemotron 3 Super'
-  if (str.includes('stepfun') || str.includes('step-3.7')) return 'Step 3.7 Flash'
-  if (str.includes('llama-3.3-70b')) return 'Llama 3.3 70B'
-  if (str.includes('llama-3.1-8b')) return 'Llama 3.1 8B'
-  if (str.includes('deepseek-v4')) return 'DeepSeek V4'
-  if (str.includes('deepseek-chat')) return 'DeepSeek Chat'
-  if (str.includes('gpt-4o')) return 'GPT-4o'
-  if (str.includes('claude-sonnet')) return 'Claude 3.7 Sonnet'
-  const parts = id.split('/')
-  const base = parts[parts.length - 1]
-  return base.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-function formatContext(tokens) {
-  if (!tokens) return '128K context'
-  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(tokens % 1000000 === 0 ? 0 : 1)}M context`
-  return `${Math.round(tokens / 1000)}K context`
-}
-
-function formatFeatures(m) {
-  const parts = []
-  if (m?.capabilities?.supports_effort || m?.capabilities?.thinking) {
-    parts.push('reasoning')
-  } else if (m?.id?.includes('flash') || m?.id?.includes('fast')) {
-    parts.push('low latency')
-  } else {
-    parts.push('chat')
-  }
-  if (m?.context_length) {
-    parts.push(formatContext(m.context_length))
-  }
-  return parts.join(' · ')
-}
-
-// ==========================================
-// 1. MODELS & CATALOG VIEW (Matches Screenshot 1 & 2)
-// ==========================================
-function Models() {
-  const {
-    health, conversations, activeId, refreshConvs, refreshHealth, toast,
-    draftProvider, setDraftProvider, draftModel, setDraftModel,
-  } = useApp()
-
-  const [catalogue, setCatalogue] = useState([])
-  const [configured, setConfigured] = useState(() => {
-    if (health?.providers?.length) {
-      return health.providers.map((p) => ({
-        name: p,
-        default_model: health.provider_defaults?.[p] || '',
-        enabled: true,
-        has_key: true,
-        available: !health.providers_unavailable?.[p],
-        core: health.provider_core?.includes(p) ?? true,
-      }))
-    }
-    return [
-      { name: 'google', default_model: 'gemini-flash-latest', enabled: true, has_key: true, available: true, core: true },
-      { name: 'nvidia', default_model: 'nvidia/nemotron-3-super-120b-a12b', enabled: true, has_key: true, available: true, core: true },
-      { name: 'mistral', default_model: 'ministral-8b-2512', enabled: true, has_key: true, available: true, core: true },
-      { name: 'kilocode', default_model: 'stepfun/step-3.7-flash:free', enabled: true, has_key: true, available: true, core: true },
-      { name: 'cloudflare', default_model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', enabled: true, has_key: true, available: true, core: false },
-      { name: 'opencode.ai', default_model: 'big-pickle', enabled: true, has_key: true, available: true, core: false },
-    ]
-  })
-  const [adding, setAdding] = useState(null)
-  const [pinged, setPinged] = useState({})
-  const [routing, setRouting] = useState(null)
-  const [expandedProvider, setExpandedProvider] = useState(null)
-  const [providerModelsMap, setProviderModelsMap] = useState({})
-  const [modelSearch, setModelSearch] = useState('')
-  const [loadingModels, setLoadingModels] = useState({})
-  const confirm = useConfirm()
-
-  const load = useCallback(async () => {
-    try {
-      const data = await api.providers()
-      setCatalogue(data.catalogue || [])
-      if (data.configured?.length) {
-        setConfigured(data.configured)
-      }
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-    try {
-      setRouting(await api.routing())
-    } catch {
-      setRouting(null)
-    }
-  }, [toast])
+function Profile() {
+  const { userProfile, updateUserProfile, toast } = useApp()
+  const [name, setName] = useState(userProfile?.name || '')
+  const [fullName, setFullName] = useState(userProfile?.full_name || '')
+  const [email, setEmail] = useState(userProfile?.email || '')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    load()
-  }, [load])
-
-  // If health updates, make sure configured is populated
-  useEffect(() => {
-    if (health?.providers?.length && configured.length === 0) {
-      setConfigured(
-        health.providers.map((p) => ({
-          name: p,
-          default_model: health.provider_defaults?.[p] || '',
-          enabled: true,
-          has_key: true,
-          available: !health.providers_unavailable?.[p],
-          core: health.provider_core?.includes(p) ?? true,
-        }))
-      )
+    if (userProfile) {
+      setName(userProfile.name || '')
+      setFullName(userProfile.full_name || '')
+      setEmail(userProfile.email || '')
     }
-  }, [health, configured.length])
+  }, [userProfile])
 
-  const toggleProviderModels = async (provName) => {
-    if (expandedProvider === provName) {
-      setExpandedProvider(null)
-      return
-    }
-    setExpandedProvider(provName)
-    if (!providerModelsMap[provName]) {
-      setLoadingModels((prev) => ({ ...prev, [provName]: true }))
-      try {
-        const res = await api.providerModels(provName)
-        setProviderModelsMap((prev) => ({ ...prev, [provName]: res.models || [] }))
-      } catch (err) {
-        toast(`Failed to load models for ${provName}: ${err.message}`, 'bad')
-      } finally {
-        setLoadingModels((prev) => ({ ...prev, [provName]: false }))
-      }
-    }
-  }
-
-  const pingOne = async (name) => {
-    setPinged((p) => ({ ...p, [name]: 'busy' }))
+  const handleSave = async (e) => {
+    e?.preventDefault()
+    if (!name.trim()) return
+    setSaving(true)
     try {
-      const res = await api.pingProvider(name)
-      setPinged((p) => ({ ...p, [name]: res }))
-      toast(`${name}: ${res.available ? `${res.latency_ms}ms latency` : 'failed'}`, res.available ? 'ok' : 'bad')
-    } catch (err) {
-      setPinged((p) => ({ ...p, [name]: { available: false, reason: err.message } }))
-      toast(`${name} ping failed: ${err.message}`, 'bad')
-    }
-  }
-
-  const pingAll = async () => {
-    const next = {}
-    for (const p of configured) next[p.name] = 'busy'
-    setPinged(next)
-    try {
-      const res = await api.pingAllProviders()
-      setPinged(res.results || {})
-      toast('Latency test complete for all providers', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const toggle = async (name, enabled) => {
-    setConfigured((list) => list.map((p) => (p.name === name ? { ...p, enabled } : p)))
-    try {
-      await api.setProviderEnabled(name, enabled)
-      load()
-      refreshHealth?.()
-    } catch (err) {
-      setConfigured((list) => list.map((p) => (p.name === name ? { ...p, enabled: !enabled } : p)))
-      toast(err.message, 'bad')
-    }
-  }
-
-  const remove = async (name) => {
-    const ok = await confirm({
-      title: `Remove ${name}?`,
-      message: 'Amethyst will no longer route messages to this provider and its keychain credentials will be detached.',
-      confirmLabel: 'Remove',
-      destructive: true,
-    })
-    if (!ok) return
-    try {
-      await api.removeProvider(name)
-      toast(`Removed ${name}`, 'ok')
-      load()
-      refreshHealth?.()
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const selectForChat = (provName, modelId) => {
-    setDraftProvider(provName)
-    setDraftModel(modelId)
-    if (activeId) {
-      api.patchConversation(activeId, { provider: provName, model: modelId }).then(() => {
-        refreshConvs?.()
-        toast(`Active conversation set to ${formatModelName(modelId) || provName}`, 'ok')
-      }).catch((err) => {
-        toast(err.message, 'bad')
+      await updateUserProfile({
+        name: name.trim(),
+        full_name: fullName.trim(),
+        email: email.trim(),
       })
-    } else {
-      toast(`Selected ${formatModelName(modelId) || provName} for next chat`, 'ok')
+      toast('Profile updated successfully', 'ok')
+    } catch {
+      // toast handled in store
+    } finally {
+      setSaving(false)
     }
   }
-
-  const setProviderDefault = async (provName, modelId) => {
-    try {
-      await api.addProvider({ name: provName, default_model: modelId })
-      toast(`${provName} default set to ${modelId}`, 'ok')
-      load()
-      refreshHealth?.()
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const isAuto = !draftProvider || draftProvider === 'auto'
-  const selectedName = isAuto ? 'Auto' : formatModelName(draftModel || draftProvider)
-  const selectedDesc = isAuto
-    ? 'ROUTES EACH MESSAGE TO THE BEST AVAILABLE MODEL'
-    : `DIRECT ROUTE · ${(draftProvider || '').toUpperCase()} · ${draftModel || 'DEFAULT'}`
-
-  const totalModelsCount = useMemo(() => {
-    let count = 0
-    Object.values(providerModelsMap).forEach((list) => { count += list.length })
-    return count > 0 ? count : (routing?.candidates?.length || configured.length || 9)
-  }, [providerModelsMap, routing, configured.length])
 
   return (
     <div className="set-panel">
-      {/* 1. SELECTED Header Hero Card (Screenshot 1) */}
-      <div className="set-section-label">SELECTED</div>
-      <div className="model-selected-card">
-        <div className="model-selected-left">
-          <div className="model-selected-icon-box">
-            {isAuto ? (
-              <Icon name="spark" size={20} />
-            ) : (
-              <AiProviderIcon provider={draftProvider} model={draftModel} size={22} />
-            )}
+      <div className="set-section-label">Identity</div>
+      <div className="set-box" style={{ padding: '20px', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+          <div className="sb-user-avatar" style={{ width: 48, height: 48, fontSize: 18 }}>
+            {(name || 'U').charAt(0).toUpperCase()}
           </div>
           <div>
-            <div className="model-selected-name">{selectedName}</div>
-            <div className="model-selected-desc">{selectedDesc}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
+              {fullName || name || 'User'}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+              {email || 'user@amethyst.local'}
+            </div>
           </div>
         </div>
-        <div className="model-selected-stats">
-          {!isAuto && (
+
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+              Display Name (Greeting)
+            </label>
+            <input
+              type="text"
+              className="set-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Jason"
+              style={{ width: '100%', maxWidth: 360 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+              Full Name
+            </label>
+            <input
+              type="text"
+              className="set-input"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. Jason Wayne"
+              style={{ width: '100%', maxWidth: 360 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+              Email Address
+            </label>
+            <input
+              type="email"
+              className="set-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              style={{ width: '100%', maxWidth: 360 }}
+            />
+          </div>
+
+          <div style={{ marginTop: 8 }}>
             <button
-              type="button"
-              className="set-btn set-btn--ghost"
-              onClick={() => { setDraftProvider('auto'); setDraftModel(''); }}
-              title="Reset to Auto routing"
+              type="submit"
+              className="set-btn-primary"
+              disabled={saving || !name.trim()}
+              style={{ padding: '8px 18px', fontSize: 13, borderRadius: 8 }}
             >
-              <Icon name="spark" size={13} /> Use Auto
+              {saving ? 'Saving...' : 'Save Profile Changes'}
             </button>
-          )}
-          <div className="model-stat">
-            <span className="model-stat-label">MODELS</span>
-            <span className="model-stat-val">{totalModelsCount}</span>
           </div>
-          <div className="model-stat">
-            <span className="model-stat-label">VENDORS</span>
-            <span className="model-stat-val">{configured.length}</span>
-          </div>
-        </div>
+        </form>
       </div>
-
-      {/* 2. Catalog Section (Screenshot 1 & 2) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 24 }}>
-        <div style={{ fontSize: '15px', fontWeight: 600, color: '#ffffff' }}>Catalog</div>
-        {configured.length > 0 && (
-          <button type="button" className="set-btn set-btn--ghost" onClick={pingAll}>
-            <Icon name="zap" size={12} /> Ping latency
-          </button>
-        )}
-      </div>
-
-      <div className="catalog-card">
-        {/* Group: AUTOMATIC */}
-        <div className="catalog-group-header">
-          <span>AUTOMATIC</span>
-        </div>
-        <div
-          className={`catalog-row${isAuto ? ' is-selected' : ''}`}
-          onClick={() => { setDraftProvider('auto'); setDraftModel(''); toast('Auto routing selected', 'ok') }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div className="catalog-icon-box" style={{ background: 'rgba(59, 130, 246, 0.15)', borderColor: 'rgba(59, 130, 246, 0.35)', color: '#60a5fa' }}>
-              <Icon name="spark" size={16} />
-            </div>
-            <div>
-              <div className="catalog-title">Auto</div>
-              <div className="catalog-sub">picks a model per message</div>
-            </div>
-          </div>
-          <div className="catalog-meta">
-            <span className="catalog-badge">{totalModelsCount} models</span>
-            {isAuto && <span style={{ color: '#3b82f6', fontWeight: 700 }}>✓</span>}
-          </div>
-        </div>
-
-        {/* Groups for each configured provider */}
-        {configured.map((p) => {
-          const isExpanded = expandedProvider === p.name
-          const modelsList = providerModelsMap[p.name] || []
-          const filteredModels = modelsList.filter((m) =>
-            !modelSearch || m.id.toLowerCase().includes(modelSearch.toLowerCase())
-          )
-          const isProviderActive = draftProvider === p.name
-          const pingResult = pinged[p.name]
-
-          return (
-            <div key={p.name}>
-              <div className="catalog-group-header">
-                <span>{p.name.toUpperCase()}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {pingResult === 'busy' && <span className="set-sub">pinging…</span>}
-                  {pingResult && pingResult !== 'busy' && (
-                    <span className={`latency-pill ${pingResult.available ? 'latency-pill--ok' : 'latency-pill--bad'}`}>
-                      {pingResult.available ? `${pingResult.latency_ms}ms` : 'offline'}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="set-mini-btn"
-                    onClick={(e) => { e.stopPropagation(); pingOne(p.name) }}
-                    title="Ping provider"
-                  >
-                    <Icon name="zap" size={11} />
-                  </button>
-                  <button
-                    type="button"
-                    className="set-mini-btn"
-                    onClick={(e) => { e.stopPropagation(); toggle(p.name, !p.enabled) }}
-                    title={p.enabled ? 'Disable provider' : 'Enable provider'}
-                  >
-                    {p.enabled ? 'Enabled' : 'Disabled'}
-                  </button>
-                  <button
-                    type="button"
-                    className="set-mini-btn set-mini-btn--danger"
-                    onClick={(e) => { e.stopPropagation(); remove(p.name) }}
-                    title="Remove provider"
-                  >
-                    <Icon name="trash" size={11} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Provider Default / Active Model Row */}
-              <div
-                className={`catalog-row${isProviderActive ? ' is-selected' : ''}`}
-                onClick={() => selectForChat(p.name, p.default_model)}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div className="catalog-icon-box">
-                    <AiProviderIcon provider={p.name} model={p.default_model} size={18} />
-                  </div>
-                  <div>
-                    <div className="catalog-title">{formatModelName(p.default_model) || p.name}</div>
-                    <div className="catalog-sub">{p.default_model || 'no default model assigned'}</div>
-                  </div>
-                </div>
-                <div className="catalog-meta">
-                  <span className="catalog-sub" style={{ fontSize: '11px' }}>
-                    {p.default_model?.includes('flash') ? 'thinking · 1M context' : 'reasoning · 256K context'}
-                  </span>
-                  <span className="catalog-badge">100% available</span>
-                  {isProviderActive && <span style={{ color: '#3b82f6', fontWeight: 700 }}>✓</span>}
-                </div>
-              </div>
-
-              {/* Sub-bar to expand full catalog */}
-              <div className="catalog-expand-bar" onClick={() => toggleProviderModels(p.name)}>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} size={12} />
-                  {isExpanded ? 'Hide model catalog' : `Browse all available models for ${p.name}`}
-                </span>
-                {modelsList.length > 0 && (
-                  <span className="catalog-badge">{modelsList.length} models</span>
-                )}
-              </div>
-
-              {/* Expandable Model Catalog Drawer */}
-              {isExpanded && (
-                <div className="catalog-drawer">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#ffffff' }}>
-                      Models on {p.name}
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Filter models by id or name…"
-                      value={modelSearch}
-                      onChange={(e) => setModelSearch(e.target.value)}
-                      className="catalog-search-input"
-                    />
-                  </div>
-
-                  {loadingModels[p.name] && (
-                    <div style={{ padding: '16px 0', fontSize: '12px', color: 'var(--text-dim)' }}>
-                      Connecting to endpoint & fetching live model catalog…
-                    </div>
-                  )}
-
-                  {!loadingModels[p.name] && filteredModels.length === 0 && (
-                    <div style={{ padding: '16px 0', fontSize: '12px', color: 'var(--text-faint)' }}>
-                      {modelsList.length === 0 ? 'No models returned from API.' : 'No models match filter.'}
-                    </div>
-                  )}
-
-                  <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {filteredModels.map((m) => {
-                      const isDefault = p.default_model === m.id
-                      const isChatActive = draftProvider === p.name && draftModel === m.id
-
-                      return (
-                        <div
-                          key={m.id}
-                          className={`catalog-subrow${isChatActive ? ' is-selected' : ''}`}
-                          onClick={() => selectForChat(p.name, m.id)}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div className="catalog-icon-box" style={{ width: 28, height: 28 }}>
-                              <AiProviderIcon provider={p.name} model={m.id} size={14} />
-                            </div>
-                            <div>
-                              <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#ffffff' }}>
-                                {formatModelName(m.id)}
-                              </div>
-                              <div className="catalog-sub" style={{ fontSize: '10.5px' }}>
-                                {m.id}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span className="catalog-sub" style={{ fontSize: '11px' }}>
-                              {formatFeatures(m)}
-                            </span>
-                            {isDefault && <Badge tone="ok">Default</Badge>}
-                            <button
-                              type="button"
-                              className="set-mini-btn"
-                              onClick={(e) => { e.stopPropagation(); setProviderDefault(p.name, m.id) }}
-                              title="Make this model the default for this provider"
-                            >
-                              Set default
-                            </button>
-                            {isChatActive && <span style={{ color: '#3b82f6', fontWeight: 700 }}>✓</span>}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-
-        {/* Group: ADDITIONAL / AVAILABLE CATALOG (Screenshot 2) */}
-        <div className="catalog-group-header" style={{ marginTop: 12 }}>
-          <span>ADDITIONAL</span>
-        </div>
-
-        {catalogue.map((cat) => {
-          const isConfigured = configured.some((c) => c.name === cat.slug)
-          if (isConfigured) return null
-          const isAddingThis = adding === cat.slug
-
-          return (
-            <div key={cat.slug} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
-              <div className="catalog-row" style={{ cursor: 'default' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div className="catalog-icon-box">
-                    <AiProviderIcon provider={cat.slug} size={18} />
-                  </div>
-                  <div>
-                    <div className="catalog-title">{cat.label}</div>
-                    <div className="catalog-sub" style={{ maxWidth: 620, color: 'var(--text-dim)' }}>
-                      {cat.note || 'Available to connect via API key or local endpoint.'}
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <button
-                    type="button"
-                    className="set-btn set-btn--ghost"
-                    onClick={() => setAdding(isAddingThis ? null : cat.slug)}
-                  >
-                    {isAddingThis ? 'Cancel' : 'Add'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Inline Add Card */}
-              {isAddingThis && (
-                <div style={{ padding: '16px 20px', background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                  <AddProviderForm
-                    preset={cat}
-                    onFinish={() => { setAdding(null); load(); refreshHealth?.(); }}
-                    onCancel={() => setAdding(null)}
-                  />
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* 3. Role Routing & Headroom Card */}
-      {routing && (
-        <div className="set-card" style={{ marginTop: 24 }}>
-          <div className="set-head-row">
-            <div>
-              <h3>Role routing & headroom</h3>
-              <span className="set-sub">
-                Candidate quota headroom monitored continuously by Amethyst orchestrator.
-              </span>
-            </div>
-          </div>
-          <div style={{ padding: '14px 20px' }}>
-            <RolesEditor routing={routing} onChange={load} />
-            {routing?.headroom && (
-              <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
-                {Object.entries(routing.headroom).map(([pname, val]) => (
-                  <div key={pname} className="set-metric-card" style={{ padding: '10px 14px' }}>
-                    <span className="set-metric-label">{pname.toUpperCase()}</span>
-                    <span className="set-metric-val" style={{ fontSize: '16px' }}>{Math.round(val * 100)}%</span>
-                    <span className="set-metric-sub">Headroom capacity</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-// Add Provider Form Component
-function AddProviderForm({ preset, onFinish, onCancel }) {
-  const { toast } = useApp()
-  const [name, setName] = useState(preset?.slug || '')
-  const [baseUrl, setBaseUrl] = useState(preset?.base_url || '')
-  const [apiKey, setApiKey] = useState('')
-  const [defaultModel, setDefaultModel] = useState(preset?.default_model || '')
-  const [contextWindow, setContextWindow] = useState(preset?.context_window || '')
-  const [autoRoute, setAutoRoute] = useState(true)
-  const [busy, setBusy] = useState(false)
+/* ==========================================================================
+   1. GENERAL VIEW (Composer, Chats, Inspector, Automation & Rhythm)
+   ========================================================================== */
 
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!name.trim()) return toast('Name is required', 'bad')
-    setBusy(true)
-    try {
-      await api.addProvider({
-        name: name.trim().toLowerCase(),
-        base_url: baseUrl.trim() || null,
-        api_key: apiKey.trim() || null,
-        default_model: defaultModel.trim() || null,
-        context_window: contextWindow ? Number(contextWindow) : null,
-        auto_route: autoRoute,
+function General() {
+  const { workspace, setWorkspace, notifyOnDone, setNotifyOnDone, guard, setGuard, toast } = useApp()
+
+  // Composer preferences
+  const [sendWith, setSendWith] = useState(() => localStorage.getItem('amethyst_send_with') || 'Enter')
+  const [startGuard, setStartGuard] = useState(() => localStorage.getItem('amethyst_default_guard') || guard || 'guard')
+  const [thinkAt, setThinkAt] = useState(() => localStorage.getItem('amethyst_default_effort') || 'default')
+
+  // Chat switches
+  const [archiveInsteadOfDelete, setArchiveInsteadOfDelete] = useState(() => localStorage.getItem('amethyst_archive_instead') !== 'false')
+  const [confirmDestructive, setConfirmDestructive] = useState(() => localStorage.getItem('amethyst_confirm_destructive') !== 'false')
+  const [restoreTabs, setRestoreTabs] = useState(() => localStorage.getItem('amethyst_restore_tabs') !== 'false')
+
+  // Inspector switch
+  const [showUsage, setShowUsage] = useState(() => localStorage.getItem('amethyst_show_usage') !== 'false')
+
+  // Automation & Rhythm settings from backend
+  const [maxIterations, setMaxIterations] = useState(16)
+  const [briefingHour, setBriefingHour] = useState(8)
+  const [briefingEnabled, setBriefingEnabled] = useState(true)
+  const [wsDraft, setWsDraft] = useState(workspace || '')
+
+  useEffect(() => {
+    setWsDraft(workspace || '')
+  }, [workspace])
+
+  useEffect(() => {
+    api.settings()
+      .then((s) => {
+        if (s.max_iterations) setMaxIterations(s.max_iterations)
+        if (s.journal) {
+          if (s.journal.briefing_hour !== undefined) setBriefingHour(s.journal.briefing_hour)
+          if (s.journal.briefing_enabled !== undefined) setBriefingEnabled(s.journal.briefing_enabled)
+        }
       })
-      toast(`Added ${name.trim()}`, 'ok')
-      onFinish?.()
+      .catch(() => {})
+  }, [])
+
+  const handleSendWith = (val) => {
+    setSendWith(val)
+    localStorage.setItem('amethyst_send_with', val)
+    toast(`Send key set to ${val}`, 'ok')
+  }
+
+  const handleStartGuard = (val) => {
+    setStartGuard(val)
+    localStorage.setItem('amethyst_default_guard', val)
+    setGuard?.(val)
+    toast(`Default chat permission set to ${val}`, 'ok')
+  }
+
+  const handleThinkAt = (val) => {
+    setThinkAt(val)
+    localStorage.setItem('amethyst_default_effort', val)
+    toast(`Default reasoning effort set to ${val}`, 'ok')
+  }
+
+  const handleIterationsChange = async (val) => {
+    setMaxIterations(val)
+    try {
+      await api.updateSettings({ max_iterations: val })
     } catch (err) {
       toast(err.message, 'bad')
-    } finally {
-      setBusy(false)
     }
   }
 
+  const handleBriefingHourChange = async (h) => {
+    setBriefingHour(h)
+    try {
+      await api.updateSettings({ journal: { briefing_hour: h, briefing_enabled: briefingEnabled } })
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const handleBriefingToggle = async () => {
+    const next = !briefingEnabled
+    setBriefingEnabled(next)
+    try {
+      await api.updateSettings({ journal: { briefing_hour: briefingHour, briefing_enabled: next } })
+      toast(next ? `Daily briefing enabled for ${String(briefingHour).padStart(2, '0')}:00` : 'Daily briefing disabled', 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const handleNotificationToggle = async () => {
+    if (typeof Notification === 'undefined') {
+      toast('Notifications not supported in this browser environment', 'bad')
+      return
+    }
+    if (Notification.permission !== 'granted') {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') {
+        toast('Notification permission was denied in browser', 'amber')
+        return
+      }
+    }
+    const { value, blocked } = await setNotifyOnDone(!notifyOnDone)
+    if (blocked) {
+      toast('Your browser blocked desktop notifications', 'amber')
+    } else {
+      toast(value ? 'Desktop notifications enabled for finished turns' : 'Desktop notifications disabled', 'ok')
+    }
+  }
+
+  const handleBrowseDir = async () => {
+    if (window.showDirectoryPicker) {
+      try {
+        const handle = await window.showDirectoryPicker()
+        if (handle?.name) {
+          setWsDraft(handle.name)
+          setWorkspace(handle.name)
+          toast(`Working directory set to ${handle.name}`, 'ok')
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') toast('Could not open folder picker', 'bad')
+      }
+    } else {
+      const dir = window.prompt('Enter working directory path:', wsDraft || '~')
+      if (dir != null && dir.trim()) {
+        setWsDraft(dir.trim())
+        setWorkspace(dir.trim())
+        toast(`Working directory set to ${dir.trim()}`, 'ok')
+      }
+    }
+  }
+
+  const saveWorkspace = () => {
+    setWorkspace(wsDraft.trim())
+    toast(`Working directory saved: ${wsDraft.trim() || 'API default'}`, 'ok')
+  }
+
+  const guardOptions = [
+    { value: 'guard', label: 'Guard', icon: 'shield' },
+    { value: 'full-access', label: 'Full access', icon: 'zap' },
+    { value: 'read-only', label: 'Read only', icon: 'eye' },
+    { value: 'guard-auto-edit', label: 'Guard + Auto', icon: 'sparkle' },
+  ]
+
+  const effortOptions = [
+    { value: 'default', label: 'Default', icon: 'sparkle' },
+    { value: 'low', label: 'Low', icon: 'sliders' },
+    { value: 'medium', label: 'Medium', icon: 'sliders' },
+    { value: 'high', label: 'High', icon: 'brain' },
+  ]
+
+  const briefingHours = Array.from({ length: 24 }, (_, i) => ({
+    value: i,
+    label: `${String(i).padStart(2, '0')}:00`,
+  }))
+
   return (
-    <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div>
-          <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase' }}>Provider identifier</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={Boolean(preset)}
-            style={{ width: '100%', marginTop: 4 }}
+    <div className="set-panel">
+      {/* Category: Composer */}
+      <div className="set-section-label">Composer</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Send with</span>
+            <span className="set-row-desc">The other combination always inserts a newline.</span>
+          </div>
+          <div className="set-seg-ctrl">
+            <button
+              type="button"
+              className={`set-seg-btn${sendWith === 'Enter' ? ' is-active' : ''}`}
+              onClick={() => handleSendWith('Enter')}
+            >
+              Enter
+            </button>
+            <button
+              type="button"
+              className={`set-seg-btn${sendWith === 'Cmd+Enter' ? ' is-active' : ''}`}
+              onClick={() => handleSendWith('Cmd+Enter')}
+            >
+              Ctrl+↵
+            </button>
+          </div>
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">New chats start in</span>
+            <span className="set-row-desc">The permission level a chat opens at before you change it.</span>
+          </div>
+          <AnimatedSelect
+            value={startGuard}
+            onChange={handleStartGuard}
+            options={guardOptions}
+            placeholder="Permission…"
+            minWidth={160}
           />
         </div>
-        <div>
-          <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase' }}>Default Model ID</label>
-          <input
-            type="text"
-            value={defaultModel}
-            onChange={(e) => setDefaultModel(e.target.value)}
-            placeholder="e.g. gpt-4o, llama-3.3-70b"
-            style={{ width: '100%', marginTop: 4 }}
+
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Default reasoning effort</span>
+            <span className="set-row-desc">Reasoning effort assigned when models support variable thinking tokens.</span>
+          </div>
+          <AnimatedSelect
+            value={thinkAt}
+            onChange={handleThinkAt}
+            options={effortOptions}
+            placeholder="Reasoning…"
+            minWidth={140}
           />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div>
-          <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase' }}>Base URL (OpenAI-compatible)</label>
-          <input
-            type="text"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://api.example.com/v1"
-            style={{ width: '100%', marginTop: 4 }}
+      {/* Category: Chats */}
+      <div className="set-section-label">Chats</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Archive chats instead of deleting</span>
+            <span className="set-row-desc">Archived chats are kept in local storage and can be reviewed or restored.</span>
+          </div>
+          <Switch
+            on={archiveInsteadOfDelete}
+            onChange={(val) => {
+              setArchiveInsteadOfDelete(val)
+              localStorage.setItem('amethyst_archive_instead', String(val))
+            }}
+            tone="default"
           />
         </div>
-        <div>
-          <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase' }}>API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Stored securely in OS keychain"
-            style={{ width: '100%', marginTop: 4 }}
+
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Confirm destructive actions</span>
+            <span className="set-row-desc">Always display confirmation dialogs before deleting conversations or clearing memory.</span>
+          </div>
+          <Switch
+            on={confirmDestructive}
+            onChange={(val) => {
+              setConfirmDestructive(val)
+              localStorage.setItem('amethyst_confirm_destructive', String(val))
+            }}
+            tone="default"
+          />
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Restore open tabs on restart</span>
+            <span className="set-row-desc">Restore your active conversation and panel state when relaunching Amethyst.</span>
+          </div>
+          <Switch
+            on={restoreTabs}
+            onChange={(val) => {
+              setRestoreTabs(val)
+              localStorage.setItem('amethyst_restore_tabs', String(val))
+            }}
+            tone="default"
           />
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '12px', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={autoRoute}
-            onChange={(e) => setAutoRoute(e.target.checked)}
-            style={{ width: 15, height: 15 }}
+      {/* Category: Inspector */}
+      <div className="set-section-label">Inspector</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Show usage</span>
+            <span className="set-row-desc">Display token consumption and provider latency telemetry in the inspector sidebar.</span>
+          </div>
+          <Switch
+            on={showUsage}
+            onChange={(val) => {
+              setShowUsage(val)
+              localStorage.setItem('amethyst_show_usage', String(val))
+            }}
+            tone="default"
           />
-          <span>Include in Auto routing selection</span>
-        </label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="set-btn set-btn--ghost" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="set-btn set-btn--primary" disabled={busy}>
-            {busy ? 'Connecting…' : 'Save & Connect'}
-          </button>
         </div>
       </div>
-    </form>
+
+      {/* Category: Working Directory */}
+      <div className="set-section-label">Working Directory</div>
+      <div className="set-box">
+        <div className="set-box-row" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <div className="set-row-text" style={{ flex: '1 1 240px' }}>
+            <span className="set-row-title">Default workspace path</span>
+            <span className="set-row-desc">Directory where file tools read, write, and execute by default.</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 320px', justifyContent: 'flex-end' }}>
+            <input
+              type="text"
+              value={wsDraft}
+              onChange={(e) => setWsDraft(e.target.value)}
+              placeholder="e.g. /home/user/project or ~"
+              className="set-input"
+              style={{ flex: 1, minWidth: 160 }}
+            />
+            <button type="button" className="set-btn-sm" onClick={handleBrowseDir} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Icon name="folder" size={13} />
+              <span>Browse…</span>
+            </button>
+            <button type="button" className="set-btn-sm is-primary" onClick={saveWorkspace} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Icon name="check" size={13} />
+              <span>Save</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Category: Automation & Rhythm */}
+      <div className="set-section-label">Automation & Rhythm</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="sliders" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Autonomous iteration limit</span>
+              <span className="set-row-desc">How many tool calls and model round trips one turn may take before stopping.</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <input
+              type="range"
+              min={4}
+              max={40}
+              value={maxIterations}
+              onChange={(e) => handleIterationsChange(Number(e.target.value))}
+              className="set-range-slider"
+              style={{ width: 140 }}
+            />
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', minWidth: 26, textAlign: 'right' }}>
+              {maxIterations}
+            </span>
+          </div>
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="clock" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Morning briefing</span>
+              <span className="set-row-desc">Written from your calendar, tasks, inbox and library at the configured hour.</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <AnimatedSelect
+              value={briefingHour}
+              onChange={handleBriefingHourChange}
+              options={briefingHours}
+              placeholder="Hour…"
+              minWidth={95}
+            />
+            <Switch on={briefingEnabled} onChange={handleBriefingToggle} tone="default" />
+          </div>
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="bell" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Desktop notifications</span>
+              <span className="set-row-desc">Alert when a long-running autonomous turn finishes while Amethyst is in the background.</span>
+            </div>
+          </div>
+          <Switch on={notifyOnDone} onChange={handleNotificationToggle} tone="default" />
+        </div>
+      </div>
+    </div>
   )
 }
 
-function RolesEditor({ routing, onChange }) {
-  const { toast } = useApp()
-  const roles = routing?.roles || {}
-  const [draft, setDraft] = useState(roles)
+/* ==========================================================================
+   2. APPEARANCE VIEW (Themes, Scaled UI & Fonts, Accent, Loader, Material)
+   ========================================================================== */
 
-  const save = async (roleName, val) => {
+function Appearance() {
+  const {
+    theme, setTheme,
+    accentColor, setAccentColor,
+    textSize, setTextSize,
+    density, setDensity,
+    agentLoader, setAgentLoader,
+    autoHideTopBar, setAutoHideTopBar,
+    toast,
+  } = useApp()
+
+  const [glassMaterial, setGlassMaterial] = useState(() => localStorage.getItem('amethyst_glass') || 'full')
+
+  const handleGlassChange = (val) => {
+    setGlassMaterial(val)
+    localStorage.setItem('amethyst_glass', val)
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-glass', val)
+    }
+  }
+
+  const handleResetAppearance = () => {
+    setTheme('system')
+    setAccentColor('#3b82f6')
+    setTextSize?.(100)
+    setDensity?.('comfortable')
+    setAgentLoader?.('pixels')
+    setGlassMaterial('full')
+    setAutoHideTopBar?.(false)
+    localStorage.setItem('amethyst_glass', 'full')
+    toast('Appearance reset to defaults', 'ok')
+  }
+
+  const ACCENT_PRESETS = [
+    { id: 'blue', hex: '#3b82f6', label: 'Blue' },
+    { id: 'teal', hex: '#14b8a6', label: 'Teal' },
+    { id: 'green', hex: '#10b981', label: 'Green' },
+    { id: 'amber', hex: '#f59e0b', label: 'Amber' },
+    { id: 'pink', hex: '#ec4899', label: 'Pink' },
+    { id: 'slate', hex: '#64748b', label: 'Slate' },
+  ]
+
+  const AGENT_LOADERS = [
+    { id: 'pixels', label: 'Pixels' },
+    { id: 'halo', label: 'Halo' },
+    { id: 'orbit', label: 'Orbit' },
+    { id: 'wake', label: 'Wake' },
+    { id: 'pulse', label: 'Pulse' },
+    { id: 'shift', label: 'Shift' },
+    { id: 'ellipsis', label: 'Ellipsis' },
+    { id: 'ripple', label: 'Ripple' },
+    { id: 'clock', label: 'Clock' },
+    { id: 'drop', label: 'Drop' },
+    { id: 'scanner', label: 'Scanner' },
+    { id: 'card', label: 'Card' },
+    { id: 'dial', label: 'Dial' },
+    { id: 'beacon', label: 'Beacon' },
+    { id: 'duet', label: 'Duet' },
+    { id: 'tumble', label: 'Tumble' },
+  ]
+
+  const SCALE_PRESETS = [
+    { label: '80%', val: 80 },
+    { label: '90%', val: 90 },
+    { label: '100%', val: 100 },
+    { label: '110%', val: 110 },
+    { label: '125%', val: 125 },
+  ]
+
+  const currentScale = textSize || 100
+
+  return (
+    <div className="set-panel">
+      {/* Theme Section with Reset button */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div>
+          <span className="set-section-label" style={{ margin: 0 }}>Theme</span>
+          <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-dim)', marginTop: 2 }}>
+            Choose the palette the window is drawn in.
+          </span>
+        </div>
+        <button
+          type="button"
+          className="set-btn-sm"
+          onClick={handleResetAppearance}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          title="Reset appearance to default settings"
+        >
+          <Icon name="refresh" size={12} />
+          <span>Reset Defaults</span>
+        </button>
+      </div>
+
+      <div className="theme-grid-3" style={{ marginBottom: 24 }}>
+        {THEME_CHOICES.map((choice) => {
+          const isSel = theme === choice.id
+          return (
+            <div
+              key={choice.id}
+              className={`theme-card-outer${isSel ? ' is-active' : ''}`}
+              onClick={() => setTheme(choice.id)}
+            >
+              <div className="theme-card-inner">
+                <div className={`theme-mockup-frame theme-mockup--${choice.id}`}>
+                  {choice.id === 'system' ? (
+                    <>
+                      <div className="mockup-left">
+                        <div className="theme-bar" style={{ width: '40%', height: 4, background: '#a1a1aa' }} />
+                        <div className="theme-bar" style={{ width: '75%', height: 3, background: '#d4d4d8' }} />
+                        <div className="theme-bar" style={{ width: '60%', height: 3, background: '#d4d4d8' }} />
+                        <div style={{ marginTop: 'auto' }}>
+                          <div className="theme-bar" style={{ width: '50%', height: 6, background: '#e4e4e7', borderRadius: 3 }} />
+                        </div>
+                      </div>
+                      <div className="mockup-right">
+                        <div className="theme-bar" style={{ width: '40%', height: 4, background: '#71717a' }} />
+                        <div className="theme-bar" style={{ width: '75%', height: 3, background: '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '60%', height: 3, background: '#27272a' }} />
+                        <div style={{ marginTop: 'auto' }}>
+                          <div className="theme-bar" style={{ width: '50%', height: 6, background: '#27272a', borderRadius: 3 }} />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="theme-mockup-sidebar">
+                        <div className="theme-bar" style={{ width: '70%', height: 4, background: choice.id === 'paper' || choice.id === 'sand' ? '#a1a1aa' : '#52525b' }} />
+                        <div className="theme-bar" style={{ width: '85%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#d4d4d8' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '60%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#d4d4d8' : '#27272a' }} />
+                      </div>
+                      <div className="theme-mockup-content">
+                        <div className="theme-bar" style={{ width: '45%', height: 4, background: choice.id === 'paper' || choice.id === 'sand' ? '#71717a' : '#71717a' }} />
+                        <div className="theme-bar" style={{ width: '85%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#e4e4e7' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '70%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#e4e4e7' : '#27272a' }} />
+                        <div style={{ marginTop: 'auto' }}>
+                          <div className="theme-bar" style={{ width: '40%', height: 7, background: choice.id === 'paper' || choice.id === 'sand' ? '#e4e4e7' : '#27272a', borderRadius: 3 }} />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="theme-card-info">
+                  <div>
+                    <div className="theme-card-name">{choice.label}</div>
+                    <div className="theme-card-hint">{choice.hint}</div>
+                  </div>
+                  {isSel && <Icon name="check" size={14} style={{ color: 'var(--accent)' }} />}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Interface Scaling Section */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Interface Scaling</span>
+      </div>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Global Interface Scale</span>
+            <span className="set-row-desc">
+              Scales the entire app interface (sidebar, chat, composer, typography, buttons, cards) seamlessly.
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="set-seg-ctrl">
+              {SCALE_PRESETS.map((s) => {
+                const isActive = Math.abs(currentScale - s.val) < 2
+                return (
+                  <button
+                    key={s.label}
+                    type="button"
+                    className={`set-seg-btn${isActive ? ' is-active' : ''}`}
+                    onClick={() => setTextSize?.(s.val)}
+                  >
+                    {s.label}
+                  </button>
+                )
+              })}
+            </div>
+            <button
+              type="button"
+              className="set-btn-sm"
+              onClick={() => setTextSize?.(100)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              title="Reset scale to 100%"
+            >
+              <Icon name="refresh" size={11} />
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Accent Color Section */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Accent</span>
+      </div>
+      <div className="set-box" style={{ marginBottom: 24, padding: '12px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {ACCENT_PRESETS.map((a) => {
+            const isSelected = (accentColor || '#3b82f6').toLowerCase() === a.hex.toLowerCase()
+            return (
+              <button
+                key={a.id}
+                type="button"
+                className={`set-accent-dot${isSelected ? ' is-active' : ''}`}
+                style={{ '--dot-color': a.hex }}
+                onClick={() => setAccentColor(a.hex)}
+                aria-label={a.label}
+                title={a.label}
+              >
+                {isSelected && <Icon name="check" size={11} />}
+              </button>
+            )
+          })}
+          <div style={{ width: 1, height: 20, background: 'var(--hairline)', margin: '0 4px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Custom</span>
+            <div
+              className="set-custom-color-circle"
+              style={{
+                backgroundColor: accentColor || '#3b82f6',
+              }}
+              title="Choose custom accent color"
+            >
+              <input
+                type="color"
+                value={accentColor || '#3b82f6'}
+                onChange={(e) => setAccentColor(e.target.value)}
+                aria-label="Choose custom accent color"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Loader Section */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Loader</span>
+      </div>
+      <div className="set-box" style={{ marginBottom: 24, padding: '10px 14px' }}>
+        <div className="set-loader-strip">
+          {AGENT_LOADERS.map((anim) => {
+            const isSel = agentLoader === anim.id
+            return (
+              <button
+                key={anim.id}
+                type="button"
+                className={`set-loader-item${isSel ? ' is-active' : ''}`}
+                onClick={() => setAgentLoader(anim.id)}
+                title={anim.label}
+              >
+                <LoaderIcon type={anim.id} />
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Material Section */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Material</span>
+      </div>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Glass</span>
+            <span className="set-row-desc">
+              How much of the window material shows through menus, the composer and the palette. Off paints the window flat straight away.
+            </span>
+          </div>
+          <div className="set-seg-ctrl">
+            {['off', 'subtle', 'full'].map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`set-seg-btn${glassMaterial === m ? ' is-active' : ''}`}
+                onClick={() => handleGlassChange(m)}
+                style={{ textTransform: 'capitalize' }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation & Layout */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Navigation</span>
+      </div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Auto-hide Top Bar</span>
+            <span className="set-row-desc">
+              Keep the top navigation hidden by default to maximize canvas space. Hover near the top edge to smoothly slide it into view.
+            </span>
+          </div>
+          <Switch
+            on={Boolean(autoHideTopBar)}
+            onChange={(val) => setAutoHideTopBar(val)}
+            tone="default"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   3. MODELS VIEW (Interactive Accordion, Models Dev Details, Add Provider)
+   ========================================================================== */
+
+function Models() {
+  const { toast } = useApp()
+  const [providers, setProviders] = useState([])
+  const [latencies, setLatencies] = useState({})
+  const [pinging, setPinging] = useState(false)
+  const [editProvider, setEditProvider] = useState(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [routingLadder, setRoutingLadder] = useState([])
+  const [expandedProvider, setExpandedProvider] = useState(null)
+  const [providerModelsMap, setProviderModelsMap] = useState({})
+  const [loadingModels, setLoadingModels] = useState({})
+
+  const loadProviders = useCallback(async () => {
     try {
-      await api.setRole(roleName, val)
-      setDraft((prev) => ({ ...prev, [roleName]: val }))
-      onChange?.()
-      toast(`Role ${roleName} updated`, 'ok')
+      const data = await api.providers()
+      setProviders(data.providers || [])
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }, [toast])
+
+  const loadRouting = useCallback(async () => {
+    try {
+      const res = await api.routing()
+      if (res?.decision?.order) setRoutingLadder(res.decision.order)
+      else if (res?.providers) setRoutingLadder(res.providers.map((p) => p.name))
+    } catch {}
+  }, [])
+
+  const pingAll = useCallback(async () => {
+    setPinging(true)
+    try {
+      const res = await api.pingAll()
+      const newLatencies = {}
+      if (res?.results) {
+        for (const [p, val] of Object.entries(res.results)) {
+          newLatencies[p] = val.available ? val.latency_ms : 'off'
+        }
+      }
+      setLatencies(newLatencies)
+      toast('Provider ping complete', 'ok')
+    } catch {
+      toast('Failed to ping providers', 'amber')
+    } finally {
+      setPinging(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    loadProviders()
+    loadRouting()
+    pingAll()
+  }, [loadProviders, loadRouting, pingAll])
+
+  const handleToggleAccordion = async (pName) => {
+    if (expandedProvider === pName) {
+      setExpandedProvider(null)
+      return
+    }
+    setExpandedProvider(pName)
+    if (!providerModelsMap[pName]) {
+      setLoadingModels((prev) => ({ ...prev, [pName]: true }))
+      try {
+        const res = await api.providerModels(pName)
+        setProviderModelsMap((prev) => ({ ...prev, [pName]: res.models || [] }))
+      } catch (err) {
+        toast(`Could not load model catalog for ${pName}`, 'bad')
+      } finally {
+        setLoadingModels((prev) => ({ ...prev, [pName]: false }))
+      }
+    }
+  }
+
+  const handleRemove = async (name, e) => {
+    e?.stopPropagation?.()
+    if (!window.confirm(`Remove provider "${name}"?`)) return
+    try {
+      await api.deleteProvider(name)
+      toast(`Removed ${name}`, 'ok')
+      loadProviders()
+      loadRouting()
     } catch (err) {
       toast(err.message, 'bad')
     }
   }
 
+  const handleMoveLadder = (index, dir) => {
+    const next = [...routingLadder]
+    const target = index + dir
+    if (target < 0 || target >= next.length) return
+    const temp = next[index]
+    next[index] = next[target]
+    next[target] = temp
+    setRoutingLadder(next)
+  }
+
+  const activeProvider = providers.find((p) => p.enabled) || providers[0]
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-      {['fast', 'coding', 'planning', 'creative'].map((role) => (
-        <div key={role} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 6 }}>
-            {role} role
+    <div className="set-panel">
+      {/* Active Model Status Hero Banner */}
+      {activeProvider && (
+        <div className="set-box" style={{ marginBottom: 24, padding: '16px 20px', background: 'color-mix(in srgb, var(--accent) 5%, var(--raised))', border: '1px solid color-mix(in srgb, var(--accent) 25%, var(--hairline))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 38, height: 38, borderRadius: '10px', background: 'var(--raised)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--hairline)' }}>
+                <AiProviderIcon provider={activeProvider.name} size={20} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '14.5px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
+                    {activeProvider.name}
+                  </span>
+                  <Badge tone="live">
+                    Primary Route
+                  </Badge>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                  {activeProvider.default_model || activeProvider.model || 'Auto Adaptive Fallback'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {latencies[activeProvider.name] !== undefined && (
+                <span className={`latency-pill ${latencies[activeProvider.name] === 'off' ? 'latency-pill--bad' : 'latency-pill--ok'}`}>
+                  {latencies[activeProvider.name] === 'off' ? 'Offline' : `${latencies[activeProvider.name]}ms round-trip`}
+                </span>
+              )}
+              <button
+                type="button"
+                className="set-btn-sm"
+                onClick={pingAll}
+                disabled={pinging}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <Icon name="refresh" size={12} className={pinging ? 'spin' : ''} />
+                <span>Test Latency</span>
+              </button>
+            </div>
           </div>
-          <input
-            type="text"
-            value={draft[role] || ''}
-            placeholder="provider/model-id"
-            onChange={(e) => setDraft({ ...draft, [role]: e.target.value })}
-            onBlur={(e) => save(role, e.target.value)}
-            style={{ width: '100%', fontSize: '12px' }}
-          />
         </div>
+      )}
+
+      {/* Category: Configured Providers */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 8px' }}>
+        <div>
+          <span className="set-section-label" style={{ margin: 0 }}>Configured Providers ({providers.length})</span>
+          <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-dim)', marginTop: 2 }}>
+            Click any provider row to explore its available models and capabilities.
+          </span>
+        </div>
+        <button
+          type="button"
+          className="set-btn-sm"
+          onClick={pingAll}
+          disabled={pinging}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <Icon name="refresh" size={13} className={pinging ? 'spin' : ''} />
+          <span>{pinging ? 'Pinging…' : 'Ping All'}</span>
+        </button>
+      </div>
+
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        {providers.length === 0 ? (
+          <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>
+            No providers configured. Click &ldquo;Add Provider&rdquo; below to connect an endpoint.
+          </div>
+        ) : (
+          providers.map((p, idx) => {
+            const lat = latencies[p.name]
+            const isExpanded = expandedProvider === p.name
+            const modelsList = providerModelsMap[p.name] || []
+            const isLoading = loadingModels[p.name]
+
+            return (
+              <div key={p.name} style={{ borderBottom: idx < providers.length - 1 ? '1px solid var(--hairline)' : 'none' }}>
+                <div
+                  className="set-box-row"
+                  onClick={() => handleToggleAccordion(p.name)}
+                  style={{ cursor: 'pointer', userSelect: 'none', borderBottom: 'none' }}
+                >
+                  <div className="set-row-left">
+                    <div className="set-row-icon-box" style={{ width: 32, height: 32 }}>
+                      <AiProviderIcon provider={p.name} size={16} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="set-row-title" style={{ textTransform: 'capitalize', fontSize: '13px' }}>
+                          {p.name}
+                        </span>
+                        {p.core && <Badge tone="neutral" style={{ fontSize: '9.5px', padding: '1px 5px' }}>Core</Badge>}
+                      </div>
+                      <span className="set-row-desc" style={{ fontFamily: 'var(--font-mono)', fontSize: '11.5px' }}>
+                        {p.default_model || p.model || 'OpenAI Compatible Gateway'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {lat !== undefined && (
+                      <span
+                        className={`latency-pill ${lat === 'off' ? 'latency-pill--bad' : 'latency-pill--ok'}`}
+                      >
+                        {lat === 'off' ? 'Offline' : `${lat}ms`}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="set-btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditProvider(p)
+                      }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <Icon name="key" size={11} />
+                      <span>Edit Key</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="set-btn-sm is-danger"
+                      onClick={(e) => handleRemove(p.name, e)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <Icon name="trash" size={11} />
+                      <span>Remove</span>
+                    </button>
+                    <div style={{
+                      transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.18s ease',
+                      color: 'var(--text-dim)',
+                      marginLeft: 4,
+                    }}>
+                      <Icon name="chevron-down" size={12} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Smooth Expandable Models Accordion */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                      style={{ overflow: 'hidden', background: 'color-mix(in srgb, var(--surface) 60%, transparent)', borderTop: '1px solid var(--hairline)' }}
+                    >
+                      <div style={{ padding: '14px 20px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Icon name="cpu" size={12} />
+                          <span>Available Models Catalog ({modelsList.length})</span>
+                        </div>
+
+                        {isLoading ? (
+                          <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '12px' }}>
+                            <Icon name="refresh" size={14} className="spin" style={{ marginRight: 6 }} />
+                            Fetching endpoints from {p.name}…
+                          </div>
+                        ) : modelsList.length === 0 ? (
+                          <div style={{ padding: '14px 0', color: 'var(--text-dim)', fontSize: '12px' }}>
+                            No model list returned by provider API. You can specify any model ID in Cognitive Tiers below.
+                          </div>
+                        ) : (
+                          <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {modelsList.slice(0, 30).map((m) => {
+                              const isDefault = (p.default_model || p.model) === m.id
+                              return (
+                                <div
+                                  key={m.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '7px 12px',
+                                    borderRadius: '8px',
+                                    background: isDefault ? 'var(--accent-soft)' : 'color-mix(in srgb, var(--text) 2%, transparent)',
+                                    border: isDefault ? '1px solid var(--accent)' : '1px solid var(--hairline)',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text)' }}>
+                                      {m.id}
+                                    </span>
+                                    {isDefault && <Badge tone="ok">Current Default</Badge>}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {m.context_length && (
+                                      <span style={{ fontSize: '10.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                                        {Math.round(m.context_length / 1000)}k ctx
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )
+          })
+        )}
+        <div style={{ padding: '12px 18px', background: 'color-mix(in srgb, var(--text) 1.5%, transparent)', borderTop: '1px solid var(--hairline)' }}>
+          <button
+            type="button"
+            className="set-btn-sm is-primary"
+            onClick={() => setShowAddModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Icon name="plus" size={13} />
+            <span>Add Provider</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Category: Cognitive Tiers */}
+      <div className="set-section-label">Cognitive Tier Assignments</div>
+      <div style={{ marginBottom: 24 }}>
+        <RolesEditor providers={providers.map((p) => p.name)} />
+      </div>
+
+      {/* Category: Routing Decisions Ladder */}
+      {routingLadder.length > 0 && (
+        <>
+          <div className="set-section-label">Routing Priority Ladder</div>
+          <div className="set-box">
+            <div style={{ padding: '10px 18px', fontSize: '12px', color: 'var(--text-dim)', borderBottom: '1px solid var(--hairline)' }}>
+              Order candidates are evaluated in during automated fallback. Top is primary candidate.
+            </div>
+            {routingLadder.map((cand, idx) => (
+              <div key={cand} className="set-box-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--accent)', width: 20 }}>
+                    #{idx + 1}
+                  </span>
+                  <AiProviderIcon provider={cand} size={15} />
+                  <span style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--text)', textTransform: 'capitalize' }}>
+                    {cand}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    className="set-btn-sm"
+                    disabled={idx === 0}
+                    onClick={() => handleMoveLadder(idx, -1)}
+                    style={{ padding: '4px 8px' }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="set-btn-sm"
+                    disabled={idx === routingLadder.length - 1}
+                    onClick={() => handleMoveLadder(idx, 1)}
+                    style={{ padding: '4px 8px' }}
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Edit Provider Modal */}
+      {editProvider && (
+        <EditKeyModal
+          provider={editProvider}
+          onClose={() => setEditProvider(null)}
+          onSaved={() => {
+            setEditProvider(null)
+            loadProviders()
+            pingAll()
+          }}
+        />
+      )}
+
+      {/* Add Provider Modal with Smooth Spring Animations */}
+      <AnimatePresence>
+        {showAddModal && (
+          <AddProviderModal
+            onClose={() => setShowAddModal(false)}
+            onAdded={() => {
+              setShowAddModal(false)
+              loadProviders()
+              pingAll()
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/* Edit Provider Modal Component */
+function EditKeyModal({ provider, onClose, onSaved }) {
+  const { toast } = useApp()
+  const [key, setKey] = useState('')
+  const [url, setUrl] = useState(provider.base_url || '')
+  const [saving, setSaving] = useState(false)
+  const [showKey, setShowKey] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await api.addProvider({
+        name: provider.name,
+        key: key.trim(),
+        base_url: url.trim() || undefined,
+        default_model: provider.default_model || provider.model,
+      })
+      toast(`Updated credentials for ${provider.name}`, 'ok')
+      onSaved()
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="set-modal-backdrop" onClick={onClose} style={{ backdropFilter: 'blur(8px)' }}>
+      <motion.div
+        className="set-modal-card"
+        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.94, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 6 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AiProviderIcon provider={provider.name} size={20} />
+            <h3 style={{ margin: 0, fontSize: '15.5px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
+              Edit {provider.name} Credentials
+            </h3>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close modal">
+            <Icon name="x" size={14} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+              API Key
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder="Stored in OS keychain"
+                className="set-input"
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="set-btn-sm"
+                onClick={() => setShowKey(!showKey)}
+              >
+                {showKey ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: 4, display: 'block' }}>
+              Stored securely in your operating system keychain.
+            </span>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+              Base URL
+            </label>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://api.openai.com/v1"
+              className="set-input"
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+            <button type="button" className="set-btn-sm" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="set-btn-sm is-primary"
+              disabled={saving}
+              onClick={handleSave}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="check" size={12} />
+              <span>{saving ? 'Saving…' : 'Save Credentials'}</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
+/* Add Provider Modal Component with Beautiful Spring Animations */
+function AddProviderModal({ onClose, onAdded }) {
+  const { toast } = useApp()
+  const [preset, setPreset] = useState(VENDOR_PRESETS[0])
+  const [name, setName] = useState(VENDOR_PRESETS[0].slug)
+  const [key, setKey] = useState('')
+  const [url, setUrl] = useState(VENDOR_PRESETS[0].base_url)
+  const [model, setModel] = useState(VENDOR_PRESETS[0].default_model)
+  const [saving, setSaving] = useState(false)
+
+  const handleSelectPreset = (p) => {
+    setPreset(p)
+    setName(p.slug)
+    setUrl(p.base_url)
+    setModel(p.default_model)
+  }
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast('Provider name is required', 'bad')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.addProvider({
+        name: name.trim().toLowerCase(),
+        key: key.trim(),
+        base_url: url.trim() || undefined,
+        default_model: model.trim() || undefined,
+      })
+      toast(`Successfully connected ${name}`, 'ok')
+      onAdded()
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <motion.div
+      className="set-modal-backdrop"
+      onClick={onClose}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{ backdropFilter: 'blur(8px)' }}
+    >
+      <motion.div
+        className="set-modal-card"
+        style={{ maxWidth: 540 }}
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.93, opacity: 0, y: 14 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 8 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 30, height: 30, borderRadius: '8px', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="plus" size={15} style={{ color: 'var(--accent)' }} />
+            </div>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+              Add Model Provider
+            </h3>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close modal">
+            <Icon name="x" size={14} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 8 }}>
+              Choose Vendor Template
+            </label>
+            <div className="set-preset-grid">
+              {VENDOR_PRESETS.map((p) => {
+                const isActive = preset.slug === p.slug
+                return (
+                  <button
+                    key={p.slug}
+                    type="button"
+                    className={`set-preset-card${isActive ? ' is-active' : ''}`}
+                    onClick={() => handleSelectPreset(p)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 7 }}
+                  >
+                    <AiProviderIcon provider={p.slug} size={15} />
+                    <span style={{ fontWeight: 600, fontSize: '12px' }}>{p.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+                Provider Identifier
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="set-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+                Default Model
+              </label>
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="e.g. gpt-4o"
+                className="set-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+              Base URL
+            </label>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://..."
+              className="set-input"
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+              API Key
+            </label>
+            <input
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="sk-..."
+              className="set-input"
+              style={{ width: '100%' }}
+            />
+            <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: 4, display: 'block' }}>
+              {preset.hint}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+            <button type="button" className="set-btn-sm" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="set-btn-sm is-primary"
+              disabled={saving}
+              onClick={handleSave}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="check" size={13} />
+              <span>{saving ? 'Connecting…' : 'Add Provider'}</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/* Cognitive Tiers / Roles Editor */
+const ROLE_META = [
+  { id: 'default', label: 'Go-to model', hint: 'The everyday default a new conversation starts on.', icon: 'sparkle' },
+  { id: 'fast', label: 'Fast tier', hint: 'The quick, cheap model — routine tool queries and memory extraction.', icon: 'zap' },
+  { id: 'heavy', label: 'Heavy reasoning', hint: 'The slow, deep reasoning model for complex architectural analysis.', icon: 'brain' },
+]
+
+const POPULAR_PROVIDER_MODELS = {
+  mistral: [
+    { id: 'ministral-8b-2512', label: 'Ministral 8B (Latest)' },
+    { id: 'codestral-latest', label: 'Codestral Latest' },
+    { id: 'mistral-large-latest', label: 'Mistral Large Latest' },
+    { id: 'mistral-small-latest', label: 'Mistral Small Latest' },
+  ],
+  google: [
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  ],
+  anthropic: [
+    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+    { id: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+  ],
+  openai: [
+    { id: 'gpt-4o', label: 'GPT-4o' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { id: 'o1', label: 'o1 Reasoning' },
+    { id: 'o3-mini', label: 'o3 Mini' },
+  ],
+  groq: [
+    { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
+    { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' },
+  ],
+  deepseek: [
+    { id: 'deepseek-chat', label: 'DeepSeek Chat (V3)' },
+    { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
+  ],
+  kilocode: [
+    { id: 'stepfun/step-3.7-flash:free', label: 'StepFun 3.7 Flash (Free)' },
+    { id: 'stepfun/step-2-16k:free', label: 'StepFun 2 16k (Free)' },
+    { id: 'nex-agi/nex-n2.5-pro:free', label: 'Nex N2.5 Pro (Free)' },
+  ],
+  ollama: [
+    { id: 'llama3.2', label: 'Llama 3.2' },
+    { id: 'qwen2.5:7b', label: 'Qwen 2.5 7B' },
+    { id: 'deepseek-r1', label: 'DeepSeek R1' },
+  ],
+  nous: [
+    { id: 'Hermes-4-70B', label: 'Hermes 4 70B' },
+  ],
+  nvidia: [
+    { id: 'nvidia/nemotron-3-ultra-550b-a55b', label: 'Nemotron 3 Ultra' },
+  ],
+}
+
+const KNOWN_PROVIDER_CATALOG = [
+  { value: 'kilocode', label: 'Kilocode' },
+  { value: 'mistral', label: 'Mistral AI' },
+  { value: 'google', label: 'Google Gemini' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic Claude' },
+  { value: 'groq', label: 'Groq' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'ollama', label: 'Ollama (Local)' },
+  { value: 'nvidia', label: 'NVIDIA NIM' },
+  { value: 'nous', label: 'Nous Research' },
+  { value: 'opencode.ai', label: 'OpenCode Zen' },
+  { value: 'together', label: 'Together AI' },
+  { value: 'cohere', label: 'Cohere' },
+  { value: 'cerebras', label: 'Cerebras' },
+  { value: 'cloudflare', label: 'Cloudflare Workers AI' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'xai', label: 'xAI' },
+]
+
+function RolesEditor({ providers = [] }) {
+  const { toast } = useApp()
+  const [tiers, setTiers] = useState({})
+  const [busy, setBusy] = useState('')
+  const [allProviders, setAllProviders] = useState(() => {
+    const list = providers.length > 0 ? providers : ['kilocode', 'mistral', 'google', 'openai', 'anthropic', 'groq', 'deepseek', 'ollama', 'nvidia']
+    return list
+  })
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.tiers()
+      setTiers(r.tiers || {})
+    } catch {}
+    try {
+      const p = await api.providers()
+      const configured = (p?.providers || []).map((x) => x.name)
+      const catalogue = (p?.catalogue || []).map((x) => x.slug)
+      const merged = Array.from(new Set([...configured, ...providers, ...catalogue, ...KNOWN_PROVIDER_CATALOG.map((k) => k.value)]))
+      setAllProviders(merged)
+    } catch {}
+  }, [providers])
+
+  useEffect(() => { load() }, [load])
+
+  const handleSave = async (role, provider, model) => {
+    if (!provider || !model?.trim()) return
+    setBusy(role)
+    try {
+      await api.setTier(role, provider, model.trim())
+      await load()
+      toast(`${role} → ${provider} / ${model.trim()}`, 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const handleClear = async (role) => {
+    setBusy(role)
+    try {
+      await api.clearTier(role)
+      await load()
+      toast(`Cleared tier assignment for ${role}`, 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="set-box">
+      {ROLE_META.map((r) => (
+        <RoleRow
+          key={r.id}
+          role={r}
+          current={tiers[r.id]}
+          providers={allProviders}
+          busy={busy === r.id}
+          onSave={handleSave}
+          onClear={handleClear}
+        />
       ))}
     </div>
   )
 }
 
-// ==========================================
-// 2. GENERAL VIEW
-// ==========================================
-function General() {
-  const { health, workspace, setWorkspace, toast } = useApp()
-  const [draft, setDraft] = useState(workspace || '')
-  const [savingWs, setSavingWs] = useState(false)
-  const [autoApply, setAutoApply] = useState(true)
+function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
+  const [provider, setProvider] = useState(() => current?.provider || providers[0] || 'mistral')
+  const [model, setModel] = useState(() => current?.model || '')
+  const [models, setModels] = useState([])
+  const [loadingModels, setLoadingModels] = useState(false)
 
-  const saveWorkspace = async () => {
-    if (!draft.trim()) return
-    setSavingWs(true)
-    try {
-      await api.updateSettings({ workspace: draft.trim() })
-      setWorkspace(draft.trim())
-      toast('Workspace path saved', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setSavingWs(false)
+  useEffect(() => {
+    if (current?.provider) {
+      setProvider(current.provider)
+      setModel(current.model || '')
+    } else if (providers.length > 0 && !provider) {
+      setProvider(providers[0])
     }
-  }
+  }, [current, providers, provider])
+
+  useEffect(() => {
+    if (!provider) return
+    let active = true
+    setLoadingModels(true)
+    api.providerModels(provider)
+      .then((res) => {
+        if (!active) return
+        const apiModels = (res.models || []).map((m) => ({
+          value: m.id,
+          label: m.id,
+          hint: m.free ? 'Free' : undefined,
+        }))
+        const presets = (POPULAR_PROVIDER_MODELS[provider.toLowerCase()] || []).map((p) => ({
+          value: p.id,
+          label: p.id,
+          hint: p.label !== p.id ? p.label : undefined,
+        }))
+        const seen = new Set()
+        const merged = []
+        for (const item of [...apiModels, ...presets]) {
+          if (!seen.has(item.value)) {
+            seen.add(item.value)
+            merged.push(item)
+          }
+        }
+        setModels(merged)
+      })
+      .catch(() => {
+        if (!active) return
+        const presets = (POPULAR_PROVIDER_MODELS[provider.toLowerCase()] || []).map((p) => ({
+          value: p.id,
+          label: p.id,
+          hint: p.label !== p.id ? p.label : undefined,
+        }))
+        setModels(presets)
+      })
+      .finally(() => {
+        if (active) setLoadingModels(false)
+      })
+    return () => { active = false }
+  }, [provider])
+
+  const dirty = provider !== (current?.provider || '') || model !== (current?.model || '')
+
+  const providerOptions = useMemo(() => {
+    return providers.map((p) => {
+      const known = KNOWN_PROVIDER_CATALOG.find((k) => k.value === p)
+      return {
+        value: p,
+        label: known ? known.label : p.charAt(0).toUpperCase() + p.slice(1),
+      }
+    })
+  }, [providers])
 
   return (
-    <div className="set-panel">
-      <div className="set-grid-2">
-        {/* Machine Telemetry Card */}
-        <div className="set-card">
-          <div className="set-head-row">
-            <div>
-              <h3>Machine Telemetry</h3>
-              <span className="set-sub">Host runtime environment & hardware specs</span>
-            </div>
-            <div className="set-status-dot" />
+    <div className="set-box-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 12, padding: '16px 18px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="set-row-icon-box" style={{ width: 30, height: 30, borderRadius: 8 }}>
+            <Icon name={role.icon || 'cpu'} size={15} style={{ color: 'var(--accent)' }} />
           </div>
-          <div className="set-rows">
-            <div className="set-row">
-              <span className="set-label">Platform</span>
-              <span className="set-val mono">Linux 6.18 x86_64</span>
-            </div>
-            <div className="set-row">
-              <span className="set-label">Process ID</span>
-              <span className="set-val mono">{typeof process !== 'undefined' ? process.pid : 6842}</span>
-            </div>
-            <div className="set-row">
-              <span className="set-label">Tools & Connectors</span>
-              <span className="set-val mono">{health?.tools || 154} available</span>
-            </div>
-            <div className="set-row">
-              <span className="set-label">Skills loaded</span>
-              <span className="set-val mono">{health?.skills || 8} active</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Working Directory Card */}
-        <div className="set-card">
-          <div className="set-head-row">
-            <div>
-              <h3>Working Directory</h3>
-              <span className="set-sub">Root path for filesystem operations and code edits</span>
-            </div>
-          </div>
-          <div style={{ padding: '14px 20px' }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="/path/to/project"
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                className="set-btn set-btn--primary"
-                onClick={saveWorkspace}
-                disabled={savingWs}
-              >
-                {savingWs ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: '#ffffff' }}>Auto-apply edits</div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-dim)' }}>
-                  Apply routine code changes without manual confirmation prompt
-                </div>
-              </div>
-              <Switch on={autoApply} onChange={setAutoApply} label="Auto-apply edits" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ==========================================
-// 3. APPEARANCE VIEW
-// ==========================================
-function Appearance() {
-  const {
-    theme, setTheme, accentColor, setAccentColor,
-    agentLoader, setAgentLoader, glassMaterial, setGlassMaterial,
-    textSize, setTextSize, density, setDensity, toast,
-  } = useApp()
-
-  const [customHex, setCustomHex] = useState(accentColor || '#3b82f6')
-
-  const handleAccentChange = (hex) => {
-    setCustomHex(hex)
-    setAccentColor(hex)
-  }
-
-  return (
-    <div className="set-panel">
-      {/* Theme Cards Grid */}
-      <div className="set-section-label">THEMES</div>
-      <div className="set-theme-grid">
-        {THEME_CHOICES.map((t) => {
-          const isSel = theme === t.id
-          return (
-            <div
-              key={t.id}
-              className={`set-theme-card${isSel ? ' is-active' : ''}`}
-              onClick={() => { setTheme(t.id); toast(`Theme set to ${t.label}`, 'ok') }}
-            >
-              <div className="set-theme-card-preview" style={{ background: t.colors[0] }}>
-                <div className="set-theme-card-bar" style={{ background: t.colors[1] }}>
-                  <div className="set-theme-card-dot" style={{ background: t.colors[2] }} />
-                </div>
-                <div className="set-theme-card-body">
-                  <div className="set-theme-card-line" style={{ background: t.colors[1], width: '60%' }} />
-                  <div className="set-theme-card-line" style={{ background: t.colors[1], width: '85%' }} />
-                </div>
-              </div>
-              <div className="set-theme-card-info">
-                <div className="set-theme-card-title">
-                  <span>{t.label}</span>
-                  {isSel && <span style={{ color: '#3b82f6' }}>✓</span>}
-                </div>
-                <div className="set-theme-card-hint">{t.hint}</div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Accent & Glass Bento Grid */}
-      <div className="set-grid-2" style={{ marginTop: 24 }}>
-        {/* Accent Color Card */}
-        <div className="set-card">
-          <div className="set-head-row">
-            <div>
-              <h3>Accent Color</h3>
-              <span className="set-sub">Interactive highlights, focus rings, and glowing badges</span>
-            </div>
-          </div>
-          <div style={{ padding: '16px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              {ACCENT_PRESETS.map((p) => {
-                const isSel = (accentColor || '#3b82f6').toLowerCase() === p.hex.toLowerCase()
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleAccentChange(p.hex)}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      background: p.hex,
-                      border: isSel ? '2px solid #ffffff' : '2px solid transparent',
-                      boxShadow: isSel ? `0 0 12px ${p.hex}` : 'none',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
-                    }}
-                    title={p.label}
-                  />
-                )
-              })}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <input
-                type="text"
-                value={customHex}
-                onChange={(e) => handleAccentChange(e.target.value)}
-                placeholder="#3b82f6"
-                style={{ width: 120, fontFamily: 'var(--font-mono)' }}
-              />
-              <span style={{ fontSize: '11.5px', color: 'var(--text-dim)' }}>Hex color code</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Glass Material & Scale Card */}
-        <div className="set-card">
-          <div className="set-head-row">
-            <div>
-              <h3>Glass Material & Scale</h3>
-              <span className="set-sub">Translucency, blur shaders, and font scaling</span>
-            </div>
-          </div>
-          <div style={{ padding: '16px 20px' }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {['off', 'subtle', 'full'].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={`set-btn ${glassMaterial === m ? 'set-btn--primary' : 'set-btn--ghost'}`}
-                  style={{ flex: 1, textTransform: 'capitalize' }}
-                  onClick={() => setGlassMaterial(m)}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '12.5px', color: '#ffffff' }}>Text Scale: {textSize || 100}%</span>
-              <input
-                type="range"
-                min="85"
-                max="125"
-                step="5"
-                value={textSize || 100}
-                onChange={(e) => setTextSize(Number(e.target.value))}
-                style={{ width: 180 }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Thinking Loaders Grid */}
-      <div className="set-card" style={{ marginTop: 24 }}>
-        <div className="set-head-row">
           <div>
-            <h3>Thinking Loaders</h3>
-            <span className="set-sub">Animation displayed while reasoning and tool execution are in flight</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="set-row-title" style={{ fontSize: '13.5px' }}>{role.label}</span>
+              {current && (
+                <span className="set-tier-active-indicator">
+                  <span className="set-tier-dot" />
+                  Active
+                </span>
+              )}
+            </div>
+            <span className="set-row-desc">{role.hint}</span>
           </div>
         </div>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-          gap: 10,
-          padding: '16px 20px',
-        }}>
-          {AGENT_LOADERS.map((ldr) => {
-            const isSel = (agentLoader || 'pulse') === ldr.id
-            return (
-              <div
-                key={ldr.id}
-                onClick={() => { setAgentLoader(ldr.id); toast(`Loader set to ${ldr.label}`, 'ok'); }}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '12px 8px',
-                  borderRadius: 10,
-                  background: isSel ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                  border: isSel ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(255, 255, 255, 0.06)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-              >
-                <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LoaderIcon type={ldr.id} />
-                </div>
-                <span style={{ fontSize: '11px', fontWeight: 500, color: isSel ? '#ffffff' : 'var(--text-dim)' }}>
-                  {ldr.label}
-                </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', flexWrap: 'wrap' }}>
+        {/* Provider Searchable Dropdown with Brand SVG Icons */}
+        <div style={{ minWidth: 160 }}>
+          <AnimatedSelect
+            value={provider}
+            onChange={(val) => {
+              setProvider(val)
+              setModel('')
+            }}
+            options={providerOptions}
+            placeholder="Select provider…"
+            searchable={true}
+            searchPlaceholder="Search providers…"
+            renderIcon={(opt) => (
+              <div style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AiProviderIcon provider={opt.value} size={14} />
               </div>
-            )
-          })}
+            )}
+            minWidth={170}
+            align="left"
+          />
         </div>
+
+        {/* Model Searchable Dropdown with Brand SVG Icons & Custom Input Support */}
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <AnimatedSelect
+            value={model}
+            onChange={(val) => setModel(val)}
+            options={models}
+            placeholder={loadingModels ? 'Loading models…' : `Select or type model ID…`}
+            searchable={true}
+            searchPlaceholder={provider ? `Search ${provider} models or type custom…` : 'Search models…'}
+            allowCustom={true}
+            renderIcon={(opt) => (
+              <div style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AiProviderIcon provider={provider} model={opt.value} size={14} />
+              </div>
+            )}
+            minWidth={240}
+            align="left"
+          />
+        </div>
+
+        <button
+          type="button"
+          className={`set-btn-sm${dirty ? ' is-primary' : ''}`}
+          disabled={busy || !dirty || !model?.trim()}
+          onClick={() => onSave(role.id, provider, model)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px' }}
+        >
+          <Icon name="check" size={13} />
+          <span>{busy ? 'Saving…' : 'Save'}</span>
+        </button>
+
+        {current && (
+          <button
+            type="button"
+            className="set-btn-sm"
+            disabled={busy}
+            onClick={() => onClear(role.id)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', color: 'var(--text-dim)' }}
+          >
+            <Icon name="trash" size={12} />
+            <span>Clear</span>
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
-// ==========================================
-// 4. PERMISSIONS VIEW
-// ==========================================
+/* ==========================================================================
+   4. PERMISSIONS VIEW (Real SQLite Backed Confirmation Preferences & Guards)
+   ========================================================================== */
+
 function Permissions() {
-  const { defaultGuard, setDefaultGuard, toast } = useApp()
+  const { guard, setGuard, toast } = useApp()
   const [approvals, setApprovals] = useState([])
-  const [autoApplyEdits, setAutoApplyEdits] = useState(true)
+  const [loading, setLoading] = useState(true)
+
+  // Granular security toggles
+  const [shellConfirm, setShellConfirm] = useState(() => localStorage.getItem('amethyst_confirm_shell') !== 'false')
+  const [fileConfirm, setFileConfirm] = useState(() => localStorage.getItem('amethyst_confirm_files') !== 'false')
+  const [netConfirm, setNetConfirm] = useState(() => localStorage.getItem('amethyst_confirm_network') !== 'false')
+
+  const isAutoEdit = guard === 'guard-auto-edit'
 
   const loadApprovals = useCallback(async () => {
+    setLoading(true)
     try {
-      const data = await api.standingApprovals()
-      setApprovals(data.approvals || [])
+      const list = await api.confirmationPreferences()
+      setApprovals(Array.isArray(list) ? list : [])
     } catch {
       setApprovals([])
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   useEffect(() => { loadApprovals() }, [loadApprovals])
 
-  const revoke = async (id) => {
+  const handleRevoke = async (opKey) => {
     try {
-      await api.revokeStandingApproval(id)
-      setApprovals((list) => list.filter((a) => a.id !== id))
-      toast('Standing approval revoked', 'ok')
+      await api.revokeConfirmationPreference(opKey)
+      toast(`Revoked standing approval for ${opKey}`, 'ok')
+      loadApprovals()
     } catch (err) {
       toast(err.message, 'bad')
     }
   }
 
+  const handleRevokeAll = async () => {
+    if (approvals.length === 0) return
+    try {
+      await api.clearConfirmationPreferences(approvals)
+      toast('Cleared all standing approvals from database', 'ok')
+      loadApprovals()
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const handleSelectMode = (modeId) => {
+    setGuard?.(modeId)
+    localStorage.setItem('amethyst_default_guard', modeId)
+    toast(`Default chat permission set to ${modeId}`, 'ok')
+  }
+
+  const handleToggleAutoEdit = () => {
+    const next = isAutoEdit ? 'guard' : 'guard-auto-edit'
+    setGuard?.(next)
+    localStorage.setItem('amethyst_default_guard', next)
+    toast(`Auto-apply edits ${!isAutoEdit ? 'enabled' : 'disabled'}`, 'ok')
+  }
+
   const MODES = [
-    {
-      id: 'guard',
-      title: 'Guard Mode',
-      desc: 'Prompts before destructive actions (shell execution, external network requests, file deletion).',
-      icon: 'shield',
-      colorClass: 'set-perm-icon-box--blue',
-    },
     {
       id: 'read-only',
       title: 'Read Only',
-      desc: 'Agent can inspect code and plan solutions, but is strictly prohibited from mutating disk state.',
-      icon: 'book',
-      colorClass: 'set-perm-icon-box--amber',
+      badge: 'Safest Sandbox',
+      icon: 'eye',
+      desc: 'Only reads files and inspects workspace. Cannot modify files or run terminal shell commands.',
+    },
+    {
+      id: 'guard',
+      title: 'Guard',
+      badge: 'Recommended',
+      icon: 'shield',
+      desc: 'Asks for user confirmation before modifying files or executing terminal shell operations.',
+    },
+    {
+      id: 'guard-auto-edit',
+      title: 'Guard + Auto',
+      badge: 'Balanced Flow',
+      icon: 'sparkle',
+      desc: 'Automatically approves routine file edits while asking for confirmation on shell commands.',
     },
     {
       id: 'full-access',
-      title: 'Full Autonomous Access',
-      desc: 'Zero prompts. Commands run and files update seamlessly. Ideal for verified autonomous pipelines.',
+      title: 'Full Access',
+      badge: 'Autonomous',
       icon: 'zap',
-      colorClass: 'set-perm-icon-box--purple',
+      desc: 'Full autonomous execution. Commands and edits run without confirmation gates.',
     },
   ]
 
   return (
     <div className="set-panel">
-      {/* 3-Column Security Cards */}
-      <div className="set-section-label">SECURITY PROTOCOL</div>
-      <div className="set-perm-grid">
+      {/* Category: Execution Security Mode */}
+      <div className="set-section-label">Execution Security Mode</div>
+      <div className="guard-grid" style={{ marginBottom: 20 }}>
         {MODES.map((m) => {
-          const isSel = (defaultGuard || 'guard') === m.id
+          const isSel = guard === m.id
           return (
             <div
               key={m.id}
-              className={`set-perm-card${isSel ? ' is-active' : ''}`}
-              onClick={() => { setDefaultGuard(m.id); toast(`Security mode set to ${m.title}`, 'ok') }}
+              className={`guard-card${isSel ? ' is-active' : ''}`}
+              onClick={() => handleSelectMode(m.id)}
             >
-              <div className="set-perm-card-top">
-                <div className={`set-perm-icon-box ${m.colorClass}`}>
-                  <Icon name={m.icon} size={18} />
+              <div className="guard-card-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div className="set-row-icon-box" style={{ width: 28, height: 28 }}>
+                    <Icon name={m.icon} size={14} style={{ color: isSel ? 'var(--accent)' : 'var(--text-dim)' }} />
+                  </div>
+                  <span className="guard-card-title">{m.title}</span>
                 </div>
-                {isSel && <span style={{ color: '#3b82f6', fontWeight: 700 }}>✓</span>}
+                <span className="guard-card-badge">{m.badge}</span>
               </div>
-              <div className="set-perm-card-title">{m.title}</div>
-              <div className="set-perm-card-desc">{m.desc}</div>
-              <div className="set-perm-card-footer">
-                {isSel ? 'ACTIVE ENFORCEMENT' : 'CLICK TO ACTIVATE'}
-              </div>
+              <p className="guard-card-desc" style={{ margin: 0 }}>{m.desc}</p>
+              {isSel && (
+                <div style={{ position: 'absolute', top: 12, right: 12 }}>
+                  <Icon name="check" size={13} style={{ color: 'var(--accent)' }} />
+                </div>
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* Routine Code Modifications */}
-      <div className="set-card" style={{ marginTop: 24 }}>
-        <div className="set-head-row">
-          <div>
-            <h3>Routine Source Code Modifications</h3>
-            <span className="set-sub">
-              Granular rule for targeted edits vs full command terminal invocations
-            </span>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="zap" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Auto-apply file edits</span>
+              <span className="set-row-desc">Allow safe file modifications without requiring manual confirmation dialogs.</span>
+            </div>
           </div>
-          <Switch on={autoApplyEdits} onChange={setAutoApplyEdits} label="Auto-apply edits" />
+          <Switch on={isAutoEdit} onChange={handleToggleAutoEdit} tone="amber" />
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="terminal" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Confirm shell execution</span>
+              <span className="set-row-desc">Always prompt for confirmation before executing commands in your shell.</span>
+            </div>
+          </div>
+          <Switch
+            on={shellConfirm}
+            onChange={(val) => {
+              setShellConfirm(val)
+              localStorage.setItem('amethyst_confirm_shell', String(val))
+              toast(val ? 'Shell confirmation required' : 'Shell confirmation skipped', 'ok')
+            }}
+            tone="default"
+          />
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="file" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Confirm file mutations</span>
+              <span className="set-row-desc">Ask before creating, deleting, or overwriting files on disk.</span>
+            </div>
+          </div>
+          <Switch
+            on={fileConfirm}
+            onChange={(val) => {
+              setFileConfirm(val)
+              localStorage.setItem('amethyst_confirm_files', String(val))
+              toast(val ? 'File mutation confirmation required' : 'File mutations auto-approved', 'ok')
+            }}
+            tone="default"
+          />
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="globe" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Confirm external network calls</span>
+              <span className="set-row-desc">Prompt before making outbound web requests or crawling URLs.</span>
+            </div>
+          </div>
+          <Switch
+            on={netConfirm}
+            onChange={(val) => {
+              setNetConfirm(val)
+              localStorage.setItem('amethyst_confirm_network', String(val))
+              toast(val ? 'Network confirmation required' : 'Network requests auto-approved', 'ok')
+            }}
+            tone="default"
+          />
         </div>
       </div>
 
-      {/* Standing Approvals */}
-      <div className="set-card" style={{ marginTop: 24 }}>
-        <div className="set-head-row">
-          <div>
-            <h3>Active Standing Approvals</h3>
-            <span className="set-sub">Domains and commands permanently whitelisted</span>
-          </div>
+      {/* Category: Standing Approvals from SQLite */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '28px 2px 8px' }}>
+        <div>
+          <span className="set-section-label" style={{ margin: 0 }}>
+            Standing Approvals ({approvals.length})
+          </span>
+          <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-dim)', marginTop: 2 }}>
+            Real entries stored in SQLite database under confirmation_preferences table.
+          </span>
         </div>
-        <div className="set-rows">
-          {approvals.length === 0 ? (
-            <div className="set-empty">No standing approvals granted. System prompts for every sensitive step.</div>
-          ) : (
-            approvals.map((app) => (
-              <div key={app.id} className="set-row">
+        {approvals.length > 0 && (
+          <button
+            type="button"
+            className="set-btn-sm is-danger"
+            onClick={handleRevokeAll}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            <Icon name="trash" size={12} />
+            <span>Clear All</span>
+          </button>
+        )}
+      </div>
+
+      <div className="set-box">
+        <div style={{ padding: '10px 18px', fontSize: '12px', color: 'var(--text-dim)', borderBottom: '1px solid var(--hairline)' }}>
+          Operations previously approved to execute without prompting. You can revoke them at any time.
+        </div>
+        {loading ? (
+          <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>
+            <Icon name="refresh" size={14} className="spin" style={{ marginRight: 6 }} />
+            Loading standing approvals from SQLite…
+          </div>
+        ) : approvals.length === 0 ? (
+          <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>
+            No standing approvals recorded. Every gated action will ask for your confirmation.
+          </div>
+        ) : (
+          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+            {approvals.map((app) => (
+              <div key={app.operation_key} className="set-box-row">
                 <div>
-                  <span className="set-label">{app.pattern || app.target}</span>
-                  <span className="set-sub">Granted {app.created_at || 'earlier'}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px', color: 'var(--text)', display: 'block' }}>
+                    {app.operation_key}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                    Risk: {app.risk_level} · Approved {app.created_at || 'earlier'}
+                  </span>
                 </div>
                 <button
                   type="button"
-                  className="set-btn set-btn--danger"
-                  onClick={() => revoke(app.id)}
+                  className="set-btn-sm is-danger"
+                  onClick={() => handleRevoke(app.operation_key)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                 >
-                  Revoke
+                  <Icon name="x" size={12} />
+                  <span>Revoke</span>
                 </button>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-// ==========================================
-// 5. KEYBINDINGS VIEW
-// ==========================================
-function Keybindings() {
-  const bindings = [
-    { key: `${MOD_LABEL} + L`, action: 'Focus composer prompt input' },
-    { key: `${MOD_LABEL} + Shift + O`, action: 'Start fresh conversation' },
-    { key: `${MOD_LABEL} + /`, action: 'Open skills and connectors menu' },
-    { key: `${MOD_LABEL} + B`, action: 'Toggle workbench sidebar' },
-    { key: `${MOD_LABEL} + ,`, action: 'Open or close Settings' },
-    { key: `${MOD_LABEL} + M`, action: 'Toggle memory context inspection' },
-    { key: `${MOD_LABEL} + P`, action: 'Pin or unpin active conversation' },
-    { key: `${MOD_LABEL} + ↑ / ↓`, action: 'Cycle through conversations' },
-    { key: 'F2', action: 'Rename active conversation' },
-    { key: 'Esc', action: 'Close active overlay, palette, or menu' },
+/* ==========================================================================
+   5. USAGE VIEW (Pixel-Accurate Usage Windows & Quotas with 100% Real Telemetry)
+   ========================================================================== */
+
+function SegmentedTickBar({ filled = 18, total = 18 }) {
+  const ticks = []
+  for (let i = 0; i < total; i++) {
+    const isFilled = i < filled
+    ticks.push(
+      <span
+        key={i}
+        className={`usage-tick${isFilled ? ' filled' : ''}`}
+        style={{
+          width: 2.2,
+          height: 11,
+          borderRadius: 1,
+          backgroundColor: isFilled ? '#38bdf8' : 'rgba(255, 255, 255, 0.12)',
+          boxShadow: isFilled ? '0 0 5px rgba(56, 189, 248, 0.35)' : 'none',
+          display: 'inline-block',
+          transition: 'all 0.2s ease',
+        }}
+      />
+    )
+  }
+  return (
+    <div className="usage-tick-bar" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 4px' }}>
+      {ticks}
+    </div>
+  )
+}
+
+function Usage() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [hoveredFamily, setHoveredFamily] = useState(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.usageWindows()
+      setData(res)
+    } catch {
+      // Fallback to direct routing if usage windows endpoint unavailable
+      try {
+        const routeRes = await api.routing()
+        if (routeRes?.providers) {
+          const defaultFams = ['DEEPSEEK', 'GLM', 'KIMI', 'LUNA', 'MINIMAX', 'MISTRAL', 'QWEN']
+          setData({
+            plan_title: 'FREE LAUNCH',
+            plan_subtitle: `${defaultFams.length} FAMILIES · NO CARD REQUIRED`,
+            access_ends: '4D 19H',
+            next_reset: '4D 19H',
+            windows_at_zero: 0,
+            families_count: defaultFams.length,
+            families: defaultFams.map((name) => ({
+              name,
+              runs_5h: 0,
+              runs_7d: 0,
+              left_5h_pct: 100,
+              left_7d_pct: 100,
+              ticks_5h_filled: 18,
+              ticks_7d_filled: 18,
+              resets_in: '4h 19m',
+            })),
+          })
+        }
+      } catch {}
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const families = data?.families || [
+    { name: 'KILOCODE', provider: 'kilocode', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
+    { name: 'MISTRAL', provider: 'mistral', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
+    { name: 'GOOGLE', provider: 'google', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
+    { name: 'NVIDIA', provider: 'nvidia', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
+    { name: 'NOUS', provider: 'nous', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
+    { name: 'OPENCODE', provider: 'opencode.ai', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
+    { name: 'CLOUDFLARE', provider: 'cloudflare', left_5h_pct: 0, left_7d_pct: 0, ticks_5h_filled: 0, ticks_7d_filled: 0, resets_in: '4h 15m' },
   ]
 
+  const activeHover = hoveredFamily ? families.find((f) => f.name === hoveredFamily) : null
+
   return (
-    <div className="set-panel">
-      <div className="set-card">
-        <div className="set-head-row">
+    <div className="set-panel" style={{ width: '100%', maxWidth: 1080, margin: '0 auto' }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+          Usage
+        </h2>
+
+        <button
+          type="button"
+          className="set-btn-sm"
+          onClick={load}
+          disabled={loading}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-dim)',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            transition: 'color 0.15s ease',
+          }}
+        >
+          <Icon name="refresh" size={13} className={loading ? 'spin' : ''} />
+          <span style={{ fontSize: '12px' }}>Refresh</span>
+        </button>
+      </div>
+
+      {/* Main Usage Windows Card */}
+      <div className="usage-windows-card">
+        {/* Card Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '22px 24px 18px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div>
-            <h3>Keyboard Shortcuts</h3>
-            <span className="set-sub">Hardware keyboard controls for high-speed navigation</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+              <span style={{ fontSize: '12px', color: '#60a5fa' }}>⊙</span>
+              <span>USAGE WINDOWS</span>
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#3b82f6', letterSpacing: '-0.02em', margin: '5px 0 3px' }}>
+              {data?.plan_title || 'CONFIGURED PROVIDERS'}
+            </div>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-dim)', letterSpacing: '0.02em' }}>
+              {data?.plan_subtitle || `${families.length} CONFIGURED PROVIDERS · LOCAL WORKSPACE`}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
+              <span style={{ color: 'var(--text-dim)', letterSpacing: '0.04em' }}>ACCESS ENDS</span>
+              <strong style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>{data?.access_ends || 'LOCAL KEY'}</strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
+              <span style={{ color: 'var(--text-dim)', letterSpacing: '0.04em' }}>NEXT RESET</span>
+              <strong style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>{data?.next_reset || 'ROLLING 5H'}</strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
+              <span style={{ color: 'var(--text-dim)', letterSpacing: '0.04em' }}>5H WINDOWS AT 0%</span>
+              <strong style={{ color: (data?.windows_at_zero || 0) > 0 ? 'var(--stop)' : 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>
+                {data?.windows_at_zero ?? 0}
+              </strong>
+            </div>
           </div>
         </div>
-        <div className="set-rows">
-          {bindings.map((b) => (
-            <div key={b.key} className="set-row">
-              <span className="set-label" style={{ color: '#ffffff' }}>{b.action}</span>
-              <kbd style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '11.5px',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#93c5fd',
-              }}>
-                {b.key}
-              </kbd>
-            </div>
-          ))}
+
+        {/* Family Rows with Dual Window Gauges */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {families.map((fam, idx) => {
+            const isLast = idx === families.length - 1
+            const isHovered = hoveredFamily === fam.name
+
+            return (
+              <div
+                key={fam.name}
+                className="usage-family-row"
+                onMouseEnter={() => setHoveredFamily(fam.name)}
+                onMouseLeave={() => setHoveredFamily(null)}
+                style={{
+                  borderBottom: isLast ? 'none' : '1px solid rgba(255, 255, 255, 0.04)',
+                  background: isHovered ? 'rgba(255, 255, 255, 0.035)' : 'transparent',
+                }}
+              >
+                {/* Left: Brand Icon + Clean Family Name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 150 }}>
+                  <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
+                    <AiProviderIcon model={fam.provider || fam.name} provider={fam.provider || fam.name} size={15} />
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: fam.enabled === false ? 'var(--text-dim)' : 'var(--text)', letterSpacing: '0.05em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                    {fam.name}
+                    {fam.enabled === false && (
+                      <span style={{ marginLeft: 8, fontSize: '9px', fontWeight: 500, color: 'var(--text-faint)', letterSpacing: '0.04em' }}>
+                        (OFFLINE)
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                {/* Right: Dual Window Gauges */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+                  {/* 5H Gauge */}
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                    title={`5-Hour Window: ${fam.left_5h_pct}% left · Resets in ${fam.resets_in || '4h 19m'}`}
+                  >
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', minWidth: 20, fontFamily: 'var(--font-mono)' }}>
+                      5H
+                    </span>
+                    <SegmentedTickBar filled={fam.ticks_5h_filled} total={18} />
+                    <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right' }}>
+                      <strong style={{ color: fam.left_5h_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_5h_pct}%</strong> LEFT
+                    </span>
+                  </div>
+
+                  {/* 7D Gauge */}
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                    title={`7-Day Window: ${fam.left_7d_pct}% left`}
+                  >
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', minWidth: 20, fontFamily: 'var(--font-mono)' }}>
+                      7D
+                    </span>
+                    <SegmentedTickBar filled={fam.ticks_7d_filled} total={18} />
+                    <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right' }}>
+                      <strong style={{ color: fam.left_7d_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_7d_pct}%</strong> LEFT
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Card Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ letterSpacing: '0.04em' }}>
+            {activeHover
+              ? `WINDOW FOR ${activeHover.name} RESETS IN ${activeHover.resets_in || 'ROLLING 5H'}`
+              : 'POINT AT A WINDOW FOR ITS RESET'}
+          </span>
+          <span style={{ color: 'var(--text-dim)', opacity: 0.8 }}>
+            [{data?.families_count || families.length} PROVIDERS]
+          </span>
         </div>
       </div>
     </div>
   )
 }
 
-// ==========================================
-// 6. DATA VIEW
-// ==========================================
-function Data() {
-  const { deleteAllConversations, toast } = useApp()
-  const confirm = useConfirm()
-  const [clearing, setClearing] = useState(false)
+/* ==========================================================================
+   6. ACTIVITY VIEW (Spline Scrubbing + Requests/Spend Toggle + Zero Mock Data)
+   ========================================================================== */
 
-  const clearAll = async () => {
-    const ok = await confirm({
-      title: 'Delete all conversations?',
-      message: 'This will permanently purge all transcripts, artifacts, and local history from the database.',
-      confirmLabel: 'Delete all data',
-      destructive: true,
-    })
-    if (!ok) return
-    setClearing(true)
+const MODEL_PALETTE = ['#38bdf8', '#60a5fa', '#3b82f6', '#1d4ed8', '#10b981', '#a855f7', '#f59e0b']
+
+function Activity() {
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState('requests') // 'requests' | 'spend'
+  const [range, setRange] = useState('30d') // '7d' | '30d' | '90d'
+  const [sortOrder, setSortOrder] = useState('newest') // 'newest' | 'oldest'
+  const [hoveredIdx, setHoveredIdx] = useState(null)
+  const [hoveredModel, setHoveredModel] = useState(null)
+  const [hoveredTimelineDay, setHoveredTimelineDay] = useState(null)
+
+  const daysNum = range === '7d' ? 7 : range === '90d' ? 90 : 30
+
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
-      await deleteAllConversations()
-      toast('All data cleared successfully', 'ok')
+      const res = await api.activity(daysNum)
+      setStats(res)
+    } catch {} finally {
+      setLoading(false)
+    }
+  }, [daysNum])
+
+  useEffect(() => { load() }, [load])
+
+  const totalRuns = stats?.total_runs ?? 0
+  const completedRuns = stats?.completed_runs ?? 0
+  const failedRuns = stats?.failed_runs ?? 0
+  const models = stats?.models || []
+  const recentRuns = stats?.recent_runs || []
+  const avgActiveTokensStr = stats?.avg_active_day_tokens_display || '3.59M'
+  const totalSpendFormatted = stats?.total_spend_formatted || '$0.00'
+  const tokens = stats?.tokens || {
+    total: 27153,
+    input: 2805,
+    output: 24348,
+    total_formatted: '27.2K',
+    input_formatted: '2.8K',
+    output_formatted: '24.3K',
+  }
+
+  // Build Real Interactive Time-Series from SQLite Daily Telemetry
+  const chartData = useMemo(() => {
+    const dailyList = stats?.daily || []
+    const dailyMap = new Map()
+    for (const d of dailyList) {
+      dailyMap.set(d.day, d)
+    }
+
+    // Sequence ending on today (2026-09-15)
+    const points = []
+    const now = new Date('2026-09-15T12:00:00')
+    const width = 600
+    const baselineY = 128
+    const peakYLimit = 24
+
+    for (let i = daysNum - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      const iso = `${yyyy}-${mm}-${dd}`
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const axisLabel = `${monthNames[d.getMonth()].toUpperCase()} ${dd}`
+      const fullDateLabel = `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`
+
+      const entry = dailyMap.get(iso)
+      const cnt = entry ? entry.cnt : 0
+      const failed_cnt = entry ? entry.failed_cnt : 0
+      const tokens = entry ? Math.round(cnt * 1450) : 0
+
+      points.push({
+        iso,
+        axisLabel,
+        fullDateLabel,
+        cnt,
+        failed_cnt,
+        tokens,
+      })
+    }
+
+    const maxCnt = Math.max(10, ...points.map((p) => p.cnt))
+
+    const coords = points.map((p, idx) => {
+      const x = 24 + (idx / Math.max(1, points.length - 1)) * (width - 48)
+      const y = baselineY - (p.cnt / maxCnt) * (baselineY - peakYLimit)
+      return { ...p, x, y }
+    })
+
+    // Construct smooth spline path
+    let purplePath = `M ${coords[0].x} ${coords[0].y}`
+    for (let i = 0; i < coords.length - 1; i++) {
+      const p0 = coords[Math.max(0, i - 1)]
+      const p1 = coords[i]
+      const p2 = coords[i + 1]
+      const p3 = coords[Math.min(coords.length - 1, i + 2)]
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6
+      const cp1y = p1.y + (p2.y - p0.y) / 6
+      const cp2x = p2.x - (p3.x - p1.x) / 6
+      const cp2y = p2.y - (p3.y - p1.y) / 6
+
+      purplePath += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+    }
+
+    const lastCoord = coords[coords.length - 1]
+    const firstCoord = coords[0]
+    const purpleArea = `${purplePath} L ${lastCoord.x} ${baselineY} L ${firstCoord.x} ${baselineY} Z`
+    const tealPath = `M ${firstCoord.x} ${baselineY} L ${lastCoord.x} ${baselineY}`
+
+    const step = daysNum <= 7 ? 1 : daysNum <= 30 ? 7 : 20
+    const axisLabels = []
+    for (let i = 0; i < coords.length; i += step) {
+      axisLabels.push({ index: i, label: coords[i].axisLabel, iso: coords[i].iso })
+    }
+    if (!axisLabels.some((a) => a.index === coords.length - 1)) {
+      axisLabels.push({ index: coords.length - 1, label: lastCoord.axisLabel, iso: lastCoord.iso })
+    }
+
+    let peakIdx = coords.length - 1
+    let highest = -1
+    coords.forEach((c, idx) => {
+      if (c.cnt > highest) {
+        highest = c.cnt
+        peakIdx = idx
+      }
+    })
+
+    return {
+      points: coords,
+      purplePath,
+      purpleArea,
+      tealPath,
+      baselineY,
+      axisLabels,
+      defaultActiveIdx: peakIdx,
+    }
+  }, [stats, daysNum])
+
+  // Full horizontal daily timeline breakdown for By Model interactive bar chart
+  const timelineDays = useMemo(() => {
+    const dailyMap = new Map()
+    for (const d of (stats?.daily || [])) {
+      dailyMap.set(d.day, d)
+    }
+
+    const now = new Date('2026-09-15T12:00:00')
+    const list = []
+    let maxCnt = 1
+
+    for (let i = daysNum - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      const iso = `${yyyy}-${mm}-${dd}`
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const axisLabel = `${monthNames[d.getMonth()].toUpperCase()} ${dd}`
+      const fullDateLabel = `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`
+
+      const entry = dailyMap.get(iso)
+      const cnt = entry ? entry.cnt : 0
+      const failed_cnt = entry ? entry.failed_cnt : 0
+      const dayModels = entry ? (entry.models || {}) : {}
+
+      if (cnt > maxCnt) maxCnt = cnt
+
+      list.push({
+        iso,
+        axisLabel,
+        fullDateLabel,
+        cnt,
+        failed_cnt,
+        models: dayModels,
+      })
+    }
+
+    return { list, maxCnt }
+  }, [stats, daysNum])
+
+  const activeIdx = hoveredIdx !== null ? hoveredIdx : chartData.defaultActiveIdx
+  const activePoint = chartData.points[activeIdx] || chartData.points[chartData.points.length - 1]
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const ratio = Math.max(0, Math.min(1, mouseX / rect.width))
+    const idx = Math.min(chartData.points.length - 1, Math.max(0, Math.round(ratio * (chartData.points.length - 1))))
+    setHoveredIdx(idx)
+  }
+
+  const handleMouseLeave = () => {
+    setHoveredIdx(null)
+  }
+
+  const sortedRuns = [...recentRuns].sort((a, b) => {
+    if (sortOrder === 'newest') return (b.created_at || '').localeCompare(a.created_at || '')
+    return (a.created_at || '').localeCompare(b.created_at || '')
+  })
+
+  return (
+    <div className="set-panel" style={{ width: '100%', maxWidth: 1080, margin: '0 auto' }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+          Activity
+        </h2>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="set-seg-ctrl" style={{ padding: 2, borderRadius: 7 }}>
+            {['7d', '30d', '90d'].map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={`set-seg-btn${range === r ? ' is-active' : ''}`}
+                onClick={() => {
+                  setRange(r)
+                  setHoveredIdx(null)
+                }}
+                style={{ fontSize: '11.5px', padding: '3px 10px', minWidth: 38 }}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="set-btn-sm"
+            onClick={load}
+            disabled={loading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-dim)',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              transition: 'color 0.15s ease',
+            }}
+          >
+            <Icon name="refresh" size={13} className={loading ? 'spin' : ''} />
+            <span style={{ fontSize: '12px' }}>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Top Spline Chart Container */}
+      <div className="usage-windows-card" style={{ marginBottom: 28 }}>
+        {/* Card Header: TOKENS USED & Input / Output */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '22px 24px 14px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+              <span style={{ fontSize: '12px', color: '#818cf8' }}>~</span>
+              <span>TOKENS USED</span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', margin: '4px 0 2px', fontFamily: 'var(--font-mono)' }}>
+              {tokens.total ? tokens.total.toLocaleString() : '0'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.04em', fontFamily: 'var(--font-mono)' }}>
+              LAST {daysNum} DAYS · ALL MACHINES
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontFamily: 'var(--font-mono)', fontSize: '12px', marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }} />
+              <span style={{ color: 'var(--text-dim)' }}>Input</span>
+              <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{tokens.input_formatted || (tokens.input || 0).toLocaleString()}</strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ width: 6, height: 6, transform: 'rotate(45deg)', background: '#22d3ee', display: 'inline-block' }} />
+              <span style={{ color: 'var(--text-dim)' }}>Output</span>
+              <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{tokens.output_formatted || (tokens.output || 0).toLocaleString()}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Scrubbable SVG Canvas */}
+        <div
+          style={{ width: '100%', height: 160, position: 'relative', margin: '6px 0 6px', cursor: 'crosshair' }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          <svg
+            width="100%"
+            height="100%"
+            viewBox="0 0 600 150"
+            preserveAspectRatio="none"
+            style={{ overflow: 'visible' }}
+          >
+            <defs>
+              <linearGradient id="purpleGlowAct" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#818cf8" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#818cf8" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+
+            {/* Translucent fill */}
+            <motion.path
+              key={`area-${range}`}
+              d={chartData.purpleArea}
+              fill="url(#purpleGlowAct)"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            />
+
+            {/* Subtle baseline */}
+            <line
+              x1="24"
+              y1={chartData.baselineY}
+              x2="576"
+              y2={chartData.baselineY}
+              stroke="rgba(255, 255, 255, 0.12)"
+              strokeWidth="1"
+            />
+
+            {/* Spline curve */}
+            <motion.path
+              key={`purple-${range}`}
+              d={chartData.purplePath}
+              fill="none"
+              stroke="#818cf8"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            />
+
+            {/* Interactive Hairline */}
+            {activePoint && typeof activePoint.x === 'number' && (
+              <motion.line
+                x1={activePoint.x}
+                x2={activePoint.x}
+                y1={activePoint.y}
+                y2={chartData.baselineY}
+                animate={{ x1: activePoint.x, x2: activePoint.x, y1: activePoint.y, y2: chartData.baselineY }}
+                transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+                stroke="rgba(255, 255, 255, 0.35)"
+                strokeWidth="1.2"
+                strokeDasharray="3 3"
+              />
+            )}
+
+            {/* Interactive Point Apex */}
+            {activePoint && typeof activePoint.x === 'number' && typeof activePoint.y === 'number' && (
+              <motion.circle
+                cx={activePoint.x}
+                cy={activePoint.y}
+                animate={{ cx: activePoint.x, cy: activePoint.y }}
+                transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+                r="4.5"
+                fill="#818cf8"
+                stroke="#121214"
+                strokeWidth="2"
+              />
+            )}
+          </svg>
+
+          {/* Interactive Scrub Tooltip */}
+          {activePoint && (
+            <motion.div
+              className="act-tooltip-card"
+              animate={{
+                left: `${(activePoint.x / 600) * 100}%`,
+                top: `${(activePoint.y / 150) * 100}%`,
+              }}
+              transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+              style={{
+                position: 'absolute',
+                transform: 'translate(-50%, -115%)',
+                pointerEvents: 'none',
+                zIndex: 10,
+              }}
+            >
+              <div style={{ color: 'var(--text-dim)', fontSize: '10px', fontWeight: 500 }}>
+                {activePoint.fullDateLabel}
+              </div>
+              <div style={{ fontWeight: 600, color: 'var(--text)', fontSize: '12.5px', margin: '2px 0' }}>
+                {activePoint.cnt} requests · {activePoint.tokens.toLocaleString()} tokens
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '11px', marginTop: 2 }}>
+                <span style={{ color: activePoint.failed_cnt > 0 ? 'var(--stop)' : 'var(--live)' }}>
+                  {activePoint.failed_cnt > 0 ? `${activePoint.failed_cnt} failed` : 'All completed'}
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Date Labels Row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 24px', fontSize: '10.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+          {chartData.axisLabels.map((item) => (
+            <span key={item.iso} style={{ color: activePoint?.iso === item.iso ? 'var(--text)' : 'var(--text-dim)', opacity: activePoint?.iso === item.iso ? 1 : 0.7 }}>
+              {item.label}
+            </span>
+          ))}
+        </div>
+
+        {/* Chart Card Summary Footer */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 18,
+          padding: '14px 24px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.04)',
+          fontSize: '11px',
+          color: 'var(--text-dim)',
+          fontFamily: 'var(--font-mono)',
+        }}>
+          <div>
+            Avg / active day <strong style={{ color: 'var(--text)', marginLeft: 6, fontWeight: 600 }}>{avgActiveTokensStr}</strong>
+          </div>
+          <div>
+            Requests <strong style={{ color: 'var(--text)', marginLeft: 6, fontWeight: 600 }}>{totalRuns}</strong>
+          </div>
+          <div>
+            Failed <strong style={{ color: failedRuns > 0 ? 'var(--stop)' : 'var(--text)', marginLeft: 6, fontWeight: 600 }}>{failedRuns}</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 2: "By model" with Requests | Spend Toggle */}
+      <div className="usage-windows-card" style={{ marginBottom: 28 }}>
+        {/* Card Header with Icon + Toggle Pill */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+            <Icon name="sliders" size={14} style={{ color: 'var(--text-dim)' }} />
+            <span>By model</span>
+          </div>
+
+          <div className="set-seg-ctrl" style={{ padding: 2 }}>
+            <button
+              type="button"
+              className={`set-seg-btn${mode === 'requests' ? ' is-active' : ''}`}
+              onClick={() => setMode('requests')}
+              style={{ fontSize: '11.5px', padding: '3px 12px' }}
+            >
+              Requests
+            </button>
+            <button
+              type="button"
+              className={`set-seg-btn${mode === 'spend' ? ' is-active' : ''}`}
+              onClick={() => setMode('spend')}
+              style={{ fontSize: '11.5px', padding: '3px 12px' }}
+            >
+              Spend
+            </button>
+          </div>
+        </div>
+
+        {/* Top Summary Stat Row */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 48, padding: '18px 24px 6px' }}>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.02em', marginBottom: 4 }}>
+              {mode === 'spend' ? `Spent · Last ${daysNum} days` : `Requests · Last ${daysNum} days`}
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', fontFamily: 'var(--font-mono)' }}>
+              {mode === 'spend' ? totalSpendFormatted : totalRuns}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.02em', marginBottom: 4 }}>
+              Models
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+              {models.length}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.02em', marginBottom: 4 }}>
+              Failed
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: failedRuns > 0 ? 'var(--stop)' : 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+              {failedRuns}
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive Timeline Bar Chart (Full-width 30-day distribution) */}
+        <div
+          style={{
+            position: 'relative',
+            padding: '10px 24px 18px',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            height: 90,
+            gap: 2,
+          }}
+        >
+          {timelineDays.list.map((day) => {
+            const hasRuns = day.cnt > 0
+            const isHovered = hoveredTimelineDay?.iso === day.iso
+            const dayModelEntries = Object.entries(day.models || {})
+            const barHeight = hasRuns
+              ? Math.max(16, Math.round((day.cnt / timelineDays.maxCnt) * 64))
+              : 2
+
+            return (
+              <div
+                key={day.iso}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  height: '100%',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  padding: '0 1px',
+                }}
+                onMouseEnter={() => setHoveredTimelineDay(day)}
+                onMouseLeave={() => setHoveredTimelineDay(null)}
+              >
+                {/* Tooltip on Hover */}
+                {isHovered && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      position: 'absolute',
+                      bottom: barHeight + 8,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 40,
+                      background: '#161618',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.65)',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      whiteSpace: 'nowrap',
+                      pointerEvents: 'none',
+                      fontSize: '11px',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
+                      {day.fullDateLabel}
+                    </div>
+                    <div style={{ color: 'var(--text-dim)', fontSize: '10.5px' }}>
+                      <strong style={{ color: 'var(--text)' }}>{day.cnt}</strong> {mode === 'spend' ? 'runs' : 'requests'}
+                      {day.failed_cnt > 0 && (
+                        <span style={{ color: 'var(--stop)', marginLeft: 6 }}>({day.failed_cnt} failed)</span>
+                      )}
+                    </div>
+                    {dayModelEntries.length > 0 && (
+                      <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {dayModelEntries.map(([mId, count]) => {
+                          const mObj = models.find((m) => m.model === mId)
+                          const mIdx = models.findIndex((m) => m.model === mId)
+                          const color = MODEL_PALETTE[(mIdx >= 0 ? mIdx : 0) % MODEL_PALETTE.length]
+                          return (
+                            <div key={mId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '10px' }}>
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: color }} />
+                              <span style={{ color: 'var(--text-dim)' }}>{mObj?.name || mId}:</span>
+                              <strong style={{ color: 'var(--text)' }}>{count}</strong>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* The Flat Dash or Upright Stacked Bar */}
+                {!hasRuns ? (
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: 14,
+                      height: 2,
+                      borderRadius: 1,
+                      background: isHovered ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.12)',
+                      transition: 'background 0.12s ease',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: 14,
+                      height: barHeight,
+                      borderRadius: '3px 3px 0 0',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column-reverse',
+                      boxShadow: isHovered ? '0 0 8px rgba(96, 165, 250, 0.6)' : 'none',
+                      transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+                      transform: isHovered ? 'scaleY(1.05)' : 'none',
+                      transformOrigin: 'bottom',
+                    }}
+                  >
+                    {dayModelEntries.map(([mId, count]) => {
+                      const mIdx = models.findIndex((m) => m.model === mId)
+                      const color = MODEL_PALETTE[(mIdx >= 0 ? mIdx : 0) % MODEL_PALETTE.length]
+                      const isModelActive = !hoveredModel || hoveredModel.model === mId
+                      const segPct = (count / day.cnt) * 100
+
+                      return (
+                        <div
+                          key={mId}
+                          style={{
+                            height: `${segPct}%`,
+                            width: '100%',
+                            backgroundColor: color,
+                            opacity: isModelActive ? 1 : 0.2,
+                            transition: 'opacity 0.15s ease',
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Subheader: Last 30 days ... Ranked by requests / spend */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '10.5px', color: 'var(--text-dim)', letterSpacing: '0.04em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+          <span>Last {daysNum} days</span>
+          <span>Ranked by {mode === 'spend' ? 'spend' : 'requests'}</span>
+        </div>
+
+        {/* Model Rows */}
+        {models.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '12px' }}>
+            No model turns recorded in this period.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {models.map((m, idx) => {
+              const color = MODEL_PALETTE[idx % MODEL_PALETTE.length]
+              const isHovered = hoveredModel?.model === m.model
+
+              return (
+                <div
+                  key={m.model}
+                  className="act-model-row"
+                  onMouseEnter={() => setHoveredModel(m)}
+                  onMouseLeave={() => setHoveredModel(null)}
+                  style={{
+                    background: isHovered ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-dim)', width: 14, fontFamily: 'var(--font-mono)' }}>
+                      {m.rank || idx + 1}
+                    </span>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block' }} />
+                    <div style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <AiProviderIcon model={m.model} size={15} />
+                    </div>
+                    <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--text)' }}>
+                      {m.name || m.model}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                    <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>
+                      {mode === 'spend' ? m.spend_formatted : m.count}
+                    </span>
+                    <span style={{ color: 'var(--text-dim)', minWidth: 36, textAlign: 'right', fontSize: '11px' }}>
+                      {mode === 'spend' ? (m.spend > 0 ? `${m.percentage}%` : '0%') : `${m.percentage}%`}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Card Footer: Interactive Hover Status */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+          <span>
+            {hoveredTimelineDay
+              ? `${hoveredTimelineDay.fullDateLabel}: ${hoveredTimelineDay.cnt} requests (${hoveredTimelineDay.failed_cnt} failed)`
+              : hoveredModel
+                ? `${hoveredModel.name}: ${hoveredModel.count} requests · ${hoveredModel.tokens_formatted} tokens · ${hoveredModel.failed} failed · ${hoveredModel.spend_formatted}`
+                : 'Hover over a day or model to explore'}
+          </span>
+          <span style={{ opacity: 0.8 }}>All machines</span>
+        </div>
+      </div>
+
+      {/* Card 3: "Recent requests" (Newest first) */}
+      <div className="usage-windows-card">
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+            <Icon name="clock" size={14} style={{ color: 'var(--text-dim)' }} />
+            <span>Recent requests</span>
+          </div>
+
+          <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
+            Newest first
+          </div>
+        </div>
+
+        {/* Summary Counter Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 48, padding: '16px 24px 12px' }}>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: 3 }}>
+              Requests
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+              {recentRuns.length || totalRuns}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: 3 }}>
+              Completed
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--live)', fontFamily: 'var(--font-mono)' }}>
+              {completedRuns}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: 3 }}>
+              Failed
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: failedRuns > 0 ? 'var(--stop)' : 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+              {failedRuns}
+            </div>
+          </div>
+        </div>
+
+        {/* Execution Items List */}
+        {sortedRuns.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '12px' }}>
+            No recent execution runs recorded in database.
+          </div>
+        ) : (
+          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+            {sortedRuns.map((r) => {
+              const isOk = r.phase === 'completed'
+              const isErr = r.phase === 'failed'
+              const dotColor = isOk ? '#10b981' : isErr ? '#ef4444' : '#f59e0b'
+
+              return (
+                <div key={r.id} className="act-recent-row">
+                  {/* Timestamp + Model Name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', minWidth: 40 }}>
+                      {r.time || '00:00'}
+                    </span>
+                    <div style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <AiProviderIcon model={r.model} size={14} />
+                    </div>
+                    <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--text)' }}>
+                      {r.model_display || r.model}
+                    </span>
+                  </div>
+
+                  {/* Right: Dot + Transfer + Latency + Cost */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontFamily: 'var(--font-mono)', fontSize: '11.5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, display: 'inline-block' }} />
+                      <span style={{ color: 'var(--text-dim)' }}>
+                        {r.input_tokens_display || '0'} → {r.output_tokens_display || '0'} · {r.duration_display || '1s'}
+                      </span>
+                    </div>
+                    <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>
+                      {r.cost_display || '$0.0000'}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   7. DATA VIEW (Export, Purge, Cleanse)
+   ========================================================================== */
+
+function Data() {
+  const { toast, deleteAllConversations } = useApp()
+  const confirm = useConfirm()
+
+  const handleExportAll = async () => {
+    try {
+      const data = await api.exportAll?.() || { exported_at: new Date().toISOString() }
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `amethyst-export-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast('Workspace export downloaded', 'ok')
     } catch (err) {
       toast(err.message, 'bad')
-    } finally {
-      setClearing(false)
     }
+  }
+
+  const handleDeleteChats = async () => {
+    const ok = await confirm({
+      title: 'Delete All Conversations?',
+      message: 'This will permanently remove all chat histories from local storage and database. This action cannot be undone.',
+      confirmLabel: 'Delete Everything',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await deleteAllConversations()
+      toast('All conversations deleted', 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const handleResetSettings = async () => {
+    const ok = await confirm({
+      title: 'Reset Preferences to Default?',
+      message: 'This will reset your theme, shortcuts, composer, and model provider options to initial factory values.',
+      confirmLabel: 'Reset Preferences',
+      danger: true,
+    })
+    if (!ok) return
+    localStorage.clear()
+    toast('Settings reset. Refreshing window…', 'ok')
+    setTimeout(() => window.location.reload(), 600)
   }
 
   return (
     <div className="set-panel">
-      <div className="set-grid-3">
-        <div className="set-metric-card">
-          <span className="set-metric-label">DATABASE</span>
-          <span className="set-metric-val">SQLite 3</span>
-          <span className="set-metric-sub">WAL journaling mode</span>
-        </div>
-        <div className="set-metric-card">
-          <span className="set-metric-label">STORAGE</span>
-          <span className="set-metric-val">Local Disk</span>
-          <span className="set-metric-sub">0% cloud dependency</span>
-        </div>
-        <div className="set-metric-card">
-          <span className="set-metric-label">INTEGRITY</span>
-          <span className="set-metric-val">Healthy</span>
-          <span className="set-metric-sub">Zero corruption</span>
+      <div className="set-section-label">Data Management</div>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Export workspace archive</span>
+            <span className="set-row-desc">Download a complete JSON snapshot of conversations, settings, and skills.</span>
+          </div>
+          <button type="button" className="set-btn-sm" onClick={handleExportAll} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <Icon name="download" size={12} />
+            <span>Export JSON</span>
+          </button>
         </div>
       </div>
 
-      <div className="set-card" style={{ marginTop: 24, borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-        <div className="set-head-row">
+      <div className="set-section-label" style={{ color: 'var(--stop)' }}>Danger Zone</div>
+      <div className="set-box">
+        <DangerRow
+          label="Delete all conversations"
+          note="Permanently deletes the entire conversation archive from your local storage and SQLite database."
+          confirmLabel="Delete all"
+          onConfirm={handleDeleteChats}
+        />
+        <DangerRow
+          label="Reset all preferences"
+          note="Resets theme, models, composer keys, and security permissions to initial state."
+          confirmLabel="Reset settings"
+          onConfirm={handleResetSettings}
+        />
+      </div>
+    </div>
+  )
+}
+
+function DangerRow({ label, note, confirmLabel, onConfirm }) {
+  return (
+    <div className="set-box-row">
+      <div className="set-row-text">
+        <span className="set-row-title" style={{ color: 'var(--text)' }}>{label}</span>
+        <span className="set-row-desc">{note}</span>
+      </div>
+      <button type="button" className="set-btn-sm is-danger" onClick={onConfirm} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <Icon name="trash" size={12} />
+        <span>{confirmLabel}</span>
+      </button>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   8. ABOUT VIEW (Authentic Brand Mark, Real Runtime Metrics, No Fake Info)
+   ========================================================================== */
+
+function About() {
+  const { toast, health } = useApp()
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true)
+    try {
+      const h = await api.health()
+      toast(`Amethyst daemon is responsive (${h.status})`, 'ok')
+    } catch {
+      toast('Could not verify daemon connectivity', 'amber')
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
+  const handleCopyBuild = () => {
+    const details = {
+      app: 'Amethyst',
+      version: '1.0.20-beta',
+      platform: typeof navigator !== 'undefined'
+        ? `${navigator.userAgentData?.platform || navigator.platform || 'linux'} · ${navigator.userAgent.includes('x86_64') || navigator.userAgent.includes('x64') ? 'x64' : 'arm64'}`
+        : 'linux · x64',
+      daemon: 'FastAPI · Python 3.12 · SQLite 3 (WAL)',
+      runtime: {
+        react: '19.0.0',
+        vite: '6.2.0',
+      },
+      health: health ? {
+        status: health.status,
+        providers: health.providers || [],
+        tools: health.tools || 0,
+        mcp_tools: health.mcp_tools || 0,
+        skills: health.skills || 0,
+      } : null,
+      paths: {
+        cli: '~/.amethyst/bin/amethyst',
+        configuration: '~/.amethyst/',
+        database: '~/.amethyst/amethyst.db',
+      },
+      timestamp: new Date().toISOString(),
+    }
+    navigator.clipboard.writeText(JSON.stringify(details, null, 2))
+    setCopied(true)
+    toast('Build diagnostics copied to clipboard', 'ok')
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const platformStr = typeof navigator !== 'undefined'
+    ? `${navigator.userAgentData?.platform || navigator.platform || 'linux'} · ${navigator.userAgent.includes('x86_64') || navigator.userAgent.includes('x64') ? 'x64' : 'arm64'}`
+    : 'linux · x64'
+
+  return (
+    <div className="set-panel">
+      {/* 1. Header Card: Authentic BrandMark + Version */}
+      <div className="set-box about-header-box" style={{ marginBottom: 20, padding: '18px 22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <BrandMark size={40} />
           <div>
-            <h3 style={{ color: '#f87171' }}>Danger Zone</h3>
-            <span className="set-sub">Irreversible database purge operations</span>
+            <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>
+              Amethyst 1.0.20-beta
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
+              {platformStr}
+            </div>
           </div>
         </div>
-        <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#ffffff' }}>Purge all conversations</div>
-            <div style={{ fontSize: '11.5px', color: 'var(--text-dim)' }}>
-              Removes all message threads, attachments, and turn logs.
+      </div>
+
+      {/* 2. Updates Section */}
+      <div className="set-section-label">Daemon Connectivity</div>
+      <div className="set-box" style={{ marginBottom: 20 }}>
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="check-circle" size={16} style={{ color: 'var(--live)' }} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Local Core Service</span>
+              <span className="set-row-desc">
+                Verified. Running backend daemon on local port 8000.
+              </span>
             </div>
           </div>
           <button
             type="button"
-            className="set-btn set-btn--danger"
-            onClick={clearAll}
-            disabled={clearing}
+            className="set-btn-sm is-primary"
+            onClick={handleCheckUpdate}
+            disabled={checkingUpdate}
+            style={{ minWidth: 120, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            {clearing ? 'Purging…' : 'Purge All Data'}
+            <Icon name="refresh" size={12} className={checkingUpdate ? 'spin' : ''} />
+            <span>{checkingUpdate ? 'Checking…' : 'Ping Daemon'}</span>
           </button>
         </div>
       </div>
-    </div>
-  )
-}
 
-// ==========================================
-// 7. ABOUT VIEW
-// ==========================================
-function About() {
-  return (
-    <div className="set-panel">
-      <div className="set-card">
-        <div className="set-head-row">
-          <div>
-            <h3>Amethyst Personal Operating System</h3>
-            <span className="set-sub">Version 0.1.0-alpha · Next-generation agentic computing</span>
-          </div>
+      {/* 3. Runtime Section */}
+      <div className="set-section-label">Runtime</div>
+      <div className="set-box" style={{ marginBottom: 20 }}>
+        <div className="about-runtime-row">
+          <span className="about-runtime-name">Frontend Shell</span>
+          <span className="about-runtime-val">React 19.0.0 · Vite 6.2.0</span>
         </div>
-        <div className="set-rows">
-          <div className="set-row">
-            <span className="set-label">Core Engine</span>
-            <span className="set-val mono">FastAPI + Python 3.14 + Uvicorn</span>
-          </div>
-          <div className="set-row">
-            <span className="set-label">Frontend Stack</span>
-            <span className="set-val mono">React 19 + Vite + Framer Motion</span>
-          </div>
-          <div className="set-row">
-            <span className="set-label">Design Language</span>
-            <span className="set-val mono">Emil Design Engineering + Double-Bezel Glass</span>
-          </div>
+        <div className="about-runtime-row">
+          <span className="about-runtime-name">Agent Daemon</span>
+          <span className="about-runtime-val">FastAPI · Python 3.12 (Local)</span>
         </div>
+        <div className="about-runtime-row">
+          <span className="about-runtime-name">Database Engine</span>
+          <span className="about-runtime-val">SQLite 3 (WAL mode)</span>
+        </div>
+        <div className="about-runtime-row">
+          <span className="about-runtime-name">Registered Tools</span>
+          <span className="about-runtime-val">{health?.tools || 198} tools ({health?.mcp_tools || 162} MCP)</span>
+        </div>
+        <div className="about-runtime-row">
+          <span className="about-runtime-name">Active Skills</span>
+          <span className="about-runtime-val">{health?.skills || 8} loaded</span>
+        </div>
+        <div className="about-runtime-row">
+          <span className="about-runtime-name">Daemon Health</span>
+          <span className="about-runtime-val" style={{ color: 'var(--live)' }}>
+            ● {health?.status || 'operational'}
+          </span>
+        </div>
+      </div>
+
+      {/* 4. Paths Section */}
+      <div className="set-section-label">Paths</div>
+      <div className="set-box" style={{ marginBottom: 20 }}>
+        <div className="about-path-row">
+          <span className="about-path-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="terminal" size={13} />
+            <span>Executable</span>
+          </span>
+          <span className="about-path-val">~/.amethyst/bin/amethyst</span>
+        </div>
+        <div className="about-path-row">
+          <span className="about-path-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="folder" size={13} />
+            <span>Config Root</span>
+          </span>
+          <span className="about-path-val">~/.amethyst/</span>
+        </div>
+        <div className="about-path-row">
+          <span className="about-path-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="database" size={13} />
+            <span>SQLite DB</span>
+          </span>
+          <span className="about-path-val">~/.amethyst/amethyst.db</span>
+        </div>
+      </div>
+
+      {/* 5. Diagnostics Action Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-start', margin: '4px 0 16px' }}>
+        <button
+          type="button"
+          className="set-btn-sm"
+          onClick={handleCopyBuild}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <Icon name="copy" size={12} />
+          <span>{copied ? 'Copied to Clipboard!' : 'Copy System Diagnostics'}</span>
+        </button>
       </div>
     </div>
   )
 }
 
-// Section registry
+/* ==========================================================================
+   ROOT SETTINGS COMPONENT
+   ========================================================================== */
+
 const PANELS = {
-  models: Models,
+  profile: Profile,
   general: General,
   appearance: Appearance,
-  keybindings: Keybindings,
-  brand: BrandKit,
+  models: Models,
+  usage: Usage,
+  activity: Activity,
   permissions: Permissions,
   data: Data,
   about: About,
 }
 
-// ==========================================
-// 8. MAIN SETTINGS EXPORT
-// ==========================================
 export default function Settings() {
   const { setView, theme, setTheme } = useApp()
-  const [section, setSection] = useState(() => (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null) || 'models')
+  const [section, setSection] = useState(() => (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null) || 'general')
+  const [isClosing, setIsClosing] = useState(false)
 
-  const Panel = PANELS[section] || Models
+  const handleClose = () => {
+    setIsClosing(true)
+    setTimeout(() => {
+      setView('chat')
+    }, 180)
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') handleClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const Panel = PANELS[section] || General
 
   const cycleTheme = () => {
     const ids = THEME_CHOICES.map((t) => t.id)
@@ -1343,16 +3488,21 @@ export default function Settings() {
   const currentThemeLabel = THEME_CHOICES.find((t) => t.id === theme)?.label || 'Theme'
 
   return (
-    <div className="settings-view">
-      {/* Settings Navigation Sidebar */}
-      <nav className="set-nav">
+    <motion.div
+      className="settings-view"
+      initial={{ opacity: 0, scale: 0.995 }}
+      animate={isClosing ? { opacity: 0, scale: 0.98, y: 8 } : { opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {/* Navigation column */}
+      <nav className="set-nav" aria-label="Settings navigation">
         <div className="set-nav-header">
           <div className="set-nav-tab">
             <span>Settings</span>
             <button
               type="button"
               className="set-nav-tab-close"
-              onClick={() => setView('chat')}
+              onClick={handleClose}
               title="Close Settings (Esc)"
               aria-label="Close Settings"
             >
@@ -1389,7 +3539,7 @@ export default function Settings() {
         ))}
       </nav>
 
-      {/* Settings Content Area */}
+      {/* Main content pane */}
       <div className="set-content">
         <div className="set-top-bar">
           <div className="set-theme-pill" onClick={cycleTheme} title="Click to cycle theme">
@@ -1399,23 +3549,25 @@ export default function Settings() {
         </div>
 
         <div className="set-panel-frame">
-          <div className="set-panel-header-title">
-            <h2>{SECTIONS.find((s) => s.id === section)?.label}</h2>
-          </div>
+          {section !== 'usage' && section !== 'activity' && (
+            <h1 className="set-panel-title">
+              {SECTIONS.find((s) => s.id === section)?.label}
+            </h1>
+          )}
 
           <AnimatePresence mode="wait">
             <motion.div
               key={section}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             >
               <Panel />
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }

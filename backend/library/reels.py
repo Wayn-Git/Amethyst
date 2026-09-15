@@ -78,16 +78,25 @@ class ReelCapture:
     def settings(self) -> InstagramSettings:
         return self._settings if self._settings is not None else load_instagram()
 
-    async def capture(self, url: str, *, notes: str | None = None):
+    async def capture(
+        self,
+        url: str,
+        *,
+        notes: str | None = None,
+        requested_kind: str | None = None,
+    ):
         """Log the reel. Raises ReelError only when there is no item to make."""
         settings = self.settings
-        # The download happens before the row exists, because yt-dlp names the
-        # file and the row is named by its id. It lands in a scratch directory
-        # and is moved into place afterwards.
         scratch = Path(tempfile.mkdtemp(prefix="amethyst-reel-"))
         try:
             reel = await self._open(url, scratch, settings)
-            return await self._store(reel, notes=notes, settings=settings, scratch=scratch)
+            return await self._store(
+                reel,
+                notes=notes,
+                requested_kind=requested_kind,
+                settings=settings,
+                scratch=scratch,
+            )
         except Exception:
             shutil.rmtree(scratch, ignore_errors=True)
             raise
@@ -108,11 +117,23 @@ class ReelCapture:
             cookies_from_browser=settings.cookies_from_browser or None,
         )
 
-    async def _store(self, reel: Reel, *, notes: str | None, settings: InstagramSettings, scratch: Path | None = None):
+    async def _store(
+        self,
+        reel: Reel,
+        *,
+        notes: str | None,
+        requested_kind: str | None = None,
+        settings: InstagramSettings,
+        scratch: Path | None = None,
+    ):
         text = reel.caption
         source = "caption" if reel.has_text else "none"
         note = "" if reel.has_text else NO_CAPTION_NOTE
-        kind = "video" if reel.video_path is not None else "article"
+
+        is_music_intent = requested_kind == "music" or (
+            bool(notes and notes.strip().lower() in ("music", "song", "#music", "audio"))
+        )
+        kind = "music" if is_music_intent else ("video" if reel.video_path is not None else "article")
 
         captured = await self.library.capture_media(
             title=reel.title,
@@ -121,6 +142,7 @@ class ReelCapture:
             author=reel.author or None,
             site="instagram.com",
             notes=notes,
+            category="music" if is_music_intent else None,
             # The permalink is the identity. Sending the same reel twice, by any
             # door, is one item.
             source_ref=reel.url,
@@ -141,7 +163,11 @@ class ReelCapture:
                 notes_out = [captured.item.get("capture_note") or ""]
                 thumb_url = reel.thumbnail_url or (reel.slide_urls[0] if reel.slide_urls else None)
                 notes_out.append(await self._add_thumbnail(item_id, thumb_url))
-                notes_out.append(await self._process_content(item_id, reel, settings))
+                notes_out.append(
+                    await self._process_content(
+                        item_id, reel, settings, is_music_intent=is_music_intent
+                    )
+                )
 
                 if settings.enrich:
                     try:
@@ -179,14 +205,30 @@ class ReelCapture:
         self.library.store.update(item_id, thumbnail_path=str(target))
         return ""
 
-    async def _process_content(self, item_id: int, reel: Reel, settings: InstagramSettings) -> str:
+    async def _process_content(
+        self,
+        item_id: int,
+        reel: Reel,
+        settings: InstagramSettings,
+        *,
+        is_music_intent: bool = False,
+    ) -> str:
         if reel.video_path is not None:
-            return await self._process_video(item_id, reel, settings)
+            return await self._process_video(
+                item_id, reel, settings, is_music_intent=is_music_intent
+            )
         if reel.slide_urls:
             return await self._process_slides(item_id, reel)
         return ""
 
-    async def _process_video(self, item_id: int, reel: Reel, settings: InstagramSettings) -> str:
+    async def _process_video(
+        self,
+        item_id: int,
+        reel: Reel,
+        settings: InstagramSettings,
+        *,
+        is_music_intent: bool = False,
+    ) -> str:
         """The spoken words or on-screen text from video frames."""
         if reel.video_path is None:
             return ""
@@ -200,6 +242,7 @@ class ReelCapture:
         audio: Path | None = None
         duration: float | None = None
         speech_text: str | None = None
+        detected_music: dict | None = None
 
         try:
             duration = await self._probe(video)
@@ -209,9 +252,13 @@ class ReelCapture:
                     f" {settings.max_duration_seconds // 60}-minute limit for transcription"
                 )
 
-            if self._can_transcribe():
+            try:
+                audio = await self._extract_audio(video, media_path(item_id, ".audio"))
+            except Exception as exc:
+                log.debug("audio extraction failed for item %s: %s", item_id, exc)
+
+            if audio and self._can_transcribe():
                 try:
-                    audio = await self._extract_audio(video, media_path(item_id, ".audio"))
                     result = await self._transcribe(audio)
                     if result.text and result.text.strip():
                         speech_text = result.text.strip()
@@ -221,6 +268,13 @@ class ReelCapture:
                         item_id,
                         exc,
                     )
+
+            # Detect background music / song in reel via audio fingerprinting or caption
+            try:
+                from backend.media.music import detect_music
+                detected_music = await detect_music(audio, text=reel.caption)
+            except Exception as exc:
+                log.debug("music detection failed for item %s: %s", item_id, exc)
 
             visual_text: str | None = None
             # If there was no spoken audio, extract visual text from video frames
@@ -252,8 +306,60 @@ class ReelCapture:
             if duration is not None:
                 self.library.store.update(item_id, duration_seconds=int(duration))
 
+        music_note = ""
+        if detected_music:
+            try:
+                import json as _json
+                row = self.library.store.get(item_id)
+                r_list = []
+                if row and row.resources:
+                    try:
+                        r_list = _json.loads(row.resources)
+                    except Exception:
+                        r_list = []
+                r_item = {
+                    "type": "music",
+                    "name": detected_music["name"],
+                    "detail": detected_music.get("detail", ""),
+                    "url": detected_music.get("url", ""),
+                }
+                if not any(r.get("name") == r_item["name"] for r in r_list):
+                    r_list.append(r_item)
+
+                update_fields = {"resources": _json.dumps(r_list)}
+
+                # ONLY tag as music and promote to music item if the user sent this with music intent!
+                if is_music_intent:
+                    t_list = []
+                    if row and row.tags:
+                        try:
+                            t_list = _json.loads(row.tags)
+                        except Exception:
+                            t_list = []
+                    if "music" not in t_list:
+                        t_list.append("music")
+                    update_fields["tags"] = _json.dumps(t_list)
+                    update_fields["category"] = "music"
+                    update_fields["title"] = detected_music["name"]
+                    if detected_music.get("detail"):
+                        update_fields["author"] = detected_music["detail"]
+
+                music_note = f"🎵 Music: \"{detected_music['name']}\""
+                if detected_music.get("detail"):
+                    music_note += f" by {detected_music['detail']}"
+
+                self.library.store.update(item_id, **update_fields)
+            except Exception as exc:
+                log.warning("failed saving music metadata for item %s: %s", item_id, exc)
+
+        music_line = ""
+        if detected_music and is_music_intent:
+            music_line = f"Music: {detected_music['name']}"
+            if detected_music.get("detail"):
+                music_line += f" by {detected_music['detail']}"
+
         extracted = speech_text or visual_text
-        if extracted:
+        if extracted or music_line:
             source_parts = []
             if reel.has_text:
                 source_parts.append("caption")
@@ -261,11 +367,21 @@ class ReelCapture:
                 source_parts.append("transcript")
             elif visual_text:
                 source_parts.append("visual content")
+            if music_line:
+                source_parts.append("detected music")
             source = " and ".join(source_parts)
 
-            new_text = f"{reel.caption}\n\n{extracted}" if reel.has_text else extracted
+            text_pieces = []
+            if reel.has_text:
+                text_pieces.append(reel.caption)
+            if extracted:
+                text_pieces.append(extracted)
+            if music_line:
+                text_pieces.append(music_line)
+
+            new_text = "\n\n".join(text_pieces)
             await self.library.replace_text(item_id, new_text, text_source=source)
-            return ""
+            return music_note if (not extracted and not reel.has_text and detected_music and is_music_intent) else ""
 
         if not reel.has_text:
             return (

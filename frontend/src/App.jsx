@@ -8,6 +8,7 @@ import Shortcuts from './components/Shortcuts.jsx'
 import OnboardingWizard from './components/OnboardingWizard.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
+import UserMenu from './components/UserMenu.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
 import { BootScreen, SkeletonView } from './components/Skeleton.jsx'
 import { useApp } from './store.jsx'
@@ -89,6 +90,7 @@ function useGlobalKeys() {
   const {
     view, setView, overlay, setOverlay, chat, conversations, activeId,
     toggleRail, closeRail, compact, railOpen, betaPages,
+    toggleTerminal,
   } = useApp()
 
   const cycleConversation = useCallback((delta) => {
@@ -133,6 +135,7 @@ function useGlobalKeys() {
       if (combo === 'mod+shift+m') { e.preventDefault(); chat.cycleEffort?.(); return }
       if (combo === 'mod+p') { e.preventDefault(); setView('chat'); chat.togglePin?.(); return }
       if (combo === 'f2' && activeId) { e.preventDefault(); setView('chat'); chat.beginRename?.(activeId); return }
+      if (combo === 'mod+`' || combo === 'ctrl+`') { e.preventDefault(); toggleTerminal(); return }
 
       const digit = /^mod\+([1-9])$/.exec(combo)
       if (digit) {
@@ -158,7 +161,7 @@ function useGlobalKeys() {
     return () => document.removeEventListener('keydown', onKey)
   }, [
     view, setView, overlay, setOverlay, chat, cycleConversation, activeId,
-    toggleRail, closeRail, compact, railOpen, betaPages,
+    toggleRail, closeRail, compact, railOpen, betaPages, toggleTerminal,
   ])
 }
 
@@ -168,106 +171,88 @@ function useGlobalKeys() {
    marks, and it holds the two switches for the columns either side of it. */
 function WorkbenchBar() {
   const {
-    setOverlay, health, healthError, view, setView, compact, railOpen, toggleRail,
-    panel, togglePanel,
+    setOverlay, view, setView, compact, railOpen, toggleRail,
+    panel, togglePanel, userProfile, autoHideTopBar,
   } = useApp()
-  const degraded = health?.status === 'degraded'
-  const here = byId(view)
 
   return (
-    <header className="wb-bar">
-      {(!railOpen || compact) && (
-        <div className="wb-bar-left-controls">
-          <span className="wb-bar-brand">
-            <BrandMark size={28} />
-            <span>AMETHYST</span>
-          </span>
+    <>
+      {autoHideTopBar && <div className="wb-bar-hover-trigger" />}
+      <header className={`wb-bar${autoHideTopBar ? ' wb-bar--autohide' : ''}`}>
+        <div className="wb-bar-left">
+          {(!railOpen || compact) && (
+            <div className="wb-bar-toggle-group">
+              <button
+                type="button"
+                className="wb-icon-btn"
+                onClick={toggleRail}
+                title={`Open sidebar — ${MOD_LABEL}+B`}
+                aria-label="Open sidebar"
+              >
+                <Icon name="sidebar" size={15} />
+              </button>
+              <UserMenu align="start" side="bottom" sideOffset={8}>
+                <button
+                  type="button"
+                  className="wb-bar-user-btn"
+                  title={`User menu for ${userProfile?.name || 'User'} — Click to edit name or open settings`}
+                >
+                  <div className="sb-user-avatar sb-user-avatar--xs">
+                    {(userProfile?.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="wb-bar-user-name">{userProfile?.name || 'User'}</span>
+                  <Icon name="chevron" size={9} style={{ opacity: 0.6 }} />
+                </button>
+              </UserMenu>
+            </div>
+          )}
+        </div>
+
+        {/* Center: Apple-style Refined Search Bar */}
+        <div className="wb-bar-center">
           <button
             type="button"
-            className="icon-btn"
+            className="wb-search-bar"
             onClick={() => setOverlay((curr) => (curr === 'palette' ? null : 'palette'))}
-            title={`Search — ${MOD_LABEL}+K`}
-            aria-label="Search"
+            title={`Search or jump to — ${MOD_LABEL}+K`}
+            aria-label="Search or command palette"
           >
-            <Icon name="search" size={16} />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={toggleRail}
-            title={`${railOpen ? 'Close' : 'Open'} sidebar — ${MOD_LABEL}+B`}
-            aria-label="Toggle sidebar"
-          >
-            <Icon name="sidebar" size={16} />
+            <Icon name="search" size={13} className="wb-search-icon" />
+            <span className="wb-search-placeholder">Search or jump to...</span>
+            <kbd className="wb-search-kbd">{MOD_LABEL}+K</kbd>
           </button>
         </div>
-      )}
 
-      <h1 className="wb-where">{here?.label ?? 'Chat'}</h1>
-
-      <div className="wb-bar-actions">
-        {(healthError || degraded) && (
+        {/* Right Icon Actions: Artifact Panel + Settings + Brand Logo */}
+        <div className="wb-bar-actions">
           <button
             type="button"
-            className="wb-warn"
-            onClick={() => setView('dash')}
-            title={healthError || 'A connector failed to start'}
-          >
-            <i aria-hidden="true" />
-            {healthError ? 'API offline' : 'Degraded'}
-          </button>
-        )}
-        <button
-          type="button"
-          className={compact ? 'icon-btn' : 'wb-search'}
-          onClick={() => setOverlay((curr) => (curr === 'palette' ? null : 'palette'))}
-          title="Command palette"
-          aria-label="Command palette"
-        >
-          <Icon name="search" size={compact ? 17 : 14} />
-          {/* The chord is the point of the wide form, and there is no chord on
-              a touch device — so the label goes when the keyboard does. */}
-          {!compact && (
-            <>
-              <span>Search or jump to</span>
-              <kbd className="kbd">{MOD_LABEL}</kbd><kbd className="kbd">K</kbd>
-            </>
-          )}
-        </button>
-        {!compact && (
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setOverlay('shortcuts')}
-            title="Keyboard shortcuts"
-            aria-label="Keyboard shortcuts"
-          >
-            <Icon name="keyboard" size={16} />
-          </button>
-        )}
-        {!compact && (
-          <button
-            type="button"
-            className={`icon-btn${panel ? ' is-on' : ''}`}
+            className={`wb-icon-btn${panel ? ' is-active' : ''}`}
             onClick={togglePanel}
-            title={panel ? 'Hide the steps panel' : 'Show the steps panel'}
-            aria-label={panel ? 'Hide the steps panel' : 'Show the steps panel'}
+            title={panel ? 'Hide artifact panel' : 'Show artifact panel'}
+            aria-label={panel ? 'Hide artifact panel' : 'Show artifact panel'}
             aria-pressed={panel}
           >
-            <Icon name="layout" size={16} />
+            <Icon name="layout" size={15} />
           </button>
-        )}
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={() => setView('settings')}
-          title={`Settings — ${MOD_LABEL}+,`}
-          aria-label="Settings"
-        >
-          <Icon name="sliders" size={compact ? 17 : 16} />
-        </button>
-      </div>
-    </header>
+
+          <button
+            type="button"
+            className={`wb-icon-btn${view === 'settings' ? ' is-active' : ''}`}
+            onClick={() => setView('settings')}
+            title={`Settings — ${MOD_LABEL}+,`}
+            aria-label="Settings"
+          >
+            <Icon name="sliders" size={15} />
+          </button>
+
+          <div className="wb-bar-brand-wrap wb-bar-brand-right" title="Amethyst">
+            <BrandMark size={20} />
+            <span className="wb-bar-brand-text">AMETHYST</span>
+          </div>
+        </div>
+      </header>
+    </>
   )
 }
 

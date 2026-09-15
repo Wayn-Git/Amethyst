@@ -307,6 +307,39 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                     </button>
                   </div>
                 )}
+
+                {/* Shortcut Setup Options */}
+                <div className="lib-shortcut-recipes">
+                  <div className="lib-shortcut-recipe-card">
+                    <div className="lib-shortcut-recipe-header">
+                      <Icon name="link" size={14} />
+                      <span className="mono">1. Standard Shortcut (Reels & Articles)</span>
+                    </div>
+                    <p className="lib-shortcut-recipe-desc">
+                      Saves reels, videos, and articles normally into your feed without cluttering your music library:
+                    </p>
+                    <pre className="lib-shortcut-code mono">
+{`POST /api/share/capture
+Headers: Authorization: Bearer <token>
+Body: { "url": "<Shared Link>" }`}
+                    </pre>
+                  </div>
+
+                  <div className="lib-shortcut-recipe-card lib-shortcut-recipe-card--music">
+                    <div className="lib-shortcut-recipe-header">
+                      <Icon name="music" size={14} />
+                      <span className="mono">2. Music Shortcut (Extract Song from Reel or Music App)</span>
+                    </div>
+                    <p className="lib-shortcut-recipe-desc">
+                      Captures the audio track from a reel or music app, tags it, and prepares it for Spotify playlist export:
+                    </p>
+                    <pre className="lib-shortcut-code mono">
+{`POST /api/share/capture
+Headers: Authorization: Bearer <token>
+Body: { "url": "<Shared Link>", "kind": "music" }`}
+                    </pre>
+                  </div>
+                </div>
               </div>
 
               <div className="lib-integ-callout">

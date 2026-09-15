@@ -14,6 +14,8 @@ export default function LibraryToolbar({
   onOpenAskChat,
   onToggleShare,
   showShare,
+  onOpenExportPlaylist,
+  hasMusic = false,
   activeFilterCount = 0,
 }) {
   const isMac =
@@ -114,6 +116,19 @@ export default function LibraryToolbar({
           <Icon name="link" size={14} />
           <span className="lib-btn-label">Capture Integrations</span>
         </button>
+
+        {/* Export Playlist button */}
+        {hasMusic && onOpenExportPlaylist && (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={onOpenExportPlaylist}
+            title="Export music items to Spotify playlist"
+          >
+            <Icon name="music" size={14} />
+            <span className="lib-btn-label">Export Playlist</span>
+          </button>
+        )}
 
         {/* Single Primary Add button (Screenshot 4) with Ctrl+K badge */}
         <button

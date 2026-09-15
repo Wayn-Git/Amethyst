@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import Icon from './Icon.jsx'
 import { prettyJSON } from '../api.js'
 import ParallelJobCard from './ParallelJobCard.jsx'
+import SubagentCard from './SubagentCard.jsx'
 
 /* What the agent did, represented as the Worked pill and expandable tool execution tree.
    Matches the user's reference screenshots with high visual fidelity:
@@ -14,6 +15,7 @@ import ParallelJobCard from './ParallelJobCard.jsx'
 const ACTIONS = {
   dispatch_parallel_jobs: { icon: 'term', shortLabel: 'Workers', verb: 'Dispatched parallel jobs', gerund: 'Dispatching parallel jobs', noun: 'job', plural: 'jobs', subject: (a) => a.reason || `${a.jobs?.length || 0} tasks` },
   collect_jobs: { icon: 'term', shortLabel: 'Collect', verb: 'Collected job results', gerund: 'Collecting job results', noun: 'job', plural: 'jobs', subject: (a) => a.job_ids?.join(', ') || 'jobs' },
+  task: { icon: 'spark', shortLabel: 'Subagent', verb: 'Spawned subagent', gerund: 'Running subagent', noun: 'subagent', plural: 'subagents', subject: (a) => a.agent || 'general' },
   search_web: { icon: 'search', shortLabel: 'Search', verb: 'Searched the web', gerund: 'Searching the web', noun: 'search', plural: 'searches', subject: (a) => a.query ? `"${a.query}"` : '' },
   fetch_url: { icon: 'globe', shortLabel: 'Fetch', verb: 'Opened page', gerund: 'Opening page', noun: 'page', plural: 'pages', subject: (a) => host(a.url) },
   open_url: { icon: 'globe', shortLabel: 'Open', verb: 'Opened', gerund: 'Opening', noun: 'link', plural: 'links', subject: (a) => host(a.url) },
@@ -231,6 +233,10 @@ function Row({ run, live, isLatest }) {
 
   if ((run.name === 'dispatch_parallel_jobs' || run.name === 'collect_jobs') && only) {
     return <ParallelJobCard call={only} running={live} />
+  }
+
+  if (run.name === 'task' && only) {
+    return <SubagentCard call={only} running={live} />
   }
 
   return (

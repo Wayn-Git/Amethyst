@@ -63,8 +63,7 @@ _KIND_BY_HOST = {
     "www.youtube.com": "video",
     "m.youtube.com": "video",
     "youtu.be": "video",
-    "music.youtube.com": "podcast",
-    "open.spotify.com": "podcast",
+    "music.youtube.com": "music",
     "podcasts.apple.com": "podcast",
     # X links are posts, not articles: they have an author and a body of a
     # handful of sentences, and filing them as articles put every one of them
@@ -77,7 +76,16 @@ _KIND_BY_HOST = {
     "pin.it": "post",
     "arxiv.org": "paper",
     "www.arxiv.org": "paper",
+    # Music platforms
+    "music.apple.com": "music",
+    "soundcloud.com": "music",
+    "www.soundcloud.com": "music",
 }
+
+#: Spotify mixes music (/track, /album, /artist) with podcasts (/show,
+#: /episode) on the same host, so a flat host map picks the wrong bucket
+#: half the time.  A path prefix check after the map miss decides.
+_SPOTIFY_PODCAST_PREFIXES = ("/show", "/episode")
 
 
 class LibraryError(ValueError):
@@ -93,8 +101,22 @@ class Captured:
 def kind_for(url: str | None) -> str:
     if not url:
         return "note"
-    host = (urlparse(url).hostname or "").lower()
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+
+    # Spotify: path-aware — /track, /album, /artist → music; /show, /episode → podcast
+    if host in ("open.spotify.com", "spotify.com"):
+        path = (parsed.path or "").lower()
+        if any(path.startswith(p) for p in _SPOTIFY_PODCAST_PREFIXES):
+            return "podcast"
+        return "music"
+
+    # Bandcamp subdomains: *.bandcamp.com
+    if host.endswith(".bandcamp.com") or host == "bandcamp.com":
+        return "music"
+
     return _KIND_BY_HOST.get(host, "article")
+
 
 
 def _json_list(raw) -> list:
@@ -263,7 +285,7 @@ class LibraryService:
             from backend.library.reels import ReelCapture, ReelError
 
             try:
-                return await ReelCapture(self).capture(url, notes=notes)
+                return await ReelCapture(self).capture(url, notes=notes, requested_kind=kind)
             except ReelError as exc:
                 # Not fatal. The link is still worth logging, with the reason it
                 # could not be opened written on it -- the same rule every other

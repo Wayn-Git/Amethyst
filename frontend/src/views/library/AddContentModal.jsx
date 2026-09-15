@@ -8,6 +8,7 @@ const SUPPORTED_FORMATS = ['PDF', 'JPG', 'PNG', 'WEBP', 'HEIC', 'TXT', 'MD', 'CS
 
 const EXAMPLES = [
   { label: 'YouTube video', icon: 'image', sample: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+  { label: 'Spotify track', icon: 'music', sample: 'https://open.spotify.com/track/sample' },
   { label: 'Spotify podcast', icon: 'spark', sample: 'https://open.spotify.com/episode/sample' },
   { label: 'Apple Podcast', icon: 'spark', sample: 'https://podcasts.apple.com/podcast/sample' },
   { label: 'News article', icon: 'book', sample: 'https://algoarena.net/blog' },

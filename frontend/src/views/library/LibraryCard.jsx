@@ -7,6 +7,7 @@ export const KIND_ICON = {
   book: 'book',
   video: 'image',
   podcast: 'spark',
+  music: 'music',
   newsletter: 'mail',
   paper: 'book',
   post: 'chat',
@@ -103,6 +104,13 @@ function LibraryCardComponent({
     return item.resources
       .filter((r) => r && typeof r === 'object' && Boolean(r.url))
       .slice(0, 2)
+  }, [item.resources])
+
+  const musicResource = useMemo(() => {
+    if (!item.resources || !Array.isArray(item.resources)) return null
+    return item.resources.find(
+      (r) => r && typeof r === 'object' && (r.type === 'music' || r.type === 'song') && r.name
+    )
   }, [item.resources])
 
   const hasRealMedia = hasThumbnail && !isTinyThumb
@@ -319,6 +327,20 @@ function LibraryCardComponent({
           <h3 className="lib-card-title" title={item.title}>
             {item.title || (isReceived ? 'Receiving link...' : 'Untitled Resource')}
           </h3>
+
+          {/* Detected Song / Music in reel */}
+          {musicResource && (item.kind === 'music' || item.category === 'music') && (
+            <div
+              className="lib-card-music-chip"
+              title={`Detected Song: ${musicResource.name}${musicResource.detail ? ` by ${musicResource.detail}` : ''}`}
+            >
+              <Icon name="music" size={11} />
+              <span className="lib-card-music-name">{musicResource.name}</span>
+              {musicResource.detail && (
+                <span className="lib-card-music-artist mono">· {musicResource.detail}</span>
+              )}
+            </div>
+          )}
 
           {/* Summary / Processing State / Excerpt */}
           {isEnriching && !item.summary ? (

@@ -11,7 +11,10 @@ const APPS_META = [
   { id: 'x', label: 'X (Twitter)', icon: 'chat', color: '#1DA1F2' },
   { id: 'github', label: 'GitHub', icon: 'code', color: '#8b949e' },
   { id: 'reddit', label: 'Reddit', icon: 'chat', color: '#FF4500' },
-  { id: 'spotify', label: 'Spotify', icon: 'play', color: '#1DB954' },
+  { id: 'spotify', label: 'Spotify', icon: 'music', color: '#1DB954' },
+  { id: 'apple-music', label: 'Apple Music', icon: 'music', color: '#FC3C44' },
+  { id: 'soundcloud', label: 'SoundCloud', icon: 'music', color: '#FF5500' },
+  { id: 'bandcamp', label: 'Bandcamp', icon: 'music', color: '#1DA0C3' },
 ]
 
 export default function LibraryTagRail({
