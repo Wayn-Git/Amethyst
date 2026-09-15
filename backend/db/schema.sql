@@ -652,3 +652,38 @@ CREATE TABLE IF NOT EXISTS worker_reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_worker_reports_state ON worker_reports(state, updated_at);
+
+-- ---------------------------------------------------- subagent sessions
+--
+-- Child sessions spawned by the Task tool. Each row represents one subagent
+-- invocation — its agent type, status, result, and parent relationship.
+--
+-- Parent-child relationships form a tree rooted at the user's conversation.
+-- Depth is bounded by `subagent_depth` (default: 1) to prevent runaway
+-- recursion. Background subagents complete asynchronously; their results are
+-- injected into the parent conversation as synthetic messages.
+CREATE TABLE IF NOT EXISTS subagent_sessions (
+    id                      TEXT PRIMARY KEY,
+    parent_conversation_id  TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    parent_message_id       TEXT,
+    agent_type              TEXT NOT NULL,
+    title                   TEXT,
+    depth                   INTEGER NOT NULL DEFAULT 0,
+    status                  TEXT NOT NULL DEFAULT 'pending'
+                            CHECK (status IN ('pending','running','completed','failed','cancelled')),
+    result                  TEXT,
+    error                   TEXT,
+    model                   TEXT,
+    provider                TEXT,
+    tokens_input            INTEGER NOT NULL DEFAULT 0,
+    tokens_output           INTEGER NOT NULL DEFAULT 0,
+    cost                    REAL NOT NULL DEFAULT 0.0,
+    metadata                TEXT,  -- JSON: background, batch_id, etc.
+    created_at              TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at            TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_subagent_parent
+    ON subagent_sessions(parent_conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_subagent_status
+    ON subagent_sessions(status, created_at);

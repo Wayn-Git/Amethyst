@@ -28,6 +28,7 @@ vector = [
 # what that fallback costs.
 reels = [
     "yt-dlp>=2026.8",
+    "shazamio>=0.8.0",
 ]
 # Reading and writing the documents that are not text -- PDF, Word, Excel,
 # PowerPoint. Optional because the index and every tool still work without them:

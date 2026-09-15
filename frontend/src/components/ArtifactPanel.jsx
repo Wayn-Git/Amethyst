@@ -200,13 +200,13 @@ function Preview({ artifact, text }) {
 
   if (kind === 'html') {
     return (
-      /* Sandboxed with nothing granted. The agent wrote this file; it is not
-         the agent's page, and it does not get script, forms, or same-origin
-         access to the app it is being previewed inside. */
+      /* Sandboxed with minimal permissions. allow-same-origin lets Google Fonts
+         and other CDN resources load; allow-scripts enables optional animation
+         controllers. No form submission or popup access. */
       <iframe
         className="artifact-preview artifact-preview--frame"
         title={artifact.title || 'Artifact preview'}
-        sandbox=""
+        sandbox="allow-same-origin allow-scripts"
         srcDoc={text}
       />
     )

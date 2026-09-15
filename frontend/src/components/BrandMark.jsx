@@ -8,11 +8,33 @@ export default function BrandMark({ size = 22, className = '', ...rest }) {
   return (
     <span
       className={`brand-mark ${className}`.trim()}
-      style={{ width: size, height: size }}
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        minHeight: size,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}
       aria-hidden="true"
       {...rest}
     >
-      <img src="/logo.svg" alt="" draggable="false" />
+      <img
+        src="/logo.svg"
+        alt=""
+        draggable="false"
+        style={{
+          width: '100%',
+          height: '100%',
+          maxWidth: size,
+          maxHeight: size,
+          objectFit: 'contain',
+          display: 'block',
+        }}
+      />
     </span>
   )
 }

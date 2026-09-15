@@ -774,4 +774,91 @@ async def test_failed_relay_url_ingest_recovery(db):
     assert captured_calls[0][1]["notes"] == "Shared from iPhone"
 
 
+def test_music_kind_and_tag_detection():
+    from backend.library.service import kind_for
+    from backend.library.store import app_tag_for_url
+
+    # Spotify
+    assert kind_for("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT") == "music"
+    assert kind_for("https://open.spotify.com/album/4LH4d3cOWNNXdsqFd4G7Av") == "music"
+    assert kind_for("https://open.spotify.com/episode/abc") == "podcast"
+    assert app_tag_for_url("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT") == "spotify"
+
+    # Apple Music
+    assert kind_for("https://music.apple.com/us/album/song/12345") == "music"
+    assert app_tag_for_url("https://music.apple.com/us/album/song/12345") == "apple-music"
+
+    # YouTube Music
+    assert kind_for("https://music.youtube.com/watch?v=123") == "music"
+    assert app_tag_for_url("https://music.youtube.com/watch?v=123") == "youtube"
+
+    # SoundCloud & Bandcamp
+    assert kind_for("https://soundcloud.com/artist/track") == "music"
+    assert app_tag_for_url("https://soundcloud.com/artist/track") == "soundcloud"
+    assert kind_for("https://artist.bandcamp.com/track/song") == "music"
+    assert app_tag_for_url("https://artist.bandcamp.com/track/song") == "bandcamp"
+
+
+def test_export_playlist_requires_items(client):
+    res = client.post("/api/library/export-playlist", json={"item_ids": []})
+    assert res.status_code == 400
+    assert "at least one item" in res.json()["detail"]
+
+
+def test_caption_music_extraction():
+    from backend.media.music import extract_music_from_text
+
+    m1 = extract_music_from_text("Sunday vibe! Song: Blinding Lights by The Weeknd #fyp")
+    assert m1 is not None
+    assert m1["name"] == "Blinding Lights"
+    assert m1["detail"] == "The Weeknd"
+
+    m2 = extract_music_from_text("Morning routine 🎵 Espresso - Sabrina Carpenter")
+    assert m2 is not None
+    assert m2["name"] == "Espresso"
+    assert m2["detail"] == "Sabrina Carpenter"
+
+    m3 = extract_music_from_text("Track: Birds of a Feather")
+    assert m3 is not None
+    assert m3["name"] == "Birds of a Feather"
+
+    m4 = extract_music_from_text("Just a regular caption with no music credits")
+    assert m4 is None
+
+
+@pytest.mark.asyncio
+async def test_reel_music_intent_vs_standard():
+    from unittest.mock import AsyncMock, MagicMock
+    from backend.library.reels import ReelCapture, Reel
+
+    library = MagicMock()
+    library.capture_media = AsyncMock(return_value=MagicMock(already_logged=True))
+
+    rc = ReelCapture(library)
+    dummy_reel = Reel(
+        url="https://instagram.com/reel/123",
+        title="Workout video",
+        caption="Daily routine",
+        author="fitness_guru",
+        duration=15.0,
+        thumbnail_url=None,
+        video_path=None,
+    )
+
+    # Standard reel capture: kind is "article" (or "video" when path exists)
+    await rc._store(dummy_reel, notes=None, requested_kind=None, settings=MagicMock())
+    args, kwargs = library.capture_media.call_args
+    assert kwargs["kind"] == "article"
+    assert kwargs["category"] is None
+
+    # Music intent reel capture: kind becomes "music", category is "music"
+    await rc._store(dummy_reel, notes=None, requested_kind="music", settings=MagicMock())
+    args, kwargs = library.capture_media.call_args
+    assert kwargs["kind"] == "music"
+    assert kwargs["category"] == "music"
+
+
+
+
+
 

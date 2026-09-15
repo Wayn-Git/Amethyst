@@ -238,7 +238,7 @@ def setup_connectors() -> None:
         print("1. Tavily: https://tavily.com (Fast AI web search)")
         tavily = prompt_input("Enter Tavily API Key (or leave blank to skip)")
         if tavily:
-            set_secret("amethyst/tavily", tavily)
+            set_secret("amethyst-mcp/tavily.api_key", tavily)
             try:
                 mcp_cmds.add_from_catalogue("tavily")
                 print("✓ Tavily search connector added!")

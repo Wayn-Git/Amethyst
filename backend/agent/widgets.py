@@ -472,6 +472,10 @@ def _certainly_not_a_widget(message: str) -> bool:
     in prose, by the full model. A widget is an enhancement to an answer, never
     the only way to give one.
     """
+    # Very short messages (<5 words) are never widget requests — greetings,
+    # acknowledgments, simple questions. Skip immediately.
+    if len(message.split()) < 5:
+        return True
     if "```" in message or "http://" in message or "https://" in message:
         return True
     # Technical content overrides widget signals: "how to fix this bug" is a

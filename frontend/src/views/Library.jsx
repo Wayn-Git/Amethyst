@@ -14,6 +14,7 @@ import LibraryGrid from './library/LibraryGrid.jsx'
 import LibraryListView from './library/LibraryListView.jsx'
 import LibraryDetailModal from './library/LibraryDetailModal.jsx'
 import AddContentModal from './library/AddContentModal.jsx'
+import ExportPlaylistModal from './library/ExportPlaylistModal.jsx'
 import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
 import { getDomain } from './library/LibraryCard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -62,6 +63,8 @@ export default function Library() {
     setShowAddModal(true)
   }, [])
   const [showShare, setShowShare] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportItems, setExportItems] = useState([])
   const [activeModalItem, setActiveModalItem] = useState(null)
   const [busyId, setBusyId] = useState(null)
   const [_saving, setSaving] = useState(false)
@@ -422,6 +425,45 @@ export default function Library() {
     (selectedTag ? 1 : 0) +
     (query ? 1 : 0)
 
+  const hasMusic = Boolean(
+    counts?.music ||
+    categoryCounts?.music ||
+    items.some(
+      (it) =>
+        it.kind === 'music' ||
+        it.category === 'music' ||
+        ['spotify', 'apple-music', 'soundcloud', 'bandcamp'].includes(it.app) ||
+        (it.resources || []).some((r) => r && (r.type === 'music' || r.type === 'song'))
+    )
+  )
+
+  const handleOpenExport = async () => {
+    try {
+      const data = await api.library({ kind: 'music', limit: 100 })
+      const existing = data.items || []
+      const existingIds = new Set(existing.map((i) => i.id))
+      const extra = items.filter(
+        (it) =>
+          !existingIds.has(it.id) &&
+          (it.kind === 'music' ||
+            it.category === 'music' ||
+            ['spotify', 'apple-music', 'soundcloud', 'bandcamp'].includes(it.app) ||
+            (it.resources || []).some((r) => r && (r.type === 'music' || r.type === 'song')))
+      )
+      setExportItems([...existing, ...extra])
+    } catch {
+      const local = items.filter(
+        (it) =>
+          it.kind === 'music' ||
+          it.category === 'music' ||
+          ['spotify', 'apple-music', 'soundcloud', 'bandcamp'].includes(it.app) ||
+          (it.resources || []).some((r) => r && (r.type === 'music' || r.type === 'song'))
+      )
+      setExportItems(local)
+    }
+    setShowExportModal(true)
+  }
+
   return (
     <div className="view lib-view" ref={rootRef}>
       <div className="view-inner view-inner--wide lib-view-inner">
@@ -456,6 +498,14 @@ export default function Library() {
           toast={toast}
         />
 
+        {/* Export to Spotify Playlist Modal */}
+        <ExportPlaylistModal
+          open={showExportModal}
+          items={exportItems}
+          onClose={() => setShowExportModal(false)}
+          toast={toast}
+        />
+
         {/* Toolbar: Search (Ctrl+/), Ask Chat, View & Sort Switchers, + Add (Ctrl+K) */}
         <LibraryToolbar
           query={query}
@@ -470,6 +520,8 @@ export default function Library() {
           onOpenAdd={() => openAddModal('url')}
           onToggleShare={() => setShowShare((prev) => !prev)}
           showShare={showShare}
+          onOpenExportPlaylist={handleOpenExport}
+          hasMusic={hasMusic}
           activeFilterCount={activeFilterCount}
         />
 

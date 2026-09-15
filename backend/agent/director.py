@@ -52,7 +52,7 @@ from backend.db.repositories import (
 from backend.runtime import availability
 from backend.runtime.chain import AttemptBudget, Link, announcement, build_chain, reason_for
 from backend.runtime.failures import FailureKind, should_fall_back, should_retry
-from backend.runtime.http import ProviderStreamError
+from backend.runtime.http import ProviderError, ProviderHTTPError, ProviderStreamError
 from backend.runtime.registry import resolve
 from backend.runtime.router import AUTO, RouteRequest, route
 from backend.runtime.types import ModelParameters, ModelResponse, ToolCall
@@ -123,6 +123,75 @@ FINAL_STEP_INSTRUCTION = (
     " you have it, and if the work is unfinished, say plainly what you did, what"
     " you found, and what is left. Do not apologise for the limit."
 )
+
+# --- Dispatch hints: injected into the system prompt when the tool selector
+#    detects patterns that suggest parallel or delegated work. These are
+#    lightweight signals, not hard rules — the model still decides.
+
+_PARALLEL_HINT = (
+    "\n\n<dispatch_hint>"
+    " You have several independent data-gathering tools available for this"
+    " request. If you need to look up multiple things, search several sources,"
+    " or read multiple files, use dispatch_parallel_jobs to run them in parallel"
+    " rather than calling them one by one — it is faster and costs fewer round"
+    " trips."
+    "</dispatch_hint>"
+)
+
+_SUBAGENT_HINT = (
+    "\n\n<subagent_hint>"
+    " This looks like a research, analysis, or exploration task. Consider"
+    " delegating to a subagent using the task tool — it can work independently"
+    " with its own tool access while you continue responding to the user."
+    " Use task when: the work is multistep, doesn't need your direct file"
+    " access, or can run in the background."
+    "</subagent_hint>"
+)
+
+# Keywords that signal delegation-eligible work (research, analysis, exploration).
+_SUBAGENT_SIGNALS = frozenset({
+    "research", "analyze", "analyse", "explore", "investigate", "compare",
+    "evaluate", "assess", "review", "summarize", "summarise", "audit",
+    "survey", "benchmark", "profile", "study",
+})
+
+
+def _inject_dispatch_hints(
+    system_prompt: str,
+    tool_schemas: list[dict[str, Any]],
+    user_message: str,
+) -> str:
+    """Append dispatch hints to the system prompt based on tool selection patterns.
+
+    When the tool selector surfaces many independent tools, the model benefits
+    from a nudge toward parallel dispatch. When the message signals research or
+    analysis work, a subagent hint helps the model delegate appropriately.
+    """
+    hints = []
+
+    # Parallel hint: count how many data-gathering tools are available
+    # (excluding core tools that are always offered regardless of intent).
+    data_gathering_tools = {
+        "search_web", "fetch_url", "open_url",
+        "search_documents", "search_history", "search_library", "search_social",
+        "list_files", "view_file", "grep_files",
+        "list_calendar", "list_upcoming", "find_free_slot",
+    }
+    available_gathering = sum(
+        1 for s in tool_schemas
+        if s.get("name") in data_gathering_tools
+    )
+    if available_gathering >= 4:
+        hints.append(_PARALLEL_HINT)
+
+    # Subagent hint: check if the message signals research/analysis work.
+    words = set(user_message.lower().split())
+    if words & _SUBAGENT_SIGNALS:
+        hints.append(_SUBAGENT_HINT)
+
+    if hints:
+        return system_prompt + "".join(hints)
+    return system_prompt
 
 
 class Stopped(Exception):
@@ -964,17 +1033,24 @@ class Director:
         # progress bar, and an invented one is worse than none.
         executing = not planning and user_message.lstrip().lower().startswith("approved")
         state.step_open: int | None = None
-        if self.retrieval:
-            yield Event("status", {"state": "retrieving"})
-        elif self.memory:
-            yield Event("status", {"state": "recalling"})
-        # Two independent best-effort lookups, run together: an embedder round
-        # trip awaited before the memory service added its own latency to the
-        # head of every turn for no ordering reason at all.
-        retrieved, recalled = await asyncio.gather(
-            self._retrieve(user_message) if self.retrieval else _none(),
-            self._recall(conversation_id, user_message) if self.memory else _empty(),
-        )
+        # Skip retrieval and memory for trivial turns — short greetings,
+        # acknowledgments, and simple questions don't need document search or
+        # memory recall, and skipping them saves 1-5s of embedding + DB calls.
+        trivial = self._is_trivial_turn(user_message, attachments)
+        if trivial:
+            retrieved, recalled = await _none(), await _empty()
+        else:
+            if self.retrieval:
+                yield Event("status", {"state": "retrieving"})
+            elif self.memory:
+                yield Event("status", {"state": "recalling"})
+            # Two independent best-effort lookups, run together: an embedder round
+            # trip awaited before the memory service added its own latency to the
+            # head of every turn for no ordering reason at all.
+            retrieved, recalled = await asyncio.gather(
+                self._retrieve(user_message) if self.retrieval else _none(),
+                self._recall(conversation_id, user_message) if self.memory else _empty(),
+            )
         retrieved_context, chunk_refs = retrieved
         # What the turn was given, by reference rather than by copy: the text
         # is already in the vault and in `memories`, and a second copy here is
@@ -1134,6 +1210,12 @@ class Director:
                     # quality loss -- the model calls tools by name, and a
                     # one-line description is enough to pick the right one.
                     tool_schemas = compress_tool_schemas(tool_schemas)
+                    # Inject dispatch hints when the tool selector surfaces
+                    # patterns that suggest parallel or delegated work.
+                    if not state.warned_about_selection:
+                        system_prompt = _inject_dispatch_hints(
+                            system_prompt, tool_schemas, user_message
+                        )
                 if not planning and executing and tool_schemas is not None:
                     # Only where there is a plan to be part-way through. Offering
                     # it on every chat turn would be a tool with nothing to
@@ -1481,7 +1563,7 @@ class Director:
                     # handover that was always the right answer.
                     can_resume = (
                         (bool(streamed_text or state.carried)
-                         or isinstance(exc, ProviderStreamError))
+                         or isinstance(exc, ProviderError))
                         and should_retry(kind)
                         and state.resumes < self.guards.max_resumes
                         # One attempt stays reserved for the links behind this
@@ -1822,29 +1904,38 @@ class Director:
                 state.tool_message_ids.append(asked)
             self._checkpoint(state, "acting", budget=budget)
 
-            for call in response.tool_calls:
-                if call.name == STEP_TOOL_NAME:
-                    # Answered here, not dispatched: it changes nothing, so
-                    # there is nothing to run. The previous step closes when the
-                    # next one opens -- a model that forgets the last one leaves
-                    # it open rather than the interface claiming it finished.
-                    number = call.arguments.get("number")
-                    if state.step_open is not None and state.step_open != number:
-                        yield Event("step_done", {"number": state.step_open})
-                    state.step_open = number
-                    yield Event(
-                        "step_started",
-                        {"number": number, "title": call.arguments.get("title") or ""},
-                    )
-                    self._persist(
-                        conversation_id,
-                        "tool",
-                        f"step {number} noted",
-                        tool_call_id=call.id,
-                        tool_name=call.name,
-                    )
-                    continue
+            # ---- parallel dispatch: launch all tool calls concurrently ----
+            # When the model returns multiple tool calls, they are independent
+            # by construction (the model chose to bundle them). Running them
+            # concurrently bounds total latency to the slowest tool rather than
+            # the sum. Step-tool calls are instant and handled inline; only
+            # real dispatches join the parallel batch.
+            calls = list(response.tool_calls)
+            # Separate step notifications (instant) from real dispatches
+            step_calls = [c for c in calls if c.name == STEP_TOOL_NAME]
+            dispatch_calls = [c for c in calls if c.name != STEP_TOOL_NAME]
 
+            # Handle step calls inline (they are instant, no I/O)
+            for call in step_calls:
+                number = call.arguments.get("number")
+                if state.step_open is not None and state.step_open != number:
+                    yield Event("step_done", {"number": state.step_open})
+                state.step_open = number
+                yield Event(
+                    "step_started",
+                    {"number": number, "title": call.arguments.get("title") or ""},
+                )
+                self._persist(
+                    conversation_id,
+                    "tool",
+                    f"step {number} noted",
+                    tool_call_id=call.id,
+                    tool_name=call.name,
+                )
+
+            # Launch all real dispatches concurrently
+            dispatch_tasks: list[tuple[ToolCall, asyncio.Task]] = []
+            for call in dispatch_calls:
                 if state.tool_calls_made >= self.guards.max_tool_calls:
                     state.error = "tool call limit reached"
                     self._checkpoint(state, "stopped", budget=budget)
@@ -1859,70 +1950,88 @@ class Director:
                 seen = state.call_fingerprints.get(fingerprint, 0) + 1
                 state.call_fingerprints[fingerprint] = seen
                 if seen > self.guards.max_repeated_calls:
+                    # Stash error result; will be yielded below
+                    dispatch_tasks.append((call, None))  # sentinel
+                    continue
+
+                tool = self.registry.get(call.name)
+                server = getattr(tool, "server_name", None)
+                yield Event(
+                    "status",
+                    {
+                        "state": "connector" if server else "tool",
+                        "tool": call.name,
+                        "server": server,
+                    },
+                )
+                yield Event("tool_call", {"name": call.name, "arguments": call.arguments})
+                for event in self._artifact_opening(
+                    conversation_id,
+                    call,
+                    already_sent=live_artifacts.sent_for(call),
+                    already_open=live_artifacts.opened(call),
+                ):
+                    yield event
+                task = asyncio.create_task(self._execute(call, context))
+                dispatch_tasks.append((call, task))
+
+            # Attach cancel watchers to all tasks
+            stoppers = []
+            for _call, task in dispatch_tasks:
+                if task is not None:
+                    stoppers.append(self._cancel_on_request(cancel, task))
+
+            # Drain events from all tasks concurrently. Events arrive on
+            # context.events; we drain until all tasks are done.
+            if dispatch_tasks:
+                pending_tasks = [t for _, t in dispatch_tasks if t is not None]
+                done_count = 0
+                total = len(pending_tasks)
+                # Mark each task to put a sentinel when done
+                sentinels = []
+                for task in pending_tasks:
+                    sentinel = object()
+                    sentinels.append(sentinel)
+
+                    def _done_cb(_result, s=sentinel):
+                        context.events.put_nowait(("__parallel_done__", s))
+
+                    task.add_done_callback(_done_cb)
+                # Also handle the "no tasks" case
+                while done_count < total:
+                    item = await context.events.get()
+                    if item[0] == "__parallel_done__":
+                        done_count += 1
+                        continue
+                    event_type, data = item
+                    self._note_suspension(state, Event(event_type, data))
+                    yield Event(event_type, data)
+
+            # Stop cancel watchers
+            for stopper in stoppers:
+                if stopper is not None:
+                    stopper.cancel()
+
+            # Collect and yield results in original order
+            for call, task in dispatch_tasks:
+                if state.pending:
+                    state.pending.clear()
+                    self._checkpoint(state, "acting")
+
+                if task is None:
+                    # Repeated call sentinel
                     result = ToolResult.error(
                         f"'{call.name}' has been called with identical arguments"
-                        f" {seen} times. Stop repeating it and try a"
-                        " different approach, or tell the user what is blocking you."
+                        f" {state.call_fingerprints.get(_fingerprint(call), 0)} times."
+                        " Stop repeating it and try a different approach,"
+                        " or tell the user what is blocking you."
+                    )
+                elif task.cancelled():
+                    result = ToolResult.error(
+                        f"'{call.name}' was interrupted by the user before it completed."
                     )
                 else:
-                    tool = self.registry.get(call.name)
-                    server = getattr(tool, "server_name", None)
-                    yield Event(
-                        "status",
-                        {
-                            "state": "connector" if server else "tool",
-                            "tool": call.name,
-                            "server": server,
-                        },
-                    )
-                    yield Event("tool_call", {"name": call.name, "arguments": call.arguments})
-                    # An artifact opens before the write, not after it.
-                    #
-                    # The panel is a view of the document being produced, so it
-                    # has to exist while it is being produced -- and dispatch
-                    # here can suspend for as long as a confirmation prompt
-                    # takes to be answered. Announcing afterwards would mean the
-                    # panel appeared, fully written, at the moment the user
-                    # pressed Allow. `artifact_done` below carries whether the
-                    # write actually succeeded. See ADR-0020.
-                    for event in self._artifact_opening(
-                        conversation_id,
-                        call,
-                        already_sent=live_artifacts.sent_for(call),
-                        already_open=live_artifacts.opened(call),
-                    ):
-                        yield event
-                    # Dispatch can suspend the turn waiting on a confirmation,
-                    # so its events have to reach the interface before it
-                    # returns -- awaiting the result first would announce the
-                    # prompt only after it had been answered.
-                    dispatch = asyncio.create_task(self._execute(call, context))
-                    stopper = self._cancel_on_request(cancel, dispatch)
-                    try:
-                        async for event in self._drain(context.events, dispatch):
-                            self._note_suspension(state, event)
-                            yield event
-                    finally:
-                        if stopper is not None:
-                            stopper.cancel()
-                    if state.pending:
-                        # Answered, timed out, or cancelled out from under it --
-                        # either way the turn is running again.
-                        state.pending.clear()
-                        self._checkpoint(state, "acting")
-
-                    if dispatch.cancelled():
-                        # The user stopped the turn while this call was in
-                        # flight -- including while it sat waiting on a
-                        # confirmation. The trajectory has to say so, or the
-                        # history claims a call that never finished. Checked
-                        # rather than caught: swallowing a CancelledError here
-                        # would also swallow the interface hanging up.
-                        result = ToolResult.error(
-                            f"'{call.name}' was interrupted by the user before it completed."
-                        )
-                    else:
-                        result = dispatch.result()
+                    result = task.result()
 
                 answered = self._persist(
                     conversation_id,
@@ -1934,8 +2043,6 @@ class Director:
                 )
                 if answered is not None:
                     state.tool_message_ids.append(answered)
-                # A tool result is the most expensive thing in a turn to lose:
-                # it is work already done against the real machine.
                 self._checkpoint(state, budget=budget)
                 yield Event(
                     "tool_result",
@@ -2051,6 +2158,29 @@ class Director:
         except Exception as exc:
             log.debug("could not read connector readiness for this turn: %s", exc)
             return set()
+
+    def _is_trivial_turn(self, user_message: str, attachments: list | None = None) -> bool:
+        """Heuristic: should retrieval and memory be skipped for this turn?
+
+        Trivial turns are short greetings, acknowledgments, and simple questions
+        where there's nothing to retrieve and no memories to recall. Skipping
+        them saves 1-5s of embedding + DB calls per turn.
+        """
+        words = user_message.split()
+        if len(words) > 40:
+            return False
+        if attachments:
+            return False
+        # Context-seeking language means the user expects the agent to remember
+        # something — retrieval and memory should run.
+        context_signals = {
+            "remember", "last time", "before", "previously", "earlier",
+            "forgot", "remind", "what did", "how did", "when did",
+        }
+        lower = user_message.lower()
+        if any(sig in lower for sig in context_signals):
+            return False
+        return True
 
     async def _recall(self, conversation_id: str, user_message: str) -> list[str]:
         """Standing facts about the user, for the top of the prompt.

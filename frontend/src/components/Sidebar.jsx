@@ -15,6 +15,7 @@ import {
   FadeScrollArea,
 } from './ui/skiper/index.js'
 import { AnimatePresence, motion } from 'framer-motion'
+import UserMenu from './UserMenu.jsx'
 
 
 
@@ -135,6 +136,7 @@ export default function Sidebar() {
     conversations, activeId, chat,
     renaming, setRenaming, renameConversation, deleteConversation,
     theme, setTheme, betaPages, refreshConvs, toast,
+    userProfile, updateUserProfile,
   } = useApp()
 
   // Beta pages appear here only once they are switched on in Settings, and
@@ -203,24 +205,9 @@ export default function Sidebar() {
       aria-label="Main Navigation"
       aria-hidden={compact && !railOpen ? 'true' : undefined}
     >
-      {/* 1. Header (Screenshot 1 & 2): Logo/App Mark + Search + Sidebar Toggle + Compose */}
+      {/* 1. Header (Screenshot 1): User Card + Sidebar Close Toggle */}
       <div className="sb-header">
-        <div className="sb-header-brand">
-          <BrandMark size={34} />
-          <span className="sb-brand-name">AMETHYST</span>
-        </div>
-
-        <div className="sb-header-controls">
-          <button
-            type="button"
-            className={`sb-icon-btn${showSearchInput ? ' is-active' : ''}`}
-            onClick={() => setShowSearchInput((s) => !s)}
-            title="Search conversations"
-            aria-label="Search conversations"
-          >
-            <Icon name="search" size={15} />
-          </button>
-
+        <div className="sb-header-top-row">
           <button
             type="button"
             className="sb-icon-btn"
@@ -231,9 +218,26 @@ export default function Sidebar() {
             <Icon name="sidebar" size={16} />
           </button>
 
+          <UserMenu align="start" side="bottom" sideOffset={8}>
+            <button
+              type="button"
+              className="sb-user-card-top"
+              title={`User menu for ${userProfile?.name || 'User'} — Click to edit name or open settings`}
+            >
+              <div className="sb-user-avatar sb-user-avatar--sm">
+                {(userProfile?.name || 'U').charAt(0).toUpperCase()}
+              </div>
+              <span className="sb-user-name-top">{userProfile?.name || 'User'}</span>
+              <Icon name="chevron" size={10} className="sb-user-chevron" />
+            </button>
+          </UserMenu>
+        </div>
+
+        {/* Row 2: New chat button + Search button (Matching Screenshot 1 & Apple design) */}
+        <div className="sb-header-actions-row">
           <button
             type="button"
-            className="sb-icon-btn sb-compose-btn"
+            className="sb-new-chat-btn"
             onClick={leave(() => {
               setView('chat')
               chat.startFresh?.()
@@ -241,7 +245,18 @@ export default function Sidebar() {
             title={`New chat — ${MOD_LABEL}+Shift+O`}
             aria-label="New chat"
           >
-            <Icon name="edit" size={15} />
+            <Icon name="edit" size={14} />
+            <span>New chat</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sb-search-btn-square${showSearchInput ? ' is-active' : ''}`}
+            onClick={() => setShowSearchInput((s) => !s)}
+            title="Search conversations"
+            aria-label="Search conversations"
+          >
+            <Icon name="search" size={14} />
           </button>
         </div>
       </div>
@@ -484,27 +499,6 @@ export default function Sidebar() {
           </AnimatePresence>
         </div>
       </FadeScrollArea>
-
-      {/* 5. Footer: Skiper26 Theme Toggle + Settings */}
-      <div className="sb-footer">
-        <ThemeToggleButton
-          theme={theme}
-          setTheme={setTheme}
-          className="sb-theme-toggle"
-        />
-
-        <button
-          type="button"
-          className="sb-settings-btn"
-          onClick={leave(() => setView('settings'))}
-          title={`Settings — ${MOD_LABEL}+,`}
-          aria-label="Settings"
-        >
-          <Icon name="sliders" size={15} />
-          <span className="sb-settings-label">Settings</span>
-          <span className="sb-settings-sub">{status}</span>
-        </button>
-      </div>
     </aside>
   )
 }

@@ -178,10 +178,12 @@ export const api = {
   settings: () => j('/settings'),
   updateSettings: (patch) => j('/settings', json('PATCH', patch)),
 
-  activity: () => j('/analytics/activity'),
+  activity: (days = 30) => j(`/analytics/activity?days=${days}`),
+  usageWindows: () => j('/analytics/usage-windows'),
   confirmationPreferences: () => j('/confirmations/preferences'),
   revokeConfirmationPreference: (opKey) =>
     j('/confirmations/preferences/' + encodeURIComponent(opKey), json('DELETE')),
+  clearConfirmationPreferences: () => j('/confirmations/preferences', json('DELETE')),
 
   tiers: () => j('/tiers'),
   setTier: (tier, provider, model) =>
@@ -348,6 +350,8 @@ export const api = {
 
   // Mail. Straight from Gmail rather than through the connector -- the
   // connector answers in prose written for a model, see backend/mail/gmail.py.
+  userProfile: () => j('/user/profile'),
+  updateUserProfile: (profile) => j('/user/profile', json('POST', profile)),
   mailAccount: () => j('/mail/account'),
   mailThreads: ({ q = 'in:inbox', limit = 25 } = {}) =>
     j(`/mail/threads?q=${encodeURIComponent(q)}&limit=${limit}`),
@@ -460,6 +464,10 @@ export const api = {
   // location, and a missing still is a 404 rather than a broken <img>.
   thumbnailUrl: (id) => `${BASE}/library/${id}/thumbnail`,
   mediaUrl: (id) => `${BASE}/library/${id}/media`,
+
+  // Export selected library items as a Spotify playlist via the MCP connector.
+  exportPlaylist: (itemIds, name = '') =>
+    j('/library/export-playlist', json('POST', { item_ids: itemIds, name })),
 
   // Instagram capture. Credentials go one way only — set and delete; the status
   // reports whether each is present, never what it is.

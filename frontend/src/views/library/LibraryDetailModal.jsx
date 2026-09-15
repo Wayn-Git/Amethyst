@@ -446,6 +446,7 @@ export default function LibraryDetailModal({
                   const rUrl = typeof r === 'string' ? '' : (r.url || '')
                   const isVideoResource = rType === 'video' || rType === 'show' || rType === 'movie'
                   const isBookResource = rType === 'book'
+                  const isMusicResource = rType === 'music' || rType === 'song'
 
                   return (
                     <a
@@ -459,7 +460,18 @@ export default function LibraryDetailModal({
                       }}
                     >
                       <div className="lib-featured-resource-thumb">
-                        <Icon name={isVideoResource ? 'video' : isBookResource ? 'book' : 'link'} size={18} />
+                        <Icon
+                          name={
+                            isMusicResource
+                              ? 'music'
+                              : isVideoResource
+                              ? 'video'
+                              : isBookResource
+                              ? 'book'
+                              : 'link'
+                          }
+                          size={18}
+                        />
                       </div>
                       <div className="lib-featured-resource-info">
                         <div className="lib-featured-resource-title-row">

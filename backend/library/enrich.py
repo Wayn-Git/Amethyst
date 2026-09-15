@@ -47,7 +47,7 @@ BACKGROUND_FALLBACK_LINKS = 4
 MAX_TAGS = 3
 MAX_RESOURCES = 12
 
-CATEGORIES = ("movie", "travel", "food", "tool", "book", "general")
+CATEGORIES = ("movie", "travel", "food", "tool", "book", "music", "general")
 
 CANONICAL_TOPICS = (
     "ai",
@@ -323,6 +323,8 @@ def infer_category(
          ("restaurant", "cafe", "recipe", "dish", "cuisine", "food")),
         ("tool", ("tool",), ("software", "app", "tool", "saas", "platform")),
         ("book", ("book",), ("book", "novel", "author")),
+        ("music", ("music", "song", "track", "album", "artist", "audio"),
+         ("song", "track", "album", "artist", "singer", "rapper", "dj", "remix", "beat", "playlist")),
     )
     for r in resources:
         rtype = str(r.get("type") or "").lower()
@@ -342,6 +344,9 @@ def infer_category(
         ("tool", ("tool", "tools", "software", "ai", "saas", "tech", "app",
                   "startup", "code")),
         ("book", ("book", "books", "reading", "author", "paper", "literature")),
+        ("music", ("music", "song", "track", "album", "artist", "playlist",
+                   "spotify", "soundcloud", "apple-music", "bandcamp", "rapper",
+                   "hip-hop", "rap", "r&b", "pop", "rock", "jazz", "electronic")),
     )
     tag_set = {t.lower() for t in tags}
     for category, wanted in by_tag:
@@ -350,6 +355,8 @@ def infer_category(
 
     if kind == "book":
         return "book"
+    if kind == "music":
+        return "music"
     return "general"
 
 

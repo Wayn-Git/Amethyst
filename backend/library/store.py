@@ -27,6 +27,7 @@ KINDS = (
     "book",
     "video",
     "podcast",
+    "music",
     "newsletter",
     "paper",
     "post",
@@ -149,6 +150,12 @@ def app_tag_for_url(url: str | None) -> str | None:
         return "reddit"
     if host in ("spotify.com", "open.spotify.com"):
         return "spotify"
+    if host in ("music.apple.com",):
+        return "apple-music"
+    if host in ("soundcloud.com",):
+        return "soundcloud"
+    if "bandcamp.com" in host:
+        return "bandcamp"
     if "substack.com" in host:
         return "substack"
     if host in ("medium.com",):
