@@ -1,6 +1,7 @@
 """Durable dashboard jobs. One Director turn at a time; never replay missed work."""
 
 import asyncio
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -83,7 +84,10 @@ async def provide():
                 "title": row["title"],
                 "detail": f"{row['next_run'] or 'Finished'} · {row['interval_s'] or 'Once'}",
             }
-            for row in conn.execute("SELECT * FROM dashboard_jobs ORDER BY id DESC")
+            for row in conn.execute(
+                "SELECT * FROM dashboard_jobs WHERE id NOT IN "
+                "(SELECT job_id FROM dashboard_delegated) ORDER BY id DESC"
+            )
         ],
         "runs": [
             dict(row)
@@ -151,6 +155,11 @@ async def execute(run_id, job, factory=director_for):
     finally:
         traces = [t for t in get_recent_traces() if t.conversation_id == conversation]
         with transaction() as conn:
+            if traces:
+                conn.execute(
+                    "INSERT OR REPLACE INTO dashboard_job_traces VALUES(?,?)",
+                    (run_id, json.dumps(traces[-1].to_dict())),
+                )
             conn.execute(
                 "UPDATE dashboard_job_runs SET status=?,error=?,trace_id=? WHERE id=?",
                 (status, error, traces[-1].turn_id if traces else None, run_id),
@@ -186,8 +195,17 @@ class Scheduler:
         )
         for raw in due:
             job = dict(raw)
-            missed = now - datetime.fromisoformat(job["next_run"]) > timedelta(seconds=60)
+            delegated = (
+                get_connection()
+                .execute("SELECT 1 FROM dashboard_delegated WHERE job_id=?", (job["id"],))
+                .fetchone()
+            )
+            missed = not delegated and now - datetime.fromisoformat(job["next_run"]) > timedelta(
+                seconds=60
+            )
             busy = self.active is not None and not self.active.done()
+            if delegated and busy:
+                continue
             status = "skipped" if missed or busy else "running"
             with transaction() as conn:
                 claimed = conn.execute(

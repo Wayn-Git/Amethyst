@@ -128,3 +128,10 @@ CREATE TABLE IF NOT EXISTS dashboard_job_runs (
     conversation_id TEXT,
     trace_id TEXT
 );
+CREATE TABLE IF NOT EXISTS dashboard_delegated (
+    job_id INTEGER PRIMARY KEY REFERENCES dashboard_jobs(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS dashboard_job_traces (
+    run_id INTEGER PRIMARY KEY REFERENCES dashboard_job_runs(id),
+    trace_json TEXT NOT NULL
+);

@@ -40,4 +40,13 @@ try {
   const cached = await (await fetch(`${backend}/api/widgets/agent.jobs/data`)).json()
   assert.ok(cached.payload.items.some(i => i.title === 'UI fixture job'))
   console.log('agent.jobs UI passed')
+  await page.evaluate(() => window.testMount('Jobs', 'agent.delegated', { items: [{ id: 1, title: 'Fixture queued', status: 'queued' }] }))
+  await page.getByText('Fixture queued', { exact: true }).waitFor()
+  assert.equal(await page.getByLabel('Run at', { exact: true }).count(), 0)
+  await page.getByLabel('Title', { exact: true }).fill('UI delegated fixture')
+  await page.getByLabel('Prompt', { exact: true }).fill('Read fixture')
+  await page.getByRole('button', { name: 'Review job', exact: true }).click()
+  await page.getByRole('button', { name: 'Approve change' }).click()
+  await page.getByRole('button', { name: 'Review job', exact: true }).waitFor()
+  console.log('agent.delegated UI passed')
 } finally { await browser.close() }

@@ -176,6 +176,11 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "agent.delegated":
+            from backend.dashboard.delegated import draft as delegated_draft
+            from backend.dashboard.jobs import JobInput
+
+            return delegated_draft(action, JobInput.model_validate(body))
         if widget_id == "agent.jobs":
             from backend.dashboard.jobs import JobInput
             from backend.dashboard.jobs import draft as job_draft
@@ -290,3 +295,17 @@ def search_item(source: str, item_id: int):
     from backend.dashboard.search import item
 
     return item(source, item_id)
+
+
+@router.get("/widgets/agent.delegated/runs/{run_id}/trace")
+def delegated_trace(run_id: int):
+    import json
+
+    from backend.db.connection import get_connection
+
+    row = get_connection().execute(
+        "SELECT trace_json FROM dashboard_job_traces WHERE run_id=?", (run_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Trace not available yet")
+    return json.loads(row["trace_json"])

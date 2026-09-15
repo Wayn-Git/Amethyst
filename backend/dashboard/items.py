@@ -299,6 +299,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "agent.delegated":
+        from backend.dashboard.delegated import apply as apply_delegated
+
+        return apply_delegated(conn, action, body)
     if widget_id == "agent.jobs":
         from backend.dashboard.jobs import apply as apply_job
 
