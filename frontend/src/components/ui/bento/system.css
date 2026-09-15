@@ -8,6 +8,7 @@
   --tile-accent: #ded2fa; --tile-accent-text: #2c164e; --tile-accent-muted: #624881;
   --tile-action-hover: #5b25b1; --tile-action: #7132d6; --tile-on-action: #ffffff; --tile-shadow: 0 4px 16px rgb(25 23 31 / .06);
   --tile-canvas: #f2f2f4;
+  --tile-calendar: #bc353b; --tile-dial: #f5f5f7;
   --tile-weather: #14668c; --tile-weather-horizon: #18749a; --tile-weather-text: #ffffff; --tile-weather-muted: #e0f1fa;
   --tile-shadow-hover: 0 8px 24px rgb(25 23 31 / .09);
 }

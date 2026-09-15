@@ -9,5 +9,5 @@ Direction: quiet neutral canvas, white and charcoal cards, soft depth, restraine
 
 - [x] dash.gallery: shared card hierarchy, responsive spacing and accessible controls.
 - [x] glance.weather: real hourly temperature/rain strip and atmospheric blue surface.
-- [ ] glance.clock: analog dial with accessible digital time and timezone.
+- [x] glance.clock: analog dial with accessible digital time and timezone.
 - [ ] glance.next-event: calendar date hierarchy with real countdown.

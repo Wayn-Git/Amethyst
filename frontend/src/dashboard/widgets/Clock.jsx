@@ -8,6 +8,19 @@ export function ClockFace({ now }) {
   const parts = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' }).formatToParts(now)
   const period = parts.find(part => part.type === 'dayPeriod')?.value
   return <Tile className="glance-clock-face">
+    <svg className="clock-dial" viewBox="0 0 200 200" aria-hidden="true">
+      <circle className="clock-dial-face" cx="100" cy="100" r="98" />
+      {Array.from({ length: 60 }, (_, i) => <line key={i} className={i % 5 === 0 ? 'clock-tick-major' : 'clock-tick'} x1="100" y1="8" x2="100" y2={i % 5 === 0 ? 17 : 12} transform={`rotate(${i * 6} 100 100)`} />)}
+      {Array.from({ length: 12 }, (_, i) => {
+        const hour = i + 1, angle = hour * Math.PI / 6
+        return <text className="clock-numeral" key={hour} x={100 + 69 * Math.sin(angle)} y={100 - 69 * Math.cos(angle)}>{hour}</text>
+      })}
+      <text className="clock-dial-day" x="100" y="128">{now.toLocaleDateString([], { weekday: 'short' })}</text>
+      <text className="clock-dial-date" x="100" y="144">{now.getDate()}</text>
+      <line className="clock-hand clock-hour-hand" x1="100" y1="105" x2="100" y2="55" transform={`rotate(${(now.getHours() % 12) * 30 + now.getMinutes() / 2} 100 100)`} />
+      <line className="clock-hand clock-minute-hand" x1="100" y1="108" x2="100" y2="30" transform={`rotate(${now.getMinutes() * 6} 100 100)`} />
+      <circle className="clock-pin" cx="100" cy="100" r="4" />
+    </svg>
     <span className="clock-date">{now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
     <time className="home-clock" dateTime={now.toISOString()}><span key={parts.filter(part => part.type !== 'second').map(part => part.value).join('')} className="clock-digits pilot-number">{parts.filter(part => part.type !== 'dayPeriod').map(part => part.value).join('').trim()}</span>{period && <small className="clock-period">{period}</small>}</time>
     <span className="clock-zone">{Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' ')}</span>

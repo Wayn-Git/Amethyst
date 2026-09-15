@@ -95,3 +95,20 @@
   .bento-foundation .home-widget.widget-adoption .adoption-sun { grid-template-columns: 1fr; }
   .bento-foundation .home-widget.widget-adoption .adoption-sun > div + div { border-left: 0; padding-left: 0; border-top: 1px solid var(--ui-border); padding-top: var(--tile-space-3); }
 }
+
+.bento-foundation .home-widget.widget-adoption .glance-clock-face { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--tile-space-2); }
+.bento-foundation .home-widget.widget-adoption .clock-dial { display: block; width: 184px; max-width: 100%; aspect-ratio: 1; flex-shrink: 0; overflow: visible; }
+.bento-foundation .home-widget.widget-adoption .clock-dial-face { fill: var(--tile-dial); }
+.bento-foundation .home-widget.widget-adoption .clock-tick { stroke: color-mix(in srgb, var(--tile-light-text) 22%, transparent); stroke-width: 1.5; }
+.bento-foundation .home-widget.widget-adoption .clock-tick-major { stroke: var(--tile-light-text); stroke-width: 2.5; }
+.bento-foundation .home-widget.widget-adoption .clock-numeral { fill: var(--tile-light-text); font: 600 17px var(--ui-font); text-anchor: middle; dominant-baseline: central; }
+.bento-foundation .home-widget.widget-adoption .clock-dial-day,
+.bento-foundation .home-widget.widget-adoption .clock-dial-date { fill: var(--tile-calendar); font: 600 10px var(--ui-font); text-anchor: middle; }
+.bento-foundation .home-widget.widget-adoption .clock-dial-date { fill: var(--tile-light-text); font-size: 13px; }
+.bento-foundation .home-widget.widget-adoption .clock-hand { stroke: var(--tile-light-text); stroke-linecap: round; stroke-width: 5; }
+.bento-foundation .home-widget.widget-adoption .clock-minute-hand { stroke-width: 3.5; }
+.bento-foundation .home-widget.widget-adoption .clock-pin { fill: var(--tile-calendar); }
+.bento-foundation .home-widget.widget-adoption .glance-clock-face .home-clock { display: flex; align-items: baseline; justify-content: center; gap: var(--tile-space-1); }
+.bento-foundation .home-widget.widget-adoption .glance-clock-face .home-clock .clock-digits { font: 500 24px/1.2 var(--ui-font); letter-spacing: -.03em; }
+.bento-foundation .home-widget.widget-adoption .glance-clock-face .clock-period { color: var(--tile-muted); font: var(--tile-label); }
+.bento-foundation .home-widget.widget-adoption .glance-clock-face .clock-date { margin-top: var(--tile-space-2); }
