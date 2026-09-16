@@ -158,6 +158,9 @@ class ProviderConfig:
     #: Empty means the catalogue's tags for this slug are used instead, so the
     #: user's file wins over the catalogue without having to restate it.
     strengths: frozenset[str] = frozenset()
+    #: Whether to allow parallel tool calls in OpenAI-compatible requests.
+    #: None preserves the provider's default; True/False explicitly controls it.
+    parallel_tool_calls: bool | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 

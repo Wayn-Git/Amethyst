@@ -263,10 +263,49 @@ def sanitize_composio_content(
         if stripped_chars > 1000:
             omitted_tokens = stripped_chars // 4
             notice = f"\n\n({omitted_tokens} tokens of MIME/CSS omitted, plain-text body returned; call with format:'raw' for the full tree.)"
-            return cleaned + notice
-        return cleaned
+            content = cleaned + notice
+        else:
+            content = cleaned
 
-    return content
+    return cap_tool_result_content(content, tool_name=tool_name, arguments=arguments)
+
+
+MAX_TOOL_CHARS = 8000  # ~2,000 tokens at ~4 chars/token
+
+
+def detect_paging_arg(tool_name: str = "", arguments: dict[str, Any] | None = None) -> str:
+    """Infer the paging argument name for a given tool and its invocation arguments."""
+    args = arguments or {}
+    for key in ("offset", "cursor", "page_token", "next_token", "page", "start_index", "StartLine", "start_line", "skip"):
+        if key in args:
+            return key
+
+    lowered_name = (tool_name or "").lower()
+    if "view_file" in lowered_name or "read_file" in lowered_name or lowered_name.endswith("file"):
+        return "StartLine"
+    if any(k in lowered_name for k in ("mail", "email", "gmail", "calendar", "event", "slack", "discord", "message")):
+        return "cursor"
+    if any(k in lowered_name for k in ("search", "grep", "list", "fetch", "query")):
+        return "offset"
+
+    return "offset"
+
+
+def cap_tool_result_content(
+    content: str,
+    *,
+    tool_name: str = "",
+    arguments: dict[str, Any] | None = None,
+    max_chars: int = MAX_TOOL_CHARS,
+) -> str:
+    """Cap tool result content at ~2k tokens (~8k chars) with trailing paging guidance."""
+    if not content or len(content) <= max_chars:
+        return content
+
+    paging_arg = detect_paging_arg(tool_name, arguments)
+    trailer = f"\n\n[truncated; call again with {paging_arg} for more]"
+    cut_length = max(0, max_chars - len(trailer))
+    return content[:cut_length] + trailer
 
 
 def sanitize_composio_tool_result(

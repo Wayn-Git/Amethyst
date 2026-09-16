@@ -334,12 +334,15 @@ class OpenAICompatClient:
         timeout: float = 300.0,
         max_retries: int = MAX_RETRIES,
         provider_name: str = "openai-compatible",
+        parallel_tool_calls: bool | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = normalize_model_name(f"{self.base_url} {model}", model)
         self.timeout = timeout
         self.provider_name = provider_name
+        self.parallel_tool_calls = parallel_tool_calls
+        self._cache_system: bool = False
         #: Retries after the first attempt. The fallback chain
         #: owns one budget for the whole turn and hands each link its share, so
         #: a three-provider chain costs the same order of wall clock as one
@@ -412,6 +415,18 @@ class OpenAICompatClient:
 
         if rendered_tools:
             payload["tools"] = rendered_tools
+            if self.parallel_tool_calls is not None:
+                payload["parallel_tool_calls"] = self.parallel_tool_calls
+
+        # Provider-appropriate prefix caching
+        if getattr(self, "_cache_system", False) and "openrouter.ai" in (self.base_url or "").lower():
+            raw_msgs = payload.get("messages") or []
+            if raw_msgs and raw_msgs[0].get("role") == "system":
+                sys_content = raw_msgs[0].get("content")
+                if isinstance(sys_content, str):
+                    raw_msgs[0]["content"] = [
+                        {"type": "text", "text": sys_content, "cache_control": {"type": "ephemeral"}}
+                    ]
 
         p = params or ModelParameters()
         if p.temperature is not None:
@@ -737,12 +752,18 @@ def initialize(
     if not api_key and not is_local and (config.api_key_ref or config.api_key_env):
         from backend.runtime.registry import ProviderNotConfigured
         raise ProviderNotConfigured(f"No API key configured for provider '{config.name}'. Add an API key in Settings.")
+    parallel_tool_calls = (
+        config.parallel_tool_calls
+        if getattr(config, "parallel_tool_calls", None) is not None
+        else (config.extra.get("parallel_tool_calls") if config.extra else None)
+    )
     client = OpenAICompatClient(
         base_url=base_url,
         api_key=api_key,
         model=resolved_model,
         max_retries=max_retries,
         provider_name=config.name,
+        parallel_tool_calls=parallel_tool_calls,
     )
     return ResolvedModel(
         provider=config.name,
@@ -756,6 +777,7 @@ def initialize(
             context_window=_context_window(resolved_model, config.context_window),
             max_tools=config.max_tools,
             tokens_per_minute=config.tokens_per_minute,
+            parallel_tool_calls=parallel_tool_calls,
         ),
     )
 
