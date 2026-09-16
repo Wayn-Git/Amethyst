@@ -23,7 +23,3 @@ export const BackgroundPattern = (props: BackgroundPatternProps) => {
 
     return <Pattern {...props} size={props.size as "sm" | "md"} className={cx("pointer-events-none", props.className)} />;
 };
-
-export { GridPulse } from "@/components/ui/grid-pulse";
-export type { GridPulseProps } from "@/components/ui/grid-pulse";
-

@@ -17,19 +17,19 @@ export function estimateCardHeight(item) {
   const hasThumb = Boolean(item.thumbnail_path)
   
   if (!hasThumb) {
-    return 160
+    return app || item.kind === 'video' ? 220 : 180
   }
   
   let mediaH = 220
   if (app === 'instagram' || app === 'tiktok') {
-    mediaH = 460
+    mediaH = 360
   } else if (app === 'pinterest') {
-    mediaH = 380
+    mediaH = 300
   } else if (app === 'youtube' || item.kind === 'video') {
-    mediaH = 180
+    mediaH = 200
   }
   
-  const bodyH = (item.summary ? 60 : 20) + (item.resources?.length ? 36 : 0) + 90
+  const bodyH = (item.summary ? 80 : 30) + (item.resources?.length ? 44 : 0) + 100
   return mediaH + bodyH
 }
 
@@ -47,6 +47,7 @@ export default function LibraryGrid({
   const groups = useMemo(() => groupItemsByDate(items), [items])
 
   // Track responsive column count based on available container width
+  // Cards breathe with minimum ~340px-380px width so they feel filling and substantial
   const [columnCount, setColumnCount] = useState(3)
 
   useEffect(() => {
@@ -55,11 +56,11 @@ export default function LibraryGrid({
 
     const updateCols = () => {
       const width = el.offsetWidth
-      if (width < 640) {
+      if (width < 680) {
         setColumnCount(1)
-      } else if (width < 1040) {
+      } else if (width < 1140) {
         setColumnCount(2)
-      } else if (width < 1480) {
+      } else if (width < 1680) {
         setColumnCount(3)
       } else {
         setColumnCount(4)
@@ -85,12 +86,13 @@ export default function LibraryGrid({
 
     gsap.fromTo(
       newCards,
-      { autoAlpha: 0, y: 10 },
+      { autoAlpha: 0, y: 14, scale: 0.98 },
       {
         autoAlpha: 1,
         y: 0,
-        duration: 0.3,
-        stagger: { each: 0.02, from: 'start', max: 0.12 },
+        scale: 1,
+        duration: 0.28,
+        stagger: { each: 0.03, from: 'start', max: 0.15 },
         ease: 'power2.out',
         clearProps: 'transform,visibility,opacity',
       }
@@ -119,12 +121,12 @@ export default function LibraryGrid({
           <section key={group.dateKey} className="lib-date-group">
             <header className="lib-date-header">
               <h2 className="lib-date-title">{group.heading}</h2>
-              <span className="lib-date-count mono">
+              <span className="lib-date-count">
                 {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
               </span>
             </header>
 
-            <div className={`lib-masonry-grid${group.items.length === 1 ? ' lib-masonry-grid--single' : ''}`}>
+            <div className="lib-masonry-grid">
               {columns.map((colItems, colIdx) => (
                 <div key={colIdx} className="lib-masonry-col">
                   {colItems.map((item) => (
