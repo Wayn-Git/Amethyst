@@ -227,7 +227,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | agent.errors | Errors and retries | dir | MVP | [x] |
 | agent.brief | Daily brief and evening wrap-up | llm, all widget data | MVP | [x] |
 | agent.next | One suggested next action | llm | MVP | [x] |
-| agent.jobs | Scheduled and recurring agent jobs | dir | v2 | [ ] |
+| agent.jobs | Scheduled and recurring agent jobs | dir | v2 | [x] |
 | agent.delegated | Delegated tasks board | dir | v2 | [ ] |
 | agent.research | Background research jobs with results | dir, llm | v2 | [ ] |
 | agent.watchers | Watchers ("tell me when X changes") | dir, cmp triggers, api | v2 | [ ] |

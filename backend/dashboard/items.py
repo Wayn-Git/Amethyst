@@ -299,6 +299,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "agent.jobs":
+        from backend.dashboard.jobs import apply as apply_job
+
+        return apply_job(conn, action, body)
     if widget_id == "dash.pin":
         from backend.dashboard.pins import apply as apply_pin
 

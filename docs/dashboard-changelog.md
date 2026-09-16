@@ -101,3 +101,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - comm.contacts: Local cached cards merge Gmail/Slack identities, last-contact dates and shared thread links; no message bodies or snippets in cards. Mocked persistence/privacy and UI tests pass.
 
 - comm.reachout: Manual birthdays today and configurable inactivity reminders (30 days by default); local changes use existing draft/approval gate. Shared DM reads enumerate verified im conversations; metadata history is bounded. Focused mocked backend, gate/privacy and isolated-browser checks pass; live accounts/models were not exercised.
+
+- 2026-10-25: agent.jobs — durable capped Director jobs, missed-run audit, explicit write approvals, shared-primitives UI; focused backend/UI tests passed.

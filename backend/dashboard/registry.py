@@ -308,6 +308,10 @@ MANIFESTS = [
     director_manifest("need.approvals", "Permission approvals", ("approve", "deny")),
     director_manifest("agent.errors", "Errors and retries"),
     director_manifest("agent.audit", "Tool-call audit log"),
+    {
+        **director_manifest("agent.jobs", "Scheduled and recurring agent jobs", ("add", "delete")),
+        "tier": "v2",
+    },
     github_manifest("dev.ci", "CI status", "No GitHub repositories."),
     github_manifest("dev.issues", "Assigned issues", "No assigned open issues."),
     github_manifest("dev.prs", "Pull requests", "No PRs awaiting review or open PRs."),

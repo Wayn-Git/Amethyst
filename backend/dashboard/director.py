@@ -8,6 +8,10 @@ from backend.secrets import redact
 
 
 async def provide(widget_id):
+    if widget_id == "agent.jobs":
+        from backend.dashboard.jobs import provide as jobs
+
+        return await jobs()
     if widget_id == "need.decisions":
         from backend.agent.questions import outstanding
 

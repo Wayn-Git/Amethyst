@@ -111,3 +111,20 @@ CREATE TABLE IF NOT EXISTS dashboard_pins (
     tool_calls_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    next_run TEXT,
+    interval_s INTEGER CHECK(interval_s IS NULL OR interval_s >= 900)
+);
+CREATE TABLE IF NOT EXISTS dashboard_job_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    conversation_id TEXT,
+    trace_id TEXT
+);

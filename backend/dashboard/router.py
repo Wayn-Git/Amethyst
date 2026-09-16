@@ -34,10 +34,15 @@ async def lifespan(app):
                 await tasks()
             await asyncio.sleep(60)
 
+    from backend.dashboard.jobs import Scheduler
+
+    jobs = asyncio.create_task(Scheduler().run())
     task = asyncio.create_task(scheduled_brief())
     try:
         yield
     finally:
+        jobs.cancel()
+        await asyncio.gather(jobs, return_exceptions=True)
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
@@ -171,6 +176,11 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "agent.jobs":
+            from backend.dashboard.jobs import JobInput
+            from backend.dashboard.jobs import draft as job_draft
+
+            return job_draft(action, JobInput.model_validate(body))
         if widget_id == "dash.pin":
             from backend.dashboard.pins import PinInput
             from backend.dashboard.pins import draft as pin_draft
