@@ -50,3 +50,12 @@ CREATE TABLE IF NOT EXISTS recovery_items (
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT
 );
+
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_key TEXT UNIQUE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);

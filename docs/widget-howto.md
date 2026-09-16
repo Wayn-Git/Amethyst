@@ -37,4 +37,4 @@ Tasks with a truthy `external_source` are source-managed: `items.py::display` re
 `widgets/Items.jsx` shows “Edit in connected source.” instead of edit/complete/delete controls; adding a local item remains available.
 `items.py::draft` also rejects writes to those task rows with HTTP 409, so calling the API cannot bypass the UI restriction.
 Edit them in the connected source and let its existing sync update the local task cache; these widgets never write to that source.
-Reminders use their own table and show due state only; notifications remain deferred to `sys.notify`.
+Reminders use their own table; the reminder runner fires due rows through the persistent `sys.notify` notification center.

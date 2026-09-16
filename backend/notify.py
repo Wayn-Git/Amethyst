@@ -1,15 +1,4 @@
-"""Desktop notifications.
-
-The narrowest possible surface: a title, a body, and best effort. AMETHYST has one
-thing to say from outside a conversation -- a reminder is due -- and this is how
-it says it.
-
-Deliberately not abstracted into a notification *system*. There is no queue, no
-retry, no history, and no delivery guarantee, because none of those would be
-honest: a notification daemon that is not running drops the message and does not
-say so, and pretending otherwise would be worse than the plain rule that
-notifications arrive while a desktop session is there to receive them.
-"""
+"""Persistent local notification center with best-effort desktop delivery."""
 
 from __future__ import annotations
 
@@ -52,6 +41,7 @@ def _argv(prefix: list[str], title: str, body: str) -> list[str]:
 
         return [*prefix, f'display notification "{quote(body)}" with title "{quote(title)}"']
     if sys.platform == "win32":
+
         def quote(value: str) -> str:
             return value.replace("'", "''")
 
@@ -72,7 +62,25 @@ def available() -> bool:
     return _notifier() is not None
 
 
-async def notify(title: str, body: str) -> bool:
+async def notify(title: str, body: str, *, source_key: str | None = None) -> bool:
+    """Save before desktop delivery; a source key prevents repeated reminder ticks."""
+    from backend.dashboard.service import quiet_active
+    from backend.dashboard.store import stamp
+    from backend.db.connection import transaction
+
+    with transaction() as conn:
+        inserted = conn.execute(
+            "INSERT OR IGNORE INTO notifications(source_key,title,body,created_at) VALUES(?,?,?,?)",
+            (source_key, title, body, stamp()),
+        ).rowcount
+        if inserted:
+            conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id='sys.notify'")
+    if not inserted or quiet_active():
+        return False
+    return await _desktop_notify(title, body)
+
+
+async def _desktop_notify(title: str, body: str) -> bool:
     """Show one notification. Returns whether it was handed off successfully.
 
     Never raises. The caller is a background tick, and a missing notification

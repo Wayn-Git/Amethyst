@@ -109,6 +109,31 @@ async def fire_due(now: datetime | None = None) -> int:
         due = task["reminder_at"] or task["due_at"]
         await notify(task["title"], _describe(due, moment))
         sent += 1
+    from backend.db.connection import get_connection
+
+    rows = (
+        get_connection()
+        .execute(
+            "SELECT * FROM reminders WHERE status='todo' AND julianday(due_at)<=julianday(?) "
+            "AND NOT EXISTS (SELECT 1 FROM notifications WHERE source_key="
+            "'reminder:' || reminders.id || ':' || reminders.due_at)",
+            (moment.astimezone().isoformat(),),
+        )
+        .fetchall()
+    )
+    for reminder in rows:
+        await notify(
+            reminder["title"],
+            _describe(
+                datetime.fromisoformat(reminder["due_at"])
+                .astimezone()
+                .replace(tzinfo=None)
+                .isoformat(),
+                moment.replace(tzinfo=None),
+            ),
+            source_key=f"reminder:{reminder['id']}:{reminder['due_at']}",
+        )
+        sent += 1
     return sent
 
 

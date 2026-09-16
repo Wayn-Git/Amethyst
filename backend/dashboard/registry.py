@@ -110,6 +110,7 @@ def system_manifest(widget_id, title, source="local"):
 
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    system_manifest("sys.notify", "Notification center"),
     system_manifest("sys.vault", "Vault size and storage", "library"),
     director_manifest("agent.running", "Running tasks", ("stop",)),
     director_manifest("agent.feed", "Activity feed"),

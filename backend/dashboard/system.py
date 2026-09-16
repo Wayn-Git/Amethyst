@@ -7,6 +7,19 @@ from backend.db.connection import get_connection
 
 
 async def provide(widget_id):
+    if widget_id == "sys.notify":
+        return {
+            "items": [
+                {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "detail": f"{row['created_at']} · {row['body']}",
+                }
+                for row in get_connection().execute(
+                    "SELECT * FROM notifications ORDER BY id DESC LIMIT 50"
+                )
+            ]
+        }
     if widget_id == "sys.vault":
         conn = get_connection()
         row = conn.execute(

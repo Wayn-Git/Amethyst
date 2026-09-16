@@ -341,7 +341,7 @@ Personal data in this group is stored locally only and is off until the user tur
 | sys.model | Active model with switch (local or cloud) | dir | MVP | [ ] |
 | sys.connectors | Connector health and reconnect | cmp | MVP | [ ] |
 | sys.vault | Vault size and storage | lib | MVP | [x] |
-| sys.notify | Notification center | local | MVP | [ ] |
+| sys.notify | Notification center | local | MVP | [x] |
 | sys.sync | Cloud sync status | local | v2 | [ ] |
 | sys.phones | Paired phones | local | v2 | [ ] |
 | sys.resources | CPU, RAM, GPU, tokens per second | local | v2 | [ ] |

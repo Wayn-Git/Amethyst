@@ -50,3 +50,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-24: Reused SQLite execution_logs for audit; persisted dashboard gate outcomes and exposed read-only approval history across restarts.
 - 2026-10-24: dev.unpushed reports dirty working trees and each branch ahead of local tracking refs; no upstream remains unknown, no fetch or push.
 - 2026-10-24: sys.vault shows indexed vault file counts/bytes, Library item count, and available storage volume capacity; no filesystem crawl.
+- 2026-10-24: sys.notify persists notifications before best-effort desktop delivery; task.reminders fire once through it, quiet hours retain center history. Targeted backend and browser checks pass.
