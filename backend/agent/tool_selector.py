@@ -106,14 +106,14 @@ CATEGORIES: dict[str, dict[str, Any]] = {
         ),
     },
     "tasks": {
-        "tools": ("create_task", "create_tasks", "update_task", "list_task_lists"),
+        "tools": ("create_task", "create_tasks", "update_task", "list_task_lists", "list_upcoming"),
         "words": (
             "task", "todo", "to-do", "reminder", "remind", "checklist", "due",
-            "backlog", "assign",
+            "backlog", "assign", "upcoming",
         ),
     },
     "calendar": {
-        "tools": ("create_calendar_event", "list_calendar", "list_upcoming", "find_free_slot"),
+        "tools": ("create_calendar_event", "list_calendar", "find_free_slot"),
         "words": (
             "calendar", "event", "meeting", "schedule", "appointment", "invite",
             "free slot", "availability", "tomorrow", "next week", "book",
@@ -344,8 +344,17 @@ def select_tools(
         if "composio" in by_server:
             chosen_servers.append("composio")
 
+        try:
+            from backend.mcp.provider_ownership import get_withheld_local_servers, get_withheld_local_tool_names
+
+            withheld_servers = get_withheld_local_servers()
+            withheld_local_tools = get_withheld_local_tool_names()
+        except Exception:
+            withheld_servers = set()
+            withheld_local_tools = set()
+
         for server, tools in by_server.items():
-            if server in chosen_servers:
+            if server in chosen_servers or server in withheld_servers:
                 continue
             key = server.lower().replace("-", "").replace("_", "")
             hit = key in haystack.replace("-", "").replace("_", "")
@@ -373,16 +382,8 @@ def select_tools(
             wanted.discard("search_images")
 
         # Withhold offline local tools when equivalent cloud service is active on Composio
-        try:
-            from backend.mcp.composio_service import composio_service
-            from backend.mcp.provider_ownership import is_provider_overridden_by_local
-
-            if composio_service.is_configured():
-                conns = composio_service.get_connections()
-                if "googlecalendar" in conns and not is_provider_overridden_by_local("googlecalendar"):
-                    wanted.discard("create_calendar_event")
-        except Exception:
-            pass
+        if withheld_local_tools:
+            wanted.difference_update(withheld_local_tools)
 
         kept = [
             s

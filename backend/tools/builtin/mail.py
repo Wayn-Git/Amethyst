@@ -41,9 +41,28 @@ def _unavailable(exc: Exception) -> ToolResult:
     return ToolResult.error(f"Mail is not available: {exc}")
 
 
+def _composio_gmail_guard(action: str) -> ToolResult | None:
+    try:
+        from backend.mcp.provider_ownership import is_provider_owned_by_composio
+
+        if is_provider_owned_by_composio("gmail"):
+            return ToolResult.error(
+                "The user has Gmail connected via Composio. "
+                "Do NOT use this local offline tool. "
+                f"Please use COMPOSIO_SEARCH_TOOLS (use_case='{action}') and "
+                "COMPOSIO_MULTI_EXECUTE_TOOL to interact with their Gmail directly."
+            )
+    except Exception:
+        pass
+    return None
+
+
 # --- Gmail tools (user's personal mail) ---
 
 async def search_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    guard = _composio_gmail_guard("search email")
+    if guard:
+        return guard
     query = (args.get("query") or "in:inbox").strip()
     limit = max(1, min(int(args.get("limit") or 10), 25))
     try:
@@ -65,6 +84,9 @@ async def search_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
 
 
 async def read_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    guard = _composio_gmail_guard("read email thread")
+    if guard:
+        return guard
     thread_id = (args.get("thread_id") or "").strip()
     if not thread_id:
         return ToolResult.error("read_email needs a thread_id, from search_email.")
@@ -83,6 +105,9 @@ async def read_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
 
 async def send_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
     """Send one message via Gmail. The result is Gmail's answer, or the failure."""
+    guard = _composio_gmail_guard("send email")
+    if guard:
+        return guard
     body = args.get("body") or ""
     subject = (args.get("subject") or "").strip()
     if not body.strip():
@@ -108,6 +133,9 @@ async def send_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
 
 
 async def reply_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    guard = _composio_gmail_guard("reply to email")
+    if guard:
+        return guard
     thread_id = (args.get("thread_id") or "").strip()
     body = args.get("body") or ""
     if not thread_id or not body.strip():
@@ -124,6 +152,9 @@ async def reply_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
 
 async def draft_email(args: dict[str, Any], _: ToolContext) -> ToolResult:
     """Write a draft in Gmail instead of sending."""
+    guard = _composio_gmail_guard("create email draft")
+    if guard:
+        return guard
     body = args.get("body") or ""
     subject = (args.get("subject") or "").strip()
     if not body.strip() or not subject:

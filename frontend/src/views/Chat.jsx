@@ -1310,8 +1310,18 @@ export default function Chat() {
 
   const leaveTurn = useCallback(() => {
     if (turnState === 'idle') return
-    stopRef.current?.()
-  }, [turnState])
+    const cid = runningRef.current || activeId
+    if (cid) {
+      api.stopTurn(cid).catch(() => {})
+    }
+    abortRef.current?.abort()
+    runningRef.current = null
+    settledRef.current = true
+    setTurnState('idle')
+    setStopping(false)
+    setTool(null)
+    setStatus(null)
+  }, [turnState, activeId, setTool, setStatus])
 
   const selectConversation = useCallback((cid) => {
     if (cid === activeId) return
@@ -2110,19 +2120,30 @@ export default function Chat() {
   }, [turnState, queuedMessages, send])
 
   const stop = useCallback(async () => {
-    if (!activeId) { abortRef.current?.abort(); return }
+    if (!activeId) {
+      abortRef.current?.abort()
+      finish()
+      return
+    }
+    if (stopping) {
+      abortRef.current?.abort()
+      finish()
+      return
+    }
     setStopping(true)
+    const fallbackTimer = setTimeout(() => {
+      abortRef.current?.abort()
+      finish()
+    }, 1500)
     try {
-      // The server stops the loop; the stream then ends with a guard frame of
-      // its own accord. Aborting the read would end the turn too, but through
-      // the cancellation path: Starlette drops the task on disconnect, so no
-      // guard frame arrives and the row lands interrupted.
       await api.stopTurn(activeId)
     } catch (err) {
+      clearTimeout(fallbackTimer)
       toast(err.message, 'bad')
       abortRef.current?.abort()
+      finish()
     }
-  }, [activeId, toast])
+  }, [activeId, stopping, finish, toast])
 
   useEffect(() => { stopRef.current = stop }, [stop])
 

@@ -3871,26 +3871,13 @@ function DangerRow({ label, note, confirmLabel, onConfirm }) {
    ========================================================================== */
 
 function About() {
-  const { toast, health, openSetupWizard } = useApp()
-  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const { toast, health, openSetupWizard, updateInfo, checkForUpdates, quitAndInstallUpdate } = useApp()
   const [copied, setCopied] = useState(false)
-
-  const handleCheckUpdate = async () => {
-    setCheckingUpdate(true)
-    try {
-      const h = await api.health()
-      toast(`Amethyst daemon is responsive (${h.status})`, 'ok')
-    } catch {
-      toast('Could not verify daemon connectivity', 'amber')
-    } finally {
-      setCheckingUpdate(false)
-    }
-  }
 
   const handleCopyBuild = () => {
     const details = {
       app: 'Amethyst',
-      version: '1.0.20-beta',
+      version: '0.1.2-beta',
       platform: typeof navigator !== 'undefined'
         ? `${navigator.userAgentData?.platform || navigator.platform || 'linux'} · ${navigator.userAgent.includes('x86_64') || navigator.userAgent.includes('x64') ? 'x64' : 'arm64'}`
         : 'linux · x64',
@@ -3931,7 +3918,7 @@ function About() {
           <BrandMark size={40} />
           <div>
             <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>
-              Amethyst 1.0.20-beta
+              Amethyst 0.1.2-beta
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
               {platformStr}
@@ -3977,30 +3964,66 @@ function About() {
       </div>
 
       {/* 2. Updates Section */}
-      <div className="set-section-label">Daemon Connectivity</div>
+      <div className="set-section-label">Software Updates</div>
       <div className="set-box" style={{ marginBottom: 20 }}>
         <div className="set-box-row">
           <div className="set-row-left">
             <div className="set-row-icon-box">
-              <Icon name="check-circle" size={16} style={{ color: 'var(--live)' }} />
+              <Icon
+                name={updateInfo?.downloaded || updateInfo?.available ? "sparkle" : "check-circle"}
+                size={16}
+                style={{ color: updateInfo?.downloaded || updateInfo?.available ? 'var(--accent)' : 'var(--live)' }}
+              />
             </div>
             <div className="set-row-text">
-              <span className="set-row-title">Local Core Service</span>
+              <span className="set-row-title">
+                {updateInfo?.downloaded
+                  ? `Update v${updateInfo.version || ''} ready to install`
+                  : updateInfo?.available
+                  ? `Update v${updateInfo.version || ''} available`
+                  : 'Amethyst is up to date'}
+              </span>
               <span className="set-row-desc">
-                Verified. Running backend daemon on local port 8000.
+                {updateInfo?.downloaded
+                  ? 'Update downloaded in background. Restart Amethyst to complete installation.'
+                  : updateInfo?.available
+                  ? 'A new release is available. Click to download and install.'
+                  : `Version 0.1.2-beta · Built for Linux, macOS & Windows.`}
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            className="set-btn-sm is-primary"
-            onClick={handleCheckUpdate}
-            disabled={checkingUpdate}
-            style={{ minWidth: 120, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <Icon name="refresh" size={12} className={checkingUpdate ? 'spin' : ''} />
-            <span>{checkingUpdate ? 'Checking…' : 'Ping Daemon'}</span>
-          </button>
+          {updateInfo?.downloaded ? (
+            <button
+              type="button"
+              className="set-btn-sm is-primary"
+              onClick={quitAndInstallUpdate}
+              style={{ minWidth: 140, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--live)', color: '#fff' }}
+            >
+              <Icon name="refresh" size={12} />
+              <span>Restart & Install</span>
+            </button>
+          ) : updateInfo?.available ? (
+            <button
+              type="button"
+              className="set-btn-sm is-primary"
+              onClick={quitAndInstallUpdate}
+              style={{ minWidth: 140, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="download" size={12} />
+              <span>{updateInfo.releaseUrl ? 'View Release' : 'Install Update'}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="set-btn-sm is-primary"
+              onClick={() => checkForUpdates(true)}
+              disabled={updateInfo?.checking}
+              style={{ minWidth: 140, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="refresh" size={12} className={updateInfo?.checking ? 'spin' : ''} />
+              <span>{updateInfo?.checking ? 'Checking…' : 'Check for Updates'}</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -212,7 +212,7 @@ export default function LibraryDetailModal({
   const domain = getDomain(item?.url, item?.site)
   const duration = formatDuration(item?.duration_seconds)
   const favicon = getFaviconUrl(item?.url)
-  const hasThumbnail = Boolean(item?.thumbnail_path)
+  const hasThumbnail = Boolean(item?.thumbnail_path || item?.url)
   const app = item?.app || (
     (item?.url || '').includes('instagram.') || (item?.url || '').includes('instagr.am') ? 'instagram' :
     (item?.url || '').includes('threads.net') || (item?.url || '').includes('threads.com') ? 'threads' :

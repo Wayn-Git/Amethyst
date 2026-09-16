@@ -196,6 +196,19 @@ async def list_upcoming(args: dict[str, Any], _: ToolContext) -> ToolResult:
 
 
 async def find_free_slot_tool(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    try:
+        from backend.mcp.provider_ownership import is_provider_owned_by_composio
+
+        if is_provider_owned_by_composio("googlecalendar"):
+            return ToolResult.error(
+                "The user has Google Calendar connected via Composio. "
+                "Do NOT use this local offline tool. "
+                "Please use COMPOSIO_SEARCH_TOOLS (use_case='find free slot on calendar') and "
+                "COMPOSIO_MULTI_EXECUTE_TOOL to inspect their Google Calendar."
+            )
+    except Exception:
+        pass
+
     duration = int(args.get("duration_minutes") or 60)
     search_from = None
     if args.get("after_hint"):
@@ -217,19 +230,17 @@ async def find_free_slot_tool(args: dict[str, Any], _: ToolContext) -> ToolResul
 
 async def create_calendar_event(args: dict[str, Any], _: ToolContext) -> ToolResult:
     try:
-        from backend.mcp.composio_service import composio_service
-        from backend.mcp.provider_ownership import is_provider_overridden_by_local
+        from backend.mcp.provider_ownership import is_provider_owned_by_composio
 
-        if composio_service.is_configured() and "googlecalendar" in composio_service.get_connections():
-            if not is_provider_overridden_by_local("googlecalendar"):
-                return ToolResult.error(
-                    "The user has Google Calendar connected via Composio. "
-                    "Do NOT use this local offline tool. "
-                    "Please use COMPOSIO_SEARCH_TOOLS (use_case='create calendar event') and "
-                    "COMPOSIO_MULTI_EXECUTE_TOOL with format: "
-                    '{"tools": [{"tool_slug": "GOOGLECALENDAR_CREATE_EVENT", "arguments": {...}}]} '
-                    "to create the event directly on their Google Calendar."
-                )
+        if is_provider_owned_by_composio("googlecalendar"):
+            return ToolResult.error(
+                "The user has Google Calendar connected via Composio. "
+                "Do NOT use this local offline tool. "
+                "Please use COMPOSIO_SEARCH_TOOLS (use_case='create calendar event') and "
+                "COMPOSIO_MULTI_EXECUTE_TOOL with format: "
+                '{"tools": [{"tool_slug": "GOOGLECALENDAR_CREATE_EVENT", "arguments": {...}}]} '
+                "to create the event directly on their Google Calendar."
+            )
     except Exception:
         pass
 
@@ -258,17 +269,15 @@ async def create_calendar_event(args: dict[str, Any], _: ToolContext) -> ToolRes
 
 async def list_calendar(args: dict[str, Any], _: ToolContext) -> ToolResult:
     try:
-        from backend.mcp.composio_service import composio_service
-        from backend.mcp.provider_ownership import is_provider_overridden_by_local
+        from backend.mcp.provider_ownership import is_provider_owned_by_composio
 
-        if composio_service.is_configured() and "googlecalendar" in composio_service.get_connections():
-            if not is_provider_overridden_by_local("googlecalendar"):
-                return ToolResult.error(
-                    "The user has Google Calendar connected via Composio. "
-                    "Do NOT use this local offline tool. "
-                    "Please use COMPOSIO_SEARCH_TOOLS (use_case='list upcoming calendar events') and "
-                    "COMPOSIO_MULTI_EXECUTE_TOOL to inspect their Google Calendar."
-                )
+        if is_provider_owned_by_composio("googlecalendar"):
+            return ToolResult.error(
+                "The user has Google Calendar connected via Composio. "
+                "Do NOT use this local offline tool. "
+                "Please use COMPOSIO_SEARCH_TOOLS (use_case='list upcoming calendar events') and "
+                "COMPOSIO_MULTI_EXECUTE_TOOL to inspect their Google Calendar."
+            )
     except Exception:
         pass
 
@@ -423,7 +432,11 @@ def tools() -> list[Tool]:
         ),
         Tool(
             name="find_free_slot",
-            description="Find the first free window of a given length in the working calendar.",
+            description=(
+                "Find the first free window of a given length in the working calendar. "
+                "WHEN NOT TO USE: Do NOT use when Google Calendar or Composio is connected; "
+                "use COMPOSIO_SEARCH_TOOLS instead."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
