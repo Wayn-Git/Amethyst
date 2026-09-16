@@ -5,7 +5,13 @@
 CREATE TABLE IF NOT EXISTS app_settings (
     key         TEXT PRIMARY KEY,
     value       TEXT NOT NULL,
-    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than
+    -- a single value because merging is per *field*: a phone editing a task's
+    -- due date while a laptop edits its title must keep both, and one stamp for
+    -- the whole row would make the later write erase the earlier one wholesale.
+    -- NULL or a missing key means "never written", which loses to any op.
+    updated_hlc             TEXT
 );
 
 -- "don't ask again" preferences, keyed operation[:subtype] (ADR-0009)
@@ -43,7 +49,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     pinned                 INTEGER NOT NULL DEFAULT 0,
     archived               INTEGER NOT NULL DEFAULT 0,
     created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at             TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than
+    -- a single value because merging is per *field*: a phone editing a task's
+    -- due date while a laptop edits its title must keep both, and one stamp for
+    -- the whole row would make the later write erase the earlier one wholesale.
+    -- NULL or a missing key means "never written", which loses to any op.
+    updated_hlc             TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_conversations_automation
@@ -64,8 +76,28 @@ CREATE TABLE IF NOT EXISTS messages (
     -- than in a table of its own: a pin has no life of its own, it is one bit
     -- about one message, and it goes when the message goes.
     pinned          INTEGER NOT NULL DEFAULT 0,
-    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Stable across devices, unlike the integer above. Backfilled as a message
+    -- is first projected to a control device, so a machine nobody syncs pays
+    -- nothing for the column.
+    uuid            TEXT,
+    -- Write order, for a device that has only the rows and not this table.
+    --
+    -- `created_at` is second-precision, and a turn writes the question and the
+    -- answer inside the same second routinely -- so a control device sorting by
+    -- it has a tie, and a tie broken by a random uuid renders the answer above
+    -- the question. This is `id` at the moment of publishing: the true order,
+    -- carried explicitly rather than inferred from a timestamp that cannot
+    -- express it.
+    seq             INTEGER,
+    -- Per-field HLC stamps, as everywhere else. A message is written once and
+    -- never edited, so in practice this is stamped and left alone -- it is here
+    -- because the merge is one rule and a table that opted out of it would be a
+    -- second rule to remember.
+    updated_hlc     TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_uuid
+    ON messages(uuid) WHERE uuid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id);
 CREATE INDEX IF NOT EXISTS idx_messages_pinned
     ON messages(conversation_id, id) WHERE pinned = 1;
@@ -168,8 +200,24 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- reads exactly this; cleared when the upstream write returns.
     dirty_at                 TEXT,
     created_at               TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at               TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at               TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than
+    -- a single value because merging is per *field*: a phone editing a task's
+    -- due date while a laptop edits its title must keep both, and one stamp for
+    -- the whole row would make the later write erase the earlier one wholesale.
+    -- NULL or a missing key means "never written", which loses to any op.
+    updated_hlc             TEXT,
+    -- A row identity that does not depend on the order rows were inserted in.
+    -- The integer primary key above is this machine's alone: two devices both
+    -- minting id 5 is not a conflict any merge rule can resolve, because the
+    -- two rows are not versions of each other. Nullable and backfilled on
+    -- first sync rather than at migration time, so a database nobody syncs
+    -- pays nothing. Kept distinct from the primary key deliberately: every
+    -- foreign key, repository query and API response still uses the integer.
+    uuid                     TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_uuid
+    ON tasks(uuid) WHERE uuid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_list ON tasks(list_id, status);
 -- The bucket scans, each of which runs on every Tasks page load. My Day is a
@@ -315,8 +363,24 @@ CREATE TABLE IF NOT EXISTS memories (
     conversation_id TEXT,          -- where it was learned; not a foreign key, the
                                    -- fact outlives a deleted conversation
     superseded_at   TEXT,          -- NULL while the fact is live
-    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than
+    -- a single value because merging is per *field*: a phone editing a task's
+    -- due date while a laptop edits its title must keep both, and one stamp for
+    -- the whole row would make the later write erase the earlier one wholesale.
+    -- NULL or a missing key means "never written", which loses to any op.
+    updated_hlc             TEXT,
+    -- A row identity that does not depend on the order rows were inserted in.
+    -- The integer primary key above is this machine's alone: two devices both
+    -- minting id 5 is not a conflict any merge rule can resolve, because the
+    -- two rows are not versions of each other. Nullable and backfilled on
+    -- first sync rather than at migration time, so a database nobody syncs
+    -- pays nothing. Kept distinct from the primary key deliberately: every
+    -- foreign key, repository query and API response still uses the integer.
+    uuid                     TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_uuid
+    ON memories(uuid) WHERE uuid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_memories_live ON memories(superseded_at, created_at);
 
 -- Memory on/off, globally or for one conversation, same scope convention as
@@ -425,8 +489,14 @@ CREATE TABLE IF NOT EXISTS library_items (
     -- lets an ingest offer the existing row instead of making a second one.
     source_ref       TEXT,
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    -- A name that does not depend on insertion order, so a phone and a machine
+    -- mean the same row. Backfilled on first sync, like tasks and memories.
+    uuid         TEXT,
+    updated_hlc  TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_library_uuid
+    ON library_items(uuid) WHERE uuid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_library_source_ref
     ON library_items(source_ref) WHERE source_ref IS NOT NULL;
 -- Not unique: re-reading something a year later is a real event worth logging
@@ -546,7 +616,13 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     error           TEXT,
     checkpoint      INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than
+    -- a single value because merging is per *field*: a phone editing a task's
+    -- due date while a laptop edits its title must keep both, and one stamp for
+    -- the whole row would make the later write erase the earlier one wholesale.
+    -- NULL or a missing key means "never written", which loses to any op.
+    updated_hlc             TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_agent_runs_conv ON agent_runs(conversation_id, created_at);
 -- The sweep at boot reads exactly this set: with one uvicorn worker, a run still
@@ -680,10 +756,119 @@ CREATE TABLE IF NOT EXISTS subagent_sessions (
     cost                    REAL NOT NULL DEFAULT 0.0,
     metadata                TEXT,  -- JSON: background, batch_id, etc.
     created_at              TEXT NOT NULL DEFAULT (datetime('now')),
-    completed_at            TEXT
+    completed_at            TEXT,
+    -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than
+    -- a single value because merging is per *field*: a phone editing a task's
+    -- due date while a laptop edits its title must keep both, and one stamp for
+    -- the whole row would make the later write erase the earlier one wholesale.
+    -- NULL or a missing key means "never written", which loses to any op.
+    updated_hlc             TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_subagent_parent
     ON subagent_sessions(parent_conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_subagent_status
     ON subagent_sessions(status, created_at);
+
+-- ---------------------------------------------------------- cross-device sync
+--
+-- See docs/architecture/decisions/0024-multi-device-sync.md. The shape is the
+-- relay's, deliberately: an outbox that is a queue rather than a store, a ledger
+-- that makes replay free, and nothing here that the machine needs in order to
+-- work alone. Pull the network out and every table below stops being written to
+-- and nothing else changes -- which is the whole "D1 is not a single point of
+-- failure" claim, discharged by never reading from it to serve anything.
+
+-- The devices paired with this one.
+--
+-- This table is the authority; the relay holds a mirror, refreshed on every poll
+-- exactly as `share_token` already is, so revoking here revokes there within one
+-- poll rather than whenever somebody remembers to redeploy.
+CREATE TABLE IF NOT EXISTS devices (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    -- 'host' runs turns and owns a database; 'control' attaches to one and owns
+    -- a cache. The capability set a role names is code, not a column, so adding
+    -- a device type later does not migrate this table.
+    role         TEXT NOT NULL DEFAULT 'control' CHECK (role IN ('host', 'control')),
+    -- sha256 of the device's bearer token. The token itself is shown once at
+    -- pairing and never stored -- the same discipline as backend/share.py, so a
+    -- stolen database cannot authenticate as a device.
+    token_hash   TEXT NOT NULL,
+    -- NULL while the device is live. Revoking is a tombstone rather than a
+    -- delete so the row keeps answering "which device was that?" in the log.
+    revoked_at   TEXT,
+    last_seen_at TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_devices_live ON devices(revoked_at) WHERE revoked_at IS NULL;
+
+-- The outbox: local changes that have not reached the relay yet.
+--
+-- A queue, emptied on acknowledgement. `op_id` is the row's identity everywhere
+-- -- here, at the relay, and in the receiving device's `sync_seen` -- so one
+-- change has one name for its whole life and a retry is recognisable as one.
+CREATE TABLE IF NOT EXISTS sync_ops (
+    op_id      TEXT PRIMARY KEY,
+    entity     TEXT NOT NULL,
+    entity_key TEXT NOT NULL,
+    hlc        TEXT NOT NULL,
+    -- The op's JSON, in the clear. It is sealed on the way out rather than at
+    -- rest: this file already sits inside the user's own encrypted home, and
+    -- storing it sealed would mean holding the group key to read the outbox.
+    payload    TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sync_ops_order ON sync_ops(created_at, op_id);
+
+-- Every op this device has already applied.
+--
+-- The duplicate-event guard, and the reason `INSERT OR IGNORE` is the whole of
+-- the receive path's dedup logic. Written in the same transaction as the op's
+-- effect, so there is no window in which an op is applied but not recorded --
+-- a crash either does both or neither.
+--
+-- Bounded by `prune`, not by hope: an op id is 36 bytes and a busy week is a few
+-- thousand of them, but "small" is not "self-limiting" and this is a table the
+-- user never looks at.
+CREATE TABLE IF NOT EXISTS sync_seen (
+    op_id      TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sync_seen_age ON sync_seen(applied_at);
+
+-- What a control device asked this machine to do.
+--
+-- An op is a statement about what something *is*; this table is what a phone
+-- wants to *happen*, which is a different kind of thing and does not belong in
+-- the same stream pretending to be state. The phone appends a row here through
+-- an ordinary op -- so it inherits the dedup, the ordering and the sealing for
+-- free -- and this machine decides whether to act on it.
+--
+-- The id is the op id that carried it. That is deliberate and it is the whole
+-- idempotency story: an intent redelivered by a relay that never got its
+-- acknowledgement is an INSERT the merge already refuses, so a phone tapping
+-- send once cannot produce two turns however many times the message arrives.
+--
+-- Nothing here is trusted because it arrived. A control device may ask for a
+-- turn in a conversation; it cannot ask for a tool call, a shell command or a
+-- provider key, because `kind` is matched against a table of handlers on this
+-- side and anything else is refused. The relay is not the boundary -- this is.
+CREATE TABLE IF NOT EXISTS sync_intents (
+    id          TEXT PRIMARY KEY,
+    -- Which device asked. Kept for the log, and so a revoked device's pending
+    -- intents can be found and refused.
+    device_id   TEXT,
+    kind        TEXT NOT NULL,
+    payload     TEXT NOT NULL DEFAULT '{}',
+    -- pending | accepted | done | refused
+    state       TEXT NOT NULL DEFAULT 'pending',
+    -- Why a refused intent was refused, in a sentence the phone can show.
+    note        TEXT,
+    job_id      TEXT,
+    updated_hlc TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_intents_pending
+    ON sync_intents(state, created_at) WHERE state = 'pending';

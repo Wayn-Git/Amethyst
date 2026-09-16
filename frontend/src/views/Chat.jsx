@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
@@ -21,8 +21,8 @@ import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
-import { BackgroundPattern } from '../components/shared-assets/background-patterns/index.tsx'
 import TerminalDrawer from '../components/TerminalDrawer.jsx'
+import { safeStorage } from '../lib/storage.js'
 import { MOD_LABEL } from '../keys.js'
 
 /* The composer is the interface. Everything else — which skills are live, which
@@ -677,7 +677,7 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
   )
 }
 
-function Msg({
+const Msg = memo(function Msg({
   item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy, onOpenArtifact,
   onResume, setInput, textareaRef,
 }) {
@@ -809,7 +809,7 @@ function Msg({
       </div>
     </div>
   )
-}
+})
 
 /* What the answer cost to produce.
 
@@ -993,14 +993,18 @@ export default function Chat() {
      again. Persisted so a reload does not resurrect one the user already
      dismissed for a condition that has not changed. */
   const [dismissedBanners, setDismissedBanners] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('amethyst.dismissed.v1') || '[]')) }
-    catch { return new Set() }
+    try {
+      const raw = safeStorage.getItem('amethyst.dismissed.v1')
+      return new Set(JSON.parse(raw || '[]'))
+    } catch {
+      return new Set()
+    }
   })
   const dismissBanner = useCallback((sig) => {
     setDismissedBanners((prev) => {
       const next = new Set(prev)
       next.add(sig)
-      try { localStorage.setItem('amethyst.dismissed.v1', JSON.stringify([...next])) } catch { /* private mode */ }
+      safeStorage.setItem('amethyst.dismissed.v1', JSON.stringify([...next]))
       return next
     })
   }, [])
@@ -2594,15 +2598,6 @@ export default function Chat() {
       />
 
       <div className="chat-main">
-        {/* Soft Ambient Accent Glow (Home Page Background) */}
-        <div className={`home-accent-glow${isEmpty ? ' is-home' : ''}`} aria-hidden="true" />
-
-        {isEmpty && (
-          <div className="hero-pattern-wrap" aria-hidden="true">
-            <BackgroundPattern pattern="grid" size="lg" className="hero-pattern-svg" />
-          </div>
-        )}
-
         {!isEmpty && elsewhere.length > 0 && (
           <div className="chat-banner msg-note msg-note--guard">
             <Icon name="key" size={14} />
@@ -2707,29 +2702,24 @@ export default function Chat() {
             {/* Composer Card */}
             {composer}
 
-            {/* Quick Start 4-Card Grid (Image 4) */}
-            <div className="hero-quick-start">
-              <div className="hero-cards-grid">
-                {QUICK_STARTS.map((card) => (
-                  <button
-                    key={card.id}
-                    type="button"
-                    className="hero-card"
-                    onClick={() => {
-                      setInput(card.prompt)
-                      textareaRef.current?.focus()
-                    }}
-                  >
-                    <div className="hero-card-body">
-                      <h3 className="hero-card-title">{card.title}</h3>
-                      <p className="hero-card-desc">{card.subtitle}</p>
-                    </div>
-                    <div className={`hero-card-icon hero-card-icon--${card.accent}`}>
-                      <Icon name={card.icon} size={15} />
-                    </div>
-                  </button>
-                ))}
-              </div>
+            {/* Quick starts. Chips rather than cards: they are a shortcut into
+                the composer, not four things to read before you can type. */}
+            <div className="hero-chips">
+              {QUICK_STARTS.map((card) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  className="hero-chip"
+                  title={card.subtitle}
+                  onClick={() => {
+                    setInput(card.prompt)
+                    textareaRef.current?.focus()
+                  }}
+                >
+                  <Icon name={card.icon} size={14} />
+                  <span>{card.title}</span>
+                </button>
+              ))}
             </div>
           </div>
         ) : (

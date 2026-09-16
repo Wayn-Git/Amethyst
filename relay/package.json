@@ -8,7 +8,7 @@
     "test": "node --test test/*.test.ts",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "schema": "wrangler d1 execute amethyst-relay --remote --file=./schema.sql",
+    "schema": "wrangler d1 execute psok-relay --remote --file=./schema.sql",
     "schema:local": "wrangler d1 execute amethyst-relay --local --file=./schema.sql",
     "tail": "wrangler tail"
   },

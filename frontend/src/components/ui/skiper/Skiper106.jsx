@@ -16,6 +16,10 @@ export function SmoothInput({
   inputClassName,
   autoFocus,
   onKeyDown,
+  // Off by default. Impersonating the caret costs a getComputedStyle and a
+  // forced layout read on every keystroke, in a field that is typed into all
+  // day. Pass springCaret to opt a field back in.
+  springCaret = false,
   ...props
 }) {
   const [internalValue, setInternalValue] = useState('')
@@ -27,6 +31,7 @@ export function SmoothInput({
   const measureRef = useRef(null)
 
   const prefersReducedMotion = useReducedMotion()
+  const enabled = springCaret && !prefersReducedMotion
 
   const caretX = useMotionValue(0)
   const caretOpacity = useMotionValue(0)
@@ -61,7 +66,7 @@ export function SmoothInput({
   }
 
   const updateCaret = (target) => {
-    if (!target) return
+    if (!target || !enabled) return
     const selStart = target.selectionStart ?? 0
     const textBefore = target.value.slice(0, selStart)
     const width = measurePrefixWidth(textBefore)
@@ -89,6 +94,8 @@ export function SmoothInput({
     const input = inputRef.current
     if (!input) return
 
+    if (!enabled) return undefined
+
     const onSelectionChange = () => {
       if (document.activeElement === input) {
         requestAnimationFrame(() => updateCaret(input))
@@ -97,7 +104,7 @@ export function SmoothInput({
 
     document.addEventListener('selectionchange', onSelectionChange)
     return () => document.removeEventListener('selectionchange', onSelectionChange)
-  }, [])
+  }, [enabled])
 
   return (
     <div className={cn('skiper106-wrap', wrapperClassName)}>
@@ -108,7 +115,12 @@ export function SmoothInput({
           value={inputValue}
           autoFocus={autoFocus}
           placeholder={placeholder}
-          className={cn('skiper106-input', inputClassName, className)}
+          className={cn(
+            'skiper106-input',
+            enabled && 'skiper106-input--synthetic-caret',
+            inputClassName,
+            className,
+          )}
           onChange={(e) => {
             if (!isControlled) setInternalValue(e.target.value)
             onChange?.(e)
@@ -116,7 +128,7 @@ export function SmoothInput({
           }}
           onFocus={(e) => {
             updateCaret(e.target)
-            caretOpacity.set(1)
+            if (enabled) caretOpacity.set(1)
           }}
           onBlur={(e) => {
             caretOpacity.set(0)
@@ -129,11 +141,13 @@ export function SmoothInput({
           aria-hidden="true"
           className="skiper106-measure"
         />
-        <motion.div
-          aria-hidden="true"
-          className="skiper106-caret"
-          style={{ x: springCaretX, opacity: caretOpacity }}
-        />
+        {enabled && (
+          <motion.div
+            aria-hidden="true"
+            className="skiper106-caret"
+            style={{ x: springCaretX, opacity: caretOpacity }}
+          />
+        )}
       </div>
     </div>
   )
@@ -175,6 +189,8 @@ export function SmoothTextarea({
   // Pulled out of the rest rather than spread: it is ours, and React would
   // otherwise hand `textarearef` to the DOM and complain about it.
   textareaRef: forwardedRef,
+  // See SmoothInput: off by default, and this is the composer.
+  springCaret = false,
   ...props
 }) {
   const [internalValue, setInternalValue] = useState('')
@@ -197,7 +213,7 @@ export function SmoothTextarea({
     return () => mq.removeEventListener('change', sync)
   }, [])
 
-  const enabled = !prefersReducedMotion && !coarsePointer
+  const enabled = springCaret && !prefersReducedMotion && !coarsePointer
 
   const caretX = useMotionValue(0)
   const caretY = useMotionValue(0)
@@ -280,7 +296,7 @@ export function SmoothTextarea({
           onChange={(e) => {
             if (!isControlled) setInternalValue(e.target.value)
             onChange?.(e)
-            requestAnimationFrame(updateCaret)
+            if (enabled) requestAnimationFrame(updateCaret)
           }}
           onFocus={(e) => {
             requestAnimationFrame(updateCaret)

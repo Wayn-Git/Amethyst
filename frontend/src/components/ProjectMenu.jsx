@@ -3,11 +3,14 @@ import { motion } from 'framer-motion'
 import Icon from './Icon.jsx'
 import { useDismiss } from '../hooks/useDismiss.js'
 
+import { safeStorage } from '../lib/storage.js'
+
 const RECENT_PROJECTS_KEY = 'amethyst.recent_workspaces'
 
 function getStoredProjects(current) {
   try {
-    const list = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY)) || []
+    const raw = safeStorage.getItem(RECENT_PROJECTS_KEY)
+    const list = raw ? JSON.parse(raw) : []
     if (current && !list.includes(current)) {
       list.unshift(current)
     }
@@ -24,11 +27,7 @@ function getStoredProjects(current) {
 }
 
 function saveStoredProjects(list) {
-  try {
-    localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(list))
-  } catch {
-    /* ignore storage errors */
-  }
+  safeStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(list))
 }
 
 export default function ProjectMenu({ workspace, onWorkspace, onClose, placement = 'down' }) {

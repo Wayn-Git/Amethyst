@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import Icon from './components/Icon.jsx'
 import BrandMark from './components/BrandMark.jsx'
@@ -16,6 +16,9 @@ import { API_ORIGIN } from './api.js'
 import { chord, isTyping, MOD_LABEL } from './keys.js'
 import { byDigit, byId, forRoutes } from './nav.js'
 import { COMPONENTS } from './views/registry.js'
+import Pair from './views/Pair.jsx'
+import RemoteOnly from './views/RemoteOnly.jsx'
+import { paired as isPaired } from './lib/sync/client.js'
 import Chat from './views/Chat.jsx'
 
 /* The workbench.
@@ -295,6 +298,13 @@ export default function App() {
     betaPages,
   } = useApp()
 
+  // Whether this browser belongs to a machine, and whether somebody has said
+  // they want to set that up. Held here rather than read on every render
+  // because `isPaired` touches localStorage, and because pairing has to move
+  // this screen on without a reload.
+  const [paired, setPaired] = useState(isPaired)
+  const [remoteFirst, setRemoteFirst] = useState(false)
+
   useEffect(() => {
     window.__amethyst_navigate = (pathOrId) => {
       const id = pathOrId.replace(/^\//, '')
@@ -328,8 +338,35 @@ export default function App() {
   // a page of failures and then leaves it there -- a deploy that looks broken
   // for the fifty seconds it takes to start. The frame says what is happening
   // instead, and the views mount into real data.
-  if (server.phase !== 'ready') {
-    return <BootScreen server={server} onRetry={retryServer} />
+  //
+  // Except on a device that has no backend to wait for. A phone loads this app
+  // from wherever it is hosted and the machine is at home behind a router, so
+  // "the API did not answer" is not a fault there -- it is the normal state,
+  // and the workbench below is the wrong thing to show even if it could load.
+  //
+  // This used to fall through to the boot screen regardless, which meant a
+  // phone waited ninety seconds for a server that was never going to answer and
+  // then sat on an error, with the pairing controls stranded inside a Settings
+  // page it could not reach. The device that most needed to pair was the one
+  // that could not.
+  // `verified` rather than `phase` alone: 'ready' is optimistic until a ping has
+  // actually answered, and a paired phone must not be shown the workbench for
+  // the length of that guess.
+  if (server.phase !== 'ready' || !server.verified) {
+    if (paired) return <RemoteOnly />
+    // Offered immediately rather than after the wake gives up: a paired phone
+    // knows what it is, and an unpaired one asking to be paired is not a
+    // failure state worth making somebody wait out.
+    if (server.phase === 'down' || remoteFirst) {
+      return <Pair onPaired={() => setPaired(true)} />
+    }
+    return (
+      <BootScreen
+        server={server}
+        onRetry={retryServer}
+        onRemote={() => setRemoteFirst(true)}
+      />
+    )
   }
 
   const isChat = view === 'chat'

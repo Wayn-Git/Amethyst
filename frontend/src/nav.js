@@ -27,6 +27,12 @@ export const NAV = [
   // degraded/offline banner or the command palette. That's an existing
   // product decision, not an oversight this file is fixing.
   { id: 'dash', path: '/dash', label: 'Status', icon: 'dash' },
+  // The phone's page: this machine, read from somewhere else. No rail entry and
+  // no digit, because on the machine itself it is pointless -- everything it
+  // shows is a stale copy of what Chat already has live. The offline banner and
+  // Settings > Devices are how you reach it, which is also where you are when
+  // you need it.
+  { id: 'remote', path: '/remote', label: 'Remote', icon: 'link' },
   { id: 'settings', path: '/settings', label: 'Settings', icon: 'sliders' },
 ]
 

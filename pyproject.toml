@@ -13,6 +13,12 @@ dependencies = [
     "httpx>=0.27",
     "python-dateutil>=2.9",
     "python-multipart>=0.0.9",   # file uploads from the browser composer
+    # AES-GCM for the sync layer's sealed ops, and HKDF for pairing. Present
+    # transitively today via keyring/mcp, declared here because backend/sync/
+    # imports it directly and a transitive dependency is one a provider bump can
+    # take away. Python has no AEAD in the standard library and hand-rolling one
+    # is not a corner worth cutting.
+    "cryptography>=43.0",
 ]
 
 [project.optional-dependencies]

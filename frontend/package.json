@@ -13,7 +13,8 @@
     "test:widgets": "node tests/widgets.mjs",
     "test:renderers": "node tests/renderers.mjs",
     "test:media": "node tests/media.mjs",
-    "test:spotlight": "node tests/spotlight.mjs"
+    "test:spotlight": "node tests/spotlight.mjs",
+    "test:sync": "node tests/sync.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

@@ -162,7 +162,7 @@ function useElapsed(since) {
   return since ? Math.max(0, Math.round((now - since) / 1000)) : 0
 }
 
-export function BootScreen({ server, onRetry }) {
+export function BootScreen({ server, onRetry, onRemote }) {
   // `server.since ?? Date.now()` read the clock during render, which makes the
   // component impure and the elapsed count restart on every re-render. The
   // hook holds the fallback instead, where it is read once.
@@ -196,6 +196,17 @@ export function BootScreen({ server, onRetry }) {
         {down && (
           <button type="button" className="btn btn--primary btn--small" onClick={onRetry}>
             <Icon name="refresh" size={13} /> Try again
+          </button>
+        )}
+
+        {/* The way out for a device that is not the machine.
+            Offered while it is still waking, not only once the wake has given
+            up: a phone is never going to reach a laptop behind a router, and
+            making it sit out ninety seconds of a wake that cannot succeed
+            before it is even told pairing exists is the bug this fixes. */}
+        {onRemote && (
+          <button type="button" className="btn btn--small boot-remote" onClick={onRemote}>
+            <Icon name="link" size={13} /> This is not the machine — pair it instead
           </button>
         )}
 

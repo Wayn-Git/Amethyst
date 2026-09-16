@@ -17,13 +17,18 @@ export function onConfirmState(fn) {
   return () => listeners.delete(fn)
 }
 
+import { safeStorage } from '../../lib/storage.js'
+
 /**
  * confirm({ title, description, confirmLabel, cancelLabel, tone })
  * Resolves true if confirmed, false if cancelled or dismissed.
  */
 export function confirm(options) {
   let prefs;
-  try { prefs = JSON.parse(localStorage.getItem('amethyst.ui.v1')) || {}; } catch (e) { prefs = {}; }
+  try {
+    const raw = safeStorage.getItem('amethyst.ui.v1')
+    prefs = raw ? JSON.parse(raw) : {}
+  } catch (e) { prefs = {}; }
   if (prefs.confirmDestructive === false) {
     return Promise.resolve(true);
   }

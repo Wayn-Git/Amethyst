@@ -27,7 +27,19 @@ const WAKE_ATTEMPT_TIMEOUT = 9000
 const WAKE_GAP = 1500
 const WAKE_GIVE_UP_AFTER = 90000
 
-let state = { phase: 'ready', since: Date.now(), attempts: 0, error: null }
+// `phase` opens at 'ready' on purpose: a machine running its own server is the
+// ordinary case, and showing it a boot frame for the length of one ping would be
+// a flash on every load. But optimism is not knowledge, and `verified` is the
+// difference -- it says a ping has actually answered.
+//
+// Without it this was a latch nothing could leave: the startup wake returned
+// early because the phase already said 'ready', the recovery path in `j` called
+// the same function and it returned early too, so `phase` could never become
+// 'waking' or 'down'. The boot screen was unreachable code, and a browser with
+// no backend -- every phone -- rendered the whole workbench and let each fetch
+// fail on its own. That is the "unresponsive" state, and it had nothing to do
+// with the backend being slow.
+let state = { phase: 'ready', verified: false, since: Date.now(), attempts: 0, error: null }
 const watchers = new Set()
 
 function publish(patch) {
@@ -56,7 +68,20 @@ async function ping(timeout) {
   const timer = setTimeout(() => stop.abort(), timeout)
   try {
     const res = await fetch(`${BASE}/ping`, { signal: stop.signal, cache: 'no-store' })
-    return res.ok
+    if (!res.ok) return false
+    // A 200 is not enough, and assuming it was is what made a phone unusable.
+    //
+    // This bundle is served by a static host with an SPA fallback -- every
+    // unmatched path returns index.html with a 200 so that deep links work. That
+    // rule catches `/api/ping` as happily as `/tasks`, so the ping "succeeded",
+    // the backend was marked reachable and verified, and the interface rendered
+    // the full workbench against an API that was answering every call with its
+    // own home page.
+    //
+    // So the check is whether this is the API talking, not whether something
+    // answered. `/api/ping` returns JSON; a fallback returns HTML.
+    const type = res.headers.get('content-type') || ''
+    return type.includes('json')
   } catch {
     return false
   } finally {
@@ -66,17 +91,29 @@ async function ping(timeout) {
 
 /** Keep asking until the backend answers, or until it has had long enough. */
 export async function wakeBackend() {
-  if (state.phase === 'ready') return true
-  publish({ phase: 'waking', since: Date.now(), attempts: 0, error: null })
+  // Only a *verified* ready short-circuits. An unverified one is a guess, and
+  // the whole point of this call is to find out.
+  if (state.phase === 'ready' && state.verified) return true
+
+  // One quiet attempt before saying anything. On a healthy machine this answers
+  // in a millisecond and nothing on screen ever moves; announcing 'waking'
+  // first would put a boot frame in front of every load to no purpose.
+  if (await ping(WAKE_ATTEMPT_TIMEOUT)) {
+    publish({ phase: 'ready', verified: true, attempts: 1, error: null })
+    return true
+  }
+
+  publish({ phase: 'waking', verified: false, since: Date.now(), attempts: 1, error: null })
   const deadline = Date.now() + WAKE_GIVE_UP_AFTER
   for (let attempt = 1; ; attempt += 1) {
     if (await ping(WAKE_ATTEMPT_TIMEOUT)) {
-      publish({ phase: 'ready', attempts: attempt, error: null })
+      publish({ phase: 'ready', verified: true, attempts: attempt, error: null })
       return true
     }
     if (Date.now() >= deadline) {
       publish({
         phase: 'down',
+        verified: false,
         attempts: attempt,
         error: API_ORIGIN
           ? `No answer from ${API_ORIGIN} after ${Math.round(WAKE_GIVE_UP_AFTER / 1000)}s.`
@@ -117,11 +154,11 @@ async function j(url, opts) {
     // with no wifi alike. The interface showed that string verbatim, which
     // named none of them. Say where it was trying to reach, and put the backend
     // back into waking so the boot frame comes up rather than a dead page.
-    if (state.phase === 'ready') { wakeBackend() }
+    if (state.phase === 'ready') { publish({ verified: false }); wakeBackend() }
     const where = API_ORIGIN || window.location.origin
     throw new Error(`Could not reach ${where} — ${err.message || 'the request failed'}`)
   }
-  if (state.phase !== 'ready') publish({ phase: 'ready', error: null })
+  if (state.phase !== 'ready' || !state.verified) publish({ phase: 'ready', verified: true, error: null })
   if (!res.ok) {
     // A 405 on a path this interface knows about means the endpoint is not in
     // the running server, which in practice means one thing: `amethyst serve` has
@@ -158,6 +195,7 @@ export const api = {
   providers: () => j('/providers'),
   addProvider: (body) => j('/providers', json('POST', body)),
   removeProvider: (name) => j(`/providers/${encodeURIComponent(name)}`, json('DELETE')),
+  deleteProvider: (name) => j(`/providers/${encodeURIComponent(name)}`, json('DELETE')),
   // A fresh liveness check the user asked for, cache ignored. `pingAll` is the
   // one-button version; both update the picker's badge from what came back.
   pingProvider: (name) => j(`/providers/${encodeURIComponent(name)}/ping`, json('POST')),
@@ -177,6 +215,18 @@ export const api = {
   // the quick cheap one; `heavy` is the slow careful one.
   settings: () => j('/settings'),
   updateSettings: (patch) => j('/settings', json('PATCH', patch)),
+
+  // The handful of preferences that follow you between devices. The rest of
+  // `amethyst.ui.v1` is deliberately per-device: panel width and text size
+  // should differ between a laptop and a phone. The server owns the allowlist
+  // and refuses anything outside it -- see backend/sync/registry.py.
+  preferences: () => j('/preferences'),
+  savePreferences: (preferences) => j('/preferences', json('PATCH', { preferences })),
+
+  // Paired devices, and the QR payload that adds one.
+  devices: () => j('/devices'),
+  pairDevice: (name) => j('/devices/pair', json('POST', { name })),
+  revokeDevice: (id) => j(`/devices/${id}`, json('DELETE')),
 
   activity: (days = 30) => j(`/analytics/activity?days=${days}`),
   usageWindows: () => j('/analytics/usage-windows'),

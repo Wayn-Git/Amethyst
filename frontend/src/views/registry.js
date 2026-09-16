@@ -23,6 +23,7 @@ const LOADERS = {
   library: () => import('./Library.jsx'),
   logs: () => import('./Logs.jsx'),
   dash: () => import('./Dashboard.jsx'),
+  remote: () => import('./Remote.jsx'),
   // settings eager
 }
 

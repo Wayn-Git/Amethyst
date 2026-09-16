@@ -21,6 +21,11 @@ import { evaluateMath } from './damon/calculator.js'
 import { peek, put } from './damon/searchCache.js'
 
 const THEMES = [
+  { id: 'apple', icon: 'sun', label: 'Switch to Apple', hint: 'clean museum gallery & Action Blue' },
+  { id: 'anthropic', icon: 'sun', label: 'Switch to Anthropic', hint: 'warm editorial ivory & deep charcoal' },
+  { id: 'cohere', icon: 'cpu', label: 'Switch to Cohere', hint: 'deep dark navy & forest emerald' },
+  { id: 'sunshine', icon: 'sun', label: 'Switch to Sunshine', hint: 'solar warm cream & radiant amber' },
+  { id: 'stripe', icon: 'cpu', label: 'Switch to Stripe', hint: 'midnight graphite & electric indigo' },
   { id: 'paper', icon: 'sun', label: 'Switch to Paper', hint: 'warm light palette' },
   { id: 'sand', icon: 'sun', label: 'Switch to Sand', hint: 'warm parchment light' },
   { id: 'graphite', icon: 'cpu', label: 'Switch to Graphite', hint: 'neutral dark palette' },

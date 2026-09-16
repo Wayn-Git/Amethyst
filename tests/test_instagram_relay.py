@@ -81,7 +81,7 @@ class FakeRelay:
         self.url = RELAY_URL
         self.token = RELAY_TOKEN
 
-    async def sync(self, *, ack, config, job_ack=(), worker_ack=(), limit=25):
+    async def sync(self, *, ack, config, job_ack=(), worker_ack=(), ops=(), op_ack=(), limit=25):
         self.calls.append(
             {"ack": list(ack), "job_ack": list(job_ack), "config": config, "limit": limit}
         )
@@ -196,7 +196,7 @@ async def test_a_failed_call_keeps_what_it_owed(wired):
             super().__init__({"deliveries": [row(raw, row_id=9)]}, {"deliveries": []})
             self.fail_next = False
 
-        async def sync(self, *, ack, config, job_ack=(), worker_ack=(), limit=25):
+        async def sync(self, *, ack, config, job_ack=(), worker_ack=(), ops=(), op_ack=(), limit=25):
             if self.fail_next:
                 self.calls.append(
                     {"ack": list(ack), "job_ack": list(job_ack), "config": config, "limit": limit}
@@ -603,7 +603,7 @@ async def test_a_relay_that_could_not_be_reached_keeps_the_job_acks_it_owed(wire
             )
             self.fail_next = False
 
-        async def sync(self, *, ack, config, job_ack=(), worker_ack=(), limit=25):
+        async def sync(self, *, ack, config, job_ack=(), worker_ack=(), ops=(), op_ack=(), limit=25):
             if self.fail_next:
                 self.calls.append({"ack": list(ack), "job_ack": list(job_ack),
                                    "config": config, "limit": limit})

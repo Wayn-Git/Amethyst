@@ -63,7 +63,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
         title={`${conv.title || 'untitled'} (${fmtDate(conv.updated_at)})`}
       >
         <span className="sb-conv-icon">
-          <Icon name={conv.pinned ? 'pin' : 'chat'} size={13} />
+          <Icon name={conv.pinned ? 'star' : 'chat'} size={15} filled={Boolean(conv.pinned)} />
         </span>
         <span className="sb-conv-title">{conv.title || 'untitled'}</span>
       </button>
@@ -80,7 +80,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
           aria-label="Conversation options"
           aria-expanded={menu}
         >
-          <Icon name="dots" size={13} />
+          <Icon name="dots" size={14} />
         </button>
       </div>
 
@@ -94,7 +94,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
                 onTogglePin(conv)
               }}
             >
-              <Icon name="pin" size={12} /> {conv.pinned ? 'Unpin' : 'Pin to Starred'}
+              <Icon name="star" size={13} filled={Boolean(conv.pinned)} /> {conv.pinned ? 'Unpin' : 'Pin to Starred'}
             </button>
           )}
           <button
@@ -245,7 +245,7 @@ export default function Sidebar() {
             title={`New chat — ${MOD_LABEL}+Shift+O`}
             aria-label="New chat"
           >
-            <Icon name="edit" size={14} />
+            <Icon name="edit" size={15} />
             <span>New chat</span>
           </button>
 
@@ -256,7 +256,7 @@ export default function Sidebar() {
             title="Search conversations"
             aria-label="Search conversations"
           >
-            <Icon name="search" size={14} />
+            <Icon name="search" size={15} />
           </button>
         </div>
       </div>
@@ -319,7 +319,7 @@ export default function Sidebar() {
                 title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
               >
                 <span className="sb-place-icon">
-                  <Icon name={place.icon} size={16} />
+                  <Icon name={place.icon} size={18} filled={isActive} />
                 </span>
                 <span className="sb-place-label">{place.label}</span>
                 {place.beta && <span className="sb-beta-pill">BETA</span>}
@@ -347,8 +347,10 @@ export default function Sidebar() {
               onClick={() => setStarredOpen((o) => !o)}
               aria-expanded={starredOpen}
             >
-              <Icon name={starredOpen ? 'caret-up' : 'caret-down'} size={11} className="sb-caret-icon" />
-              <span className="sb-section-title">STARRED</span>
+              <span className={`sb-caret-wrap${starredOpen ? ' is-open' : ''}`}>
+                <Icon name="chevron-right" size={11} className="sb-caret-icon" />
+              </span>
+              <span className="sb-section-title">Starred</span>
             </button>
             <button
               type="button"
@@ -356,7 +358,7 @@ export default function Sidebar() {
               title="Starred options"
               aria-label="Starred options"
             >
-              <Icon name="dots" size={13} />
+              <Icon name="dots" size={14} />
             </button>
           </div>
 
@@ -429,8 +431,10 @@ export default function Sidebar() {
               onClick={() => setRecentsOpen((o) => !o)}
               aria-expanded={recentsOpen}
             >
-              <Icon name={recentsOpen ? 'caret-up' : 'caret-down'} size={11} className="sb-caret-icon" />
-              <span className="sb-section-title">RECENTS</span>
+              <span className={`sb-caret-wrap${recentsOpen ? ' is-open' : ''}`}>
+                <Icon name="chevron-right" size={11} className="sb-caret-icon" />
+              </span>
+              <span className="sb-section-title">Recents</span>
             </button>
             <button
               type="button"
@@ -438,7 +442,7 @@ export default function Sidebar() {
               title="Recents options"
               aria-label="Recents options"
             >
-              <Icon name="dots" size={13} />
+              <Icon name="dots" size={14} />
             </button>
           </div>
 

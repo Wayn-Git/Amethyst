@@ -18,6 +18,7 @@ import ExportPlaylistModal from './library/ExportPlaylistModal.jsx'
 import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
 import { getDomain } from './library/LibraryCard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
+import { safeStorage } from '../lib/storage.js'
 
 export default function Library() {
   const rootRef = useRef(null)
@@ -39,20 +40,8 @@ export default function Library() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
   const [order, setOrder] = useState('desc')
-  const [layout, setLayout] = useState(() => {
-    try {
-      return localStorage.getItem('amethyst_lib_layout') || 'grid'
-    } catch {
-      return 'grid'
-    }
-  })
-  const [railOpen, setRailOpen] = useState(() => {
-    try {
-      return localStorage.getItem('amethyst_lib_rail') !== 'false'
-    } catch {
-      return true
-    }
-  })
+  const [layout, setLayout] = useState(() => safeStorage.getItem('amethyst_lib_layout', 'grid'))
+  const [railOpen, setRailOpen] = useState(() => safeStorage.getItem('amethyst_lib_rail') !== 'false')
 
   // Modal states (Screenshot 3 & 4)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -79,22 +68,14 @@ export default function Library() {
   // Persist layout choice
   const handleLayoutChange = (nextLayout) => {
     setLayout(nextLayout)
-    try {
-      localStorage.setItem('amethyst_lib_layout', nextLayout)
-    } catch {
-      /* ignore storage errors */
-    }
+    safeStorage.setItem('amethyst_lib_layout', nextLayout)
   }
 
   // Persist rail visibility
   const handleToggleRail = () => {
     setRailOpen((prev) => {
       const next = !prev
-      try {
-        localStorage.setItem('amethyst_lib_rail', String(next))
-      } catch {
-        /* ignore storage errors */
-      }
+      safeStorage.setItem('amethyst_lib_rail', String(next))
       return next
     })
   }

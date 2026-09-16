@@ -96,7 +96,9 @@ const DAILY_CRON = '17 3 * * *';
 // through it, including the Instagram receipt that used to have a Workflow of
 // its own -- see src/jobs/ for the shape and src/jobs/types/ for the work.
 export { JobWorkflow } from './jobs/workflow.ts';
-import { authenticate, bearer, sameSecret } from './auth.ts';
+import { authenticate, authenticateDevice, bearer, sameSecret } from './auth.ts';
+import { acceptOps, ackOps, opsForSync, pruneOps } from './ops.ts';
+import { answerPairing, offerPairing, pairingsForSync, prunePairings, takePairing } from './pairing.ts';
 import { ackReports, isWorker, pruneReports, report, reportsForSync } from './workers.ts';
 import {
 	ackJobs,
@@ -511,6 +513,10 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		job_ack?: string[];
 		/** Worker reports the machine took last time. Late for the same reason. */
 		worker_ack?: string[];
+		/** Sealed ops this device made since the last poll. */
+		ops?: unknown;
+		/** Ops it took last time. Acknowledged late, like everything else here. */
+		op_ack?: string[];
 		config?: Record<string, unknown>;
 		limit?: number;
 	} = {};
@@ -539,6 +545,12 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		['share_token', str(config.share_token)],
 		['allow_senders', Array.isArray(config.allow_senders) ? JSON.stringify(config.allow_senders) : null],
 		['reply_on_save', config.reply_on_save === undefined ? null : config.reply_on_save ? '1' : '0'],
+		// Who is paired, as {id, role, token_hash}. The machine's `devices` table
+		// is the authority and this is the mirror, refreshed on every poll, so a
+		// device revoked there stops being recognised here within one -- the same
+		// property the share token above already has. Hashes, never tokens: this
+		// Worker must recognise a device without being able to become one.
+		['devices', Array.isArray(config.devices) ? JSON.stringify(config.devices) : null],
 	];
 	for (const [key, value] of mirror) {
 		if (value !== null) await setState(env, key, value);
@@ -551,6 +563,22 @@ async function sync(request: Request, env: Env): Promise<Response> {
 	// Same order and the same reason: a report whose result the machine has
 	// just confirmed is gone from this answer rather than offered again.
 	const workersSynced = await ackReports(env, payload.worker_ack);
+
+	// The host syncs as a device like any other -- its ops fan out to the phones
+	// and theirs reach it. Its id comes from the mirror it just pushed; before
+	// anything is paired it is the only caller here, and a stable placeholder
+	// keeps the fan-out arithmetic in src/ops.ts honest.
+	// A pairing the machine has just completed, sealed, on its way back to the
+	// device that asked. Carried in the config mirror rather than on a route of
+	// its own for the reason `/sync` is one endpoint: the machine does this on
+	// the same poll it was already making.
+	if (Array.isArray(config.pair_answers)) {
+		for (const answer of config.pair_answers.slice(0, 8)) await answerPairing(env, answer);
+	}
+
+	const self = str(config.device_id) ?? 'desktop';
+	const opsStored = await acceptOps(env, payload.ops, self);
+	const opsSynced = await ackOps(env, self, payload.op_ack);
 
 	const limit = Math.min(Math.max(Number(payload.limit) || 25, 1), 100);
 	const { results } = await env.DB.prepare(
@@ -586,6 +614,14 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		// was away. Nothing here is applied by the relay; it is a mailbox.
 		workers: await reportsForSync(env, Math.min(limit, SYNC_BATCH)),
 		workers_synced: workersSynced,
+		// The sync layer's half of the same round trip. Sealed: this Worker
+		// carried them and could not read one. See src/ops.ts and ADR-0024.
+		ops: await opsForSync(env, self),
+		// Handshakes waiting for this machine to open. It is the only party that
+		// can: the relay has the sealed bytes and not the secret.
+		pairings: await pairingsForSync(env),
+		ops_stored: opsStored,
+		ops_synced: opsSynced,
 	});
 }
 
@@ -735,13 +771,73 @@ export default {
 		// configuration check so a half-deployed relay can still be pinged.
 		if (path === '/health') return json({ ok: true });
 
+		// The sync layer's two routes sit ABOVE the Instagram-secrets gate below,
+		// because neither needs a Meta credential. Syncing a laptop with a phone
+		// is a use of this relay on its own, and requiring an Instagram app to be
+		// configured before two of your own devices can agree on a theme would be
+		// an accident of the order these features were built in.
+		// Pairing: the only unauthenticated door, because it is the one exchange
+		// that happens before a device has a credential. Both halves are sealed
+		// under a secret shown as a QR code on the machine's screen, so a stranger
+		// posting here writes a row the machine fails to open and discards. See
+		// src/pairing.ts for why noise is the only thing to defend against.
+		if (path === '/pair' && request.method === 'POST') {
+			let body: unknown;
+			try {
+				body = await request.json();
+			} catch {
+				return json({ error: 'that body is not JSON' }, 400);
+			}
+			const taken = await offerPairing(env, body);
+			return taken
+				? json({ offered: true })
+				: json({ error: 'that is not a pairing offer, or too many are open' }, 429);
+		}
+		if (path === '/pair' && request.method === 'GET') {
+			const answer = await takePairing(env, url.searchParams.get('request_id') ?? '');
+			return answer ? json(answer) : json({ waiting: true }, 202);
+		}
+
+		// The sync mailbox for a device that is not the host. Its own credential
+		// and one capability: exchange sealed ops as itself. It cannot take a
+		// delivery, read a job artifact, or see the config mirror -- the same
+		// per-capability narrowing that makes `remoteCreatable` a property of a
+		// job type rather than a flag on a token.
+		if (path === '/ops' && request.method === 'POST') {
+			const device = await authenticateDevice(request, (key) => getState(env, key));
+			if (!device) return json({ error: 'that token is not one this relay holds' }, 401);
+			let body: { ops?: unknown; op_ack?: string[] } = {};
+			try {
+				body = (await request.json()) ?? {};
+			} catch {
+				return json({ error: 'that body is not JSON' }, 400);
+			}
+			const stored = await acceptOps(env, body.ops, device);
+			const synced = await ackOps(env, device, body.op_ack);
+			return json({ ops: await opsForSync(env, device), ops_stored: stored, ops_synced: synced });
+		}
+
 		// Meta will not let an app go Live without a privacy policy URL, and
 		// webhooks do not fire until it is Live. Both names because the dashboard
 		// asks for a deletion route separately and the answer is the same page.
 		if (path === '/privacy' || path === '/data-deletion') return policyPage(env);
 
-		// A Worker deployed but not yet given its secrets is not half-working, it
-		// is not working -- and it answers 404 rather than 500, the same way
+		// The machine's own round trip. It needs RELAY_TOKEN and nothing else:
+		// this relay started as Instagram capture, but syncing a laptop with a
+		// phone is a use of it on its own, and requiring Meta's app secret before
+		// two of your own devices can agree on a theme would be an accident of
+		// the order these features were built in rather than a decision.
+		if (path === '/sync' && request.method === 'POST') {
+			if (!env.RELAY_TOKEN) {
+				console.warn('no RELAY_TOKEN is set; run: wrangler secret put RELAY_TOKEN');
+				return json({ error: 'no such endpoint' }, 404);
+			}
+			return sync(request, env);
+		}
+
+		// Everything below is Instagram capture, which needs all three. A Worker
+		// deployed but not yet given its secrets is not half-working, it is not
+		// working -- and it answers 404 rather than 500, the same way
 		// backend/instagram/signature.py refuses when any of the three is missing.
 		// An endpoint that announces itself with an error is an endpoint worth
 		// guessing at.
@@ -756,7 +852,7 @@ export default {
 			return json({ error: 'method not allowed' }, 405);
 		}
 		if (path === '/share' && request.method === 'POST') return share(request, env);
-		if (path === '/sync' && request.method === 'POST') return sync(request, env);
+
 
 		// The worker mailbox. Its own credential, and one verb: a runner may say
 		// what happened and may not read anything back -- not its own report, not
@@ -830,6 +926,12 @@ export default {
 					await prune(env);
 				} catch (err) {
 					console.error('prune failed', err);
+				}
+				try {
+					const dropped = (await pruneOps(env)) + (await prunePairings(env));
+					if (dropped) console.log('pruned', dropped, 'stale sync row(s)');
+				} catch (err) {
+					console.error('the sync prune failed', err);
 				}
 				try {
 					// Jobs nobody came back for, and every byte they staged. Per job

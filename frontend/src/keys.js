@@ -18,6 +18,8 @@ export function isTyping(target) {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
 }
 
+import { safeStorage } from './lib/storage.js'
+
 /** KeyboardEvent -> `mod+shift+k`. Modifier order is fixed so bindings compare as strings. */
 export function chord(e) {
   const parts = []
@@ -30,7 +32,8 @@ export function chord(e) {
   const combo = parts.join('+')
   
   try {
-     const prefs = JSON.parse(localStorage.getItem('amethyst.ui.v1')) || {}
+     const raw = safeStorage.getItem('amethyst.ui.v1')
+     const prefs = raw ? JSON.parse(raw) : {}
      const keybindings = prefs.keybindings || {}
      for (const [action, mappedCombo] of Object.entries(keybindings)) {
         if (mappedCombo === combo) return action

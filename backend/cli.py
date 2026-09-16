@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import platform
 import shutil
 import sys
 from pathlib import Path
@@ -923,6 +924,144 @@ def cmd_palette(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sync(args: argparse.Namespace) -> int:
+    """Switch cross-device sync on, and say where it stands.
+
+    The relay it points at is the same one Instagram capture uses, and this
+    writes the same settings -- `amethyst instagram relay` is the other door to
+    one room, not a second room. It exists because "run an Instagram command to
+    sync your phone" is a sentence nobody should have to be told, and because
+    the relay was named after the first thing that needed it rather than the
+    only thing.
+    """
+    from backend.config import load_instagram, save_instagram
+    from backend.db.connection import get_connection
+    from backend.instagram import relay
+    from backend.secrets import CredentialError
+    from backend.sync import crypto, devices
+
+    patch: dict = {}
+    if args.url:
+        url = args.url.strip().rstrip("/")
+        if not url.startswith("https://"):
+            # Every op travels this link, sealed -- but the device tokens and
+            # the pairing handshake travel it too, and those are only as private
+            # as the transport.
+            print("the relay URL has to be https")
+            return 1
+        patch["relay_url"] = url
+    if args.token:
+        try:
+            relay.set_token(args.token)
+        except CredentialError as exc:
+            print(f"could not store the token: {exc}")
+            return 1
+    if args.on:
+        patch["relay_enabled"] = True
+    if args.off:
+        patch["relay_enabled"] = False
+    if patch:
+        save_instagram(patch)
+
+    settings = load_instagram()
+    if patch.get("relay_enabled") and not relay.configured():
+        print("sync needs both a relay URL and its token before it can start")
+        print("  amethyst sync --url https://…workers.dev --token <RELAY_TOKEN> --on")
+        return 1
+
+    if args.now:
+        result = asyncio.run(relay.RelayPoller().sync())
+        if not result.get("synced"):
+            print(result.get("error") or "the relay was not asked")
+            return 1
+        print(f"synced. {result.get('ops', 0)} change(s) applied.")
+        return 0
+
+    conn = get_connection()
+    paired = devices.live(conn)
+    print(f"relay:    {settings.relay_url or 'not set'}")
+    print(f"polling:  {'on' if settings.relay_enabled and relay.configured() else 'off'}")
+    print(f"identity: {devices.local_id(conn)}")
+    print(f"key:      {'shared with paired devices' if crypto.group_key() else 'not created yet'}")
+    if paired:
+        print("devices:")
+        for device in paired:
+            print(f"  {device.name} ({device.role}) — last seen {device.last_seen_at or 'never'}")
+    else:
+        print("devices: none paired yet. Add one with: amethyst device --pair")
+    if not settings.relay_enabled or not relay.configured():
+        print()
+        print("Nothing syncs until a relay is set. Deploy one from relay/, then:")
+        print("  amethyst sync --url https://…workers.dev --token <RELAY_TOKEN> --on")
+    return 0
+
+
+def cmd_device(args: argparse.Namespace) -> int:
+    """List, pair and revoke the devices this machine syncs with.
+
+    Pairing prints a secret and waits. The secret is the only thing that lets the
+    far side open what comes back, and it is never sent anywhere -- the relay
+    carries two sealed blobs and cannot complete the handshake itself. See
+    ADR-0024.
+    """
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices
+
+    conn = get_connection()
+
+    if args.revoke:
+        with transaction(conn):
+            gone = devices.revoke(conn, args.revoke)
+        if not gone:
+            print(f"no live device has the id {args.revoke}")
+            return 1
+        print("Revoked. It stops being recognised at the relay within one poll.")
+        return 0
+
+    if args.join:
+        from backend.config import load_instagram
+
+        secret = args.join.rsplit("s=", 1)[-1].strip()
+        relay_url = args.relay or load_instagram().relay_url
+        if not relay_url:
+            print("no relay is configured. Pass --relay https://…workers.dev,")
+            print("or set one up first:  amethyst instagram relay --url …")
+            return 1
+        print(f"Offering this machine to {relay_url} …")
+        print("The other machine answers on its next poll; this can take a minute.")
+        try:
+            joined = asyncio.run(
+                devices.join(relay_url, secret, name=args.name or platform.node())
+            )
+        except Exception as exc:
+            print(f"could not pair: {exc}")
+            return 1
+        print(f"Paired. This machine is {joined['device_id']}.")
+        print("Changes now travel on the relay poll this machine was already making.")
+        return 0
+
+    if args.pair:
+        secret, payload = devices.open_pairing(name_hint=args.name or "")
+        print("Scan this, or type the secret into the other device:")
+        print()
+        print(f"  {payload}")
+        print()
+        print(f"  secret: {secret}")
+        print()
+        print(f"Good for {int(devices.PAIRING_TTL_SECONDS / 60)} minutes, once.")
+        print("Leave this machine running: the handshake completes on its next relay poll.")
+        return 0
+
+    live = devices.live(conn)
+    if not live:
+        print("No devices are paired. Run:  amethyst device --pair")
+        return 0
+    print(f"{'id':38} {'role':9} {'last seen':20} name")
+    for device in live:
+        print(f"{device.id:38} {device.role:9} {device.last_seen_at or 'never':20} {device.name}")
+    return 0
+
+
 def cmd_share_token(args: argparse.Namespace) -> int:
     """Create, show the state of, or revoke the capture token.
 
@@ -1607,6 +1746,27 @@ def main(argv: list[str] | None = None) -> int:
     rly.add_argument("--sync", action="store_true", help="go and look now")
     marks.set_defaults(func=cmd_bookmarks)
     instagram.set_defaults(func=cmd_instagram)
+
+    syn = sub.add_parser(
+        "sync", help="cross-device sync: where it stands, and switching it on"
+    )
+    syn.add_argument("--url", help="https://amethyst-relay.<you>.workers.dev")
+    syn.add_argument("--token", help="the RELAY_TOKEN the Worker was deployed with")
+    syn.add_argument("--on", action="store_true", help="start syncing")
+    syn.add_argument("--off", action="store_true", help="stop syncing")
+    syn.add_argument("--now", action="store_true", help="sync immediately rather than waiting")
+    syn.set_defaults(func=cmd_sync)
+
+    dev = sub.add_parser(
+        "device", help="the devices this machine syncs with"
+    )
+    dev.add_argument("--pair", action="store_true", help="show a code to pair a new device")
+    dev.add_argument("--name", help="what to call the device being paired")
+    dev.add_argument("--join", metavar="SECRET",
+                     help="pair THIS machine to another, using the code it showed")
+    dev.add_argument("--relay", help="the relay to pair through; defaults to the configured one")
+    dev.add_argument("--revoke", metavar="ID", help="stop recognising one device")
+    dev.set_defaults(func=cmd_device)
 
     token = sub.add_parser(
         "share-token", help="the capture token a phone can post a link with"

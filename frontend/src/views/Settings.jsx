@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import BrandMark from '../components/BrandMark.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
-import { api } from '../api.js'
+import { api, copyText } from '../api.js'
 import { useApp } from '../store.jsx'
 import { forSettings } from '../nav.js'
 import { useConfirm } from '../components/ui/ConfirmDialog.jsx'
@@ -11,6 +11,8 @@ import Switch from '../components/ui/Switch.jsx'
 import AnimatedSelect from '../components/ui/AnimatedSelect.jsx'
 import { LoaderIcon } from '../components/OnboardingWizard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
+import { safeStorage } from '../lib/storage.js'
+import * as syncClient from '../lib/sync/client.js'
 
 /* ==========================================================================
    NAVIGATION SECTIONS & THEME DEFINITIONS
@@ -24,12 +26,18 @@ const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'App' },
   { id: 'models', label: 'Models', icon: 'cpu', group: 'App' },
   { id: 'permissions', label: 'Permissions', icon: 'shield', group: 'Advanced' },
+  { id: 'devices', label: 'Devices', icon: 'link', group: 'Advanced' },
   { id: 'data', label: 'Data', icon: 'trash', group: 'Advanced' },
   { id: 'about', label: 'About', icon: 'info', group: 'Advanced' },
 ]
 
 const THEME_CHOICES = [
   { id: 'system', label: 'System', hint: 'Follows the OS' },
+  { id: 'apple', label: 'Apple', hint: 'Clean gallery & Action Blue' },
+  { id: 'anthropic', label: 'Anthropic', hint: 'Editorial ivory & obsidian' },
+  { id: 'cohere', label: 'Cohere', hint: 'Dark navy & forest emerald' },
+  { id: 'sunshine', label: 'Sunshine', hint: 'Solar warm cream & radiant amber' },
+  { id: 'stripe', label: 'Stripe', hint: 'Midnight graphite & electric indigo' },
   { id: 'graphite', label: 'Graphite', hint: 'Neutral dark' },
   { id: 'ink', label: 'Ink', hint: 'Cool dark' },
   { id: 'nocturne', label: 'Nocturne', hint: 'Near black' },
@@ -169,20 +177,19 @@ function Profile() {
    ========================================================================== */
 
 function General() {
-  const { workspace, setWorkspace, notifyOnDone, setNotifyOnDone, guard, setGuard, toast } = useApp()
-
-  // Composer preferences
-  const [sendWith, setSendWith] = useState(() => localStorage.getItem('amethyst_send_with') || 'Enter')
-  const [startGuard, setStartGuard] = useState(() => localStorage.getItem('amethyst_default_guard') || guard || 'guard')
-  const [thinkAt, setThinkAt] = useState(() => localStorage.getItem('amethyst_default_effort') || 'default')
-
-  // Chat switches
-  const [archiveInsteadOfDelete, setArchiveInsteadOfDelete] = useState(() => localStorage.getItem('amethyst_archive_instead') !== 'false')
-  const [confirmDestructive, setConfirmDestructive] = useState(() => localStorage.getItem('amethyst_confirm_destructive') !== 'false')
-  const [restoreTabs, setRestoreTabs] = useState(() => localStorage.getItem('amethyst_restore_tabs') !== 'false')
-
-  // Inspector switch
-  const [showUsage, setShowUsage] = useState(() => localStorage.getItem('amethyst_show_usage') !== 'false')
+  const {
+    workspace, setWorkspace,
+    notifyOnDone, setNotifyOnDone,
+    guard, setGuard,
+    defaultGuard, setDefaultGuard,
+    defaultEffort, setDefaultEffort,
+    sendWith, setSendWith,
+    archiveChats, setArchiveChats,
+    confirmDestructive, setConfirmDestructive,
+    restoreTabs, setRestoreTabs,
+    showUsage, setShowUsage,
+    toast,
+  } = useApp()
 
   // Automation & Rhythm settings from backend
   const [maxIterations, setMaxIterations] = useState(16)
@@ -207,21 +214,18 @@ function General() {
   }, [])
 
   const handleSendWith = (val) => {
-    setSendWith(val)
-    localStorage.setItem('amethyst_send_with', val)
-    toast(`Send key set to ${val}`, 'ok')
+    setSendWith?.(val)
+    toast(`Send key set to ${val === 'enter' ? 'Enter' : 'Ctrl+↵'}`, 'ok')
   }
 
   const handleStartGuard = (val) => {
-    setStartGuard(val)
-    localStorage.setItem('amethyst_default_guard', val)
+    setDefaultGuard?.(val)
     setGuard?.(val)
     toast(`Default chat permission set to ${val}`, 'ok')
   }
 
   const handleThinkAt = (val) => {
-    setThinkAt(val)
-    localStorage.setItem('amethyst_default_effort', val)
+    setDefaultEffort?.(val)
     toast(`Default reasoning effort set to ${val}`, 'ok')
   }
 
@@ -333,15 +337,15 @@ function General() {
           <div className="set-seg-ctrl">
             <button
               type="button"
-              className={`set-seg-btn${sendWith === 'Enter' ? ' is-active' : ''}`}
-              onClick={() => handleSendWith('Enter')}
+              className={`set-seg-btn${(sendWith === 'enter' || sendWith === 'Enter') ? ' is-active' : ''}`}
+              onClick={() => handleSendWith('enter')}
             >
               Enter
             </button>
             <button
               type="button"
-              className={`set-seg-btn${sendWith === 'Cmd+Enter' ? ' is-active' : ''}`}
-              onClick={() => handleSendWith('Cmd+Enter')}
+              className={`set-seg-btn${(sendWith === 'ctrl-enter' || sendWith === 'Cmd+Enter') ? ' is-active' : ''}`}
+              onClick={() => handleSendWith('ctrl-enter')}
             >
               Ctrl+↵
             </button>
@@ -354,7 +358,7 @@ function General() {
             <span className="set-row-desc">The permission level a chat opens at before you change it.</span>
           </div>
           <AnimatedSelect
-            value={startGuard}
+            value={defaultGuard || guard || 'guard'}
             onChange={handleStartGuard}
             options={guardOptions}
             placeholder="Permission…"
@@ -368,7 +372,7 @@ function General() {
             <span className="set-row-desc">Reasoning effort assigned when models support variable thinking tokens.</span>
           </div>
           <AnimatedSelect
-            value={thinkAt}
+            value={defaultEffort || 'default'}
             onChange={handleThinkAt}
             options={effortOptions}
             placeholder="Reasoning…"
@@ -386,11 +390,8 @@ function General() {
             <span className="set-row-desc">Archived chats are kept in local storage and can be reviewed or restored.</span>
           </div>
           <Switch
-            on={archiveInsteadOfDelete}
-            onChange={(val) => {
-              setArchiveInsteadOfDelete(val)
-              localStorage.setItem('amethyst_archive_instead', String(val))
-            }}
+            on={Boolean(archiveChats)}
+            onChange={(val) => setArchiveChats?.(val)}
             tone="default"
           />
         </div>
@@ -401,11 +402,8 @@ function General() {
             <span className="set-row-desc">Always display confirmation dialogs before deleting conversations or clearing memory.</span>
           </div>
           <Switch
-            on={confirmDestructive}
-            onChange={(val) => {
-              setConfirmDestructive(val)
-              localStorage.setItem('amethyst_confirm_destructive', String(val))
-            }}
+            on={Boolean(confirmDestructive)}
+            onChange={(val) => setConfirmDestructive?.(val)}
             tone="default"
           />
         </div>
@@ -416,11 +414,8 @@ function General() {
             <span className="set-row-desc">Restore your active conversation and panel state when relaunching Amethyst.</span>
           </div>
           <Switch
-            on={restoreTabs}
-            onChange={(val) => {
-              setRestoreTabs(val)
-              localStorage.setItem('amethyst_restore_tabs', String(val))
-            }}
+            on={Boolean(restoreTabs)}
+            onChange={(val) => setRestoreTabs?.(val)}
             tone="default"
           />
         </div>
@@ -435,11 +430,8 @@ function General() {
             <span className="set-row-desc">Display token consumption and provider latency telemetry in the inspector sidebar.</span>
           </div>
           <Switch
-            on={showUsage}
-            onChange={(val) => {
-              setShowUsage(val)
-              localStorage.setItem('amethyst_show_usage', String(val))
-            }}
+            on={Boolean(showUsage)}
+            onChange={(val) => setShowUsage?.(val)}
             tone="default"
           />
         </div>
@@ -554,17 +546,12 @@ function Appearance() {
     density, setDensity,
     agentLoader, setAgentLoader,
     autoHideTopBar, setAutoHideTopBar,
+    glassMaterial, setGlassMaterial,
     toast,
   } = useApp()
 
-  const [glassMaterial, setGlassMaterial] = useState(() => localStorage.getItem('amethyst_glass') || 'full')
-
   const handleGlassChange = (val) => {
-    setGlassMaterial(val)
-    localStorage.setItem('amethyst_glass', val)
-    if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-glass', val)
-    }
+    setGlassMaterial?.(val)
   }
 
   const handleResetAppearance = () => {
@@ -573,9 +560,8 @@ function Appearance() {
     setTextSize?.(100)
     setDensity?.('comfortable')
     setAgentLoader?.('pixels')
-    setGlassMaterial('full')
+    setGlassMaterial?.('full')
     setAutoHideTopBar?.(false)
-    localStorage.setItem('amethyst_glass', 'full')
     toast('Appearance reset to defaults', 'ok')
   }
 
@@ -672,16 +658,35 @@ function Appearance() {
                   ) : (
                     <>
                       <div className="theme-mockup-sidebar">
-                        <div className="theme-bar" style={{ width: '70%', height: 4, background: choice.id === 'paper' || choice.id === 'sand' ? '#a1a1aa' : '#52525b' }} />
-                        <div className="theme-bar" style={{ width: '85%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#d4d4d8' : '#27272a' }} />
-                        <div className="theme-bar" style={{ width: '60%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#d4d4d8' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '70%', height: 4, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#a1a1aa' : '#52525b' }} />
+                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '60%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
                       </div>
                       <div className="theme-mockup-content">
-                        <div className="theme-bar" style={{ width: '45%', height: 4, background: choice.id === 'paper' || choice.id === 'sand' ? '#71717a' : '#71717a' }} />
-                        <div className="theme-bar" style={{ width: '85%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#e4e4e7' : '#27272a' }} />
-                        <div className="theme-bar" style={{ width: '70%', height: 3, background: choice.id === 'paper' || choice.id === 'sand' ? '#e4e4e7' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '45%', height: 4, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#71717a' : '#71717a' }} />
+                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '70%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
                         <div style={{ marginTop: 'auto' }}>
-                          <div className="theme-bar" style={{ width: '40%', height: 7, background: choice.id === 'paper' || choice.id === 'sand' ? '#e4e4e7' : '#27272a', borderRadius: 3 }} />
+                          <div
+                            className="theme-bar"
+                            style={{
+                              width: '40%',
+                              height: 7,
+                              background: {
+                                apple: '#0066cc',
+                                anthropic: '#d97757',
+                                cohere: '#10b981',
+                                sunshine: '#fa520f',
+                                stripe: '#635bff',
+                                graphite: '#c084fc',
+                                ink: '#8a6dfc',
+                                nocturne: '#6b8cff',
+                                paper: '#7132f5',
+                                sand: '#8b5a2b',
+                              }[choice.id] || (['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#e4e4e7' : '#27272a'),
+                              borderRadius: 3,
+                            }}
+                          />
                         </div>
                       </div>
                     </>
@@ -939,9 +944,10 @@ function Models() {
 
   const handleRemove = async (name, e) => {
     e?.stopPropagation?.()
-    if (!window.confirm(`Remove provider "${name}"?`)) return
+    if (typeof window !== 'undefined' && window.confirm && !window.confirm(`Remove provider "${name}"?`)) return
     try {
-      await api.deleteProvider(name)
+      const deleteFn = api.deleteProvider || api.removeProvider
+      await deleteFn(name)
       toast(`Removed ${name}`, 'ok')
       loadProviders()
       loadRouting()
@@ -1863,14 +1869,16 @@ function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
    ========================================================================== */
 
 function Permissions() {
-  const { guard, setGuard, toast } = useApp()
+  const {
+    guard, setGuard,
+    defaultGuard, setDefaultGuard,
+    shellConfirm, setShellConfirm,
+    fileConfirm, setFileConfirm,
+    netConfirm, setNetConfirm,
+    toast,
+  } = useApp()
   const [approvals, setApprovals] = useState([])
   const [loading, setLoading] = useState(true)
-
-  // Granular security toggles
-  const [shellConfirm, setShellConfirm] = useState(() => localStorage.getItem('amethyst_confirm_shell') !== 'false')
-  const [fileConfirm, setFileConfirm] = useState(() => localStorage.getItem('amethyst_confirm_files') !== 'false')
-  const [netConfirm, setNetConfirm] = useState(() => localStorage.getItem('amethyst_confirm_network') !== 'false')
 
   const isAutoEdit = guard === 'guard-auto-edit'
 
@@ -1911,14 +1919,14 @@ function Permissions() {
 
   const handleSelectMode = (modeId) => {
     setGuard?.(modeId)
-    localStorage.setItem('amethyst_default_guard', modeId)
+    setDefaultGuard?.(modeId)
     toast(`Default chat permission set to ${modeId}`, 'ok')
   }
 
   const handleToggleAutoEdit = () => {
     const next = isAutoEdit ? 'guard' : 'guard-auto-edit'
     setGuard?.(next)
-    localStorage.setItem('amethyst_default_guard', next)
+    setDefaultGuard?.(next)
     toast(`Auto-apply edits ${!isAutoEdit ? 'enabled' : 'disabled'}`, 'ok')
   }
 
@@ -2011,10 +2019,9 @@ function Permissions() {
             </div>
           </div>
           <Switch
-            on={shellConfirm}
+            on={Boolean(shellConfirm)}
             onChange={(val) => {
-              setShellConfirm(val)
-              localStorage.setItem('amethyst_confirm_shell', String(val))
+              setShellConfirm?.(val)
               toast(val ? 'Shell confirmation required' : 'Shell confirmation skipped', 'ok')
             }}
             tone="default"
@@ -2032,10 +2039,9 @@ function Permissions() {
             </div>
           </div>
           <Switch
-            on={fileConfirm}
+            on={Boolean(fileConfirm)}
             onChange={(val) => {
-              setFileConfirm(val)
-              localStorage.setItem('amethyst_confirm_files', String(val))
+              setFileConfirm?.(val)
               toast(val ? 'File mutation confirmation required' : 'File mutations auto-approved', 'ok')
             }}
             tone="default"
@@ -2053,10 +2059,9 @@ function Permissions() {
             </div>
           </div>
           <Switch
-            on={netConfirm}
+            on={Boolean(netConfirm)}
             onChange={(val) => {
-              setNetConfirm(val)
-              localStorage.setItem('amethyst_confirm_network', String(val))
+              setNetConfirm?.(val)
               toast(val ? 'Network confirmation required' : 'Network requests auto-approved', 'ok')
             }}
             tone="default"
@@ -3210,9 +3215,11 @@ function Data() {
       danger: true,
     })
     if (!ok) return
-    localStorage.clear()
+    safeStorage.clear()
     toast('Settings reset. Refreshing window…', 'ok')
-    setTimeout(() => window.location.reload(), 600)
+    setTimeout(() => {
+      if (typeof window !== 'undefined') window.location.reload()
+    }, 600)
   }
 
   return (
@@ -3444,6 +3451,254 @@ function About() {
    ROOT SETTINGS COMPONENT
    ========================================================================== */
 
+
+/* ==========================================================================
+   DEVICES (pairing, and what syncs between them)
+   ========================================================================== */
+
+/**
+ * One panel, two situations, because it is the same screen on both.
+ *
+ * On the machine that holds your data the backend answers, so this shows the
+ * paired devices and can open a pairing window. On a phone there is no backend
+ * -- the interface is served from anywhere and talks only to the relay -- so it
+ * shows the form for entering the code the machine printed.
+ *
+ * Which one you get is decided by whether the backend is reachable, not by
+ * sniffing the user agent: a laptop with its server switched off is in exactly
+ * the phone's situation and should be offered exactly the phone's screen.
+ */
+function Devices() {
+  const { toast, server } = useApp()
+  const confirm = useConfirm()
+  const hasBackend = server?.phase === 'ready'
+
+  const [devices, setDevices] = useState([])
+  const [invite, setInvite] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  // The phone's half.
+  const [held, setHeld] = useState(() => syncClient.identity())
+  const [relayUrl, setRelayUrl] = useState(() => syncClient.identity()?.relayUrl || '')
+  const [code, setCode] = useState('')
+  const [pairing, setPairing] = useState(false)
+  const [lastSync, setLastSync] = useState(null)
+
+  const refresh = useCallback(async () => {
+    if (!hasBackend) return
+    try {
+      const { devices: rows } = await api.devices()
+      setDevices(rows || [])
+    } catch { /* the backend went away mid-look; the empty list is honest */ }
+  }, [hasBackend])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  const openPairing = async () => {
+    setBusy(true)
+    try {
+      setInvite(await api.pairDevice(''))
+      await refresh()
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const revoke = async (device) => {
+    const ok = await confirm({
+      title: `Stop syncing with ${device.name}?`,
+      message: 'It stops being recognised at the relay within one poll. Pair it again to undo this.',
+      confirmLabel: 'Revoke',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.revokeDevice(device.id)
+      toast(`${device.name} revoked`, 'ok')
+      await refresh()
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const joinFromPhone = async () => {
+    if (!relayUrl.trim() || !code.trim()) return
+    setPairing(true)
+    try {
+      const joined = await syncClient.pair(relayUrl.trim(), code.trim(), navigator.platform || 'phone')
+      setHeld(joined)
+      setCode('')
+      toast('Paired. Your settings will follow you here.', 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setPairing(false)
+    }
+  }
+
+  const syncNow = async () => {
+    const result = await syncClient.sync()
+    setLastSync(result)
+    if (result.synced) toast(`Synced. ${result.applied} change(s) applied.`, 'ok')
+    else if (result.reason === 'revoked') toast('This device was revoked on the other machine.', 'bad')
+    else toast(`Not synced: ${result.reason}`, 'bad')
+  }
+
+  const unpair = async () => {
+    const ok = await confirm({
+      title: 'Forget this pairing?',
+      message: 'This browser stops syncing and drops its copy of the key. Revoke it on the machine as well to be sure.',
+      confirmLabel: 'Forget',
+      danger: true,
+    })
+    if (!ok) return
+    syncClient.forget()
+    setHeld(null)
+    toast('Pairing forgotten', 'ok')
+  }
+
+  if (!hasBackend) {
+    return (
+      <div className="set-panel">
+        <div className="set-section-label">This device</div>
+        {held ? (
+          <div className="set-box" style={{ marginBottom: 24 }}>
+            <div className="set-box-row">
+              <div className="set-row-text">
+                <span className="set-row-title">Paired</span>
+                <span className="set-row-desc">
+                  Syncing with {held.relayUrl}. Changes travel sealed; the relay cannot read them.
+                </span>
+              </div>
+              <button type="button" className="set-btn-sm" onClick={syncNow}>Sync now</button>
+            </div>
+            {lastSync ? (
+              <div className="set-box-row">
+                <div className="set-row-text">
+                  <span className="set-row-title">Last sync</span>
+                  <span className="set-row-desc">
+                    {lastSync.synced
+                      ? `${lastSync.applied} applied, ${lastSync.sent} sent`
+                      : `not synced (${lastSync.reason})`}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+            <DangerRow
+              label="Forget this pairing"
+              note="Drops this browser's key and stops it syncing."
+              confirmLabel="Forget"
+              onConfirm={unpair}
+            />
+          </div>
+        ) : (
+          <div className="set-box" style={{ marginBottom: 24 }}>
+            <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+              <div className="set-row-text">
+                <span className="set-row-title">Pair with your machine</span>
+                <span className="set-row-desc">
+                  Run <code>amethyst device --pair</code> there and enter what it prints. Leave it
+                  running: it finishes pairing on its next relay poll.
+                </span>
+              </div>
+              <input
+                className="set-input"
+                placeholder="https://amethyst-relay.you.workers.dev"
+                value={relayUrl}
+                onChange={(e) => setRelayUrl(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <input
+                className="set-input"
+                placeholder="the code, or the whole amethyst://pair link"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                className="set-btn-sm"
+                onClick={joinFromPhone}
+                disabled={pairing || !relayUrl.trim() || !code.trim()}
+              >
+                {pairing ? 'Waiting for the machine…' : 'Pair'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="set-panel">
+      <div className="set-section-label">Paired devices</div>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        {devices.length === 0 ? (
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Nothing is paired yet</span>
+              <span className="set-row-desc">
+                Pair a phone to carry your preferences to it. Your conversations and files stay here.
+              </span>
+            </div>
+          </div>
+        ) : devices.map((device) => (
+          <div className="set-box-row" key={device.id}>
+            <div className="set-row-text">
+              <span className="set-row-title">{device.name}</span>
+              <span className="set-row-desc">
+                {device.role} · last seen {device.last_seen_at || 'never'}
+              </span>
+            </div>
+            <button type="button" className="set-btn-sm" onClick={() => revoke(device)}>Revoke</button>
+          </div>
+        ))}
+      </div>
+
+      <div className="set-section-label">Add a device</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Show a pairing code</span>
+            <span className="set-row-desc">
+              Good for five minutes, once. Leave this machine running: it completes the handshake
+              on its next relay poll.
+            </span>
+          </div>
+          <button type="button" className="set-btn-sm" onClick={openPairing} disabled={busy}>
+            {busy ? 'Opening…' : 'Pair a device'}
+          </button>
+        </div>
+        {invite ? (
+          <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+            <span className="set-row-desc">Enter this on the other device:</span>
+            {/* Grouped in fours. It is 32 base32 characters and somebody is
+                typing it on a phone; an unbroken run of 32 is where the typo
+                comes from, and grouping costs nothing. */}
+            <code className="rc-code">{invite.secret.match(/.{1,4}/g).join(' ')}</code>
+            <button
+              type="button"
+              className="set-btn-sm"
+              onClick={() => { copyText(invite.qr); toast('Pairing link copied', 'ok') }}
+            >
+              Copy the link instead
+            </button>
+            <span className="set-row-desc">
+              The relay never sees this. It carries the handshake sealed under it and cannot
+              complete one itself.
+            </span>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 const PANELS = {
   profile: Profile,
   general: General,
@@ -3452,6 +3707,7 @@ const PANELS = {
   usage: Usage,
   activity: Activity,
   permissions: Permissions,
+  devices: Devices,
   data: Data,
   about: About,
 }

@@ -153,6 +153,70 @@ _runner = AutomationRunner(lambda callback: _LazyDirector(callback))
 # no-op; one that hands the choice to a model cannot, so a run whose process
 # died is checked against `execution_logs` before anything repeats it. See
 # `backend.jobs.replayable_after_crash`.
+# A turn somebody asked for from their phone.
+#
+# The same shape as the automation handler below and for the same reason: it
+# runs a turn with nobody watching, so the work has to survive the process that
+# started it. What is different is where the request came from -- an intent that
+# `backend/sync/intents.py` already checked -- and that the transcript it writes
+# is swept back out to the phone by the next poll, so the answer appears there
+# without anything streaming to it.
+def sync_intents_kind() -> str:
+    from backend.sync.intents import TURN_JOB_KIND
+
+    return TURN_JOB_KIND
+
+
+#: How a remote turn gets its director. A module-level seam rather than a
+#: hardcoded call so the handler can be driven without a provider key -- the
+#: loop around the director (settling the intent, surfacing an error, counting
+#: what was said) is the part a phone depends on, and it deserves a test that
+#: does not need a model to answer.
+_remote_director_for = lambda: _LazyDirector(lambda *_a, **_k: None)
+
+
+async def _run_remote_turn(job, store) -> dict:
+    from backend.sync import intents as sync_intents
+
+    conversation_id = job.payload.get("conversation_id")
+    text = job.payload.get("text") or ""
+    shown = []
+    async for event in _remote_director_for().run(conversation_id, text):
+        if event.type in ("assistant_delta", "assistant_text"):
+            shown.append(event.data.get("text") or "")
+        elif event.type == "error":
+            raise RuntimeError(event.data.get("message") or "the turn failed")
+
+    # The intent is settled here rather than in the handler's caller so a job
+    # that was retried settles once, on the attempt that finished.
+    try:
+        from backend.db.connection import get_connection, transaction
+        from backend.sync import service as sync_service
+
+        conn = get_connection()
+        with transaction(conn):
+            sync_intents.settle(
+                conn, sync_service.clock(conn), job.payload.get("intent_id"), "done",
+            )
+    except Exception:
+        log.exception("the remote turn ran but its intent could not be settled")
+    return {"characters": sum(len(part) for part in shown)}
+
+
+jobs.register(
+    jobs.Handler(
+        kind=sync_intents_kind(),
+        run=_run_remote_turn,
+        backoff_base=60.0,
+        backoff_cap=1800.0,
+        # One retry, like an automation, and for the same reason: the model
+        # chooses the tool calls, so a replay cannot be promised to be a no-op.
+        max_attempts=2,
+        lease_seconds=RUN_TIMEOUT_SECONDS + 60.0,
+        auto_retry_after_crash=False,
+    )
+)
+
 jobs.register(
     jobs.Handler(
         kind=AUTOMATION_JOB_KIND,
@@ -171,7 +235,10 @@ jobs.register(
         auto_retry_after_crash=False,
     )
 )
-_automation_lane = jobs.JobRunner([AUTOMATION_JOB_KIND], name="automations")
+# A remote turn gets the automation lane's company rather than a lane of its
+# own: both run a turn, both take minutes, and one person's phone cannot ask for
+# two at once faster than one lane can take them.
+_automation_lane = jobs.JobRunner([AUTOMATION_JOB_KIND, sync_intents_kind()], name="automations")
 _runner.lane = _automation_lane
 
 # Fan-out batches (`backend/workers/batch.py`). Its own lane, and that is the
@@ -4259,6 +4326,135 @@ def update_settings(body: Settings) -> dict[str, Any]:
     if body.journal is not None:
         save_journal_schedule(body.journal.model_dump(exclude_none=True))
     return get_settings()
+
+
+# -- the preferences that follow you between devices ---------------------
+#
+# The interface keeps its settings in one localStorage blob, which is right for
+# the ones that should differ per device -- panel width, text size, which
+# conversation is open. The handful that should *not* differ live here as well,
+# under `ui.`, because localStorage is per browser and a preference the user set
+# on their laptop should be the one their phone opens with.
+#
+# Which ones cross is an allowlist in backend/sync/registry.py, checked on the
+# way in as well as the way out, so this route cannot be used to reach the rest
+# of `app_settings` -- which holds, among other things, the embedding model this
+# database was indexed with.
+
+
+@app.get("/api/preferences")
+def get_preferences() -> dict[str, Any]:
+    """The synced preferences, as {name: value} without the `ui.` prefix."""
+    from backend.db.connection import get_connection
+    from backend.sync.registry import SYNCED_PREFERENCES
+
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT key, value FROM app_settings WHERE key LIKE 'ui.%'"
+    ).fetchall()
+    known = set(SYNCED_PREFERENCES)
+    return {
+        "preferences": {
+            row[0][3:]: row[1] for row in rows if row[0][3:] in known
+        }
+    }
+
+
+@app.patch("/api/preferences")
+def update_preferences(body: dict[str, Any]) -> dict[str, Any]:
+    """Record a preference change and queue it for the user's other devices.
+
+    The ordinary write and the op are one transaction: a preference that reached
+    the database without an op would be one the other devices never hear about,
+    and one that reached the outbox without the write would be a change this
+    device does not itself have.
+    """
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import ops as sync_ops
+    from backend.sync import service as sync_service
+    from backend.sync.registry import SYNCED_PREFERENCES
+
+    incoming = body.get("preferences")
+    if not isinstance(incoming, dict):
+        raise HTTPException(400, "send {\"preferences\": {name: value}}")
+
+    known = set(SYNCED_PREFERENCES)
+    unknown = sorted(set(incoming) - known)
+    if unknown:
+        raise HTTPException(
+            400,
+            f"these do not sync: {', '.join(unknown)}."
+            f" The ones that do: {', '.join(sorted(known))}",
+        )
+
+    conn = get_connection()
+    clock = sync_service.clock(conn)
+    with transaction(conn):
+        for name, value in incoming.items():
+            key = f"ui.{name}"
+            text = "" if value is None else str(value)
+            conn.execute(
+                "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+                " updated_at = datetime('now')",
+                (key, text),
+            )
+            sync_ops.emit(conn, clock, "settings", key, {"value": text})
+    return get_preferences()
+
+
+# -- the devices this machine syncs with ---------------------------------
+
+
+@app.get("/api/devices")
+def list_devices() -> dict[str, Any]:
+    from backend.db.connection import get_connection
+    from backend.sync import devices as sync_devices
+
+    return {
+        "devices": [
+            {
+                "id": d.id,
+                "name": d.name,
+                "role": d.role,
+                "last_seen_at": d.last_seen_at,
+            }
+            for d in sync_devices.live(get_connection())
+        ]
+    }
+
+
+@app.post("/api/devices/pair")
+def start_pairing(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Open a pairing window and return what to put in a QR code.
+
+    The secret is returned to the interface that asked -- which is running on
+    this machine, behind the loopback boundary ADR-0011 relies on -- and never
+    sent to the relay. It is shown once and is not recoverable afterwards.
+    """
+    from backend.sync import devices as sync_devices
+
+    secret, payload = sync_devices.open_pairing(
+        name_hint=str((body or {}).get("name") or "")
+    )
+    return {
+        "secret": secret,
+        "qr": payload,
+        "expires_in": int(sync_devices.PAIRING_TTL_SECONDS),
+    }
+
+
+@app.delete("/api/devices/{device_id}")
+def revoke_device(device_id: str) -> dict[str, Any]:
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    conn = get_connection()
+    with transaction(conn):
+        gone = sync_devices.revoke(conn, device_id)
+    if not gone:
+        raise HTTPException(404, "no live device has that id")
+    return {"revoked": device_id}
 
 
 @app.post("/api/memory/toggle")
