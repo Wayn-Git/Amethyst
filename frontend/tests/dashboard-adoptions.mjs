@@ -82,6 +82,9 @@ try {
  await page.waitForFunction(count => document.querySelectorAll('.widget-adoption').length === count && !document.querySelector('.widget-skeleton'), Object.keys(fixtures[group]).length)
 
  if (group === 'glance') {
+  assert.deepEqual(await widget('glance.weather').locator('.weather-hours time').allTextContents(), ['12:00', '13:00'])
+  assert.deepEqual(await widget('glance.weather').locator('.weather-hours strong').allTextContents(), ['22°', '24°'])
+  assert.equal(await widget('glance.weather').getByLabel('Chance of rain 10%', { exact: true }).count(), 1)
   assert.deepEqual(await widget('glance.air').locator('.ui-stat > div').allTextContents(), ['0'])
   assert.match(await widget('glance.air').innerText(), /PM2.5\s+0 µg\/m³/)
   assert.match(await widget('glance.air').innerText(), /PM10\s+Unavailable/)

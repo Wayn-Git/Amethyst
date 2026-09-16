@@ -1,11 +1,29 @@
 import { WidgetRow, StateView } from '../primitives.jsx'
 import { useState } from 'react'
-import { Stat, Chip, Sparkline } from '../../components/ui/bento/index.jsx'
+import { Stat, Chip } from '../../components/ui/bento/index.jsx'
+import { Drop } from '@phosphor-icons/react'
 import LocationSettings from './LocationSettings.jsx'
 
 export function WeatherFace({ data }) {
-  const temperatures = data?.hours?.map(hour => hour.temperature)
-  return <div className="pilot-weather"><div className="weather-reading"><div key={data?.temperature} className="pilot-number"><Stat value={Number.isFinite(data?.temperature) ? data.temperature : 'Unavailable'} unit={Number.isFinite(data?.temperature) ? '°C' : undefined} label={data?.timezone?.replaceAll('_', ' ') || 'Temperature'} /></div>{temperatures?.length > 1 && temperatures.every(Number.isFinite) && <div className="weather-forecast"><Sparkline values={temperatures} label="Hourly temperature °C" /><span className="adoption-label">Hourly forecast</span></div>}</div>{data?.rain_alert && <Chip>Rain likely · next 12 hours</Chip>}</div>
+  const hours = Array.isArray(data?.hours) ? data.hours.slice(0, 6) : []
+  return <div className="pilot-weather">
+    <div className="weather-reading">
+      <div className="pilot-number"><Stat value={Number.isFinite(data?.temperature) ? data.temperature : 'Unavailable'} unit={Number.isFinite(data?.temperature) ? '°' : undefined} label="Current temperature · °C" /></div>
+      <p className="weather-location">{data?.timezone?.replaceAll('_', ' ') || 'Location unavailable'}</p>
+    </div>
+    {hours.length > 0 && <div className="weather-forecast">
+      <p className="adoption-label">Hourly forecast <span>Chance of rain</span></p>
+      <ol className="weather-hours" aria-label="Hourly temperature and chance of rain">
+        {hours.map((hour, index) => <li key={`${hour.time}-${index}`}>
+          <time dateTime={hour.time}>{typeof hour.time === 'string' && hour.time.match(/(?:^|T)((?:[01]\d|2[0-3]):[0-5]\d)(?::|$)/)?.[1] || '—'}</time>
+          <Drop size={20} aria-hidden="true" />
+          <span className="weather-rain" aria-label={Number.isFinite(hour.rain) ? `Chance of rain ${hour.rain}%` : 'Chance of rain unavailable'}>{Number.isFinite(hour.rain) ? `${hour.rain}%` : '—'}</span>
+          <strong aria-label={Number.isFinite(hour.temperature) ? `${hour.temperature} degrees Celsius` : 'Temperature unavailable'}>{Number.isFinite(hour.temperature) ? `${hour.temperature}°` : '—'}</strong>
+        </li>)}
+      </ol>
+    </div>}
+    {data?.rain_alert && <Chip>Rain likely · next 12 hours</Chip>}
+  </div>
 }
 
 function SunTime({ value, label }) {

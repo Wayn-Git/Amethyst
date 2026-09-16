@@ -8,6 +8,6 @@ The `/today` route mounts `dashboard/Home.jsx`. Existing providers, saved layout
 Direction: quiet neutral canvas, white and charcoal cards, soft depth, restrained typography, a blue weather surface and calendar-red date details. Use theme tokens exclusively. Preserve real values, source freshness and explicit unavailable states. No screenshots. The user's reference-led design request supersedes the older no-gradient restriction for the weather card only.
 
 - [x] dash.gallery: shared card hierarchy, responsive spacing and accessible controls.
-- [ ] glance.weather: real hourly temperature/rain strip and atmospheric blue surface.
+- [x] glance.weather: real hourly temperature/rain strip and atmospheric blue surface.
 - [ ] glance.clock: analog dial with accessible digital time and timezone.
 - [ ] glance.next-event: calendar date hierarchy with real countdown.

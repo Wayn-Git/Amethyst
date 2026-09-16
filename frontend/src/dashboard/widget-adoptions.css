@@ -62,11 +62,26 @@
 .bento-foundation .home-widget.widget-adoption .adoption-unread > li { display: grid; gap: var(--tile-space-3); }
 .bento-foundation .home-widget.widget-adoption .adoption-person-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tile-space-3); }
 .bento-foundation .home-widget.widget-adoption .adoption-unread ul > li { padding: var(--tile-space-3) 0; border-top: 1px solid var(--ui-border); }
-.bento-foundation .home-widget.widget-adoption .weather-reading { display: flex; align-items: center; gap: var(--tile-space-4); }
-.bento-foundation .home-widget.widget-adoption .weather-reading .pilot-number { flex: 1; min-width: 0; }
-.bento-foundation .home-widget.widget-adoption .weather-forecast { flex: 0 1 40%; min-width: 0; max-width: 160px; }
-.bento-foundation .home-widget.widget-adoption .weather-forecast .ui-sparkline { display: block; max-height: 64px; }
-.bento-foundation .home-widget.widget-adoption .weather-location-action { justify-self: start; min-height: 28px; padding: var(--tile-space-1) var(--tile-space-2); border-radius: 999px; font: var(--tile-label); }
+/* Atmospheric color is a weather identity, never an inferred condition. */
+.home-layout-grid .ui-tile[data-slot-id='glance.weather'],
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] {
+  --tile-bg: var(--tile-weather); --tile-fg: var(--tile-weather-text); --tile-muted: var(--tile-weather-muted);
+  background: linear-gradient(155deg, var(--tile-weather), var(--tile-weather-horizon));
+}
+.bento-foundation .home-widget.widget-adoption .weather-reading { display: flex; align-items: start; justify-content: space-between; gap: var(--tile-space-3); }
+.bento-foundation .home-widget.widget-adoption .weather-reading .pilot-number { min-width: 0; }
+.bento-foundation .home-widget.widget-adoption .weather-reading .ui-stat > div { font-weight: 300; font-size: 64px; letter-spacing: -.06em; }
+.bento-foundation .home-widget.widget-adoption .weather-reading .ui-stat small { font: inherit; margin: 0; }
+.bento-foundation .home-widget.widget-adoption .weather-location { max-width: 45%; margin: var(--tile-space-1) 0; text-align: right; font: var(--tile-body); }
+.bento-foundation .home-widget.widget-adoption .weather-forecast { border-top: 1px solid var(--ui-border); padding-top: var(--tile-space-3); }
+.bento-foundation .home-widget.widget-adoption .weather-forecast > p { display: flex; justify-content: space-between; gap: var(--tile-space-2); margin: 0 0 var(--tile-space-3); font-family: var(--ui-font); }
+.bento-foundation .home-widget.widget-adoption .weather-hours { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--tile-space-1); }
+.bento-foundation .home-widget.widget-adoption .weather-hours li { display: flex; flex-direction: column; align-items: center; gap: var(--tile-space-2); font: var(--tile-body); font-variant-numeric: tabular-nums; }
+.bento-foundation .home-widget.widget-adoption .weather-hours time,
+.bento-foundation .home-widget.widget-adoption .weather-rain { font-size: 11px; line-height: 16px; color: var(--tile-muted); }
+.bento-foundation .home-widget.widget-adoption .weather-hours strong { font-weight: 500; }
+.bento-foundation .home-widget.widget-adoption .weather-location-action { justify-self: start; min-height: 44px; padding: var(--tile-space-2); border-radius: 999px; font: var(--tile-label); }
+
 .bento-foundation .home-widget.widget-adoption .location-settings { gap: var(--tile-space-3); }
 .bento-foundation .home-widget.widget-adoption .location-search { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
 .bento-foundation .home-widget.widget-adoption .location-results { display: grid; gap: var(--tile-space-2); }
