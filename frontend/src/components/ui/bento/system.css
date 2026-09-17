@@ -7,7 +7,8 @@
   --tile-dark: #211e29; --tile-dark-text: #faf8ff; --tile-dark-muted: #c0b8cd;
   --tile-accent: #ded2fa; --tile-accent-text: #2c164e; --tile-accent-muted: #624881;
   --tile-action-hover: #5b25b1; --tile-action: #7132d6; --tile-on-action: #ffffff; --tile-shadow: 0 4px 16px rgb(25 23 31 / .06);
-  --tile-canvas: #f1f0f3;
+  --tile-canvas: #f2f2f4;
+  --tile-shadow-hover: 0 8px 24px rgb(25 23 31 / .09);
 }
 :root[data-theme='graphite'] { --tile-canvas: #17151c; --tile-light: #eeeaf4; --tile-dark: #27232e; --tile-accent: #c9b4ef; }
 :root[data-theme='ink'] { --tile-canvas: #08080b; --tile-light: #f5f3f9; --tile-dark: #1b1921; --tile-accent: #d7c1ff; }

@@ -135,7 +135,7 @@ try {
  await page.keyboard.press('Escape')
  for (const theme of ['paper', 'graphite', 'ink', 'nocturne', 'nvidia', 'sand', 'claude', 'cursor', 'system']) {
   await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 1024, 768, 390]) {
    await page.setViewportSize({ width, height: 1000 })
    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${theme} page overflow at ${width}`)
    assert.deepEqual(await page.locator('.home-layout-grid .home-widget').evaluateAll(nodes => nodes.filter(n => n.scrollWidth > n.clientWidth + 1).map(n => n.dataset.widget)), [], `${theme} tile overflow at ${width}`)
@@ -143,6 +143,7 @@ try {
   assert.equal(await card('glance.weather').evaluate(n => getComputedStyle(n).borderRadius), '24px')
   assert.equal(await page.locator('.bento-grid').evaluate(n => getComputedStyle(n).gap), '16px')
  }
+ assert.deepEqual(await page.locator('.home-layout-grid .widget-refresh, .home-layout-grid .widget-menu > summary, .today-actions button').evaluateAll(nodes => nodes.filter(n => { const r = n.getBoundingClientRect(); return r.width < 44 || r.height < 44 }).map(n => n.getAttribute('aria-label'))), [], '44px action targets')
  await page.emulateMedia({ reducedMotion: 'reduce' })
  assert.equal(await card('glance.weather').locator('.pilot-number').evaluate(n => getComputedStyle(n).animationName), 'none')
  if (new URL(base).port === '8000') assert(loaded.some(url => /\/assets\/index-[^/]+\.js/.test(url)), 'checks the desktop bundle')
