@@ -303,6 +303,10 @@ def apply(conn, widget_id, action, body):
         from backend.dashboard.pins import apply as apply_pin
 
         return apply_pin(conn, action, body)
+    if widget_id == "comm.reachout":
+        from backend.dashboard.reachout import apply as apply_reachout
+
+        return apply_reachout(conn, action, body)
     if widget_id == "feed.rss":
         from backend.dashboard.feeds import apply as apply_feed
 

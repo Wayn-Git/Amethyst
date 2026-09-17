@@ -41,6 +41,15 @@ def project(slug, value, arguments=None):
         if not value.get("ok", True):
             raise ValueError("Slack authentication failed")
         return {"user_id": value["user_id"]}
+    if slug == "SLACK_LIST_ALL_CHANNELS":
+        return {
+            "items": [
+                {"id": row["id"], "user": row.get("user", "")}
+                for row in value["channels"]
+                if row.get("is_im")
+            ],
+            "limited": bool(value.get("response_metadata", {}).get("next_cursor")),
+        }
     if slug == "SLACK_SEARCH_MESSAGES":
         messages = value["messages"]
         return {

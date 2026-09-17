@@ -59,6 +59,10 @@ async def local_provider(widget_id):
         from backend.dashboard.communication import provide
 
         return await provide(widget_id)
+    if widget_id == "comm.reachout":
+        from backend.dashboard.reachout import provide
+
+        return await provide()
     if widget_id == "need.mentions":
         from backend.dashboard.mentions import provide
 

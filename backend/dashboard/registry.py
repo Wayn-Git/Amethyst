@@ -261,6 +261,21 @@ MANIFESTS = [
         "group": "communication",
         "tier": "v2",
         "source": [
+            {"type": "local"},
+            {"type": "composio", "toolkit": "gmail"},
+            {"type": "composio", "toolkit": "slack"},
+        ],
+        "refresh": {"mode": "poll", "interval_s": 900},
+        "requires": [],
+        "empty": "No matching items.",
+    },
+    {
+        **manifest("comm.reachout", "Birthdays and reach-out nudges", ["m", "l"]),
+        "actions": [dict(id="configure", label="Configure local reminders", gate=True)],
+        "group": "communication",
+        "tier": "v2",
+        "source": [
+            {"type": "local"},
             {"type": "composio", "toolkit": "gmail"},
             {"type": "composio", "toolkit": "slack"},
         ],

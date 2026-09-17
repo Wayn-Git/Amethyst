@@ -2,46 +2,54 @@
 
 import asyncio
 import json
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 from backend.dashboard import connectors, mail
 from backend.dashboard.store import settings_read
 
 
-async def slack_dms(widget_id):
+async def dm_messages(widget_id):
     me = (await connectors.read(widget_id, "slack", "SLACK_TEST_AUTH", {}))["user_id"]
-    found = await connectors.read(
-        widget_id,
-        "slack",
-        "SLACK_SEARCH_MESSAGES",
-        {"query": "in:dm", "count": 100, "sort": "timestamp", "sort_dir": "desc"},
+    channels = await connectors.read(
+        widget_id, "slack", "SLACK_LIST_ALL_CHANNELS", {"types": "im", "limit": 20}
     )
-    latest = {}
-    for row in found["items"]:
-        channel = row["channel"]
-        if channel and (channel not in latest or float(row["id"]) > float(latest[channel]["id"])):
-            latest[channel] = row
+    results = await asyncio.gather(
+        *[
+            connectors.read(
+                widget_id,
+                "slack",
+                "SLACK_SEARCH_MESSAGES",
+                {
+                    "query": "in:" + channel["id"],
+                    "count": 100,
+                    "sort": "timestamp",
+                    "sort_dir": "desc",
+                },
+            )
+            for channel in channels["items"]
+        ]
+    )
+    return me, list(zip(channels["items"], results, strict=True)), channels["limited"]
+
+
+async def slack_dms(widget_id):
+    me, conversations, limited = await dm_messages(widget_id)
     items = []
-    for channel in latest:
-        result = await connectors.read(
-            widget_id,
-            "slack",
-            "SLACK_SEARCH_MESSAGES",
-            {"query": f"in:{channel}", "count": 1, "sort": "timestamp", "sort_dir": "desc"},
-        )
+    for channel, result in conversations:
         if result["items"]:
-            row = result["items"][0]
+            row = max(result["items"], key=lambda r: float(r["id"]))
             if row["user"] and row["user"] != me:
                 items.append(
                     {
-                        "id": channel,
+                        "id": channel["id"],
                         "title": row["title"],
                         "url": row["url"],
                         "source": "Slack",
                         "person": row["user"],
                     }
                 )
-    return {"items": items, "limited": found["limited"]}
+    return {"items": items, "limited": limited}
 
 
 async def provide(widget_id):
@@ -79,8 +87,7 @@ async def slack_threads(widget_id):
         "slack",
         "SLACK_SEARCH_MESSAGES",
         {
-            "query": "after:"
-            + (mail.datetime.now(mail.UTC) - mail.timedelta(days=30)).strftime("%Y-%m-%d"),
+            "query": "after:" + (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%d"),
             "count": 20,
         },
     )
@@ -218,32 +225,24 @@ async def gmail_contacts(widget_id):
 
 
 async def slack_contacts(widget_id):
-    me = (await connectors.read(widget_id, "slack", "SLACK_TEST_AUTH", {}))["user_id"]
-    result = await connectors.read(
-        widget_id,
-        "slack",
-        "SLACK_SEARCH_MESSAGES",
-        {"query": "in:dm", "count": 100, "sort": "timestamp", "sort_dir": "desc"},
-    )
-    channels = {}
-    for row in result["items"]:
-        channels.setdefault(row["channel"], []).append(row)
+    me, conversations, _limited = await dm_messages(widget_id)
     items = []
-    for rows in channels.values():
+    for channel, result in conversations:
+        rows = result["items"]
+        person = channel["user"]
+        if not rows or not person or person == me:
+            continue
         latest = max(rows, key=lambda r: float(r["id"]))
-        for row in rows:
-            if not row["user"] or row["user"] == me:
-                continue
-            items.append(
-                {
-                    "id": "slack:" + row["user"],
-                    "title": row["user"],
-                    "person": row["user"],
-                    "source": "Slack",
-                    "at": mail.datetime.fromtimestamp(float(latest["id"]), mail.UTC).isoformat(),
-                    "threads": [row["url"]] if row["url"] else [],
-                }
-            )
+        items.append(
+            {
+                "id": "slack:" + person,
+                "title": person,
+                "person": person,
+                "source": "Slack",
+                "at": datetime.fromtimestamp(float(latest["id"]), UTC).isoformat(),
+                "threads": list(dict.fromkeys(row["url"] for row in rows if row["url"]))[:30],
+            }
+        )
     return items
 
 
@@ -256,7 +255,7 @@ async def contacts(widget_id):
     )
     if not previous and all(isinstance(r, connectors.SourceUnavailable) for r in results):
         raise connectors.SourceUnavailable
-    if not previous and all(isinstance(r, Exception) for r in results):
+    if all(isinstance(r, Exception) for r in results):
         raise RuntimeError("Contact sources unavailable")
     cards = {row["id"]: dict(row) for row in previous}
     for result in results:

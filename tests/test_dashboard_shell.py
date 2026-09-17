@@ -48,6 +48,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "comm.thread-summary",
         "comm.newsletters",
         "comm.contacts",
+        "comm.reachout",
         "comm.templates",
         "comm.tone",
         "comm.unread",

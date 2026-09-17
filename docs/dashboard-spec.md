@@ -215,7 +215,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | comm.newsletters | Newsletter digest and unsubscribe suggestions | cmp:gmail, llm | v2 | [x] |
 | comm.meeting | Meeting request handler (proposes times) | cmp:gmail, cmp:googlecalendar, llm | v2 | [ ] |
 | comm.contacts | Contact cards (last contact, shared context) | local, cmp:gmail | v2 | [x] |
-| comm.reachout | Birthdays and reach-out nudges | local, cmp:gmail | v2 | [ ] |
+| comm.reachout | Birthdays and reach-out nudges | local, cmp:gmail | v2 | [x] |
 
 ### 6.5 Agent (Director)
 

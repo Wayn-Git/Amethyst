@@ -14,6 +14,7 @@ export const WIDGETS = {
   'comm.thread-summary': lazy(() => import('./widgets/Communication.jsx')),
   'comm.newsletters': lazy(() => import('./widgets/Communication.jsx')),
   'comm.contacts': lazy(() => import('./widgets/Communication.jsx')),
+  'comm.reachout': lazy(() => import('./widgets/Reachout.jsx')),
   'comm.templates': lazy(() => import('./widgets/Templates.jsx')),
   'comm.tone': lazy(() => import('./widgets/Tone.jsx')),
   'comm.unread': lazy(() => import('./widgets/Mail.jsx')),

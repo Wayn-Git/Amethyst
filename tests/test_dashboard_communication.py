@@ -6,6 +6,12 @@ async def test_unreplied_dms(db, monkeypatch):
         assert toolkit == "slack" and slug in connectors.READ_TOOLS[toolkit]
         if slug == "SLACK_TEST_AUTH":
             return {"user_id": "me"}
+        if slug == "SLACK_LIST_ALL_CHANNELS":
+            assert args["types"] == "im"
+            return {
+                "items": [{"id": "D1", "user": "them"}, {"id": "D2", "user": "other"}],
+                "limited": False,
+            }
         rows = [
             {
                 "id": "2",
@@ -42,8 +48,9 @@ async def test_unreplied_dms(db, monkeypatch):
 
 
 async def test_thread_summaries_optional_cached_and_linked(db, monkeypatch):
-    from backend.dashboard import mail, service
+    from backend.dashboard import service
     from backend.dashboard.store import cache_read, settings_write
+    from backend.workers import llm
 
     async def read(widget, toolkit, slug, args):
         if toolkit == "slack":
@@ -63,12 +70,17 @@ async def test_thread_summaries_optional_cached_and_linked(db, monkeypatch):
 
     calls = []
 
-    async def generate(prompt, **kwargs):
+    async def ask(prompt, **kwargs):
+        assert kwargs["paid_ok"] is False
         calls.append(prompt)
-        return '[{"id":"gmail:abc","summary":"Summary fixture"},{"id":"invented","summary":"No"}]'
+        return {
+            "text": (
+                '[{"id":"gmail:abc","summary":"Summary fixture"},{"id":"invented","summary":"No"}]'
+            )
+        }
 
     monkeypatch.setattr(connectors, "read", read)
-    monkeypatch.setattr(mail, "generate", generate)
+    monkeypatch.setattr(llm, "ask", ask)
     result = await communication.provide("comm.thread-summary")
     assert not calls and result["items"][0]["summary"] == ""
     settings_write("comm.thread-summary", {"model_enabled": True})
@@ -112,12 +124,15 @@ async def test_newsletter_detection_and_suggestions(db, monkeypatch):
 
 async def test_contacts_metadata_and_persistence(db, monkeypatch):
     import json
+
     from backend.dashboard import service
     from backend.dashboard.store import cache_read
 
     async def read(widget, toolkit, slug, args):
         if slug == "SLACK_TEST_AUTH":
             return {"user_id": "me"}
+        if slug == "SLACK_LIST_ALL_CHANNELS":
+            return {"items": [{"id": "D1", "user": "them"}], "limited": False}
         if toolkit == "slack":
             return {
                 "items": [
@@ -167,4 +182,155 @@ async def test_contacts_metadata_and_persistence(db, monkeypatch):
         raise connectors.SourceUnavailable
 
     monkeypatch.setattr(connectors, "read", unavailable)
-    assert (await communication.provide("comm.contacts"))["items"] == cards
+    await service.refresh("comm.contacts")
+    assert service.read_data("comm.contacts")["stale"]
+    assert cache_read("comm.contacts")["payload"]["items"] == cards
+
+
+async def test_reachout_manual_birthdays_and_interval_gate(db, monkeypatch):
+    from datetime import UTC, datetime
+
+    import pytest
+    from fastapi import HTTPException
+    from pydantic import ValidationError
+
+    from backend.dashboard import reachout, service
+    from backend.dashboard.items import decide
+    from backend.dashboard.store import cache_write, settings_read
+
+    now = datetime(2026, 10, 25, 12, tzinfo=UTC)
+    monkeypatch.setattr(reachout, "local_now", lambda: now)
+
+    async def refresh(widget):
+        assert widget == "comm.contacts"
+        cache_write(
+            widget,
+            {
+                "items": [
+                    {"id": "old", "title": "Old", "at": "2026-09-01", "threads": []},
+                    {"id": "recent", "title": "Recent", "at": "2026-10-20", "threads": []},
+                    {"id": "unknown", "title": "Unknown", "at": "", "threads": []},
+                ]
+            },
+            "ok",
+        )
+
+    monkeypatch.setattr(service, "refresh", refresh)
+    assert [r["id"] for r in (await reachout.provide())["items"]] == ["old"]
+    body = reachout.ReachoutInput(days=3, birthdays=[{"name": "Manual", "birthday": "10-25"}])
+    pending = reachout.draft("configure", body)
+    assert settings_read("comm.reachout") == {}
+    await decide("comm.reachout", pending["draft_id"], False)
+    assert settings_read("comm.reachout") == {}
+    pending = reachout.draft("configure", body)
+    await decide("comm.reachout", pending["draft_id"], True)
+    result = await reachout.provide()
+    assert result["days"] == 3
+    assert [r["id"] for r in result["items"]] == ["birthday:0", "old", "recent"]
+    with pytest.raises(HTTPException):
+        await decide("comm.reachout", pending["draft_id"], True)
+    stale = reachout.draft("configure", body)
+    newer = reachout.draft("configure", reachout.ReachoutInput(days=60))
+    await decide("comm.reachout", newer["draft_id"], True)
+    with pytest.raises(HTTPException, match="409"):
+        await decide("comm.reachout", stale["draft_id"], True)
+    for data in (
+        {"days": 0},
+        {"birthdays": [{"name": "X", "birthday": "02-30"}]},
+        {"birthdays": [{"name": " ", "birthday": "01-01"}]},
+    ):
+        with pytest.raises(ValidationError):
+            reachout.ReachoutInput.model_validate(data)
+
+
+async def test_reachout_birthday_survives_missing_connectors(db, monkeypatch):
+    from backend.dashboard import reachout
+    from backend.dashboard.store import settings_write
+
+    async def unavailable(*args):
+        raise connectors.SourceUnavailable
+
+    monkeypatch.setattr(connectors, "read", unavailable)
+    settings_write(
+        "comm.reachout",
+        {"birthdays": [{"name": "Manual", "birthday": reachout.local_now().strftime("%m-%d")}]},
+    )
+    result = await reachout.provide()
+    assert result["items"][0]["reason"] == "Birthday today"
+    assert result["unavailable"]
+
+
+def test_direct_message_projection_excludes_channels_and_bodies():
+    from backend.dashboard.remote import project
+
+    result = project(
+        "SLACK_LIST_ALL_CHANNELS",
+        {
+            "channels": [
+                {"id": "D1", "is_im": True, "user": "them", "latest": {"text": "PRIVATE"}},
+                {"id": "C1", "is_im": False, "name": "public"},
+            ],
+            "response_metadata": {"next_cursor": "more"},
+        },
+    )
+    assert result == {"items": [{"id": "D1", "user": "them"}], "limited": True}
+
+
+def test_readonly_widgets_reject_writes_and_validate_models(db, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from backend.dashboard.router import router
+
+    async def unavailable(*args):
+        raise connectors.SourceUnavailable
+
+    monkeypatch.setattr(connectors, "read", unavailable)
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        for widget in (
+            "need.lor-slack",
+            "comm.thread-summary",
+            "comm.newsletters",
+            "comm.contacts",
+        ):
+            for action in ("send", "unsubscribe", "delete"):
+                assert (
+                    client.post(f"/api/widgets/{widget}/actions/{action}", json={}).status_code
+                    == 404
+                )
+        assert (
+            client.put(
+                "/api/widgets/comm.thread-summary/settings",
+                json={"model_enabled": True, "send": True},
+            ).status_code
+            == 422
+        )
+        assert (
+            client.post(
+                "/api/widgets/comm.reachout/actions/configure", json={"days": 0}
+            ).status_code
+            == 422
+        )
+        assert (
+            client.put("/api/widgets/comm.reachout/settings", json={"birthdays": []}).status_code
+            == 405
+        )
+
+
+async def test_empty_source_results_dispatch(db, monkeypatch):
+    from backend.dashboard.service import local_provider
+
+    async def empty(widget, toolkit, slug, args):
+        return {"user_id": "me", "items": [], "messages": [], "limited": False}
+
+    monkeypatch.setattr(connectors, "read", empty)
+    for widget in (
+        "need.lor-slack",
+        "comm.thread-summary",
+        "comm.newsletters",
+        "comm.contacts",
+        "comm.reachout",
+    ):
+        assert (await local_provider(widget))["items"] == []

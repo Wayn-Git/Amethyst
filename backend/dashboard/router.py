@@ -176,6 +176,11 @@ def item_action(widget_id: str, action: str, body: dict):
             from backend.dashboard.pins import draft as pin_draft
 
             return pin_draft(action, PinInput.model_validate(body))
+        if widget_id == "comm.reachout":
+            from backend.dashboard.reachout import ReachoutInput
+            from backend.dashboard.reachout import draft as reachout_draft
+
+            return reachout_draft(action, ReachoutInput.model_validate(body))
         if widget_id == "feed.rss":
             from backend.dashboard.feeds import FeedInput
             from backend.dashboard.feeds import draft as feed_draft
