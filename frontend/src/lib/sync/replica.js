@@ -94,3 +94,10 @@ export function emit(state, clock, entity, key, fields) {
     fields,
   }
 }
+
+/** Drop everything this device merged. Called when a pairing is forgotten: the
+ *  transcript belongs to the machine that was unpaired, and leaving it behind
+ *  would show the next pairing the previous one's conversations. */
+export function clear() {
+  safeStorage.removeItem(KEY)
+}

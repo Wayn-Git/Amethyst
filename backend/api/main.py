@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, ValidationError
 
 from backend import jobs
@@ -547,7 +547,125 @@ async def _lifespan(_: FastAPI):
     await close_clients()
 
 
+#: What answers a caller that is not this machine.
+#:
+#: ADR-0011 declined to build authentication because the boundary was the
+#: operating system's own user account, and `serve` binds to loopback so that
+#: held. Then `--host 0.0.0.0` printed a warning and published the lot -- and
+#: the reason people pass it is the ordinary one: they want to open Amethyst on
+#: their phone. So the warning was aimed at exactly the person with a good
+#: reason to ignore it, and what they got for it was a shell, their files and
+#: their mail on the local network.
+#:
+#: This is the smallest thing that makes that bind survivable. From anywhere but
+#: this machine, only these answer:
+#:
+#:   - the built interface, which is static files and the point of binding wide
+#:   - `/api/ping`, which the interface uses to decide whether a backend exists
+#:     and which says nothing but that one
+#:   - `/api/pair/claim`, the pairing handshake -- unauthenticated by necessity,
+#:     because a device with no credential is what it exists to give one to, and
+#:     safe for the same reason the relay's `/pair` is: the 160-bit secret from
+#:     the QR code is the only thing that opens it
+#:
+#: Everything else is 403. Not 404: pretending the route does not exist would
+#: make a misconfiguration look like a bug in the client.
+#:
+#: **This does nothing behind a reverse proxy**, where every request arrives
+#: from loopback. That is the deployment `docs/deployment.md` describes, and the
+#: proxy is where authentication belongs in it. This defends the case the proxy
+#: is not there for: somebody on their own network, with no proxy, who wanted
+#: their phone to reach this.
+_PUBLIC_PATHS = frozenset({"/api/ping", "/api/pair/claim"})
+
+#: Set by `amethyst serve` to the address it bound, before uvicorn starts.
+#:
+#: An environment variable rather than a module global because `--reload` runs
+#: the application in a child process, which inherits the environment and not
+#: the parent's memory.
+BIND_HOST_ENV = "AMETHYST_BIND_HOST"
+
+
+def _bound_wide() -> bool:
+    """Is this server reachable from anywhere but this machine?
+
+    When it is not -- the default, and every test -- the operating system is
+    already the boundary ADR-0011 relies on, nothing off-machine can open a
+    socket to it at all, and the check below is pure risk: a peer address it
+    reads as unfamiliar would refuse a request that could only have come from
+    here. So the guard engages exactly when there is something to guard.
+    """
+    return not _is_local(os.environ.get(BIND_HOST_ENV, "127.0.0.1").strip() or "127.0.0.1")
+
+
+def _is_local(host: str | None) -> bool:
+    """Whether an address is this machine. Anything unrecognised is not."""
+    if not host:
+        return False
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        # A hostname rather than an address. `localhost` is the only one that
+        # can be answered without a lookup, and a DNS round trip on the request
+        # path deciding an authorisation question is not one worth having.
+        return host == "localhost"
+
+
+class RemoteCallerGuard:
+    """Refuse a non-local caller anything but the interface and pairing.
+
+    Pure ASGI rather than `@app.middleware("http")` on purpose. Starlette's
+    `BaseHTTPMiddleware` -- which that decorator builds -- runs the application
+    inside an anyio task group and pumps the response through a memory stream.
+    This application streams a turn over a POST, holds an SSE control stream
+    open, and runs a PTY over a WebSocket, all of which that wrapper is known to
+    interfere with. It also changes task scheduling enough to reorder background
+    work against a request, which is not something a rule this simple should be
+    able to do.
+
+    So: read the scope, answer or delegate, wrap nothing.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket") or not _bound_wide():
+            return await self.app(scope, receive, send)
+        client = scope.get("client")
+        if _is_local(client[0] if client else None):
+            return await self.app(scope, receive, send)
+
+        path = scope.get("path", "")
+        if not path.startswith("/api/") or path in _PUBLIC_PATHS:
+            return await self.app(scope, receive, send)
+        # The preflight still has to be answered, or the browser reports a
+        # network error rather than the refusal the real request would get.
+        if scope["type"] == "http" and scope.get("method") == "OPTIONS":
+            return await self.app(scope, receive, send)
+
+        if scope["type"] == "websocket":
+            # The terminal lives here. A shell is the last thing that should
+            # answer the network, and an unaccepted close is how a WebSocket
+            # says no.
+            return await send({"type": "websocket.close", "code": 1008})
+        response = JSONResponse(
+            {
+                "detail": "This machine only answers the full API on its own loopback"
+                " address. Pair a device instead -- Settings, Devices.",
+            },
+            status_code=403,
+        )
+        return await response(scope, receive, send)
+
+
 app = FastAPI(title="AMETHYST", version="0.1.0", lifespan=_lifespan)
+# Added before CORS, which means it runs inside it: the last middleware added is
+# the outermost, so a 403 from the guard still comes back with the headers a
+# browser needs to read it.
+app.add_middleware(RemoteCallerGuard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
@@ -556,6 +674,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(terminal_router)
+
+
+@app.post("/api/pair/claim")
+def claim_pairing(body: dict[str, Any]) -> dict[str, Any]:
+    """Complete a pairing without the relay, for a device that can reach this
+    machine directly.
+
+    The same handshake `devices.accept` performs on the offers the relay carries
+    across, over a shorter wire: the phone is on the same network, so there is no
+    reason for its offer to travel to Cloudflare and back and wait out two poll
+    intervals. Same secret, same AEAD, same single use, same five minutes --
+    nothing about the protocol changes, only what carried it.
+
+    Unauthenticated on purpose, and safe for the same reason the relay's own
+    `/pair` is: opening the envelope requires the 160-bit secret shown on this
+    machine's screen, and an offer that does not open pairs nothing.
+    """
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+    from backend.sync import service as sync_service
+
+    conn = get_connection()
+    with transaction(conn):
+        answer = sync_devices.accept(conn, body)
+    if answer is None:
+        # Indistinguishable on purpose from a wrong secret. See `accept`.
+        raise HTTPException(404, "no pairing is open, or that offer did not open one")
+    if answer.get("refused"):
+        raise HTTPException(410, "that code has expired")
+    sync_service.reset_clock()
+    return answer
 
 # Confirmations awaiting a decision from the interface, keyed by request id.
 _pending: dict[str, dict[str, Any]] = {}
@@ -4411,6 +4560,7 @@ def list_devices() -> dict[str, Any]:
     from backend.db.connection import get_connection
     from backend.sync import devices as sync_devices
 
+    conn = get_connection()
     return {
         "devices": [
             {
@@ -4419,29 +4569,116 @@ def list_devices() -> dict[str, Any]:
                 "role": d.role,
                 "last_seen_at": d.last_seen_at,
             }
-            for d in sync_devices.live(get_connection())
-        ]
+            for d in sync_devices.live(conn)
+        ],
+        "app_url": sync_devices.app_url(conn),
     }
 
 
 @app.post("/api/devices/pair")
 def start_pairing(body: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Open a pairing window and return what to put in a QR code.
+    """Open a pairing window and return the QR code to show.
 
     The secret is returned to the interface that asked -- which is running on
     this machine, behind the loopback boundary ADR-0011 relies on -- and never
     sent to the relay. It is shown once and is not recoverable afterwards.
+
+    `qr_svg` is the same payload as a drawn symbol. It is rendered here rather
+    than in the browser because the string is built here and a second
+    implementation of "what goes in the code" is a second thing to get wrong.
     """
+    from backend.db.connection import get_connection
     from backend.sync import devices as sync_devices
 
+    conn = get_connection()
     secret, payload = sync_devices.open_pairing(
-        name_hint=str((body or {}).get("name") or "")
+        name_hint=str((body or {}).get("name") or ""), conn=conn
     )
+    # The relay round trip that completes this is the whole wait, so start it
+    # now instead of up to fifteen seconds from now. A no-op when no relay is
+    # configured, which `relay_configured` below is what reports.
+    with contextlib.suppress(Exception):
+        _instagram.nudge()
+    relay_ready = False
+    with contextlib.suppress(Exception):
+        from backend.config import load_instagram
+
+        settings = load_instagram()
+        relay_ready = bool(settings.relay_enabled and settings.relay_url)
     return {
         "secret": secret,
         "qr": payload,
+        "qr_svg": _qr_svg(payload),
+        "app_url": sync_devices.app_url(conn),
+        # Said plainly, because without it nothing completes and the phone just
+        # waits. The panel shows this as a prerequisite rather than letting
+        # somebody scan a code that cannot possibly be answered.
+        "relay_configured": relay_ready,
         "expires_in": int(sync_devices.PAIRING_TTL_SECONDS),
     }
+
+
+def _qr_svg(payload: str) -> str:
+    """The pairing payload as an inline SVG, or "" if it cannot be drawn.
+
+    Never raises. A machine whose QR library is missing still shows the code as
+    text, which is what pairing used to be and is still a working route.
+    """
+    try:
+        import io
+
+        import segno
+
+        buf = io.BytesIO()
+        # Error correction M: a screen is a clean scanning surface, and the
+        # payload is long enough that H would push the module count up and the
+        # symbol's features down for redundancy nothing here needs.
+        #
+        # `omitsize` leaves only a viewBox, so the stylesheet decides how big it
+        # is. The modules stay black on purpose rather than following the theme:
+        # a QR code inverted to light-on-dark is one a good half of scanners
+        # will not read, so the panel draws it on a white card in every theme.
+        segno.make(payload, error="m").save(
+            buf, kind="svg", xmldecl=False, svgns=True, border=2, unit="", omitsize=True
+        )
+        return buf.getvalue().decode("utf-8")
+    except Exception:
+        log.exception("could not render the pairing QR code")
+        return ""
+
+
+@app.put("/api/devices/app-url")
+def set_app_url(body: dict[str, Any]) -> dict[str, Any]:
+    """Where a phone opens this app.
+
+    Knowing it is what lets the QR code be an ordinary https link that a phone's
+    camera opens by itself, rather than an `amethyst://` payload only this app's
+    own scanner can act on. Unset is a working configuration and the fallback
+    says so.
+    """
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    given = str(body.get("app_url") or "").strip().rstrip("/")
+    if given and not given.startswith(("http://", "https://")):
+        raise HTTPException(400, "that needs to be a full http:// or https:// address")
+    # A camera-opened link has to reach a page, and getUserMedia in the scanner
+    # needs a secure context. http://localhost counts as one; nothing else does.
+    if given.startswith("http://") and "localhost" not in given and "127.0.0.1" not in given:
+        raise HTTPException(
+            400,
+            "that has to be https -- a phone's camera will open it, and the"
+            " scanner needs a secure context to reach the camera at all",
+        )
+    conn = get_connection()
+    with transaction(conn):
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            (sync_devices.APP_URL_KEY, given),
+        )
+    return {"app_url": sync_devices.app_url(conn)}
 
 
 @app.delete("/api/devices/{device_id}")

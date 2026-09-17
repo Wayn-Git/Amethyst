@@ -189,8 +189,8 @@ export default function LibraryTagRail({
                   onClick={() => onSelectTag?.(isActive ? '' : tag)}
                   title={`${tag} (${count})`}
                 >
-                  <span>#{tag}</span>
-                  <span style={{ opacity: 0.65, fontSize: 10 }}>{count}</span>
+                  <span className="lib-tag-pill-name">#{tag}</span>
+                  <span className="lib-tag-pill-count">{count}</span>
                 </button>
               )
             })}
@@ -199,8 +199,7 @@ export default function LibraryTagRail({
           {!tagQuery && allTagEntries.length > DEFAULT_VISIBLE_TAGS && (
             <button
               type="button"
-              className="lib-active-filter-clear-all"
-              style={{ alignSelf: 'flex-start', marginTop: 4 }}
+              className="lib-rail-more-tags"
               onClick={() => setShowAllTags((prev) => !prev)}
             >
               {showAllTags ? 'Show fewer topics' : `+${allTagEntries.length - DEFAULT_VISIBLE_TAGS} more`}

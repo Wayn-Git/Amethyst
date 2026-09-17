@@ -162,7 +162,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                 className={`lib-modal-tab ${activeTab === 'instagram' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setActiveTab('instagram')}
               >
-                <Icon name="spark" size={14} />
+                <Icon name="camera" size={14} />
                 <span>Instagram Relay</span>
               </button>
             </div>

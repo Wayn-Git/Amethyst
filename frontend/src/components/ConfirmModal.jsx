@@ -99,7 +99,7 @@ export default function ConfirmModal({ pending, onDecide }) {
         <label
           style={{
             display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16,
-            fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-dim)',
+            fontSize: 12, color: 'var(--text-dim)',
             cursor: sensitive ? 'not-allowed' : 'pointer',
           }}
         >
@@ -138,7 +138,7 @@ export default function ConfirmModal({ pending, onDecide }) {
         </div>
 
         {pending.length > 1 && (
-          <p className="mono" style={{ marginTop: 14, fontSize: 11, color: 'var(--text-faint)' }}>
+          <p style={{ marginTop: 14, fontSize: 11, color: 'var(--text-faint)' }}>
             {pending.length} request{pending.length > 1 ? 's' : ''} waiting — the newest is shown first.
           </p>
         )}

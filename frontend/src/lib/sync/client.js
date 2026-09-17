@@ -58,10 +58,16 @@ export function paired() {
   return Boolean(held?.deviceId && held?.token && held?.relayUrl)
 }
 
-export function forget() {
+export async function forget() {
   safeStorage.removeItem(IDENTITY_KEY)
   safeStorage.removeItem(OUTBOX_KEY)
-  forgetGroupKey()
+  // The merged transcript goes too. It is the unpaired machine's, and a device
+  // that pairs with a different one next would otherwise open on somebody
+  // else's conversations.
+  replica.clear()
+  // Awaited: the IndexedDB delete is the part that outlives the tab, and a
+  // caller that navigates straight to the pairing screen used to race it.
+  await forgetGroupKey()
 }
 
 function outbox() {
@@ -86,6 +92,58 @@ export function queued() {
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 
 /**
+ * Read whatever somebody scanned, tapped or typed.
+ *
+ * The machine prints one of two things depending on whether it knows where this
+ * app is hosted: an `https://…/pair#s=…&r=…` link, which a phone's own camera
+ * app opens directly, or an `amethyst://pair?s=…&r=…` fallback that only this
+ * scanner and the clipboard can act on. Both carry the relay address alongside
+ * the secret, which is what removes the field somebody used to have to type.
+ *
+ * The secret rides in the *fragment* of the https form on purpose: a fragment
+ * is never sent to a server, so it stays out of access logs and out of the
+ * `Referer` of anything the page loads afterwards.
+ *
+ * A bare code is still accepted. Somebody reading the grouped text off a screen
+ * types the part that looks like "the code", and refusing that would be picking
+ * a fight over punctuation.
+ */
+export function readPayload(text) {
+  const raw = String(text ?? '').trim()
+  if (!raw) return { secret: '', relayUrl: '' }
+
+  let fields = null
+  try {
+    const url = new URL(raw)
+    // The https form carries them after the `#`, the custom-scheme form after
+    // the `?`. Try the fragment first and fall back, rather than branching on
+    // the protocol -- it is the same two names either way.
+    const hash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash
+    const fromHash = new URLSearchParams(hash)
+    fields = fromHash.get('s') ? fromHash : url.searchParams
+  } catch {
+    // Not a URL. Either a bare code, or the `s=…` tail of one somebody
+    // half-copied.
+    fields = new URLSearchParams(raw.includes('=') ? raw.split('?').pop() : '')
+  }
+
+  const secret = (fields.get('s') || (raw.includes('=') ? '' : raw))
+    .replace(/\s+/g, '')
+    .toUpperCase()
+  return { secret, relayUrl: (fields.get('r') || '').replace(/\/+$/, '') }
+}
+
+/** Named so a caller can say which thing went wrong rather than printing a
+ *  sentence. `reason` is one of: offline, relay, expired, invalid, timeout. */
+export class PairError extends Error {
+  constructor(reason, message) {
+    super(message)
+    this.name = 'PairError'
+    this.reason = reason
+  }
+}
+
+/**
  * Pair this browser with a machine, using the code it printed.
  *
  * The offer and the answer are both sealed under a key derived from that code,
@@ -94,41 +152,65 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
  * AEAD tag is -- so there is no second round trip.
  */
 export async function pair(relayUrl, pairSecret, name, { signal } = {}) {
-  const base = relayUrl.replace(/\/+$/, '')
-  // Accept the whole QR payload or just the secret, because somebody reading a
-  // screen will type whichever of the two they think is "the code".
-  const secret = String(pairSecret).trim().split('s=').pop().trim()
+  const base = String(relayUrl || '').trim().replace(/\/+$/, '')
+  const secret = readPayload(pairSecret).secret
+  if (!base) throw new PairError('invalid', 'there is no relay address to pair through')
+  if (secret.length < 16) throw new PairError('invalid', 'that is not a pairing code')
+
   const key = await pairKey(secret)
   const requestId = crypto.randomUUID()
 
   const sealed = await seal({ name, role: 'control' }, {
     opId: requestId, deviceId: 'pairing', key,
   })
-  const offered = await fetch(`${base}/pair`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ request_id: requestId, ...sealed }),
-    signal,
-  })
-  if (!offered.ok) throw new Error(`the relay would not take the offer (HTTP ${offered.status})`)
+  let offered
+  try {
+    offered = await fetch(`${base}/pair`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ request_id: requestId, ...sealed }),
+      signal,
+    })
+  } catch {
+    throw new PairError('offline', 'could not reach the relay from this device')
+  }
+  if (!offered.ok) {
+    throw new PairError('relay', `the relay would not take the offer (HTTP ${offered.status})`)
+  }
 
   const deadline = Date.now() + PAIR_TIMEOUT_MS
   let answer = null
   while (Date.now() < deadline) {
-    const got = await fetch(`${base}/pair?request_id=${encodeURIComponent(requestId)}`, { signal })
+    let got
+    try {
+      got = await fetch(`${base}/pair?request_id=${encodeURIComponent(requestId)}`, { signal })
+    } catch {
+      throw new PairError('offline', 'lost the relay while waiting for an answer')
+    }
     if (got.status === 200) { answer = await got.json(); break }
     await sleep(PAIR_INTERVAL_MS)
   }
   if (!answer) {
-    throw new Error(
-      'the machine never answered. It completes pairing on its next relay poll,'
-      + ' so check it is running and that its relay is switched on.',
+    throw new PairError(
+      'timeout',
+      'the machine never answered. Check it is running and that its relay is switched on.',
     )
   }
+  // The machine says so when it has no pairing open, which is nearly always a
+  // code that sat on screen past its five minutes. Worth distinguishing: the
+  // fix is "show a new one", and a timeout reads as "your laptop is asleep".
+  if (answer.refused) {
+    throw new PairError('expired', 'that code has expired -- show a new one on your machine')
+  }
 
-  const opened = await unseal(answer.nonce, answer.ciphertext, {
-    opId: String(answer.request_id ?? ''), deviceId: 'pairing', key,
-  })
+  let opened
+  try {
+    opened = await unseal(answer.nonce, answer.ciphertext, {
+      opId: String(answer.request_id ?? ''), deviceId: 'pairing', key,
+    })
+  } catch {
+    throw new PairError('invalid', 'the answer did not open under that code')
+  }
   // Imported non-extractable before anything is written down, so the bytes
   // exist only for the length of this call and no copy of them is persisted.
   await storeGroupKey(unb64(opened.group_key))

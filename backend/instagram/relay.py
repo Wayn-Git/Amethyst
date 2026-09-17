@@ -230,6 +230,17 @@ class RelayPoller:
             log.exception("could not build the sync config mirror")
         return mirrored
 
+    @property
+    def owes_pair_answer(self) -> bool:
+        """Is a completed handshake sitting here waiting for a round trip?
+
+        The device that offered itself is blocked on exactly this, so the poller
+        goes now rather than at the next interval. Answers are produced by
+        `_collect_ops` during a sync, which means this is only ever true between
+        one round trip and the next.
+        """
+        return bool(self._pending_pair_answers)
+
     async def sync(self, *, store: InstagramEventStore | None = None) -> dict[str, Any]:
         """One round trip. Returns what happened, and never raises."""
         settings = load_instagram()

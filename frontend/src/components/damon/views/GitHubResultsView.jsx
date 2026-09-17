@@ -45,8 +45,10 @@ export default function GitHubResultsView({
             </div>
             {repo.description && <p className="damon-gh-desc">{repo.description}</p>}
             <div className="damon-gh-meta">
-              <span>★ {repo.stars?.toLocaleString()}</span>
-              <span>⑂ {repo.forks?.toLocaleString()}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Icon name="star" size={11} filled /> {repo.stars?.toLocaleString()}
+              </span>
+              <span>{repo.forks?.toLocaleString()} forks</span>
               <span className="damon-gh-url">{repo.url}</span>
             </div>
           </div>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import platform
 import shutil
 import sys
@@ -850,27 +851,60 @@ def cmd_permissions(args: argparse.Namespace) -> int:
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
-    """Run the HTTP API, and the built interface with it if one exists."""
+    """Start everything Amethyst needs, and serve it.
+
+    One command, because there is only ever one process. Every background
+    worker -- automations, reminders, the journal, both job lanes, the relay
+    poll, the browser watcher, the MCP connectors -- is an asyncio task started
+    by the application's own lifespan, so starting the server *is* starting
+    Amethyst. See `backend/api/main.py`, `_lifespan`.
+
+    What was missing was never a supervisor. It was the two steps around the
+    server that only `run.sh` did: making sure the storage exists, and making
+    sure there is an interface to serve. Both are here now, so `amethyst serve`
+    on a fresh checkout is the whole thing rather than the last step of it.
+    """
     import uvicorn
 
-    from backend.api.main import _DIST
+    # Storage, database, skills. Cheap and idempotent on a machine that has
+    # already run it; the difference between working and a stack trace on one
+    # that has not.
+    try:
+        paths().ensure()
+        get_connection()
+        seed_builtin_skills()
+    except Exception as exc:
+        print(f"! could not prepare {paths().home}: {exc}")
+        return 1
+
+    # Before `backend.api.main` is imported, and that ordering is the whole
+    # point: the interface is mounted at *import* time, from whatever is on disk
+    # at that moment. Building afterwards produced a server that had already
+    # decided there was no interface to serve -- a fresh checkout answered
+    # /api/ping and gave the browser a 404, which is exactly the "it built
+    # something and then served nothing" that one command is supposed to end.
+    if not _ensure_frontend(args):
+        return 1
+
+    from backend.api.main import BIND_HOST_ENV
 
     url = f"http://{args.host}:{args.port}"
-    # AMETHYST has no authentication, by design (ADR-0001): the security model is
-    # that it is only reachable from this machine. Binding elsewhere changes
-    # that silently, and the person doing it usually means "let my phone reach
-    # the share endpoint" rather than "publish my shell".
+    # What the guard in `backend/api/main.py` reads. Set before uvicorn starts,
+    # and through the environment rather than a global, because `--reload` runs
+    # the application in a child process.
+    os.environ[BIND_HOST_ENV] = str(args.host)
+
     if args.host not in ("127.0.0.1", "localhost", "::1"):
+        # This used to say the whole API was published, which was true and is
+        # no longer. Saying it anyway would train people to ignore the warning.
         print(f"! Binding to {args.host}, which is not loopback.")
-        print("! This API has no authentication. Anything that can reach this port")
-        print("! can read your files, run shell commands and read your mail.")
-        print("! Put a reverse proxy in front of it -- see docs/deployment.md.")
-    if (_DIST / "index.html").is_file():
-        print(f"AMETHYST is at {url}")
-    else:
-        print(f"API at {url}/api — no built interface found at {_DIST}")
-        print("build it with:  cd frontend && npm install && npm run build")
-        print(f"or run the dev server:  npm run dev  (it proxies /api to {url})")
+        print("! From other machines only the interface, /api/ping and pairing answer;")
+        print("! everything else is refused. Pair a device to use it from a phone.")
+        print("! To expose the full API deliberately, put a reverse proxy in front")
+        print("! of the loopback port instead -- see docs/deployment.md.")
+
+    print(f"AMETHYST is at {url}")
+    _print_services(args)
     if args.open:
         import webbrowser
 
@@ -883,6 +917,108 @@ def cmd_serve(args: argparse.Namespace) -> int:
         log_level=args.log_level,
     )
     return 0
+
+
+def _ensure_frontend(args: argparse.Namespace) -> bool:
+    """Make sure there is an interface to serve, building one if there is not.
+
+    A missing `frontend/dist` used to print instructions and then serve an API
+    with no interface in front of it, which reads as a broken install. It is one
+    npm command, it is needed exactly once, and the machine can run it.
+
+    Returns False only when the user asked for a build that then failed. A
+    missing build with no npm is a warning, not a stop: the API is still worth
+    running, and `--no-build` is how somebody says they meant it.
+    """
+    import subprocess
+
+    # Deliberately not `from backend.api.main import _DIST`: importing that
+    # module is what mounts the interface, and this runs in order to decide
+    # whether there is one to mount. Same path, computed without the import.
+    root = Path(__file__).resolve().parents[1]
+    frontend = root / "frontend"
+    dist = frontend / "dist"
+    built = (dist / "index.html").is_file()
+    if built and not args.rebuild:
+        return True
+    if args.no_build:
+        if not built:
+            print(f"! no built interface at {dist}, and --no-build was passed.")
+            print("! The API will answer; the browser will not have anything to load.")
+        return True
+    if not frontend.is_dir():
+        return True
+    if not shutil.which("npm"):
+        print(f"! no built interface at {dist}, and npm is not installed.")
+        print("! Install Node 18+ and run:  cd frontend && npm install && npm run build")
+        return True
+
+    if not (frontend / "node_modules").is_dir():
+        print("Installing interface dependencies (once)...")
+        if subprocess.run(["npm", "install"], cwd=frontend).returncode != 0:
+            print("! npm install failed.")
+            return not args.rebuild
+    print("Building the interface (once)...")
+    if subprocess.run(["npm", "run", "build"], cwd=frontend).returncode != 0:
+        print("! the interface build failed.")
+        return not args.rebuild
+    return True
+
+
+def _print_services(args: argparse.Namespace) -> None:
+    """Say which optional pieces are on, and which are not and why.
+
+    Everything here starts inside the server, so "did it start" is not the
+    interesting question -- "is it configured" is. A phone that will not pair is
+    almost always a relay that was never set up, and before this there was
+    nothing anywhere that said so: the code appeared, the phone waited two
+    minutes, and nothing on either end mentioned the missing piece.
+
+    Never raises. A summary that cannot be printed must not stop the server.
+    """
+    lines: list[str] = []
+    try:
+        from backend.config import load_instagram
+
+        relay = load_instagram()
+        if relay.relay_enabled and relay.relay_url:
+            lines.append(f"  relay:       on — {relay.relay_url}")
+        elif relay.relay_url:
+            lines.append("  relay:       configured but switched off (amethyst sync --on)")
+        else:
+            lines.append("  relay:       not set up — phone pairing needs one")
+    except Exception:
+        lines.append("  relay:       unknown (could not read the configuration)")
+
+    try:
+        from backend.db.connection import get_connection as _conn
+        from backend.sync import devices as _devices
+
+        live = _devices.live(_conn())
+        lines.append(
+            f"  devices:     {len(live)} paired" if live else "  devices:     none paired yet"
+        )
+    except Exception as exc:
+        lines.append(f"  devices:     unknown ({type(exc).__name__})")
+
+    try:
+        # Names, not objects: `configured_providers` returns the ids.
+        names = sorted(str(name) for name in configured_providers())
+        lines.append(
+            f"  models:      {', '.join(names)}" if names
+            else "  models:      none configured — add one in Settings, or: amethyst providers add"
+        )
+    except Exception as exc:
+        # Named rather than swallowed. A summary line that silently disappears
+        # is one nobody notices is wrong -- which is exactly what happened to
+        # this one the first time it ran.
+        lines.append(f"  models:      unknown ({type(exc).__name__})")
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        lines.append(f"  reachable:   {args.host} — restricted surface, see the warning above")
+
+    if lines:
+        print("\n".join(lines))
 
 
 def cmd_desktop(args: argparse.Namespace) -> int:
@@ -1041,15 +1177,28 @@ def cmd_device(args: argparse.Namespace) -> int:
         return 0
 
     if args.pair:
-        secret, payload = devices.open_pairing(name_hint=args.name or "")
-        print("Scan this, or type the secret into the other device:")
-        print()
+        secret, payload = devices.open_pairing(name_hint=args.name or "", conn=conn)
+        # An actual symbol. This used to say "Scan this" above a bare URL, which
+        # is the one thing a camera cannot do anything with.
+        drawn = _terminal_qr(payload)
+        if drawn:
+            print("Scan this with your phone:")
+            print()
+            print(drawn)
+        else:
+            print("Type this into the other device:")
+            print()
         print(f"  {payload}")
         print()
-        print(f"  secret: {secret}")
+        # Grouped in fours: it is 32 base32 characters, and an unbroken run of
+        # 32 is where the typo comes from.
+        print(f"  code: {' '.join(secret[i:i + 4] for i in range(0, len(secret), 4))}")
         print()
         print(f"Good for {int(devices.PAIRING_TTL_SECONDS / 60)} minutes, once.")
-        print("Leave this machine running: the handshake completes on its next relay poll.")
+        if not payload.startswith("http"):
+            print("Tip: set where your phone opens Amethyst (Settings, Devices) and this")
+            print("     becomes a link its camera can open on its own.")
+        print("Leave this machine running: it completes the handshake within seconds.")
         return 0
 
     live = devices.live(conn)
@@ -1060,6 +1209,26 @@ def cmd_device(args: argparse.Namespace) -> int:
     for device in live:
         print(f"{device.id:38} {device.role:9} {device.last_seen_at or 'never':20} {device.name}")
     return 0
+
+
+def _terminal_qr(payload: str) -> str:
+    """The pairing payload drawn with half-block characters, or "" if it cannot be.
+
+    Never raises: a terminal that cannot show this still gets the link and the
+    code printed underneath, which is what pairing was before and still works.
+    """
+    try:
+        import io
+
+        import segno
+
+        buf = io.StringIO()
+        # Half blocks rather than full: two rows of modules per line of text, so
+        # the symbol comes out roughly square in a terminal whose cells are not.
+        segno.make(payload, error="m").terminal(buf, compact=True, border=2)
+        return buf.getvalue()
+    except Exception:
+        return ""
 
 
 def cmd_share_token(args: argparse.Namespace) -> int:
@@ -1869,6 +2038,13 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--reload", action="store_true", help="restart on source changes")
     serve.add_argument("--open", action="store_true", help="open a browser once it is up")
     serve.add_argument("--log-level", default="info")
+    serve.add_argument(
+        "--no-build", action="store_true",
+        help="do not build the interface, even if there is none to serve",
+    )
+    serve.add_argument(
+        "--rebuild", action="store_true", help="rebuild the interface before starting",
+    )
     serve.set_defaults(func=cmd_serve)
 
     desk = sub.add_parser("desktop", help="run in the system tray, always available")

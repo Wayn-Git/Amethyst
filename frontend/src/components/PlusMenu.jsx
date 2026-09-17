@@ -40,7 +40,11 @@ function Row({ icon, customIcon, label, hint, tail, onClick, disabled, danger, s
   )
 }
 
-const Toggle = ({ on }) => <span className={`switch${on ? ' on' : ''}`}><span /></span>
+const Toggle = ({ on }) => (
+  <span className={`switch${on ? ' is-on' : ''}`} aria-hidden="true">
+    <span className="switch-knob" />
+  </span>
+)
 
 export default function PlusMenu({ conversationId, workspace, onWorkspace, onClose, onNavigate, onAttach, placement = 'up' }) {
   const { caps, refreshCaps, setCapEnabled, busyCap, setCapabilitiesTab, toast } = useApp()
@@ -270,10 +274,12 @@ export default function PlusMenu({ conversationId, workspace, onWorkspace, onClo
               label={cap.title || cap.name}
               title={state.detail ? `${state.label} — ${state.detail}` : state.label}
               tail={
-                <>
-                  <span className={`menu-dot menu-dot--${state.tone || 'off'}`} />
+                <div className="menu-row-tail">
+                  {(state.tone === 'busy' || state.tone === 'error') && (
+                    <span className={`menu-dot menu-dot--${state.tone}`} />
+                  )}
                   <Toggle on={cap.enabled} />
-                </>
+                </div>
               }
               onClick={() => setCapEnabled(cap, !cap.enabled)}
             />

@@ -159,28 +159,46 @@ def test_the_wrong_secret_pairs_nothing(conn):
     assert devices.live(conn) == []
 
 
+def _refused(answer) -> bool:
+    """A reply that tells the device to give up, rather than one it can open.
+
+    Not the same as None: `accept` says "no code is open here" out loud so a
+    phone can say "that code expired" instead of timing out after two minutes
+    with "your machine never answered". It carries no secret -- only the request
+    id the relay is already routing on -- and it pairs nothing.
+    """
+    if not isinstance(answer, dict):
+        return False
+    return answer.get("refused") == "expired" and "ciphertext" not in answer
+
+
 def test_a_code_is_single_use(conn):
     secret, _ = devices.open_pairing()
     assert devices.accept(conn, devices.build_request(secret, "first")) is not None
-    assert devices.accept(conn, devices.build_request(secret, "second")) is None
+    assert _refused(devices.accept(conn, devices.build_request(secret, "second")))
     assert len(devices.live(conn)) == 1
 
 
 def test_an_expired_code_pairs_nothing(conn):
     secret, _ = devices.open_pairing()
     devices._open_pairing.opened_at -= devices.PAIRING_TTL_SECONDS + 1
-    assert devices.accept(conn, devices.build_request(secret, "late")) is None
+    assert _refused(devices.accept(conn, devices.build_request(secret, "late")))
     assert devices.live(conn) == []
 
 
 def test_asking_for_a_new_code_retires_the_old_one(conn):
+    """Silence, not a refusal: a code *is* open, this offer just does not match
+    it -- which is indistinguishable from a stranger guessing, and answering
+    that would be telling them their guess was wrong."""
     stale, _ = devices.open_pairing()
     devices.open_pairing()
     assert devices.accept(conn, devices.build_request(stale, "stale")) is None
 
 
 def test_pairing_with_no_code_open_does_nothing(conn):
-    assert devices.accept(conn, devices.build_request(crypto.new_pair_secret(), "x")) is None
+    answer = devices.accept(conn, devices.build_request(crypto.new_pair_secret(), "x"))
+    assert _refused(answer)
+    assert devices.live(conn) == []
 
 
 def test_a_tampered_pairing_request_is_refused(conn):
@@ -224,3 +242,66 @@ def test_a_second_device_joins_the_same_group(conn):
     assert first["group_key"] == second["group_key"]
     assert first["device_id"] != second["device_id"]
     assert first["token"] != second["token"]
+
+
+# -- the QR payload ------------------------------------------------------
+#
+# What goes in the code decides how much somebody has to type, which is the
+# whole difference between pairing and configuring. These pin the two shapes and
+# the one property that matters in both: the relay address travels with the
+# secret, so the phone never has to be told it.
+
+
+def test_the_payload_is_a_camera_openable_link_when_the_app_url_is_known():
+    payload = devices.pairing_payload(
+        "ABCD2345EFGH6789ABCD2345EFGH6789",
+        app="https://amethyst.example.com",
+        relay="https://relay.workers.dev",
+    )
+    assert payload.startswith("https://amethyst.example.com/pair#")
+    # In the fragment, not the query: a fragment is never sent to a server, so
+    # the secret stays out of the host's access log and out of the Referer of
+    # everything the page loads afterwards.
+    head, _, fragment = payload.partition("#")
+    assert "s=" not in head
+    assert "s=ABCD2345EFGH6789ABCD2345EFGH6789" in fragment
+    assert "relay.workers.dev" in fragment
+
+
+def test_the_payload_falls_back_to_a_scheme_when_no_app_url_is_set():
+    payload = devices.pairing_payload("SECRET", relay="https://relay.workers.dev")
+    assert payload.startswith("amethyst://pair?")
+    assert "s=SECRET" in payload
+    assert "relay.workers.dev" in payload
+
+
+def test_the_payload_survives_having_no_relay_configured():
+    """Degraded, not broken: the phone asks for the address the way it used to
+    rather than being handed a code nothing can act on."""
+    payload = devices.pairing_payload("SECRET")
+    assert payload == "amethyst://pair?s=SECRET"
+
+
+def test_a_trailing_slash_on_the_app_url_does_not_double(conn):
+    payload = devices.pairing_payload("SECRET", app="https://x.example.com/", relay="https://r/")
+    assert payload.startswith("https://x.example.com/pair#")
+
+
+def test_the_app_url_prefers_the_environment(conn, monkeypatch):
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?)",
+        (devices.APP_URL_KEY, "https://stored.example.com"),
+    )
+    assert devices.app_url(conn) == "https://stored.example.com"
+    monkeypatch.setenv("AMETHYST_APP_URL", "https://from-env.example.com/")
+    assert devices.app_url(conn) == "https://from-env.example.com"
+
+
+def test_a_code_on_screen_is_reported_as_open():
+    """The relay poller reads this to decide how fast to poll, so the two ways
+    a pairing ends -- used, and expired -- both have to close it."""
+    assert devices.pairing_open() is False
+    devices.open_pairing()
+    assert devices.pairing_open() is True
+    devices._open_pairing.opened_at -= devices.PAIRING_TTL_SECONDS + 1
+    assert devices.pairing_open() is False

@@ -584,7 +584,7 @@ export default function OnboardingWizard() {
                 <Icon name="chevron" size={9} style={{ transform: 'rotate(90deg)' }} />
               </span>
               <span className="ob-composer-chip ob-composer-chip--right">
-                <Icon name="spark" size={12} />
+                <Icon name="cpu" size={12} />
                 <span>Auto</span>
                 <Icon name="chevron" size={9} style={{ transform: 'rotate(90deg)' }} />
               </span>

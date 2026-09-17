@@ -144,7 +144,7 @@ function LibraryRowComponent({
               onEnrich?.()
             }}
           >
-            <Icon name="spark" size={13} />
+            <Icon name="brain" size={13} />
           </button>
         )}
         {item.indexed && (

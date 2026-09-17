@@ -235,12 +235,38 @@ test('a finished run is not reported as live', () => {
 // seconds for a server behind somebody's router, and stranded the pairing
 // controls inside a Settings page it could never reach.
 
-function screenFor({ phase, verified, paired, remoteFirst }) {
+function screenFor({ phase, verified, paired, remoteFirst, phone, forceDesktop }) {
+  // Form factor first, and before reachability. A phone is never the machine,
+  // whether or not a backend answers it.
+  if (phone && !forceDesktop) return paired ? 'remote' : 'pair'
   if (phase === 'ready' && verified) return 'workbench'
   if (paired) return 'remote'
   if (phase === 'down' || remoteFirst) return 'pair'
   return 'boot'
 }
+
+test('a phone on the same network as the machine still gets the remote control', () => {
+  // The bug this whole screen exists to prevent, in its second form. The first
+  // was a phone with no backend being shown a boot spinner forever. This is a
+  // phone WITH one: at home the server answers, `verified` goes true, and the
+  // old rule handed a four-column desktop workbench to a 390px screen.
+  assert.equal(screenFor({ phase: 'ready', verified: true, paired: true, phone: true }), 'remote')
+  assert.equal(screenFor({ phase: 'ready', verified: true, paired: false, phone: true }), 'pair')
+})
+
+test('a phone that asked for the workbench anyway gets it', () => {
+  assert.equal(
+    screenFor({ phase: 'ready', verified: true, paired: true, phone: true, forceDesktop: true }),
+    'workbench',
+  )
+})
+
+test('a desktop window dragged narrow is not a phone', () => {
+  // `useCompact` handles that case by turning the rail into a drawer. Narrow is
+  // not the same question as handheld, and answering it the same way would
+  // throw away somebody's workbench because they resized a window.
+  assert.equal(screenFor({ phase: 'ready', verified: true, paired: true, phone: false }), 'workbench')
+})
 
 test('a paired phone goes straight to remote, without waiting for a wake', () => {
   assert.equal(screenFor({ phase: 'waking', paired: true }), 'remote')
@@ -273,6 +299,59 @@ test('a laptop whose server is merely slow still sees the boot screen', () => {
 test('a verified backend always wins', () => {
   assert.equal(screenFor({ phase: 'ready', verified: true, paired: true }), 'workbench')
   assert.equal(screenFor({ phase: 'ready', verified: true, paired: false }), 'workbench')
+})
+
+// -- what a phone was handed ---------------------------------------------
+//
+// The parser is the whole zero-typing claim. If it drops the relay address the
+// person is back to typing a workers.dev URL on a phone keyboard, which is the
+// step this flow exists to remove.
+
+const { readPayload } = client
+
+test('a link a camera opened carries both halves', () => {
+  const read = readPayload(
+    'https://amethyst.example.com/pair#s=ABCD2345EFGH6789ABCD2345EFGH6789'
+    + '&r=https%3A%2F%2Frelay.workers.dev',
+  )
+  assert.equal(read.secret, 'ABCD2345EFGH6789ABCD2345EFGH6789')
+  assert.equal(read.relayUrl, 'https://relay.workers.dev')
+})
+
+test('the scheme fallback carries both halves too', () => {
+  const read = readPayload(
+    'amethyst://pair?s=ABCD2345EFGH6789ABCD2345EFGH6789&r=https%3A%2F%2Frelay.workers.dev',
+  )
+  assert.equal(read.secret, 'ABCD2345EFGH6789ABCD2345EFGH6789')
+  assert.equal(read.relayUrl, 'https://relay.workers.dev')
+})
+
+test('a code read off a screen and typed still works', () => {
+  // Grouped in fours is how the machine prints it, and lower case is how a
+  // phone keyboard offers it. Refusing either would be picking a fight over
+  // punctuation with somebody already doing the tedious version.
+  const read = readPayload('abcd2345 efgh6789 abcd2345 efgh6789')
+  assert.equal(read.secret, 'ABCD2345EFGH6789ABCD2345EFGH6789')
+  assert.equal(read.relayUrl, '')
+})
+
+test('an older machine\'s payload, with no relay in it, still yields a secret', () => {
+  assert.equal(
+    readPayload('amethyst://pair?s=ABCD2345EFGH6789ABCD2345EFGH6789').secret,
+    'ABCD2345EFGH6789ABCD2345EFGH6789',
+  )
+})
+
+test('nothing in, nothing out', () => {
+  assert.deepEqual(readPayload(''), { secret: '', relayUrl: '' })
+  assert.deepEqual(readPayload(null), { secret: '', relayUrl: '' })
+  assert.deepEqual(readPayload(undefined), { secret: '', relayUrl: '' })
+})
+
+test('a trailing slash on the relay does not survive into the identity', () => {
+  // It is concatenated with `/pair` and `/ops`, so a double slash here is a
+  // 404 at the relay rather than a cosmetic problem.
+  assert.equal(readPayload('amethyst://pair?s=AAAA&r=https%3A%2F%2Fr.dev%2F').relayUrl, 'https://r.dev')
 })
 
 if (failures.length) {

@@ -76,10 +76,40 @@ export function runPhase(conversationId) {
  * nothing here that waits for one.
  */
 export function ask(conversationId, text) {
+  return intent('turn', { conversation_id: conversationId, text })
+}
+
+/**
+ * Start a conversation, so a phone is not limited to replying to one that
+ * already exists.
+ *
+ * Returns the id, which this device knows before the machine has answered: the
+ * conversation's id *is* the intent's id, by `_new_conversation` in
+ * `backend/sync/intents.py`. That is what lets a turn be queued into it on the
+ * same poll that creates it, with no round trip in between.
+ *
+ * The provider and model are not sent and cannot be. The machine picks from
+ * what is configured there, which is the whole reason a control device may ask
+ * for this at all.
+ */
+export function start(title) {
+  const op = intent('new_conversation', { title: String(title || '').slice(0, 200) })
+  return op?.key ?? null
+}
+
+/** Stop a turn that is running. Queued like everything else, so this is a
+ *  request the machine settles rather than a cancel that takes effect here. */
+export function stop(conversationId) {
+  return intent('stop', { conversation_id: conversationId })
+}
+
+/** One request, in the shape the intents table takes. The op's key is the
+ *  intent's id, which is what makes a redelivery an INSERT the merge refuses. */
+function intent(kind, payload) {
   return change('intents', crypto.randomUUID(), {
-    kind: 'turn',
+    kind,
     state: 'pending',
-    payload: JSON.stringify({ conversation_id: conversationId, text }),
+    payload: JSON.stringify(payload),
   })
 }
 
@@ -88,6 +118,9 @@ export function asked() {
   const rows = replica.readAll(replica.load(), 'intents')
   return Object.entries(rows)
     .map(([id, row]) => ({ id, ...row, payload: parse(row.payload) }))
+    // Turns only. `new_conversation` and `stop` settle into something visible
+    // on their own -- a conversation that appears, a run that ends -- and
+    // listing them as pending requests beside the transcript would be noise.
     .filter((row) => row.kind === 'turn')
     .reverse()
 }

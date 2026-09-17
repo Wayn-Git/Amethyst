@@ -117,24 +117,22 @@
   --code-literal: var(--k-green-deep);
 
   /* ---- type ------------------------------------------------------------
-     IBM Plex Sans is what DESIGN-kraken.md names as the fallback for
-     Kraken-Brand, and it is the closest freely-licensable face to
-     Kraken-Product too, so one family does both jobs and the interface reads
-     as one voice. Display and body differ by weight and tracking, not by
-     family — which is the discipline the two Kraken faces enforce anyway. */
-  --font-display: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  --font-body: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+     Geist as the primary typeface for UI, headings, navigation, labels,
+     inputs, cards, and dialogs. Geist Mono exclusively where monospaced
+     typography has a functional reason (code, terminal, logs, IDs, tokens). */
+  --font-display: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-sans: var(--font-body);
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --font-weight-medium: 500;
 
-  /* Kraken's display tracking is negative and gets tighter as the type gets
-     bigger. Applied as tokens so a heading can't drift back to 0. */
-  --track-hero: -1px;
-  --track-display: -0.5px;
-  --track-title: -0.2px;
+  /* Deliberate letter spacing: subtle negative tracking on larger display
+     headings, neutral tracking on body text. */
+  --track-hero: -0.025em;
+  --track-display: -0.02em;
+  --track-title: -0.01em;
   --track-body: 0;
 
   /* ---- radii -----------------------------------------------------------
@@ -1344,22 +1342,48 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   z-index: 1;
 }
 
-/* Amethyst Crystal Logo (without background) */
+/* Amethyst Crystal Logo with ambient illumination */
 .hero-logo-wrap {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
   z-index: 1;
 }
 
+.hero-logo-halo {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent, #7132f5) 20%, transparent) 0%, transparent 70%);
+  filter: blur(24px);
+  pointer-events: none;
+  z-index: 0;
+  animation: heroHaloPulse 4.5s ease-in-out infinite alternate;
+}
+
+@keyframes heroHaloPulse {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+
 .hero-logo-mark {
+  position: relative;
+  z-index: 1;
   display: block;
 }
 
 .hero-stack .hero {
   padding: 0;
-  margin-bottom: 24px;
+  margin-bottom: 26px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -1367,10 +1391,10 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .hero-headline {
-  font-family: var(--font-serif);
-  font-size: clamp(30px, 4.2cqw, 38px);
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display, var(--font-sans));
+  font-size: clamp(32px, 4.4cqw, 42px);
+  font-weight: 550;
+  letter-spacing: -0.03em;
   line-height: 1.15;
   color: var(--text);
   margin: 0 0 8px;
@@ -1378,24 +1402,19 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .hero-subheadline {
-  font-size: clamp(14px, 1.9cqw, 16px);
+  font-size: clamp(14.5px, 1.9cqw, 16px);
   font-weight: 400;
   color: var(--text-dim);
   margin: 0;
   letter-spacing: -0.01em;
 }
 
-/* Was a purple-to-blue gradient clipped to the text. The subheadline is a
-   quiet second line, not a place for colour; it reads as one sentence now. */
 .hero-gradient-text {
-  color: var(--text-dim);
+  color: var(--text);
   font-weight: 500;
 }
 
-/* Quick starts. A row of chips under the composer: the shortcut stays, the
-   card chrome -- border, shadow, four coloured icons, a second line of copy --
-   does not. They are the quietest thing on the page, which is right for the
-   fourth thing your eye reaches. */
+/* Quick starts */
 .hero-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1408,30 +1427,38 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 .hero-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 12px;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: var(--r-sm);
-  background: transparent;
+  background: var(--surface);
   border: 1px solid var(--hairline);
   color: var(--text-dim);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 450;
   letter-spacing: -0.01em;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--pop) var(--ease-out), color var(--pop) var(--ease-out), border-color var(--pop) var(--ease-out);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .hero-chip:hover {
   background: var(--surface-2);
   border-color: var(--hairline-strong);
   color: var(--text);
+  box-shadow: var(--lift);
 }
 
-.hero-chip svg { color: var(--text-faint); }
-.hero-chip:hover svg { color: var(--text-dim); }
+.hero-chip svg {
+  color: var(--text-faint);
+  transition: color 150ms ease;
+}
+
+.hero-chip:hover svg {
+  color: var(--text);
+}
 
 @media (max-width: 560px) {
   .hero-chips { gap: 6px; }
@@ -2736,7 +2763,23 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
    question is a bubble that stops short of the left margin and sits against the
    right; the answer runs the full width as prose. Nothing else in the column
    does either of those things, so no label is needed to say which is which. */
-.msg { display: grid; gap: 7px; min-width: 0; }
+@keyframes msgEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.msg {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  animation: msgEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 
 .msg-user { justify-items: end; }
 .msg-user .msg-body { max-width: min(78%, 62ch); }
@@ -2823,14 +2866,16 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   border: none;
   color: var(--text-faint);
   cursor: pointer;
-  padding: 2px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 4px;
-  transition: color 0.15s ease;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm, 8px);
+  transition: color var(--press) var(--ease-out), background-color var(--press) var(--ease-out);
 }
 .msg-user-meta .msg-action-btn:hover {
   color: var(--text);
+  background: rgb(var(--tint) / 0.06);
 }
 
 .msg-assistant .msg-body { color: var(--text); }
@@ -3722,9 +3767,10 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   white-space: nowrap;
 }
 .trace-artifact-sub {
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
   color: var(--text-faint);
+  line-height: 1.3;
 }
 .trace-artifact-caret {
   flex: none;
@@ -3734,12 +3780,14 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 .trace-artifact-save {
   flex: none;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
-  font-size: var(--text-2xs);
+  border-radius: var(--r-xs, 6px);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--text-dim);
-  background: var(--canvas);
+  background: var(--surface-2);
   cursor: pointer;
   transition: color var(--press) var(--ease-out), border-color var(--press) var(--ease-out),
               background var(--press) var(--ease-out);
@@ -3747,9 +3795,9 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 @media (hover: hover) and (pointer: fine) {
   .trace-artifact-save:hover {
-    color: var(--on-accent);
-    background: var(--accent);
-    border-color: var(--accent);
+    color: var(--text);
+    background: var(--surface-3);
+    border-color: var(--hairline-strong);
   }
 }
 .trace-artifact-save:active { transform: scale(0.97); }
@@ -4740,6 +4788,21 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 /* Chat stays mounted while another view is on screen, so a turn in flight is
    not torn down by navigating away from it. */
+.wb-main > .main:not(.main--hidden) {
+  animation: mainFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes mainFadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 3px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 .wb-main > .main.main--hidden,
 .main--hidden { display: none !important; }
 
@@ -4920,11 +4983,11 @@ html:has(.palette--bar) body {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--hairline-strong);
-  border-radius: 24px;
+  border-radius: var(--r-xl, 16px);
   background: color-mix(in srgb, var(--raised) 92%, transparent);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
-  box-shadow: 0 32px 84px -16px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--hairline-strong), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: var(--lift);
   overflow: hidden;
   animation: damon-spring-in 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform-origin: top center;
@@ -6977,28 +7040,43 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 }
 .menu-input:focus { border-color: var(--hairline-strong); }
 
-/* iOS-style switch, because a checkbox does not read as "this is live now" */
+/* Deliberate, refined toggle switch */
 .switch {
   position: relative;
-  width: 30px;
-  height: 17px;
-  border-radius: 99px;
-  background: rgb(var(--tint) / 0.12);
+  width: 32px;
+  height: 18px;
+  padding: 0;
+  border-radius: var(--r-pill, 9999px);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
   flex: none;
-  transition: background var(--press) var(--ease-out);
+  cursor: pointer;
+  transition: background-color var(--press) var(--ease-out), border-color var(--press) var(--ease-out);
 }
+.switch .switch-knob,
 .switch span {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--text-faint);
-  transition: transform var(--press) var(--ease-out), background var(--press) var(--ease-out);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform var(--press) var(--ease-out), background-color var(--press) var(--ease-out);
 }
-.switch.on { background: var(--live-line); }
-.switch.on span { transform: translateX(13px); background: var(--live); }
+.switch.is-on,
+.switch.on {
+  background: var(--live);
+  border-color: var(--live);
+}
+.switch.is-on .switch-knob,
+.switch.is-on span,
+.switch.on .switch-knob,
+.switch.on span {
+  transform: translateX(14px);
+  background: #ffffff;
+}
 
 /* ------------------------------------------- skills and connectors, one page
 
@@ -8015,38 +8093,40 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 .switch {
   position: relative;
   flex: none;
-  width: 34px;
-  height: 20px;
+  width: 32px;
+  height: 18px;
   padding: 0;
   border: 1px solid var(--hairline-strong);
-  border-radius: 99px;
-  background: var(--canvas-deep);
+  border-radius: var(--r-pill, 9999px);
+  background: var(--surface-3);
   cursor: pointer;
-  transition: background var(--pop) var(--ease-out),
+  transition: background-color var(--pop) var(--ease-out),
               border-color var(--pop) var(--ease-out);
 }
 .switch:disabled { opacity: 0.45; cursor: default; }
 
 .switch-knob {
   position: absolute;
-  top: 1.5px;
+  top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--text-faint);
-  box-shadow: 0 1px 2px rgb(var(--shade) / 0.3);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
   transition: transform var(--pop) var(--ease-out),
-              background var(--pop) var(--ease-out);
+              background-color var(--pop) var(--ease-out);
 }
 
-.switch.is-on {
-  border-color: color-mix(in srgb, var(--live) 60%, transparent);
+.switch.is-on,
+.switch.on {
+  border-color: var(--live);
   background: var(--live);
 }
-.switch.is-on .switch-knob {
+.switch.is-on .switch-knob,
+.switch.on .switch-knob {
   transform: translateX(14px);
-  background: var(--on-accent);
+  background: #ffffff;
 }
 
 .switch:focus-visible {
@@ -8355,41 +8435,40 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   line-height: 1.5;
 }
 
-/* 2. Premium Hero Area (Cyan to Green Gradient) */
+/* 2. Clean Hero Area */
 .conn-detail-hero-box {
   position: relative;
   width: 100%;
-  border-radius: 16px;
-  padding: 48px 24px;
+  border-radius: var(--r-xl, 16px);
+  padding: 32px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 16px;
   margin-bottom: 24px;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--live) 100%);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
   overflow: hidden;
 }
 
-/* 3. Floating Prompt Pills (Translated from Tailwind Snippet) */
+/* 3. Floating Prompt Pills */
 .plugin-prompt-pill {
   display: flex;
   align-items: center;
   max-width: calc(100% - 4px);
   width: 100%;
-  background-color: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: 9999px; /* md:rounded-full */
-  padding: 12px 16px; /* py-2 ps-4 pe-2 */
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill, 9999px);
+  padding: 10px 16px;
   text-align: left;
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 20px;
-  color: rgba(3, 7, 18, 0.9);
-  box-shadow: 0 11.56px 32.38px 0 rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(23.13px);
+  color: var(--text);
   cursor: pointer;
   gap: 12px;
-  transition: max-width 200ms ease-out, gap 200ms ease-out, background-color 200ms ease-out, box-shadow 200ms ease-out;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
   text-decoration: none;
   z-index: 1;
 }
@@ -8399,14 +8478,8 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   }
 }
 .plugin-prompt-pill:hover {
-  max-width: 100%;
-  gap: 16px;
-  background-color: rgba(255, 255, 255, 0.8);
-}
-@media (min-width: 640px) {
-  .plugin-prompt-pill:hover {
-    max-width: 560px;
-  }
+  background: var(--surface-2);
+  border-color: var(--hairline-strong);
 }
 .plugin-prompt-pill-text {
   flex: 1;
@@ -9026,11 +9099,9 @@ a.text-reveal-wrap {
 }
 .status-dot.waiting {
   background: var(--confirm);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
 }
 .status-dot.error {
   background: var(--stop);
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
 }
 .status-dot.off {
   background: var(--text-faint);
@@ -11857,11 +11928,11 @@ a.text-reveal-wrap {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 5px 10px 5px 6px;
-  border-radius: 10px;
+  padding: 4px 8px;
+  border-radius: var(--r-sm, 8px);
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   background: transparent;
   flex: 1;
 }
@@ -11876,19 +11947,31 @@ a.text-reveal-wrap {
   height: 26px;
   font-size: 11.5px;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: var(--r-xs, 6px);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sb-user-avatar--xs {
   width: 20px;
   height: 20px;
   font-size: 10px;
-  border-radius: 6px;
+  border-radius: var(--r-xs, 6px);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sb-user-name-top {
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.01em;
   color: var(--text);
   max-width: 160px;
@@ -11918,19 +12001,19 @@ a.text-reveal-wrap {
   flex: 1;
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   height: 36px;
   padding: 0 12px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-radius: var(--r-sm, 8px);
   color: var(--text);
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 500;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background-color 0.16s var(--ease-out), border-color 0.16s var(--ease-out), color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out), transform 0.16s var(--ease-out), opacity 0.16s var(--ease-out), filter 0.16s var(--ease-out);
+  transition: background-color 0.16s var(--ease-out), border-color 0.16s var(--ease-out), color 0.16s var(--ease-out);
   user-select: none;
 }
 
@@ -11938,13 +12021,20 @@ a.text-reveal-wrap {
 .sb-new-chat-pill:hover {
   background: var(--surface-2);
   border-color: var(--hairline-strong);
+  transform: translateY(-0.5px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.sb-new-chat-btn:active,
+.sb-new-chat-pill:active {
+  transform: translateY(0.5px) scale(0.99);
 }
 
 .sb-search-btn-square,
 .sb-search-btn-round {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--r-sm, 8px);
   display: grid;
   place-items: center;
   background: var(--surface);
@@ -11952,7 +12042,7 @@ a.text-reveal-wrap {
   color: var(--text-dim);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.16s var(--ease-out), border-color 0.16s var(--ease-out), color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out), transform 0.16s var(--ease-out), opacity 0.16s var(--ease-out), filter 0.16s var(--ease-out);
+  transition: background-color 0.16s var(--ease-out), border-color 0.16s var(--ease-out), color 0.16s var(--ease-out), transform 0.12s ease;
 }
 
 .sb-search-btn-square:hover,
@@ -11962,6 +12052,12 @@ a.text-reveal-wrap {
   background: var(--surface-2);
   color: var(--text);
   border-color: var(--hairline-strong);
+}
+
+.sb-search-btn-square:active,
+.sb-search-btn-round:active,
+.sb-icon-btn:active {
+  transform: scale(0.94);
 }
 
 .sb-icon-btn {
@@ -12438,10 +12534,38 @@ a.text-reveal-wrap {
 
 .sb-empty-starred,
 .sb-empty-recents {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 12px;
   font-size: 12px;
   color: var(--text-faint);
-  font-style: italic;
+}
+
+.sb-empty-starred-icon {
+  color: var(--text-faint);
+  opacity: 0.7;
+}
+
+/* Bucket Headers for Recents */
+.sb-bucket-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb-bucket-header {
+  padding: 14px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  user-select: none;
+}
+
+.sb-bucket-group:first-child .sb-bucket-header {
+  padding-top: 4px;
 }
 
 /* Conversation Items */
@@ -12449,24 +12573,54 @@ a.text-reveal-wrap {
   position: relative;
   display: flex;
   align-items: center;
-  height: 32px;
+  height: 34px;
   border-radius: 8px;
   color: var(--text-dim);
-  transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sb-conv-item:hover {
-  background: var(--surface-2);
   color: var(--text);
 }
 
-.sb-conv-item.is-active {
+.sb-conv-item:not(.is-active):hover {
   background: var(--surface-2);
+}
+
+.sb-conv-active-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  z-index: 0;
+}
+
+.sb-conv-item.is-active {
   color: var(--text);
   font-weight: 500;
 }
 
+.sb-conv-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--accent);
+  z-index: 1;
+}
+
+.sb-conv-item.is-active .sb-conv-icon {
+  color: var(--accent);
+}
+
 .sb-conv-btn {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -12508,6 +12662,8 @@ a.text-reveal-wrap {
 }
 
 .sb-conv-actions {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
 }
@@ -12635,16 +12791,16 @@ a.text-reveal-wrap {
 .sb-user-avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #8b5cf6);
-  color: #ffffff;
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  color: var(--text);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px rgb(var(--shade) / 0.12);
 }
 
 .sb-user-info {
@@ -12721,9 +12877,10 @@ a.text-reveal-wrap {
 .sb-user-popover-avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  color: var(--text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13270,12 +13427,10 @@ a.text-reveal-wrap {
 
 .wb-status-dot.is-error {
   background: var(--danger);
-  box-shadow: 0 0 8px var(--danger);
 }
 
 .wb-status-dot.is-degraded {
   background: var(--confirm);
-  box-shadow: 0 0 8px var(--confirm);
 }
 
 
@@ -15577,19 +15732,18 @@ a.text-reveal-wrap {
 .parallel-job-card {
   position: relative;
   border: 1px solid var(--hairline);
-  border-radius: 18px;
+  border-radius: var(--r-lg, 12px);
   background: var(--surface);
   overflow: hidden;
   transition: border-color var(--press) var(--ease-out), box-shadow var(--press) var(--ease-out);
 }
 
 .parallel-job-card.is-running {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-wash);
+  border-color: var(--accent-line);
 }
 
 .parallel-job-card.is-done {
-  border-color: var(--live);
+  border-color: var(--hairline);
 }
 
 .parallel-icon-wrapper {
@@ -15641,17 +15795,17 @@ a.text-reveal-wrap {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--r-sm, 8px);
   background: var(--canvas);
   border: 1px solid var(--hairline);
   font-size: 12px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   transition: border-color var(--press) var(--ease-out);
 }
 
 .parallel-node.pending { border-left: 2px solid var(--text-faint); }
 .parallel-node.running { border-left: 2px solid var(--accent); }
-.parallel-node.ok { border-left: 2px solid var(--live); }
+.parallel-node.ok { border-left: 2px solid var(--live-line); }
 .parallel-node.failed { border-left: 2px solid var(--coral); }
 
 .parallel-node-indicator {
@@ -15665,8 +15819,8 @@ a.text-reveal-wrap {
   flex-shrink: 0;
 }
 
-.parallel-node.ok .parallel-node-indicator { background: var(--live); color: var(--canvas); }
-.parallel-node.failed .parallel-node-indicator { background: var(--coral); color: var(--canvas); }
+.parallel-node.ok .parallel-node-indicator { background: var(--live-soft); color: var(--live-ink); }
+.parallel-node.failed .parallel-node-indicator { background: var(--stop-soft); color: var(--stop); }
 
 .parallel-node-spinner {
   width: 10px;
@@ -15683,6 +15837,7 @@ a.text-reveal-wrap {
 
 .parallel-node-id {
   color: var(--text);
+  font-family: var(--font-mono);
   font-weight: 500;
   min-width: 72px;
   font-size: 11px;
@@ -15690,8 +15845,9 @@ a.text-reveal-wrap {
 
 .parallel-node-task {
   color: var(--text-dim);
+  font-family: var(--font-sans);
   flex: 1;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .parallel-node-time {
@@ -16629,10 +16785,10 @@ a.text-reveal-wrap {
 .ob-floating-preview {
   position: relative;
   width: 100%;
-  border-radius: 13px;
-  border: 1.5px solid var(--accent, #3b82f6);
-  background: #11131a;
-  box-shadow: 0 0 24px -2px rgba(59, 130, 246, 0.35);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--hairline);
+  background: var(--surface-2);
+  box-shadow: var(--lift);
   box-sizing: border-box;
 }
 
@@ -18525,68 +18681,69 @@ a.text-reveal-wrap {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
-  box-shadow: 0 0 12px var(--accent-wash);
 }
 
 /* Switches */
 .switch {
-  width: 36px;
-  height: 20px;
+  width: 32px;
+  height: 18px;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--text) 16%, transparent);
-  border: 1px solid var(--hairline-strong);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
   position: relative;
   cursor: pointer;
-  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   padding: 2px;
   display: inline-flex;
   align-items: center;
 }
 
 .switch:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 
 .switch-knob {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 9999px;
   background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.switch.is-on .switch-knob {
-  transform: translateX(16px);
+.switch.is-on .switch-knob,
+.switch.on .switch-knob {
+  transform: translateX(14px);
 }
 
-.switch.is-on {
+.switch.is-on,
+.switch.on {
   background: var(--accent);
   border-color: var(--accent);
 }
 
-.switch--green.is-on {
+.switch--green.is-on,
+.switch--green.on {
   background: #10b981 !important;
   border-color: #059669 !important;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
 }
 
-.switch--amber.is-on {
+.switch--amber.is-on,
+.switch--amber.on {
   background: #f59e0b !important;
   border-color: #d97706 !important;
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
 }
 
-.switch--blue.is-on {
+.switch--blue.is-on,
+.switch--blue.on {
   background: #3b82f6 !important;
   border-color: #2563eb !important;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
 }
 
-.switch--purple.is-on {
-  background: #a855f7 !important;
-  border-color: #9333ea !important;
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+.switch--purple.is-on,
+.switch--purple.on {
+  background: #7132f5 !important;
+  border-color: #5b21b6 !important;
 }
 
 /* Segmented Control Pill */
@@ -18886,7 +19043,6 @@ a.text-reveal-wrap {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--text);
-  box-shadow: 0 0 12px var(--accent-wash);
 }
 
 /* Latency pills */
@@ -18932,7 +19088,6 @@ a.text-reveal-wrap {
   height: 6px;
   border-radius: 50%;
   background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
 }
 
 /* Usage Tab Segmented Micro-Bar Meter */
@@ -19255,13 +19410,13 @@ a.text-reveal-wrap {
 .about-app-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), #4338ca);
+  border-radius: var(--r-lg, 12px);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 4px 12px var(--accent-wash);
+  color: var(--accent);
   flex-shrink: 0;
 }
 
@@ -19634,7 +19789,7 @@ a.text-reveal-wrap {
 .rc-sub {
   margin: 2px 0 0;
   font-size: 0.82rem;
-  color: var(--muted, #8a8a90);
+  color: var(--text-dim);
 }
 
 .rc-tabs {
@@ -19654,14 +19809,14 @@ a.text-reveal-wrap {
   min-height: 36px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid var(--line, #2a2a30);
+  border: 1px solid var(--hairline);
   background: transparent;
   color: inherit;
   font-size: 0.85rem;
   max-width: 60vw;
 }
 .rc-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rc-tab.is-active { background: var(--accent, #7c5cff); border-color: transparent; color: #fff; }
+.rc-tab.is-active { background: var(--accent); border-color: transparent; color: #fff; }
 
 .rc-thread {
   flex: 1 1 auto;
@@ -19678,35 +19833,35 @@ a.text-reveal-wrap {
   font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted, #8a8a90);
+  color: var(--text-dim);
 }
 
 .rc-body { white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
 
 .rc-msg--user .rc-body {
   align-self: flex-end;
-  background: var(--accent, #7c5cff);
+  background: var(--accent);
   color: #fff;
   padding: 10px 13px;
   border-radius: 14px 14px 4px 14px;
 }
 
 .rc-msg--phase .rc-body,
-.rc-msg--queued .rc-body { color: var(--muted, #8a8a90); font-style: italic; }
+.rc-msg--queued .rc-body { color: var(--text-dim); font-style: italic; }
 
 .rc-composer {
   display: flex;
   gap: 8px;
   align-items: flex-end;
   padding: 10px 0 max(16px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--line, #2a2a30);
+  border-top: 1px solid var(--hairline);
 }
 
 .rc-input {
   flex: 1 1 auto;
   resize: none;
   border-radius: 12px;
-  border: 1px solid var(--line, #2a2a30);
+  border: 1px solid var(--hairline);
   background: transparent;
   color: inherit;
   padding: 10px 12px;
@@ -19724,7 +19879,7 @@ a.text-reveal-wrap {
   justify-content: center;
   border: none;
   border-radius: 12px;
-  background: var(--accent, #7c5cff);
+  background: var(--accent);
   color: #fff;
 }
 .rc-send:disabled { opacity: 0.4; }
@@ -19737,7 +19892,7 @@ a.text-reveal-wrap {
   align-items: center;
   gap: 10px;
   max-width: 34ch;
-  color: var(--muted, #8a8a90);
+  color: var(--text-dim);
 }
 .rc-empty h2 { margin: 0; font-size: 1.05rem; color: inherit; }
 .rc-empty code { font-size: 0.85em; }
@@ -19762,7 +19917,7 @@ a.text-reveal-wrap {
   align-items: center;
   justify-content: center;
   padding: 24px 16px max(24px, env(safe-area-inset-bottom));
-  background: var(--bg, #0d0d10);
+  background: var(--canvas-deep);
 }
 
 .pair-card {
@@ -19771,7 +19926,18 @@ a.text-reveal-wrap {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* A surface, in the same terms every other card in this interface uses. It
+     had none -- no background, no border, no radius -- which left the whole
+     screen as unstyled text floating on the canvas. */
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 22px 20px;
+  box-shadow: var(--shadow-micro);
 }
+
+.pair-card > svg { color: var(--accent); }
+.pair-card h1 { color: var(--text); }
 
 .pair-card h1 { margin: 4px 0 0; font-size: 1.4rem; }
 
@@ -19779,7 +19945,7 @@ a.text-reveal-wrap {
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.55;
-  color: var(--muted, #8a8a90);
+  color: var(--text-dim);
 }
 
 .pair-steps {
@@ -19787,13 +19953,13 @@ a.text-reveal-wrap {
   padding-left: 20px;
   font-size: 0.88rem;
   line-height: 1.85;
-  color: var(--muted, #8a8a90);
+  color: var(--text-dim);
 }
 .pair-steps code {
   font-size: 0.85em;
   padding: 1px 5px;
   border-radius: 5px;
-  background: var(--line, #2a2a30);
+  background: var(--hairline);
   color: var(--fg, #e8e8ea);
 }
 
@@ -19801,7 +19967,7 @@ a.text-reveal-wrap {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted, #8a8a90);
+  color: var(--text-dim);
   margin-top: 4px;
 }
 
@@ -19810,21 +19976,24 @@ a.text-reveal-wrap {
   min-height: 48px;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--line, #2a2a30);
+  border: 1px solid var(--hairline);
   background: transparent;
   color: inherit;
   font: inherit;
   font-size: 16px;   /* below this, iOS zooms on focus */
 }
-.pair-input:focus { outline: 2px solid var(--accent, #7c5cff); outline-offset: 1px; }
+.pair-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pair-input--code { letter-spacing: 0.12em; text-transform: uppercase; }
+
+.pair-steps li { color: var(--text-dim); }
+.pair-steps strong { color: var(--text); font-weight: 600; }
 
 .pair-go {
   min-height: 50px;
   margin-top: 8px;
   border: none;
   border-radius: 12px;
-  background: var(--accent, #7c5cff);
+  background: var(--accent);
   color: #fff;
   font: inherit;
   font-size: 1rem;
@@ -19846,7 +20015,7 @@ a.text-reveal-wrap {
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
-  background: var(--bg, #0d0d10);
+  background: var(--canvas-deep);
 }
 .remote-only > * { flex: 1 1 auto; min-height: 0; }
 
@@ -19856,9 +20025,346 @@ a.text-reveal-wrap {
   min-height: 44px;
   padding: 0 12px;
   border-radius: 12px;
-  border: 1px solid var(--line, #2a2a30);
+  border: 1px solid var(--hairline);
   background: transparent;
-  color: var(--muted, #8a8a90);
+  color: var(--text-dim);
   font: inherit;
   font-size: 0.82rem;
+}
+
+
+/* ── Pairing: the states, the scanner, the code ───────────────────────────
+   Added with the QR flow. The layout rules above still hold -- one column,
+   100dvh, safe-area insets, 44px targets, 16px inputs -- and these are the
+   pieces that flow needed: a screen per outcome instead of one form with an
+   error line under it, and somewhere to put a camera. */
+
+/* One outcome, centred. Every phase uses this so the card does not resize
+   between "pairing" and "paired" and make the page jump. */
+.pair-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 18px 0;
+  min-height: 210px;
+  justify-content: center;
+}
+.pair-state h1 { margin: 0; font-size: 1.25rem; }
+.pair-state .pair-sub { max-width: 34ch; }
+.pair-state--ok { color: var(--live); }
+.pair-state--bad { color: var(--stop); }
+/* The heading and body go back to normal text; only the icon carries the
+   colour, because a whole card of red reads as a crash rather than an answer. */
+.pair-state--ok h1,
+.pair-state--bad h1 { color: var(--text); }
+.pair-state--ok .pair-sub,
+.pair-state--bad .pair-sub { color: var(--text-dim); }
+.pair-state .pair-go { margin-top: 6px; min-width: 200px; }
+
+.pair-spinner {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--hairline);
+  border-top-color: var(--accent);
+  animation: pair-spin 0.8s linear infinite;
+}
+@keyframes pair-spin { to { transform: rotate(360deg); } }
+/* Someone who has asked for less motion still needs to know it is working, so
+   the spinner stops turning and pulses instead of disappearing. */
+@media (prefers-reduced-motion: reduce) {
+  .pair-spinner { animation: pair-pulse 1.6s ease-in-out infinite; }
+  @keyframes pair-pulse { 50% { opacity: 0.35; } }
+}
+
+.pair-manual { display: contents; }
+
+/* The quieter of the two actions: typing the code, cancelling a scan, leaving
+   for the desktop interface. Still 44px, because it is still a thumb. */
+.pair-secondary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  padding: 0 14px;
+}
+
+.pair-escape,
+.rc-escape {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(10px, env(safe-area-inset-bottom));
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.78rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+/* ── The scanner ─────────────────────────────────────────────────────────── */
+
+.qr-scan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-scan-frame {
+  position: relative;
+  width: 100%;
+  /* Square, and capped so it cannot push the hint and the cancel button off a
+     short screen in landscape. */
+  aspect-ratio: 1;
+  max-height: 60dvh;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+}
+
+.qr-scan-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Corners rather than a full box: it says where to aim without covering the
+   thing being aimed at. */
+.qr-scan-reticle {
+  position: absolute;
+  inset: 14%;
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: -1px;
+}
+
+.qr-scan-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  max-width: 32ch;
+}
+
+/* ── Remote: stopping a turn, and the way back out ───────────────────────── */
+
+.rc-stop {
+  margin-left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  vertical-align: middle;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--stop);
+  font: inherit;
+  font-size: 0.75rem;
+  font-style: normal;
+  padding: 4px 9px;
+  /* Smaller than 44px on purpose: it sits inline in a status line, and the
+     surrounding row is the target. Kept reachable by the padding. */
+  min-height: 32px;
+}
+
+/* The composer is pinned; the escape hatch must not sit on top of it. */
+.rc-escape { position: static; transform: none; margin: 0 auto 4px; }
+
+/* ── The pairing code, on the machine showing it ─────────────────────────── */
+
+/* White, in every theme, and not negotiable: a QR code inverted to light
+   modules on a dark background is one a good half of scanners will not read.
+   The card is what guarantees the quiet zone and the contrast, whatever theme
+   the interface is in. */
+.qr-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  width: min(232px, 62vw);
+  align-self: center;
+  line-height: 0;
+}
+.qr-card svg { width: 100%; height: auto; display: block; }
+
+.pair-invite {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.pair-invite-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+
+/* ══ Responsive: tablet and below ═════════════════════════════════════════
+ *
+ * One block, at the end, on purpose. The rules above were written per-surface
+ * over time and use eleven different breakpoints between 480px and 1280px; this
+ * does not try to rewrite them. It fixes the surfaces that actually overflow a
+ * 390px viewport, at the two widths that change the shape of the application.
+ *
+ * The scale, so the next person adds to it rather than inventing a twelfth:
+ *
+ *   --bp-phone   599.98px   below this it is a handheld  (see `usePhone`)
+ *   --bp-tablet  899.98px   below this there is no room for a second column
+ *   --bp-desktop 1279.98px  below this the panel competes with the stage
+ *
+ * `COMPACT_QUERY` in `hooks/useMediaQuery.js` (859.98px) is the one the
+ * JavaScript also reads -- it decides whether the rail is a drawer -- and is
+ * deliberately left where it is rather than moved onto this scale, because
+ * changing it changes behaviour and not only appearance.
+ *
+ * Custom properties cannot be used in a media query, so these are documentation
+ * rather than machinery. That is what they are for here.
+ */
+:root {
+  --bp-phone: 599.98px;
+  --bp-tablet: 899.98px;
+  --bp-desktop: 1279.98px;
+}
+
+@media (max-width: 899.98px) {
+  /* Nothing may scroll the page sideways. A single element wider than the
+     viewport makes every other fix here invisible, so this is first. */
+  html, body { max-width: 100%; overflow-x: hidden; }
+
+  /* ── Settings ──────────────────────────────────────────────────────────
+     A 236px fixed nav column beside the content left 154px for the content on
+     a 390px screen. Below tablet the nav becomes a horizontal strip above it,
+     which is the same information in the shape that fits. */
+  .settings-view { flex-direction: column !important; }
+
+  .settings-view .set-nav {
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--hairline) !important;
+    padding: 8px 12px !important;
+    scrollbar-width: none;
+  }
+  .settings-view .set-nav::-webkit-scrollbar { display: none; }
+
+  /* The groups are vertical stacks with labels, which is the wrong shape in a
+     strip: the labels become headings between buttons in a row. */
+  .settings-view .set-nav-group { display: contents !important; }
+  .settings-view .set-nav-group-label { display: none !important; }
+
+  /* An earlier rule at this width turns the nav into a 56px icon-only rail and
+     hides these. It has been dead since `.settings-view .set-nav` took a
+     `width: 236px !important` -- which is the whole reason settings overflowed
+     a phone rather than falling back to icons. The strip has room for words,
+     so they come back. */
+  .settings-view .set-nav .set-nav-label {
+    display: inline !important;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  /* The header is a title with a rule under it in the vertical layout. In a
+     strip that rule becomes a vertical line in the middle of the row. */
+  .settings-view .set-nav-header {
+    flex: 0 0 auto;
+    margin-bottom: 0 !important;
+    padding: 0 8px 0 0 !important;
+    border-bottom: none !important;
+  }
+
+  /* `width: auto` is the one that matters. The vertical layout sets
+     `width: 100% !important`, and in a row that made every item as wide as the
+     viewport -- ten sections at 366px each, one visible at a time, behind
+     3600px of horizontal scrolling. `flex: 0 0 auto` alone does not undo it,
+     because the basis resolves to that width. */
+  .settings-view .set-nav-item {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap;
+    min-height: 40px;
+    height: auto !important;
+    padding: 0 12px !important;
+  }
+
+  /* A row is a label beside a control. Below tablet there is not width for
+     both, so it becomes a label above a control. This is also what neutralises
+     the fixed `minWidth` inline styles in Settings.jsx -- they are the reason
+     several of these rows overflowed rather than wrapped, and a rule here
+     reaches all twelve of them without touching a 3800-line file. */
+  .settings-view .set-box-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .settings-view .set-box-row > * { min-width: 0 !important; max-width: 100%; }
+  .settings-view .set-row-text { flex: 1 1 100%; min-width: 0; }
+  .set-input { width: 100%; box-sizing: border-box; }
+
+  /* ── The workbench ─────────────────────────────────────────────────────
+     The detail panel is a fourth column on a screen with room for one and a
+     half. The rail already becomes a drawer on its own at 860px. */
+  .wb-panel { display: none !important; }
+  .wb-main { min-width: 0; }
+
+  /* ── Overlays ──────────────────────────────────────────────────────────
+     Each of these was sized for a desktop window and centred, so on a narrow
+     screen they hung off both edges. */
+  .palette, .modal, .modal-card {
+    width: min(100%, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    box-sizing: border-box;
+  }
+
+  /* The terminal is a developer tool on a device with no keyboard to speak of.
+     It keeps working; it just does not open onto most of the screen. */
+  .terminal-drawer { max-height: 60dvh; }
+}
+
+@media (max-width: 599.98px) {
+  /* Full height that accounts for the browser's own chrome. `100vh` on iOS is
+     taller than the visible area, which put every pinned composer under the
+     address bar. */
+  .settings-view, .wb, .app { min-height: 100dvh; }
+
+  /* 16px, or iOS zooms the page when a field takes focus -- which on a phone
+     reads as the layout breaking. */
+  input, textarea, select { font-size: 16px; }
+
+  .settings-view .set-panel-frame { padding: 14px 14px 20px !important; }
+  .settings-view .set-panel { max-width: 100% !important; }
+
+  /* The notch, and the home indicator. */
+  .wb-bar { padding-top: max(0px, env(safe-area-inset-top)); }
+}
+
+/* A pointer that cannot hover is a finger, and a finger needs somewhere to
+   land. Keyed on the input rather than the width so it also covers a touch
+   laptop, and scoped to controls that were sized for a mouse. */
+@media (pointer: coarse) {
+  .set-btn-sm,
+  .set-nav-item,
+  .rc-tab,
+  .sb-place-item,
+  .sb-conv-item,
+  .wb-bar button {
+    min-height: 44px;
+  }
 }

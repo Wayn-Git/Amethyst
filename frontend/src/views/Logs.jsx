@@ -226,7 +226,7 @@ export default function Logs() {
               {LIMITS.map((n) => <option key={n} value={n}>last {n}</option>)}
             </select>
           </label>
-          <span className="log-count mono">
+          <span className="log-count">
             {loaded ? `${filtered.length} row${filtered.length === 1 ? '' : 's'}` : 'loading…'}
           </span>
         </div>

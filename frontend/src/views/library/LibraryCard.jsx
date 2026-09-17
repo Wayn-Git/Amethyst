@@ -177,7 +177,7 @@ function LibraryCardComponent({
                 onEnrich?.(item)
               }}
             >
-              <Icon name="spark" size={13} />
+              <Icon name="brain" size={13} />
             </button>
           )}
           {item.indexed && (
@@ -388,8 +388,10 @@ function LibraryCardComponent({
           </div>
 
           {item.rating ? (
-            <div className="lib-card-rating-stars" title={`Rated ${item.rating} stars`}>
-              {'★'.repeat(item.rating)}
+            <div className="lib-card-rating-stars" title={`Rated ${item.rating} star${item.rating !== 1 ? 's' : ''}`}>
+              {Array.from({ length: item.rating }).map((_, i) => (
+                <Icon key={i} name="star" size={11} filled />
+              ))}
             </div>
           ) : null}
         </div>

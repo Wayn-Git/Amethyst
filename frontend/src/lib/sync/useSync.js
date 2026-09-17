@@ -60,6 +60,16 @@ export function useSync(enabled, onPreferences) {
       // -- the two cases where somebody is looking at the screen waiting.
       reschedule(queued() > 0 || result.applied ? ACTIVE_MS : IDLE_MS)
       setLast(result)
+      /* A poll that did not happen is worth announcing too.
+       *
+       * Most reasons are transient and the status line is the right place for
+       * them, but `revoked` is not a poll that will work later -- it is the end
+       * of this pairing, decided on the machine, and this is the only moment
+       * this device can learn about it. Broadcast rather than returned, because
+       * the view that has to act on it is not the one that owns this poll. */
+      if (!result.synced && result.reason) {
+        window.dispatchEvent(new CustomEvent('amethyst:sync-failed', { detail: result }))
+      }
       if (result.synced && result.applied) {
         const changed = projectPreferences()
         if (Object.keys(changed).length) onPreferences?.(changed)
@@ -74,7 +84,10 @@ export function useSync(enabled, onPreferences) {
     // Once on mount, so opening the app shows what changed while it was closed
     // rather than making the user wait out a full interval for it.
     tick()
-    timer = setInterval(tick, INTERVAL_MS)
+    // `interval`, not a constant: `reschedule` above returns early when the
+    // rate has not changed, so on the idle path it never creates the first
+    // timer. This is the one that has to exist.
+    timer = setInterval(tick, interval)
     const onVisible = () => { if (document.visibilityState === 'visible') tick() }
     document.addEventListener('visibilitychange', onVisible)
 

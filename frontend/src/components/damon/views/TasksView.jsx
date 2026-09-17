@@ -38,7 +38,7 @@ export default function TasksView({
       const nextStatus = task.status === 'completed' ? 'todo' : 'completed'
       await api.updateTask(task.id, { status: nextStatus })
       onRefreshTasks?.()
-      onToast?.(nextStatus === 'completed' ? 'Task completed ✓' : 'Task marked to do', 'ok')
+      onToast?.(nextStatus === 'completed' ? 'Task completed' : 'Task marked to do', 'ok')
     } catch {
       onToast?.('Could not update task', 'bad')
     } finally {
@@ -52,7 +52,7 @@ export default function TasksView({
     try {
       await api.updateTask(task.id, { important: !task.important })
       onRefreshTasks?.()
-      onToast?.(task.important ? 'Removed star' : 'Marked important ★', 'ok')
+      onToast?.(task.important ? 'Removed from important' : 'Marked as important', 'ok')
     } catch {
       onToast?.('Could not update task', 'bad')
     } finally {
@@ -183,7 +183,12 @@ export default function TasksView({
                   <div className="damon-task-tags">
                     {t.due_at && (
                       <span className={`damon-task-pill${isOverdue ? ' is-overdue' : ''}`}>
-                        {isOverdue ? '⚠ Overdue' : `Due ${t.due_at}`}
+                        {isOverdue ? (
+                          <>
+                            <Icon name="alert" size={10} style={{ marginRight: 4 }} />
+                            Overdue
+                          </>
+                        ) : `Due ${t.due_at}`}
                       </span>
                     )}
                     {t.my_day && <span className="damon-task-pill is-myday">My Day</span>}

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, onServerState, serverState, wakeBackend } from './api.js'
 import { byId, pathFor } from './nav.js'
-import { useCompact } from './hooks/useMediaQuery.js'
+import { useCompact, usePhone } from './hooks/useMediaQuery.js'
 
 import { safeStorage } from './lib/storage.js'
 import { useSync } from './lib/sync/useSync.js'
@@ -239,6 +239,7 @@ export function AppProvider({ children }) {
      beside it, so "is the rail showing" stops being one persisted preference
      and becomes two different questions. See `railOpen` below. */
   const compact = useCompact()
+  const isPhone = usePhone()
 
   // The URL is the source of truth now. `view` is derived from it every
   // render rather than tracked as its own state, so a browser back/forward
@@ -736,9 +737,21 @@ export function AppProvider({ children }) {
   useEffect(() => { if (ready) refreshCaps() }, [ready, refreshCaps])
   useEffect(() => { if (ready) refreshUserProfile() }, [ready, refreshUserProfile])
 
-  // The phone's poll. Only where there is no backend: a machine running its own
-  // server already syncs through RelayPoller in Python, and a second poll from
-  // the browser beside it would be two devices' worth of requests for one.
+  /* The phone's poll.
+   *
+   * The question this answers is "is this browser a control device, or is it
+   * the machine's own interface". A machine syncs through `RelayPoller` in
+   * Python already, and a second poll from the browser sitting on top of it
+   * would be two devices' worth of requests for one device.
+   *
+   * "No backend answers" was the whole test, and it is only half of one. It is
+   * right for a phone out in the world. It is wrong for a phone on the same
+   * network as the machine, where the server does answer -- and that phone is
+   * still not the machine. It got the remote view and then never polled, so the
+   * transcript it showed was whatever had arrived before, forever.
+   *
+   * A handheld is never the machine, so it polls either way.
+   */
   const onSyncedPrefs = useCallback((changed) => {
     if (changed.theme !== undefined) { setThemeRaw(changed.theme); applyTheme(changed.theme) }
     if (changed.accentColor !== undefined) {
@@ -746,7 +759,7 @@ export function AppProvider({ children }) {
       applyAccentColor(changed.accentColor)
     }
   }, [])
-  useSync(server.phase !== 'ready', onSyncedPrefs)
+  useSync(server.phase !== 'ready' || isPhone, onSyncedPrefs)
 
   // What the user changed on another device. Runs once the backend answers, on
   // the same "wait for the wake" rule as the four above. The theme and accent

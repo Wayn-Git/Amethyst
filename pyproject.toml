@@ -19,6 +19,13 @@ dependencies = [
     # take away. Python has no AEAD in the standard library and hand-rolling one
     # is not a corner worth cutting.
     "cryptography>=43.0",
+    # The QR code a phone points its camera at. Pure Python and dependency-free,
+    # which is why it is here rather than behind an extra: a QR symbol is
+    # Reed-Solomon error correction plus mask evaluation, there is no standard
+    # library for it, and pairing is the one flow where "type these 32
+    # characters" is the difference between a feature people use and one they
+    # do not. See backend/sync/devices.py, pairing_payload.
+    "segno>=1.6",
 ]
 
 [project.optional-dependencies]

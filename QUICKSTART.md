@@ -100,18 +100,20 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 # 2. Install Python dependencies
 pip install -r requirements.txt
 
-# 3. Initialize AMETHYST database & configuration
-amethyst init
-
-# 4. Build the web frontend
-cd frontend
-npm install
-npm run build
-cd ..
-
-# 5. Start the server
+# 3. Start everything
 amethyst serve --open
 ```
+
+`amethyst serve` is the whole thing. It prepares the database on first run,
+builds the web interface if there is not one yet, and starts every background
+service — automations, reminders, the journal, both job lanes, the relay poll,
+the browser watcher and your MCP connectors — inside the one process. It then
+prints which optional pieces are configured and which are not, so a phone that
+will not pair tells you the relay is missing rather than leaving you guessing.
+
+Useful variations: `--no-build` skips the interface build, `--rebuild` forces
+one, `--port 8001` moves it, and `--dev` runs the API with reload alongside the
+Vite dev server.
 
 ---
 
@@ -156,8 +158,13 @@ amethyst secrets set amethyst/groq
 | `./run.sh --dev` | Starts backend with hot-reload + Vite dev server concurrently |
 | `./run.sh --doctor` / `run.bat --doctor` | Runs system diagnostics (checks models, DB, tools, connectors) |
 | `./run.sh --build` | Rebuilds the frontend bundle |
+| `amethyst serve` | Starts everything: database, interface, and every background service |
+| `amethyst serve --dev` | The same, with reload and the Vite dev server |
 | `amethyst doctor` | Checks what is working and what is missing |
 | `amethyst chat "Hello"` | Run a chat turn directly from your terminal |
+| `amethyst device --pair` | Shows a scannable QR code to pair a phone |
+| `amethyst device` | Lists paired devices |
+| `amethyst device --revoke <id>` | Disconnects one |
 
 ---
 
@@ -186,6 +193,39 @@ Yes! Simply run:
 ./run.sh --dev
 ```
 This starts the backend on port `8000` and the Vite dev server on `http://127.0.0.1:5173`.
+
+---
+
+## 📱 Using Amethyst From Your Phone
+
+Your computer keeps your files and runs your work. Your phone attaches to it,
+watches what it publishes, and can send it more. Everything between the two is
+sealed — the relay carrying it cannot read any of it.
+
+**On your computer:** open **Settings → Devices** and press **Pair a device**.
+A QR code appears, good for five minutes, once.
+
+**On your phone:** open Amethyst and point the camera at the code. That is the
+whole flow — the code carries the relay address as well as the secret, so there
+is nothing to type and nothing to configure.
+
+Two things make this smoother if you set them up:
+
+- **A relay.** Pairing completes through it, so without one nothing can answer
+  your phone. `amethyst serve` says so at startup if it is missing. See
+  [relay/README.md](relay/README.md).
+- **Where your phone opens Amethyst** (Settings → Devices). Set this and the QR
+  code becomes an ordinary `https` link that your phone's own camera app opens
+  by itself. Leave it blank and the code still works — it just has to be scanned
+  from the pairing screen inside the app.
+
+To disconnect a phone, press **Revoke** beside it. Anything it had queued is
+cancelled in the same breath, and it stops being recognised within one poll.
+Pair it again the same way.
+
+> Opening Amethyst on a phone always shows the pairing screen or the remote
+> control, never the desktop interface — that layout needs a screen a phone does
+> not have. If you want it anyway, add `?desktop=1` to the address.
 
 ---
 

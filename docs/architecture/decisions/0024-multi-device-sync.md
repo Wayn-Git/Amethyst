@@ -273,13 +273,114 @@ An op that cannot be applied is acknowledged and dropped rather than retried
 forever. The same call `_take` already makes about an unverifiable delivery, for
 the same reason: one poisonous item must not block the queue behind it.
 
+## Amendment: what pairing actually asks of a person
+
+The decisions above were right and are unchanged. What was wrong was the last
+mile, and it was wrong in a way the design above did not notice: *"pairing
+carries a 160-bit secret in a QR code"* was true of the protocol and false of the
+product. Nothing drew a QR code. `amethyst device --pair` printed the words
+"Scan this" above a bare `amethyst://pair?s=…` URL -- a custom scheme, which is
+the one thing a phone's camera cannot act on -- and the phone was asked to type
+that secret *and* a `workers.dev` address into two text fields.
+
+So the handshake was one round trip and the setup was a configuration exercise.
+Four changes, none of which touch the protocol:
+
+**The payload carries the relay address, and is a link where it can be.** With
+an app URL configured it is `https://<app>/pair#s=…&r=…`, which a phone's own
+camera app opens directly into the pairing screen with both fields filled. The
+secret rides in the *fragment*, so it is never sent to a server, never reaches an
+access log, and never appears in the `Referer` of anything the page loads next.
+Without an app URL it degrades to `amethyst://pair?s=…&r=…`, which the in-app
+scanner and the clipboard can still use. Either way the relay address travels
+with the secret, because this machine already knows it and typing it was the step
+that made this feel like configuration.
+
+**The code is drawn.** `segno` -- pure Python, no dependencies -- renders an SVG
+for the Devices panel and half-blocks for the terminal. A QR encoder is
+Reed-Solomon plus mask evaluation and there is no standard library for it; this
+is the one new runtime dependency the amendment adds.
+
+**Expiry is said out loud.** `devices.accept` returned `None` for *"the code
+expired"*, *"no code is open"* and *"that offer does not open"* alike and sent
+nothing back, so a phone offering itself against a five-minute-old code learned
+nothing for two minutes and then reported a timeout -- which reads as "your
+laptop is asleep" and sends somebody to check the wrong thing. It now returns a
+plaintext `{request_id, refused}` marker when there is no code open to check
+against. Nothing is disclosed: the request id is the relay's own routing key and
+it already holds it. A **wrong secret against an open code stays silent**, which
+is the stranger-probing case, and must also stay cheap -- see the note in
+`accept` about the remotely triggerable lockout that counting these once caused.
+
+**The wait is one round trip, not three.** The offer waited for the machine's
+next 15-second poll and the answer waited for the one after it, so pairing took
+up to half a minute. `InstagramRunner` already ticks every five seconds and
+already exposes `nudge()`, so: opening a code nudges the poll and drops the tick
+to one second while `devices.pairing_open()`, and an answer in hand goes back
+immediately rather than at the next interval. Measured end to end against the
+deployed Worker: **7.2 seconds**. Bounded twice over -- only while a code is on
+screen, which is five minutes at the outside, and only when somebody pressed the
+button that opened it.
+
+### Which device gets which interface
+
+`frontend/src/App.jsx` decided this on *"did the backend answer"*, which is a
+proxy for "is this a phone" that is right for a phone out in the world and wrong
+for one on the same network as the machine. At home the server answers,
+`verified` goes true, and a 390px screen was handed the four-column workbench.
+
+Form factor is the honest question, because it is the one whose answer decides
+which interface is wanted. `usePhone()` asks it as a media query on the screen's
+*short* side -- narrow in portrait, or short in landscape -- which excludes the
+tablet that a `pointer: coarse` test catches and that has the screen for the real
+interface. `?desktop=1` is the way out for anyone who disagrees, and it sticks.
+
+The same correction applies one layer down: the browser's sync poll ran only
+where no backend answered, so a paired phone at home rendered the remote view and
+then never polled it.
+
+## Amendment: the surface a non-loopback bind exposes
+
+The Consequences below say the HTTP API "stays loopback-only". That was a
+statement about the default, not about what the code enforced: `amethyst serve
+--host 0.0.0.0` printed a warning and published the whole API -- shell, files,
+mail -- on the local network. The reason people pass that flag is that they want
+their phone to load the interface, so the warning was aimed precisely at the
+person with the best reason to ignore it.
+
+`RemoteCallerGuard` in `backend/api/main.py` makes the sentence true. When, and
+only when, the server is bound somewhere other than loopback, a peer that is not
+this machine gets the static interface, `GET /api/ping`, and `POST
+/api/pair/claim`; everything else is 403 and a WebSocket upgrade is closed
+unaccepted. Bound to loopback it does not run at all, because the operating
+system is already the boundary and a check there could only ever refuse a request
+that came from this machine.
+
+`/api/pair/claim` is the same `devices.accept` handshake over a shorter wire: a
+phone on the same network has no reason to send its offer to Cloudflare and back.
+Unauthenticated by necessity -- a device with no credential is what it exists to
+give one to -- and safe for the same reason the relay's `/pair` is.
+
+It is **pure ASGI middleware, not `@app.middleware("http")`**. Starlette's
+`BaseHTTPMiddleware` runs the application inside a task group and pumps the
+response through a memory stream; this application streams a turn over a POST,
+holds an SSE control stream open and runs a PTY over a WebSocket. It was also
+enough to reorder background work against a request, which a rule this simple
+should not be able to do.
+
+**This does nothing behind a reverse proxy**, where every request arrives from
+loopback. That is the deployment `docs/deployment.md` describes and the proxy is
+where authentication belongs in it.
+
 ## Consequences
 
 `ADR-0011` no longer holds: there is now a credential, and there is now something
 to authenticate to. The scope boundary it drew -- "AMETHYST v1 is explicitly not
 designed to be exposed on a network" -- is unchanged for the HTTP API, which
-stays loopback-only. What is exposed is the relay, which was already public and
-is now additionally unable to read what it carries.
+stays loopback-only by default -- and, since the amendment above, by enforcement
+rather than only by convention when it is bound elsewhere. What is exposed is the
+relay, which was already public and is now additionally unable to read what it
+carries.
 
 Adding a synced table is one entry in `backend/sync/registry.py`. Adding a device
 type is a role. Neither changes the wire protocol, which is the same property

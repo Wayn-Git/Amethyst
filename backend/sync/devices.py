@@ -37,10 +37,12 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import os
 import sqlite3
 import time
 import uuid
 from dataclasses import dataclass
+from urllib.parse import urlencode
 
 import secrets as stdlib_secrets
 
@@ -229,7 +231,60 @@ class Pairing:
 _open_pairing: Pairing | None = None
 
 
-def open_pairing(name_hint: str = "") -> tuple[str, str]:
+#: Where the interface this machine's phone loads is hosted, in `app_settings`.
+#: Unset on a machine nobody has published a frontend for, which is the case the
+#: `amethyst://` fallback below exists for.
+APP_URL_KEY = "sync.app_url"
+
+
+def app_url(conn: sqlite3.Connection | None = None) -> str:
+    """The address a phone opens this app at, or "" if nobody has said.
+
+    The environment wins, so a deployment can set it without a database write;
+    otherwise it is a setting somebody typed into the Devices panel.
+    """
+    from_env = os.environ.get("AMETHYST_APP_URL", "").strip()
+    if from_env:
+        return from_env.rstrip("/")
+    if conn is None:
+        return ""
+    row = conn.execute(
+        "SELECT value FROM app_settings WHERE key = ?", (APP_URL_KEY,)
+    ).fetchone()
+    return str(row[0]).strip().rstrip("/") if row and row[0] else ""
+
+
+def pairing_payload(secret: str, *, app: str = "", relay: str = "") -> str:
+    """What the QR code encodes.
+
+    Two shapes, and which one you get depends on whether this machine knows
+    where its interface is hosted:
+
+    `https://<app>/pair#s=…&r=…` -- a phone's own camera app opens this, which
+    is the whole point. There is no scheme to register, no app to install, and
+    nothing to type: the pairing screen comes up with both fields already
+    filled. The secret sits in the *fragment* deliberately, because a fragment
+    is never sent to a server -- so it stays out of the host's access log, out
+    of any proxy in front of it, and out of the `Referer` of every request the
+    page makes once it loads.
+
+    `amethyst://pair?s=…&r=…` -- the fallback when no app URL is configured.
+    A camera cannot open it, but the in-app scanner and the clipboard can, and
+    it is better than a bare code because it still carries the relay address.
+
+    The relay address travels either way. Typing it was the step that made
+    pairing feel like configuration, and this machine already knows it.
+    """
+    fields = {"s": secret}
+    if relay:
+        fields["r"] = relay.rstrip("/")
+    query = urlencode(fields)
+    if app:
+        return f"{app.rstrip('/')}/pair#{query}"
+    return f"amethyst://pair?{query}"
+
+
+def open_pairing(name_hint: str = "", *, conn: sqlite3.Connection | None = None) -> tuple[str, str]:
     """Start pairing. Returns the secret to show, and the QR payload.
 
     One at a time: a second call replaces the first, so a code left on screen
@@ -238,7 +293,17 @@ def open_pairing(name_hint: str = "") -> tuple[str, str]:
     global _open_pairing
     secret = crypto.new_pair_secret()
     _open_pairing = Pairing(secret=secret, opened_at=time.monotonic(), name_hint=name_hint)
-    return secret, f"amethyst://pair?s={secret}"
+    relay = ""
+    try:
+        from backend.config import load_instagram
+
+        relay = (load_instagram().relay_url or "").strip()
+    except Exception:
+        # A missing or unreadable relay setting is not a reason to refuse to
+        # show a code: the payload degrades to one without `r=`, and the phone
+        # asks for the address the way it always did.
+        log.debug("could not read the relay address for the pairing payload")
+    return secret, pairing_payload(secret, app=app_url(conn), relay=relay)
 
 
 def close_pairing() -> None:
@@ -246,24 +311,47 @@ def close_pairing() -> None:
     _open_pairing = None
 
 
+def pairing_open() -> bool:
+    """Is a code on screen right now, waiting to be scanned?
+
+    Read by the relay poller, which polls faster while one is: the whole wait a
+    person sits through is this machine's next two round trips, and fifteen
+    seconds each is the difference between "it just worked" and wondering
+    whether it is broken. Bounded by PAIRING_TTL_SECONDS, so the faster rate
+    lasts five minutes at the outside and only when somebody asked for it.
+    """
+    return _open_pairing is not None and not _open_pairing.expired
+
+
 def accept(conn: sqlite3.Connection, sealed: dict) -> dict | None:
     """Complete a pairing from the request the relay carried across.
 
     The request opening under the pairing key *is* the proof the far side knew
     the secret -- that is what an AEAD tag is -- so there is no second round
-    trip. Returns what to seal and send back, or None if this was not a pairing
-    we opened.
+    trip. Returns what to seal and send back, a plaintext refusal when there is
+    no code open to check against, or None when the offer simply does not open.
     """
     global _open_pairing
+    request_id = str(sealed.get("request_id") or "")
     pairing = _open_pairing
     if pairing is None or pairing.expired:
         if pairing is not None:
             log.info("a pairing request arrived after the code had expired")
             _open_pairing = None
-        return None
+        # Said out loud, unlike the failure below. A code that sat on screen
+        # past its five minutes is the ordinary way this goes wrong, and a
+        # device left to time out after two minutes reports it as "your machine
+        # never answered" -- which sends somebody to check whether their laptop
+        # is asleep when what they need is a fresh code.
+        #
+        # Nothing is disclosed by saying so. The request id is the relay's own
+        # routing key and it already holds it, there is no secret in this reply,
+        # and it does not distinguish "expired" from "never opened".
+        if not request_id:
+            return None
+        return {"request_id": request_id, "refused": "expired"}
 
     key = crypto.pair_key(pairing.secret)
-    request_id = str(sealed.get("request_id") or "")
     try:
         opened = crypto.unseal(
             sealed["nonce"], sealed["ciphertext"],

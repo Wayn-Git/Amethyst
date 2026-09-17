@@ -45,7 +45,7 @@ export default function LibraryDetailModal({
     try {
       const updated = await api.updateLibraryItem(item.id, { rating: newRating })
       onUpdate?.(updated)
-      toast(newRating ? `Rated ${newRating} ★` : 'Rating cleared', 'ok')
+      toast(newRating ? `Rated ${newRating} star${newRating !== 1 ? 's' : ''}` : 'Rating cleared', 'ok')
     } catch (err) {
       toast(err.message, 'bad')
     }
@@ -209,14 +209,15 @@ export default function LibraryDetailModal({
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
-                      fontSize: 14,
-                      color: star <= (rating || 0) ? '#eab308' : 'var(--hairline-strong)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      color: star <= (rating || 0) ? '#eab308' : 'var(--text-faint)',
                       padding: '2px',
                     }}
                     onClick={() => handleRating(star)}
-                    title={`Rate ${star} star`}
+                    title={`Rate ${star} star${star !== 1 ? 's' : ''}`}
                   >
-                    ★
+                    <Icon name="star" size={14} filled={star <= (rating || 0)} />
                   </button>
                 ))}
               </div>
@@ -238,7 +239,7 @@ export default function LibraryDetailModal({
           {item.summary ? (
             <div className="lib-detail-summary-card">
               <div className="lib-detail-summary-header">
-                <Icon name="spark" size={14} />
+                <Icon name="brain" size={14} />
                 <span>AI Synthesis & Key Takeaways</span>
               </div>
               <p className="lib-detail-summary-text">{item.summary}</p>
@@ -255,7 +256,7 @@ export default function LibraryDetailModal({
                 disabled={Boolean(busyAction)}
                 onClick={handleEnrich}
               >
-                <Icon name="spark" size={13} />
+                <Icon name="brain" size={13} />
                 <span>Summarize with AI</span>
               </button>
             </div>
@@ -394,7 +395,7 @@ export default function LibraryDetailModal({
               onClick={handleEnrich}
               title="Re-read with AI"
             >
-              <Icon name="spark" size={13} />
+              <Icon name="brain" size={13} />
               <span>Re-analyze</span>
             </button>
           </div>

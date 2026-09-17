@@ -24,6 +24,7 @@ import AiProviderIcon from '../components/AiProviderIcon.jsx'
 import TerminalDrawer from '../components/TerminalDrawer.jsx'
 import { safeStorage } from '../lib/storage.js'
 import { MOD_LABEL } from '../keys.js'
+import { motion } from 'framer-motion'
 
 /* The composer is the interface. Everything else — which skills are live, which
    connectors it may reach, what it remembers, where it may work — hangs off the
@@ -732,7 +733,7 @@ const Msg = memo(function Msg({
   if (role === 'memory') {
     return (
       <div className="msg-note msg-note--warning">
-        <Icon name="spark" size={14} />
+        <Icon name="brain" size={14} />
         <span><strong style={{ fontWeight: 500 }}>remembered</strong> — {item.text}</span>
       </div>
     )
@@ -2277,7 +2278,7 @@ export default function Chat() {
               {activeTag.type === 'connector' ? (
                 <ServiceIcon name={activeTag.name} size={12} />
               ) : (
-                <Icon name="spark" size={12} />
+                <Icon name="grid" size={12} />
               )}
               <span className="composer-active-tag-label">{activeTag.label}</span>
               <button
@@ -2675,42 +2676,83 @@ export default function Chat() {
         )}
 
         {isEmpty ? (
-          <div className="hero-stack">
-            {/* Amethyst Crystal Logo (without background chip/orb) */}
-            <div className="hero-logo-wrap">
+          <motion.div
+            className="hero-stack"
+            initial="hidden"
+            animate="show"
+            variants={{
+              hidden: { opacity: 0 },
+              show: {
+                opacity: 1,
+                transition: { staggerChildren: 0.08, delayChildren: 0.04 },
+              },
+            }}
+          >
+            {/* Amethyst Crystal Logo with subtle ambient halo */}
+            <motion.div
+              className="hero-logo-wrap"
+              variants={{
+                hidden: { opacity: 0, scale: 0.88, y: 10 },
+                show: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
+              <div className="hero-logo-halo" aria-hidden="true" />
               <svg
                 viewBox="524.5 524 560 560"
                 className="hero-logo-mark"
-                width="54"
-                height="54"
+                width="52"
+                height="52"
                 aria-label="Amethyst Logo"
               >
-                <path fill="var(--accent, #873FFF)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z"/>
-                <path fill="var(--accent, #873FFF)" d="M1016 701L928 722L847 986L960 870L1039 846Z"/>
-                <path fill="var(--accent, #873FFF)" d="M595 701L570 845L651 870L763 985L682 722Z"/>
+                <path fill="var(--accent, #7132f5)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z"/>
+                <path fill="var(--accent, #7132f5)" d="M1016 701L928 722L847 986L960 870L1039 846Z"/>
+                <path fill="var(--accent, #7132f5)" d="M595 701L570 845L651 870L763 985L682 722Z"/>
               </svg>
-            </div>
+            </motion.div>
 
-            {/* Dynamic Greeting & Subtitle (Image 4) */}
-            <div className="hero">
+            {/* Dynamic Greeting & Subtitle */}
+            <motion.div
+              className="hero"
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
               <h1 className="hero-headline">{greeting}</h1>
               <p className="hero-subheadline">
                 What's on <span className="hero-gradient-text">your mind?</span>
               </p>
-            </div>
+            </motion.div>
 
             {/* Composer Card */}
-            {composer}
+            <motion.div
+              className="hero-composer-wrap"
+              style={{ width: '100%' }}
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
+              {composer}
+            </motion.div>
 
-            {/* Quick starts. Chips rather than cards: they are a shortcut into
-                the composer, not four things to read before you can type. */}
-            <div className="hero-chips">
+            {/* Quick starts */}
+            <motion.div
+              className="hero-chips"
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
               {QUICK_STARTS.map((card) => (
-                <button
+                <motion.button
                   key={card.id}
                   type="button"
                   className="hero-chip"
                   title={card.subtitle}
+                  whileHover={{ y: -2, scale: 1.015 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                   onClick={() => {
                     setInput(card.prompt)
                     textareaRef.current?.focus()
@@ -2718,10 +2760,10 @@ export default function Chat() {
                 >
                   <Icon name={card.icon} size={14} />
                   <span>{card.title}</span>
-                </button>
+                </motion.button>
               ))}
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         ) : (
           <>
             {pins.length > 0 && (

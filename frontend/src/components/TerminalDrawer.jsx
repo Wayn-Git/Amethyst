@@ -177,9 +177,9 @@ export default function TerminalDrawer() {
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
-      fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', 'IBM Plex Mono', monospace",
+      fontFamily: "var(--font-mono, 'Geist Mono', monospace)",
       fontSize: 12,
-      lineHeight: 1.35,
+      lineHeight: 1.4,
       theme: XTERM_THEME,
       allowTransparency: true,
       convertEol: true,

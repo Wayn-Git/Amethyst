@@ -186,6 +186,11 @@ def answer_pairings(payload: dict[str, Any], conn=None) -> list[dict[str, Any]]:
     and not the secret that opens them. An offer that does not open is one from
     somebody who did not see the QR code, and `devices.accept` returns None for
     it without saying why.
+
+    An offer that arrives with no code open at all is different, and comes back
+    as a plaintext refusal rather than silence -- see `devices.accept`. It is
+    carried in the same list because it travels the same way; it just is not a
+    pairing, so it does not touch the clock.
     """
     offers = payload.get("pairings") or []
     if not offers:
@@ -201,7 +206,9 @@ def answer_pairings(payload: dict[str, Any], conn=None) -> list[dict[str, Any]]:
         except Exception:
             log.exception("a pairing offer could not be completed")
             continue
-        if answer is not None:
-            answers.append(answer)
+        if answer is None:
+            continue
+        answers.append(answer)
+        if not answer.get("refused"):
             reset_clock()  # the group may have just gained its first member
     return answers

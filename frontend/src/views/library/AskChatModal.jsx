@@ -49,14 +49,14 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Ask Library AI"
+        aria-label="Query Library"
       >
         <div className="lib-ask-head">
           <div className="lib-ask-head-title">
-            <span className="lib-ask-sparkle-icon">
-              <Icon name="spark" size={16} />
+            <span className="lib-ask-icon">
+              <Icon name="chat" size={16} />
             </span>
-            <span>Ask Library AI</span>
+            <span>Query Library</span>
           </div>
           <button
             type="button"
@@ -91,7 +91,7 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
         <div className="lib-ask-body">
           {!hasSearched ? (
             <div className="lib-ask-hints">
-              <div className="lib-ask-hint-title mono">TRY ASKING ABOUT</div>
+              <div className="lib-ask-hint-title">TRY ASKING ABOUT</div>
               <div className="lib-ask-prompt-pills">
                 {[
                   'Explain the A* algorithm from my saved articles',
@@ -111,24 +111,24 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
                       })
                     }}
                   >
-                    <Icon name="spark" size={12} />
+                    <Icon name="search" size={12} />
                     <span>{prompt}</span>
                   </button>
                 ))}
               </div>
             </div>
           ) : loading ? (
-            <div className="lib-ask-loading mono">
+            <div className="lib-ask-loading">
               <span className="lib-card-spinner" />
               <span>Searching semantic knowledge index...</span>
             </div>
           ) : results.length === 0 ? (
-            <div className="lib-ask-empty mono">
+            <div className="lib-ask-empty">
               No matching knowledge items found for "{query}".
             </div>
           ) : (
             <div className="lib-ask-results">
-              <div className="lib-ask-results-meta mono">
+              <div className="lib-ask-results-meta">
                 Found {results.length} relevant knowledge resources:
               </div>
               <div className="lib-ask-cards">
@@ -144,7 +144,7 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
                     tabIndex={0}
                   >
                     <div className="lib-ask-card-top">
-                      <span className="lib-kind-badge mono">{item.kind}</span>
+                      <span className="lib-kind-badge">{item.kind}</span>
                       <span className="lib-ask-card-title">{item.title}</span>
                     </div>
                     {item.summary ? (
@@ -153,7 +153,7 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
                       <p className="lib-ask-card-summary">{item.excerpt}</p>
                     ) : null}
                     {item.tags?.length ? (
-                      <div className="lib-ask-card-tags mono">
+                      <div className="lib-ask-card-tags">
                         {item.tags.slice(0, 3).map((t) => (
                           <span key={t} className="lib-tag-pill">
                             #{t}

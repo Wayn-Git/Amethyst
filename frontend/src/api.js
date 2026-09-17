@@ -223,10 +223,13 @@ export const api = {
   preferences: () => j('/preferences'),
   savePreferences: (preferences) => j('/preferences', json('PATCH', { preferences })),
 
-  // Paired devices, and the QR payload that adds one.
+  // Paired devices, and the QR code that adds one.
   devices: () => j('/devices'),
   pairDevice: (name) => j('/devices/pair', json('POST', { name })),
   revokeDevice: (id) => j(`/devices/${id}`, json('DELETE')),
+  // Where a phone opens this app, which is what decides whether the QR code is
+  // a link a camera can follow or a payload only the in-app scanner can read.
+  setAppUrl: (appUrl) => j('/devices/app-url', json('PUT', { app_url: appUrl })),
 
   activity: (days = 30) => j(`/analytics/activity?days=${days}`),
   usageWindows: () => j('/analytics/usage-windows'),

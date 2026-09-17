@@ -309,11 +309,11 @@ function General() {
     { value: 'guard', label: 'Guard', icon: 'shield' },
     { value: 'full-access', label: 'Full access', icon: 'zap' },
     { value: 'read-only', label: 'Read only', icon: 'eye' },
-    { value: 'guard-auto-edit', label: 'Guard + Auto', icon: 'sparkle' },
+    { value: 'guard-auto-edit', label: 'Guard + Auto', icon: 'shield-check' },
   ]
 
   const effortOptions = [
-    { value: 'default', label: 'Default', icon: 'sparkle' },
+    { value: 'default', label: 'Default', icon: 'sliders' },
     { value: 'low', label: 'Low', icon: 'sliders' },
     { value: 'medium', label: 'Medium', icon: 'sliders' },
     { value: 'high', label: 'High', icon: 'brain' },
@@ -1559,7 +1559,7 @@ function AddProviderModal({ onClose, onAdded }) {
 
 /* Cognitive Tiers / Roles Editor */
 const ROLE_META = [
-  { id: 'default', label: 'Go-to model', hint: 'The everyday default a new conversation starts on.', icon: 'sparkle' },
+  { id: 'default', label: 'Go-to model', hint: 'The everyday default a new conversation starts on.', icon: 'star' },
   { id: 'fast', label: 'Fast tier', hint: 'The quick, cheap model — routine tool queries and memory extraction.', icon: 'zap' },
   { id: 'heavy', label: 'Heavy reasoning', hint: 'The slow, deep reasoning model for complex architectural analysis.', icon: 'brain' },
 ]
@@ -1949,7 +1949,7 @@ function Permissions() {
       id: 'guard-auto-edit',
       title: 'Guard + Auto',
       badge: 'Balanced Flow',
-      icon: 'sparkle',
+      icon: 'shield-check',
       desc: 'Automatically approves routine file edits while asking for confirmation on shell commands.',
     },
     {
@@ -3476,6 +3476,11 @@ function Devices() {
   const [devices, setDevices] = useState([])
   const [invite, setInvite] = useState(null)
   const [busy, setBusy] = useState(false)
+  /* Where a phone opens this app. Knowing it is what lets the code below be an
+     ordinary https link that a phone's camera opens by itself, instead of an
+     `amethyst://` payload only this app's own scanner can do anything with. */
+  const [appUrl, setAppUrl] = useState('')
+  const [savedAppUrl, setSavedAppUrl] = useState('')
 
   // The phone's half.
   const [held, setHeld] = useState(() => syncClient.identity())
@@ -3487,8 +3492,10 @@ function Devices() {
   const refresh = useCallback(async () => {
     if (!hasBackend) return
     try {
-      const { devices: rows } = await api.devices()
+      const { devices: rows, app_url: configured } = await api.devices()
       setDevices(rows || [])
+      setAppUrl(configured || '')
+      setSavedAppUrl(configured || '')
     } catch { /* the backend went away mid-look; the empty list is honest */ }
   }, [hasBackend])
 
@@ -3503,6 +3510,17 @@ function Devices() {
       toast(err.message, 'bad')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const saveAppUrl = async () => {
+    try {
+      const { app_url: saved } = await api.setAppUrl(appUrl.trim())
+      setAppUrl(saved || '')
+      setSavedAppUrl(saved || '')
+      toast(saved ? 'Saved. New codes will be scannable links.' : 'Cleared', 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
     }
   }
 
@@ -3554,7 +3572,7 @@ function Devices() {
       danger: true,
     })
     if (!ok) return
-    syncClient.forget()
+    await syncClient.forget()
     setHeld(null)
     toast('Pairing forgotten', 'ok')
   }
@@ -3599,8 +3617,9 @@ function Devices() {
               <div className="set-row-text">
                 <span className="set-row-title">Pair with your machine</span>
                 <span className="set-row-desc">
-                  Run <code>amethyst device --pair</code> there and enter what it prints. Leave it
-                  running: it finishes pairing on its next relay poll.
+                  On that machine, open Settings → Devices and press <strong>Pair a device</strong>,
+                  then paste the link or the code here. Leave it running — it finishes the
+                  handshake within a few seconds.
                 </span>
               </div>
               <input
@@ -3666,8 +3685,8 @@ function Devices() {
           <div className="set-row-text">
             <span className="set-row-title">Show a pairing code</span>
             <span className="set-row-desc">
-              Good for five minutes, once. Leave this machine running: it completes the handshake
-              on its next relay poll.
+              Good for five minutes, once. Leave this machine running — it completes the
+              handshake within a few seconds.
             </span>
           </div>
           <button type="button" className="set-btn-sm" onClick={openPairing} disabled={busy}>
@@ -3675,8 +3694,33 @@ function Devices() {
           </button>
         </div>
         {invite ? (
-          <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-            <span className="set-row-desc">Enter this on the other device:</span>
+          <div className="set-box-row pair-invite">
+            {/* Said before the code, not after it: without a relay nothing can
+                complete this handshake, and a code somebody scans into a
+                two-minute wait is worse than one they were told not to scan. */}
+            {invite.relay_configured === false ? (
+              <p className="pair-invite-hint" style={{ color: 'var(--stop, #f85149)' }}>
+                No relay is set up yet, so nothing can answer this. Set one up under
+                Instagram → Relay first.
+              </p>
+            ) : null}
+            {invite.qr_svg ? (
+              <>
+                <div
+                  className="qr-card"
+                  /* The SVG is built by segno on this machine from the same
+                     string shown below it, never from anything a remote party
+                     sent. */
+                  dangerouslySetInnerHTML={{ __html: invite.qr_svg }}
+                />
+                <p className="pair-invite-hint">
+                  {invite.app_url
+                    ? 'Point your phone’s camera at this. It opens Amethyst and pairs itself.'
+                    : 'Scan this from the pairing screen on your phone.'}
+                </p>
+              </>
+            ) : null}
+            <span className="set-row-desc">Or enter this on the other device:</span>
             {/* Grouped in fours. It is 32 base32 characters and somebody is
                 typing it on a phone; an unbroken run of 32 is where the typo
                 comes from, and grouping costs nothing. */}
@@ -3686,7 +3730,7 @@ function Devices() {
               className="set-btn-sm"
               onClick={() => { copyText(invite.qr); toast('Pairing link copied', 'ok') }}
             >
-              Copy the link instead
+              Copy the link
             </button>
             <span className="set-row-desc">
               The relay never sees this. It carries the handshake sealed under it and cannot
@@ -3694,6 +3738,33 @@ function Devices() {
             </span>
           </div>
         ) : null}
+        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+          <div className="set-row-text">
+            <span className="set-row-title">Where your phone opens Amethyst</span>
+            <span className="set-row-desc">
+              Set this and the code above becomes a link your phone’s camera opens by itself,
+              with nothing to type. Leave it blank and the code still works — it just has to be
+              scanned from inside the app.
+            </span>
+          </div>
+          <input
+            className="set-input"
+            type="url"
+            placeholder="https://amethyst.example.com"
+            value={appUrl}
+            onChange={(e) => setAppUrl(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            className="set-btn-sm"
+            onClick={saveAppUrl}
+            disabled={appUrl.trim() === savedAppUrl}
+          >
+            Save
+          </button>
+        </div>
       </div>
     </div>
   )

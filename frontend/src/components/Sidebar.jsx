@@ -5,7 +5,7 @@ import { useApp } from '../store.jsx'
 import { MOD_LABEL } from '../keys.js'
 import { forRail } from '../nav.js'
 import { prefetchView } from '../views/registry.js'
-import { api, fmtDate } from '../api.js'
+import { api, fmtDate, serverTime } from '../api.js'
 import { useConfirm } from './ui/ConfirmDialog.jsx'
 import { useDismiss } from '../hooks/useDismiss.js'
 import {
@@ -20,15 +20,17 @@ import UserMenu from './UserMenu.jsx'
 
 
 function bucketOf(iso) {
-  const then = new Date(iso)
-  if (Number.isNaN(then.getTime())) return 'Earlier'
+  if (!iso) return 'Earlier'
+  const then = serverTime(iso) || new Date(iso)
+  if (!then || Number.isNaN(then.getTime())) return 'Earlier'
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const days = Math.floor((startOfToday - new Date(then.getFullYear(), then.getMonth(), then.getDate())) / 86400000)
+  const thenDay = new Date(then.getFullYear(), then.getMonth(), then.getDate())
+  const days = Math.floor((startOfToday - thenDay) / 86400000)
   if (days <= 0) return 'Today'
   if (days === 1) return 'Yesterday'
-  if (days < 7) return 'Earlier this week'
-  if (days < 30) return 'This month'
+  if (days < 7) return 'Previous 7 days'
+  if (days < 30) return 'Previous 30 days'
   return 'Earlier'
 }
 
@@ -55,15 +57,23 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
 
   return (
     <div className={`sb-conv-item${active ? ' is-active' : ''}${menu ? ' menu-open' : ''}`} ref={ref}>
+      {active && (
+        <motion.span
+          layoutId="sb-active-conv"
+          className="sb-conv-active-bg"
+          initial={false}
+          transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+        />
+      )}
       <button
         type="button"
         className="sb-conv-btn"
         onClick={onOpen}
         onDoubleClick={onRename}
-        title={`${conv.title || 'untitled'} (${fmtDate(conv.updated_at)})`}
+        title={`${conv.title || 'untitled'} (${fmtDate(conv.updated_at || conv.created_at)})`}
       >
         <span className="sb-conv-icon">
-          <Icon name={conv.pinned ? 'star' : 'chat'} size={15} filled={Boolean(conv.pinned)} />
+          <Icon name={conv.pinned ? 'star' : 'chat'} size={14} filled={Boolean(conv.pinned)} />
         </span>
         <span className="sb-conv-title">{conv.title || 'untitled'}</span>
       </button>
@@ -84,47 +94,56 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
         </button>
       </div>
 
-      {menu && (
-        <div className={`sb-conv-menu${up ? ' is-up' : ''}`} role="menu">
-          {onTogglePin && (
+      <AnimatePresence>
+        {menu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: up ? 4 : -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: up ? 4 : -4 }}
+            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            className={`sb-conv-menu${up ? ' is-up' : ''}`}
+            role="menu"
+          >
+            {onTogglePin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenu(false)
+                  onTogglePin(conv)
+                }}
+              >
+                <Icon name="star" size={13} filled={Boolean(conv.pinned)} /> {conv.pinned ? 'Unpin' : 'Pin to Starred'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
                 setMenu(false)
-                onTogglePin(conv)
+                onRename()
               }}
             >
-              <Icon name="star" size={13} filled={Boolean(conv.pinned)} /> {conv.pinned ? 'Unpin' : 'Pin to Starred'}
+              <Icon name="edit" size={12} /> Rename
+              <kbd className="kbd">F2</kbd>
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setMenu(false)
-              onRename()
-            }}
-          >
-            <Icon name="edit" size={12} /> Rename
-            <kbd className="kbd">F2</kbd>
-          </button>
-          <button
-            type="button"
-            className="danger"
-            onClick={async () => {
-              setMenu(false)
-              const ok = await confirm({
-                title: `Delete "${conv.title || 'untitled'}"?`,
-                description: 'This conversation and its messages will be permanently removed.',
-                confirmLabel: 'Delete',
-                tone: 'danger',
-              })
-              if (ok) onDelete()
-            }}
-          >
-            <Icon name="trash" size={12} /> Delete
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              className="danger"
+              onClick={async () => {
+                setMenu(false)
+                const ok = await confirm({
+                  title: `Delete "${conv.title || 'untitled'}"?`,
+                  description: 'This conversation and its messages will be permanently removed.',
+                  confirmLabel: 'Delete',
+                  tone: 'danger',
+                })
+                if (ok) onDelete()
+              }}
+            >
+              <Icon name="trash" size={12} /> Delete
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -182,6 +201,25 @@ export default function Sidebar() {
 
     return { starred: starList, recents: recentList }
   }, [conversations, filter])
+
+  // Group recents into temporal buckets (Today, Yesterday, Previous 7 days, etc.)
+  const recentBuckets = useMemo(() => {
+    if (filter.trim()) {
+      return [{ label: '', items: recents }]
+    }
+    const order = ['Today', 'Yesterday', 'Previous 7 days', 'Previous 30 days', 'Earlier']
+    const map = new Map(order.map((b) => [b, []]))
+
+    for (const c of recents) {
+      const b = bucketOf(c.updated_at || c.created_at)
+      if (map.has(b)) map.get(b).push(c)
+      else map.get('Earlier').push(c)
+    }
+
+    return order
+      .map((label) => ({ label, items: map.get(label) }))
+      .filter((b) => b.items.length > 0)
+  }, [recents, filter])
 
   /* Pin the conversation this row is for.
      
@@ -375,10 +413,8 @@ export default function Sidebar() {
               >
                 {starred.length === 0 ? (
                   <div className="sb-empty-starred">
-                    {/* Says the gesture that fills this section. It used to
-                        name {MOD_LABEL}+P, which pins the newest *answer* in
-                        the open conversation and never puts a row here. */}
-                    <span>Pin a chat from its ⋯ menu</span>
+                    <Icon name="star" size={12} className="sb-empty-starred-icon" />
+                    <span>Starred chats will appear here</span>
                   </div>
                 ) : (
                   starred.map((c) => (
@@ -462,40 +498,45 @@ export default function Sidebar() {
                     <span>{filter ? 'No matching chats' : 'No recent chats'}</span>
                   </div>
                 ) : (
-                  recents.map((c) => (
-                    renaming === c.id ? (
-                      <div key={c.id} className="sb-rename-wrap">
-                        <SmoothInput
-                          autoFocus
-                          defaultValue={c.title || ''}
-                          className="sb-rename-input"
-                          onBlur={(e) => renameConversation(c.id, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              renameConversation(c.id, e.target.value)
-                            }
-                            if (e.key === 'Escape') {
-                              e.stopPropagation()
-                              setRenaming(null)
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <ConvItem
-                        key={c.id}
-                        conv={c}
-                        active={c.id === activeId && view === 'chat'}
-                        onOpen={leave(() => {
-                          setView('chat')
-                          chat.selectConversation?.(c.id)
-                        })}
-                        onRename={() => setRenaming(c.id)}
-                        onDelete={() => deleteConversation(c.id)}
-                        onTogglePin={togglePin}
-                      />
-                    )
+                  recentBuckets.map((bucket) => (
+                    <div key={bucket.label || 'all'} className="sb-bucket-group">
+                      {bucket.label && <div className="sb-bucket-header">{bucket.label}</div>}
+                      {bucket.items.map((c) => (
+                        renaming === c.id ? (
+                          <div key={c.id} className="sb-rename-wrap">
+                            <SmoothInput
+                              autoFocus
+                              defaultValue={c.title || ''}
+                              className="sb-rename-input"
+                              onBlur={(e) => renameConversation(c.id, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  renameConversation(c.id, e.target.value)
+                                }
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation()
+                                  setRenaming(null)
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <ConvItem
+                            key={c.id}
+                            conv={c}
+                            active={c.id === activeId && view === 'chat'}
+                            onOpen={leave(() => {
+                              setView('chat')
+                              chat.selectConversation?.(c.id)
+                            })}
+                            onRename={() => setRenaming(c.id)}
+                            onDelete={() => deleteConversation(c.id)}
+                            onTogglePin={togglePin}
+                          />
+                        )
+                      ))}
+                    </div>
                   ))
                 )}
               </motion.div>

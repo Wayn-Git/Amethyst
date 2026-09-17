@@ -270,7 +270,7 @@ export default function Today() {
                     <ul className="today-list today-list--capped">
                       {signals.tasks.completed.slice(0, 4).map((task, i) => (
                         <li className="today-row today-row--done" key={i}>
-                          <span className="today-when mono">
+                          <span className="today-when">
                             <Icon name="check" size={12} />
                           </span>
                           <span className="today-what">{task.title}</span>

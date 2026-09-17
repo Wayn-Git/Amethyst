@@ -85,7 +85,7 @@ function describe(status, waiting) {
   return [`Not synced (${status.reason})`, queued].filter(Boolean).join(' · ')
 }
 
-export default function Remote({ onUnpair }) {
+export default function Remote({ onUnpair, onDesktop }) {
   const { setView } = useApp()
   const [paired, setPaired] = useState(() => syncClient.paired())
   const [active, setActive] = useState(null)
@@ -125,6 +125,36 @@ export default function Remote({ onUnpair }) {
     refresh()
   }
 
+  /* Start a conversation from here.
+   *
+   * The id comes back before the machine has heard of it -- the conversation's
+   * id is the intent's id -- so this can select it immediately and the composer
+   * below can queue a turn into it on the same poll. Nothing waits for a round
+   * trip, which is the point: the machine may be asleep.
+   */
+  const startConversation = async () => {
+    const id = remote.start('From my phone')
+    if (!id) return
+    setActive(id)
+    refresh()
+    await syncClient.sync().catch(() => {})
+    refresh()
+  }
+
+  /* Stop the turn that is running.
+   *
+   * A device that can spend money and not stop spending it is the wrong half of
+   * a remote control, and the machine already has one way to cancel a run --
+   * this asks for that one rather than inventing a second.
+   */
+  const stopTurn = async () => {
+    if (!active) return
+    remote.stop(active)
+    refresh()
+    await syncClient.sync().catch(() => {})
+    refresh()
+  }
+
   if (!paired) {
     return (
       <div className="rc">
@@ -132,9 +162,9 @@ export default function Remote({ onUnpair }) {
           <Icon name="link" size={28} />
           <h2>Not paired yet</h2>
           <p>
-            Run <code>amethyst device --pair</code> on your machine, then enter the code in
-            Settings → Devices. Everything below arrives sealed; the relay carrying it cannot
-            read any of it.
+            On your computer, open <strong>Settings → Devices</strong> and press
+            <strong> Pair a device</strong>, then scan the code it shows. Everything below
+            arrives sealed; the relay carrying it cannot read any of it.
           </p>
           <button type="button" className="rc-send" onClick={() => setView('settings')}>
             Open Settings
@@ -155,7 +185,16 @@ export default function Remote({ onUnpair }) {
           <p className="rc-sub">{describe(status, syncClient.queued())}</p>
         </div>
         <div className="rc-actions">
-          <button type="button" className="rc-send" onClick={syncNow} aria-label="Sync now">
+          <button
+            type="button"
+            className="rc-send"
+            onClick={startConversation}
+            aria-label="New conversation"
+            title="New conversation"
+          >
+            <Icon name="plus" size={15} />
+          </button>
+          <button type="button" className="rc-send" onClick={syncNow} aria-label="Sync now" title="Sync now">
             <Icon name="refresh" size={15} />
           </button>
           {onUnpair ? (
@@ -167,9 +206,12 @@ export default function Remote({ onUnpair }) {
       {conversations.length === 0 ? (
         <div className="rc-empty">
           <p>
-            Nothing has arrived yet. Your machine publishes its conversations on its next relay
-            poll — leave it running and pull down in a few seconds.
+            Nothing has arrived yet. Your computer publishes its conversations on its next relay
+            poll — leave it running and give it a few seconds.
           </p>
+          <button type="button" className="rc-send" onClick={startConversation}>
+            Start one from here
+          </button>
         </div>
       ) : (
         <>
@@ -202,7 +244,13 @@ export default function Remote({ onUnpair }) {
             {phase ? (
               <div className="rc-msg rc-msg--phase">
                 <span className="rc-role">machine</span>
-                <div className="rc-body">{phase}…</div>
+                <div className="rc-body">
+                  {phase}…
+                  <button type="button" className="rc-stop" onClick={stopTurn}>
+                    <Icon name="stop" size={12} />
+                    Stop
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -220,6 +268,11 @@ export default function Remote({ onUnpair }) {
           <Composer conversationId={active} onSent={refresh} />
         </>
       )}
+      {onDesktop ? (
+        <button type="button" className="rc-escape" onClick={onDesktop}>
+          Use the desktop interface
+        </button>
+      ) : null}
     </div>
   )
 }

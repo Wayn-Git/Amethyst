@@ -12,12 +12,7 @@ import { BrowserRouter } from 'react-router-dom'
 
    Latin subsets only: the variable Sans covers 400-700 in one file, and Mono
    is pulled at the two weights the interface actually sets. */
-import '@fontsource-variable/ibm-plex-sans/wght.css'
-import '@fontsource-variable/ibm-plex-sans/wght-italic.css'
-import '@fontsource/ibm-plex-serif/400.css'
-import '@fontsource/ibm-plex-serif/500.css'
-import '@fontsource/ibm-plex-mono/400.css'
-import '@fontsource/ibm-plex-mono/500.css'
+import './styles/fonts.css'
 import './globals.css'
 import './index.css'
 import './views/library/library.css'

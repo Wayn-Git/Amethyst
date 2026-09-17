@@ -19,6 +19,8 @@ import { COMPONENTS } from './views/registry.js'
 import Pair from './views/Pair.jsx'
 import RemoteOnly from './views/RemoteOnly.jsx'
 import { paired as isPaired } from './lib/sync/client.js'
+import { usePhone } from './hooks/useMediaQuery.js'
+import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 
 /* The workbench.
@@ -292,6 +294,35 @@ function Toasts() {
   )
 }
 
+/* The escape hatch, and why it is sticky.
+
+   Somebody with a big phone, or a tablet this query does catch, may genuinely
+   want the workbench -- and having made that choice once, they should not have
+   to make it again on every load. It lives in localStorage rather than the URL
+   so it survives the app navigating, and it is readable as a URL parameter so
+   it can be sent to somebody who is stuck. */
+const DESKTOP_KEY = 'amethyst.ui.forceDesktop'
+
+function wantsDesktop() {
+  try {
+    if (new URLSearchParams(window.location.search).get('desktop') === '1') {
+      safeStorage.setItem(DESKTOP_KEY, '1')
+      return true
+    }
+  } catch { /* no URL to read; the stored answer below still stands */ }
+  return safeStorage.getItem(DESKTOP_KEY) === '1'
+}
+
+/* What a phone actually gets: pairing, or the remote control, and nothing else.
+
+   Not the workbench with things hidden. Every other page in this application
+   opens by fetching from a backend the phone may not be able to reach, and the
+   ones it can reach are laid out for a screen it does not have. */
+function PhoneApp({ paired, onPaired, onDesktop }) {
+  if (!paired) return <Pair onPaired={onPaired} onDesktop={onDesktop} />
+  return <RemoteOnly onDesktop={onDesktop} />
+}
+
 export default function App() {
   const {
     view, setView, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
@@ -304,6 +335,12 @@ export default function App() {
   // this screen on without a reload.
   const [paired, setPaired] = useState(isPaired)
   const [remoteFirst, setRemoteFirst] = useState(false)
+
+  // Whether this is a handheld, and whether somebody on one has asked for the
+  // workbench anyway. See `usePhone` for why this is a media query rather than
+  // a user-agent test, and `DESKTOP_KEY` for why the override is sticky.
+  const phone = usePhone()
+  const [forceDesktop, setForceDesktop] = useState(wantsDesktop)
 
   useEffect(() => {
     window.__amethyst_navigate = (pathOrId) => {
@@ -352,6 +389,26 @@ export default function App() {
   // `verified` rather than `phase` alone: 'ready' is optimistic until a ping has
   // actually answered, and a paired phone must not be shown the workbench for
   // the length of that guess.
+  // A phone gets the remote control, whether or not a backend answers.
+  //
+  // This used to be decided by reachability alone -- "the API did not respond,
+  // so this must be a phone" -- which is true of a phone out in the world and
+  // false of one on the same network as the machine. On a home network the
+  // server answers, `server.verified` goes true, and the branch below handed a
+  // four-column desktop workbench to a 390px screen: a rail, a transcript
+  // column, a stage and a resizable panel, none of which fit and none of which
+  // are what somebody holding a phone came for.
+  //
+  // Form factor is the honest question, because it is the one whose answer
+  // decides which interface is wanted. Reachability decides something else --
+  // whether the pairing screen can offer a shortcut -- and is still read below.
+  if (phone && !forceDesktop) {
+    return <PhoneApp paired={paired} onPaired={() => setPaired(true)} onDesktop={() => {
+      safeStorage.setItem(DESKTOP_KEY, '1')
+      setForceDesktop(true)
+    }} />
+  }
+
   if (server.phase !== 'ready' || !server.verified) {
     if (paired) return <RemoteOnly />
     // Offered immediately rather than after the wake gives up: a paired phone

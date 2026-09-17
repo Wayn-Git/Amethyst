@@ -46,14 +46,47 @@ interface Envelope {
 	ciphertext: string;
 }
 
-function usable(body: unknown): body is Envelope {
+/**
+ * The machine saying "there is no code open here", in the clear.
+ *
+ * Carried rather than sealed because there is nothing to seal: the request id
+ * is this Worker's own routing key and it already holds it, and the reason is
+ * one word that the device is going to display. It exists because a phone that
+ * offers itself against an expired code otherwise learns nothing for two
+ * minutes and then reports a timeout -- which reads as "your laptop is asleep"
+ * and sends somebody to check the wrong thing.
+ */
+interface Refusal {
+	request_id: string;
+	refused: string;
+}
+
+type Answer = Envelope | Refusal;
+
+function named(body: unknown): body is { request_id: string } {
 	if (!body || typeof body !== 'object') return false;
+	const id = (body as Record<string, unknown>).request_id;
+	return typeof id === 'string' && id.length > 0 && id.length <= 64;
+}
+
+function usable(body: unknown): body is Envelope {
+	if (!named(body)) return false;
 	const b = body as Record<string, unknown>;
 	return (
-		typeof b.request_id === 'string' && b.request_id.length > 0 && b.request_id.length <= 64 &&
 		typeof b.nonce === 'string' && b.nonce.length <= 64 &&
 		typeof b.ciphertext === 'string' && b.ciphertext.length <= MAX_PAIR_BYTES
 	);
+}
+
+function refusal(body: unknown): body is Refusal {
+	if (!named(body)) return false;
+	const reason = (body as Record<string, unknown>).refused;
+	return typeof reason === 'string' && reason.length > 0 && reason.length <= 32;
+}
+
+/** Either half of what a machine can send back. */
+function answerable(body: unknown): body is Answer {
+	return usable(body) || refusal(body);
 }
 
 async function put(env: PairEnv, key: string, value: string): Promise<void> {
@@ -108,7 +141,7 @@ export async function pairingsForSync(env: PairEnv): Promise<Envelope[]> {
  * deleted here so a second machine cannot answer it and a retry cannot race.
  */
 export async function answerPairing(env: PairEnv, body: unknown): Promise<boolean> {
-	if (!usable(body)) return false;
+	if (!answerable(body)) return false;
 	await put(env, RESPONSE_PREFIX + body.request_id, JSON.stringify(body));
 	await env.DB.prepare('DELETE FROM state WHERE key = ?')
 		.bind(REQUEST_PREFIX + body.request_id)
@@ -121,7 +154,7 @@ export async function answerPairing(env: PairEnv, body: unknown): Promise<boolea
  * the device's token and the group key, sealed, and there is no reason for a
  * queue on someone else's computer to keep a copy after it has been delivered.
  */
-export async function takePairing(env: PairEnv, requestId: string): Promise<Envelope | null> {
+export async function takePairing(env: PairEnv, requestId: string): Promise<Answer | null> {
 	if (!requestId || requestId.length > 64) return null;
 	const key = RESPONSE_PREFIX + requestId;
 	const row = await env.DB.prepare(
@@ -134,7 +167,7 @@ export async function takePairing(env: PairEnv, requestId: string): Promise<Enve
 	await env.DB.prepare('DELETE FROM state WHERE key = ?').bind(key).run();
 	try {
 		const parsed = JSON.parse(row.value);
-		return usable(parsed) ? parsed : null;
+		return answerable(parsed) ? parsed : null;
 	} catch {
 		return null;
 	}
