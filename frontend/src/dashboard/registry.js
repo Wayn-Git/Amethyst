@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'sys.vault': lazy(() => import('./widgets/Director.jsx')),
   'need.decisions': lazy(() => import('./widgets/Director.jsx')),
   'need.approvals': lazy(() => import('./widgets/Director.jsx')),
   'agent.errors': lazy(() => import('./widgets/Director.jsx')),

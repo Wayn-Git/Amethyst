@@ -102,8 +102,15 @@ def director_manifest(widget_id, title, actions=()):
     return value
 
 
+def system_manifest(widget_id, title, source="local"):
+    value = manifest(widget_id, title, ["s", "m", "l"])
+    value.update(group="system", source={"type": source}, empty="No notifications.")
+    return value
+
+
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    system_manifest("sys.vault", "Vault size and storage", "library"),
     director_manifest("agent.running", "Running tasks", ("stop",)),
     director_manifest("agent.feed", "Activity feed"),
     director_manifest("need.decisions", "Decisions waiting", ("answer", "dismiss")),
