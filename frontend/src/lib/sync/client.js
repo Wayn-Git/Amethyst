@@ -133,8 +133,24 @@ export function readPayload(text) {
   return { secret, relayUrl: (fields.get('r') || '').replace(/\/+$/, '') }
 }
 
+/** Whether this page can do the crypto pairing needs.
+ *
+ * `crypto.subtle` only exists in a secure context, so a phone that loaded this
+ * app over plain http from a LAN address has none of it -- `isSecureContext` is
+ * false and `crypto.randomUUID` is undefined too. Checked before anything else
+ * because the alternative is what it used to do: fail three calls in with
+ * "Cannot read properties of undefined (reading 'importKey')", which tells
+ * somebody holding a phone nothing whatsoever.
+ */
+export function canPair() {
+  return typeof crypto !== 'undefined'
+    && Boolean(crypto.subtle)
+    && typeof crypto.randomUUID === 'function'
+}
+
 /** Named so a caller can say which thing went wrong rather than printing a
- *  sentence. `reason` is one of: offline, relay, expired, invalid, timeout. */
+ *  sentence. `reason` is one of: insecure, offline, relay, expired, invalid,
+ *  timeout. */
 export class PairError extends Error {
   constructor(reason, message) {
     super(message)
@@ -154,6 +170,10 @@ export class PairError extends Error {
 export async function pair(relayUrl, pairSecret, name, { signal } = {}) {
   const base = String(relayUrl || '').trim().replace(/\/+$/, '')
   const secret = readPayload(pairSecret).secret
+  // First, because it is the one failure no retry will fix.
+  if (!canPair()) {
+    throw new PairError('insecure', 'this page has no crypto.subtle, so pairing cannot run here')
+  }
   if (!base) throw new PairError('invalid', 'there is no relay address to pair through')
   if (secret.length < 16) throw new PairError('invalid', 'that is not a pairing code')
 

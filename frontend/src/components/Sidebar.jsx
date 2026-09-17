@@ -67,14 +67,16 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
       )}
       <button
         type="button"
-        className="sb-conv-btn"
+        className={`sb-conv-btn${conv.pinned ? ' has-pinned-icon' : ''}`}
         onClick={onOpen}
         onDoubleClick={onRename}
         title={`${conv.title || 'untitled'} (${fmtDate(conv.updated_at || conv.created_at)})`}
       >
-        <span className="sb-conv-icon">
-          <Icon name={conv.pinned ? 'star' : 'chat'} size={14} filled={Boolean(conv.pinned)} />
-        </span>
+        {conv.pinned && (
+          <span className="sb-conv-icon sb-conv-icon--pinned">
+            <Icon name="star" size={13} filled={true} />
+          </span>
+        )}
         <span className="sb-conv-title">{conv.title || 'untitled'}</span>
       </button>
 

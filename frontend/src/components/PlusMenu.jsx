@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Icon from './Icon.jsx'
 import ServiceIcon from './ServiceIcon.jsx'
 import { api } from '../api.js'
@@ -9,51 +10,29 @@ import { useMenuFit } from '../hooks/useMenuFit.js'
 import { connectorState } from './connectorState.js'
 import { FadeScrollArea } from './ui/skiper/index.js'
 
-/* Everything the agent can be given for the next message, one keystroke from
-   the composer.
-
-   A row that changes what the agent can reach reports what is running, not what
-   is switched on. Those are different facts: a row can say "on" while the
-   process failed to start, died, or was never asked to. Switching a connector
-   on starts it here and waits for the answer, so the row never claims a
-   capability the agent does not have. */
-
-function Row({ icon, customIcon, label, hint, tail, onClick, disabled, danger, submenu, active, className, title }) {
+function MicroSwitch({ on, disabled }) {
   return (
-    <button
-      type="button"
-      className={`menu-row${danger ? ' danger' : ''}${active ? ' active' : ''}${className ? ` ${className}` : ''}`}
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      aria-haspopup={submenu ? 'menu' : undefined}
-      aria-expanded={submenu ? Boolean(active) : undefined}
+    <span
+      className={`pm-switch${on ? ' is-on' : ''}${disabled ? ' is-disabled' : ''}`}
+      aria-hidden="true"
     >
-      {customIcon ? customIcon : icon ? <Icon name={icon} size={15} /> : <span className="menu-gutter" />}
-      <span className="menu-label">
-        {label}
-        {hint && <span className="menu-hint">{hint}</span>}
-      </span>
-      {tail}
-      {submenu && <Icon name="chevron" size={13} className="menu-caret" />}
-    </button>
+      <span className="pm-switch-thumb" />
+    </span>
   )
 }
 
-const Toggle = ({ on }) => (
-  <span className={`switch${on ? ' is-on' : ''}`} aria-hidden="true">
-    <span className="switch-knob" />
-  </span>
-)
-
-export default function PlusMenu({ conversationId, workspace, onWorkspace, onClose, onNavigate, onAttach, placement = 'up' }) {
+export default function PlusMenu({
+  conversationId,
+  workspace,
+  onWorkspace,
+  onClose,
+  onNavigate,
+  onAttach,
+  placement = 'up',
+}) {
   const { caps, refreshCaps, setCapEnabled, busyCap, setCapabilitiesTab, toast } = useApp()
-  const [panel, setPanel] = useState(null)      // which submenu is open
-  const [tools_open, setToolsOpen] = useState(false)
-  /* Seventeen connectors in a menu is a list, and a list is a thing you scroll
-     past to reach the rows underneath. Six is a glance. The ones that are
-     running come first, because those are the ones a person opens this menu to
-     turn off; the rest are behind one click that does not move the menu. */
+  const [panel, setPanel] = useState(null) // 'workspace' | 'skills'
+  const [toolsOpen, setToolsOpen] = useState(false)
   const [allConnectors, setAllConnectors] = useState(false)
   const [memory, setMemory] = useState(null)
   const [tools, setTools] = useState([])
@@ -71,13 +50,12 @@ export default function PlusMenu({ conversationId, workspace, onWorkspace, onClo
   }, [scope, refreshCaps])
 
   const escapeOneLevel = useCallback(() => {
-    if (tools_open) setToolsOpen(false)
+    if (toolsOpen) setToolsOpen(false)
     else if (panel) setPanel(null)
     else onClose()
-  }, [onClose, panel, tools_open])
+  }, [onClose, panel, toolsOpen])
 
   useDismiss(ref, true, { onAway: onClose, onEscape: escapeOneLevel })
-
 
   const toggleMemory = useCallback(async () => {
     setBusy('memory')
@@ -91,34 +69,35 @@ export default function PlusMenu({ conversationId, workspace, onWorkspace, onClo
     }
   }, [memory, scope, toast])
 
-  const pickFiles = useCallback(async (files) => {
-    for (const file of files) {
-      try {
-        onAttach?.(await api.upload(file))
-      } catch (err) {
-        toast(`${file.name}: ${err.message}`, 'bad')
+  const pickFiles = useCallback(
+    async (files) => {
+      for (const file of files) {
+        try {
+          onAttach?.(await api.upload(file))
+        } catch (err) {
+          toast(`${file.name}: ${err.message}`, 'bad')
+        }
       }
-    }
-    onClose()
-  }, [onAttach, onClose, toast])
+      onClose()
+    },
+    [onAttach, onClose, toast]
+  )
 
   const skills = caps.skills ?? []
-  // Stable when the store has answered, so the ordering memo below is not
-  // recomputed on every render by an empty array it just made up.
   const connectors = useMemo(() => caps.connectors ?? [], [caps.connectors])
   const live = connectors.filter((c) => c.live?.connected).length
 
   const CONNECTOR_PREVIEW = 4
-  // Enabled first, then the rest, each half left in its original order so the
-  // list does not reshuffle under the cursor every time one is switched.
   const ordered = useMemo(() => {
     const on = connectors.filter((c) => c.enabled)
     const off = connectors.filter((c) => !c.enabled)
     return [...on, ...off]
   }, [connectors])
+
   const shownConnectors = allConnectors ? ordered : ordered.slice(0, CONNECTOR_PREVIEW)
-  const hiddenCount = ordered.length - shownConnectors.length
+  const hiddenCount = Math.max(0, ordered.length - shownConnectors.length)
   const engaged = skills.filter((s) => s.enabled).length
+
   const byServer = useMemo(() => {
     const groups = new Map()
     for (const tool of tools) {
@@ -129,91 +108,182 @@ export default function PlusMenu({ conversationId, workspace, onWorkspace, onClo
     return [...groups.entries()]
   }, [tools])
 
-  useMenuFit(ref, [shownConnectors.length, skills.length, tools.length, memory, panel, tools_open])
+  useMenuFit(ref, [shownConnectors.length, skills.length, tools.length, memory, panel, toolsOpen])
 
-  const submenu = (title, body, width = 250) => (
-    <div className="menu-flyout" style={{ width }}>
-      <div className="menu-flyout-head">{title}</div>
-      {body}
-    </div>
-  )
-
-  /* The rows scroll; the menu does not. A submenu is an absolutely positioned
-     child of `.menu`, so making `.menu` itself the scroller clips every flyout
-     into the menu it is supposed to open beside. Keeping the scroll one level
-     in -- `.menu-body` holds the rows, the flyouts are its siblings -- lets the
-     list be as long as it likes in a window of any height, which is what the
-     connector list at the top level actually needs. */
   const flyouts = (
     <>
-      {panel === 'workspace' && submenu('file and shell tools are confined here', (
-        <div className="menu-pad">
-          <input
-            autoFocus
-            className="menu-input"
-            value={draftWorkspace}
-            placeholder="~/notes"
-            onChange={(e) => setDraftWorkspace(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { onWorkspace(draftWorkspace.trim()); onClose() }
-            }}
-          />
-          <button
-            type="button"
-            className="btn btn--primary btn--small"
-            style={{ marginTop: 8 }}
-            onClick={() => { onWorkspace(draftWorkspace.trim()); onClose() }}
-          >
-            Use this directory
-          </button>
-        </div>
-      ), 280)}
+      {/* Workspace Selector Submenu */}
+      {panel === 'workspace' && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, x: -6 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={{ opacity: 0, scale: 0.96, x: -6 }}
+          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          className="pm-flyout pm-flyout--workspace"
+        >
+          <div className="pm-flyout-header">
+            <div className="pm-flyout-title">
+              <Icon name="folder" size={14} className="pm-flyout-icon" />
+              <span>Workspace Directory</span>
+            </div>
+            <button
+              type="button"
+              className="pm-flyout-close"
+              onClick={() => setPanel(null)}
+              aria-label="Close"
+            >
+              <Icon name="x" size={12} />
+            </button>
+          </div>
+          <p className="pm-flyout-desc">
+            File tools and terminal sessions will be confined to this folder path.
+          </p>
+          <div className="pm-flyout-body">
+            <input
+              autoFocus
+              className="pm-input"
+              value={draftWorkspace}
+              placeholder="e.g. ~/projects/my-app"
+              onChange={(e) => setDraftWorkspace(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onWorkspace(draftWorkspace.trim())
+                  onClose()
+                }
+              }}
+            />
+            <div className="pm-flyout-actions">
+              <button
+                type="button"
+                className="pm-btn pm-btn--primary"
+                onClick={() => {
+                  onWorkspace(draftWorkspace.trim())
+                  onClose()
+                }}
+              >
+                Apply Directory
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
-      {panel === 'skills' && submenu('engaged for this conversation', (
-        <>
-          <FadeScrollArea className="menu-scroll" fadeHeight={18}>
-            {skills.length === 0 && <div className="menu-empty">Nothing installed yet.</div>}
-            {skills.map((skill) => (
-              <Row
-                key={skill.name}
-                icon="book"
-                label={skill.name}
-                tail={busyCap === `skill:${skill.name}`
-                  ? <span className="menu-hint">…</span>
-                  : <Toggle on={skill.enabled} />}
-                onClick={() => setCapEnabled(skill, !skill.enabled)}
-              />
+      {/* Skills Flyout */}
+      {panel === 'skills' && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, x: -6 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={{ opacity: 0, scale: 0.96, x: -6 }}
+          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          className="pm-flyout pm-flyout--skills"
+        >
+          <div className="pm-flyout-header">
+            <div className="pm-flyout-title">
+              <Icon name="book" size={14} className="pm-flyout-icon" />
+              <span>Active Skills ({engaged}/{skills.length})</span>
+            </div>
+            <button
+              type="button"
+              className="pm-flyout-close"
+              onClick={() => setPanel(null)}
+              aria-label="Close"
+            >
+              <Icon name="x" size={12} />
+            </button>
+          </div>
+
+          <FadeScrollArea className="pm-flyout-scroll" fadeHeight={16}>
+            {skills.length === 0 ? (
+              <div className="pm-empty-text">No skills currently installed.</div>
+            ) : (
+              skills.map((skill) => (
+                <button
+                  key={skill.name}
+                  type="button"
+                  className={`pm-item-row${skill.enabled ? ' is-active' : ''}`}
+                  onClick={() => setCapEnabled(skill, !skill.enabled)}
+                >
+                  <span className="pm-item-icon-box">
+                    <Icon name="book" size={13} />
+                  </span>
+                  <span className="pm-item-label">{skill.name}</span>
+                  {busyCap === `skill:${skill.name}` ? (
+                    <span className="pm-item-busy">…</span>
+                  ) : (
+                    <MicroSwitch on={skill.enabled} />
+                  )}
+                </button>
+              ))
+            )}
+          </FadeScrollArea>
+
+          <div className="pm-flyout-footer">
+            <button
+              type="button"
+              className="pm-footer-link"
+              onClick={() => {
+                setCapabilitiesTab('skills')
+                onNavigate('capabilities')
+                onClose()
+              }}
+            >
+              <Icon name="sliders" size={12} />
+              <span>Manage all skills</span>
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Tools Flyout */}
+      {toolsOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, x: -6 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={{ opacity: 0, scale: 0.96, x: -6 }}
+          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          className="pm-flyout pm-flyout--tools"
+        >
+          <div className="pm-flyout-header">
+            <div className="pm-flyout-title">
+              <Icon name="grid" size={14} className="pm-flyout-icon" />
+              <span>Tool Access ({tools.length})</span>
+            </div>
+            <button
+              type="button"
+              className="pm-flyout-close"
+              onClick={() => setToolsOpen(false)}
+              aria-label="Close"
+            >
+              <Icon name="x" size={12} />
+            </button>
+          </div>
+
+          <FadeScrollArea className="pm-flyout-scroll pm-flyout-scroll--tall" fadeHeight={16}>
+            {byServer.map(([server, group]) => (
+              <div key={server} className="pm-tool-group">
+                <div className="pm-tool-group-name">{server}</div>
+                {group.map((tool) => (
+                  <div key={tool.name} className="pm-tool-item" title={tool.description}>
+                    <span className="pm-tool-name">{tool.name}</span>
+                    <span className={`pm-tool-risk pm-tool-risk--${tool.risk}`}>
+                      {tool.risk}
+                    </span>
+                  </div>
+                ))}
+              </div>
             ))}
           </FadeScrollArea>
-          <div className="menu-sep" />
-          <Row
-            icon="sliders"
-            label="Manage and install skills"
-            onClick={() => { setCapabilitiesTab('skills'); onNavigate('capabilities'); onClose() }}
-          />
-        </>
-      ))}
-
-      {tools_open && submenu('what the model can call right now', (
-        <FadeScrollArea className="menu-scroll menu-scroll--tall" fadeHeight={18}>
-          {byServer.map(([server, group]) => (
-            <div key={server}>
-              <div className="menu-group">{server === 'builtin' ? 'builtin' : server}</div>
-              {group.map((tool) => (
-                <div key={tool.name} className="menu-tool" title={tool.description}>
-                  <span className="mono">{tool.name}</span>
-                  <span className={`state state--risk-${tool.risk}`}>{tool.risk}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </FadeScrollArea>
-      ), 300)}
+        </motion.div>
+      )}
     </>
   )
 
   return (
-    <div className={`menu${placement === "down" ? " menu--down" : ""}`} ref={ref} role="menu">
+    <div
+      className={`pm-menu-container menu${placement === 'down' ? ' menu--down' : ''}`}
+      ref={ref}
+      role="menu"
+    >
       <input
         ref={fileRef}
         type="file"
@@ -222,108 +292,217 @@ export default function PlusMenu({ conversationId, workspace, onWorkspace, onClo
         onChange={(e) => pickFiles([...e.target.files])}
       />
 
-      <FadeScrollArea className="menu-body" fadeHeight={20}>
-        <Row
-          icon="paperclip"
-          label="Add files or photos"
-          tail={<span className="menu-keys"><kbd className="kbd">{MOD_LABEL}</kbd><kbd className="kbd">U</kbd></span>}
-          onClick={() => fileRef.current?.click()}
-        />
-        <Row
-          icon="folder"
-          label="Working directory"
-          hint={workspace || 'where the API was started'}
-          submenu
-          active={panel === 'workspace'}
-          onClick={() => setPanel(panel === 'workspace' ? null : 'workspace')}
-        />
-
-        <div className="menu-sep" />
-
-        <Row
-          icon="book"
-          label="Skills"
-          hint={`${engaged} of ${skills.length} engaged`}
-          submenu
-          active={panel === 'skills'}
-          onClick={() => setPanel(panel === 'skills' ? null : 'skills')}
-        />
-
-        {/* Connectors are the reason this menu gets opened, so they are in it
-            rather than one level inside it. They used to be a submenu, which
-            was survivable while a strip above the composer showed the same
-            list; that strip is gone, and burying the only remaining copy two
-            clicks deep would have been a straight downgrade. */}
-        <div className="menu-group menu-group--head">
-          <span>Connectors</span>
-          <span className="menu-group-count">{live} running of {connectors.length}</span>
-        </div>
-        {connectors.length === 0 && <div className="menu-empty">None configured.</div>}
-        {/* One line each. The state used to be spelled out on a second line
-            under every name, which doubled the height of the only part of this
-            menu that is a list -- four connectors took as much room as the
-            eight rows around them. It is a dot now, and the sentence it
-            replaced is on the row's tooltip. */}
-        {shownConnectors.map((cap) => {
-          const state = connectorState(cap, busyCap === `connector:${cap.name}`)
-          return (
-            <Row
-              key={cap.name}
-              className="menu-row--connector"
-              customIcon={<ServiceIcon name={cap.name} size={15} />}
-              label={cap.title || cap.name}
-              title={state.detail ? `${state.label} — ${state.detail}` : state.label}
-              tail={
-                <div className="menu-row-tail">
-                  {(state.tone === 'busy' || state.tone === 'error') && (
-                    <span className={`menu-dot menu-dot--${state.tone}`} />
-                  )}
-                  <Toggle on={cap.enabled} />
-                </div>
-              }
-              onClick={() => setCapEnabled(cap, !cap.enabled)}
-            />
-          )
-        })}
-        {(hiddenCount > 0 || allConnectors) && (
+      <FadeScrollArea className="menu-body pm-scroll-body" fadeHeight={18}>
+        {/* Section 1: Primary Actions */}
+        <div className="pm-section">
+          {/* Add Files Action Card */}
           <button
             type="button"
-            className="menu-more"
-            onClick={() => setAllConnectors((o) => !o)}
-            aria-expanded={allConnectors}
+            className="pm-action-card pm-action-card--primary"
+            onClick={() => fileRef.current?.click()}
           >
-            {allConnectors ? 'Show fewer' : `View ${hiddenCount} more`}
-            <Icon name="chevron" size={12} className={allConnectors ? 'menu-more-caret is-open' : 'menu-more-caret'} />
+            <div className="pm-action-icon-tile pm-action-icon-tile--accent">
+              <Icon name="paperclip" size={16} />
+            </div>
+            <div className="pm-action-content">
+              <span className="pm-action-title">Add files or photos</span>
+              <span className="pm-action-desc">Upload documents, code, images</span>
+            </div>
+            <span className="pm-shortcut-pill">
+              <kbd>{MOD_LABEL}</kbd>
+              <kbd>U</kbd>
+            </span>
           </button>
-        )}
-        <Row
-          icon="grid"
-          label="Tool access"
-          hint={`${tools.length} reachable`}
-          submenu
-          active={tools_open}
-          onClick={() => setToolsOpen((o) => !o)}
-        />
-        <Row
-          icon="sliders"
-          label="Manage and add connectors"
-          onClick={() => { setCapabilitiesTab('connectors'); onNavigate('capabilities'); onClose() }}
-        />
 
-        <div className="menu-sep" />
+          {/* Working Directory Card */}
+          <button
+            type="button"
+            className={`pm-action-card${panel === 'workspace' ? ' is-active' : ''}`}
+            onClick={() => setPanel(panel === 'workspace' ? null : 'workspace')}
+            aria-haspopup="dialog"
+            aria-expanded={panel === 'workspace'}
+          >
+            <div className="pm-action-icon-tile">
+              <Icon name="folder" size={16} />
+            </div>
+            <div className="pm-action-content">
+              <span className="pm-action-title">Working directory</span>
+              <span className="pm-action-desc pm-action-path">
+                {workspace ? workspace.split('/').slice(-2).join('/') || workspace : 'Project root'}
+              </span>
+            </div>
+            <Icon name="chevron" size={12} className="pm-action-chevron" />
+          </button>
+        </div>
 
-        <Row
-          icon="spark"
-          label="Memory"
-          hint={memory ? `${memory.facts.length} facts recalled each turn` : null}
-          tail={busy === 'memory' ? <span className="menu-hint">…</span> : <Toggle on={Boolean(memory?.enabled)} />}
-          onClick={toggleMemory}
-          disabled={!memory}
-        />
-        <Row icon="logs" label="What it just did" onClick={() => { onNavigate('logs'); onClose() }} />
+        <div className="pm-divider" />
+
+        {/* Section 2: Agent Capabilities & Memory */}
+        <div className="pm-section">
+          <div className="pm-section-label">Capabilities</div>
+
+          {/* Skills Row */}
+          <button
+            type="button"
+            className={`pm-nav-row${panel === 'skills' ? ' is-active' : ''}`}
+            onClick={() => setPanel(panel === 'skills' ? null : 'skills')}
+            aria-haspopup="dialog"
+            aria-expanded={panel === 'skills'}
+          >
+            <div className="pm-row-lead">
+              <Icon name="book" size={15} className="pm-row-icon" />
+              <span className="pm-row-title">Skills</span>
+            </div>
+            <div className="pm-row-trail">
+              <span className="pm-count-badge">
+                {engaged} of {skills.length} engaged
+              </span>
+              <Icon name="chevron" size={12} className="pm-row-chevron" />
+            </div>
+          </button>
+
+          {/* Tool Access Row */}
+          <button
+            type="button"
+            className={`pm-nav-row${toolsOpen ? ' is-active' : ''}`}
+            onClick={() => setToolsOpen((o) => !o)}
+            aria-haspopup="dialog"
+            aria-expanded={toolsOpen}
+          >
+            <div className="pm-row-lead">
+              <Icon name="grid" size={15} className="pm-row-icon" />
+              <span className="pm-row-title">Tool access</span>
+            </div>
+            <div className="pm-row-trail">
+              <span className="pm-count-badge">{tools.length} reachable</span>
+              <Icon name="chevron" size={12} className="pm-row-chevron" />
+            </div>
+          </button>
+
+          {/* Memory Row */}
+          <button
+            type="button"
+            className={`pm-nav-row${memory?.enabled ? ' is-active' : ''}`}
+            onClick={toggleMemory}
+            disabled={!memory}
+          >
+            <div className="pm-row-lead">
+              <Icon name="spark" size={15} className="pm-row-icon" />
+              <span className="pm-row-title">Memory</span>
+            </div>
+            <div className="pm-row-trail">
+              {busy === 'memory' ? (
+                <span className="pm-item-busy">…</span>
+              ) : (
+                <>
+                  <span className="pm-meta-text">
+                    {memory ? `${memory.facts.length} facts` : 'Disabled'}
+                  </span>
+                  <MicroSwitch on={Boolean(memory?.enabled)} disabled={!memory} />
+                </>
+              )}
+            </div>
+          </button>
+        </div>
+
+        <div className="pm-divider" />
+
+        {/* Section 3: Connectors Hub */}
+        <div className="pm-section">
+          <div className="pm-section-head-row">
+            <span className="pm-section-label">Connectors</span>
+            <div className="pm-connectors-meta">
+              <span className="pm-live-pill">
+                <span className="pm-live-dot" />
+                {live} active
+              </span>
+              <button
+                type="button"
+                className="pm-manage-btn"
+                onClick={() => {
+                  setCapabilitiesTab('connectors')
+                  onNavigate('capabilities')
+                  onClose()
+                }}
+              >
+                Manage
+              </button>
+            </div>
+          </div>
+
+          {connectors.length === 0 ? (
+            <div className="pm-empty-text">No connectors configured.</div>
+          ) : (
+            <div className="pm-connectors-list">
+              {shownConnectors.map((cap) => {
+                const state = connectorState(cap, busyCap === `connector:${cap.name}`)
+                const isRunning = state.tone === 'live' || Boolean(cap.enabled)
+                return (
+                  <button
+                    key={cap.name}
+                    type="button"
+                    className={`pm-connector-row${isRunning ? ' is-on' : ''}`}
+                    onClick={() => setCapEnabled(cap, !cap.enabled)}
+                    title={state.detail ? `${state.label} — ${state.detail}` : state.label}
+                  >
+                    <div className="pm-connector-lead">
+                      <div className="pm-connector-icon-wrap">
+                        <ServiceIcon name={cap.name} size={15} />
+                      </div>
+                      <span className="pm-connector-name">{cap.title || cap.name}</span>
+                    </div>
+
+                    <div className="pm-connector-trail">
+                      {(state.tone === 'busy' || state.tone === 'error') && (
+                        <span className={`pm-dot pm-dot--${state.tone}`} />
+                      )}
+                      <MicroSwitch on={cap.enabled} />
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {(hiddenCount > 0 || allConnectors) && (
+            <button
+              type="button"
+              className="pm-expand-btn"
+              onClick={() => setAllConnectors((o) => !o)}
+              aria-expanded={allConnectors}
+            >
+              <span>{allConnectors ? 'Show fewer' : `View ${hiddenCount} more`}</span>
+              <Icon
+                name="chevron"
+                size={11}
+                className={`pm-expand-chevron${allConnectors ? ' is-open' : ''}`}
+              />
+            </button>
+          )}
+        </div>
+
+        <div className="pm-divider" />
+
+        {/* Section 4: Audit & Activity */}
+        <div className="pm-section pm-section--footer">
+          <button
+            type="button"
+            className="pm-nav-row pm-nav-row--subtle"
+            onClick={() => {
+              onNavigate('logs')
+              onClose()
+            }}
+          >
+            <div className="pm-row-lead">
+              <Icon name="logs" size={14} className="pm-row-icon" />
+              <span className="pm-row-title">What it just did (Logs)</span>
+            </div>
+            <Icon name="arrow-up-right" size={12} className="pm-row-chevron" />
+          </button>
+        </div>
       </FadeScrollArea>
 
-      {flyouts}
+      <AnimatePresence>{flyouts}</AnimatePresence>
     </div>
   )
 }

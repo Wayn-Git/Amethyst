@@ -238,10 +238,27 @@ APP_URL_KEY = "sync.app_url"
 
 
 def app_url(conn: sqlite3.Connection | None = None) -> str:
-    """The address a phone opens this app at, or "" if nobody has said.
+    """The address a phone opens this app at, or "" if there is none.
 
-    The environment wins, so a deployment can set it without a database write;
-    otherwise it is a setting somebody typed into the Devices panel.
+    The environment wins, so a deployment can say without a database write;
+    otherwise it is the setting in the Devices panel.
+
+    **It has to be https, and that is not a preference.** Pairing derives a key
+    with HKDF and opens an envelope with AES-GCM, both through `crypto.subtle`
+    -- and `crypto.subtle` does not exist outside a secure context. On
+    `http://192.168.1.6:8000` a browser reports `isSecureContext: false` and
+    leaves `crypto.subtle` and `crypto.randomUUID` undefined, so the pairing
+    screen loads and then cannot run.
+
+    This function briefly derived the machine's own LAN address when the server
+    was bound off loopback, which seemed like the obvious way to spare somebody
+    configuring anything. It produced a QR code a camera opened happily onto a
+    page that could not pair -- a worse failure than no QR code at all, because
+    it happens three steps later. Loopback is the one http origin browsers treat
+    as secure, and a phone cannot reach it.
+
+    So: an https origin, or nothing. `relay/README.md` and the Devices panel
+    both name the two ways to get one.
     """
     from_env = os.environ.get("AMETHYST_APP_URL", "").strip()
     if from_env:
@@ -252,6 +269,31 @@ def app_url(conn: sqlite3.Connection | None = None) -> str:
         "SELECT value FROM app_settings WHERE key = ?", (APP_URL_KEY,)
     ).fetchone()
     return str(row[0]).strip().rstrip("/") if row and row[0] else ""
+
+
+def lan_address() -> str:
+    """This machine's address on the network, for diagnostics only.
+
+    Not used to build a pairing payload -- see `app_url` for why an http origin
+    cannot complete one. It is reported so the Devices panel and `amethyst
+    serve` can say "this machine is here, and here is what it still needs"
+    rather than leaving somebody to work out why a scanned code did nothing.
+
+    A UDP socket that is connected and never sent on: the kernel picks the
+    source address for the route without a packet leaving, which is the one
+    answer that is right on a machine with a VPN, several interfaces, or a
+    hostname that resolves to loopback. This host has two Docker bridges that
+    `gethostbyname` would have offered instead.
+    """
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.settimeout(0.2)
+            probe.connect(("192.0.2.1", 9))  # reserved, unroutable, never dialled
+            return str(probe.getsockname()[0])
+    except OSError:
+        return ""
 
 
 def pairing_payload(secret: str, *, app: str = "", relay: str = "") -> str:

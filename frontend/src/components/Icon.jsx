@@ -227,6 +227,6 @@ export default function Icon({ name, size = 18, weight, filled = false, ...rest 
     if (import.meta.env?.DEV) console.warn(`Icon: no mark named "${name}"`)
     return <span aria-hidden="true" style={{ display: 'inline-block', width: size, height: size }} />
   }
-  const w = weight ?? (filled ? 'fill' : size >= 20 ? 'light' : 'regular')
+  const w = weight ?? (filled ? 'fill' : 'regular')
   return <Mark size={size} weight={w} aria-hidden="true" {...rest} />
 }

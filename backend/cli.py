@@ -886,13 +886,14 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if not _ensure_frontend(args):
         return 1
 
-    from backend.api.main import BIND_HOST_ENV
+    from backend.api.main import BIND_HOST_ENV, BIND_PORT_ENV
 
     url = f"http://{args.host}:{args.port}"
     # What the guard in `backend/api/main.py` reads. Set before uvicorn starts,
     # and through the environment rather than a global, because `--reload` runs
     # the application in a child process.
     os.environ[BIND_HOST_ENV] = str(args.host)
+    os.environ[BIND_PORT_ENV] = str(args.port)
 
     if args.host not in ("127.0.0.1", "localhost", "::1"):
         # This used to say the whole API was published, which was true and is

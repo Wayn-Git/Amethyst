@@ -865,6 +865,47 @@ function ArtifactSide({
   )
 }
 
+export function resolveModelContextWindow(modelId = '', provider = '') {
+  const m = (modelId || '').toLowerCase()
+  const p = (provider || '').toLowerCase()
+
+  if (p === 'google' || m.includes('gemini')) {
+    if (m.includes('1.5-pro') || m.includes('2.0-pro') || m.includes('2.5-pro')) {
+      return 2097152 // 2M
+    }
+    return 1048576 // 1M tokens
+  }
+
+  if (p === 'anthropic' || m.includes('claude')) {
+    return 200000 // 200K tokens
+  }
+
+  if (m.startsWith('o1') || m.startsWith('o3') || m.includes('-o1') || m.includes('-o3')) {
+    return 200000 // 200K tokens
+  }
+
+  if (p === 'openai' || m.includes('gpt-4o')) {
+    return 128000 // 128K tokens
+  }
+
+  if (m.includes('mistral-large') || m.includes('codestral') || m.includes('kimi') || m.includes('minimax-m2.5')) {
+    return 262144 // 256K tokens
+  }
+  if (m.includes('minimax-text') || m.includes('text-01')) {
+    return 1048576 // 1M tokens
+  }
+
+  if (p === 'deepseek' || m.includes('deepseek')) {
+    return 65536 // 64K tokens
+  }
+
+  if (m.includes('32768') || m.includes('32k') || m.includes('qwen2.5-coder')) {
+    return 32768
+  }
+
+  return 131072 // 128K default
+}
+
 export default function Chat() {
   const {
     health, refreshHealth, setView, toast, registerChat,
@@ -2062,7 +2103,7 @@ export default function Chat() {
     return effort.charAt(0).toUpperCase() + effort.slice(1)
   }, [effort])
 
-  const contextPct = useMemo(() => {
+  const contextStats = useMemo(() => {
     let charCount = 0
     for (const it of items || []) {
       if (it.text) charCount += it.text.length
@@ -2070,12 +2111,28 @@ export default function Chat() {
       if (it.content) charCount += (typeof it.content === 'string' ? it.content.length : JSON.stringify(it.content).length)
       if (it.callsRaw) charCount += JSON.stringify(it.callsRaw).length
     }
-    const estimatedTokens = Math.round(charCount / 3.8)
-    // Use the selected model's actual context window if available, fallback to 128k
-    const windowSize = modelCaps?.context_length || 128000
-    const pct = Math.min(100, Math.max(0, Math.round((estimatedTokens / windowSize) * 100)))
-    return items.length > 0 ? pct : 0
-  }, [items, modelCaps])
+    const messageTokens = charCount > 0 ? Math.round(charCount / 3.7) : 0
+    const baseTokens = items.length > 0 ? 1800 : 0
+    const usedTokens = items.length > 0 ? messageTokens + baseTokens : 0
+
+    const activeModelId = active?.model ?? draftModel ?? ''
+    const activeProvider = active?.provider ?? draftProvider ?? ''
+    const maxTokens = modelCaps?.context_length || resolveModelContextWindow(activeModelId, activeProvider)
+    const compactionTokens = Math.round(maxTokens * 0.78)
+
+    const rawPct = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0
+    const pct = Math.min(100, Math.max(0, Math.round(rawPct)))
+    const displayPct = (usedTokens > 0 && pct === 0) ? '<1%' : `${pct}%`
+
+    return {
+      usedTokens,
+      maxTokens,
+      compactionTokens,
+      pct,
+      displayPct,
+    }
+  }, [items, modelCaps, active?.model, active?.provider, draftModel, draftProvider])
+  const contextPct = contextStats.pct
 
   const liveThinkingSnippet = useMemo(() => {
     if (liveReasoning) {
@@ -2548,7 +2605,7 @@ export default function Chat() {
               <button
                 type="button"
                 className={`composer-footer-context${contextOpen ? ' is-active' : ''}`}
-                title={`Context memory usage: ${contextPct}%`}
+                title={`Context memory usage: ${contextStats.displayPct} (${contextStats.usedTokens.toLocaleString()} / ${contextStats.maxTokens.toLocaleString()} tokens)`}
                 onPointerDown={(e) => e.stopPropagation()} onClick={() => { setContextOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setPlusOpen(false) }}
               >
                 <svg className="context-donut-svg" width="13" height="13" viewBox="0 0 36 36">
@@ -2565,18 +2622,19 @@ export default function Chat() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="4"
-                    strokeDasharray={`${Math.max(contextPct, 1)}, 100`}
+                    strokeDasharray={`${Math.max(contextStats.pct > 0 ? contextStats.pct : (contextStats.usedTokens > 0 ? 2 : 0), 0)}, 100`}
                     strokeLinecap="round"
                   />
                 </svg>
-                <span>Context {contextPct}%</span>
+                <span>Context {contextStats.displayPct}</span>
               </button>
               {contextOpen && (
                 <ContextPopover
-                  pct={contextPct}
-                  usedTokens={items.length * 150}
-                  maxTokens={128000}
-                  compactionTokens={90000}
+                  pct={contextStats.pct}
+                  displayPct={contextStats.displayPct}
+                  usedTokens={contextStats.usedTokens}
+                  maxTokens={contextStats.maxTokens}
+                  compactionTokens={contextStats.compactionTokens}
                   onClose={() => setContextOpen(false)}
                   placement="up"
                 />

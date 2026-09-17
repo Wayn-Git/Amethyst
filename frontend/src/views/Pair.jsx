@@ -47,6 +47,15 @@ function canScan() {
  * never answered", which is the right message for exactly one of them and sends
  * you to check the wrong thing for the rest. */
 const TROUBLE = {
+  /* The one failure that is not worth retrying, and the only one whose fix is
+     on the other machine rather than on this phone. */
+  insecure: {
+    title: 'This address cannot pair',
+    body: 'Browsers only allow the encryption this needs on an https address. '
+      + 'Open Amethyst over https and scan the code again — on your computer, '
+      + '`cloudflared tunnel --url http://localhost:8000` gives you one in a second.',
+    retry: 'Try again',
+  },
   expired: {
     title: 'That code has expired',
     body: 'Codes last five minutes. Show a new one on your computer and scan it again.',
@@ -225,6 +234,14 @@ export default function Pair({ onPaired, onDesktop }) {
         publishes and can send it more. Everything between them is sealed — the relay
         carrying it cannot read any of it.
       </p>
+
+      {!syncClient.canPair() ? (
+        <p className="pair-error">
+          This page is on <code>{typeof window !== 'undefined' ? window.location.protocol : ''}</code>,
+          and browsers only allow the encryption pairing needs over <strong>https</strong>.
+          Nothing below will work until Amethyst is opened over an https address.
+        </p>
+      ) : null}
 
       <ol className="pair-steps">
         <li>On your computer, open <strong>Settings → Devices</strong></li>

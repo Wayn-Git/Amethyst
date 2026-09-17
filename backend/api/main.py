@@ -584,6 +584,10 @@ _PUBLIC_PATHS = frozenset({"/api/ping", "/api/pair/claim"})
 #: the application in a child process, which inherits the environment and not
 #: the parent's memory.
 BIND_HOST_ENV = "AMETHYST_BIND_HOST"
+#: And the port, which `backend/sync/devices.py` needs to build the address a
+#: phone opens this app at. Same reasoning: the child process of `--reload`
+#: inherits the environment and not the parent's memory.
+BIND_PORT_ENV = "AMETHYST_BIND_PORT"
 
 
 def _bound_wide() -> bool:
@@ -4647,6 +4651,28 @@ def _qr_svg(payload: str) -> str:
         return ""
 
 
+def _is_secure_origin(url: str) -> bool:
+    """Would a browser treat this http origin as a secure context?
+
+    Loopback only, per the Secure Contexts spec -- `localhost`, `127.0.0.0/8`,
+    `[::1]` and the `.localhost` names. Deliberately *not* the private ranges:
+    a browser gives `192.168.1.6` no more trust than a public address, which is
+    the whole reason an address on your own network cannot carry this.
+    """
+    import ipaddress
+    from urllib.parse import urlsplit
+
+    host = (urlsplit(url).hostname or "").lower()
+    if not host:
+        return False
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 @app.put("/api/devices/app-url")
 def set_app_url(body: dict[str, Any]) -> dict[str, Any]:
     """Where a phone opens this app.
@@ -4662,13 +4688,23 @@ def set_app_url(body: dict[str, Any]) -> dict[str, Any]:
     given = str(body.get("app_url") or "").strip().rstrip("/")
     if given and not given.startswith(("http://", "https://")):
         raise HTTPException(400, "that needs to be a full http:// or https:// address")
-    # A camera-opened link has to reach a page, and getUserMedia in the scanner
-    # needs a secure context. http://localhost counts as one; nothing else does.
-    if given.startswith("http://") and "localhost" not in given and "127.0.0.1" not in given:
+    # https, or an http origin a browser treats as secure -- which is loopback
+    # and nothing else.
+    #
+    # Not a preference and not about the scanner. Pairing derives a key with
+    # HKDF and opens the envelope with AES-GCM, both through `crypto.subtle`,
+    # and `crypto.subtle` is undefined outside a secure context. A LAN address
+    # was briefly allowed here on the reasoning that a camera only has to
+    # *open* the link; the camera does open it, and then `window.isSecureContext`
+    # is false, `crypto.randomUUID` is undefined, and the pairing screen throws
+    # before it sends anything. Refusing the address is the honest place to fail.
+    if given.startswith("http://") and not _is_secure_origin(given):
         raise HTTPException(
             400,
-            "that has to be https -- a phone's camera will open it, and the"
-            " scanner needs a secure context to reach the camera at all",
+            "that has to be https. A phone loading this over plain http gets no"
+            " crypto.subtle -- browsers only give one to a secure context -- so"
+            " pairing cannot run there at all. Put it behind https, or use a"
+            " tunnel: cloudflared tunnel --url http://localhost:8000",
         )
     conn = get_connection()
     with transaction(conn):

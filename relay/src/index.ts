@@ -99,6 +99,7 @@ export { JobWorkflow } from './jobs/workflow.ts';
 import { authenticate, authenticateDevice, bearer, sameSecret } from './auth.ts';
 import { acceptOps, ackOps, opsForSync, pruneOps } from './ops.ts';
 import { answerPairing, offerPairing, pairingsForSync, prunePairings, takePairing } from './pairing.ts';
+import { isBrowserRoute, preflight, withCors } from './cors.ts';
 import { ackReports, isWorker, pruneReports, report, reportsForSync } from './workers.ts';
 import {
 	ackJobs,
@@ -158,6 +159,7 @@ function json(body: unknown, status = 200): Response {
 		headers: { 'content-type': 'application/json' },
 	});
 }
+
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -765,6 +767,28 @@ export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const path = url.pathname.replace(/\/+$/, '') || '/';
+
+		// Answered before anything else looks at the request. A preflight carries
+		// no credential and no body by definition, so there is nothing here to
+		// authenticate or validate -- and a 404 for one, which is what this used
+		// to return, reads to the browser as "this endpoint does not exist" and
+		// cancels the request that was about to follow it.
+		if (request.method === 'OPTIONS' && isBrowserRoute(path)) {
+			return preflight();
+		}
+		if (isBrowserRoute(path)) {
+			return withCors(await this.route(request, env, ctx, url, path));
+		}
+		return this.route(request, env, ctx, url, path);
+	},
+
+	async route(
+		request: Request,
+		env: Env,
+		ctx: ExecutionContext,
+		url: URL,
+		path: string,
+	): Promise<Response> {
 
 		// Deliberately says nothing about queue depth, credentials or whether the
 		// laptop is around. Anyone can reach this, and it answers before the

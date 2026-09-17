@@ -3715,8 +3715,13 @@ function Devices() {
                 />
                 <p className="pair-invite-hint">
                   {invite.app_url
-                    ? 'Point your phone’s camera at this. It opens Amethyst and pairs itself.'
-                    : 'Scan this from the pairing screen on your phone.'}
+                    ? <>Point your phone’s camera at this. It opens <code>{invite.app_url}</code> and pairs itself.</>
+                    /* Not "scan this". Without an address to send it to, the
+                       payload is an `amethyst://` link, and a phone's camera
+                       cannot open one of those -- so somebody following that
+                       instruction points a camera at a code and nothing at all
+                       happens. The typed code below is the route that works. */
+                    : 'A phone camera cannot open this code — it is an amethyst:// link, not a web address. Scan it from the pairing screen inside Amethyst on your phone, or type the code below. To make it camera-openable, give Amethyst an https address (see below).'}
                 </p>
               </>
             ) : null}
@@ -3742,9 +3747,9 @@ function Devices() {
           <div className="set-row-text">
             <span className="set-row-title">Where your phone opens Amethyst</span>
             <span className="set-row-desc">
-              Set this and the code above becomes a link your phone’s camera opens by itself,
-              with nothing to type. Leave it blank and the code still works — it just has to be
-              scanned from inside the app.
+              {appUrl
+                ? 'The pairing code is a link to this address, which your phone’s camera opens by itself.'
+                : 'Nothing is set, so the code is not camera-openable. It has to be an https address: browsers only allow the encryption pairing needs on one, so a plain http address on your own network cannot work however convenient it would be. Deploy the interface, or run a tunnel — cloudflared tunnel --url http://localhost:8000 — and paste the address it prints.'}
             </span>
           </div>
           <input
