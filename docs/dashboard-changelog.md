@@ -189,3 +189,9 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-26 · UI Communication group · comm.templates: template list, house composer and preserved local gate; focused theme/state/action checks passed.
 - 2026-10-26 · UI Communication group · comm.tone: accent rewrite composer, house selects and gated review; focused theme/state/action checks passed.
 - 2026-10-26 · UI group verification: all 23 shipped Glance/Needs you/Communication IDs adopted, group checklist updated; four unimplemented IDs remain pending. Integrated Home and mocked mail regressions pass; expanded lists inherit group presentation. No backend/contracts/screenshots changed.
+- 2026-10-26 · glance.weather: direct location action, real hourly sparkline and shared city/device/manual picker; existing settings contract preserved.
+- 2026-10-26 · glance.air: shared location picker and refresh after environmental coordinates change; validated zero/bounds, denial, retry and cancellation with fixtures.
+- 2026-10-26 · glance.sun: shared location picker/refresh and wide paired-time presentation; stored size vocabulary unchanged.
+- 2026-10-26 · glance.travel: saved-origin prefill and device-location fill with explicit Save; existing address/coordinate settings and connector behavior preserved.
+- 2026-10-26 · Home sizing: compact catalog defaults and optional Fit widgets with serialized persistence/Undo; custom order and membership preserved.
+- 2026-10-26 · Desktop delivery: user was seeing stale frontend/dist, not the committed bento source. Rebuilt production assets and verified the running backend's /today entry matches; served-app location/layout/theme proof, Glance adoption and integrated Home checks pass. Lint has existing WidgetFrame raw-control warnings; build has chunk/import warnings. No screenshots, backend edits or live OS/connector checks.

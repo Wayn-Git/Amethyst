@@ -206,3 +206,13 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [x] Focused synthetic state/action checks, nine themes at 1440/390, reduced motion and integrated Home proof.
 - [ ] Four unimplemented IDs remain outside UI-only scope: glance.listen-stats, need.lor-social, comm.schedule-send, comm.meeting.
 - [ ] Existing dashboard-pilots.mjs stops at task.today add-item approval; Tasks are outside these groups.
+
+## Desktop delivery and location follow-up
+
+- [x] Rebuilt the stale desktop bundle; verified live backend serves the new hashed entry and bento UI.
+- [x] Shared environmental city/device/manual location controls, range validation, zero coordinates, denied access, failed-search retry and cancellation before save.
+- [x] Saving shared coordinates refreshes weather, air quality and sunrise/sunset; compact forecast uses real numeric readings only.
+- [x] Travel origin prefills saved settings; device lookup fills without saving until the explicit Save action.
+- [x] Supported compact defaults, wide sunrise/sunset presentation, optional Fit widgets with preserved order and Undo.
+- [x] Glance and integrated Home checks; served production browser proof across nine themes, mobile and reduced motion; no screenshots.
+- [ ] Live OS geolocation and live connector requests were not exercised; tests use fixtures.

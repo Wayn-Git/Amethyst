@@ -1,6 +1,9 @@
 /* Home composition adapts legacy widget contents to the shared tile surface. */
 .today-dashboard.bento-foundation { background: var(--tile-canvas); --today-gap: var(--tile-gutter); }
 .today-page { max-width: var(--ui-max-width); }
+.today-dashboard.bento-foundation .today-edit-bar { flex-wrap: wrap; background: var(--tile-accent); color: var(--tile-accent-text); border-color: transparent; }
+.today-dashboard.bento-foundation .today-edit-bar p { color: var(--tile-accent-muted); }
+.today-dashboard .today-edit-bar > .today-fit-widgets { display: inline-flex; }
 .today-page > .today-widgets { display: block; }
 .home-layout-grid .bento-grid { align-items: stretch; }
 .home-layout-grid .today-widget-slot.ui-tile { padding: 0; gap: 0; align-self: stretch; transition: transform var(--tile-fast) var(--tile-ease); }

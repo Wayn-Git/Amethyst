@@ -4,7 +4,7 @@ import Icon from '../components/Icon.jsx'
 import WidgetFrame, { WidgetBoundary } from './WidgetFrame.jsx'
 import { DashboardContext } from './context.js'
 import { cached, remember, request } from './api.js'
-import { GLANCE_WIDGETS, NEED_WIDGETS, SYSTEM_WIDGETS, morningLayout, moveWidget, quietNow, resizeWidget } from './layout.js'
+import { GLANCE_WIDGETS, NEED_WIDGETS, SYSTEM_WIDGETS, morningLayout, moveWidget, quietNow, resizeWidget, preferredWidgetSize, widgetDisplaySize } from './layout.js'
 import { useApp } from '../store.jsx'
 import Drawer from './Drawer.jsx'
 import HomeSettings from './HomeSettings.jsx'
@@ -87,6 +87,14 @@ export default function Home() {
   }, [quietSettings, refreshAll, saveQuiet])
   function move(id, step) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; const index = widgets.findIndex(w => w.id === id); if (widgets[index + step]) { persist({ widgets: moveWidget(widgets, id, widgets[index + step].id) }); setAnnouncement(`${id} moved to position ${index + step + 1}`) } }
   function resize(id, patch) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.map(w => w.id === id ? { ...w, ...patch } : w) }); setAnnouncement(`${id} resized to ${patch.size || 'custom height'}`) }
+  function fitWidgets() {
+    const widgets = layoutRef.current.widgets.map(item => {
+      const manifest = manifests.find(m => m.id === item.id)
+      return manifest ? { ...item, size: preferredWidgetSize(manifest) } : item
+    })
+    if (widgets.some((item, index) => item.size !== layoutRef.current.widgets[index].size)) persist({ ...layoutRef.current, widgets }, true, 'Widget sizes fitted')
+    setAnnouncement('Widget sizes fitted. Order preserved.')
+  }
   function grip(kind, id) {
     return {
       onPointerDown(event) { if (event.button !== 0) return; event.preventDefault(); gesture.current = { kind, id, x: event.clientX, y: event.clientY, original: layoutRef.current }; grid.current.setPointerCapture(event.pointerId); setDragging(id) },
@@ -123,7 +131,7 @@ export default function Home() {
     if (widgets.some(w => w.id === id)) return
     const manifest = manifests.find(m => m.id === id)
     const validSizes = manifest?.sizes || ['m']
-    const chosenSize = size && validSizes.includes(size) ? size : validSizes.includes('m') ? 'm' : validSizes[0] || 's'
+    const chosenSize = size && validSizes.includes(size) ? size : manifest ? preferredWidgetSize(manifest) : 's'
     addedTile.current = id
     persist({ widgets: [...widgets, { id, size: chosenSize, height: chosenSize === 's' ? 3 : chosenSize === 'l' ? 4 : 3 }] }, true, `${manifest?.title || 'Widget'} added to Home`)
   }
@@ -148,7 +156,7 @@ export default function Home() {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
     if (full) return <WidgetView context={frameContext} manifest={manifest} size={position.size} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} full />
-    return <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} displaySize={GLANCE_WIDGETS.includes(position.id) && position.size === 'm' ? 's' : position.size} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{views.get(position.id)}</WidgetSlot>
+    return <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} displaySize={widgetDisplaySize(position.id, position.size)} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{views.get(position.id)}</WidgetSlot>
   }
   const previousRects = useRef(new Map())
   const addedTile = useRef(null)
@@ -203,7 +211,7 @@ export default function Home() {
           <Button variant="ghost" className="today-capture" onClick={() => setOverlay('palette')}><Icon name="search" size={16} /><span>Search or capture a thought…</span><Kbd>⌘K / Ctrl+K</Kbd></Button>
           <span className="today-layout-label">Home · {homePositions.length} widgets{quiet ? ' · Refresh paused' : ''}</span>
         </div>
-        {editing && <div className="today-edit-bar"><span className="today-edit-icon"><Icon name="grid" size={18} /></span><div><strong>Arrange your workspace</strong><p>Drag to reorder. Choose a size to resize. Changes save automatically.</p></div><Button size="small" variant="ghost" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={14} />Add widget</Button></div>}
+        {editing && <div className="today-edit-bar"><span className="today-edit-icon"><Icon name="grid" size={18} /></span><div><strong>Arrange your workspace</strong><p>Drag to reorder, resize, or fit widgets to their suggested sizes.</p></div><Button size="small" className="today-fit-widgets" onClick={fitWidgets}>Fit widgets</Button><Button size="small" variant="ghost" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={14} />Add widget</Button></div>}
         <SourceItem />
         {error && <div className="today-message" role="alert"><Icon name="warning" size={16} /><p>{error} {entries.length ? 'Using saved shell data where available.' : ''}</p><Button size="small" onClick={() => window.location.reload()}>Retry Home</Button></div>}
         <span className="home-announcement" role="status" aria-live="polite">{announcement}</span>

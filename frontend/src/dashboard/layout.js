@@ -59,6 +59,14 @@ export function previewRows(payload) {
 export const SYSTEM_WIDGETS = ['dash.sync', 'dash.quiet', 'dash.shortcuts', 'dash.gallery']
 export const NEED_WIDGETS = ['need.inbox', 'need.drafts', 'need.waiting', 'need.mentions', 'need.overdue']
 export const GLANCE_WIDGETS = ['glance.clock', 'glance.weather', 'glance.next-event', 'glance.music']
+export function preferredWidgetSize(manifest) {
+  const preferred = ['glance.clock', 'glance.air', 'glance.next-event'].includes(manifest.id) ? 's' : 'm'
+  return manifest.sizes.includes(preferred) ? preferred : manifest.sizes[0]
+}
+export function widgetDisplaySize(id, size) {
+  if (size !== 'm') return size
+  return id === 'glance.sun' ? 'wide' : GLANCE_WIDGETS.includes(id) ? 's' : size
+}
 export function rankNeeds(manifests, records) {
   const kind = { 'need.inbox': 'MAIL', 'need.drafts': 'DRAFT', 'need.waiting': 'WAITING', 'need.mentions': 'MENTION', 'need.overdue': 'OVERDUE' }
   const action = { 'need.inbox': 'Read', 'need.drafts': 'Review', 'need.waiting': 'Follow up', 'need.mentions': 'Open', 'need.overdue': 'Review' }

@@ -62,6 +62,16 @@
 .bento-foundation .home-widget.widget-adoption .adoption-unread > li { display: grid; gap: var(--tile-space-3); }
 .bento-foundation .home-widget.widget-adoption .adoption-person-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tile-space-3); }
 .bento-foundation .home-widget.widget-adoption .adoption-unread ul > li { padding: var(--tile-space-3) 0; border-top: 1px solid var(--ui-border); }
+.bento-foundation .home-widget.widget-adoption .weather-reading { display: flex; align-items: center; gap: var(--tile-space-4); }
+.bento-foundation .home-widget.widget-adoption .weather-reading .pilot-number { flex: 1; min-width: 0; }
+.bento-foundation .home-widget.widget-adoption .weather-forecast { flex: 0 1 40%; min-width: 0; max-width: 160px; }
+.bento-foundation .home-widget.widget-adoption .weather-forecast .ui-sparkline { display: block; max-height: 64px; }
+.bento-foundation .home-widget.widget-adoption .weather-location-action { justify-self: start; min-height: 28px; padding: var(--tile-space-1) var(--tile-space-2); border-radius: 999px; font: var(--tile-label); }
+.bento-foundation .home-widget.widget-adoption .location-settings { gap: var(--tile-space-3); }
+.bento-foundation .home-widget.widget-adoption .location-search { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.bento-foundation .home-widget.widget-adoption .location-results { display: grid; gap: var(--tile-space-2); }
+.bento-foundation .home-widget.widget-adoption .location-results .ui-button { width: 100%; justify-content: space-between; text-align: left; }
+.bento-foundation .home-widget.widget-adoption .location-results svg { flex: none; }
 @container tile (width < 390px) {
   .bento-foundation .home-widget.widget-adoption { padding: var(--tile-space-4); }
   .bento-foundation .home-widget.widget-adoption .adoption-time { font-size: 32px; }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDashboard } from './context.js'
-import { SYSTEM_WIDGETS, WIDGET_ICONS, widgetTone } from './layout.js'
+import { SYSTEM_WIDGETS, WIDGET_ICONS, widgetTone, preferredWidgetSize } from './layout.js'
 import { Button, Input, Select, Segmented, Chip, IconBadge } from '../components/ui/bento/index.jsx'
 import Icon from '../components/Icon.jsx'
 
@@ -11,7 +11,7 @@ const connectors = manifest => [...new Set([...manifest.requires.filter(value =>
 const sourceNames = { googlecalendar: 'Google Calendar', gmail: 'Gmail', github: 'GitHub', slack: 'Slack' }
 
 function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget }) {
-  const [size, setSize] = useState(m.sizes.includes('m') ? 'm' : m.sizes[0])
+  const [size, setSize] = useState(() => preferredWidgetSize(m))
   const system = SYSTEM_WIDGETS.includes(m.id)
   return <article className="today-catalog-row home-catalog-row" aria-label={m.title}>
     <div className="catalog-thumbnail ui-tile" data-tone={widgetTone(m.id)} data-preview-size={size} aria-hidden="true">

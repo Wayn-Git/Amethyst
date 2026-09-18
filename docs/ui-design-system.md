@@ -67,3 +67,11 @@ Home separates layout controls from memoized widget content. Reordering keeps pe
 The catalog uses a right drawer on desktop and a bottom sheet at mobile widths, including 390 px. Search matches capability descriptions and source names; categories show total widget counts. The two-column card grid becomes one column below 440 px of results space. Each card has a primitive layout silhouette in the same tone as its Home tile, a distinct house icon, capability copy, manifest-supported sizes, connector chips and connection links. Silhouettes contain no measurements or runtime data. Added widgets show On Home and Remove; settings-only utilities keep Open. Add uses the existing serialized layout save and undo path, with a 250 ms entrance/highlight skipped for reduced motion. Undo notifications render within the native modal so their actions remain accessible.
 
 Manifest `description` and `icon` are additive catalog metadata; existing custom manifests retain compatible defaults. All shipped manifests supply explicit descriptions and distinct icon names. Runtime empty-state copy stays separate from catalog descriptions. No source behavior or permission contracts changed.
+
+## Desktop delivery and compact sizing
+
+The desktop backend serves `frontend/dist`, not the Vite source tree. After UI changes, run `npm run build:frontend` and verify `/today` from the running backend uses the rebuilt hashed assets. A source-only test does not establish desktop delivery; reload an already-open desktop window to load the new bundle. Build output stays ignored by Git.
+
+Clock, air quality and next event prefer S when their manifests support it. Other catalog defaults retain M or the first supported size. Sunrise/sunset stored as M displays as a wide split tile without changing the stored contract. Edit layout → Fit widgets applies these supported sizes through the existing serialized save and Undo path; membership, order and other fields are preserved. Custom layouts are never automatically fitted.
+
+`frontend/tests/dashboard-desktop.mjs` checks the served production app with mocked APIs and device location, including location controls, shared refresh, fit/undo, catalog icons, nine themes, mobile overflow and reduced motion. It takes no screenshots and does not establish live OS location or connector availability.
