@@ -54,3 +54,18 @@ def test_paths_and_remote_redaction():
         git.public_remote("https://user:password@example.invalid/r.git?token=secret")
         == "https://example.invalid/r.git"
     )
+
+
+async def test_unpushed_real_branches_dirty_and_no_upstream(db, repo):
+    settings_write("dev.unpushed", {"repos": [str(repo)]})
+    command(repo, "commit", "--allow-empty", "-m", "Unpushed fixture")
+    command(repo, "branch", "untracked")
+    (repo / "fixture.txt").write_text("dirty fixture")
+    item = (await git.provide("dev.unpushed"))["items"][0]
+    assert item["dirty"] is True
+    assert item["branches"] == [
+        {"name": "main", "upstream": "origin/main", "ahead": 1},
+        {"name": "untracked", "upstream": None, "ahead": None},
+    ]
+    settings_write("dev.unpushed", {"repos": [str(repo / "missing")]})
+    assert (await git.provide("dev.unpushed"))["items"][0]["dirty"] is None

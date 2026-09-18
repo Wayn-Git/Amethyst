@@ -95,7 +95,7 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
         elif widget_id == "task.agenda":
             value = AgendaSettings.model_validate(body).model_dump()
-        elif widget_id == "dev.backup":
+        elif widget_id in ("dev.backup", "dev.unpushed"):
             value = RepoSettings.model_validate(body).model_dump()
         elif widget_id == "lib.search":
             value = SearchSettings.model_validate(body).model_dump()

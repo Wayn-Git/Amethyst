@@ -126,6 +126,29 @@ async def backup(path):
     return item
 
 
+async def unpushed(path):
+    item = {"id": path, "title": path, "warnings": [], "branches": [], "dirty": None}
+    try:
+        item["dirty"] = bool(await git(path, "status", "--porcelain", "--untracked-files=normal"))
+        branches = await git(
+            path, "for-each-ref", "--format=%(refname:short)%09%(upstream:short)", "refs/heads/"
+        )
+        for line in branches.splitlines():
+            name, _, upstream = line.partition("\t")
+            ahead = None
+            if upstream:
+                ahead = int(await git(path, "rev-list", "--count", f"{upstream}..{name}", "--"))
+            item["branches"].append({"name": name, "upstream": upstream or None, "ahead": ahead})
+    except (OSError, RuntimeError, TimeoutError):
+        item["warnings"].append("Repository details unavailable")
+    return item
+
+
 async def provide(widget_id):
-    repos = settings_read("dev.backup").get("repos", [])
-    return {"items": await asyncio.gather(*(backup(path) for path in repos)), "repos": repos}
+    repos = settings_read(widget_id).get("repos", [])
+    return {
+        "items": await asyncio.gather(
+            *((unpushed if widget_id == "dev.unpushed" else backup)(path) for path in repos)
+        ),
+        "repos": repos,
+    }

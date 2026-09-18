@@ -35,7 +35,7 @@ async def local_provider(widget_id):
         from backend.dashboard.director import provide
 
         return await provide(widget_id)
-    if widget_id == "dev.backup":
+    if widget_id in ("dev.backup", "dev.unpushed"):
         from backend.dashboard.git import provide
 
         return await provide(widget_id)

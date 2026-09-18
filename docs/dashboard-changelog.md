@@ -48,3 +48,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-24 need.decisions: Uses existing suspended question waiters and answer/dismiss endpoints; options shown with free-text answers. All six Director widgets verified with isolated fixtures.
 
 - 2026-10-24: Reused SQLite execution_logs for audit; persisted dashboard gate outcomes and exposed read-only approval history across restarts.
+- 2026-10-24: dev.unpushed reports dirty working trees and each branch ahead of local tracking refs; no upstream remains unknown, no fetch or push.

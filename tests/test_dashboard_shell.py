@@ -51,6 +51,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "lib.capture",
         "lib.resurface",
         "dev.backup",
+        "dev.unpushed",
         "dev.appeal",
         "dev.recovery",
         "dash.gallery",

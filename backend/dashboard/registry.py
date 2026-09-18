@@ -112,6 +112,7 @@ MANIFESTS = [
     director_manifest("agent.audit", "Tool-call audit log"),
     developer_manifest("dev.appeal", "Support cases"),
     developer_manifest("dev.recovery", "Recovery checklist"),
+    developer_manifest("dev.unpushed", "Unpushed commits and dirty branches", "git"),
     developer_manifest("dev.backup", "Backup status", "git"),
     library_manifest("lib.inbox", "Saved items inbox"),
     library_manifest("lib.resurface", "Resurfaced old notes"),
