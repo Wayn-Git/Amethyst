@@ -22,6 +22,7 @@ import { paired as isPaired } from './lib/sync/client.js'
 import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
+import MobileNav from './components/MobileNav.jsx'
 
 /* The workbench.
 
@@ -170,6 +171,18 @@ function useGlobalKeys() {
   ])
 }
 
+function useUnhandledRejections() {
+  const { toast } = useApp()
+  useEffect(() => {
+    const onUnhandled = (e) => {
+      console.error('Unhandled Promise Rejection:', e.reason)
+      toast(`Error: ${e.reason?.message || e.reason || 'An unexpected error occurred'}`, 'bad')
+    }
+    window.addEventListener('unhandledrejection', onUnhandled)
+    return () => window.removeEventListener('unhandledrejection', onUnhandled)
+  }, [toast])
+}
+
 /* The bar over the working column.
 
    It says where you are, which the rail no longer can now that the rail is
@@ -189,26 +202,25 @@ function WorkbenchBar() {
             <div className="wb-bar-toggle-group">
               <button
                 type="button"
-                className="wb-icon-btn"
+                className="wb-icon-btn wb-sidebar-trigger"
                 onClick={toggleRail}
                 title={`Open sidebar — ${MOD_LABEL}+B`}
                 aria-label="Open sidebar"
               >
-                <Icon name="sidebar" size={15} />
+                <Icon name="sidebar" size={17} />
               </button>
-              <UserMenu align="start" side="bottom" sideOffset={8}>
-                <button
-                  type="button"
-                  className="wb-bar-user-btn"
-                  title={`User menu for ${userProfile?.name || 'User'} — Click to edit name or open settings`}
-                >
-                  <div className="sb-user-avatar sb-user-avatar--xs">
-                    {(userProfile?.name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="wb-bar-user-name">{userProfile?.name || 'User'}</span>
-                  <Icon name="chevron" size={9} style={{ opacity: 0.6 }} />
-                </button>
-              </UserMenu>
+              <div
+                className="wb-bar-brand-compact"
+                onClick={() => setView('chat')}
+                title="Amethyst Home"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') setView('chat') }}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}
+              >
+                <BrandMark size={22} glow />
+                <span className="wb-bar-brand-text">AMETHYST</span>
+              </div>
             </div>
           )}
         </div>
@@ -234,8 +246,8 @@ function WorkbenchBar() {
             type="button"
             className={`wb-icon-btn${panel ? ' is-active' : ''}`}
             onClick={togglePanel}
-            title={panel ? 'Hide artifact panel' : 'Show artifact panel'}
-            aria-label={panel ? 'Hide artifact panel' : 'Show artifact panel'}
+            title={panel ? 'Hide detail panel' : 'Show detail panel'}
+            aria-label={panel ? 'Hide detail panel' : 'Show detail panel'}
             aria-pressed={panel}
           >
             <Icon name="layout" size={15} />
@@ -251,8 +263,13 @@ function WorkbenchBar() {
             <Icon name="sliders" size={15} />
           </button>
 
-          <div className="wb-bar-brand-wrap wb-bar-brand-right" title="Amethyst">
-            <BrandMark size={20} />
+          <div
+            className="wb-bar-brand-wrap wb-bar-brand-right"
+            title="Amethyst Home"
+            onClick={() => setView('chat')}
+            style={{ cursor: 'pointer' }}
+          >
+            <BrandMark size={22} glow />
             <span className="wb-bar-brand-text">AMETHYST</span>
           </div>
         </div>
@@ -403,10 +420,16 @@ export default function App() {
   // decides which interface is wanted. Reachability decides something else --
   // whether the pairing screen can offer a shortcut -- and is still read below.
   if (phone && !forceDesktop) {
-    return <PhoneApp paired={paired} onPaired={() => setPaired(true)} onDesktop={() => {
-      safeStorage.setItem(DESKTOP_KEY, '1')
-      setForceDesktop(true)
-    }} />
+    return (
+      <PhoneApp
+        paired={paired}
+        onPaired={() => setPaired(true)}
+        onDesktop={() => {
+          safeStorage.setItem(DESKTOP_KEY, '1')
+          setForceDesktop(true)
+        }}
+      />
+    )
   }
 
   if (server.phase !== 'ready' || !server.verified) {
@@ -472,18 +495,32 @@ export default function App() {
             </ErrorBoundary>
           </main>
         )}
+        <MobileNav />
       </div>
       {/* The panel is a slot rather than a component: whichever view is open
           fills it through a portal, and it collapses on its own when nothing
           has anything to put there. */}
       {view !== 'settings' && (
       <aside
-        className="wb-panel"
+        className={`wb-panel${compact && panel ? ' wb-panel--mobile-sheet' : ''}`}
         id="wb-panel"
         aria-label="Run detail"
         inert={drawerOpen}
-        style={{ '--panel-w': `${panelWidth}px` }}
+        style={{ '--panel-w': compact ? '100%' : `${panelWidth}px` }}
       >
+        {compact && panel && (
+          <div className="wb-panel-mobile-header">
+            <span className="wb-panel-mobile-title">Details & Context</span>
+            <button
+              type="button"
+              className="wb-panel-mobile-close"
+              onClick={togglePanel}
+              aria-label="Close details panel"
+            >
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+        )}
         <PanelResizer />
       </aside>
       )}

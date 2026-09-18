@@ -1,7 +1,7 @@
 # Cloudflare Pages routing.
 #
-# The last line is the SPA fallback: a deep link like /remote is not a file, so
-# it has to be served index.html and let the router take it from there.
+# The last line is the SPA fallback: a deep link like /pair or /remote is not a
+# file, so it has to be served index.html and let the router take it from there.
 #
 # The first line is what stops that fallback answering for the backend. Without
 # it, /api/ping returns index.html with a 200 -- and the interface's own
@@ -9,5 +9,13 @@
 # and then got this page back from every call it made. A 404 here is the truth:
 # there is no API on a static host, and the interface is built to handle being
 # told so.
-/api/*  /404.html  404
+#
+# The destination is `api-404.html` and NOT `404.html`, which is the detail that
+# made all of this inert. Pages treats a file named exactly `404.html` as its
+# own not-found handler and serves it for every path that is not a static asset
+# -- ahead of the catch-all below. So with one in the output, `/pair` and
+# `/chat` both returned the literal string "404" and the deployed app was
+# reachable only at `/`. A phone opening a pairing link got a 404 page, which is
+# what made the QR code look broken after it had started carrying a real URL.
+/api/*  /api-404.html  404
 /*      /index.html  200
