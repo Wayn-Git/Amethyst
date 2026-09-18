@@ -256,6 +256,18 @@ MANIFESTS = [
         "requires": [],
         "empty": "No matching items.",
     },
+    {
+        **manifest("comm.contacts", "Contact cards", ["m", "l"]),
+        "group": "communication",
+        "tier": "v2",
+        "source": [
+            {"type": "composio", "toolkit": "gmail"},
+            {"type": "composio", "toolkit": "slack"},
+        ],
+        "refresh": {"mode": "poll", "interval_s": 900},
+        "requires": [],
+        "empty": "No matching items.",
+    },
     mail_manifest("comm.unread", "Unread by person"),
     mail_manifest("comm.tone", "Reply tone picker"),
     mail_manifest("comm.templates", "Draft templates"),

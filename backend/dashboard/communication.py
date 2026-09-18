@@ -49,6 +49,8 @@ async def provide(widget_id):
         return await slack_dms(widget_id)
     if widget_id == "comm.newsletters":
         return await newsletters(widget_id)
+    if widget_id == "comm.contacts":
+        return await contacts(widget_id)
     return await summaries(widget_id)
 
 
@@ -189,3 +191,90 @@ async def newsletters(widget_id):
             ):
                 by_id[row["id"]]["summary"] = row["summary"][:2000]
     return {"items": items, "model_enabled": enabled, "limited": limited}
+
+
+async def gmail_contacts(widget_id):
+    from email.utils import getaddresses
+
+    rows = await mail.messages(widget_id, "-in:drafts newer_than:365d")
+    items = []
+    for row in rows:
+        people = getaddresses([row.get("to", "") if row.get("sent") else row["from"]])
+        for name, address in people:
+            if not address or "@" not in address:
+                continue
+            thread = row.get("thread_id") or row["id"]
+            items.append(
+                {
+                    "id": "gmail:" + address.lower(),
+                    "title": name or address,
+                    "person": address.lower(),
+                    "source": "Gmail",
+                    "at": row["date"],
+                    "threads": ["https://mail.google.com/mail/u/0/#all/" + quote(thread, safe="")],
+                }
+            )
+    return items
+
+
+async def slack_contacts(widget_id):
+    me = (await connectors.read(widget_id, "slack", "SLACK_TEST_AUTH", {}))["user_id"]
+    result = await connectors.read(
+        widget_id,
+        "slack",
+        "SLACK_SEARCH_MESSAGES",
+        {"query": "in:dm", "count": 100, "sort": "timestamp", "sort_dir": "desc"},
+    )
+    channels = {}
+    for row in result["items"]:
+        channels.setdefault(row["channel"], []).append(row)
+    items = []
+    for rows in channels.values():
+        latest = max(rows, key=lambda r: float(r["id"]))
+        for row in rows:
+            if not row["user"] or row["user"] == me:
+                continue
+            items.append(
+                {
+                    "id": "slack:" + row["user"],
+                    "title": row["user"],
+                    "person": row["user"],
+                    "source": "Slack",
+                    "at": mail.datetime.fromtimestamp(float(latest["id"]), mail.UTC).isoformat(),
+                    "threads": [row["url"]] if row["url"] else [],
+                }
+            )
+    return items
+
+
+async def contacts(widget_id):
+    from backend.dashboard.store import cache_read
+
+    previous = (cache_read("comm.contacts")["payload"] or {}).get("items", [])
+    results = await asyncio.gather(
+        gmail_contacts(widget_id), slack_contacts(widget_id), return_exceptions=True
+    )
+    if not previous and all(isinstance(r, connectors.SourceUnavailable) for r in results):
+        raise connectors.SourceUnavailable
+    if not previous and all(isinstance(r, Exception) for r in results):
+        raise RuntimeError("Contact sources unavailable")
+    cards = {row["id"]: dict(row) for row in previous}
+    for result in results:
+        if isinstance(result, Exception):
+            continue
+        for row in result:
+            old = cards.get(row["id"])
+            if old:
+                row["threads"] = list(dict.fromkeys(old["threads"] + row["threads"]))[-30:]
+                if mail.mail_date(old["at"]) > mail.mail_date(row["at"]):
+                    row["at"] = old["at"]
+            cards[row["id"]] = row
+    return {
+        "items": sorted(cards.values(), key=lambda r: mail.mail_date(r["at"]), reverse=True)[:500],
+        "limited": True,
+        "unavailable": [
+            name
+            for name, result in zip(("Gmail", "Slack"), results, strict=True)
+            if isinstance(result, Exception)
+        ],
+    }

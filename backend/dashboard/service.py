@@ -55,7 +55,7 @@ async def local_provider(widget_id):
         from backend.dashboard.weather import provide
 
         return await provide(widget_id)
-    if widget_id in ("need.lor-slack", "comm.thread-summary", "comm.newsletters"):
+    if widget_id in ("need.lor-slack", "comm.thread-summary", "comm.newsletters", "comm.contacts"):
         from backend.dashboard.communication import provide
 
         return await provide(widget_id)

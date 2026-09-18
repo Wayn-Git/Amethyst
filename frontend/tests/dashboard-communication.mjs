@@ -37,5 +37,14 @@ try {
   })
   await page.getByText('Consider unsubscribing in Gmail.', { exact: true }).waitFor()
   assert.equal(await page.getByRole('button', { name: /unsubscribe/i }).count(), 0)
+  await page.evaluate(async () => {
+    const { default: React } = await import('/node_modules/.vite/deps/react.js')
+    const { default: ReactDOM } = await import('/node_modules/.vite/deps/react-dom_client.js')
+    const { default: Component } = await import('/src/dashboard/widgets/Communication.jsx')
+    const host = document.createElement('div'); document.body.append(host)
+    ReactDOM.createRoot(host).render(React.createElement(Component, { widgetId: 'comm.contacts', data: { items: [{ id: 'c', title: 'Contact fixture', person: 'them@example.org', at: '2026-10-01', threads: ['https://slack.com/thread'] }] } }))
+  })
+  await page.getByText(/Last contact:/).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'Shared thread', exact: true }).getAttribute('href'), 'https://slack.com/thread')
   console.log('Communication UI passed')
 } finally { await browser.close() }

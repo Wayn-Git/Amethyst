@@ -19,6 +19,8 @@ export default function Communication({ data, widgetId, refresh }) {
     {data?.limited && <StateView role="status">Results limited to available source metadata.</StateView>}
     <ul>{(data?.items || []).map(item => <WidgetRow key={item.id}><div>
       <strong>{/^https:\/\//.test(item.url || '') ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : item.title}</strong>
+      {item.at && <p>Last contact: {new Date(item.at).toLocaleString()}</p>}
+      {item.threads && <ul aria-label="Shared threads">{item.threads.filter(url => /^https:\/\//.test(url)).map(url => <WidgetRow key={url}><a href={url} target="_blank" rel="noreferrer">Shared thread</a></WidgetRow>)}</ul>}
       <p>{item.summary}</p>{item.suggestion && <p>{item.suggestion}</p>}
       <p>{item.source}{item.person && ` · ${item.person}`}</p>
     </div></WidgetRow>)}</ul>

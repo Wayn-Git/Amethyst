@@ -97,3 +97,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - comm.thread-summary: Optional async local/free-model summaries of partial Gmail/Slack thread snippets, source links and shared caches; provider and UI tests pass.
 
 - comm.newsletters: List-header detection, subject digest, optional local/free-model summaries and manual unsubscribe suggestions only; no send/unsubscribe tools or actions. Mocked connector and UI tests pass.
+
+- comm.contacts: Local cached cards merge Gmail/Slack identities, last-contact dates and shared thread links; no message bodies or snippets in cards. Mocked persistence/privacy and UI tests pass.

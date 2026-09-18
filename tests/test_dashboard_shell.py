@@ -47,6 +47,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "need.lor-slack",
         "comm.thread-summary",
         "comm.newsletters",
+        "comm.contacts",
         "comm.templates",
         "comm.tone",
         "comm.unread",
