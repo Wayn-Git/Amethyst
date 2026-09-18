@@ -35,10 +35,24 @@ log = logging.getLogger(__name__)
 #: landed in the same second.
 MESSAGE_WATERMARK = "sync.watermark.messages"
 
-#: Conversations and runs have no such counter, so these hold the `updated_at`
-#: of the last row published. Compared with `>=` and deduplicated by the merge,
-#: because a row written in the same second as the watermark must not be missed
-#: -- re-publishing one costs an op that changes nothing on the far side.
+#: Conversations, runs and library items have no such counter, so these hold the
+#: `updated_at` *and* the `id` of the last row published, as a strict cursor.
+#:
+#: It used to be the timestamp alone, compared with `>=` -- because a row written
+#: in the same second as the watermark must not be missed -- and the cost was
+#: written off as "an op that changes nothing on the far side". That is true of
+#: correctness and false of everything else. `>=` against a watermark set to that
+#: same row's timestamp matches the row again on the next sweep, and the one
+#: after, forever: one library item published 413 times in four hours, seven
+#: conversations sixty times each, ~7,700 ops a day out of about forty real
+#: changes. Every one is a new op id, a new sealed payload and a new row at the
+#: relay, and it is what took a 6MB database over D1's five-million-rows-a-day
+#: read limit -- at which point the relay stops answering and sync simply stops.
+#:
+#: `(updated_at, id) > (mark_ts, mark_id)` misses nothing and repeats nothing: a
+#: row written in the same second still qualifies on its id. A watermark left
+#: over from the old format parses as `(ts, 0)`, which republishes that second's
+#: rows exactly once more and then settles.
 CONVERSATION_WATERMARK = "sync.watermark.conversations"
 RUN_WATERMARK = "sync.watermark.runs"
 LIBRARY_WATERMARK = "sync.watermark.library"
@@ -62,11 +76,100 @@ def _set_watermark(conn, key: str, value: str) -> None:
     )
 
 
+#: Between the timestamp and the ids in a stored cursor. A unit separator
+#: because no timestamp or id may contain one.
+_CURSOR_SEP = "\x1f"
+
+#: How many ids from the newest second a cursor remembers. These are rows that
+#: share one `updated_at`, so in practice it is one or two -- a turn touching a
+#: conversation and its run. The cap stops a pathological second from growing
+#: the setting without bound; past it the sweep falls back to a strict `>`,
+#: which can miss a row until its next write. Choosing which way to be wrong at
+#: fifty rows in one second is choosing between two things that do not happen.
+_CURSOR_IDS = 50
+
+
+def _cursor(conn, key: str) -> tuple[str, list[str]]:
+    """How far this sweep got: the last `updated_at`, and the ids seen at it.
+
+    Both halves are load-bearing, and each fixes the other's failure:
+
+    `updated_at >= mark` alone never misses a row and republishes forever. The
+    timestamp has second precision, the mark is set to a published row's own
+    timestamp, so that row matches itself on the next sweep and every sweep
+    after. Measured on a real machine: one library item published 413 times in
+    four hours, about 7,700 ops a day out of forty real changes -- which is what
+    took a 6MB D1 database past five million rows read in a day, at which point
+    the relay stops answering and sync stops with it.
+
+    A strict `(updated_at, id) > (mark_ts, mark_id)` never repeats and can miss:
+    a row written in the same second as the mark but sorting earlier by id is
+    already behind the cursor, and a missed update is silent and stays missed
+    until something writes that row again.
+
+    So the cursor carries the second *and the ids already published within it*.
+    Rows after that second are new; rows inside it are new unless named. Nothing
+    is missed, nothing repeats.
+    """
+    raw = _watermark(conn, key)
+    if not raw:
+        return ("", [])
+    stamp, _, ids = raw.partition(_CURSOR_SEP)
+    return (stamp, [i for i in ids.split(",") if i])
+
+
+def _set_cursor(conn, key: str, stamp: str, seen: list[str]) -> None:
+    _set_watermark(conn, key, f"{stamp}{_CURSOR_SEP}{','.join(str(i) for i in seen)}")
+
+
+def _advance(mark: tuple[str, list[str]], stamp, row_id) -> tuple[str, list[str]]:
+    """Fold one published row into the cursor."""
+    stamp = str(stamp)
+    if stamp != mark[0]:
+        return (stamp, [str(row_id)])
+    return (stamp, [*mark[1], str(row_id)][-_CURSOR_IDS:])
+
+
+def _unseen(column: str, mark: tuple[str, list[str]]) -> tuple[str, tuple]:
+    """The WHERE clause for "after the cursor", and what to bind.
+
+    Written out rather than a row-value comparison because the three tables this
+    sweeps disagree about their key type -- `conversations.id` and
+    `agent_runs.id` are uuid TEXT, `library_items.id` is INTEGER -- and a row
+    value applies the column's affinity to whatever is bound beside it.
+    """
+    stamp, seen = mark
+    if not seen:
+        return (f"{column} >= ?", (stamp,))
+    marks = ",".join("?" for _ in seen)
+    return (
+        f"({column} > ? OR ({column} = ? AND id NOT IN ({marks})))",
+        (stamp, stamp, *seen),
+    )
+
+
 def _cap(content: str | None) -> str | None:
     """A transcript is text; a tool result can be a megabyte of JSON."""
     if content is None or len(content) <= MAX_SYNCED_CONTENT:
         return content
     return content[:MAX_SYNCED_CONTENT] + TRUNCATION_MARKER
+
+
+def rewind(conn) -> None:
+    """Forget how far this machine has published, so the next sweep starts over.
+
+    Called when a device pairs. A control device begins with an empty replica
+    and is only ever sent ops emitted *after* it arrived, so without this it
+    joins to a blank transcript and stays blank until somebody happens to edit
+    something. The sweep then walks the tables from the beginning at `BATCH` a
+    poll -- about 1,600 rows and eight minutes on a machine that has been in use
+    a while, once, rather than every poll forever.
+
+    Safe to run with a device already paired: the merge is idempotent by
+    construction, so a row it has already seen costs one op and changes nothing.
+    """
+    for key in (MESSAGE_WATERMARK, CONVERSATION_WATERMARK, RUN_WATERMARK, LIBRARY_WATERMARK):
+        conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
 
 
 def publish(conn, clock, *, limit: int = BATCH) -> int:
@@ -84,11 +187,12 @@ def publish(conn, clock, *, limit: int = BATCH) -> int:
 
 
 def _publish_conversations(conn, clock, limit: int) -> int:
-    mark = _watermark(conn, CONVERSATION_WATERMARK)
+    mark = _cursor(conn, CONVERSATION_WATERMARK)
+    where, binds = _unseen("updated_at", mark)
     rows = conn.execute(
         "SELECT id, title, provider, model, pinned, archived, updated_at"
-        " FROM conversations WHERE updated_at >= ? ORDER BY updated_at LIMIT ?",
-        (mark, limit),
+        f" FROM conversations WHERE {where} ORDER BY updated_at, id LIMIT ?",
+        (*binds, limit),
     ).fetchall()
     published = 0
     for row in rows:
@@ -98,7 +202,8 @@ def _publish_conversations(conn, clock, limit: int) -> int:
         })
         if emitted is not None:
             published += 1
-        _set_watermark(conn, CONVERSATION_WATERMARK, row[6])
+        mark = _advance(mark, row[6], row[0])
+        _set_cursor(conn, CONVERSATION_WATERMARK, *mark)
     return published
 
 
@@ -134,11 +239,12 @@ def _publish_messages(conn, clock, limit: int) -> int:
 
 def _publish_runs(conn, clock, limit: int) -> int:
     """So a phone can say "it is thinking" rather than nothing at all."""
-    mark = _watermark(conn, RUN_WATERMARK)
+    mark = _cursor(conn, RUN_WATERMARK)
+    where, binds = _unseen("updated_at", mark)
     rows = conn.execute(
         "SELECT id, conversation_id, phase, link, error, updated_at"
-        " FROM agent_runs WHERE updated_at >= ? ORDER BY updated_at LIMIT ?",
-        (mark, limit),
+        f" FROM agent_runs WHERE {where} ORDER BY updated_at, id LIMIT ?",
+        (*binds, limit),
     ).fetchall()
     published = 0
     for row in rows:
@@ -147,7 +253,8 @@ def _publish_runs(conn, clock, limit: int) -> int:
         })
         if emitted is not None:
             published += 1
-        _set_watermark(conn, RUN_WATERMARK, row[5])
+        mark = _advance(mark, row[5], row[0])
+        _set_cursor(conn, RUN_WATERMARK, *mark)
     return published
 
 
@@ -157,12 +264,13 @@ def _publish_library(conn, clock, limit: int) -> int:
     Metadata only -- `registry.py`'s field list is what keeps the files out of
     it. A row with no uuid gets one here, the same late backfill messages use.
     """
-    mark = _watermark(conn, LIBRARY_WATERMARK)
+    mark = _cursor(conn, LIBRARY_WATERMARK)
+    where, binds = _unseen("updated_at", mark)
     rows = conn.execute(
         "SELECT id, uuid, kind, title, url, author, site, published_on, consumed_on,"
         " notes, rating, summary, tags, word_count, duration_seconds, source_ref, updated_at"
-        " FROM library_items WHERE updated_at >= ? ORDER BY updated_at LIMIT ?",
-        (mark, limit),
+        f" FROM library_items WHERE {where} ORDER BY updated_at, id LIMIT ?",
+        (*binds, limit),
     ).fetchall()
     published = 0
     for row in rows:
@@ -178,5 +286,6 @@ def _publish_library(conn, clock, limit: int) -> int:
         })
         if emitted is not None:
             published += 1
-        _set_watermark(conn, LIBRARY_WATERMARK, row[16])
+        mark = _advance(mark, row[16], row[0])
+        _set_cursor(conn, LIBRARY_WATERMARK, *mark)
     return published

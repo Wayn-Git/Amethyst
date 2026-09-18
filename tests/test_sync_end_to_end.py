@@ -121,7 +121,20 @@ def _shared_group_key(monkeypatch):
 
 @pytest.fixture
 def pair():
+    """Two machines that have actually paired with each other.
+
+    Each registers the other, which the harness did not used to bother with
+    because nothing read it. `service.outgoing` does now: a machine with no
+    peers has nobody to publish to and does not, which is what stops one with
+    every device revoked uploading ~7,700 ops a day into a relay where nothing
+    will ever collect them. Registering here is not scaffolding for that check
+    -- it is what being paired means, and the fixture is named for it.
+    """
     laptop, phone = Device("laptop"), Device("phone")
+    devices.register(laptop.conn, name="phone", role="control")
+    devices.register(phone.conn, name="laptop", role="host")
+    laptop.conn.commit()
+    phone.conn.commit()
     yield laptop, phone, Mailbox(laptop.id, phone.id)
 
 

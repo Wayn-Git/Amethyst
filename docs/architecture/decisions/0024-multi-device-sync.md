@@ -339,6 +339,62 @@ The same correction applies one layer down: the browser's sync poll ran only
 where no backend answered, so a paired phone at home rendered the remote view and
 then never polled it.
 
+## Amendment: what actually filled D1
+
+The relay stopped working, and the symptom pointed at the wrong thing. The
+database was 6.19 MB against a 5 GB allowance, so storage was never the
+constraint -- but D1 also meters **rows read**, and this account was doing
+10.5 million a day against a free-tier limit of 5 million. Past it D1 refuses
+every query until midnight UTC, which is what "it is not stable" looked like
+from the outside: sync working in the morning and dead by afternoon.
+
+Three faults, all of them here rather than at Cloudflare. A different provider
+would have carried every one of them across.
+
+**The sweep republished unchanged rows forever.** `_publish_conversations`,
+`_publish_runs` and `_publish_library` compared `updated_at >= mark` and then
+set `mark` to the published row's own `updated_at`, so the row matched itself on
+the next sweep and on every sweep after it. The cost was written off in a
+comment as "an op that changes nothing on the far side" -- true of the merge,
+and false of everything else. Measured on a real machine: one library item
+published **413 times in four hours**, seven conversations sixty times each,
+about 7,700 ops a day out of roughly forty real changes. `_publish_messages` was
+correct throughout, because an integer id gave it a strict `>`.
+
+The cursor now carries the second *and the ids already published within it*.
+`>=` alone never misses and always repeats; a strict `(updated_at, id) >` never
+repeats and can miss a row written in that second but sorting earlier by id --
+silently, until something writes that row again. Remembering the ids inside the
+second is the only shape that does neither.
+
+**It published to an empty room.** `service.outgoing` returned early only when
+no group key existed, and the group key is minted on the first pairing and
+deliberately outlives it. So once anything had ever paired, a machine went on
+sweeping, sealing and uploading after every device was revoked. The test is now
+`devices.has_peers`, which asks the question both roles can answer: a host knows
+its peers from the `devices` table, and a machine that joined somebody else's
+group knows from the device token it holds. Asking only the first would have
+stopped a joined machine sending its own edits.
+
+**Nothing the machine published was ever collected.** `collect` deleted only
+rows whose `from_device` appeared in the device mirror, and the mirror is the
+machine's *paired devices* -- it is not in it, because it keeps its identity in
+`app_settings` and authenticates with `RELAY_TOKEN`. Every op the machine sent
+therefore sat at the relay until the eight-day prune. An op is owed to every
+live device except its sender, and whether the sender is one of them is now
+something the row answers.
+
+Pairing also rewinds the watermarks (`project.rewind`), because a control device
+starts with an empty replica and is only sent what is emitted after it arrives.
+Before, it was the republication backlog that accidentally filled a new phone in.
+
+Measured against a real database afterwards: **1,610 ops once on pairing** (about
+six minutes at fifty a poll), then **zero across a full day of idle polling** --
+5,760 polls that previously produced thousands of rows nothing would collect.
+
+The ceiling this ADR names further down -- sustained one-second polling being
+~86k requests a day -- was never what was reached. What was reached was a bug.
+
 ## Amendment: the surface a non-loopback bind exposes
 
 The Consequences below say the HTTP API "stays loopback-only". That was a

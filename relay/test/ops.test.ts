@@ -169,3 +169,46 @@ test('the relay stores what it cannot read', async () => {
 		'ciphertext', 'created_at', 'from_device', 'nonce', 'op_id',
 	]);
 });
+
+test("the machine's own ops are collected, though it is in no mirror", async () => {
+	// The bug that filled this table. `mirror()` on the machine lists the paired
+	// devices -- the rows in its `devices` table -- and the machine itself is not
+	// one of them: it keeps its identity in `app_settings` and authenticates with
+	// RELAY_TOKEN, not a device token. `collect` used to require
+	// `o.from_device IN (mirror)`, which is never true of an op the machine sent,
+	// so nothing it published was ever reclaimed. Those rows sat here until the
+	// eight-day prune, and on a machine publishing its transcript every fifteen
+	// seconds that is most of what D1 was holding.
+	const env = testEnv();
+	await withDevices(env, 'phone');
+	await acceptOps(env, [sealed('op-1', 'the-machine')], 'the-machine');
+
+	// The one live device that is not the sender has taken it, so nobody is owed
+	// it any more.
+	await ackOps(env, 'phone', ['op-1']);
+	assert.equal((await db(env).prepare('SELECT count(*) AS n FROM ops').first()).n, 0);
+});
+
+test('an op still owed to a second device is kept', async () => {
+	// The other half of the same rule: "everyone but the sender" has to mean
+	// everyone, or the fix above would collect an op a phone has not seen.
+	const env = testEnv();
+	await withDevices(env, 'phone', 'tablet');
+	await acceptOps(env, [sealed('op-1', 'the-machine')], 'the-machine');
+
+	await ackOps(env, 'phone', ['op-1']);
+	assert.equal((await db(env).prepare('SELECT count(*) AS n FROM ops').first()).n, 1);
+
+	await ackOps(env, 'tablet', ['op-1']);
+	assert.equal((await db(env).prepare('SELECT count(*) AS n FROM ops').first()).n, 0);
+});
+
+test('a device-sent op is still owed only to the others', async () => {
+	// The sender is never handed its own op, so it must not be counted as owing
+	// an acknowledgement for it.
+	const env = testEnv();
+	await withDevices(env, 'phone', 'laptop');
+	await acceptOps(env, [sealed('op-1', 'phone')], 'phone');
+	await ackOps(env, 'laptop', ['op-1']);
+	assert.equal((await db(env).prepare('SELECT count(*) AS n FROM ops').first()).n, 0);
+});

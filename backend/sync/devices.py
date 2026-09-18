@@ -353,6 +353,30 @@ def close_pairing() -> None:
     _open_pairing = None
 
 
+def has_peers(conn: sqlite3.Connection) -> bool:
+    """Is there anybody to sync with?
+
+    Two ways to be in a group, because there are two roles. A **host** knows its
+    peers from the `devices` table -- the rows pairing writes. A machine that
+    **joined** somebody else's group has none of those: `join` adopts an
+    identity and stores a device token, and the host it answers to is not a row
+    in its own table. Asking only the first question would have stopped a joined
+    machine sending its own edits, which is the quieter half of the same bug
+    this exists to fix.
+
+    The caller is `service.outgoing`, which used to test only whether a group
+    key existed. That key is minted on the first pairing and deliberately
+    outlives it, so once anything had ever paired the answer was yes forever --
+    and a machine with every device revoked went on sweeping, sealing and
+    uploading for an empty room.
+    """
+    if live(conn):
+        return True
+    from backend.secrets import get_secret
+
+    return bool(get_secret(TOKEN_REF))
+
+
 def pairing_open() -> bool:
     """Is a code on screen right now, waiting to be scanned?
 
@@ -417,6 +441,17 @@ def accept(conn: sqlite3.Connection, sealed: dict) -> dict | None:
         return None
 
     group = crypto.group_key() or crypto.create_group_key()
+    # A device that has just arrived has an empty replica and is only ever sent
+    # ops emitted after it got here, so without this it joins to a blank
+    # transcript. Rewinding the sweep's watermarks is what fills it in.
+    try:
+        from backend.sync import project
+
+        project.rewind(conn)
+    except Exception:
+        # A transcript that fills in late is worse than one that does not, but
+        # not as bad as a pairing that fails outright.
+        log.exception("could not rewind the publish watermarks for a new device")
     device, token = register(
         conn,
         name=str(opened.get("name") or pairing.name_hint or "paired device"),

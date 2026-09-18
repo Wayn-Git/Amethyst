@@ -405,3 +405,146 @@ def test_a_live_device_is_still_served(conn, clock, monkeypatch):
                        {"conversation_id": "conv-1", "text": "hi"}, device=device.id)
     intents.dispatch(conn, clock)
     assert state_of(conn, intent_id)[0] == "accepted"
+
+
+# -- the sweep publishes a change once ------------------------------------
+#
+# This is the regression that made the relay unusable rather than merely
+# wasteful. The three timestamp-driven sweeps compared `updated_at >= mark` and
+# then set `mark` to that row's own `updated_at`, so every row matched itself on
+# the next sweep and every sweep after it. On a real machine: one library item
+# published 413 times in four hours, seven conversations sixty times each, about
+# 7,700 ops a day out of roughly forty actual changes.
+#
+# Each repeat is a fresh op id and a fresh sealed row at the relay, which
+# `collect` will not delete until a live device acknowledges it -- so with
+# nothing paired they simply accumulate. That is what took a 6MB D1 database
+# past five million rows read in a day, at which point D1 refuses every query
+# and sync stops until midnight UTC.
+
+
+def _swept(conn, clock, entity: str) -> int:
+    project.publish(conn, clock)
+    return len([o for o in ops.pending(conn) if o.entity == entity])
+
+
+def test_an_unchanged_library_item_is_published_once(conn, clock):
+    conn.execute(
+        "INSERT INTO library_items (kind, title, consumed_on, updated_at)"
+        " VALUES ('article', 'the same row', '2026-09-18', '2026-09-18 09:00:00')"
+    )
+    first = _swept(conn, clock, "library")
+    assert first == 1
+    # Five more sweeps with nothing changed. Before the fix this was six.
+    for _ in range(5):
+        project.publish(conn, clock)
+    assert len([o for o in ops.pending(conn) if o.entity == "library"]) == 1
+
+
+def test_an_unchanged_conversation_is_published_once(conn, clock):
+    conn.execute(
+        "INSERT INTO conversations (id, title, provider, model, updated_at)"
+        " VALUES ('conv-steady', 'unchanged', 'p', 'm', '2026-09-18 09:00:00')"
+    )
+    for _ in range(6):
+        project.publish(conn, clock)
+    mine = [o for o in ops.pending(conn) if o.entity == "conversations" and o.key == "conv-steady"]
+    assert len(mine) == 1, f"republished {len(mine)} times"
+
+
+def test_two_rows_written_in_the_same_second_are_both_published(conn, clock):
+    """What the old `>=` was protecting against, and the reason the cursor
+    carries the id: a strict `>` on the timestamp alone would have dropped the
+    second row of any pair written inside one second, which for conversations
+    and runs is the ordinary case."""
+    conn.execute(
+        "INSERT INTO conversations (id, title, provider, model, updated_at) VALUES"
+        " ('a', 'first', 'p', 'm', '2026-09-18 09:00:00'),"
+        " ('b', 'second', 'p', 'm', '2026-09-18 09:00:00')"
+    )
+    project.publish(conn, clock)
+    keys = {o.key for o in ops.pending(conn) if o.entity == "conversations"}
+    assert {"a", "b"} <= keys
+
+
+def test_a_real_change_is_published_again(conn, clock):
+    """The cursor must not be so strict that an edit stops crossing.
+
+    `datetime('now')` rather than a literal, because that is what every write
+    path actually sets and a cursor is only ever monotonic in wall-clock terms:
+    a test that moved `updated_at` backwards would be asserting behaviour the
+    database never produces.
+    """
+    conn.execute(
+        "INSERT INTO conversations (id, title, provider, model, updated_at)"
+        " VALUES ('conv-edit', 'before', 'p', 'm', datetime('now'))"
+    )
+    project.publish(conn, clock)
+    conn.execute(
+        "UPDATE conversations SET title = 'after', updated_at = datetime('now', '+1 second')"
+        " WHERE id = 'conv-edit'"
+    )
+    project.publish(conn, clock)
+    mine = [o for o in ops.pending(conn) if o.entity == "conversations" and o.key == "conv-edit"]
+    assert [o.fields["title"] for o in mine] == ["before", "after"]
+
+
+def test_a_row_touched_in_a_second_already_swept_is_not_missed(conn, clock):
+    """The case a plain `(updated_at, id) >` cursor loses.
+
+    Two rows share one second and `zzz` is published first. `aaa` sorts earlier
+    by id, so a strict row-value cursor has already passed it and the edit never
+    crosses -- silently, and permanently, until something writes that row again.
+    The cursor remembers which ids it saw inside the second instead.
+    """
+    conn.execute(
+        "INSERT INTO conversations (id, title, provider, model, updated_at)"
+        " VALUES ('zzz', 'published first', 'p', 'm', '2099-01-01 00:00:00')"
+    )
+    project.publish(conn, clock)
+    assert [o.key for o in ops.pending(conn) if o.key == "zzz"]
+
+    # Same second, lower id -- and it has to cross.
+    conn.execute(
+        "INSERT INTO conversations (id, title, provider, model, updated_at)"
+        " VALUES ('aaa', 'written after, sorts before', 'p', 'm', '2099-01-01 00:00:00')"
+    )
+    project.publish(conn, clock)
+    keys = [o.key for o in ops.pending(conn) if o.entity == "conversations"]
+    assert "aaa" in keys, "a row sharing the swept second was skipped"
+    assert keys.count("zzz") == 1, "and the one already published must not repeat"
+
+
+def test_a_watermark_left_in_the_old_format_settles(conn, clock):
+    """An upgrade finds a bare timestamp where a cursor now goes. It reads as
+    the lowest id, so that second's rows publish once more and then stop."""
+    conn.execute(
+        "INSERT INTO conversations (id, title, provider, model, updated_at)"
+        " VALUES ('conv-old', 'carried over', 'p', 'm', '2026-09-18 09:00:00')"
+    )
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?)",
+        (project.CONVERSATION_WATERMARK, "2026-09-18 09:00:00"),
+    )
+    for _ in range(3):
+        project.publish(conn, clock)
+    mine = [o for o in ops.pending(conn) if o.entity == "conversations" and o.key == "conv-old"]
+    assert len(mine) == 1
+
+
+def test_rewinding_lets_a_new_device_catch_up(conn, clock):
+    """A control device starts with an empty replica and is only sent what is
+    emitted after it arrives, so pairing has to put the sweep back."""
+    conn.execute(
+        "INSERT INTO conversations (id, title, provider, model, updated_at)"
+        " VALUES ('conv-history', 'from before', 'p', 'm', '2026-09-18 09:00:00')"
+    )
+    def mine():
+        return [o for o in ops.pending(conn)
+                if o.entity == "conversations" and o.key == "conv-history"]
+
+    project.publish(conn, clock)
+    assert len(mine()) == 1
+    project.rewind(conn)
+    project.publish(conn, clock)
+    assert len(mine()) == 2, "a newly paired device would have seen no history"

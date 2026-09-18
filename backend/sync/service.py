@@ -67,7 +67,19 @@ def outgoing(conn=None, *, limit: int = BATCH) -> list[dict[str, Any]]:
     conn = conn or get_connection()
     key = crypto.group_key()
     if key is None:
-        return []  # nothing is paired, so there is nobody to send to
+        return []  # nothing has ever paired, so there is nobody to send to
+
+    # And whether anything is paired *now*, which is not the same question.
+    #
+    # The group key is minted on the first pairing and deliberately outlives it,
+    # so `key is None` stops being true the moment a phone is paired once and
+    # never becomes true again -- including after every device is revoked. This
+    # machine went on sweeping, sealing and uploading for an empty room: ~7,700
+    # ops a day, each a row at the relay that nothing would ever collect,
+    # because `collect` only deletes what a live device has acknowledged and
+    # there were none. That is most of what took D1 over its read limit.
+    if not devices.has_peers(conn):
+        return []
 
     # Publish the transcript before sealing, so a message written since the last
     # poll leaves on this one rather than the one after. Swept rather than

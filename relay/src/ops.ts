@@ -96,15 +96,10 @@ export async function acceptOps(env: OpsEnv, uploaded: unknown, fromDevice: stri
  */
 export async function opsForSync(env: OpsEnv, deviceId: string, limit = SYNC_BATCH): Promise<SealedOp[]> {
 	const { results } = await env.DB.prepare(
-		'SELECT op_id, from_device, ciphertext, nonce FROM ops' +
-			' WHERE from_device != ?' +
-			'   AND op_id NOT IN (SELECT op_id FROM op_acks WHERE device_id = ?)' +
-			// By rowid -- insertion order -- rather than by `created_at`, which is
-		// whole seconds. A device uploads a batch inside one second routinely, and
-		// ordering by a second plus a random op id hands them over shuffled. The
-		// merge converges regardless, but an entity whose row is created and then
-		// updated by one device needs its create to arrive first.
-		' ORDER BY rowid LIMIT ?',
+		'SELECT o.op_id, o.from_device, o.ciphertext, o.nonce FROM ops o' +
+			' LEFT JOIN op_acks a ON a.op_id = o.op_id AND a.device_id = ?' +
+			' WHERE o.from_device != ? AND a.op_id IS NULL' +
+			' ORDER BY o.rowid LIMIT ?',
 	)
 		.bind(deviceId, deviceId, Math.min(Math.max(limit, 1), SYNC_BATCH))
 		.all<SealedOp>();
@@ -164,23 +159,41 @@ export async function collect(env: OpsEnv): Promise<number> {
 	if (!ids.length) return 0;
 
 	// "Every device that is not the sender has acked it." Expressed as a count so
-	// it stays one statement: an op is owed to (devices - 1) takers, because the
-	// device that made the change is never sent its own.
+	// it stays one statement.
+	//
+	// The sender is not required to be in the mirror, and that is the whole
+	// point of the CASE. `mirror()` on the machine lists the *paired* devices --
+	// the rows in its `devices` table -- and the machine itself is not one of
+	// them: it holds its identity in `app_settings` and authenticates with
+	// RELAY_TOKEN rather than a device token. So an op sent by the machine had a
+	// `from_device` that appeared in no mirror, `WHERE o.from_device IN (...)`
+	// never matched it, and nothing the machine ever published was collected.
+	// It sat here until the eight-day prune, which on a busy day is most of what
+	// this table holds.
+	//
+	// So: an op owes itself to every live device except its sender, and whether
+	// the sender is one of them is something the row answers rather than
+	// something assumed.
 	const marks = ids.map(() => '?').join(',');
 	const result = await env.DB.prepare(
 		`DELETE FROM ops WHERE op_id IN (
 			SELECT o.op_id FROM ops o
 			LEFT JOIN op_acks a ON a.op_id = o.op_id AND a.device_id IN (${marks})
-			WHERE o.from_device IN (${marks})
 			GROUP BY o.op_id
-			HAVING count(a.device_id) >= ?
+			HAVING count(a.device_id) >=
+				? - (CASE WHEN o.from_device IN (${marks}) THEN 1 ELSE 0 END)
 		)`,
 	)
-		.bind(...ids, ...ids, Math.max(ids.length - 1, 0))
+		.bind(...ids, ids.length, ...ids)
 		.run();
 
 	const deleted = result.meta?.changes ?? 0;
-	if (deleted) await env.DB.prepare('DELETE FROM op_acks WHERE op_id NOT IN (SELECT op_id FROM ops)').run();
+	if (deleted) {
+		await env.DB.prepare(
+			'DELETE FROM op_acks WHERE op_id IN (' +
+				'SELECT a.op_id FROM op_acks a LEFT JOIN ops o ON o.op_id = a.op_id WHERE o.op_id IS NULL)',
+		).run();
+	}
 	return deleted;
 }
 
@@ -192,6 +205,9 @@ export async function collect(env: OpsEnv): Promise<number> {
 export async function pruneOps(env: OpsEnv): Promise<number> {
 	const cutoff = now() - KEEP_SECONDS;
 	const result = await env.DB.prepare('DELETE FROM ops WHERE created_at < ?').bind(cutoff).run();
-	await env.DB.prepare('DELETE FROM op_acks WHERE op_id NOT IN (SELECT op_id FROM ops)').run();
+	await env.DB.prepare(
+		'DELETE FROM op_acks WHERE op_id IN (' +
+			'SELECT a.op_id FROM op_acks a LEFT JOIN ops o ON o.op_id = a.op_id WHERE o.op_id IS NULL)',
+	).run();
 	return result.meta?.changes ?? 0;
 }
