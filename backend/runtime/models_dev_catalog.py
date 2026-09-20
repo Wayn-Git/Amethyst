@@ -144,6 +144,14 @@ def _fetch_and_cache() -> dict[str, dict[str, Any]]:
     catalog = _parse_catalog(raw)
     if catalog:
         _save_cache(catalog)
+        # Publish it, not just persist it. Without this the first boot on a
+        # machine with no cache went on answering every lookup from an empty
+        # dict until the process restarted -- the fetch wrote a file nothing
+        # read. `_load_cache` returns `_catalog` when it is set, so this is
+        # what makes the background fetch visible to the running process.
+        global _catalog
+        with _lock:
+            _catalog = catalog
         log.info("models.dev catalog updated: %d models", len(catalog))
     return catalog
 
@@ -170,13 +178,22 @@ def init() -> dict[str, dict[str, Any]]:
     # Load from cache first (instant)
     catalog = _load_cache()
 
-    # Fetch fresh data (non-blocking if cache exists)
-    if catalog:
-        # Has cache — fetch in background
-        threading.Thread(target=_fetch_and_cache, daemon=True).start()
-    else:
-        # No cache — must fetch synchronously on first boot
-        catalog = _fetch_and_cache()
+    # Always in the background, cache or no cache.
+    #
+    # This used to fetch synchronously when there was no cache, and it runs
+    # inside the application's lifespan -- so uvicorn did not start accepting
+    # connections until models.dev answered, or until httpx's 30s timeout
+    # expired. On a first launch behind a captive portal that is a thirty
+    # second wait before anything at all, and `run_tray` gives up at thirty
+    # seconds, so the desktop app reported "the API did not come up" about a
+    # backend that was perfectly healthy and merely waiting on a web request
+    # for reasoning-effort metadata.
+    #
+    # Nothing needs it to be there. `lookup_model` returns None on an empty
+    # catalog and every caller already handles that, so the cost of not
+    # waiting is that reasoning metadata is missing for the second or so the
+    # fetch takes on a first run.
+    threading.Thread(target=_fetch_and_cache, daemon=True).start()
 
     # Start background refresh thread
     if _refresh_thread is None or not _refresh_thread.is_alive():

@@ -53,6 +53,65 @@ class _AuthorizationTimeout(TimeoutError):
         super().__init__(f"'{server_name}' was not authorized in time")
 
 
+_TRANSPORT_FAILURES = (
+    "connection closed",
+    "closedresourceerror",
+    "brokenresourceerror",
+    "broken pipe",
+    "server has been shut down",
+    "transport is closed",
+    "endofstream",
+    "connection reset",
+    "connection lost",
+    "connection aborted",
+    "session closed",
+    "session is closed",
+    "server disconnected",
+    "eof occurred",
+    "peer closed",
+    "process exited",
+    "process has exited",
+)
+
+
+def _is_transport_failure(exc: BaseException) -> bool:
+    """Whether this failure means the session died, rather than the call failing."""
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return any(marker in text for marker in _TRANSPORT_FAILURES)
+
+
+_AUTH_FAILURES = (
+    "401",
+    "unauthorized",
+    "invalid_client",
+    "invalid_grant",
+    "invalid_token",
+    "token expired",
+    "token has been expired",
+    "token revoked",
+    "token has been revoked",
+    "invalid credentials",
+    "authentication failed",
+    "bad credentials",
+    "signinrequired",
+    "access_denied",
+)
+
+
+def _is_auth_failure(exc: BaseException) -> bool:
+    """Whether this failure indicates an authentication, token, or permission rejection."""
+    if isinstance(exc, OAuthRequired):
+        return True
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return is_auth_failure_text(text)
+
+
+def is_auth_failure_text(text: str) -> bool:
+    """Whether the given message text indicates an auth/token/permission failure."""
+    lowered = text.lower()
+    return any(marker in lowered for marker in _AUTH_FAILURES)
+
+
 @dataclass
 class DiscoveredTool:
     name: str
@@ -125,6 +184,16 @@ class CircuitBreaker:
             self.opened_at = None
             return False
         return True
+
+
+#: How long a liveness ping may take before the session is called dead.
+#:
+#: Short on purpose. A ping is one round trip with no work behind it, so a
+#: server that has not answered in this long is not busy, it is gone -- and the
+#: whole point of the probe is to find that out faster than a tool call's
+#: 180-second timeout would. It also runs on the serving loop, so it is a
+#: ceiling on how long a probe can hold up a real call queued behind it.
+PING_TIMEOUT_SECONDS = 5.0
 
 
 class MCPConnection:
@@ -302,6 +371,23 @@ class MCPConnection:
                 if not future.done():
                     future.set_result(None)
                 return
+            if tool_name == "__ping__":
+                # An MCP-protocol ping: the one question whose answer proves the
+                # pipe is alive rather than merely un-closed.
+                try:
+                    await asyncio.wait_for(
+                        session.send_ping(), timeout=PING_TIMEOUT_SECONDS
+                    )
+                except Exception as exc:
+                    self.last_error = self._describe(exc)
+                    if not future.done():
+                        future.set_exception(exc)
+                    if _is_transport_failure(exc) or isinstance(exc, TimeoutError):
+                        return
+                else:
+                    if not future.done():
+                        future.set_result(None)
+                continue
             call = asyncio.ensure_future(
                 asyncio.wait_for(
                     session.call_tool(tool_name, arguments), timeout=self.config.timeout_seconds
@@ -326,8 +412,11 @@ class MCPConnection:
                 if not future.done():
                     future.set_result(call.result())
             except Exception as exc:
+                self.last_error = self._describe(exc)
                 if not future.done():
                     future.set_exception(exc)
+                if _is_transport_failure(exc):
+                    return
             finally:
                 waiter.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -383,6 +472,33 @@ class MCPConnection:
         # Stop; with one, it is a TimeoutError the manager's handler already
         # knows how to report.
         return await asyncio.wait_for(future, timeout=self.config.timeout_seconds)
+
+    async def probe(self) -> bool:
+        """Whether this session is actually alive, asked rather than assumed.
+
+        `connected` only says the serving task has not finished, which stays
+        true over a dead pipe: a stdio server that exited leaves the task
+        sitting on a read that will never return, and every tool call from then
+        on fails while the connector goes on reporting itself ready. This is the
+        question that has a real answer.
+
+        False means dead, and the caller should reconnect rather than retry.
+        Never raises -- a probe that cannot be delivered is itself the answer.
+        """
+        if not self.connected:
+            return False
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        try:
+            await self._requests.put(("__ping__", {}, future))
+            # Twice the ping's own budget: the queue may hold one in-flight tool
+            # call ahead of it, and being overtaken is not being dead.
+            await asyncio.wait_for(future, timeout=PING_TIMEOUT_SECONDS * 2)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.last_error = self._describe(exc)
+            return False
+        return True
 
     async def disconnect(self) -> None:
         task, self._task = self._task, None

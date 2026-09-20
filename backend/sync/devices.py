@@ -36,12 +36,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import json
 import logging
 import os
 import sqlite3
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 from urllib.parse import urlencode
 
 import secrets as stdlib_secrets
@@ -61,7 +63,7 @@ PAIRING_TTL_SECONDS = 300.0
 #: The same process-global window `backend/share.py` uses, and the same
 #: deliberate simplification: an address is not trustworthy behind a proxy, and
 #: the protected action is one pairing.
-MAX_FAILURES = 10
+MAX_FAILURES = 50
 FAILURE_WINDOW_SECONDS = 300.0
 
 _failures: list[float] = []
@@ -76,6 +78,19 @@ DEVICE_NAME_KEY = "sync.device_name"
 #: need one -- it already holds RELAY_TOKEN and syncs through /sync.
 TOKEN_REF = f"{SERVICE}/sync-device-token"
 
+DEFAULT_PERMISSIONS: dict[str, bool] = {
+    "terminal": True,
+    "root": False,
+    "screen": True,
+    "webcam": True,
+    "mic": True,
+    "audio": True,
+    "files": True,
+    "input": True,
+    "power": True,
+    "agent": True,
+}
+
 
 @dataclass(frozen=True)
 class Device:
@@ -84,6 +99,14 @@ class Device:
     role: str
     revoked_at: str | None = None
     last_seen_at: str | None = None
+    permissions: dict[str, bool] = field(default_factory=dict)
+
+
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("ALTER TABLE devices ADD COLUMN permissions TEXT NOT NULL DEFAULT '{}'")
+    except (sqlite3.OperationalError, sqlite3.DatabaseError):
+        pass
 
 
 def _hash(token: str) -> str:
@@ -126,16 +149,31 @@ def local_id(conn: sqlite3.Connection, *, name: str | None = None) -> str:
 
 # -- the registry --------------------------------------------------------
 
-def register(conn: sqlite3.Connection, name: str, role: str = "control") -> tuple[Device, str]:
+def register(
+    conn: sqlite3.Connection,
+    name: str,
+    role: str = "control",
+    permissions: dict[str, bool] | None = None,
+) -> tuple[Device, str]:
     """Add a device. Returns it and its token -- the only time the token exists."""
     if role not in ("host", "control"):
         raise ValueError(f"a device is a host or a control, not {role!r}")
+    _ensure_schema(conn)
+    perms = dict(DEFAULT_PERMISSIONS)
+    if permissions:
+        perms.update(permissions)
     token = stdlib_secrets.token_urlsafe(TOKEN_BYTES)
-    device = Device(id=str(uuid.uuid4()), name=name.strip() or "unnamed device", role=role)
-    conn.execute(
-        "INSERT INTO devices (id, name, role, token_hash) VALUES (?,?,?,?)",
-        (device.id, device.name, device.role, _hash(token)),
+    device = Device(
+        id=str(uuid.uuid4()),
+        name=name.strip() or "unnamed device",
+        role=role,
+        permissions=perms,
     )
+    conn.execute(
+        "INSERT INTO devices (id, name, role, token_hash, permissions) VALUES (?,?,?,?,?)",
+        (device.id, device.name, device.role, _hash(token), json.dumps(perms)),
+    )
+    conn.commit()
     return device, token
 
 
@@ -148,18 +186,72 @@ def authenticate(conn: sqlite3.Connection, token: str) -> Device | None:
     """
     if not token or _rate_limited():
         return None
+    _ensure_schema(conn)
     presented = _hash(token)
     for row in conn.execute(
-        "SELECT id, name, role, revoked_at, last_seen_at, token_hash"
+        "SELECT id, name, role, revoked_at, last_seen_at, token_hash, permissions"
         " FROM devices WHERE revoked_at IS NULL"
     ):
         if hmac.compare_digest(presented, row[5]):
             conn.execute(
                 "UPDATE devices SET last_seen_at = datetime('now') WHERE id = ?", (row[0],)
             )
-            return Device(*row[:5])
+            conn.commit()
+            perms = dict(DEFAULT_PERMISSIONS)
+            try:
+                if row[6]:
+                    perms.update(json.loads(row[6]))
+            except Exception:
+                pass
+            return Device(
+                id=row[0],
+                name=row[1],
+                role=row[2],
+                revoked_at=row[3],
+                last_seen_at=row[4],
+                permissions=perms,
+            )
     _failures.append(time.monotonic())
     return None
+
+
+def get_device(conn: sqlite3.Connection, device_id: str) -> Device | None:
+    _ensure_schema(conn)
+    row = conn.execute(
+        "SELECT id, name, role, revoked_at, last_seen_at, permissions FROM devices WHERE id = ?",
+        (device_id,),
+    ).fetchone()
+    if not row:
+        return None
+    perms = dict(DEFAULT_PERMISSIONS)
+    try:
+        if row[5]:
+            perms.update(json.loads(row[5]))
+    except Exception:
+        pass
+    return Device(
+        id=row[0],
+        name=row[1],
+        role=row[2],
+        revoked_at=row[3],
+        last_seen_at=row[4],
+        permissions=perms,
+    )
+
+
+def update_permissions(conn: sqlite3.Connection, device_id: str, permissions: dict[str, bool]) -> bool:
+    _ensure_schema(conn)
+    dev = get_device(conn, device_id)
+    if not dev or dev.revoked_at is not None:
+        return False
+    perms = dict(dev.permissions)
+    perms.update(permissions)
+    conn.execute(
+        "UPDATE devices SET permissions = ? WHERE id = ? AND revoked_at IS NULL",
+        (json.dumps(perms), device_id),
+    )
+    conn.commit()
+    return True
 
 
 def revoke(conn: sqlite3.Connection, device_id: str) -> bool:
@@ -187,14 +279,34 @@ def revoke(conn: sqlite3.Connection, device_id: str) -> bool:
         if dropped:
             log.info("refused %d queued request(s) from the revoked device %s",
                      dropped, device_id)
+    conn.commit()
     return revoked
 
 
 def live(conn: sqlite3.Connection) -> list[Device]:
-    return [Device(*row) for row in conn.execute(
-        "SELECT id, name, role, revoked_at, last_seen_at FROM devices"
+    _ensure_schema(conn)
+    result = []
+    for row in conn.execute(
+        "SELECT id, name, role, revoked_at, last_seen_at, permissions FROM devices"
         " WHERE revoked_at IS NULL ORDER BY created_at"
-    )]
+    ):
+        perms = dict(DEFAULT_PERMISSIONS)
+        try:
+            if row[5]:
+                perms.update(json.loads(row[5]))
+        except Exception:
+            pass
+        result.append(
+            Device(
+                id=row[0],
+                name=row[1],
+                role=row[2],
+                revoked_at=row[3],
+                last_seen_at=row[4],
+                permissions=perms,
+            )
+        )
+    return result
 
 
 def mirror(conn: sqlite3.Connection) -> list[dict]:
@@ -231,6 +343,51 @@ class Pairing:
 _open_pairing: Pairing | None = None
 
 
+@dataclass
+class PendingPairing:
+    request_id: str
+    name: str
+    role: str
+    key: bytes
+    opened_at: float
+    ip_address: str = ""
+    user_agent: str = ""
+
+    @property
+    def expired(self) -> bool:
+        return time.monotonic() - self.opened_at > PAIRING_TTL_SECONDS
+
+
+_pending_pairings: dict[str, PendingPairing] = {}
+_pairing_listeners: list[Any] = []
+
+
+def add_pairing_listener(listener: Any) -> None:
+    if listener not in _pairing_listeners:
+        _pairing_listeners.append(listener)
+
+
+def remove_pairing_listener(listener: Any) -> None:
+    if listener in _pairing_listeners:
+        _pairing_listeners.remove(listener)
+
+
+def notify_pending_pairing(pending: PendingPairing) -> None:
+    event = {
+        "type": "pairing_request",
+        "request_id": pending.request_id,
+        "name": pending.name,
+        "role": pending.role,
+        "opened_at": pending.opened_at,
+        "ip_address": pending.ip_address,
+    }
+    for listener in list(_pairing_listeners):
+        try:
+            listener(event)
+        except Exception:
+            log.exception("error in pairing listener")
+
+
 #: Where the interface this machine's phone loads is hosted, in `app_settings`.
 #: Unset on a machine nobody has published a frontend for, which is the case the
 #: `amethyst://` fallback below exists for.
@@ -238,28 +395,7 @@ APP_URL_KEY = "sync.app_url"
 
 
 def app_url(conn: sqlite3.Connection | None = None) -> str:
-    """The address a phone opens this app at, or "" if there is none.
-
-    The environment wins, so a deployment can say without a database write;
-    otherwise it is the setting in the Devices panel.
-
-    **It has to be https, and that is not a preference.** Pairing derives a key
-    with HKDF and opens an envelope with AES-GCM, both through `crypto.subtle`
-    -- and `crypto.subtle` does not exist outside a secure context. On
-    `http://192.168.1.6:8000` a browser reports `isSecureContext: false` and
-    leaves `crypto.subtle` and `crypto.randomUUID` undefined, so the pairing
-    screen loads and then cannot run.
-
-    This function briefly derived the machine's own LAN address when the server
-    was bound off loopback, which seemed like the obvious way to spare somebody
-    configuring anything. It produced a QR code a camera opened happily onto a
-    page that could not pair -- a worse failure than no QR code at all, because
-    it happens three steps later. Loopback is the one http origin browsers treat
-    as secure, and a phone cannot reach it.
-
-    So: an https origin, or nothing. `relay/README.md` and the Devices panel
-    both name the two ways to get one.
-    """
+    """The address a phone opens this app at, or "" if there is none."""
     from_env = os.environ.get("AMETHYST_APP_URL", "").strip()
     if from_env:
         return from_env.rstrip("/")
@@ -272,19 +408,7 @@ def app_url(conn: sqlite3.Connection | None = None) -> str:
 
 
 def lan_address() -> str:
-    """This machine's address on the network, for diagnostics only.
-
-    Not used to build a pairing payload -- see `app_url` for why an http origin
-    cannot complete one. It is reported so the Devices panel and `amethyst
-    serve` can say "this machine is here, and here is what it still needs"
-    rather than leaving somebody to work out why a scanned code did nothing.
-
-    A UDP socket that is connected and never sent on: the kernel picks the
-    source address for the route without a packet leaving, which is the one
-    answer that is right on a machine with a VPN, several interfaces, or a
-    hostname that resolves to loopback. This host has two Docker bridges that
-    `gethostbyname` would have offered instead.
-    """
+    """This machine's address on the network, for diagnostics only."""
     import socket
 
     try:
@@ -296,33 +420,35 @@ def lan_address() -> str:
         return ""
 
 
-def pairing_payload(secret: str, *, app: str = "", relay: str = "") -> str:
-    """What the QR code encodes.
+def host_url() -> str:
+    lan = lan_address()
+    port = os.environ.get("AMETHYST_BIND_PORT", "8000").strip() or "8000"
+    if lan:
+        return f"http://{lan}:{port}"
+    return ""
 
-    Two shapes, and which one you get depends on whether this machine knows
-    where its interface is hosted:
 
-    `https://<app>/pair#s=…&r=…` -- a phone's own camera app opens this, which
-    is the whole point. There is no scheme to register, no app to install, and
-    nothing to type: the pairing screen comes up with both fields already
-    filled. The secret sits in the *fragment* deliberately, because a fragment
-    is never sent to a server -- so it stays out of the host's access log, out
-    of any proxy in front of it, and out of the `Referer` of every request the
-    page makes once it loads.
-
-    `amethyst://pair?s=…&r=…` -- the fallback when no app URL is configured.
-    A camera cannot open it, but the in-app scanner and the clipboard can, and
-    it is better than a bare code because it still carries the relay address.
-
-    The relay address travels either way. Typing it was the step that made
-    pairing feel like configuration, and this machine already knows it.
-    """
+def pairing_payload(
+    secret: str,
+    *,
+    app: str = "",
+    relay: str = "",
+    host: str = "",
+    prefer_lan: bool = False,
+) -> str:
+    """What the QR code encodes."""
     fields = {"s": secret}
     if relay:
         fields["r"] = relay.rstrip("/")
+    if host:
+        fields["h"] = host.rstrip("/")
     query = urlencode(fields)
+    if prefer_lan and host:
+        return f"{host.rstrip('/')}/pair#{query}"
     if app:
         return f"{app.rstrip('/')}/pair#{query}"
+    if host:
+        return f"{host.rstrip('/')}/pair#{query}"
     return f"amethyst://pair?{query}"
 
 
@@ -341,35 +467,22 @@ def open_pairing(name_hint: str = "", *, conn: sqlite3.Connection | None = None)
 
         relay = (load_instagram().relay_url or "").strip()
     except Exception:
-        # A missing or unreadable relay setting is not a reason to refuse to
-        # show a code: the payload degrades to one without `r=`, and the phone
-        # asks for the address the way it always did.
         log.debug("could not read the relay address for the pairing payload")
-    return secret, pairing_payload(secret, app=app_url(conn), relay=relay)
+    app = app_url(conn)
+    host = host_url()
+    return secret, pairing_payload(secret, app=app, relay=relay, host=host)
 
 
 def close_pairing() -> None:
     global _open_pairing
     _open_pairing = None
+    _pending_pairings.clear()
+    _approved_answers.clear()
+    _approved_answers_map.clear()
 
 
 def has_peers(conn: sqlite3.Connection) -> bool:
-    """Is there anybody to sync with?
-
-    Two ways to be in a group, because there are two roles. A **host** knows its
-    peers from the `devices` table -- the rows pairing writes. A machine that
-    **joined** somebody else's group has none of those: `join` adopts an
-    identity and stores a device token, and the host it answers to is not a row
-    in its own table. Asking only the first question would have stopped a joined
-    machine sending its own edits, which is the quieter half of the same bug
-    this exists to fix.
-
-    The caller is `service.outgoing`, which used to test only whether a group
-    key existed. That key is minted on the first pairing and deliberately
-    outlives it, so once anything had ever paired the answer was yes forever --
-    and a machine with every device revoked went on sweeping, sealing and
-    uploading for an empty room.
-    """
+    """Is there anybody to sync with?"""
     if live(conn):
         return True
     from backend.secrets import get_secret
@@ -378,41 +491,24 @@ def has_peers(conn: sqlite3.Connection) -> bool:
 
 
 def pairing_open() -> bool:
-    """Is a code on screen right now, waiting to be scanned?
-
-    Read by the relay poller, which polls faster while one is: the whole wait a
-    person sits through is this machine's next two round trips, and fifteen
-    seconds each is the difference between "it just worked" and wondering
-    whether it is broken. Bounded by PAIRING_TTL_SECONDS, so the faster rate
-    lasts five minutes at the outside and only when somebody asked for it.
-    """
+    """Is a code on screen right now, waiting to be scanned?"""
     return _open_pairing is not None and not _open_pairing.expired
 
 
-def accept(conn: sqlite3.Connection, sealed: dict) -> dict | None:
-    """Complete a pairing from the request the relay carried across.
-
-    The request opening under the pairing key *is* the proof the far side knew
-    the secret -- that is what an AEAD tag is -- so there is no second round
-    trip. Returns what to seal and send back, a plaintext refusal when there is
-    no code open to check against, or None when the offer simply does not open.
-    """
+def accept(conn: sqlite3.Connection, sealed: dict, auto_approve: bool = True) -> dict | None:
+    """Complete a pairing from the request the relay carried across."""
     global _open_pairing
     request_id = str(sealed.get("request_id") or "")
+    if request_id in _pending_pairings:
+        return {"request_id": request_id, "refused": "pending_approval"}
+    if request_id in _approved_answers_map:
+        return _approved_answers_map[request_id]
+
     pairing = _open_pairing
     if pairing is None or pairing.expired:
         if pairing is not None:
             log.info("a pairing request arrived after the code had expired")
             _open_pairing = None
-        # Said out loud, unlike the failure below. A code that sat on screen
-        # past its five minutes is the ordinary way this goes wrong, and a
-        # device left to time out after two minutes reports it as "your machine
-        # never answered" -- which sends somebody to check whether their laptop
-        # is asleep when what they need is a fresh code.
-        #
-        # Nothing is disclosed by saying so. The request id is the relay's own
-        # routing key and it already holds it, there is no secret in this reply,
-        # and it does not distinguish "expired" from "never opened".
         if not request_id:
             return None
         return {"request_id": request_id, "refused": "expired"}
@@ -424,51 +520,136 @@ def accept(conn: sqlite3.Connection, sealed: dict) -> dict | None:
             op_id=request_id, device_id="pairing", key=key,
         )
     except (crypto.SealError, KeyError, TypeError):
-        # An offer sealed under something other than the code on this screen.
-        #
-        # Deliberately NOT counted toward the failure window that `authenticate`
-        # uses. That window defends a credential somebody could plausibly guess;
-        # a pairing secret is 160 bits and cannot be. Counting these instead
-        # created a remotely triggerable lockout -- the relay accepts offers from
-        # anyone, so ten pieces of junk posted by a stranger would have shut
-        # pairing for everyone for five minutes, which is a denial of service
-        # bought for the price of ten HTTP requests.
-        #
-        # What bounds the cost of junk is MAX_PENDING_PAIRINGS at the relay: at
-        # most a handful of offers exist at once, and opening one is a single
-        # AEAD attempt.
         log.debug("a pairing offer did not open under this code; ignoring it")
         return None
 
-    group = crypto.group_key() or crypto.create_group_key()
-    # A device that has just arrived has an empty replica and is only ever sent
-    # ops emitted after it got here, so without this it joins to a blank
-    # transcript. Rewinding the sweep's watermarks is what fills it in.
+    # The pairing code is single-use once unsealed under a valid key
+    _open_pairing = None
+
+    pp = PendingPairing(
+        request_id=request_id,
+        name=str(opened.get("name") or pairing.name_hint or "paired device"),
+        role=str(opened.get("role") or "control"),
+        key=key,
+        opened_at=time.monotonic(),
+        ip_address=str(sealed.get("client_ip") or ""),
+        user_agent=str(sealed.get("user_agent") or ""),
+    )
+    _pending_pairings[request_id] = pp
+    notify_pending_pairing(pp)
+
+    if auto_approve:
+        return approve_pending(conn, request_id)
+
+    return {"request_id": request_id, "refused": "pending_approval"}
+
+
+_approved_answers: list[dict] = []
+_approved_answers_map: dict[str, dict] = {}
+
+
+def has_pending_pairings() -> bool:
+    return any(not p.expired for p in _pending_pairings.values())
+
+
+def has_approved_answers() -> bool:
+    return bool(_approved_answers)
+
+
+def list_pending() -> list[dict[str, Any]]:
+    return [
+        {
+            "request_id": p.request_id,
+            "name": p.name,
+            "role": p.role,
+            "opened_at": p.opened_at,
+            "ip_address": p.ip_address,
+        }
+        for p in _pending_pairings.values()
+        if not p.expired
+    ]
+
+
+def consume_approved() -> list[dict]:
+    global _approved_answers
+    ans, _approved_answers = _approved_answers, []
+    return ans
+
+
+def get_pairing_status(request_id: str) -> dict | None:
+    if request_id in _approved_answers_map:
+        return _approved_answers_map[request_id]
+    if request_id in _pending_pairings:
+        p = _pending_pairings[request_id]
+        if p.expired:
+            _pending_pairings.pop(request_id, None)
+            return {"request_id": request_id, "refused": "expired"}
+        return {"request_id": request_id, "refused": "pending_approval"}
+    return None
+
+
+def approve_pending(
+    conn: sqlite3.Connection,
+    request_id: str,
+    permissions: dict[str, bool] | None = None,
+) -> dict | None:
+    if request_id in _approved_answers_map:
+        return _approved_answers_map[request_id]
+    pending = _pending_pairings.pop(request_id, None)
+    if pending is None or pending.expired:
+        return None
+
     try:
         from backend.sync import project
 
         project.rewind(conn)
     except Exception:
-        # A transcript that fills in late is worse than one that does not, but
-        # not as bad as a pairing that fails outright.
         log.exception("could not rewind the publish watermarks for a new device")
+
+    perms = dict(DEFAULT_PERMISSIONS)
+    if permissions:
+        perms.update(permissions)
+
     device, token = register(
         conn,
-        name=str(opened.get("name") or pairing.name_hint or "paired device"),
-        role=str(opened.get("role") or "control"),
+        name=pending.name,
+        role=pending.role,
+        permissions=perms,
     )
+    global _open_pairing
     _open_pairing = None  # single use
 
+    group = crypto.group_key() or crypto.create_group_key()
     nonce, ciphertext = crypto.seal(
         {
             "device_id": device.id,
             "token": token,
             "group_key": crypto.b64(group),
+            "permissions": perms,
         },
-        op_id=request_id, device_id="pairing", key=key,
+        op_id=request_id, device_id="pairing", key=pending.key,
     )
-    log.info("paired %s (%s)", device.name, device.id)
-    return {"request_id": request_id, "nonce": nonce, "ciphertext": ciphertext}
+    log.info("paired %s (%s) with permissions %s", device.name, device.id, perms)
+    ans = {
+        "request_id": request_id,
+        "device_id": device.id,
+        "nonce": nonce,
+        "ciphertext": ciphertext,
+    }
+    _approved_answers.append(ans)
+    _approved_answers_map[request_id] = ans
+    return ans
+
+
+def reject_pending(request_id: str) -> dict | None:
+    if request_id in _approved_answers_map:
+        return _approved_answers_map[request_id]
+    pending = _pending_pairings.pop(request_id, None)
+    ans = {"request_id": request_id, "refused": "rejected"}
+    _approved_answers.append(ans)
+    _approved_answers_map[request_id] = ans
+    return ans
+
 
 
 def build_request(pair_secret: str, name: str, role: str = "control") -> dict:

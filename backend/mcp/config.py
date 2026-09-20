@@ -107,6 +107,9 @@ class ServerConfig:
     source: Source = Source.CONFIGURED
     catalogue_id: str | None = None
     description: str | None = None
+    # The account expected/configured for this connector (e.g. user@gmail.com).
+    # If the authenticated provider account does not match, ACCOUNT_MISMATCH is flagged.
+    account: str | None = None
 
     @property
     def is_remote(self) -> bool:
@@ -226,6 +229,7 @@ class ServerConfig:
             "api_key_query_param",
             "catalogue_id",
             "description",
+            "account",
         ):
             value = getattr(self, key)
             if value:
@@ -278,6 +282,7 @@ class ServerConfig:
             source=Source(raw.get("source", "configured")),
             catalogue_id=raw.get("catalogue_id"),
             description=raw.get("description"),
+            account=raw.get("account"),
         )
 
 

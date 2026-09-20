@@ -8,6 +8,41 @@
    same thing rather than producing `https://host//api`. */
 export const API_ORIGIN = (import.meta.env?.VITE_API_BASE || '').trim().replace(/\/+$/, '')
 
+export function getApiOrigin() {
+  if (API_ORIGIN) return API_ORIGIN
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('amethyst.sync.identity.v1') : null
+    if (raw) {
+      const id = JSON.parse(raw)
+      if (id?.hostUrl && typeof window !== 'undefined' && window.location.origin !== id.hostUrl) {
+        return id.hostUrl.replace(/\/+$/, '')
+      }
+    }
+  } catch {}
+  return ''
+}
+
+export function getBase() {
+  const origin = getApiOrigin()
+  return origin ? `${origin}/api` : `${API_ORIGIN}/api`
+}
+
+export function getAuthHeaders() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('amethyst.sync.identity.v1') : null
+    if (raw) {
+      const id = JSON.parse(raw)
+      if (id?.token) {
+        return {
+          Authorization: `Bearer ${id.token}`,
+          'X-Amethyst-Device-Token': id.token,
+        }
+      }
+    }
+  } catch {}
+  return {}
+}
+
 const BASE = `${API_ORIGIN}/api`
 
 /* Waking the backend.
@@ -67,7 +102,11 @@ async function ping(timeout) {
   const stop = new AbortController()
   const timer = setTimeout(() => stop.abort(), timeout)
   try {
-    const res = await fetch(`${BASE}/ping`, { signal: stop.signal, cache: 'no-store' })
+    const res = await fetch(`${getBase()}/ping`, {
+      headers: getAuthHeaders(),
+      signal: stop.signal,
+      cache: 'no-store',
+    })
     if (!res.ok) return false
     // A 200 is not enough, and assuming it was is what made a phone unusable.
     //
@@ -89,8 +128,9 @@ async function ping(timeout) {
   }
 }
 
-/** Keep asking until the backend answers, or until it has had long enough. */
-export async function wakeBackend() {
+let wakePromise = null
+
+async function doWakeBackend() {
   // Only a *verified* ready short-circuits. An unverified one is a guess, and
   // the whole point of this call is to find out.
   if (state.phase === 'ready' && state.verified) return true
@@ -126,6 +166,14 @@ export async function wakeBackend() {
   }
 }
 
+/** Keep asking until the backend answers, or until it has had long enough. */
+export function wakeBackend() {
+  if (!wakePromise) {
+    wakePromise = doWakeBackend().finally(() => { wakePromise = null })
+  }
+  return wakePromise
+}
+
 /* DNS, TCP and TLS to the API host, started before the first request needs
    them. Only when the API is somewhere else -- a same-origin build is already
    connected to its own origin, and a preconnect to it would be a wasted hint. */
@@ -143,9 +191,15 @@ export const backendReady = wakeBackend()
 
 async function j(url, opts) {
   let res
+  const base = getBase()
+  const auth = getAuthHeaders()
   try {
-    res = await fetch(BASE + url, {
-      headers: { 'Content-Type': 'application/json' },
+    res = await fetch(base + url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth,
+        ...(opts?.headers || {}),
+      },
       ...opts,
     })
   } catch (err) {
@@ -155,7 +209,7 @@ async function j(url, opts) {
     // named none of them. Say where it was trying to reach, and put the backend
     // back into waking so the boot frame comes up rather than a dead page.
     if (state.phase === 'ready') { publish({ verified: false }); wakeBackend() }
-    const where = API_ORIGIN || window.location.origin
+    const where = getApiOrigin() || API_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : '')
     throw new Error(`Could not reach ${where} — ${err.message || 'the request failed'}`)
   }
   if (state.phase !== 'ready' || !state.verified) publish({ phase: 'ready', verified: true, error: null })
@@ -223,13 +277,71 @@ export const api = {
   preferences: () => j('/preferences'),
   savePreferences: (preferences) => j('/preferences', json('PATCH', { preferences })),
 
-  // Paired devices, and the QR code that adds one.
+  // Paired devices, approvals, and permissions
   devices: () => j('/devices'),
+  pendingDevices: () => j('/devices/pending'),
+  approvePending: (requestId, permissions) =>
+    j(`/devices/pending/${encodeURIComponent(requestId)}/approve`, json('POST', permissions ? { permissions } : {})),
+  rejectPending: (requestId) =>
+    j(`/devices/pending/${encodeURIComponent(requestId)}/reject`, json('POST')),
   pairDevice: (name) => j('/devices/pair', json('POST', { name })),
   revokeDevice: (id) => j(`/devices/${id}`, json('DELETE')),
-  // Where a phone opens this app, which is what decides whether the QR code is
-  // a link a camera can follow or a payload only the in-app scanner can read.
+  updateDevicePermissions: (deviceId, permissions) =>
+    j(`/devices/${encodeURIComponent(deviceId)}/permissions`, json('PATCH', { permissions })),
   setAppUrl: (appUrl) => j('/devices/app-url', json('PUT', { app_url: appUrl })),
+  checkPairingClaim: (requestId) => j(`/pair/claim?request_id=${encodeURIComponent(requestId)}`),
+
+  // Remote PC & System Telemetry
+  remoteStatus: () => j('/remote/status'),
+  remoteProcesses: () => j('/remote/processes'),
+  remoteKillProcess: (pid, sig = 15) => j('/remote/processes/kill', json('POST', { pid, sig })),
+  remoteApplications: () => j('/remote/applications'),
+  remoteLaunchApp: (target) => j('/remote/applications/launch', json('POST', { target })),
+  remoteCommand: (command, root = false) => j('/remote/command', json('POST', { command, root })),
+
+  // Remote Media & Audio
+  remoteMedia: (command) => j('/remote/media', json('POST', { command })),
+  remoteVolume: (volume) => j('/remote/media/volume', json('POST', { volume })),
+  remoteMute: (mute) => j('/remote/media/mute', json('POST', { mute })),
+  remoteMediaAction: (action) => j('/remote/media/action', json('POST', { action })),
+  remoteSink: (sink) => j('/remote/media/sink', json('POST', { sink })),
+
+  // Remote Power
+  remotePower: (action) => j(`/remote/power/${encodeURIComponent(action)}`, json('POST')),
+  remoteWake: () => j('/remote/power/wake'),
+
+  // Remote Input (Mouse, Keyboard, Clipboard)
+  remoteMouse: (payload) => j('/remote/input/mouse', json('POST', payload)),
+  remoteKeyboard: (payload) => j('/remote/input/keyboard', json('POST', payload)),
+  remoteClipboardGet: () => j('/remote/clipboard'),
+  remoteClipboardSet: (text) => j('/remote/clipboard', json('POST', { text })),
+
+  // Remote Visuals (Screen & Camera)
+  remoteScreenshot: () => j('/remote/screenshot'),
+  remoteCameraList: () => j('/remote/camera/list'),
+  remoteCameraSnapshot: (device = '') => j(`/remote/camera/snapshot${device ? `?device=${encodeURIComponent(device)}` : ''}`),
+  remoteCameraStop: () => j('/remote/camera/stop', json('POST')),
+  remoteWebcam: () => j('/remote/webcam'),
+
+  // Remote Files
+  remoteFiles: () => j('/remote/files'),
+  remoteDeleteFile: (filename) => j(`/remote/files/${encodeURIComponent(filename)}`, json('DELETE')),
+  uploadRemoteFile: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const headers = { ...getAuthHeaders() }
+    const res = await fetch(`${getBase()}/remote/files/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!res.ok) {
+      let detail = res.statusText
+      try { detail = (await res.json()).detail || detail } catch {}
+      throw new Error(detail || 'Upload failed')
+    }
+    return res.json()
+  },
 
   activity: (days = 30) => j(`/analytics/activity?days=${days}`),
   usageWindows: () => j('/analytics/usage-windows'),
@@ -258,6 +370,29 @@ export const api = {
      one back off disk, which is why it can answer with `missing` set. */
   artifacts: (conversationId) => j(`/conversations/${conversationId}/artifacts`),
   artifact: (artifactId) => j(`/artifacts/${encodeURIComponent(artifactId)}`),
+  messageArtifact: (conversationId, messageId) =>
+    j(`/conversations/${conversationId}/messages/${messageId}/artifact`),
+  updateMessageArtifact: (conversationId, messageId, content, changeSummary) =>
+    j(`/conversations/${conversationId}/messages/${messageId}/artifact`, json("POST", { content, change_summary: changeSummary })),
+  revertMessageArtifact: (conversationId, messageId, version) =>
+    j(`/conversations/${conversationId}/messages/${messageId}/artifact/revert`, json("POST", { version })),
+  exportDocx: async (markdown, title) => {
+    const res = await fetch("/api/export/docx", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markdown, title }),
+    })
+    if (!res.ok) throw new Error("DOCX export failed")
+    return res.blob()
+  },
+  aiTransform: (textOrObj, action, instruction) => {
+    if (typeof textOrObj === 'object' && textOrObj !== null) {
+      return j("/ai/transform", json("POST", textOrObj))
+    }
+    return j("/ai/transform", json("POST", { text: textOrObj, action, instruction }))
+  },
+  branchConversation: (conversationId, fromMessageId = null, title = null) =>
+    j(`/conversations/${conversationId}/branch`, json('POST', { from_message_id: fromMessageId, title })),
   gitStatus: () => j('/git-status'),
   pinMessage: (id, messageId, pinned) =>
     j(`/conversations/${id}/messages/${messageId}/pin`, json('POST', { pinned })),
@@ -282,31 +417,44 @@ export const api = {
   // the message: the sentence landed in the transcript and was replayed on
   // every later turn, and the server had no idea the mode existed.
   turn: async ({ conversationId, message, workspace, mode, attachments, guard, effort, variant, model, onEvent, signal }) => {
-    const res = await fetch(`${BASE}/conversations/${conversationId}/turn`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      /* Attachments travel as structured data, not as a line of prose appended
-         to the prompt. An image the model is meant to look at cannot be
-         described to it as a filesystem path -- that is what produced an issue
-         body containing `/home/wayne/.amethyst/attachments/…/Screenshot.png`
-         where the screenshot should have been. */
-      body: JSON.stringify({
-        message,
-        workspace,
-        mode: mode || 'chat',
-        attachments: (attachments || []).map((f) => ({
-          path: f.path,
-          name: f.name,
-          media_type: f.content_type || null,
-          bytes: f.bytes ?? null,
-        })),
-        guard: guard || null,
-        effort: effort || null,
-        variant: variant || null,
-        model: model || null,
-      }),
-      signal,
-    })
+    let res
+    try {
+      res = await fetch(`${getBase()}/conversations/${conversationId}/turn`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        /* Attachments travel as structured data, not as a line of prose appended
+           to the prompt. An image the model is meant to look at cannot be
+           described to it as a filesystem path -- that is what produced an issue
+           body containing `/home/wayne/.amethyst/attachments/…/Screenshot.png`
+           where the screenshot should have been. */
+        body: JSON.stringify({
+          message,
+          workspace,
+          mode: mode || 'chat',
+          attachments: (attachments || []).map((f) => ({
+            path: f.path,
+            name: f.name,
+            media_type: f.content_type || null,
+            bytes: f.bytes ?? null,
+          })),
+          guard: guard || null,
+          effort: effort || null,
+          variant: variant || null,
+          model: model || null,
+        }),
+        signal,
+      })
+    } catch (err) {
+      if (err instanceof TypeError) {
+        publish({ phase: 'down', verified: false, attempts: 1, error: err.message })
+        wakeBackend()
+      }
+      throw err
+    }
+    
     if (!res.ok || !res.body) {
       let detail = res.statusText
       try { detail = (await res.json()).detail || detail } catch { /* ignore */ }
@@ -325,10 +473,22 @@ export const api = {
         const line = buffer.slice(0, idx).trim()
         buffer = buffer.slice(idx + 1)
         if (!line.startsWith('data: ')) continue
+        
+        let evt = null
         try {
-          const evt = JSON.parse(line.slice(6))
-          onEvent(evt)
-        } catch { /* malformed frame, skip */ }
+          evt = JSON.parse(line.slice(6))
+        } catch { 
+          /* malformed frame, skip */ 
+          continue
+        }
+        
+        if (evt) {
+          try {
+            onEvent(evt)
+          } catch (err) {
+            console.error("Error processing SSE event:", err, evt)
+          }
+        }
       }
     }
   },
@@ -351,7 +511,7 @@ export const api = {
   revokeApproval: (operationKey) =>
     j(`/confirmations/preferences/${encodeURIComponent(operationKey)}`, json('DELETE')),
 
-  // Automations — beta. A turn that runs without anyone typing.
+  // Automations. A turn that runs without anyone typing.
   automations: () => j('/automations'),
   createAutomation: (body) => j('/automations', json('POST', body)),
   updateAutomation: (id, patch) => j(`/automations/${id}`, json('PATCH', patch)),
@@ -360,6 +520,7 @@ export const api = {
   // three minutes of open request, which a proxy times out and a person reads
   // as a failure while the run carries on unseen.
   runAutomation: (id) => j(`/automations/${id}/run`, json('POST', {})),
+  retryAutomation: (id) => j(`/automations/${id}/retry`, json('POST', {})),
   // The run in flight for this automation, or the last one. What the page asks
   // on open, so a reload reconnects to a run rather than offering to start a
   // second one.
@@ -372,6 +533,22 @@ export const api = {
   // Every kept run of one automation. They are out of the conversation rail,
   // so this is where they are read.
   automationRuns: (id) => j(`/automations/${id}/runs`),
+  // Recent runs across all automations (for the Runs tab).
+  recentRuns: (limit = 100) => j(`/automations/runs/recent?limit=${limit}`),
+  // Run history chart stats for one automation.
+  automationStats: (id, days = 30) => j(`/automations/${id}/stats?days=${days}`),
+  // Run counts across every automation. What the chart is actually about.
+  automationOverallStats: (days = 30) => j(`/automations/runs/stats?days=${days}`),
+  // One run, in full: what ran, what it called, and what it produced.
+  automationRunDetail: (runId) => j(`/automations/runs/${runId}`),
+  // Whether anything will run these when this process is not running.
+  automationScheduler: () => j('/automations/scheduler'),
+  // The grants an automation can hold, and whether each can work right now.
+  automationActions: () => j('/automations/actions'),
+  // Available automation templates.
+  automationTemplates: (category) => j(`/automations/templates${category ? `?category=${category}` : ''}`),
+  // Due automations (for GitHub Actions scheduler).
+  dueAutomations: () => j('/automations/due'),
 
   logs: (limit = 100) => j(`/logs?limit=${limit}`),
 
@@ -422,7 +599,11 @@ export const api = {
   upload: async (file) => {
     const form = new FormData()
     form.append('file', file)
-    const res = await fetch(`${BASE}/attachments`, { method: 'POST', body: form })
+    const res = await fetch(`${getBase()}/attachments`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: form,
+    })
     if (!res.ok) {
       let detail = res.statusText
       try { detail = (await res.json()).detail || detail } catch { /* keep statusText */ }
@@ -515,8 +696,8 @@ export const api = {
   enrichLibraryItem: (id) => j(`/library/${id}/enrich`, json('POST')),
   // A route rather than a path: the browser is never handed a filesystem
   // location, and a missing still is a 404 rather than a broken <img>.
-  thumbnailUrl: (id) => `${BASE}/library/${id}/thumbnail`,
-  mediaUrl: (id) => `${BASE}/library/${id}/media`,
+  thumbnailUrl: (id) => `${getBase()}/library/${id}/thumbnail`,
+  mediaUrl: (id) => `${getBase()}/library/${id}/media`,
 
   // Export selected library items as a Spotify playlist via the MCP connector.
   exportPlaylist: (itemIds, name = '') =>
@@ -545,14 +726,19 @@ export const api = {
   // Spotlight search endpoints (Damon)
   searchWeb: (q, limit = 8, signal, offset = 0) =>
     j(`/search/web?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`, { signal }),
-  searchYouTube: (q, limit = 8, signal, offset = 0) =>
-    j(`/search/youtube?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`, { signal }),
+  searchYouTube: (q, limit = 8, signal, offset = 0, sort = 'relevance') =>
+    j(`/search/youtube?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}&sort=${sort}`, { signal }),
   searchImages: (q, limit = 12, signal) =>
     j(`/search/images?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
   searchGitHub: (q, limit = 6, signal) =>
     j(`/search/github?q=${encodeURIComponent(q)}&limit=${limit}`, { signal }),
   searchWiki: (q, signal) =>
     j(`/search/wiki?q=${encodeURIComponent(q)}`, { signal }),
+  // Which web-search API is set up, and setting one. Write-only for the key
+  // itself: the GET says a provider has one, never what it is.
+  searchProvider: () => j('/search/provider'),
+  setSearchProvider: (name, key) =>
+    j('/search/provider', { method: 'PUT', body: JSON.stringify({ name, key }) }),
   // The palette passes the article list and wiki card it already shows as
   // the evidence, so an answer never re-searches what is already on screen.
   // `wiki` is only sent when the caller decided it: `null` means "no wiki

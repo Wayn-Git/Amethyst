@@ -229,6 +229,10 @@ function applyDensity(density) {
 applyTextSize(loadPrefs().textSize || 100)
 applyDensity(loadPrefs().density || 'comfortable')
 if (typeof document !== 'undefined') document.documentElement.setAttribute('data-glass', loadPrefs().glassMaterial || 'full')
+// Before mount, like the material above: the spotlight can be summoned within a
+// frame of the page loading, and reading this from state would mean the first
+// summon of a session played the default animation rather than the chosen one.
+if (typeof document !== 'undefined') document.documentElement.setAttribute('data-spotlight-anim', loadPrefs().spotlightAnimation || 'spring')
 
 
 export function AppProvider({ children }) {
@@ -368,6 +372,15 @@ export function AppProvider({ children }) {
   const [draftModel, setDraftModelRaw] = useState(prefs.draftModel || '')
   const setDraftModel = useCallback((value) => { setDraftModelRaw(value); savePrefs({ draftModel: value }) }, [])
 
+  const [spotlightAnimation, setSpotlightAnimationRaw] = useState(prefs.spotlightAnimation || 'spring')
+  const setSpotlightAnimation = useCallback((value) => {
+    setSpotlightAnimationRaw(value)
+    savePrefs({ spotlightAnimation: value })
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-spotlight-anim', value)
+    }
+  }, [])
+
   const [glassMaterial, setGlassMaterialRaw] = useState(prefs.glassMaterial || 'full')
   const setGlassMaterial = useCallback((value) => {
     setGlassMaterialRaw(value)
@@ -478,7 +491,7 @@ export function AppProvider({ children }) {
      in the backend settings. `nav.js` is where "hidden" is spelled out; every
      surface that lists pages reads it from there rather than keeping its own
      idea of which ones exist. */
-  const [betaPages, setBetaPagesRaw] = useState(prefs.betaPages === true)
+  const [betaPages, setBetaPagesRaw] = useState(prefs.betaPages !== false)
   const setBetaPages = useCallback((next) => {
     const value = Boolean(next)
     setBetaPagesRaw(value)
@@ -546,8 +559,15 @@ export function AppProvider({ children }) {
      number that is about to change again. */
   const setPanelWidth = useCallback((value, { persist = true } = {}) => {
     const next = clampPanel(value)
-    setPanelWidthRaw(next)
-    if (persist) savePrefs({ panelWidth: next })
+    if (persist) {
+      setPanelWidthRaw(next)
+      savePrefs({ panelWidth: next })
+    }
+    // Update the DOM element directly during drag to avoid app-wide re-renders
+    const panelEl = document.getElementById('wb-panel')
+    if (panelEl) {
+      panelEl.style.setProperty('--panel-w', `${next}px`)
+    }
   }, [])
 
   const togglePanelExpanded = useCallback(() => setPanelExpanded((on) => !on), [])
@@ -825,7 +845,7 @@ export function AppProvider({ children }) {
     guard: defaultGuard, setGuard: setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
     shellConfirm, setShellConfirm, fileConfirm, setFileConfirm, netConfirm, setNetConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
@@ -853,7 +873,7 @@ export function AppProvider({ children }) {
     defaultGuard, setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
     shellConfirm, fileConfirm, netConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,

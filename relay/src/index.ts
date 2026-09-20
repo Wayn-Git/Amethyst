@@ -202,9 +202,44 @@ async function laptopIsAway(env: Env): Promise<boolean> {
 
 // ------------------------------------------------------------------- queue
 
+/**
+ * Cached delivery queue depth. The real count is stored in the state table
+ * and updated on every enqueue/prune/delete, so /sync never needs a full
+ * table scan. The in-memory copy is a fast path for the common case.
+ */
+let _cachedQueueDepth: number | null = null;
+
 async function queueDepth(env: Env): Promise<number> {
+	if (_cachedQueueDepth !== null) return _cachedQueueDepth;
+	const row = await env.DB.prepare("SELECT value FROM state WHERE key = 'queue_depth'")
+		.first<{ value: string }>();
+	if (row) {
+		_cachedQueueDepth = Number(row.value) || 0;
+	} else {
+		// First call: seed the cache from the real count.
+		const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM deliveries')
+			.first<{ n: number }>();
+		_cachedQueueDepth = count?.n ?? 0;
+		await setQueueDepth(env, _cachedQueueDepth);
+	}
+	return _cachedQueueDepth;
+}
+
+async function setQueueDepth(env: Env, n: number): Promise<void> {
+	_cachedQueueDepth = n;
+	await env.DB.prepare(
+		"INSERT INTO state (key, value, updated_at) VALUES ('queue_depth', ?, ?)" +
+			" ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+	)
+		.bind(String(n), now())
+		.run();
+}
+
+/** Recount and persist. Called after mutations that change the row count. */
+async function recountQueue(env: Env): Promise<void> {
 	const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM deliveries').first<{ n: number }>();
-	return row?.n ?? 0;
+	const n = row?.n ?? 0;
+	await setQueueDepth(env, n);
 }
 
 /** Returns false when the row was already here -- a retry, or a replay. */
@@ -222,7 +257,11 @@ async function enqueue(
 	)
 		.bind(kind, bodyHash, body, signature, senderId, now())
 		.run();
-	return (result.meta.changes ?? 0) > 0;
+	const inserted = (result.meta.changes ?? 0) > 0;
+	if (inserted) {
+		_cachedQueueDepth = (_cachedQueueDepth ?? 0) + 1;
+	}
+	return inserted;
 }
 
 // -------------------------------------------------------------- graph calls
@@ -535,6 +574,9 @@ async function sync(request: Request, env: Env): Promise<Response> {
 		)
 			.bind(...ack)
 			.run();
+		// Decrement cache; clamp to 0. Exact count is not critical here --
+		// recountQueue on the next prune corrects any drift.
+		_cachedQueueDepth = Math.max(0, (_cachedQueueDepth ?? 0) - ack.length);
 	}
 
 	// The laptop owns every one of these. The Worker holds a mirror so it can
@@ -582,46 +624,54 @@ async function sync(request: Request, env: Env): Promise<Response> {
 	const opsStored = await acceptOps(env, payload.ops, self);
 	const opsSynced = await ackOps(env, self, payload.op_ack);
 
-	const limit = Math.min(Math.max(Number(payload.limit) || 25, 1), 100);
-	const { results } = await env.DB.prepare(
-		'SELECT id, kind, body, signature, sender_id, received_at FROM deliveries' +
-			' ORDER BY id LIMIT ?',
-	)
-		.bind(limit)
-		.all();
-
 	// So a token this Worker's cron refreshed reaches the keychain. Null when it
 	// is still the one the laptop just told us it held, so the common case is
 	// not a credential travelling back and forth on every poll.
 	const held = await getState(env, 'access_token');
 	const rotated = held && held !== str(config.access_token) ? held : null;
 
+	// Read-only queries: degrade gracefully if D1 is struggling. Writes above
+	// already succeeded, so the system state is consistent; these are just
+	// what the laptop sees on this poll.
+	const limit = Math.min(Math.max(Number(payload.limit) || 25, 1), 100);
+	let deliveries: unknown[] = [];
+	try {
+		const { results } = await env.DB.prepare(
+			'SELECT id, kind, body, signature, sender_id, received_at FROM deliveries' +
+				' ORDER BY id LIMIT ?',
+		)
+			.bind(limit)
+			.all();
+		deliveries = results ?? [];
+	} catch { /* stale list is fine */ }
+
+	let outboundSummaryResult: Record<string, number> = {};
+	try { outboundSummaryResult = await outboundSummary(env); } catch { /* ok */ }
+
+	let jobsResult: Record<string, unknown> = { ready: [], pending: [], counts: {} };
+	try { jobsResult = await jobsForSync(env, Math.min(limit, SYNC_BATCH)); } catch { /* ok */ }
+
+	let workersResult: unknown[] = [];
+	try { workersResult = (await reportsForSync(env, Math.min(limit, SYNC_BATCH))) ?? []; } catch { /* ok */ }
+
+	let opsResult: unknown[] = [];
+	try { opsResult = await opsForSync(env, self); } catch { /* ok */ }
+
+	let pairingsResult: unknown[] = [];
+	try { pairingsResult = await pairingsForSync(env); } catch { /* ok */ }
+
 	return json({
-		deliveries: results ?? [],
+		deliveries,
 		queued: await queueDepth(env),
 		access_token: rotated,
 		token_expires_on: rotated ? await getState(env, 'token_expires_on') : null,
-		// What the relay did on the laptop's behalf while it was away, by state.
-		// Without this the laptop had no way to know an ack had been owed and
-		// never sent -- the send was a fetch inside a request handler, and a
-		// failure was a line in a log nobody reads.
-		outbound: await outboundSummary(env),
-		// The durable job layer's half of the same round trip. `ready` is finished
-		// work waiting to be taken, `pending` is what is still in flight -- which
-		// is how a machine that has been off for a day can tell a quiet relay from
-		// one halfway through five downloads.
-		jobs: await jobsForSync(env, Math.min(limit, SYNC_BATCH)),
+		outbound: outboundSummaryResult,
+		jobs: jobsResult,
 		jobs_synced: jobsSynced,
-		// What workers running on other people's compute said while the machine
-		// was away. Nothing here is applied by the relay; it is a mailbox.
-		workers: await reportsForSync(env, Math.min(limit, SYNC_BATCH)),
+		workers: workersResult,
 		workers_synced: workersSynced,
-		// The sync layer's half of the same round trip. Sealed: this Worker
-		// carried them and could not read one. See src/ops.ts and ADR-0024.
-		ops: await opsForSync(env, self),
-		// Handshakes waiting for this machine to open. It is the only party that
-		// can: the relay has the sealed bytes and not the secret.
-		pairings: await pairingsForSync(env),
+		ops: opsResult,
+		pairings: pairingsResult,
 		ops_stored: opsStored,
 		ops_synced: opsSynced,
 	});
@@ -759,6 +809,7 @@ async function prune(env: Env): Promise<void> {
 	await env.DB.prepare('DELETE FROM deliveries WHERE received_at < ?')
 		.bind(now() - KEEP_SECONDS)
 		.run();
+	await recountQueue(env);
 }
 
 // -------------------------------------------------------------------- entry

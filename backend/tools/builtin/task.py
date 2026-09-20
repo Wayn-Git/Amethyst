@@ -7,8 +7,11 @@ SubagentRunner with derived permissions.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
+import secrets
 import uuid
 from typing import Any
 
@@ -18,6 +21,41 @@ from backend.db.repositories import SubagentSessionRepository
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
 
 log = logging.getLogger(__name__)
+
+# HMAC secret for capability tokens (generated per process, not persisted)
+_HMAC_SECRET = secrets.token_bytes(32)
+
+
+def _generate_capability_token(
+    session_id: str,
+    parent_id: str,
+    permissions: dict[str, Any],
+    depth: int,
+) -> str:
+    """Generate an HMAC-SHA256 capability token encoding child permissions.
+
+    The token binds the child's identity, permissions, and depth limit to
+    prevent tampering with permission derivation.
+    """
+    payload = json.dumps({
+        "session_id": session_id,
+        "parent_id": parent_id,
+        "permissions": sorted(permissions.items()),
+        "depth": depth,
+    }, sort_keys=True, default=str)
+    return hmac.new(_HMAC_SECRET, payload.encode(), hashlib.sha256).hexdigest()
+
+
+def _verify_capability_token(
+    token: str,
+    session_id: str,
+    parent_id: str,
+    permissions: dict[str, Any],
+    depth: int,
+) -> bool:
+    """Verify a capability token matches expected values."""
+    expected = _generate_capability_token(session_id, parent_id, permissions, depth)
+    return hmac.compare_digest(token, expected)
 
 # Subagent depth limit (configurable via config)
 DEFAULT_MAX_DEPTH = 2  # subagent → subagent → subagent (3 levels total)
@@ -138,6 +176,11 @@ async def _run_subagent(
             return ToolResult.error(f"Task session not found: {task_id}")
         session_id = task_id
     else:
+        # Generate capability token for this child
+        capability_token = _generate_capability_token(
+            session_id, ctx.conversation_id, child_permissions, depth + 1
+        )
+
         # Create new session
         repo.create(
             session_id=session_id,
@@ -147,7 +190,11 @@ async def _run_subagent(
             title=description,
             depth=depth + 1,
             model=agent_type.model_override,
-            metadata={"background": run_in_background},
+            metadata={
+                "background": run_in_background,
+                "capability_token": capability_token,
+                "max_depth": max_depth,
+            },
         )
 
     # Notify the interface

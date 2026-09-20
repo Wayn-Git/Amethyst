@@ -81,7 +81,19 @@ def test_a_remote_caller_may_complete_a_pairing_it_has_the_code_for(remote):
     secret, _ = devices.open_pairing(name_hint="a phone")
     answer = remote.post("/api/pair/claim", json=devices.build_request(secret, "a phone"))
     assert answer.status_code == 200
-    opened = devices.read_response(secret, answer.json())
+    res = answer.json()
+    assert res.get("refused") == "pending_approval"
+    req_id = res["request_id"]
+
+    # Desktop user approves the request
+    from backend.db.connection import get_connection
+
+    devices.approve_pending(get_connection(), req_id)
+
+    # Phone polls and retrieves the approved sealed credentials
+    poll = remote.get(f"/api/pair/claim?request_id={req_id}")
+    assert poll.status_code == 200
+    opened = devices.read_response(secret, poll.json())
     assert opened["device_id"]
     assert opened["token"]
     assert opened["group_key"]

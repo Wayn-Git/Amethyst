@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react'
 import { paired, projectPreferences, queued, sync } from './client.js'
 
 /** Matches the machine's own relay poll. Convergence is one poll either way. */
-const IDLE_MS = 15_000
+const IDLE_MS = 30_000
 
 /**
  * While something is actually in flight -- a request queued, or a turn running
@@ -44,22 +44,28 @@ export function useSync(enabled, onPreferences) {
     let stopped = false
     let timer = null
     let interval = IDLE_MS
+    let isPolling = false
 
-    const reschedule = (next) => {
-      if (stopped || next === interval) return
-      interval = next
-      clearInterval(timer)
-      timer = setInterval(tick, interval)
+    const scheduleNext = (nextInterval) => {
+      if (stopped) return
+      if (nextInterval) interval = nextInterval
+      clearTimeout(timer)
+      timer = setTimeout(tick, interval)
     }
 
     const tick = async () => {
-      if (stopped || document.visibilityState === 'hidden') return
+      if (stopped || document.visibilityState === 'hidden' || isPolling) return
+      isPolling = true
+      
       const result = await sync()
+      isPolling = false
       if (stopped) return
+      
       // Busy while this device is still owed a send, or the machine is mid-turn
       // -- the two cases where somebody is looking at the screen waiting.
-      reschedule(queued() > 0 || result.applied ? ACTIVE_MS : IDLE_MS)
+      scheduleNext(queued() > 0 || result.applied ? ACTIVE_MS : IDLE_MS)
       setLast(result)
+      
       /* A poll that did not happen is worth announcing too.
        *
        * Most reasons are transient and the status line is the right place for
@@ -84,16 +90,19 @@ export function useSync(enabled, onPreferences) {
     // Once on mount, so opening the app shows what changed while it was closed
     // rather than making the user wait out a full interval for it.
     tick()
-    // `interval`, not a constant: `reschedule` above returns early when the
-    // rate has not changed, so on the idle path it never creates the first
-    // timer. This is the one that has to exist.
-    timer = setInterval(tick, interval)
+    
+    // We already kicked off the first tick which will schedule the next one,
+    // but in case tick returned early (e.g., hidden), we should schedule one anyway.
+    if (!isPolling) {
+       scheduleNext(interval)
+    }
+    
     const onVisible = () => { if (document.visibilityState === 'visible') tick() }
     document.addEventListener('visibilitychange', onVisible)
 
     return () => {
       stopped = true
-      clearInterval(timer)
+      clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [enabled, onPreferences])

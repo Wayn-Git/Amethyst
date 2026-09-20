@@ -29,19 +29,24 @@ export function useMenuFit(ref, deps = []) {
       const body = menu.querySelector('.menu-body')
 
       if (body) {
-        body.style.maxHeight = ''
+        const currentMax = body.style.maxHeight
+        body.style.maxHeight = 'none'
         const rect = menu.getBoundingClientRect()
         const over = Math.max(rect.bottom - floor, 12 - rect.top, 0)
+        let nextMax = ''
         if (over > 0) {
           const h = body.getBoundingClientRect().height
-          body.style.maxHeight = `${Math.max(140, h - over)}px`
+          nextMax = `${Math.max(140, h - over)}px`
         }
+        body.style.maxHeight = nextMax !== currentMax ? nextMax : currentMax
       }
 
       for (const flyout of menu.querySelectorAll('.menu-flyout')) {
-        flyout.style.maxHeight = ''
+        const currentMax = flyout.style.maxHeight
+        flyout.style.maxHeight = 'none'
         const top = flyout.getBoundingClientRect().top
-        flyout.style.maxHeight = `${Math.max(160, floor - top)}px`
+        const nextMax = `${Math.max(160, floor - top)}px`
+        flyout.style.maxHeight = nextMax !== currentMax ? nextMax : currentMax
       }
     }
 

@@ -81,6 +81,7 @@ amethyst = "backend.cli:main"
 # The keyboard shortcut's own entry point. See backend.desktop.main_palette
 # for why it does not go through the `amethyst` CLI.
 amethyst-palette = "backend.desktop:main_palette"
+amethyst-show = "backend.desktop:main_show"
 
 [build-system]
 requires = ["hatchling"]
@@ -91,6 +92,7 @@ packages = ["backend"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["test_*.py"]
 asyncio_mode = "auto"
 # Live tests spawn real MCP servers and reach the network; opt in with `pytest -m live`.
 addopts = "-m 'not live'"

@@ -64,6 +64,26 @@ export default function TerminalDrawer() {
   // Map of sessionId -> { term, fitAddon, ws, containerEl }
   const instancesRef = useRef(new Map())
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      for (const inst of instancesRef.current.values()) {
+        try {
+          inst.term?.dispose()
+          if (inst.ws?.readyState === WebSocket.OPEN) {
+            inst.ws.close()
+          }
+        } catch (err) {
+          console.error('Error cleaning up terminal instance:', err)
+        }
+      }
+      instancesRef.current.clear()
+    }
+  }, [])
+
+  const sessionsRef = useRef(sessions)
+  sessionsRef.current = sessions
+
   // Fetch available shells & initial sessions
   useEffect(() => {
     let unmounted = false
@@ -94,7 +114,7 @@ export default function TerminalDrawer() {
       } catch { /* ignore */ }
 
       // If no sessions yet, create one with default shell
-      if (!unmounted && terminalOpen && sessions.length === 0) {
+      if (!unmounted && terminalOpen && sessionsRef.current.length === 0) {
         createSession()
       }
     }

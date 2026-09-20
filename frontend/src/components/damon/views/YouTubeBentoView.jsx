@@ -12,13 +12,34 @@ export default function YouTubeBentoView({
   activeIndex = 0,
   onSelect,
   onToast,
+  sort = 'relevance',
+  onSortChange,
 }) {
+  const sortBar = onSortChange ? (
+    <div className="damon-yt-sort" role="group" aria-label="Sort videos">
+      {[['relevance', 'Top'], ['date', 'Latest']].map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          className={`damon-yt-sort-btn${sort === id ? ' is-active' : ''}`}
+          aria-pressed={sort === id}
+          onClick={() => onSortChange(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  ) : null
+
   if (loading && results.length === 0) {
     return (
+      <>
+      {sortBar}
       <div className="damon-loading-state">
         <div className="damon-spinner" />
         <span>Searching YouTube videos…</span>
       </div>
+      </>
     )
   }
 
@@ -39,6 +60,7 @@ export default function YouTubeBentoView({
 
   return (
     <>
+    {sortBar}
     <div className="damon-youtube-grid" role="listbox" aria-label="YouTube search results">
       {results.map((video, i) => {
         const isSelected = i === activeIndex

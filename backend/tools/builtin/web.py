@@ -13,6 +13,7 @@ DuckDuckGo HTML scraping when the service is unreachable.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
 import re
@@ -122,17 +123,63 @@ async def _search_searxng(query: str, limit: int) -> list[str] | None:
 
 
 async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
-    query = (args.get("query") or "").strip()
-    if not query:
+    queries_arg = args.get("queries")
+    if isinstance(queries_arg, list) and queries_arg:
+        clean_queries = [str(q).strip() for q in queries_arg if str(q).strip()]
+    elif isinstance(args.get("query"), list):
+        clean_queries = [str(q).strip() for q in args["query"] if str(q).strip()]
+    else:
+        clean_queries = []
+
+    query = (
+        args.get("query")
+        if isinstance(args.get("query"), str)
+        else (clean_queries[0] if clean_queries else "")
+        or args.get("topic")
+        or args.get("search_query")
+        or args.get("input")
+        or args.get("q")
+        or ""
+    ).strip()
+
+    if not query and not clean_queries:
         return ToolResult.error("search_web needs a query")
+
+    if not query and clean_queries:
+        query = clean_queries[0]
+
     limit = max(1, min(int(args.get("limit") or 6), 15))
+    depth = args.get("depth")
 
-    # Route through the optimized search service when available — it races
-    # Tavily/Brave/Serper/Bing/DDG in parallel with a 2.5s budget, caches
-    # results, and handles rate limiting gracefully.
-    hits = await _search_via_service(query, limit)
+    # 1. Route through the modern ResearchEngine (query planning, authority ranking,
+    # syndication deduplication, stable reference IDs, verification matrix)
+    try:
+        from backend.web.research_engine import ResearchEngine
 
-    # Fall back to the no-key scrapers when the service is unreachable.
+        engine = ResearchEngine()
+        evidence, _, _ = await engine.execute_research(
+            query,
+            depth=depth,
+            limit_per_query=limit,
+            explicit_queries=clean_queries if len(clean_queries) > 1 else None,
+        )
+        if evidence and "No results found" not in evidence:
+            return ToolResult.ok(evidence)
+    except Exception as exc:
+        log.warning("research engine failed, falling back to basic search: %s", exc)
+
+    # 2. Fall back to search service (parallel if multiple queries)
+    if clean_queries and len(clean_queries) > 1:
+        tasks = [_search_via_service(q, limit) for q in clean_queries]
+        results_lists = await asyncio.gather(*tasks)
+        hits = []
+        for rl in results_lists:
+            if rl:
+                hits.extend(rl)
+    else:
+        hits = await _search_via_service(query, limit)
+
+    # 3. Fall back to no-key scrapers
     if not hits:
         hits = await _search_duckduckgo(query, limit)
     if not hits:
@@ -144,6 +191,60 @@ async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
             " unavailable or returned nothing. Try fetch_url on a specific address."
         )
     return ToolResult.ok("\n\n".join(hits))
+
+
+async def research_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    topic = (args.get("topic") or args.get("query") or "").strip()
+    if not topic:
+        return ToolResult.error("research_web needs a topic")
+    depth = args.get("depth") or "research"
+    limit = max(2, min(int(args.get("limit") or 6), 12))
+
+    from backend.web.research_engine import ResearchEngine
+
+    engine = ResearchEngine()
+    evidence, _, _ = await engine.execute_research(topic, depth=depth, limit_per_query=limit)
+    return ToolResult.ok(evidence)
+
+
+async def extract_page(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    url = (args.get("url") or "").strip()
+    query = (
+        args.get("query")
+        or args.get("topic")
+        or args.get("search_query")
+        or args.get("input")
+        or args.get("q")
+        or ""
+    ).strip()
+    if not url:
+        return ToolResult.error("extract_page needs a url")
+    if not query:
+        return ToolResult.error("extract_page needs a query to find relevant sections")
+
+    try:
+        page = await fetch_readable(url)
+    except UnsafeURL as exc:
+        return ToolResult.error(str(exc))
+    except FetchError as exc:
+        return ToolResult.error(str(exc))
+
+    if not page.text:
+        return ToolResult.ok(f"No readable text on {url}. [{page.note}]" if page.note else f"No readable text on {url}.")
+
+    from backend.web.extractor import extract_relevant_passages
+
+    passages = extract_relevant_passages(page.text, query=query, max_passages=3)
+    if not passages:
+        sample = page.text[:1200]
+        return ToolResult.ok(
+            f"Page loaded, but no passage strongly matched {query!r}. Excerpt:\n\n{sample}"
+        )
+
+    lines = [f"### Relevant passages from [{page.title or url}]({url}):\n"]
+    for heading, text, score in passages:
+        lines.append(f"#### {heading}\n{text}\n")
+    return ToolResult.ok("\n".join(lines))
 
 
 async def _search_via_service(query: str, limit: int) -> list[str] | None:
@@ -187,6 +288,24 @@ async def fetch_url(args: dict[str, Any], _: ToolContext) -> ToolResult:
     except FetchError as exc:
         return ToolResult.error(str(exc))
 
+    # If a query is provided, perform targeted passage extraction to save tokens
+    query = (
+        args.get("query")
+        or args.get("topic")
+        or args.get("search_query")
+        or args.get("input")
+        or args.get("q")
+        or ""
+    ).strip()
+    if query and page.text:
+        from backend.web.extractor import extract_relevant_passages
+        passages = extract_relevant_passages(page.text, query=query, max_passages=3)
+        if passages:
+            lines = [f"### Passages from [{page.title or url}]({url}) matching '{query}':\n"]
+            for heading, text, _ in passages:
+                lines.append(f"#### {heading}\n{text}\n")
+            return ToolResult.ok("\n".join(lines))
+
     if page.note:
         return ToolResult.ok(f"{page.text}\n\n[{page.note}]" if page.text else f"[{page.note}]")
     return ToolResult.ok(page.text)
@@ -214,22 +333,87 @@ async def _fetch_via_firecrawl(url: str) -> ToolResult | None:
 
 
 def tools() -> list[Tool]:
+    search_tool = Tool(
+        name="search_web",
+        description=(
+            "Search the web with intelligent query planning, recency awareness, and"
+            " source authority weighting. Supports single query or multiple queries in parallel."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "What to search for"},
+                "queries": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of search queries to execute concurrently in parallel",
+                },
+                "limit": {"type": "integer", "description": "Maximum results per query (default 6)"},
+                "depth": {
+                    "type": "string",
+                    "enum": ["simple", "current", "research", "deep"],
+                    "description": "Optional search depth strategy (auto-detected by default)",
+                },
+            },
+        },
+        handler=search_web,
+        risk=RiskLevel.LOW,
+    )
+    tavily_tool = Tool(
+        name="tavily_search",
+        description="Search the web with Tavily AI search. Automatically unified with search_web.",
+        parameters=search_tool.parameters,
+        handler=search_web,
+        risk=RiskLevel.LOW,
+    )
+    web_search_tool = Tool(
+        name="web_search",
+        description="Search the web for real-time information and news. Automatically unified with search_web.",
+        parameters=search_tool.parameters,
+        handler=search_web,
+        risk=RiskLevel.LOW,
+    )
     return [
+        search_tool,
+        tavily_tool,
+        web_search_tool,
         Tool(
-            name="search_web",
+            name="research_web",
             description=(
-                "Search the web and return the top results with their URLs. Use this"
-                " when the answer is not on the user's machine and not in their notes."
+                "Perform in-depth, multi-source web research with query decomposition,"
+                " source inspection, and cross-source verification of claims."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "What to search for"},
-                    "limit": {"type": "integer", "description": "Maximum results (default 6)"},
+                    "topic": {"type": "string", "description": "The research topic or question"},
+                    "depth": {
+                        "type": "string",
+                        "enum": ["current", "research", "deep"],
+                        "description": "Research depth (default: research)",
+                    },
+                    "limit": {"type": "integer", "description": "Maximum results per query (default 6)"},
                 },
-                "required": ["query"],
+                "required": ["topic"],
             },
-            handler=search_web,
+            handler=research_web,
+            risk=RiskLevel.LOW,
+        ),
+        Tool(
+            name="extract_page",
+            description=(
+                "Open a web page and extract only the relevant passages matching a query,"
+                " preserving context while minimizing token consumption."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The web address to inspect"},
+                    "query": {"type": "string", "description": "What topic or claim to extract from the page"},
+                },
+                "required": ["url", "query"],
+            },
+            handler=extract_page,
             risk=RiskLevel.LOW,
         ),
         Tool(
@@ -240,7 +424,10 @@ def tools() -> list[Tool]:
             ),
             parameters={
                 "type": "object",
-                "properties": {"url": {"type": "string", "description": "The address to fetch"}},
+                "properties": {
+                    "url": {"type": "string", "description": "The address to fetch"},
+                    "query": {"type": "string", "description": "Optional search query to extract only matching passages"},
+                },
                 "required": ["url"],
             },
             handler=fetch_url,

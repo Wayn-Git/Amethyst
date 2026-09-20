@@ -257,47 +257,18 @@ A permission prompt suspends the turn until answered; check for an amber prompt 
 
 ## 🚀 New Features
 
-### Parallel Execution
+### Enterprise-Grade Reliability
 
-Run multiple data-gathering tasks simultaneously for faster research:
+Amethyst's backend is fortified against edge cases, resource leaks, and concurrency issues:
+- **Bulletproof concurrency** — A global `.amethyst.lock` file prevents multiple background instances from clobbering each other's ports and logs.
+- **Leak-free streaming** — FastAPI's `BackgroundTasks` guarantee cleanup of SSE (Server-Sent Events) connections, preventing memory leaks when clients disconnect ungracefully.
+- **Orphan process prevention** — Explicit process group reaping ensures that background PTY processes spawned by the terminal manager are killed instantly on shutdown.
+- **Strict dependency isolation** — Dynamic skill loading employs robust directory existence validation and YAML mapping verification, preventing malformed skills from crashing the system.
 
-```
-# Example: Research multiple topics at once
-dispatch_parallel_jobs([
-  {task: "web_search", params: {query: "AI news"}},
-  {task: "web_search", params: {query: "climate change"}},
-  {task: "urls", params: {urls: ["https://example.com"]}},
-])
-```
+### Premium UI/UX & Motion Design
 
-**Available tasks:** `urls`, `web_search`, `gmail`, `github_activity`, `git_status`, `file_info`, `system_info`, `briefing`, `todo`, `rss`
-
-**Auto-correction:** Common mistakes are automatically fixed:
-- `fetch_url` → `urls`
-- `search` → `web_search`
-- `git` → `git_status`
-
-### Smart File Reading
-
-Files are read intelligently with hard limits:
-- **50KB max** file size
-- **2,000 lines** maximum
-- **2,000 characters** per line
-- **Binary detection** — automatically handles binary files
-- **Image recognition** — shows images as base64
-
-**Pagination for large files:**
-```python
-view_file("large_file.py", offset=100, limit=50)  # Lines 100-150
-```
-
-### LLM Intelligence Rules
-
-The agent follows strict rules to prevent mistakes:
-1. **Never guess tool names** — Must check available tools first
-2. **Never retry failed tools** — Must understand why it failed
-3. **Never generate fake data** — Must tell user honestly what happened
-4. **Always have fallback strategy** — Primary → Alternative → Manual
-5. **Tool inspection protocol** — Mandatory check before every tool call
-
-These rules ensure the agent is reliable and transparent. See [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for details.
+The interface is built to look and feel stunning:
+- **Glassmorphism & Glow** — Soft gradients, blurred backdrops (`backdrop-filter`), and dynamic drop-shadows bring the interface to life.
+- **Fluid Motion** — Smooth page transitions (`view-swap`), slide-in sidebars, and refined popover animations make interactions feel purposeful and fast.
+- **Responsive Empty States** — Skeleton loaders and carefully crafted empty views provide a polished experience even when there is no data to show.
+- **Robust Error Boundaries** — Graceful fallbacks and toast notifications catch unhandled promise rejections and backend warnings without breaking the flow.

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
@@ -226,8 +227,24 @@ function TaskModal({ lists, presetList, onAdded, onClose }) {
   const ref = useRef(null)
   useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
   return createPortal(
-    <div className="modal-overlay">
-      <div className="modal task-modal" ref={ref} role="dialog" aria-modal="true" aria-label="New task">
+    <motion.div
+      className="modal-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <motion.div
+        className="modal task-modal"
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label="New task"
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 12 }}
+        transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+      >
         <div className="modal-head">
           <div className="modal-title">New task</div>
           <button type="button" className="icon-btn modal-close" onClick={onClose} aria-label="Close">
@@ -235,8 +252,8 @@ function TaskModal({ lists, presetList, onAdded, onClose }) {
           </button>
         </div>
         <Composer lists={lists} presetList={presetList} onAdded={onAdded} onCancel={onClose} />
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>,
     document.body,
   )
 }
@@ -269,7 +286,13 @@ function TaskCard({ task, lists, myDayListId, hues, view, busy, patch, drop }) {
     : !(view.bucket === 'my_day' && inMyDay))
 
   return (
-    <article
+    <motion.article
+      layout="position"
+      initial={{ opacity: 0, y: 14, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
+      transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+      whileHover={{ y: -2, transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] } }}
       className={`task-card${done ? ' task-row--done' : ''}${late ? ' task-row--late' : ''}${day ? '' : ' task-card--undated'}`}
       data-state={state}
     >
@@ -288,8 +311,10 @@ function TaskCard({ task, lists, myDayListId, hues, view, busy, patch, drop }) {
               is what My Day is. To Do has no move, so the server recreates the
               task there and deletes the original -- the toast says "moved",
               not "tagged", since the task really does leave its list. */}
-          <button
+          <motion.button
             type="button"
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.88 }}
             className={`icon-btn task-sun${inMyDay ? ' is-on' : ''}`}
             disabled={busy}
             title={inMyDay ? 'Move out of My Day' : 'Move into My Day'}
@@ -302,10 +327,12 @@ function TaskCard({ task, lists, myDayListId, hues, view, busy, patch, drop }) {
             )}
           >
             <Icon name="sun" size={14} />
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.88 }}
             className={`icon-btn task-star${task.important ? ' is-on' : ''}`}
             disabled={busy}
             title={task.important ? 'Not important' : 'Mark important'}
@@ -314,9 +341,11 @@ function TaskCard({ task, lists, myDayListId, hues, view, busy, patch, drop }) {
             onClick={() => patch(task, { important: !task.important })}
           >
             <Icon name="star" size={14} />
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             type="button"
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.88 }}
             className="icon-btn task-drop"
             disabled={busy}
             title="Cancel this task"
@@ -324,21 +353,31 @@ function TaskCard({ task, lists, myDayListId, hues, view, busy, patch, drop }) {
             onClick={() => drop(task)}
           >
             <Icon name="x" size={14} />
-          </button>
+          </motion.button>
         </div>
       </div>
 
       <div className="task-row">
-        <button
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.85 }}
           className={`task-check${done ? ' task-check--on' : ''}`}
           disabled={busy}
           aria-label={done ? `Mark ${task.title} not done` : `Mark ${task.title} done`}
           aria-pressed={done}
           onClick={() => patch(task, { status: done ? 'todo' : 'done' })}
         >
-          {done && <Icon name="check" size={12} />}
-        </button>
+          {done && (
+            <motion.span
+              initial={{ scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+              style={{ display: 'inline-flex' }}
+            >
+              <Icon name="check" size={12} />
+            </motion.span>
+          )}
+        </motion.button>
         <div style={{ minWidth: 0, flex: 1 }}>
           <h3 className="task-title">{task.title}</h3>
           {task.notes && <div className="task-note">{task.notes}</div>}
@@ -373,7 +412,7 @@ function TaskCard({ task, lists, myDayListId, hues, view, busy, patch, drop }) {
           )}
         </div>
       )}
-    </article>
+    </motion.article>
   )
 }
 
@@ -573,18 +612,33 @@ export default function Tasks() {
             >
               <Icon name="plus" size={15} /> New task
             </button>
-            <button type="button" className="btn btn--ghost" disabled={syncing} onClick={sync}>
-              <Icon name="refresh" size={15} /> {syncing ? 'Syncing…' : 'Sync To Do'}
-            </button>
+            <motion.button
+              type="button"
+              className="btn btn--ghost"
+              disabled={syncing}
+              onClick={sync}
+              whileTap={{ scale: 0.96 }}
+            >
+              <motion.span
+                animate={{ rotate: syncing ? 360 : 0 }}
+                transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : { duration: 0.2 }}
+                style={{ display: 'inline-flex' }}
+              >
+                <Icon name="refresh" size={15} />
+              </motion.span>
+              {' '}{syncing ? 'Syncing…' : 'Sync To Do'}
+            </motion.button>
           </div>
         </header>
 
         <div className="task-layout" data-enter>
           <nav className="task-rail" aria-label="Task views">
             {BUCKETS.map((bucket) => (
-              <button
+              <motion.button
                 key={bucket.id}
                 type="button"
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.15 }}
                 className={`task-rail-row${!view.listId && view.bucket === bucket.id ? ' is-on' : ''}`}
                 aria-current={!view.listId && view.bucket === bucket.id}
                 onClick={() => setViewKey({ bucket: bucket.id, listId: null })}
@@ -592,7 +646,7 @@ export default function Tasks() {
                 <Icon name={bucket.icon} size={15} />
                 <span className="task-rail-label">{bucket.label}</span>
                 <span className="task-rail-count">{loaded ? (counts.buckets?.[bucket.id] ?? 0) : ''}</span>
-              </button>
+              </motion.button>
             ))}
 
             <div className="task-rail-head">
@@ -654,7 +708,13 @@ export default function Tasks() {
           </nav>
 
           <section className="task-pane">
-            <div className="task-board">
+            <motion.div
+              className="task-board"
+              key={`${view.bucket}-${view.listId}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            >
               {/* The head a board column wears: what this pile is, how big it
                   is, and the one button that adds to it. */}
               <div className="task-head">
@@ -798,26 +858,36 @@ export default function Tasks() {
                     <span className="task-head-count">{parked.length}</span>
                   </button>
 
-                  {showDone && (
-                    <div className="task-cards">
-                      {parked.map((task) => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          lists={counts.lists}
-                          myDayListId={counts.my_day_list_id}
-                          hues={hues}
-                          view={view}
-                          busy={busyTask === task.id}
-                          patch={patch}
-                          drop={drop}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <AnimatePresence>
+                    {showDone && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div className="task-cards">
+                          {parked.map((task) => (
+                            <TaskCard
+                              key={task.id}
+                              task={task}
+                              lists={counts.lists}
+                              myDayListId={counts.my_day_list_id}
+                              hues={hues}
+                              view={view}
+                              busy={busyTask === task.id}
+                              patch={patch}
+                              drop={drop}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </>
               )}
-            </div>
+            </motion.div>
 
             <div className="card card-pad" style={{ marginTop: 18 }}>
               <div className="card-title">next three weeks · {loaded ? events.length : '—'}</div>

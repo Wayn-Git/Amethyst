@@ -1713,3 +1713,77 @@ async def test_a_chain_where_nothing_resolves_still_ends_on_an_error(db, monkeyp
 
     assert events[-1].type == "error", "the turn still has to say why it could not run"
     assert "no API key" in events[-1].data["message"]
+
+
+class TestAnthropicThinkingBudget:
+    """The thinking budget must survive an unset `max_tokens`.
+
+    Mutation that must turn these red: going back to choosing `max_tokens`
+    first and clamping the budget into `max_tokens - 1024`. Nothing in the chat
+    path sets `max_tokens`, so that clamp pinned every effort level at 3072 --
+    picking "max" over "low" changed the bill and nothing else.
+    """
+
+    @staticmethod
+    def _client(**kwargs):
+        from backend.runtime.providers.anthropic import AnthropicClient
+
+        return AnthropicClient(api_key="k", model="claude-sonnet-4", base_url="http://x", **kwargs)
+
+    @staticmethod
+    def _payload(client, **params):
+        from backend.runtime.types import ModelParameters
+
+        return client._build_payload(
+            [{"role": "user", "content": "hi"}], None, ModelParameters(**params)
+        )
+
+    def test_high_effort_is_not_clamped_to_3072(self):
+        payload = self._payload(self._client(), reasoning_effort="high")
+        assert payload["thinking"]["budget_tokens"] > 3072
+        # and it still fits inside the ceiling it was derived against
+        assert payload["thinking"]["budget_tokens"] < payload["max_tokens"]
+
+    def test_effort_levels_actually_differ(self):
+        budgets = [
+            self._payload(self._client(), reasoning_effort=e)["thinking"]["budget_tokens"]
+            for e in ("low", "medium", "high")
+        ]
+        assert budgets == sorted(budgets)
+        assert len(set(budgets)) == 3, f"efforts collapsed onto each other: {budgets}"
+
+    def test_derived_max_tokens_respects_the_model_ceiling(self):
+        from backend.runtime.providers.anthropic import AnthropicClient, _output_ceiling
+
+        for model in ("claude-sonnet-4-5", "claude-opus-4-1-20250805", "some-other-model"):
+            client = AnthropicClient(api_key="k", model=model, base_url="http://x")
+            payload = self._payload(client, reasoning_effort="max")
+            assert payload["max_tokens"] <= _output_ceiling(model), model
+
+    def test_opus_4_gets_the_lower_ceiling(self):
+        from backend.runtime.providers.anthropic import _output_ceiling
+
+        assert _output_ceiling("claude-opus-4-1-20250805") == 32_000
+        assert _output_ceiling("claude-sonnet-4-5") == 64_000
+        # an unrecognised model is treated as the most restrictive, not the least
+        assert _output_ceiling("llama-3.3-70b") == 32_000
+
+    def test_provider_entry_can_raise_the_ceiling(self):
+        from backend.runtime.providers.anthropic import AnthropicClient
+
+        opus = AnthropicClient(api_key="k", model="claude-opus-4-1", base_url="http://x")
+        raised = AnthropicClient(
+            api_key="k", model="claude-opus-4-1", base_url="http://x", max_output_tokens=64_000
+        )
+        assert self._payload(opus, reasoning_effort="max")["max_tokens"] == 32_000
+        assert self._payload(raised, reasoning_effort="max")["max_tokens"] == 64_000
+
+    def test_explicit_max_tokens_is_obeyed_and_still_clamps(self):
+        payload = self._payload(self._client(), reasoning_effort="max", max_tokens=6000)
+        assert payload["max_tokens"] == 6000
+        assert payload["thinking"]["budget_tokens"] == 6000 - 1024
+
+    def test_no_effort_means_no_thinking_block(self):
+        payload = self._payload(self._client())
+        assert "thinking" not in payload
+        assert payload["max_tokens"] == 8192

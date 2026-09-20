@@ -91,3 +91,146 @@ async def test_a_dead_unrecoverable_session_demotes_now(monkeypatch):
     assert not manager.is_ready("ghost")
     assert manager.registered_tool_count("ghost") == 0
     assert manager._retry_in("ghost", ready=False) > 0
+
+
+@pytest.mark.asyncio
+async def test_account_mismatch_prevents_readiness_and_marks_degraded(monkeypatch):
+    """If configured account is Account A but authenticated token is Account B,
+    the server must never claim to be ready or connected to Account A."""
+    from backend.mcp.status import MCPState
+
+    registry = ToolRegistry(ConfirmationService(auto_approve))
+    manager = MCPManager(registry)
+    config = ServerConfig(
+        name="workspace",
+        transport=Transport.STDIO,
+        command="x",
+        account="alice@example.com",
+    )
+    conn = _Conn(3)
+    manager.connections["workspace"] = conn
+    manager._register_tools(config, conn)
+
+    monkeypatch.setattr("backend.mcp.manager.load_servers", lambda: {"workspace": config})
+    monkeypatch.setattr(
+        "backend.mcp.commands.verify_account",
+        lambda name, expected: ("bob@example.com", True),
+    )
+
+    status = manager.authoritative_status("workspace")
+    assert status.state == MCPState.ACCOUNT_MISMATCH
+    assert status.account_mismatch is True
+    assert status.account == "bob@example.com"
+    assert status.expected_account == "alice@example.com"
+    assert status.is_connected is True
+    assert status.is_usable is False
+    assert manager.is_ready("workspace") is False
+
+    state = manager.state()["workspace"]
+    assert state["connected"] is True
+    assert state["ready"] is False
+    assert state["account_mismatch"] is True
+
+
+@pytest.mark.asyncio
+async def test_tool_execution_auth_error_disconnects_and_unregisters_immediately():
+    """When a tool returns an authentication failure or 401 error block,
+    the server must immediately disconnect, unregister all tools, and transition to auth error."""
+    registry = ToolRegistry(ConfirmationService(auto_approve))
+    manager = MCPManager(registry)
+    config = ServerConfig(name="cloud", transport=Transport.STDIO, command="x")
+
+    class _AuthFailingConn(_Conn):
+        async def call(self, name, arguments):
+            return type(
+                "R",
+                (),
+                {
+                    "is_error": True,
+                    "content": [
+                        type(
+                            "B",
+                            (),
+                            {
+                                "type": "text",
+                                "text": "401 Unauthorized: Invalid credentials or token expired",
+                            },
+                        )()
+                    ],
+                    "artifacts": [],
+                },
+            )()
+
+    conn = _AuthFailingConn(3)
+    manager.connections["cloud"] = conn
+    manager._register_tools(config, conn)
+
+    assert manager.registered_tool_count("cloud") == 3
+    assert "cloud" in manager.connections
+
+    handler = manager._make_handler("cloud", "t0")
+    result = await handler({}, None)
+
+    assert result.is_error is True
+    # Server must be disconnected and its tools unregistered
+    assert "cloud" not in manager.connections
+    assert manager.registered_tool_count("cloud") == 0
+    assert not manager.is_ready("cloud")
+    assert "Authentication" in manager.errors["cloud"]
+
+
+@pytest.mark.asyncio
+async def test_disconnected_server_never_claims_connected_in_state():
+    """An unstarted or disconnected server must have connected=False in authoritative state."""
+    registry = ToolRegistry(ConfirmationService(auto_approve))
+    manager = MCPManager(registry)
+    config = ServerConfig(name="remote", transport=Transport.STREAMABLE_HTTP, url="http://localhost:9999")
+
+    # Manager created, reconciled, no connection
+    manager.reconciled_once = True
+    status = manager.authoritative_status("remote")
+    assert status.is_connected is False
+    assert status.is_usable is False
+
+    state = manager.state()
+    # It must not report connected
+    assert state.get("remote", {}).get("connected") is not True
+
+
+@pytest.mark.asyncio
+async def test_token_expiration_detected_generically(monkeypatch):
+    """Generic token expiration check flags token_expired and refuses readiness."""
+    import time
+    from backend.mcp.commands import verify_token_health
+    from backend.mcp.status import MCPState
+
+    config = ServerConfig(
+        name="oauth_server",
+        transport=Transport.STREAMABLE_HTTP,
+        url="http://localhost:8000",
+        oauth=True,
+    )
+
+    import json
+
+    # Simulate expired token in keychain
+    expired_token = {
+        "access_token": "expired_abc",
+        "expires_at": time.time() - 3600,
+    }
+    monkeypatch.setattr("backend.mcp.commands.get_secret", lambda ref: json.dumps(expired_token))
+    monkeypatch.setattr("backend.secrets.get_secret", lambda ref: json.dumps(expired_token))
+    monkeypatch.setattr("backend.mcp.oauth.has_stored_token", lambda name: True)
+
+    healthy, err = verify_token_health(config)
+    assert healthy is False
+    assert "expired" in err.lower()
+
+    registry = ToolRegistry(ConfirmationService(auto_approve))
+    manager = MCPManager(registry)
+    monkeypatch.setattr("backend.mcp.manager.load_servers", lambda: {"oauth_server": config})
+
+    status = manager.authoritative_status("oauth_server")
+    assert status.state == MCPState.TOKEN_EXPIRED
+    assert status.is_usable is False
+    assert status.action == "sign_in"

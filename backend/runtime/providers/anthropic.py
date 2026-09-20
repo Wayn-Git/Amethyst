@@ -30,11 +30,103 @@ from backend.runtime.types import (
 from backend.secrets import resolve_api_key
 
 API_VERSION = "2023-06-01"
-DEFAULT_MAX_TOKENS = 4096
+
+#: Room for the answer itself, when the caller names no `max_tokens`.
+#:
+#: Was 4096, and 4096 was also the entire output ceiling -- so an answer with
+#: any substance was cut off, and because the thinking budget is clamped to
+#: `max_tokens - 1024`, *every* reasoning effort above "low" silently collapsed
+#: to 3072 thinking tokens. Asking for "max" bought exactly nothing.
+DEFAULT_MAX_TOKENS = 8192
+
+#: The ceiling for a `max_tokens` this adapter works out for itself, when the
+#: model is not one it recognises.
+#:
+#: Anthropic counts thinking tokens against `max_tokens`, so "max" effort
+#: (100,000 thinking tokens) cannot simply be added to the answer budget: the
+#: request is refused outright by any model whose output limit is lower. An
+#: unrecognised model gets the smallest ceiling in the thinking-capable Claude
+#: line, because being conservative costs some depth and being wrong costs the
+#: turn.
+#:
+#: Only applied to a figure derived here. An explicit `max_tokens` from the
+#: caller is obeyed as given.
+DERIVED_MAX_TOKENS_CEILING = 32_000
+
+#: Output ceilings that are lower than the line's usual 64,000. Anthropic
+#: publishes these per model and they do not follow from the name, so they are
+#: listed rather than inferred: Opus 4 and 4.1 cap at 32,000 where every other
+#: thinking-capable Claude allows 64,000.
+#:
+#: Matched as a prefix, so dated ids (`claude-opus-4-1-20250805`) hit too. A
+#: provider entry may override the lot with `max_output_tokens:` in
+#: providers.yaml -- which is the knob to reach for when a new model ships and
+#: this table has not caught up.
+_LOW_OUTPUT_MODELS = ("claude-opus-4-2", "claude-opus-4-1", "claude-opus-4-0", "claude-opus-4")
+_LOW_OUTPUT_CEILING = 32_000
+
+#: What the rest of the thinking-capable line allows.
+_STANDARD_OUTPUT_CEILING = 64_000
+
+
+def _output_ceiling(model: str) -> int:
+    """This model's output limit, as far as the name gives it away.
+
+    Anything that is not recognisably a Claude model gets the conservative
+    figure: an over-estimate here is a 400 that loses the turn, an
+    under-estimate is only a shallower answer.
+    """
+    name = (model or "").lower()
+    if any(name.startswith(m) or f"/{m}" in name for m in _LOW_OUTPUT_MODELS):
+        return _LOW_OUTPUT_CEILING
+    if "claude" in name:
+        return _STANDARD_OUTPUT_CEILING
+    return DERIVED_MAX_TOKENS_CEILING
+
+#: reasoning_effort -> thinking budget. Anthropic has no native effort levels,
+#: so the levels the rest of AMETHYST speaks are mapped to token budgets here.
+EFFORT_BUDGETS = {
+    "low": 2048,
+    "medium": 8192,
+    "high": 32768,
+    "xhigh": 65536,
+    "max": 100000,
+}
 
 #: Where an entry with no `base_url` lands; shared with the liveness probe,
 #: which needs the real endpoint to hit rather than a silent yes.
 DEFAULT_BASE_URL = "https://api.anthropic.com/v1"
+
+
+def _budget_and_max_tokens(
+    params: ModelParameters, ceiling: int
+) -> tuple[int | None, int]:
+    """The thinking budget, and the `max_tokens` that has to contain it.
+
+    Anthropic counts thinking against `max_tokens`, so the two cannot be chosen
+    independently. The old code chose `max_tokens` first and squeezed the budget
+    into whatever was left over -- and since nothing in the chat path ever sets
+    `max_tokens`, what was left over was always 3072, whatever effort the user
+    picked.
+
+    Here the budget is the request and `max_tokens` is derived to hold it plus
+    room to answer. Only an explicit `max_tokens` from the caller still clamps
+    the budget down, because a caller that named a ceiling meant it.
+    """
+    budget = params.thinking_budget
+    if not budget and params.reasoning_effort and params.reasoning_effort != "none":
+        budget = EFFORT_BUDGETS.get(params.reasoning_effort, 32768)
+
+    answer_room = params.answer_tokens or DEFAULT_MAX_TOKENS
+    if not budget:
+        return None, params.max_tokens or answer_room
+    if params.max_tokens:
+        return min(budget, max(1024, params.max_tokens - 1024)), params.max_tokens
+
+    # `answer_room` is the answer's share; the budget sits on top of it, and
+    # the ceiling takes back whatever will not fit.
+    max_tokens = min(budget + answer_room, ceiling)
+    return max(1024, max_tokens - answer_room), max_tokens
 
 
 def _to_anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str | None, list[dict]]:
@@ -108,6 +200,7 @@ class AnthropicClient:
         base_url: str,
         timeout: float = 120.0,
         max_retries: int = MAX_RETRIES,
+        max_output_tokens: int | None = None,
     ):
         self.api_key = api_key
         self.model = model
@@ -118,6 +211,9 @@ class AnthropicClient:
         #: a three-provider chain costs the same order of wall clock as one
         #: provider rather than three times it.
         self.max_retries = max_retries
+        #: This endpoint's output ceiling, where the provider entry declares
+        #: one. Only bounds a `max_tokens` derived from a thinking budget.
+        self.max_output_tokens = max_output_tokens or _output_ceiling(model)
 
     def _build_payload(
         self,
@@ -130,7 +226,7 @@ class AnthropicClient:
     ) -> dict[str, Any]:
         p = params or ModelParameters()
         system, converted = _to_anthropic_messages(messages)
-        max_tokens = p.max_tokens or DEFAULT_MAX_TOKENS
+        thinking_budget, max_tokens = _budget_and_max_tokens(p, self.max_output_tokens)
 
         payload: dict[str, Any] = {
             "model": self.model,
@@ -158,23 +254,8 @@ class AnthropicClient:
             payload["temperature"] = p.temperature
         if p.stop:
             payload["stop_sequences"] = p.stop
-        if p.thinking_budget:
-            # Budget must leave room for the response itself.
-            budget = min(p.thinking_budget, max(1024, max_tokens - 1024))
-            payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
-        elif p.reasoning_effort and p.reasoning_effort != "none":
-            # Map reasoning_effort to Anthropic's thinking budget.
-            # Anthropic doesn't have native effort levels, so we map to budget.
-            effort_to_budget = {
-                "low": 2048,
-                "medium": 8192,
-                "high": 32768,
-                "xhigh": 65536,
-                "max": 100000,
-            }
-            budget = effort_to_budget.get(p.reasoning_effort, 32768)
-            budget = min(budget, max(1024, max_tokens - 1024))
-            payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
+        if thinking_budget:
+            payload["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
         return payload
 
     def _headers(self) -> dict[str, str]:
@@ -343,6 +424,7 @@ def initialize(
         model=resolved_model,
         base_url=config.base_url or DEFAULT_BASE_URL,
         max_retries=max_retries,
+        max_output_tokens=config.extra.get("max_output_tokens"),
     )
     return ResolvedModel(
         provider=config.name,

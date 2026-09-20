@@ -490,6 +490,124 @@ class ArtifactRepository:
         ]
 
 
+class ResponseArtifactRepository:
+    """Response artifacts and version history.
+
+    Promotes substantial responses to interactive documents with versioning,
+    enabling editing, full-screen review, AI transforms, and multi-format exports.
+    """
+
+    def __init__(self, conn: sqlite3.Connection | None = None):
+        self.conn = _conn(conn)
+
+    @staticmethod
+    def identify(conversation_id: str, message_id: int) -> str:
+        import hashlib
+        digest = hashlib.sha256(f"resp_{conversation_id}_{message_id}".encode())
+        return digest.hexdigest()[:24]
+
+    def get_or_create(
+        self,
+        conversation_id: str,
+        message_id: int,
+        content: str,
+        *,
+        artifact_type: str = "response",
+        format: str = "markdown",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        artifact_id = self.identify(conversation_id, message_id)
+        existing = self.get(artifact_id)
+        if existing is not None:
+            return existing
+
+        meta_json = json.dumps(metadata or {})
+        self.conn.execute(
+            "INSERT INTO response_artifacts (id, conversation_id, message_id, type, format,"
+            " original_content, current_content, version, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)"
+            " ON CONFLICT(conversation_id, message_id) DO NOTHING",
+            (artifact_id, conversation_id, message_id, artifact_type, format, content, content, meta_json),
+        )
+        self.conn.execute(
+            "INSERT INTO artifact_versions (artifact_id, version, content, author, change_summary)"
+            " VALUES (?, 1, ?, 'assistant', 'Original response')",
+            (artifact_id, content),
+        )
+        self.conn.commit()
+        return self.get(artifact_id) or {}
+
+    def get(self, artifact_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM response_artifacts WHERE id = ?",
+            (artifact_id,),
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["metadata"] = json.loads(d.get("metadata") or "{}")
+        d["versions"] = self.list_versions(artifact_id)
+        return d
+
+    def get_by_message(self, conversation_id: str, message_id: int) -> dict[str, Any] | None:
+        artifact_id = self.identify(conversation_id, message_id)
+        return self.get(artifact_id)
+
+    def list_versions(self, artifact_id: str) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT id, version, content, author, change_summary, created_at"
+            " FROM artifact_versions WHERE artifact_id = ? ORDER BY version DESC",
+            (artifact_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def save_version(
+        self,
+        artifact_id: str,
+        content: str,
+        author: str = "user",
+        change_summary: str | None = None,
+    ) -> dict[str, Any]:
+        artifact = self.get(artifact_id)
+        if not artifact:
+            raise ValueError(f"No response artifact found with id {artifact_id}")
+
+        new_version = int(artifact.get("version", 1)) + 1
+        summary = change_summary or (f"Edited by {author}" if author != "assistant" else "Regenerated")
+
+        self.conn.execute(
+            "INSERT INTO artifact_versions (artifact_id, version, content, author, change_summary)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (artifact_id, new_version, content, author, summary),
+        )
+        self.conn.execute(
+            "UPDATE response_artifacts SET version = ?, current_content = ?, updated_at = datetime('now')"
+            " WHERE id = ?",
+            (new_version, content, artifact_id),
+        )
+        self.conn.execute(
+            "UPDATE messages SET content = ? WHERE id = ? AND conversation_id = ?",
+            (content, artifact["message_id"], artifact["conversation_id"]),
+        )
+        self.conn.commit()
+        return self.get(artifact_id) or {}
+
+    def revert_to_version(self, artifact_id: str, target_version: int) -> dict[str, Any]:
+        row = self.conn.execute(
+            "SELECT content FROM artifact_versions WHERE artifact_id = ? AND version = ?",
+            (artifact_id, target_version),
+        ).fetchone()
+        if not row:
+            raise ValueError(f"Version {target_version} not found for artifact {artifact_id}")
+
+        target_content = row["content"]
+        return self.save_version(
+            artifact_id,
+            target_content,
+            author="user",
+            change_summary=f"Reverted to version {target_version}",
+        )
+
+
 # --------------------------------------------------------------------------
 # permissions + audit
 # --------------------------------------------------------------------------
@@ -1341,6 +1459,7 @@ class SubagentSessionRepository:
         tokens_input: int | None = None,
         tokens_output: int | None = None,
         cost: float | None = None,
+        metadata: str | None = None,
     ) -> None:
         fields: dict[str, Any] = {"status": status}
         if result is not None:
@@ -1353,6 +1472,8 @@ class SubagentSessionRepository:
             fields["tokens_output"] = tokens_output
         if cost is not None:
             fields["cost"] = cost
+        if metadata is not None:
+            fields["metadata"] = metadata
         if status in ("completed", "failed", "cancelled"):
             fields["completed_at"] = _now()
 
@@ -1398,4 +1519,22 @@ class SubagentSessionRepository:
         return self.conn.execute(
             "SELECT * FROM subagent_sessions ORDER BY created_at DESC LIMIT ?",
             (limit,),
+        ).fetchall()
+
+    def update_heartbeat(self, session_id: str) -> None:
+        """Update the heartbeat timestamp for a running subagent."""
+        self.conn.execute(
+            "UPDATE subagent_sessions SET last_heartbeat = datetime('now') WHERE id = ?",
+            (session_id,),
+        )
+        self.conn.commit()
+
+    def stale_sessions(self, idle_seconds: int = 1200) -> list[sqlite3.Row]:
+        """Find running subagents with no heartbeat within idle_seconds."""
+        return self.conn.execute(
+            "SELECT * FROM subagent_sessions"
+            " WHERE status = 'running'"
+            " AND last_heartbeat IS NOT NULL"
+            " AND julianday('now') - julianday(last_heartbeat) > ?",
+            (idle_seconds / 86400.0,),
         ).fetchall()

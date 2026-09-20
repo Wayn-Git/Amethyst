@@ -1,11 +1,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@tailwind base;
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
 
 @custom-variant dark (&:is(.dark *));
-@tailwind components;
-@tailwind utilities;
 
 @theme inline {
     --font-heading: var(--font-sans);
@@ -52,21 +52,13 @@
     --animate-marquee: marquee var(--duration) infinite linear;
     --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
   @keyframes marquee {
-  from {
-    transform: translateX(0);
-        }
-  to {
-    transform: translateX(calc(-100% - var(--gap)));
-        }
-    }
+    from { transform: translateX(0); }
+    to { transform: translateX(calc(-100% - var(--gap))); }
+  }
   @keyframes marquee-vertical {
-  from {
-    transform: translateY(0);
-        }
-  to {
-    transform: translateY(calc(-100% - var(--gap)));
-        }
-    }
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(-100% - var(--gap))); }
+  }
 }
 
 :root {
@@ -102,6 +94,19 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+
+    /* Motion System Tokens */
+    --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+    --duration-fast: 160ms;
+    --duration-base: 240ms;
+    --duration-smooth: 360ms;
+
+    /* Safe Area Insets for Mobile */
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
 }
 
 .dark {
@@ -141,13 +146,61 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
-    }
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   html {
     @apply font-sans;
     font-family: var(--font-sans);
-    }
+    scroll-behavior: smooth;
+  }
+}
+
+/* Universal Tactile Micro-Interactions */
+button:not(:disabled),
+.btn:not(:disabled),
+.wb-icon-btn,
+.sb-icon-btn,
+.icon-btn,
+.hero-chip {
+  transition: transform 0.15s var(--ease-premium), background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+button:not(:disabled):active,
+.btn:not(:disabled):active,
+.wb-icon-btn:active,
+.sb-icon-btn:active,
+.icon-btn:active {
+  transform: scale(0.975);
+}
+
+/* Pulse Keyframes for Alive States */
+@keyframes ambient-glow {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Reduced Motion Safety */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

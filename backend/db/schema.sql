@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS automations (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     name          TEXT NOT NULL,
     prompt        TEXT NOT NULL,
-    every_minutes INTEGER NOT NULL,
+    every_minutes INTEGER NOT NULL DEFAULT 60,
     enabled       INTEGER NOT NULL DEFAULT 1,
     provider      TEXT,           -- NULL: whatever the machine's default is
     model         TEXT,
@@ -349,9 +349,67 @@ CREATE TABLE IF NOT EXISTS automations (
     -- interval forever; a `blocked` run neither increments nor resets this,
     -- because a correct denial is not a failure to route around.
     consecutive_failures INTEGER NOT NULL DEFAULT 0,
-    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Extended fields for full automation system
+    description   TEXT,           -- human-readable description
+    schedule_type TEXT NOT NULL DEFAULT 'interval',  -- interval | daily_at | weekly_at
+    daily_at_time TEXT,           -- for daily_at: "07:30" (HH:MM)
+    weekly_day    INTEGER,        -- for weekly_at: 0=Mon .. 6=Sun
+    timezone      TEXT,           -- user's timezone, NULL: system local
+    notification  TEXT NOT NULL DEFAULT 'app',  -- email+app | email | app | off
+    template_id   TEXT,           -- which template this came from, NULL: custom
+    -- Which write-tools this automation may use unattended, as a JSON array of
+    -- tool names. NULL or [] means "read-only tools and standing approvals
+    -- only", which is what every automation had before this column: the
+    -- unattended gate denies everything else and records what it refused.
+    --
+    -- Per automation rather than global on purpose. "Don't ask again" for
+    -- send_email is a grant to every conversation on the machine; a morning
+    -- briefing needs the grant for *itself*, made deliberately in the dialog
+    -- that created it, and a second automation does not inherit it.
+    actions       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_automations_due ON automations(enabled, next_run_at);
+
+-- Automation run history: every execution attempt, whether it succeeded or not.
+-- Separate from automations.last_status (which is just the latest) and from
+-- conversations (which are the transcripts). This is the audit trail.
+CREATE TABLE IF NOT EXISTS automation_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    automation_id   INTEGER NOT NULL,
+    trigger         TEXT NOT NULL DEFAULT 'scheduled',  -- scheduled | manual
+    started_at      TEXT,
+    completed_at    TEXT,
+    duration_ms     INTEGER,
+    -- claimed: the slot is taken and the turn has not started.
+    -- running: the turn is in flight. success | partial | failed | blocked |
+    -- skipped are terminal. `partial` is the one that had to exist: an
+    -- automation that produced its briefing and then could not deliver it did
+    -- some of its work, and calling that either "success" or "failed" is a lie
+    -- in one direction or the other.
+    status          TEXT NOT NULL DEFAULT 'claimed',
+    error           TEXT,
+    result_summary  TEXT,
+    conversation_id TEXT,     -- link to the transcript if one was created
+    -- The schedule slot this run is for, as the UTC instant the automation came
+    -- due -- NULL for a manual run, which has no slot and is never deduplicated
+    -- against one. The unique index below is the whole idempotency mechanism:
+    -- two schedulers racing over the same due row both INSERT, one gets the
+    -- row, the other gets IntegrityError and skips. See claim() in
+    -- backend/automation.py.
+    scheduled_for   TEXT,
+    -- What produced the result, as JSON: which tools ran, and how delivery
+    -- went. The audit trail the Runs detail reads, so "it said it emailed me"
+    -- can be checked against what the provider actually answered.
+    steps           TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_automation_runs_auto ON automation_runs(automation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status, created_at DESC);
+-- One run per automation per schedule slot. Partial, so manual runs (NULL slot)
+-- are exempt rather than colliding with each other.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_runs_claim
+    ON automation_runs(automation_id, scheduled_for) WHERE scheduled_for IS NOT NULL;
 
 -- Long-term memory: the second tier of the two-tier design (docs/research/khoj.md).
 -- Facts are superseded rather than deleted, so "what did AMETHYST believe last week,
@@ -592,6 +650,37 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_path
 CREATE INDEX IF NOT EXISTS idx_artifact_recent
     ON artifacts(conversation_id, updated_at DESC);
 
+-- Interactive response artifacts and version history (AI Workspace)
+CREATE TABLE IF NOT EXISTS response_artifacts (
+    id                  TEXT PRIMARY KEY,
+    conversation_id     TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    message_id          INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    type                TEXT NOT NULL DEFAULT "response",
+    format              TEXT NOT NULL DEFAULT "markdown",
+    original_content    TEXT NOT NULL,
+    current_content     TEXT NOT NULL,
+    version             INTEGER NOT NULL DEFAULT 1,
+    metadata            TEXT,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_response_artifacts_msg
+    ON response_artifacts(conversation_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_response_artifacts_recent
+    ON response_artifacts(conversation_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS artifact_versions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    artifact_id         TEXT NOT NULL REFERENCES response_artifacts(id) ON DELETE CASCADE,
+    version             INTEGER NOT NULL,
+    content             TEXT NOT NULL,
+    author              TEXT NOT NULL DEFAULT "user",
+    change_summary      TEXT,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_versions_lookup
+    ON artifact_versions(artifact_id, version DESC);
+
 -- One row per turn: the loop's own bookkeeping, so a turn survives the process
 -- that was running it.
 --
@@ -755,6 +844,7 @@ CREATE TABLE IF NOT EXISTS subagent_sessions (
     tokens_output           INTEGER NOT NULL DEFAULT 0,
     cost                    REAL NOT NULL DEFAULT 0.0,
     metadata                TEXT,  -- JSON: background, batch_id, etc.
+    last_heartbeat          TEXT,  -- ISO timestamp of last heartbeat ping
     created_at              TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at            TEXT,
     -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than
@@ -799,6 +889,7 @@ CREATE TABLE IF NOT EXISTS devices (
     -- delete so the row keeps answering "which device was that?" in the log.
     revoked_at   TEXT,
     last_seen_at TEXT,
+    permissions  TEXT NOT NULL DEFAULT '{}',
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_devices_live ON devices(revoked_at) WHERE revoked_at IS NULL;

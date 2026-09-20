@@ -1,53 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api, serverTime } from '../api.js'
 import { SkeletonCard } from '../components/Skeleton.jsx'
-import { useConfirm } from '../components/ui/ConfirmDialog.jsx'
+import Button from '../components/ui/Button.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
-import Field from '../components/ui/Field.jsx'
-import Button from '../components/ui/Button.jsx'
+import RunHistoryChart from '../components/automations/RunHistoryChart.jsx'
+import TemplateGrid from '../components/automations/TemplateGrid.jsx'
+import NewAutomationModal from '../components/automations/NewAutomationModal.jsx'
+import EditAutomationModal from '../components/automations/EditAutomationModal.jsx'
+import RunDetailModal from '../components/automations/RunDetailModal.jsx'
 
-/* Automations — beta. A turn that runs without anyone typing.
+/* Automations: a turn that runs without anyone typing.
 
-   Two decisions are stated on the page rather than buried, because both are
-   surprising and both are load-bearing:
+   Tabs: Automations (list + chart), Runs (history), Templates.
+   Supports interval, daily_at, and weekly_at scheduling. */
 
-   They run while AMETHYST is open, and only then. A daemon that kept them running
-   with the server down would be running turns nothing could answer a permission
-   prompt for.
-
-   And an unattended turn cannot answer one, so it refuses: anything the user
-   has not already approved standing comes back as `blocked`, naming the exact
-   operation, so the fix is to approve that one thing rather than to give
-   scheduled work a blanket exemption. */
-
-const EVERY = [
-  { minutes: 1, label: 'every minute' },
-  { minutes: 5, label: 'every 5 minutes' },
-  { minutes: 15, label: 'every 15 minutes' },
-  { minutes: 30, label: 'every 30 minutes' },
-  { minutes: 60, label: 'hourly' },
-  { minutes: 60 * 4, label: 'every 4 hours' },
-  { minutes: 60 * 12, label: 'twice a day' },
-  { minutes: 60 * 24, label: 'daily' },
-  { minutes: 60 * 24 * 7, label: 'weekly' },
-]
-
-const describe = (minutes) =>
-  EVERY.find((e) => e.minutes === minutes)?.label
-  ?? (minutes % 1440 === 0
-    ? `every ${minutes / 1440} days`
-    : minutes % 60 === 0 ? `every ${minutes / 60} hours` : `every ${minutes} minutes`)
-
-/** "in 4 minutes", "3 hours ago" — a wall-clock time answers the wrong question.
- *
- *  Read through `serverTime` because these come from two places with different
- *  habits: `next_run_at` and `last_run_at` carry an offset, and a run's
- *  `created_at` is SQLite's bare UTC. Reading the second as local put every run
- *  hours into the past the instant it finished. */
 function when(iso) {
   if (!iso) return '—'
   const at = serverTime(iso)
@@ -62,187 +32,230 @@ function when(iso) {
   return delta >= 0 ? `in ${size}` : `${size} ago`
 }
 
-/* What this automation has actually done, run by run.
+function formatSchedule(auto) {
+  if (auto.schedule_type === 'daily_at' && auto.daily_at_time) {
+    return `Daily at ${auto.daily_at_time}`
+  }
+  if (auto.schedule_type === 'weekly_at' && auto.daily_at_time) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    return `${days[auto.weekly_day || 0]} at ${auto.daily_at_time}`
+  }
+  // Interval
+  const mins = auto.every_minutes
+  if (mins >= 60 * 24 * 7) return `Every ${mins / (60 * 24 * 7)} week${mins / (60 * 24 * 7) === 1 ? '' : 's'}`
+  if (mins >= 60 * 24) return `Every ${mins / (60 * 24)} day${mins / (60 * 24) === 1 ? '' : 's'}`
+  if (mins >= 60) return `Every ${mins / 60} hour${mins / 60 === 1 ? '' : 's'}`
+  return `Every ${mins} minute${mins === 1 ? '' : 's'}`
+}
 
-   Only the newest was reachable before: the backend overwrites
-   `last_conversation_id` each time, so every earlier run became unreferenced the
-   moment the next finished — findable only by scrolling the conversation rail
-   the runs were flooding. They are out of that rail now, so this is the only
-   place they live. */
-function RunHistory({ automation }) {
-  const { setActiveId, setView } = useApp()
-  const [runs, setRuns] = useState(null)
-  const [open, setOpen] = useState(false)
+function formatDuration(ms) {
+  if (!ms) return '—'
+  if (ms < 1000) return '<1s'
+  const secs = Math.round(ms / 1000)
+  if (secs < 60) return `${secs}s`
+  return `${Math.floor(secs / 60)}m ${secs % 60}s`
+}
 
-  const load = useCallback(async () => {
-    try {
-      setRuns(await api.automationRuns(automation.id))
-    } catch {
-      setRuns([])
-    }
-  }, [automation.id])
+/** Scheduler health banner. Shows whether automations run when the app is closed. */
+function SchedulerBanner({ scheduler }) {
+  if (!scheduler) return null
+  return (
+    <div className={`auto-scheduler-banner${scheduler.external_configured ? '' : ' auto-scheduler-banner--warn'}`} data-enter>
+      <div className="auto-scheduler-banner-left">
+        <Icon name={scheduler.external_configured ? 'check-circle' : 'info'} size={14} />
+        <span>
+          {scheduler.external_configured
+            ? 'Automations run in the background via GitHub Actions, even when the app is closed.'
+            : 'Automations run while this server is up. Set up GitHub Actions for background execution.'}
+        </span>
+      </div>
+      <div className="auto-scheduler-banner-right">
+        {scheduler.timezone && (
+          <span className="auto-scheduler-tz">
+            <Icon name="clock" size={11} />
+            {scheduler.timezone}
+          </span>
+        )}
+        {scheduler.enabled_count > 0 && (
+          <span className="auto-scheduler-count">
+            {scheduler.enabled_count} active
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
 
-  // Reload when a run finishes, so the list is not stale behind the status.
-  useEffect(() => { if (open) load() }, [open, load, automation.last_run_at])
-
-  const openRun = (id) => { setActiveId(id); setView('chat') }
-
-  if (!automation.last_conversation_id) return null
+/** Summary stats cards above the automation list. */
+function StatsCards({ rows, stats }) {
+  const activeCount = rows.filter((r) => r.enabled).length
+  const totals = stats?.totals || {}
+  const successRate = totals.total > 0
+    ? Math.round(((totals.success || 0) / totals.total) * 100)
+    : null
 
   return (
-    <div className="auto-runs">
-      <button type="button" className="auto-open" onClick={() => openRun(automation.last_conversation_id)}>
-        <Icon name="chat" size={12} /> Read what it did
-      </button>
-      <button type="button" className="auto-open" onClick={() => setOpen((o) => !o)}>
-        <Icon name="clock" size={12} /> {open ? 'Hide earlier runs' : 'Earlier runs'}
-      </button>
-      {open && (
-        <ul className="auto-run-list">
-          {runs === null && <li className="auto-run-empty">Loading…</li>}
-          {runs?.length === 0 && <li className="auto-run-empty">No runs kept yet.</li>}
-          {runs?.map((run) => (
-            <li key={run.id}>
-              <button type="button" onClick={() => openRun(run.id)}>
-                <span>{when(run.created_at)}</span>
-                {run.id === automation.last_conversation_id && <span className="state">newest</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
+    <div className="auto-stats-cards" data-enter>
+      <div className="auto-stats-card">
+        <div className="auto-stats-card-value">{rows.length}</div>
+        <div className="auto-stats-card-label">Automations</div>
+      </div>
+      <div className="auto-stats-card">
+        <div className="auto-stats-card-value">{activeCount}</div>
+        <div className="auto-stats-card-label">Active</div>
+      </div>
+      <div className="auto-stats-card">
+        <div className="auto-stats-card-value">{totals.total || 0}</div>
+        <div className="auto-stats-card-label">Runs (30d)</div>
+      </div>
+      {successRate !== null && (
+        <div className="auto-stats-card">
+          <div className={`auto-stats-card-value ${successRate >= 90 ? 'is-good' : successRate >= 50 ? 'is-warn' : 'is-bad'}`}>
+            {successRate}%
+          </div>
+          <div className="auto-stats-card-label">Success rate</div>
+        </div>
       )}
     </div>
   )
 }
 
-function Composer({ onDone, onCancel }) {
-  const { toast, health } = useApp()
-  const [name, setName] = useState('')
-  const [prompt, setPrompt] = useState('')
-  const [minutes, setMinutes] = useState(1440)
-  const [busy, setBusy] = useState(false)
-  const providers = health?.providers ?? []
-  /* An automation is one model round trip per tool call, and a fifteen-step
-     task multiplies whatever the model's latency is by fifteen. The columns for
-     this have existed since automations shipped; nothing ever sent them, so
-     every run went to the machine default however slow it was. */
-  const [provider, setProvider] = useState('')
-  const [model, setModel] = useState('')
-  const defaultModel = health?.provider_defaults?.[provider] || ''
+/** Automations list row with actions. */
+function AutomationRow({ auto, busy: _busy, onAction, onEdit }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
 
-  // Which saved connector profile (Settings → Capabilities) this run is
-  // scoped to. Every enabled connector by default, same as before this
-  // existed — narrowing it is what keeps a run that only ever needs Gmail
-  // from also being handed GitHub, Spotify, LinkedIn, a browser, and every
-  // other connector at once, which is what made the model second-guess the
-  // right tool as the catalogue grew.
-  const [profiles, setProfiles] = useState([])
-  const [capabilityProfile, setCapabilityProfile] = useState('')
-  useEffect(() => { api.capabilityProfiles().then(setProfiles).catch(() => setProfiles([])) }, [])
-
-  const ready = name.trim() && prompt.trim()
-
-  const create = async () => {
-    if (!ready) return
-    setBusy(true)
-    try {
-      await api.createAutomation({
-        name,
-        prompt,
-        every_minutes: minutes,
-        // Omitted, not blanked: the runner then picks the machine default at
-        // run time rather than freezing today's default into the row.
-        ...(provider ? { provider, model: model.trim() || defaultModel || null } : {}),
-        ...(capabilityProfile ? { capability_profile: capabilityProfile } : {}),
-      })
-      toast(`“${name.trim()}” will run ${describe(minutes)}`, 'ok')
-      onDone()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy(false)
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
     }
-  }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
 
   return (
-    <div className="cap-composer" data-enter>
-      <div className="cap-composer-head">
-        <span>New automation</span>
-        <button type="button" className="icon-btn" onClick={onCancel} aria-label="Cancel">
-          <Icon name="x" size={15} />
+    <div className={`auto-table-row${auto.enabled ? '' : ' is-off'}`}>
+      <div className="auto-table-cell auto-table-cell--name">
+        <button type="button" className="auto-table-name-btn" onClick={() => onEdit(auto)}>
+          <Icon name="zap" size={14} className="auto-table-icon" />
+          <span>{auto.name}</span>
         </button>
-      </div>
-      <Field label="Name" id="auto-name">
-        <input
-          id="auto-name"
-          autoFocus
-          value={name}
-          placeholder="Morning briefing"
-          onChange={(e) => setName(e.target.value)}
-        />
-      </Field>
-      <Field label="What it should do" id="auto-prompt">
-        <textarea
-          id="auto-prompt"
-          rows={5}
-          value={prompt}
-          placeholder={'Exactly what you would type into the composer.\n\nIt runs as an ordinary turn, in a conversation of its own.'}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-      </Field>
-      <Field label="How often" id="auto-every" hint="First run is one interval from now, not immediately.">
-        <select id="auto-every" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
-          {EVERY.map((e) => <option key={e.minutes} value={e.minutes}>{e.label}</option>)}
-        </select>
-      </Field>
-      <Field
-        label="Model"
-        id="auto-provider"
-        hint="Most of a run is spent waiting on the model, not on tools — a run is one round trip
-          per tool call. A faster provider is the shortest way to make this quicker."
-      >
-        <select
-          id="auto-provider"
-          value={provider}
-          onChange={(e) => { setProvider(e.target.value); setModel('') }}
-        >
-          <option value="">
-            {providers.length ? `Machine default (${providers[0]})` : 'Machine default'}
-          </option>
-          {providers.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-        {provider && (
-          <input
-            value={model}
-            placeholder={defaultModel || 'model name'}
-            onChange={(e) => setModel(e.target.value)}
-            style={{ marginTop: 8 }}
-          />
+        {auto.description && (
+          <span className="auto-table-desc">{auto.description}</span>
         )}
-      </Field>
-      <Field
-        label="Tools"
-        id="auto-tools"
-        hint={profiles.length
-          ? 'Scoping this run to a saved profile is what keeps it from confusing tools it never needed — save one from Skills & connectors.'
-          : 'No saved profiles yet — save one from Skills & connectors to scope this run to just the tools it needs.'}
-      >
-        <select
-          id="auto-tools"
-          value={capabilityProfile}
-          onChange={(e) => setCapabilityProfile(e.target.value)}
-        >
-          <option value="">Every enabled connector</option>
-          {profiles.map((p) => (
-            <option key={p.name} value={p.name}>{p.name} ({p.on_count})</option>
-          ))}
-        </select>
-      </Field>
-      <div className="cap-composer-foot">
-        <Button variant="primary" size="small" disabled={!ready} busy={busy} onClick={create}>
-          {busy ? 'Saving…' : 'Create'}
-        </Button>
       </div>
+      <div className="auto-table-cell auto-table-cell--schedule">
+        {formatSchedule(auto)}
+      </div>
+      <div className="auto-table-cell auto-table-cell--next">
+        {auto.enabled ? when(auto.next_run_at) : 'Paused'}
+      </div>
+      <div className="auto-table-cell auto-table-cell--status">
+        <span className={`auto-status-badge auto-status-badge--${auto.last_status || 'none'}`}>
+          {auto.last_status === 'running' && <Icon name="clock" size={10} />}
+          {auto.last_status === 'ok' && <Icon name="check" size={10} />}
+          {auto.last_status === 'error' && <Icon name="x" size={10} />}
+          {auto.last_status === 'blocked' && <Icon name="warning" size={10} />}
+          {auto.last_status === 'partial' && <Icon name="warning" size={10} />}
+          {auto.enabled ? (auto.last_status || 'Idle') : 'Paused'}
+        </span>
+      </div>
+      <div className="auto-table-cell auto-table-cell--actions">
+        <div className="auto-actions-menu-wrapper" ref={menuRef}>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Actions"
+          >
+            <Icon name="dots" size={14} />
+          </button>
+          {menuOpen && (
+            <div className="auto-actions-menu">
+              <button type="button" onClick={() => { setMenuOpen(false); onEdit(auto) }}>
+                <Icon name="edit" size={12} /> Edit
+              </button>
+              <button type="button" onClick={() => { setMenuOpen(false); onAction(auto, 'toggle') }}>
+                <Icon name={auto.enabled ? 'pause' : 'play'} size={12} />
+                {auto.enabled ? 'Pause' : 'Resume'}
+              </button>
+              <button type="button" onClick={() => { setMenuOpen(false); onAction(auto, 'run') }}>
+                <Icon name="play" size={12} /> Run now
+              </button>
+              <button type="button" className="danger" onClick={() => { setMenuOpen(false); onAction(auto, 'delete') }}>
+                <Icon name="trash" size={12} /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Runs tab content with clickable rows to open run details. */
+function RunsTab({ onSelectRun }) {
+  const [runs, setRuns] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.recentRuns(100).then((data) => {
+      setRuns(data.runs || [])
+    }).catch(() => setRuns([])).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <SkeletonCard rows={3} controls={2} />
+
+  return (
+    <div className="auto-runs-tab">
+      {runs.length === 0 ? (
+        <EmptyState icon="clock">No runs yet. Create an automation and run it to see history here.</EmptyState>
+      ) : (
+        <div className="auto-runs-table">
+          <div className="auto-runs-table-head">
+            <span>Run</span>
+            <span>Automation</span>
+            <span>Duration</span>
+            <span>Time</span>
+          </div>
+          {runs.map((run) => (
+            <button
+              key={run.id}
+              type="button"
+              className="auto-runs-row auto-runs-row--clickable"
+              onClick={() => onSelectRun(run.id)}
+            >
+              <span className={`auto-runs-status auto-runs-status--${run.status}`}>
+                {run.status === 'success' ? (
+                  <Icon name="check" size={12} />
+                ) : run.status === 'failed' ? (
+                  <Icon name="x" size={12} />
+                ) : run.status === 'running' ? (
+                  <Icon name="clock" size={12} />
+                ) : run.status === 'blocked' ? (
+                  <Icon name="warning" size={12} />
+                ) : run.status === 'partial' ? (
+                  <Icon name="warning" size={12} />
+                ) : (
+                  <Icon name="minus" size={12} />
+                )}
+                <span className="auto-runs-summary">
+                  {run.result_summary || run.error || 'No details'}
+                </span>
+              </span>
+              <span className="auto-runs-auto-name">{run.automation_name}</span>
+              <span className="auto-runs-duration">{formatDuration(run.duration_ms)}</span>
+              <span className="auto-runs-time">
+                {run.created_at ? new Date(run.created_at).toLocaleString() : '—'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -250,22 +263,25 @@ function Composer({ onDone, onCancel }) {
 export default function Automations() {
   const rootRef = useRef(null)
   const { toast } = useApp()
-  const confirm = useConfirm()
+  const [tab, setTab] = useState('automations')
   const [rows, setRows] = useState([])
-  const [composing, setComposing] = useState(false)
   const [busy, setBusy] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(null)
+  const [showNew, setShowNew] = useState(false)
+  const [newTemplate, setNewTemplate] = useState(null)
+  const [editAuto, setEditAuto] = useState(null)
+  const [stats, setStats] = useState(null)
+  const [scheduler, setScheduler] = useState(null)
+  const [selectedRunId, setSelectedRunId] = useState(null)
   useViewEntrance(rootRef)
 
   const load = useCallback(async () => {
     try {
-      setRows((await api.automations()).automations || [])
+      const data = await api.automations()
+      setRows(data.automations || [])
       setError(null)
     } catch (err) {
-      // `loaded` still flips true below, so without this a failed fetch
-      // rendered the identical "nothing runs on its own yet" copy a
-      // genuinely empty list shows -- there was no way to tell them apart.
       setError(err.message)
       toast(err.message, 'bad')
     } finally {
@@ -275,46 +291,41 @@ export default function Automations() {
 
   useEffect(() => { load() }, [load])
 
-  /* A run in flight changes `last_status` on the server, not here.
+  // Load overall stats — the aggregate across all automations
+  useEffect(() => {
+    if (loaded && tab === 'automations') {
+      api.automationOverallStats().then(setStats).catch(() => {})
+    }
+  }, [loaded, tab])
 
-     It also keeps that status across a reload now, because the run is a durable
-     job rather than an awaited request: pressing Run hands back a job id and
-     the row goes on saying "Running…" whether or not this tab is the one that
-     started it. */
+  // Load scheduler status once
+  useEffect(() => {
+    api.automationScheduler().then(setScheduler).catch(() => {})
+  }, [])
+
+  // Poll when a run is in flight
   useEffect(() => {
     if (!rows.some((r) => r.last_status === 'running')) return undefined
     const tick = setInterval(load, 4000)
     return () => clearInterval(tick)
   }, [rows, load])
 
-  const act = useCallback(async (row, action) => {
-    setBusy(`${row.id}:${action}`)
+  const act = useCallback(async (auto, action) => {
+    setBusy(`${auto.id}:${action}`)
     try {
       if (action === 'run') {
-        /* The job, not the result. A run that was already going hands back the
-           same job rather than queueing a second one behind it, so pressing the
-           button twice -- or on two tabs -- starts one run. The outcome arrives
-           through `load` below, on the same poll that was already watching for
-           it. */
-        const job = await api.runAutomation(row.id)
+        const job = await api.runAutomation(auto.id)
         toast(
           job.state === 'running' || job.state === 'queued'
-            ? `“${row.name}” is running`
-            : `“${row.name}”: ${job.blocked_on || job.last_error || job.state}`,
+            ? `"${auto.name}" is running`
+            : `"${auto.name}": ${job.blocked_on || job.last_error || job.state}`,
           job.state === 'failed' ? 'bad' : job.blocked_on ? 'amber' : 'ok',
         )
-        await load()
       } else if (action === 'toggle') {
-        await api.updateAutomation(row.id, { enabled: !row.enabled })
+        await api.updateAutomation(auto.id, { enabled: !auto.enabled })
       } else if (action === 'delete') {
-        const ok = await confirm({
-          title: `Delete "${row.name}"?`,
-          description: 'The conversations it wrote are kept.',
-          confirmLabel: 'Delete',
-          tone: 'danger',
-        })
-        if (!ok) return
-        await api.deleteAutomation(row.id)
+        if (!confirm(`Delete "${auto.name}"? Conversations it wrote are kept.`)) return
+        await api.deleteAutomation(auto.id)
         toast('Automation deleted', 'info')
       }
       await load()
@@ -323,100 +334,145 @@ export default function Automations() {
     } finally {
       setBusy('')
     }
-  }, [load, toast, confirm])
+  }, [load, toast])
+
+  const handleNewFromTemplate = useCallback((template) => {
+    setNewTemplate(template)
+    setShowNew(true)
+  }, [])
+
+  const handleCreated = useCallback(() => {
+    setShowNew(false)
+    setNewTemplate(null)
+    load()
+  }, [load])
+
+  const handleEditSaved = useCallback(() => {
+    setEditAuto(null)
+    load()
+  }, [load])
+
+  const handleEditDeleted = useCallback(() => {
+    setEditAuto(null)
+    load()
+  }, [load])
+
+  const totalRuns = useMemo(() => {
+    if (!stats?.by_day) return 0
+    return Object.values(stats.by_day).reduce((s, d) => s + (d.total || 0), 0)
+  }, [stats])
 
   return (
     <div className="view" ref={rootRef}>
       <div className="view-inner view-inner--wide">
-        <header className="cap-head" data-enter>
-          <h1>Automations <span className="beta">beta</span></h1>
+        <header className="auto-header" data-enter>
+          <div className="auto-header-tabs">
+            <button
+              type="button"
+              className={`auto-header-tab${tab === 'automations' ? ' is-active' : ''}`}
+              onClick={() => setTab('automations')}
+            >
+              Automations
+            </button>
+            <button
+              type="button"
+              className={`auto-header-tab${tab === 'runs' ? ' is-active' : ''}`}
+              onClick={() => setTab('runs')}
+            >
+              Runs
+            </button>
+            <button
+              type="button"
+              className={`auto-header-tab${tab === 'templates' ? ' is-active' : ''}`}
+              onClick={() => setTab('templates')}
+            >
+              Templates
+            </button>
+          </div>
           <Button
-            variant={composing ? 'ghost' : 'primary'}
+            variant="primary"
             pill
-            icon={<Icon name={composing ? 'x' : 'plus'} size={14} />}
-            onClick={() => setComposing((c) => !c)}
-            aria-expanded={composing}
+            icon={<Icon name="plus" size={14} />}
+            onClick={() => { setNewTemplate(null); setShowNew(true) }}
           >
-            New automation
+            New Automation
           </Button>
         </header>
 
-        <div className="msg-note msg-note--warning" style={{ marginBottom: 20 }} data-enter>
-          <Icon name="info" size={14} />
-          <span>
-            <strong style={{ fontWeight: 500 }}>What this is, exactly.</strong> A prompt and an
-            interval. It runs as an ordinary turn in a conversation of its own, <strong>while
-            AMETHYST is open</strong> — there is no daemon, so nothing runs when the server is down.
-            An unattended turn has nobody to answer a permission prompt, so it does not raise
-            one: anything you have not already approved with “don’t ask again” comes back
-            <span className="mono"> blocked</span>, naming the operation it wanted. No cron
-            expressions and no triggers other than the clock yet.
-          </span>
-        </div>
+        {/* Scheduler status banner */}
+        <SchedulerBanner scheduler={scheduler} />
 
-        {composing && <Composer onDone={() => { setComposing(false); load() }} onCancel={() => setComposing(false)} />}
+        {tab === 'automations' && (
+          <>
+            {/* Stats summary cards */}
+            {loaded && rows.length > 0 && (
+              <StatsCards rows={rows} stats={stats} />
+            )}
 
-        {!loaded && <SkeletonCard rows={3} controls={2} />}
+            {/* Run History Chart */}
+            {loaded && rows.length > 0 && (
+              <RunHistoryChart stats={stats} totalRuns={totalRuns} />
+            )}
 
-        {loaded && error && <ErrorState message={error} onRetry={load} />}
+            {/* Automation List */}
+            {!loaded && <SkeletonCard rows={3} controls={2} />}
+            {loaded && error && <ErrorState message={error} onRetry={load} />}
+            {loaded && !error && rows.length === 0 && !showNew && (
+              <EmptyState icon="clock">
+                Nothing runs on its own yet. Create an automation or pick a template below.
+              </EmptyState>
+            )}
 
-        {loaded && !error && rows.length === 0 && !composing && (
-          <EmptyState icon="clock">
-            Nothing runs on its own yet. A good first one is something you already ask for by
-            hand every day — a summary of what changed, or what is due.
-          </EmptyState>
+            {loaded && rows.length > 0 && (
+              <div className="auto-table" data-enter>
+                <div className="auto-table-head">
+                  <span>Automation</span>
+                  <span>Schedule</span>
+                  <span>Next run</span>
+                  <span>Status</span>
+                  <span></span>
+                </div>
+                {rows.map((auto) => (
+                  <AutomationRow
+                    key={auto.id}
+                    auto={auto}
+                    busy={busy}
+                    onAction={act}
+                    onEdit={setEditAuto}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        <div className="auto-list">
-          {rows.map((row) => (
-            <div className={`auto-row${row.enabled ? '' : ' is-off'}`} key={row.id} data-enter>
-              <div className="auto-main">
-                <div className="auto-name">
-                  {row.name}
-                  <span className="state">{describe(row.every_minutes)}</span>
-                </div>
-                <p className="auto-prompt">{row.prompt}</p>
-                <div className="auto-meta">
-                  <span>{row.enabled ? `next ${when(row.next_run_at)}` : 'paused'}</span>
-                  {row.last_run_at && (
-                    <span className={`auto-last auto-last--${row.last_status}`}>
-                      last run {when(row.last_run_at)} · {row.last_status}
-                      {row.last_summary ? ` — ${row.last_summary}` : ''}
-                    </span>
-                  )}
-                </div>
-                <RunHistory automation={row} />
-              </div>
-              <div className="auto-actions">
-                <Button
-                  size="small"
-                  disabled={busy === `${row.id}:run` || row.last_status === 'running'}
-                  onClick={() => act(row, 'run')}
-                >
-                  {busy === `${row.id}:run` || row.last_status === 'running' ? 'Running…' : 'Run now'}
-                </Button>
-                <Button
-                  variant={row.enabled ? 'ghost' : 'primary'}
-                  size="small"
-                  disabled={busy === `${row.id}:toggle`}
-                  onClick={() => act(row, 'toggle')}
-                >
-                  {row.enabled ? 'Pause' : 'Resume'}
-                </Button>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  title="Delete this automation"
-                  aria-label={`Delete ${row.name}`}
-                  disabled={busy === `${row.id}:delete`}
-                  onClick={() => act(row, 'delete')}
-                >
-                  <Icon name="trash" size={14} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        {tab === 'runs' && <RunsTab onSelectRun={setSelectedRunId} />}
+
+        {tab === 'templates' && <TemplateGrid onSelect={handleNewFromTemplate} />}
+
+        {/* Modals */}
+        {showNew && (
+          <NewAutomationModal
+            template={newTemplate}
+            onClose={() => { setShowNew(false); setNewTemplate(null) }}
+            onCreated={handleCreated}
+          />
+        )}
+        {editAuto && (
+          <EditAutomationModal
+            automation={editAuto}
+            onClose={() => setEditAuto(null)}
+            onSaved={handleEditSaved}
+            onDeleted={handleEditDeleted}
+            onSelectRun={setSelectedRunId}
+          />
+        )}
+        {selectedRunId && (
+          <RunDetailModal
+            runId={selectedRunId}
+            onClose={() => setSelectedRunId(null)}
+          />
+        )}
       </div>
     </div>
   )

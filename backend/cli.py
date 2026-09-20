@@ -12,7 +12,13 @@ from pathlib import Path
 
 from backend import provider_catalogue as catalogue
 from backend.agent.director import Director
-from backend.config import configured_providers, load_providers, paths
+from backend.config import (
+    configured_providers,
+    load_hotkey,
+    load_providers,
+    paths,
+    save_hotkey,
+)
 from backend.db.connection import get_connection
 from backend.db.repositories import ConversationRepository, ExecutionLogRepository
 from backend.security.confirmation import ConfirmationRequest, ConfirmationService
@@ -864,17 +870,56 @@ def cmd_serve(args: argparse.Namespace) -> int:
     sure there is an interface to serve. Both are here now, so `amethyst serve`
     on a fresh checkout is the whole thing rather than the last step of it.
     """
+    # Load .env so AGENTMAIL_API_KEY and other keys are in the process environment
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
     import uvicorn
 
-    # Storage, database, skills. Cheap and idempotent on a machine that has
-    # already run it; the difference between working and a stack trace on one
-    # that has not.
+    # Storage. Cheap, idempotent, and the difference between working and a
+    # stack trace on a machine that has never run this.
+    #
+    # Only the directories. `get_connection()` and `seed_builtin_skills()` used
+    # to be here too, and the application's own lifespan does both a moment
+    # later (see `_lifespan` in backend/api/main.py) -- so every start opened
+    # the database twice and walked and hashed all fifty shipped skill
+    # directories twice. Doing it here bought nothing: the lifespan's copy is
+    # the one the running server actually uses.
     try:
         paths().ensure()
-        get_connection()
-        seed_builtin_skills()
     except Exception as exc:
         print(f"! could not prepare {paths().home}: {exc}")
+        return 1
+
+    # Already running? Say which kind of "already", and never start a second
+    # server against the same database.
+    #
+    # This replaced an flock on ~/.amethyst/amethyst.lock, for two reasons.
+    # `import fcntl` does not exist on Windows, so that guard raised ImportError
+    # there rather than guarding anything. And a lock file guards the wrong
+    # thing: what must not happen twice is two servers on one port and one
+    # SQLite file, and binding the port is already an atomic lock on exactly
+    # that -- held by the kernel, released on crash, never stale. Asking the
+    # running instance who it is costs one loopback round trip and answers
+    # something a lock file cannot: whether it is AMETHYST at all.
+    from backend.desktop import _control
+
+    _FREE = object()
+    try:
+        answer = _control(args.port, "show", timeout=1.0)
+    except OSError:
+        answer = _FREE  # nothing listening; the port is ours
+    if answer is not _FREE:
+        if answer is None:
+            print(f"! port {args.port} is held by something that is not AMETHYST.")
+            print(f"! stop it, or serve elsewhere:  amethyst serve --port {args.port + 1}")
+        else:
+            shape = "with a window" if answer.get("native") else "without a window"
+            print(f"! AMETHYST is already running {shape} at http://{args.host}:{args.port}")
+            print("! bring it up with:  amethyst-show")
         return 1
 
     # Before `backend.api.main` is imported, and that ordering is the whole
@@ -888,7 +933,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     from backend.api.main import BIND_HOST_ENV, BIND_PORT_ENV
 
-    url = f"http://{args.host}:{args.port}"
+    display_host = "127.0.0.1" if str(args.host) in ("0.0.0.0", "::") else str(args.host)
+    url = f"http://{display_host}:{args.port}"
     # What the guard in `backend/api/main.py` reads. Set before uvicorn starts,
     # and through the environment rather than a global, because `--reload` runs
     # the application in a child process.
@@ -898,7 +944,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if args.host not in ("127.0.0.1", "localhost", "::1"):
         # This used to say the whole API was published, which was true and is
         # no longer. Saying it anyway would train people to ignore the warning.
-        print(f"! Binding to {args.host}, which is not loopback.")
+        print(f"! Binding to {args.host}, which is accessible on your local network.")
         print("! From other machines only the interface, /api/ping and pairing answer;")
         print("! everything else is refused. Pair a device to use it from a phone.")
         print("! To expose the full API deliberately, put a reverse proxy in front")
@@ -940,9 +986,11 @@ def _ensure_frontend(args: argparse.Namespace) -> bool:
     frontend = root / "frontend"
     dist = frontend / "dist"
     built = (dist / "index.html").is_file()
-    if built and not args.rebuild:
+    rebuild = getattr(args, "rebuild", False)
+    no_build = getattr(args, "no_build", False)
+    if built and not rebuild:
         return True
-    if args.no_build:
+    if no_build:
         if not built:
             print(f"! no built interface at {dist}, and --no-build was passed.")
             print("! The API will answer; the browser will not have anything to load.")
@@ -958,11 +1006,11 @@ def _ensure_frontend(args: argparse.Namespace) -> bool:
         print("Installing interface dependencies (once)...")
         if subprocess.run(["npm", "install"], cwd=frontend).returncode != 0:
             print("! npm install failed.")
-            return not args.rebuild
+            return not rebuild
     print("Building the interface (once)...")
     if subprocess.run(["npm", "run", "build"], cwd=frontend).returncode != 0:
         print("! the interface build failed.")
-        return not args.rebuild
+        return not rebuild
     return True
 
 
@@ -1017,6 +1065,16 @@ def _print_services(args: argparse.Namespace) -> None:
 
     if args.host not in ("127.0.0.1", "localhost", "::1"):
         lines.append(f"  reachable:   {args.host} — restricted surface, see the warning above")
+        try:
+            import shutil
+            import subprocess
+
+            if shutil.which("ufw"):
+                res = subprocess.run(["ufw", "status"], capture_output=True, text=True, timeout=1)
+                if "Status: active" in res.stdout and str(args.port) not in res.stdout:
+                    lines.append(f"  firewall:    UFW active! If phone cannot connect over LAN, run: sudo ufw allow {args.port}/tcp")
+        except Exception:
+            pass
 
     if lines:
         print("\n".join(lines))
@@ -1029,6 +1087,13 @@ def cmd_desktop(args: argparse.Namespace) -> int:
     open: an icon, a global hotkey, and a way to quit that is not closing a
     terminal.
     """
+    # Load .env so AGENTMAIL_API_KEY and other keys are in the process environment
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
     from backend import desktop
 
     if args.install_autostart:
@@ -1038,13 +1103,40 @@ def cmd_desktop(args: argparse.Namespace) -> int:
         removed = desktop.uninstall_autostart()
         print(f"removed {removed}" if removed else "nothing was set to start at login")
         return 0
+
+    # The chord, in order of how specifically it was asked for: this invocation,
+    # then what was saved, then the default.
+    hotkey = args.hotkey or load_hotkey() or desktop.DEFAULT_HOTKEY
+
+    if args.install_shortcut:
+        if args.hotkey:
+            save_hotkey(args.hotkey)
+        ok, note = desktop.install_shortcut(hotkey)
+        print(note)
+        return 0 if ok else 1
+    if args.uninstall_shortcut:
+        ok, note = desktop.uninstall_shortcut()
+        print(note)
+        return 0 if ok else 1
+
+    # Before `backend.api.main` is imported -- and `run_tray` imports it, so this
+    # is the last point at which it can happen. The interface is mounted at
+    # import time from whatever is on disk at that moment, so a build that
+    # happened afterwards would produce a server that had already decided there
+    # was nothing to serve. `serve` has always done this; this path never did,
+    # which is why launching from the application icon on a fresh checkout gave
+    # an empty window.
+    if not _ensure_frontend(args):
+        return 1
+
     return desktop.run_tray(
         host=args.host,
         port=args.port,
-        hotkey=args.hotkey or desktop.DEFAULT_HOTKEY,
+        hotkey=hotkey,
         log_level=args.log_level,
         open_browser=args.open,
         native_window=not args.no_window,
+        present=not args.background,
     )
 
 
@@ -2034,7 +2126,11 @@ def main(argv: list[str] | None = None) -> int:
     permissions.set_defaults(func=cmd_permissions)
 
     serve = sub.add_parser("serve", help="run the web interface and API")
-    serve.add_argument("--host", default="127.0.0.1", help="bind address (default: loopback only)")
+    serve.add_argument(
+        "--host",
+        default=os.environ.get("AMETHYST_BIND_HOST", "0.0.0.0"),
+        help="bind address (default: 0.0.0.0 for LAN phone companion)",
+    )
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--reload", action="store_true", help="restart on source changes")
     serve.add_argument("--open", action="store_true", help="open a browser once it is up")
@@ -2048,8 +2144,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     serve.set_defaults(func=cmd_serve)
 
-    desk = sub.add_parser("desktop", help="run in the system tray, always available")
-    desk.add_argument("--host", default="127.0.0.1", help="bind address (default: loopback only)")
+    desk = sub.add_parser("desktop", help="launch AMETHYST (this is how it is meant to be run)")
+    desk.add_argument(
+        "--host",
+        default=os.environ.get("AMETHYST_BIND_HOST", "0.0.0.0"),
+        help="bind address (default: 0.0.0.0 for LAN phone companion)",
+    )
     desk.add_argument("--port", type=int, default=8000)
     desk.add_argument("--hotkey", default=None, help="global chord for the palette")
     desk.add_argument("--open", action="store_true", help="open a browser once it is up")
@@ -2060,11 +2160,26 @@ def main(argv: list[str] | None = None) -> int:
         help="do not open a window of its own; use the browser",
     )
     desk.add_argument(
+        "--background",
+        action="store_true",
+        help="start without showing a window (what the login entry uses)",
+    )
+    desk.add_argument(
         "--install-autostart", action="store_true", help="start the tray at login"
     )
     desk.add_argument(
         "--uninstall-autostart", action="store_true", help="stop starting it at login"
     )
+    desk.add_argument(
+        "--install-shortcut",
+        action="store_true",
+        help="bind the global chord in your desktop's own shortcut settings",
+    )
+    desk.add_argument(
+        "--uninstall-shortcut", action="store_true", help="remove that binding"
+    )
+    desk.add_argument("--no-build", action="store_true", help=argparse.SUPPRESS)
+    desk.add_argument("--rebuild", action="store_true", help=argparse.SUPPRESS)
     desk.set_defaults(func=cmd_desktop)
 
     pal = sub.add_parser("palette", help="open the command palette in the interface")

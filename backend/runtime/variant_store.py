@@ -167,3 +167,135 @@ def resolve(
 
     # 4. Catalog default
     return default_effort(model_id, provider_caps)
+
+
+# ── Answer depth ─────────────────────────────────────────────────────
+#
+# How much answer the user wants, as opposed to how much thinking. The two are
+# independent: a hard question asked briefly still needs the reasoning, and a
+# simple question asked deeply does not become hard. Effort buys thinking
+# tokens; this buys output tokens and a instruction about structure.
+#
+# Stored the same way effort is -- a per-conversation memory so the choice
+# sticks for the thread it was made in, and a saved default for new ones --
+# because that is the shape the user already has for the neighbouring control.
+
+#: Output-token budget and prompt instruction per depth. The budgets are what
+#: reach `ModelParameters.max_tokens`; on Anthropic they also set the floor the
+#: thinking budget is derived around, so raising one raises both.
+DEPTHS: dict[str, dict] = {
+    "brief": {
+        "max_tokens": 2048,
+        "instruction": (
+            "ANSWER DEPTH: brief. Give the answer and nothing else. No headings, no"
+            " preamble, no restating the question, no offers of further help. One or"
+            " two sentences where that is honest; a short list only if the answer is"
+            " genuinely a list. Do not emit widgets. If the answer cannot be given"
+            " briefly, give the shortest complete version and say what you left out."
+        ),
+    },
+    "standard": {
+        "max_tokens": 8192,
+        "instruction": (
+            "ANSWER DEPTH: standard. Lead with the answer, then give the reasoning"
+            " and the detail that makes it usable. Structure it when the content has"
+            " structure -- a table for a comparison, a callout for a caveat -- and"
+            " leave it as prose when it does not. Use a widget where one genuinely"
+            " beats prose."
+        ),
+    },
+    "deep": {
+        "max_tokens": 32768,
+        "instruction": (
+            "ANSWER DEPTH: deep. Treat this as a piece of work the reader will come"
+            " back to. Lead with the answer, then cover it properly: headings,"
+            " tables where you compare things, callouts for risks and caveats, worked"
+            " examples, and the reasoning behind your recommendation rather than just"
+            " the recommendation. Name your sources and say what you could not"
+            " verify. Use widgets where they beat prose. End with the concrete next"
+            " step, not a summary of what you already wrote. Length is not the goal"
+            " -- completeness is; do not pad."
+        ),
+    },
+}
+
+DEFAULT_DEPTH = "standard"
+
+_DEPTH_FILE = "answer_depths.json"
+_depth_cache: dict[str, str] | None = None
+
+
+def _depth_file() -> Path:
+    return paths().config_dir / _DEPTH_FILE
+
+
+def _load_depths() -> dict[str, str]:
+    global _depth_cache
+    if _depth_cache is not None:
+        return _depth_cache
+    f = _depth_file()
+    if f.exists():
+        try:
+            _depth_cache = json.loads(f.read_text())
+        except (json.JSONDecodeError, OSError):
+            log.warning("corrupt %s, resetting", f)
+            _depth_cache = {}
+    else:
+        _depth_cache = {}
+    return _depth_cache
+
+
+def _save_depths(data: dict[str, str]) -> None:
+    global _depth_cache
+    _depth_cache = data
+    f = _depth_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(data, indent=2))
+
+
+def set_session_depth(conversation_id: str, depth: str) -> None:
+    """Remember the depth used in a conversation, if it is one we know."""
+    if depth not in DEPTHS:
+        return
+    data = _load_depths()
+    data[conversation_id] = depth
+    _save_depths(data)
+
+
+def get_session_depth(conversation_id: str) -> str | None:
+    return _load_depths().get(conversation_id)
+
+
+def set_default_depth(depth: str) -> None:
+    """The depth new conversations start at. Set from Settings."""
+    if depth not in DEPTHS:
+        return
+    data = _load_depths()
+    data["__default__"] = depth
+    _save_depths(data)
+
+
+def resolve_depth(depth: str | None = None, *, conversation_id: str | None = None) -> str:
+    """Which depth this turn runs at.
+
+    Priority: what this turn asked for > what this conversation last used >
+    the saved default > `standard`. An unrecognised value is ignored rather
+    than raising: it arrives from the browser, and a bad one should cost a
+    fallback, not the turn.
+    """
+    if depth in DEPTHS:
+        return depth
+    if conversation_id:
+        remembered = _load_depths().get(conversation_id)
+        if remembered in DEPTHS:
+            return remembered
+    saved = _load_depths().get("__default__")
+    return saved if saved in DEPTHS else DEFAULT_DEPTH
+
+
+def depth_max_tokens(depth: str) -> int:
+    return DEPTHS.get(depth, DEPTHS[DEFAULT_DEPTH])["max_tokens"]
+
+
+def depth_instruction(depth: str) -> str:
+    return DEPTHS.get(depth, DEPTHS[DEFAULT_DEPTH])["instruction"]

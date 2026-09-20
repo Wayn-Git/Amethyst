@@ -4,7 +4,13 @@ import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
+import ResponseActionBar from '../components/ResponseActionBar.jsx'
+import SelectionActionMenu from '../components/SelectionActionMenu.jsx'
+import ResponseEditor from '../components/ResponseEditor.jsx'
+import ResponseArtifactBox from '../components/ResponseArtifactBox.jsx'
+import ResponseMessageActions from '../components/ResponseMessageActions.jsx'
 import ArtifactPanel from '../components/ArtifactPanel.jsx'
+import SourcesSidePanel, { extractSourcesFromMessage } from '../components/SourcesSidePanel.jsx'
 import TurnTrace from '../components/TurnTrace.jsx'
 import TurnRail from '../components/TurnRail.jsx'
 import { SmoothTextarea, FadeScrollArea } from '../components/ui/skiper/index.js'
@@ -25,6 +31,8 @@ import TerminalDrawer from '../components/TerminalDrawer.jsx'
 import { safeStorage } from '../lib/storage.js'
 import { MOD_LABEL } from '../keys.js'
 import { motion } from 'framer-motion'
+import { Blobatar } from "@blobatar/react"
+import "blobatar/motion.css"
 
 /* The composer is the interface. Everything else — which skills are live, which
    connectors it may reach, what it remembers, where it may work — hangs off the
@@ -681,7 +689,9 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
 const Msg = memo(function Msg({
   item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy, onOpenArtifact,
   onResume, setInput, textareaRef,
+  conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
 }) {
+  const msgRef = useRef(null)
   const role = item.kind
 
   if (role === 'question') {
@@ -746,25 +756,12 @@ const Msg = memo(function Msg({
     return <TurnTrace events={[{ type: 'tool', call: { name: item.name, arguments: item.arguments, content: item.content, status: item.isError ? 'error' : 'done' } }]} />
   }
   if (role === 'assistant') {
-    // A turn that only called tools has nothing to say yet, and labelling each
-    // of those as a reply from AMETHYST turns three steps of one answer into three
-    // answers.
     if (!item.text && item.toolCalls?.length) {
-      // With the panel open the calls are drawn there, and an assistant turn
-      // that only called tools has nothing left to say in the transcript.
       return <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
     }
-    /* No name over the answer. Two speakers alternating down one column is
-       already unambiguous from shape alone -- the question is a bubble against
-       the right edge, the answer is prose across the page -- and a label on
-       every turn is a word the eye has to step over to reach the sentence it
-       came for. The controls come with the hover instead of sitting in the
-       reading line permanently. */
+
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
-        {/* What it did comes before what it says. The work happened first, and
-            an answer that arrives under its own working is the order the turn
-            actually ran in. */}
         {item.toolCalls?.length > 0 && (
           <TurnTrace
             events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
@@ -772,17 +769,32 @@ const Msg = memo(function Msg({
             onOpenArtifact={onOpenArtifact}
           />
         )}
-        {/* A widget is the answer, not a decoration on one: the turn that
-            produced it never generated prose, so there is nothing to render
-            alongside. An unknown widget type renders as null, which is why the
-            markdown branch stays reachable below. */}
         {item.widget && <div className="msg-body"><WidgetRenderer widget={item.widget} /></div>}
-        {!item.widget && item.text && <div className="msg-body"><Markdown text={item.text} /></div>}
         {!item.widget && item.text && (
-          <div className="msg-actions">
-            <CopyButton text={item.text} label="Copy this answer" />
-            <PinButton item={item} onPin={onPin} />
-          </div>
+          <ResponseArtifactBox
+            text={item.text}
+            item={item}
+            conversationId={conversationId}
+            isEditing={isEditing}
+            onStartEdit={onStartEdit}
+            onCancelEdit={onCancelEdit}
+            onSaveEdit={onSaveEdit}
+            onOpenFullScreen={onOpenFullScreen}
+            onRegenerate={onRegenerate}
+            onPin={onPin}
+            onExportDocx={onExportDocx}
+          />
+        )}
+        {!item.widget && item.text && (
+          <ResponseMessageActions
+            text={item.text}
+            item={item}
+            onRegenerate={onRegenerate}
+            onPin={onPin}
+            onExportDocx={onExportDocx}
+            onViewSources={() => onViewSources?.(item)}
+            onBranchInNewChat={onBranchInNewChat}
+          />
         )}
       </div>
     )
@@ -793,8 +805,10 @@ const Msg = memo(function Msg({
 
   return (
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
-      <div className="msg-body msg-body--plain">{item.text}</div>
-      <div className="msg-user-meta">
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', justifyContent: 'flex-end', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '7px', minWidth: 0 }}>
+          <div className="msg-body msg-body--plain">{item.text}</div>
+          <div className="msg-user-meta">
         {timeStr && <span className="msg-time">{timeStr}</span>}
         <CopyButton text={item.text} label="Copy" />
         <button
@@ -807,6 +821,11 @@ const Msg = memo(function Msg({
           <Icon name="edit" size={12} />
         </button>
         <PinButton item={item} onPin={onPin} />
+          </div>
+        </div>
+        <div style={{ flexShrink: 0, width: '42px', height: '42px', marginTop: '2px', cursor: 'pointer' }} title="That's you!">
+          <Blobatar name="alain00" animate="hover" />
+        </div>
       </div>
     </div>
   )
@@ -996,6 +1015,8 @@ export default function Chat() {
   const [lastSent, setLastSent] = useState('')
   const [pinsOpen, setPinsOpen] = useState(true)
   const [queuedMessages, setQueuedMessages] = useState([])
+  const [editingMessageId, setEditingMessageId] = useState(null)
+  const [fullScreenMessage, setFullScreenMessage] = useState(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [inspectOpen, setInspectOpen] = useState(false)
   const inspectCardRef = useRef(null)
@@ -1792,6 +1813,51 @@ export default function Chat() {
     guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag,
   ])
 
+  const handleSaveMessageEdit = useCallback(async (msgItem, newText) => {
+    if (!activeId || !newText || newText === msgItem.text) {
+      setEditingMessageId(null)
+      return
+    }
+    try {
+      let rowId = msgItem.rowId
+      if (!rowId) {
+        const freshMsgs = await api.messages(activeId).catch(() => [])
+        const found = freshMsgs.find((m) => m.content === msgItem.text || m.id === msgItem.rowId)
+        if (found) rowId = found.id
+      }
+      if (rowId) {
+        await api.updateMessageArtifact(activeId, rowId, newText, 'User edited response')
+      }
+      setItems((prev) => prev.map((it) => {
+        if (it.id === msgItem.id || (it.rowId && it.rowId === rowId)) {
+          return { ...it, text: newText }
+        }
+        return it
+      }))
+      setEditingMessageId(null)
+      toast('Response updated and version saved', 'good')
+    } catch (err) {
+      toast(`Failed to save edit: ${err.message}`, 'bad')
+    }
+  }, [activeId, toast])
+
+  const handleExportDocx = useCallback(async (text, baseName = 'amethyst-response') => {
+    try {
+      const blob = await api.exportDocx(text, baseName)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${baseName}.docx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast('Word document exported', 'good')
+    } catch (err) {
+      toast(`Export error: ${err.message}`, 'bad')
+    }
+  }, [toast])
+
   // Queue context/messages while a turn is actively executing (matches Queue ↵ in screenshot)
   const handleQueue = useCallback(() => {
     const typed = input.trim()
@@ -2019,6 +2085,7 @@ export default function Chat() {
   // Opening a document from the conversation: show the panel, and select the
   // one the card names if it is still on screen.
   const openArtifacts = useCallback((path) => {
+    setPanelMode('artifacts')
     setPanel(true)
     if (path) {
       setArtifacts((prev) => {
@@ -2042,7 +2109,88 @@ export default function Chat() {
      all. The panel is for the documents themselves now, and only those. */
   const transcript = useMemo(() => foldTraces(rendered), [rendered])
 
+  const handleRegenerateAnswer = useCallback((msgItem) => {
+    const idx = transcript.findIndex((it) => it.id === msgItem.id || (it.rowId && it.rowId === msgItem.rowId))
+    if (idx < 0) return
+    const prevUser = transcript.slice(0, idx).reverse().find((it) => it.kind === 'user')
+    if (prevUser && prevUser.text) {
+      send(prevUser.text)
+    } else {
+      send('Please regenerate your previous response with more detail.')
+    }
+  }, [transcript, send])
 
+  const handleBranchInNewChat = useCallback(async (msgItem) => {
+    const idx = transcript.findIndex((it) => it.id === msgItem.id || (it.rowId && it.rowId === msgItem.rowId))
+    const prevUser = idx >= 0 ? transcript.slice(0, idx).reverse().find((it) => it.kind === 'user') : null
+    const title = prevUser?.text ? `Branch: ${prevUser.text.slice(0, 36)}` : 'New Branch'
+    try {
+      if (activeId) {
+        const rowId = msgItem.rowId || null
+        const { id } = await api.branchConversation(activeId, rowId, title)
+        setActiveId(id)
+        refreshConvs()
+        toast('Branched conversation created', 'good')
+      } else {
+        const { id } = await api.createConversation(
+          active?.provider || draftProvider,
+          active?.model || draftModel || '',
+          title,
+        )
+        setActiveId(id)
+        refreshConvs()
+        toast('Branched into new conversation', 'good')
+      }
+    } catch (err) {
+      toast(`Branch failed: ${err.message}`, 'bad')
+    }
+  }, [transcript, active, activeId, draftProvider, draftModel, setActiveId, refreshConvs, toast])
+
+  const [panelMode, setPanelMode] = useState('artifacts') // 'artifacts' | 'sources'
+  const [activeSourceUrl, setActiveSourceUrl] = useState(null)
+  const [activeSources, setActiveSources] = useState([])
+
+  const handleViewSources = useCallback((msgItem) => {
+    let found = []
+    if (msgItem) {
+      found = extractSourcesFromMessage(msgItem)
+    }
+    if (!found.length) {
+      const map = new Map()
+      for (const it of transcript) {
+        for (const s of extractSourcesFromMessage(it)) {
+          if (!map.has(s.url)) map.set(s.url, s)
+        }
+      }
+      found = Array.from(map.values())
+    }
+    setActiveSources(found)
+    setActiveSourceUrl(found[0]?.url || null)
+    setPanelMode('sources')
+    setPanel(true)
+  }, [transcript, setPanel])
+
+  useEffect(() => {
+    const handleOpenSourcesEvent = (e) => {
+      const { url, host, title } = e.detail || {}
+      const map = new Map()
+      for (const it of transcript) {
+        for (const s of extractSourcesFromMessage(it)) {
+          if (!map.has(s.url)) map.set(s.url, s)
+        }
+      }
+      const list = Array.from(map.values())
+      if (url && !map.has(url)) {
+        list.unshift({ url, domain: host || 'source', title: title || host })
+      }
+      setActiveSources(list)
+      setActiveSourceUrl(url)
+      setPanelMode('sources')
+      setPanel(true)
+    }
+    window.addEventListener('amethyst-open-sources', handleOpenSourcesEvent)
+    return () => window.removeEventListener('amethyst-open-sources', handleOpenSourcesEvent)
+  }, [transcript, setPanel])
 
   const pins = useMemo(() => rendered.filter((i) => i.pinned && i.text), [rendered])
 
@@ -2905,6 +3053,16 @@ export default function Chat() {
                       onResume={resumeAnswer}
                       setInput={setInput}
                       textareaRef={textareaRef}
+                      conversationId={activeId}
+                      isEditing={editingMessageId === item.rowId || (item.id && editingMessageId === item.id)}
+                      onStartEdit={() => setEditingMessageId(item.rowId || item.id)}
+                      onCancelEdit={() => setEditingMessageId(null)}
+                      onSaveEdit={handleSaveMessageEdit}
+                      onOpenFullScreen={() => setFullScreenMessage(item)}
+                      onRegenerate={() => handleRegenerateAnswer(item)}
+                      onExportDocx={handleExportDocx}
+                      onBranchInNewChat={handleBranchInNewChat}
+                      onViewSources={handleViewSources}
                     />
                   </div>
                 ))}
@@ -2957,19 +3115,46 @@ export default function Chat() {
       </div>
 
       {panel && !compact && view === 'chat' && (
-        <ArtifactSide
-          artifacts={artifacts}
-          activeArtifact={activeArtifact}
-          onSelectArtifact={setActiveArtifact}
-          streamingArtifact={streamingArtifact}
-          freshArtifact={freshArtifact}
-          expanded={panelExpanded}
-          onToggleExpand={togglePanelExpanded}
-          onClose={() => { setPanelExpanded(false); setPanel(false) }}
-        />
+        panelMode === 'sources' ? (
+          <SourcesSidePanel
+            sources={activeSources}
+            activeUrl={activeSourceUrl}
+            duration="3s"
+            onClose={() => { setPanel(false); setPanelMode('artifacts') }}
+          />
+        ) : (
+          <ArtifactSide
+            artifacts={artifacts}
+            activeArtifact={activeArtifact}
+            onSelectArtifact={setActiveArtifact}
+            streamingArtifact={streamingArtifact}
+            freshArtifact={freshArtifact}
+            expanded={panelExpanded}
+            onToggleExpand={togglePanelExpanded}
+            onClose={() => { setPanelExpanded(false); setPanel(false) }}
+          />
+        )
       )}
 
       <ConfirmModal pending={pending} onDecide={onDecide} />
+      {fullScreenMessage && (
+        <div className="modal-overlay response-editor-modal-overlay" onClick={() => setFullScreenMessage(null)}>
+          <div className="response-editor-modal-window" onClick={(e) => e.stopPropagation()}>
+            <ResponseEditor
+              initialText={fullScreenMessage.text}
+              conversationId={activeId}
+              messageId={fullScreenMessage.rowId}
+              isFullScreen
+              onSave={async (newText) => {
+                await handleSaveMessageEdit(fullScreenMessage, newText)
+                setFullScreenMessage(null)
+              }}
+              onCancel={() => setFullScreenMessage(null)}
+              onCloseFullScreen={() => setFullScreenMessage(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

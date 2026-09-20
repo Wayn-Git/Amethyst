@@ -106,9 +106,9 @@ CATEGORIES: dict[str, dict[str, Any]] = {
         ),
     },
     "web": {
-        "tools": ("search_web", "fetch_url", "open_url"),
+        "tools": ("search_web", "research_web", "web_search", "tavily_search", "extract_page", "fetch_url", "open_url"),
         "words": (
-            "web", "search", "google", "internet", "online", "url", "link",
+            "web", "search", "google", "tavily", "firecrawl", "internet", "online", "url", "link",
             "http", "website", "article", "news", "docs", "documentation",
             "look up", "latest", "download",
         ),
@@ -135,6 +135,17 @@ CATEGORIES: dict[str, dict[str, Any]] = {
     "jobs": {
         "tools": ("collect_jobs", "dispatch_parallel_jobs"),
         "words": ("job", "parallel", "batch", "worker", "dispatch", "collect"),
+    },
+    "mail": {
+        "tools": (
+            "search_email", "read_email", "send_email", "reply_email", "draft_email",
+            "search_agentmail", "read_agentmail", "send_agentmail",
+            "reply_agentmail", "draft_agentmail",
+        ),
+        "words": (
+            "email", "mail", "inbox", "message", "send mail", "send email", "reply",
+            "agentmail", "agent mail",
+        ),
     },
 }
 
@@ -214,10 +225,12 @@ _TASK_INTENTS: list[tuple[str, tuple[str, ...]]] = [
     ("write document", ("create_document",)),
     ("write report", ("create_document",)),
     # Web workflows
-    ("search web", ("search_web",)),
+    ("search web", ("search_web", "research_web")),
+    ("research ", ("research_web", "search_web", "extract_page")),
     ("google ", ("search_web",)),
-    ("look up online", ("search_web", "fetch_url")),
-    ("fetch url", ("fetch_url",)),
+    ("look up online", ("search_web", "research_web", "fetch_url")),
+    ("fetch url", ("fetch_url", "extract_page")),
+    ("extract page", ("extract_page", "fetch_url")),
     ("open url", ("fetch_url", "open_url")),
     # Delegation workflows
     ("delegate", ("task",)),
@@ -252,6 +265,9 @@ _TASK_INTENTS: list[tuple[str, tuple[str, ...]]] = [
     ("search spotify", ("dispatch_parallel_jobs",)),
     ("check linkedin", ("dispatch_parallel_jobs",)),
     ("search linkedin", ("dispatch_parallel_jobs",)),
+    ("send agentmail", ("send_agentmail",)),
+    ("via agentmail", ("send_agentmail", "search_agentmail", "read_agentmail")),
+    ("agentmail", ("send_agentmail", "search_agentmail", "read_agentmail")),
 ]
 
 

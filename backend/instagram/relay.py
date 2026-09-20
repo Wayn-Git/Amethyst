@@ -45,7 +45,8 @@ TOKEN_REF = f"{SERVICE}/instagram-relay-token"
 #: How often the runner asks the relay for anything. Its own interval, well
 #: above the drain's five seconds: the drain is cheap and local, this is a
 #: round trip over the internet, and 100k requests a day is the free ceiling.
-POLL_SECONDS = 15.0
+#: At 30s that is 2,880/day — comfortable on free tier.
+POLL_SECONDS = 30.0
 
 #: Rows per sync. The relay caps at 500; this keeps one poll's work bounded.
 BATCH = 25
@@ -221,8 +222,11 @@ class RelayPoller:
             from backend.sync import service as sync_service
 
             mirrored.update(sync_service.config())
-            if pair_answers:
-                mirrored["pair_answers"] = pair_answers
+            from backend.sync import devices as sync_devices
+            answers = list(pair_answers or [])
+            answers.extend(sync_devices.consume_approved())
+            if answers:
+                mirrored["pair_answers"] = answers
         except Exception:
             # Sync is not a precondition for Instagram capture, which is what
             # this poller was built for. A broken sync layer must not stop a
@@ -239,7 +243,8 @@ class RelayPoller:
         `_collect_ops` during a sync, which means this is only ever true between
         one round trip and the next.
         """
-        return bool(self._pending_pair_answers)
+        from backend.sync import devices as sync_devices
+        return bool(self._pending_pair_answers) or sync_devices.has_approved_answers()
 
     async def sync(self, *, store: InstagramEventStore | None = None) -> dict[str, Any]:
         """One round trip. Returns what happened, and never raises."""

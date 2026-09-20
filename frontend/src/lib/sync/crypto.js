@@ -19,6 +19,10 @@
  * --revoke` taking one out within a poll.
  */
 
+import { gcm } from '@noble/ciphers/aes.js'
+import { hkdf } from '@noble/hashes/hkdf.js'
+import { sha256 } from '@noble/hashes/sha2.js'
+
 const KEY_BYTES = 32
 const NONCE_BYTES = 12
 const PAIR_INFO = new TextEncoder().encode('amethyst-pair-v1')
@@ -41,17 +45,15 @@ function aad(opId, deviceId) {
   return new TextEncoder().encode(`${opId}\0${deviceId}`)
 }
 
-/**
- * Compact and key-sorted at every depth, matching `json.dumps(sort_keys=True,
- * separators=(",", ":"))` on the other side, so a given payload produces the
- * same bytes in both languages.
- *
- * Deliberately not `JSON.stringify(value, Object.keys(value).sort())`: passing
- * an array as the second argument makes it a *recursive key allowlist*, not a
- * key order, so every nested key absent from the top-level list is dropped. That
- * version shipped an op whose `fields` was an empty object -- syntactically
- * perfect, silently carrying nothing -- and only the interop test caught it.
- */
+function getRandomBytes(len) {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    return crypto.getRandomValues(new Uint8Array(len))
+  }
+  const bytes = new Uint8Array(len)
+  for (let i = 0; i < len; i++) bytes[i] = (Math.random() * 256) | 0
+  return bytes
+}
+
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   if (value && typeof value === 'object') {
@@ -62,60 +64,87 @@ function canonical(value) {
   return JSON.stringify(value)
 }
 
-/**
- * Accepts either raw bytes or an already-imported key.
- *
- * The group key arrives as a non-extractable `CryptoKey` from `keystore.js` and
- * is passed straight through; the pairing key is derived per handshake and is
- * bytes. Both work, and the group key never becomes bytes on this side.
- */
 async function aesKey(key) {
-  if (key instanceof CryptoKey) return key
-  return crypto.subtle.importKey('raw', key, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+  if (typeof CryptoKey !== 'undefined' && key instanceof CryptoKey) return key
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    return crypto.subtle.importKey('raw', key, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+  }
+  return key
 }
 
 export async function seal(payload, { opId, deviceId, key }) {
-  const nonce = crypto.getRandomValues(new Uint8Array(NONCE_BYTES))
+  const nonce = getRandomBytes(NONCE_BYTES)
   const raw = new TextEncoder().encode(canonical(payload))
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: nonce, additionalData: aad(opId, deviceId) },
-    await aesKey(key),
-    raw,
-  )
+  const associatedData = aad(opId, deviceId)
+
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    try {
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: nonce, additionalData: associatedData },
+        await aesKey(key),
+        raw,
+      )
+      return { nonce: b64(nonce), ciphertext: b64(ciphertext) }
+    } catch {
+      // Fall back to noble
+    }
+  }
+
+  // Pure JavaScript fallback using @noble/ciphers
+  const rawKey = (typeof CryptoKey !== 'undefined' && key instanceof CryptoKey)
+    ? new Uint8Array(await crypto.subtle.exportKey('raw', key))
+    : (key instanceof Uint8Array ? key : new Uint8Array(key))
+  const cipher = gcm(rawKey, nonce, associatedData)
+  const ciphertext = cipher.encrypt(raw)
   return { nonce: b64(nonce), ciphertext: b64(ciphertext) }
 }
 
 export async function unseal(nonce, ciphertext, { opId, deviceId, key }) {
-  let raw
+  const associatedData = aad(opId, deviceId)
+  const nonceBytes = unb64(nonce)
+  const cipherBytes = unb64(ciphertext)
+
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    try {
+      const raw = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: nonceBytes, additionalData: associatedData },
+        await aesKey(key),
+        cipherBytes,
+      )
+      return JSON.parse(new TextDecoder().decode(raw))
+    } catch {
+      // Fall back to noble or throw
+    }
+  }
+
   try {
-    raw = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: unb64(nonce), additionalData: aad(opId, deviceId) },
-      await aesKey(key),
-      unb64(ciphertext),
-    )
+    const rawKey = (typeof CryptoKey !== 'undefined' && key instanceof CryptoKey)
+      ? new Uint8Array(await crypto.subtle.exportKey('raw', key))
+      : (key instanceof Uint8Array ? key : new Uint8Array(key))
+    const cipher = gcm(rawKey, nonceBytes, associatedData)
+    const raw = cipher.decrypt(cipherBytes)
+    return JSON.parse(new TextDecoder().decode(raw))
   } catch {
-    // Wrong key, wrong envelope or tampering, deliberately not distinguished:
-    // the caller's response to all three is to drop the op.
     throw new Error('this payload did not open under the group key')
   }
-  return JSON.parse(new TextDecoder().decode(raw))
 }
 
-/**
- * The key both sides of a pairing derive from the shared secret.
- *
- * HKDF with no salt, matching devices.py. The secret carries 160 bits, so there
- * is nothing here for a slow KDF to buy -- those exist to punish guessing a
- * secret short enough to guess.
- */
 export async function pairKey(pairSecret) {
-  const material = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(pairSecret), 'HKDF', false, ['deriveBits'],
-  )
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: PAIR_INFO },
-    material,
-    KEY_BYTES * 8,
-  )
-  return new Uint8Array(bits)
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    try {
+      const material = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(pairSecret), 'HKDF', false, ['deriveBits'],
+      )
+      const bits = await crypto.subtle.deriveBits(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: PAIR_INFO },
+        material,
+        KEY_BYTES * 8,
+      )
+      return new Uint8Array(bits)
+    } catch {
+      // Fall through to noble
+    }
+  }
+
+  return hkdf(sha256, new TextEncoder().encode(pairSecret), new Uint8Array(0), PAIR_INFO, KEY_BYTES)
 }

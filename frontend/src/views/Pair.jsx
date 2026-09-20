@@ -110,24 +110,35 @@ function takeLink() {
 export default function Pair({ onPaired, onDesktop }) {
   const held = syncClient.identity()
 
-  // Opening straight into "pairing" when a link brought us here, so the idle
-  // screen does not flash first. The link itself is consumed in the effect
-  // below -- reading it is pure, taking it rewrites history, and that does not
-  // belong in a render.
   const [phase, setPhase] = useState(() => (linkWaiting() ? 'pairing' : 'idle'))
   const [trouble, setTrouble] = useState(null)
   const [typing, setTyping] = useState(false)
   const [relayUrl, setRelayUrl] = useState(() => held?.relayUrl || '')
+  const [hostUrl, setHostUrl] = useState(() => held?.hostUrl || '')
   const [code, setCode] = useState('')
 
-  const run = useCallback(async (relay, secret) => {
+  const run = useCallback(async (opts, fallbackCode) => {
     setPhase('pairing')
     setTrouble(null)
     try {
-      await syncClient.pair(relay, secret, deviceName())
+      let params
+      if (typeof opts === 'object' && opts !== null) {
+        params = {
+          relayUrl: opts.relay || opts.relayUrl,
+          hostUrl: opts.host || opts.hostUrl,
+          secret: opts.secret,
+          name: deviceName(),
+        }
+      } else {
+        params = {
+          relayUrl: opts,
+          hostUrl: hostUrl || (typeof window !== 'undefined' ? window.location.origin : ''),
+          secret: fallbackCode,
+          name: deviceName(),
+        }
+      }
+      await syncClient.pair(params)
       setPhase('paired')
-      // A beat on the confirmation, so pairing reads as having happened rather
-      // than as the screen blinking into a different app.
       setTimeout(() => onPaired?.(), 700)
     } catch (err) {
       setTrouble(TROUBLE[err?.reason] || {
@@ -137,43 +148,38 @@ export default function Pair({ onPaired, onDesktop }) {
       })
       setPhase('trouble')
     }
-  }, [onPaired])
+  }, [hostUrl, onPaired])
 
-  /* A link the camera opened pairs on its own: everything it needs is in it,
-     and asking somebody to press a button after they already pointed a camera
-     at the thing is a step for the sake of having one.
-
-     Once, on mount. `run` is deliberately not a dependency -- it is stable, and
-     re-running this would replay a code that is already spent. */
   const started = useRef(false)
   useEffect(() => {
     if (started.current) return
     started.current = true
     const start = takeLink()
     if (!start) {
-      // The hash was there when this rendered and is not usable now. Only
-      // reachable if it was malformed; fall back to asking.
       setPhase((was) => (was === 'pairing' ? 'idle' : was))
       return
     }
     setCode(start.secret)
     if (start.relayUrl) setRelayUrl(start.relayUrl)
-    if (start.relayUrl) run(start.relayUrl, start.secret)
-    else { setPhase('idle'); setTyping(true) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (start.hostUrl) setHostUrl(start.hostUrl)
+    if (start.relayUrl || start.hostUrl || typeof window !== 'undefined') {
+      run({ relay: start.relayUrl, host: start.hostUrl, secret: start.secret })
+    } else {
+      setPhase('idle')
+      setTyping(true)
+    }
+  }, [run])
 
   const scanned = useCallback((raw) => {
     const read = syncClient.readPayload(raw)
     if (!read.secret) { setPhase('idle'); return }
     const relay = read.relayUrl || relayUrl
+    const host = read.hostUrl || hostUrl
     setCode(read.secret)
     if (read.relayUrl) setRelayUrl(read.relayUrl)
-    // A code with no relay in it is an older machine's. Fall back to asking,
-    // rather than failing on something the person can still supply.
-    if (relay) run(relay, read.secret)
-    else { setPhase('idle'); setTyping(true) }
-  }, [relayUrl, run])
+    if (read.hostUrl) setHostUrl(read.hostUrl)
+    run({ relay, host, secret: read.secret })
+  }, [relayUrl, hostUrl, run])
 
   if (phase === 'scanning') {
     return (
@@ -188,8 +194,10 @@ export default function Pair({ onPaired, onDesktop }) {
       <Shell>
         <div className="pair-state">
           <div className="pair-spinner" aria-hidden="true" />
-          <h1>Pairing…</h1>
-          <p className="pair-sub">Waiting for your computer to answer.</p>
+          <h1>Pairing with your PC…</h1>
+          <p className="pair-sub">
+            Waiting for approval on your computer. Look at your PC screen to review and approve this connection.
+          </p>
         </div>
       </Shell>
     )
@@ -222,7 +230,7 @@ export default function Pair({ onPaired, onDesktop }) {
     )
   }
 
-  const ready = relayUrl.trim().startsWith('http')
+  const ready = (relayUrl.trim().startsWith('http') || hostUrl.trim().startsWith('http') || (typeof window !== 'undefined' && window.location.origin.startsWith('http')))
     && syncClient.readPayload(code).secret.length >= 16
 
   return (
@@ -258,7 +266,7 @@ export default function Pair({ onPaired, onDesktop }) {
 
       {typing ? (
         <div className="pair-manual">
-          <label className="pair-label" htmlFor="pair-relay">Relay address</label>
+          <label className="pair-label" htmlFor="pair-relay">Computer or Relay address</label>
           <input
             id="pair-relay"
             className="pair-input"
@@ -267,9 +275,13 @@ export default function Pair({ onPaired, onDesktop }) {
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="https://your-relay.workers.dev"
-            value={relayUrl}
-            onChange={(e) => setRelayUrl(e.target.value)}
+            placeholder="http://192.168.1.x:8000 or https://relay.domain"
+            value={relayUrl || hostUrl}
+            onChange={(e) => {
+              const val = e.target.value
+              setRelayUrl(val)
+              setHostUrl(val)
+            }}
           />
 
           <label className="pair-label" htmlFor="pair-code">Pairing code</label>
@@ -283,14 +295,14 @@ export default function Pair({ onPaired, onDesktop }) {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && ready) run(relayUrl.trim(), code)
+              if (e.key === 'Enter' && ready) run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })
             }}
           />
 
           <button
             type="button"
             className="pair-go"
-            onClick={() => run(relayUrl.trim(), code)}
+            onClick={() => run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })}
             disabled={!ready}
           >
             Pair

@@ -39,6 +39,7 @@ export async function recordOutbound(
 	)
 		.bind(bodyHash, senderId, state, note ?? null, nowSeconds(), nowSeconds())
 		.run();
+	invalidateOutboundSummary();
 }
 
 export async function outboundState(env: Env, bodyHash: string): Promise<OutboundState | null> {
@@ -49,13 +50,22 @@ export async function outboundState(env: Env, bodyHash: string): Promise<Outboun
 }
 
 /** What the laptop is shown about work the relay did on its behalf. */
+let _cachedSummary: Record<string, number> | null = null;
+
 export async function outboundSummary(env: Env): Promise<Record<string, number>> {
+	if (_cachedSummary) return _cachedSummary;
 	const rows = await env.DB.prepare(
 		'SELECT state, COUNT(*) AS n FROM outbound GROUP BY state',
 	).all<{ state: string; n: number }>();
 	const summary: Record<string, number> = {};
 	for (const row of rows.results ?? []) summary[row.state] = row.n;
+	_cachedSummary = summary;
 	return summary;
+}
+
+/** Invalidate the cache when outbound state changes. */
+export function invalidateOutboundSummary(): void {
+	_cachedSummary = null;
 }
 
 function nowSeconds(): number {

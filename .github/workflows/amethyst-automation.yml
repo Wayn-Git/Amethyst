@@ -1,0 +1,131 @@
+# Amethyst's external scheduler.
+#
+# **This file is a cron line and a token. It is not the automation engine.**
+#
+# Everything about an automation -- what it is, when it is due, which tools it
+# may use, what happened last time -- lives in Amethyst's own database behind
+# Amethyst's own permission gate. All this workflow does is knock on the door:
+#
+#     wake up  ->  run whatever is due  ->  print what happened  ->  exit
+#
+# One generic workflow, not one per automation. Adding an automation is a thing
+# you do in the app; nothing here changes.
+#
+# The version of this file that this one replaces did the opposite: it checked
+# out the repository, installed Python, read automation definitions out of a
+# committed JSON file, and ran its own small agent loop with its own two tools
+# and its own idea of what "due" meant. So there were two engines with two
+# copies of the schedule that disagreed about timezones, and the runs it made
+# never appeared in the app's history at all.
+#
+# ------------------------------------------------------------------ setting up
+#
+# Two settings, once, on this repository:
+#
+#   Settings > Secrets and variables > Actions > Secrets
+#     AMETHYST_WORKER_TOKEN   the same value as AMETHYST_WORKER_TOKEN on the server
+#
+#   Settings > Secrets and variables > Actions > Variables
+#     AMETHYST_API_URL        https://your-amethyst-api.example.com
+#
+# The token is the only credential involved, it is write-only in effect (it may
+# ask for a tick and nothing else), and it never appears in a log line here.
+#
+# **This cannot wake a laptop.** The API has to be reachable from the internet
+# for any of this to mean anything -- Amethyst on Render (see render.yaml), or
+# any host that answers. A machine at home behind NAT with the lid shut is not
+# a slow endpoint, it is a down one, and no workflow fixes that. The
+# Automations page says which of the two you have.
+
+name: Amethyst automations
+
+on:
+  schedule:
+    # Every ten minutes. GitHub's floor is five and it does not promise
+    # punctuality under load, so a "07:30" automation runs at 07:30 or shortly
+    # after -- never twice, because each run claims its schedule slot in the
+    # database before it starts.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# A tick that overruns must not have a second one land on top of it. Not
+# cancel-in-progress: the runs it started are real work, and killing the
+# request mid-flight would leave them finishing unobserved.
+concurrency:
+  group: amethyst-automations
+  cancel-in-progress: false
+
+# Nothing in this repository is read or written.
+permissions: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Run whatever is due
+        env:
+          AMETHYST_API_URL: ${{ vars.AMETHYST_API_URL }}
+          AMETHYST_WORKER_TOKEN: ${{ secrets.AMETHYST_WORKER_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${AMETHYST_API_URL}" ]; then
+            echo "::error::AMETHYST_API_URL is not set. Add it under Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
+          if [ -z "${AMETHYST_WORKER_TOKEN}" ]; then
+            echo "::error::AMETHYST_WORKER_TOKEN is not set. Add it under Settings > Secrets and variables > Actions > Secrets."
+            exit 1
+          fi
+
+          # --retry-connrefused and a generous --max-time because the point of
+          # the first request may be to wake a host that has been idle: a free
+          # tier spins the container down, and a cold start is tens of seconds.
+          # Retrying is safe by construction -- the endpoint claims each
+          # schedule slot under a unique index, so a second delivery of the
+          # same tick runs nothing twice.
+          status=$(curl --silent --show-error \
+            --output tick.json --write-out '%{http_code}' \
+            --max-time 780 --retry 3 --retry-delay 15 --retry-connrefused \
+            --request POST "${AMETHYST_API_URL%/}/api/automations/tick" \
+            --header "Authorization: Bearer ${AMETHYST_WORKER_TOKEN}" \
+            --header 'content-type: application/json' || echo 000)
+
+          # Deliberately not `cat tick.json`. The response carries what the
+          # automations did, and what a morning briefing did is the user's
+          # private mail and calendar -- which would then sit in this repo's
+          # Actions logs. Counts and statuses only.
+          case "${status}" in
+            2*)
+              jq -r '"ran \(.count) automation(s)"
+                     + (if .waited then " (waited)" else "" end),
+                     (.triggered[]? | "  #\(.automation_id) job=\(.state) status=\(.status // "unknown")")' \
+                tick.json
+              failed=$(jq '[.triggered[]? | select(.status == "failed")] | length' tick.json)
+              partial=$(jq '[.triggered[]? | select(.status == "partial" or .status == "blocked")] | length' tick.json)
+              if [ "${partial}" -gt 0 ]; then
+                echo "::warning::${partial} automation(s) could not finish everything they were asked to do. Open Amethyst > Automations > Runs."
+              fi
+              if [ "${failed}" -gt 0 ]; then
+                echo "::error::${failed} automation(s) failed. Open Amethyst > Automations > Runs for the reason."
+                exit 1
+              fi
+              ;;
+            401)
+              echo "::error::The server did not accept the token. AMETHYST_WORKER_TOKEN here and on the server must match."
+              exit 1
+              ;;
+            503)
+              echo "::error::The server has no AMETHYST_WORKER_TOKEN set, so it refuses external ticks. Set it there."
+              exit 1
+              ;;
+            000)
+              echo "::error::Could not reach ${AMETHYST_API_URL}. If that is a laptop, scheduled automations only run while it is awake and serving."
+              exit 1
+              ;;
+            *)
+              echo "::error::The server answered ${status}."
+              exit 1
+              ;;
+          esac

@@ -9,12 +9,24 @@ import { copyText } from '../../../api.js'
  *  that answered -- the card says so in one quiet line and the results below
  *  stand alone, exactly as they did before.
  */
-export default function AnswerCardView({ answer, sources = [], loading, onOpen, onToast }) {
-  if (loading && !answer) {
+export default function AnswerCardView({ answer, error, sources = [], loading, onOpen, onToast }) {
+  if (loading && !answer && !error) {
     return (
       <div className="damon-answer damon-answer--loading">
         <div className="damon-spinner" />
         <span>Thinking…</span>
+      </div>
+    )
+  }
+
+  // The quiet line this component's docstring has always promised. It was never
+  // reachable: the palette threw the backend's reason away before it got here,
+  // so a question with no model behind it showed a spinner and then nothing.
+  if (!answer && error) {
+    return (
+      <div className="damon-answer damon-answer--note">
+        <Icon name="info" size={13} />
+        <span>{error}</span>
       </div>
     )
   }

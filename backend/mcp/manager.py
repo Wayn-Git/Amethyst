@@ -15,9 +15,16 @@ import time
 from typing import Any
 
 from backend.mcp import guidance
-from backend.mcp.client import MCPConnection, MCPConnectionError, OAuthRequired
+from backend.mcp.client import (
+    MCPConnection,
+    MCPConnectionError,
+    OAuthRequired,
+    _is_auth_failure,
+    is_auth_failure_text,
+)
 from backend.mcp.config import ServerConfig, load_servers
 from backend.mcp.risk import classify
+from backend.mcp.status import AuthoritativeMCPStatus, HealthStatus, MCPState
 from backend.tools.base import Tool, ToolContext, ToolResult, ToolSource
 from backend.tools.registry import ToolRegistry, mcp_tool_key
 
@@ -46,6 +53,15 @@ RETRY_BACKOFF_SECONDS = (60.0, 300.0, 1800.0)
 # retry, a first-discovery hiccup and an OAuth refresh; short enough that a
 # server which really has died stops claiming otherwise within one coffee.
 READY_COOLDOWN_SECONDS = 300.0
+
+# How long a liveness probe's answer is trusted before another is worth making.
+#
+# The connectors page polls every 3 seconds and the health tick every 8, and a
+# probe per server per poll would be a steady drip of traffic to every connected
+# server for a screen nobody is necessarily looking at. 30 seconds is short
+# enough that a server which died is caught within one poll cycle of a page the
+# user is actually on, and long enough that the polling itself costs nothing.
+PROBE_CACHE_SECONDS = 30.0
 
 # How many consecutive hard failures it takes to withdraw "ready" from a server
 # whose tools are still registered. Three, not one: a single refused DNS lookup
@@ -197,6 +213,11 @@ class MCPManager:
         # connector shrug off a transient error -- see `is_ready`.
         self.ready_since: dict[str, float] = {}
         self.hard_failures: dict[str, int] = {}
+        # The last liveness probe per server: (monotonic time, alive). This is
+        # the only *fact* about a session's health -- `connected` and
+        # `ready_since` are both inferences that stay true over a dead pipe --
+        # so a recorded `False` outranks either of them in `is_ready`.
+        self.probes: dict[str, tuple[float, bool]] = {}
         # How many tools a server exposed beyond MAX_TOOLS_PER_SERVER, so the
         # truncation is surfaced instead of silently swallowing the overflow.
         self.truncated: dict[str, int] = {}
@@ -214,6 +235,13 @@ class MCPManager:
         # actually wants: until it is true, an unconnected server reports
         # `starting` rather than `failed`.
         self.reconciled_once = False
+        # Cached Tool objects per server for fast rebind. When the workspace
+        # root changes, rebind() is called to move live connections onto a new
+        # registry. Without this cache, every tool would be recreated from the
+        # discovered schema. With it, rebind reuses the cached objects (same
+        # handler closure, same risk classification) and only updates the
+        # registry pointer.
+        self._tool_cache: dict[str, list[Tool]] = {}
 
     def _hold_off(self, name: str) -> None:
         """Back a failed server off, rather than writing it off.
@@ -233,6 +261,11 @@ class MCPManager:
         self.errors.pop(name, None)
         self.retry_after.pop(name, None)
         self.attempts.pop(name, None)
+        # A probe is a verdict on one session. Anything that clears a failure
+        # either replaced that session or is about to, so keeping the old
+        # verdict would let a dead-probe result outlive the pipe it described
+        # and hold a freshly connected server down for the rest of its TTL.
+        self.probes.pop(name, None)
         self.hard_failures.pop(name, None)
 
     # -------------------------------------------------------------- readiness
@@ -261,37 +294,400 @@ class MCPManager:
                 counts[tool.server_name] = counts.get(tool.server_name, 0) + 1
         return counts
 
-    def is_ready(self, name: str, *, registered: int | None = None) -> bool:
-        """Whether this connector is working, judged by what it put in the registry.
+    def _log_connector_event(
+        self,
+        name: str,
+        event: str,
+        *,
+        error: str | None = None,
+        detail: str | None = None,
+        duration_ms: int | None = None,
+    ) -> None:
+        """Write a connector lifecycle event to the same audit table as tool calls.
 
-        The old answer was "no error is recorded", which inverts the burden of
-        proof: a transient spawn, discovery or OAuth failure wrote a string that
-        nothing cleared, and a connector serving 122 tools reported "failed to
-        start" beside them. Tools in the registry is a fact; an error from four
-        minutes ago is a memory.
+        Every tool *call* left a row; connecting, dropping and dying left only a
+        stderr line, so "when did this connector break, and how often does it"
+        had no answer at all. Reusing `execution_logs` rather than adding a
+        table means `/api/logs` and `/api/metrics` pick these up as they are.
 
-        So readiness is: tools are registered, fewer than
-        `DEMOTE_AFTER_FAILURES` hard failures have happened in a row since they
-        were, and either the session is still live or the registration is recent
-        enough to still vouch for it. A connector that is genuinely gone loses
-        its session *and* accumulates failures, so it demotes on the third pass.
-
-        `registered` lets a caller looping every server pass a count it has
-        already computed, rather than making this rescan the whole registry.
+        `__connector__<name>` cannot collide with a tool key, which is always
+        `<tool>__mcp__<server>`. Never raises: an audit row is not worth failing
+        a connect over.
         """
-        if registered is None:
-            registered = self.registered_tool_count(name)
-        if registered <= 0:
-            return False
-        if self.hard_failures.get(name, 0) >= DEMOTE_AFTER_FAILURES:
-            return False
+        try:
+            from backend.db.connection import connect
+            from backend.db.repositories import ExecutionLogRepository
+
+            ExecutionLogRepository(connect()).record(
+                tool_name=f"__connector__{name}",
+                tool_source="mcp",
+                arguments={"event": event},
+                result_summary=detail or (None if error else event),
+                error=error,
+                duration_ms=duration_ms,
+            )
+        except Exception:  # pragma: no cover - auditing must never break a connect
+            log.debug("could not record connector event %s for %s", event, name, exc_info=True)
+
+    async def probe_server(self, name: str, *, max_age: float = PROBE_CACHE_SECONDS) -> bool:
+        """Ask this server whether it is alive, and remember the answer briefly.
+
+        Everything else in this class infers health: `connected` means the
+        serving task has not finished, `ready_since` means tools were registered
+        recently. Both stay true over a stdio server that exited, which is
+        exactly the failure that had the interface reporting "ready" beside a
+        connector whose every tool call was failing.
+
+        `max_age=0` forces a fresh probe. Only meaningful for a server that
+        currently has a connection; anything else is answered False without
+        traffic.
+        """
         connection = self.connections.get(name)
-        if connection is not None and connection.connected:
-            return True
-        registered_at = self.ready_since.get(name)
-        if registered_at is None:
+        if connection is None or not connection.connected:
             return False
-        return time.monotonic() - registered_at < READY_COOLDOWN_SECONDS
+        cached = self.probes.get(name)
+        if cached is not None and time.monotonic() - cached[0] < max_age:
+            return cached[1]
+        alive = await connection.probe()
+        self.probes[name] = (time.monotonic(), alive)
+        if not alive:
+            log.warning("MCP server %s failed its liveness probe", name)
+            self.errors[name] = connection.last_error or "stopped responding"
+            self._log_connector_event(name, "probe_failed", error=self.errors[name])
+        return alive
+
+    async def _probe_live_servers(self) -> list[str]:
+        """Probe every connected server at once; return the names that failed.
+
+        Concurrent because this sits on the turn's critical path: serial probes
+        over a dozen connectors would add a dozen round trips to the start of
+        every turn, and the whole point is to cost less than the failures it
+        prevents.
+        """
+        names = [n for n, c in self.connections.items() if c.connected]
+        if not names:
+            return []
+        results = await asyncio.gather(
+            *(self.probe_server(n) for n in names), return_exceptions=True
+        )
+        return [n for n, alive in zip(names, results) if alive is not True]
+
+    def probed_dead(self, name: str) -> bool:
+        """Whether a still-valid probe says this server is gone.
+
+        Read by `is_ready`, which must not be async -- it is called from
+        `state()` and `status()` on paths that cannot await. So the probing
+        happens elsewhere (at reconcile, and on the status endpoints) and this
+        only reads what was recorded.
+        """
+        cached = self.probes.get(name)
+        if cached is None:
+            return False
+        return time.monotonic() - cached[0] < PROBE_CACHE_SECONDS and not cached[1]
+
+    def authoritative_status(
+        self, name: str, *, registered: int | None = None
+    ) -> AuthoritativeMCPStatus:
+        """Evaluate the authoritative status for this connector without guessing."""
+        from backend.capabilities import CapabilityService, Kind
+        from backend.mcp.commands import (
+            missing_credentials,
+            verify_account,
+            verify_token_health,
+        )
+        from backend.mcp.oauth import PENDING
+
+        configured = load_servers()
+        config = configured.get(name)
+        if config is None:
+            conn = self.connections.get(name)
+            if conn is not None:
+                config = getattr(conn, "config", None) or ServerConfig(
+                    name=name, transport=getattr(conn, "transport", "stdio")
+                )
+            elif name in self.ready_since or self.registered_tool_count(name) > 0:
+                config = ServerConfig(name=name, transport="stdio")
+            else:
+                return AuthoritativeMCPStatus(
+                    name=name,
+                    state=MCPState.NOT_CONFIGURED,
+                    detail="Not configured in mcp.yaml.",
+                    health=HealthStatus.UNKNOWN,
+                )
+
+        # 1. Switched off check
+        is_enabled = config.enabled
+        try:
+            if CapabilityService().switched_off(Kind.CONNECTOR, name):
+                is_enabled = False
+        except Exception:
+            pass
+
+        if not is_enabled:
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.OFF,
+                detail="Switched off.",
+                action="connect",
+                health=HealthStatus.UNKNOWN,
+            )
+
+        # 2. OAuth pending authorization check
+        p = PENDING.get(name)
+        if p is not None:
+            if p.status == "waiting":
+                return AuthoritativeMCPStatus(
+                    name=name,
+                    state=MCPState.AUTHENTICATING,
+                    detail="Waiting for provider authorization...",
+                    action=None,
+                    health=HealthStatus.UNKNOWN,
+                )
+            elif p.status == "failed":
+                return AuthoritativeMCPStatus(
+                    name=name,
+                    state=MCPState.AUTH_ERROR,
+                    detail=p.message or "Sign-in failed.",
+                    action="sign_in",
+                    error=p.message,
+                    health=HealthStatus.UNHEALTHY,
+                )
+
+        # 3. Missing credentials check
+        missing = missing_credentials(config)
+        if missing:
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.AUTH_REQUIRED,
+                detail=f"Needs credentials before it can start: {', '.join(missing)}",
+                action="credentials",
+                health=HealthStatus.UNKNOWN,
+            )
+
+        # 4. OAuth sign-in needed check
+        if self.needs_sign_in(config):
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.AUTH_REQUIRED,
+                detail="Sign in required.",
+                action="sign_in",
+                health=HealthStatus.UNKNOWN,
+            )
+
+        # 5. Check authentication and token health
+        from backend.mcp.commands import is_signed_in, auth_kind
+
+        signed_in = is_signed_in(config)
+        actual_account, mismatch = verify_account(name, config.account)
+        token_healthy, token_err = verify_token_health(config)
+
+        if not token_healthy and (config.oauth or signed_in is True):
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.TOKEN_EXPIRED,
+                detail=token_err or "Token expired or revoked.",
+                action="sign_in",
+                error=token_err,
+                is_connected=False,
+                is_authenticated=False,
+                is_usable=False,
+                account=actual_account,
+                expected_account=config.account,
+                health=HealthStatus.UNHEALTHY,
+            )
+
+        if mismatch:
+            connection = self.connections.get(name)
+            is_conn = bool(connection and connection.connected)
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.ACCOUNT_MISMATCH,
+                detail=f"Authenticated account '{actual_account}' does not match expected '{config.account}'.",
+                action="sign_in",
+                is_connected=is_conn,
+                is_authenticated=True,
+                is_usable=False,
+                account=actual_account,
+                expected_account=config.account,
+                account_mismatch=True,
+                health=HealthStatus.DEGRADED,
+                tools_count=self.registered_tool_count(name) if is_conn else 0,
+            )
+
+        # 6. Check hard failures
+        if self.hard_failures.get(name, 0) >= DEMOTE_AFTER_FAILURES:
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.SERVER_ERROR,
+                detail=self.errors.get(name) or f"Exceeded {DEMOTE_AFTER_FAILURES} consecutive failures.",
+                action="retry",
+                is_connected=False,
+                is_authenticated=bool(signed_in or actual_account),
+                is_usable=False,
+                account=actual_account,
+                expected_account=config.account,
+                health=HealthStatus.UNHEALTHY,
+                retry_in=self._retry_in(name, False),
+            )
+
+        # 7. Connection state check
+        connection = self.connections.get(name)
+        is_connected = bool(connection and connection.connected)
+        reg_count = (
+            registered if registered is not None else self.registered_tool_count(name)
+        )
+
+        is_auth = bool(signed_in is True or actual_account is not None or auth_kind(config) == "none")
+
+        if not is_connected:
+            err = self.errors.get(name)
+            retry_in = self._retry_in(name, False)
+            registered_at = self.ready_since.get(name)
+            in_cooldown = (
+                registered_at is not None
+                and (time.monotonic() - registered_at < READY_COOLDOWN_SECONDS)
+                and not self.probed_dead(name)
+                and (self.hard_failures.get(name, 0) < DEMOTE_AFTER_FAILURES)
+                and (reg_count > 0)
+            )
+            if in_cooldown:
+                return AuthoritativeMCPStatus(
+                    name=name,
+                    state=MCPState.CONNECTING if not err else MCPState.SERVER_ERROR,
+                    detail="Reconnecting..." if not err else err,
+                    is_connected=False,
+                    is_authenticated=is_auth,
+                    is_usable=True,
+                    account=actual_account,
+                    expected_account=config.account,
+                    tools_count=reg_count,
+                    health=HealthStatus.DEGRADED,
+                    retry_in=retry_in,
+                )
+
+            if err:
+                lowered_err = err.lower()
+                if any(
+                    m in lowered_err
+                    for m in (
+                        "auth",
+                        "unauthorized",
+                        "401",
+                        "forbidden",
+                        "invalid credentials",
+                        "token",
+                    )
+                ):
+                    state = MCPState.AUTH_ERROR
+                    action = "sign_in"
+                elif any(
+                    m in lowered_err
+                    for m in ("enoent", "not found", "refused", "unreachable", "timed out")
+                ):
+                    state = MCPState.UNAVAILABLE
+                    action = "retry"
+                else:
+                    state = MCPState.SERVER_ERROR
+                    action = "retry"
+                return AuthoritativeMCPStatus(
+                    name=name,
+                    state=state,
+                    detail=err,
+                    action=action,
+                    error=err,
+                    is_connected=False,
+                    is_authenticated=bool(signed_in),
+                    is_usable=False,
+                    account=actual_account,
+                    expected_account=config.account,
+                    health=HealthStatus.UNHEALTHY,
+                    retry_in=retry_in,
+                )
+            if not self.reconciled_once:
+                detail_msg = f"Signed in as {actual_account}. Starting up..." if actual_account else "Starting up..."
+                return AuthoritativeMCPStatus(
+                    name=name,
+                    state=MCPState.STARTING,
+                    detail=detail_msg,
+                    action=None,
+                    is_connected=False,
+                    is_authenticated=is_auth,
+                    is_usable=False,
+                    account=actual_account,
+                    expected_account=config.account,
+                    health=HealthStatus.UNKNOWN,
+                )
+            detail_msg = f"Signed in as {actual_account}." if actual_account else "Disconnected."
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.DISCONNECTED,
+                detail=detail_msg,
+                action="connect",
+                is_connected=False,
+                is_authenticated=is_auth,
+                is_usable=False,
+                account=actual_account,
+                expected_account=config.account,
+                health=HealthStatus.UNKNOWN,
+            )
+
+        # 8. Check liveness probe
+        if self.probed_dead(name):
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.HEALTH_CHECK_FAILED,
+                detail="Failed liveness probe; server stopped responding.",
+                action="retry",
+                error="Server stopped responding to health check.",
+                is_connected=False,
+                is_authenticated=is_auth,
+                is_usable=False,
+                account=actual_account,
+                expected_account=config.account,
+                health=HealthStatus.UNHEALTHY,
+                retry_in=self._retry_in(name, False),
+            )
+
+        # 9. Check tool registration count
+        reg_count = (
+            registered if registered is not None else self.registered_tool_count(name)
+        )
+        if reg_count <= 0:
+            err = self.errors.get(name)
+            return AuthoritativeMCPStatus(
+                name=name,
+                state=MCPState.SERVER_ERROR if err else MCPState.CONNECTED,
+                detail=err or "Connected, but no tools registered.",
+                action="retry" if err else None,
+                error=err,
+                is_connected=is_connected,
+                is_authenticated=is_auth,
+                is_usable=False,
+                account=actual_account,
+                expected_account=config.account,
+                tools_count=0,
+                health=HealthStatus.UNHEALTHY if err else HealthStatus.DEGRADED,
+            )
+
+        # 10. Everything verified authoritative and healthy
+        return AuthoritativeMCPStatus(
+            name=name,
+            state=MCPState.CONNECTED,
+            detail=f"Connected and ready ({reg_count} tools).",
+            is_connected=True,
+            is_authenticated=True,
+            is_usable=True,
+            account=actual_account,
+            expected_account=config.account,
+            account_mismatch=False,
+            tools_count=reg_count,
+            health=HealthStatus.HEALTHY,
+        )
+
+    def is_ready(self, name: str, *, registered: int | None = None) -> bool:
+        """Whether this connector is working right now with authoritative evidence."""
+        status = self.authoritative_status(name, registered=registered)
+        return status.is_usable
 
     def forget_error(self, name: str) -> None:
         """Let the next reconcile retry this server immediately.
@@ -374,6 +770,7 @@ class MCPManager:
             raise OAuthRequired(message)
 
         await self.disconnect_server(config.name)
+        connect_started = time.monotonic()
         connection = MCPConnection(
             config, open_browser=self.open_browser and interactive, interactive=interactive
         )
@@ -385,15 +782,24 @@ class MCPManager:
             # Re-wrapping would erase the type callers branch on.
             self.errors[config.name] = str(exc)
             self._hold_off(config.name)
+            self._log_connector_event(config.name, "connect_failed", error=str(exc))
             raise
         except Exception as exc:
             self.errors[config.name] = str(exc)
             self._hold_off(config.name)
+            self._log_connector_event(config.name, "connect_failed", error=str(exc))
             raise MCPConnectionError(f"'{config.name}' failed to connect: {exc}") from exc
 
         self.connections[config.name] = connection
         self._clear_failure(config.name)
-        return self._register_tools(config, connection)
+        count = self._register_tools(config, connection)
+        self._log_connector_event(
+            config.name,
+            "connected",
+            detail=f"{count} tools",
+            duration_ms=int((time.monotonic() - connect_started) * 1000),
+        )
+        return count
 
     def rebind(self, registry: ToolRegistry) -> int:
         """Move live connections onto a new registry without reconnecting them.
@@ -433,30 +839,37 @@ class MCPManager:
             )
         else:
             self.truncated.pop(config.name, None)
+        # Use cached Tool objects when available (fast rebind path).
+        cached_tools = self._tool_cache.get(config.name)
+        cached_by_name = {t.name: t for t in cached_tools} if cached_tools else {}
+        tools_for_cache: list[Tool] = []
         for discovered in connection.tools[:MAX_TOOLS_PER_SERVER]:
             key = mcp_tool_key(discovered.name, config.name)
             if self.registry.get(key):
+                tools_for_cache.append(self.registry.get(key))
                 continue
-            self.registry.register(
-                Tool(
+            # Reuse cached Tool if the key matches (avoids re-classifying risk,
+            # re-closing over server_name, etc.).
+            cached = cached_by_name.get(key)
+            if cached is not None:
+                self.registry.register(cached)
+                tools_for_cache.append(cached)
+            else:
+                tool = Tool(
                     name=key,
                     description=self._describe(config, discovered.description),
                     parameters=discovered.input_schema,
                     handler=self._make_handler(config.name, discovered.name),
-                    # From the server's own `annotations`, falling back to what
-                    # the name says -- see `backend/mcp/risk.py`. This was a flat
-                    # `MEDIUM` until 2026-08-29, on the reasoning that AMETHYST
-                    # cannot inspect somebody else's server. It can: MCP tools
-                    # carry `readOnlyHint` and `destructiveHint`, and discovery
-                    # was throwing the field away. The cost of not reading it
-                    # was a confirmation prompt on every search and every list,
-                    # which is how a permission gate stops being read.
                     risk=classify(discovered.name, discovered.annotations),
                     source=ToolSource.MCP,
                     server_name=config.name,
                 )
-            )
+                self.registry.register(tool)
+                tools_for_cache.append(tool)
             registered += 1
+        # Update cache for this server.
+        if tools_for_cache:
+            self._tool_cache[config.name] = tools_for_cache
 
         # Recorded on registry *presence*, not on `registered > 0`: a rebind
         # that adds nothing because the tools are already there has still just
@@ -475,7 +888,7 @@ class MCPManager:
     def _make_handler(self, server_name: str, tool_name: str):
         async def handler(arguments: dict[str, Any], _: ToolContext) -> ToolResult:
             connection = self.connections.get(server_name)
-            if connection is None:
+            if connection is None or not connection.connected:
                 # Named the server and told the model to "reconnect it", which
                 # it cannot do -- naming the screen and the button is what makes
                 # this relayable to the person who can.
@@ -486,13 +899,45 @@ class MCPManager:
                 # Was a CLI command. The user is in a browser; sending them to a
                 # terminal for a button that is two clicks away is the interface
                 # telling on itself.
+                self.errors[server_name] = f"Authentication required for {server_name}"
+                await self.disconnect_server(server_name)
+                self._hold_off(server_name)
+                self._log_connector_event(server_name, "auth_failed", error="OAuthRequired")
+                guidance.forget()
                 return ToolResult.error(guidance.sign_in_instruction(server_name))
             except TimeoutError:
                 return ToolResult.error(f"'{tool_name}' on '{server_name}' timed out.")
             except Exception as exc:
+                if _is_auth_failure(exc):
+                    log.warning("%s failed authentication during %s: %s", server_name, tool_name, exc)
+                    self.errors[server_name] = f"Authentication failed: {exc}"
+                    await self.disconnect_server(server_name)
+                    self._hold_off(server_name)
+                    self._log_connector_event(server_name, "auth_failed", error=str(exc))
+                    guidance.forget()
+                    return ToolResult.error(guidance.sign_in_instruction(server_name))
+
                 if not _is_transport_failure(exc):
-                    connection.breaker.record_failure()
-                    return ToolResult.error(f"[{server_name}] {tool_name} failed: {exc}")
+                    # `_is_transport_failure` matches wordings that have been
+                    # seen before. A transport nobody has met yet invents its
+                    # own, and reading a dead session as an ordinary tool error
+                    # is precisely what left a connector failing every call for
+                    # the rest of the turn with nothing reconnecting it.
+                    #
+                    # So when the string list says no, ask the session instead
+                    # of taking its word for it. A live server answers a ping in
+                    # milliseconds, so this costs a genuine tool error nothing;
+                    # a dead one falls through to the reconnect below, which is
+                    # where it should have gone in the first place.
+                    if await self.probe_server(server_name, max_age=0):
+                        connection.breaker.record_failure()
+                        return ToolResult.error(f"[{server_name}] {tool_name} failed: {exc}")
+                    log.info(
+                        "%s failed its probe after %s raised %s; treating as a dropped session",
+                        server_name,
+                        tool_name,
+                        type(exc).__name__,
+                    )
 
                 # The session is gone, not the tool. A stdio server that exited
                 # -- restarted, killed, crashed -- leaves the serving task alive
@@ -532,12 +977,29 @@ class MCPManager:
                     await self.disconnect_server(server_name)
                     self._hold_off(server_name)
                     self.errors[server_name] = str(retry_exc)
+                    self._log_connector_event(
+                        server_name,
+                        "dropped",
+                        error=str(retry_exc),
+                        detail=f"during {tool_name}",
+                    )
                     return ToolResult.error(
                         guidance.dropped_instruction(server_name, str(retry_exc))
                     )
                 connection = revived
+
+            result = normalize_result(raw)
+            if result.is_error and is_auth_failure_text(result.content):
+                log.warning("%s returned an authentication error in tool result: %s", server_name, result.content)
+                self.errors[server_name] = f"Authentication error: {result.content}"
+                await self.disconnect_server(server_name)
+                self._hold_off(server_name)
+                self._log_connector_event(server_name, "auth_failed", error=result.content)
+                guidance.forget()
+                return ToolResult.error(guidance.sign_in_instruction(server_name))
+
             connection.breaker.record_success()
-            return normalize_result(raw)
+            return result
 
         return handler
 
@@ -628,44 +1090,36 @@ class MCPManager:
             task.add_done_callback(self._starting.discard)
 
     def state(self) -> dict[str, dict[str, Any]]:
-        """What is actually running, per server.
+        """What is actually running, per server, based on authoritative evidence.
 
         An interface that reports the capability row alone is reporting an
         intention: the row says "on" whether the process started, died, or was
         never asked to start. This is the fact to render instead.
 
-        The tool count comes from the registry rather than from the connection,
-        and a recorded error is withheld while the server is ready. Both are the
-        same correction: the question a reader is asking is "can the agent use
-        this right now", and the registry answers it directly while an error
-        string only says something went wrong at some point. The string is still
-        in `self.errors` for the log and for `is_ready`'s own demotion count --
-        it is suppressed from the *report*, not forgotten.
+        The connection state is strictly True only when the connection is live.
         """
         counts = self._tool_counts()
         out: dict[str, dict[str, Any]] = {}
         for name in set(load_servers()) | set(self.connections) | set(self.errors):
-            connection = self.connections.get(name)
-            connected = bool(connection and connection.connected)
+            auth_status = self.authoritative_status(name, registered=counts.get(name, 0))
             registered = counts.get(name, 0)
-            ready = self.is_ready(name, registered=registered)
             out[name] = {
-                # Ready means the agent can call its tools, which is what every
-                # reader of this field actually wants to know.
-                "connected": connected or ready,
-                # The registry, with no fallback to `connection.tools`. A
-                # session that answered `initialize` but registered nothing is
-                # a connector the agent cannot call, and reporting its discovery
-                # list would be the same lie in the other direction.
+                # Strictly True ONLY when transport connection is confirmed live right now
+                "connected": auth_status.is_connected,
                 "tools": registered,
-                "error": None if ready else self.errors.get(name),
-                "ready": ready,
-                # Tools this server exposed past the per-server cap; 0 normally.
+                "error": None if auth_status.is_usable else (auth_status.error or self.errors.get(name)),
+                "ready": auth_status.is_usable,
                 "truncated": self.truncated.get(name, 0),
-                # Seconds until the next reconnect attempt, when backing off. The
-                # UI turns this into "reconnecting in Ns" instead of a bare
-                # "failed" that looks stuck.
-                "retry_in": self._retry_in(name, ready),
+                "retry_in": auth_status.retry_in,
+                "is_connected": auth_status.is_connected,
+                "is_authenticated": auth_status.is_authenticated,
+                "is_usable": auth_status.is_usable,
+                "state": str(auth_status.state),
+                "health": str(auth_status.health),
+                "account": auth_status.account,
+                "expected_account": auth_status.expected_account,
+                "account_mismatch": auth_status.account_mismatch,
+                "authoritative": auth_status.as_dict(),
             }
         return out
 
@@ -735,9 +1189,24 @@ class MCPManager:
             pending_disconnect.append(name)
             results[name] = 0
 
+        # Probe everything that currently claims to be up, before deciding what
+        # needs connecting. This runs at the head of every turn, which is the
+        # moment immediately before the model is told which connectors are live
+        # -- so a session that died since the last turn is caught here rather
+        # than being advertised and then failing every call the model makes to
+        # it. Concurrent and cached, so the common case where everything is fine
+        # costs one round trip per server and usually not even that.
+        await self._probe_live_servers()
+
         for name, config in configured.items():
             connection = self.connections.get(name)
             connected = bool(connection and connection.connected)
+            if connected and self.probed_dead(name):
+                # Answered the probe with silence. Drop it now so the branch
+                # below sees a disconnected server and rebuilds it, instead of
+                # "already connected" leaving the dead session in place.
+                pending_disconnect.append(name)
+                connected = False
 
             if not config.enabled or service.switched_off(Kind.CONNECTOR, name):
                 if connected:
@@ -811,25 +1280,30 @@ class MCPManager:
         counts = self._tool_counts()
         out = []
         for name, config in load_servers().items():
-            connection = self.connections.get(name)
+            auth_status = self.authoritative_status(name, registered=counts.get(name, 0))
             registered = counts.get(name, 0)
-            ready = self.is_ready(name, registered=registered)
             out.append(
                 {
                     "name": name,
                     "transport": str(config.transport),
                     "enabled": config.enabled,
-                    "connected": bool(connection and connection.connected) or ready,
+                    "connected": auth_status.is_connected,
                     "tools": registered,
                     "oauth": config.oauth,
                     "source": str(config.source),
-                    # Withheld while ready, exactly as in `state()` -- the CLI
-                    # and the interface must not reach different conclusions
-                    # from the same manager.
-                    "error": None if ready else self.errors.get(name),
-                    "ready": ready,
+                    "error": None if auth_status.is_usable else (auth_status.error or self.errors.get(name)),
+                    "ready": auth_status.is_usable,
                     "truncated": self.truncated.get(name, 0),
-                    "retry_in": self._retry_in(name, ready),
+                    "retry_in": auth_status.retry_in,
+                    "is_connected": auth_status.is_connected,
+                    "is_authenticated": auth_status.is_authenticated,
+                    "is_usable": auth_status.is_usable,
+                    "state": str(auth_status.state),
+                    "health": str(auth_status.health),
+                    "account": auth_status.account,
+                    "expected_account": auth_status.expected_account,
+                    "account_mismatch": auth_status.account_mismatch,
+                    "authoritative": auth_status.as_dict(),
                 }
             )
         return out

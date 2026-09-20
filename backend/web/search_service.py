@@ -88,6 +88,20 @@ async def _pool_client() -> httpx.AsyncClient:
     return _pool
 
 
+async def reset_clients() -> None:
+    """Close and reset global client sessions (used primarily for testing)."""
+    global _ddg_session, _ddg_warmed, _pool, _ddg_paused_until, _ddg_challenges
+    if _ddg_session is not None and hasattr(_ddg_session, "aclose"):
+        await _ddg_session.aclose()
+    if _pool is not None and hasattr(_pool, "aclose"):
+        await _pool.aclose()
+    _ddg_session = None
+    _ddg_warmed = False
+    _pool = None
+    _ddg_paused_until = 0.0
+    _ddg_challenges = 0
+
+
 # ------------------------------------------------------------------- cache
 #
 # The palette asks the same question several times for the price of one:
@@ -172,29 +186,29 @@ async def _cached(key: str, fetch) -> Any:
 async def _ddg_client() -> httpx.AsyncClient:
     """The Lite session, warmed on first use and reused after."""
     global _ddg_session, _ddg_warmed
-    if _ddg_session is None:
+    if _ddg_session is None or _ddg_session.is_closed:
         _ddg_session = httpx.AsyncClient(
             timeout=httpx.Timeout(6.0, connect=3.0),
             follow_redirects=True,
             headers={"User-Agent": _DDG_UA},
         )
+        _ddg_warmed = False
     if not _ddg_warmed:
-        # The warm GET sets the cookies the POST is judged by. It runs on the
-        # session's own short clock: a network that cannot reach Lite this
-        # second is a flake, not a flag, and the query falls through to the
-        # other engine without a pause Lite would have to be paid out of.
         with contextlib.suppress(Exception):
             await _ddg_session.get("https://lite.duckduckgo.com/lite/")
         _ddg_warmed = True
     return _ddg_session
 
 _TAGS = re.compile(r"<[^>]+>")
+_OPAQUE_CITATIONS = re.compile(r"【[^】]+】|\[cite:[^\]]+\]")
 
 
 def _clean_html(fragment: str | None) -> str:
     if not fragment:
         return ""
-    return html.unescape(_TAGS.sub("", fragment)).strip()
+    text = html.unescape(_TAGS.sub("", fragment))
+    text = _OPAQUE_CITATIONS.sub("", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 #: Words that mean nothing for relevance: every query about a thing contains
@@ -207,6 +221,23 @@ _STOP = {
 }
 
 
+def _extract_terms(query: str) -> set[str]:
+    """Extract meaningful terms from a query string."""
+    return {t for t in re.split(r"[^a-z0-9]+", query.lower()) if len(t) > 2 and t not in _STOP}
+
+
+def _extract_domain(url: str) -> str:
+    """Extract the clean domain from a URL."""
+    return urlparse(url).netloc.replace("www.", "")
+
+
+#: How much of the query an engine's results must collectively mention before
+#: they are believed at all. Half: a challenge maze shares almost none of the
+#: query's words, a genuine result set shares most, and anything in between is
+#: more likely a specific query than a lie.
+_COVERAGE_FLOOR = 0.5
+
+
 def _relevance(results: list[dict], query: str) -> float:
     """How many meaningful query terms appear in each result, on average.
 
@@ -217,11 +248,20 @@ def _relevance(results: list[dict], query: str) -> float:
     titles share almost none of the query's words and a genuine result's
     share most of them, and the gap between those two is wide.
 
-    Every term must also appear *somewhere* in the set: a maze built from
-    one stray word of the query ("alan" -> "Alan's Universe") is exactly as
-    useless as one built from none of them.
+    Enough of the query's words must appear *somewhere* in the set: a maze
+    built from one stray word ("alan" -> "Alan's Universe") is as useless as
+    one built from none of them.
+
+    "Enough", and not "all", is the whole difference between this gate working
+    and this gate being the reason searches came back as Wikipedia. Requiring
+    every term meant one absent word threw away an entire engine's results, and
+    the longer and more specific the query the likelier that was: a genuine page
+    about "how to rotate a matrix in python" need not contain the word "rotate"
+    in its title or the snippet that was scraped for it. A maze shares almost
+    none of the query; a real result set shares most. `_COVERAGE_FLOOR` sits in
+    the wide gap between those two rather than at the top of it.
     """
-    terms = {t for t in re.split(r"[^a-z0-9]+", query.lower()) if len(t) > 2 and t not in _STOP}
+    terms = _extract_terms(query)
     if not terms:
         return 1.0  # nothing to check against: not junk by this test
     # Whole words only: "featuring" contains "turing", and a maze built out
@@ -232,8 +272,8 @@ def _relevance(results: list[dict], query: str) -> float:
         f"{r.get('title', '')} {r.get('snippet', '')}".lower() for r in results
     )
     words = set(_word.findall(corpus))
-    missing = sum(1 for t in terms if t not in words)
-    if missing:
+    present = sum(1 for t in terms if t in words)
+    if present / len(terms) < _COVERAGE_FLOOR:
         return 0.0
     hits = 0
     for r in results:
@@ -308,7 +348,7 @@ def _merge_rank_dedup(
     ordered by relevance so the strongest answers lead regardless of which
     engine found them.
     """
-    terms = {t for t in re.split(r"[^a-z0-9]+", query.lower()) if len(t) > 2 and t not in _STOP}
+    terms = _extract_terms(query)
     seen: set[str] = set()
     merged: list[dict[str, Any]] = []
     for group in groups:
@@ -401,7 +441,18 @@ async def _build_web_pool(query: str) -> list[dict[str, Any]]:
         pool = _merge_rank_dedup(ordered, query)
         source = "mixed" if len(ordered) > 1 else next(iter(passed))
     else:
-        pool = await _search_wikipedia_articles(query, _WEB_POOL_FETCH)
+        # Ranked, not raw. Wikipedia's search answers *something* for any query,
+        # and for a query it has no article about, that something is noise --
+        # "rotate a matrix in python" came back with "The Machine: Bride of
+        # Pin-Bot". Passing it through unranked is what made the fallback read
+        # as a broken search rather than as a fallback, so the same ordering the
+        # real engines get is applied here, and articles that share none of the
+        # query's words are dropped rather than shown.
+        articles = await _search_wikipedia_articles(query, _WEB_POOL_FETCH)
+        pool = _merge_rank_dedup([articles], query)
+        terms = _extract_terms(query)
+        if terms:
+            pool = [a for a in pool if _score_result(a, terms) > 0]
         source = "wikipedia"
     # Where each result came from, carried on the result itself, so the palette
     # can explain a thin answer ("every engine here is blocked") rather than
@@ -441,6 +492,7 @@ _SEARCH_APIS = (
     {
         "name": "tavily",
         "ref": "amethyst-mcp/tavily.api_key",
+        "env": "TAVILY_API_KEY",
         "url": "https://api.tavily.com/search",
         "headers": lambda key: {"Authorization": f"Bearer {key}"},
         "body": lambda q, n: {"query": q, "max_results": n, "include_answer": False,
@@ -469,6 +521,40 @@ _SEARCH_APIS = (
 )
 
 
+def search_api_catalogue() -> list[dict[str, str]]:
+    """The keyed search APIs, for a settings screen to offer.
+
+    Names and where to get a key, not the request machinery. Exists because
+    until there was a way to set one of these from the interface, the only
+    documented route was editing the keychain by hand -- so almost nobody had a
+    search provider, and almost every search fell through to Wikipedia.
+    """
+    # Presentation only. The keychain ref comes from `_SEARCH_APIS`, which is
+    # what actually makes the request -- two lists of refs would drift, and a
+    # settings screen writing a key to a ref nothing reads is the worst version
+    # of this feature.
+    shown = {
+        "tavily": ("Tavily", "https://tavily.com",
+                   "Free tier, no card. Shared with the Tavily connector."),
+        "brave": ("Brave Search", "https://brave.com/search/api/",
+                  "Free tier, no card."),
+        "serper": ("Serper (Google)", "https://serper.dev",
+                   "Google results. Free credits to start."),
+    }
+    out = []
+    for api in _SEARCH_APIS:
+        name = str(api["name"])
+        label, signup, note = shown.get(name, (name.title(), "", ""))
+        out.append({
+            "name": name,
+            "label": label,
+            "ref": str(api["ref"]),
+            "signup": signup,
+            "note": note,
+        })
+    return out
+
+
 def configured_search_api() -> str | None:
     """The name of the keyed API this machine can use, if any.
 
@@ -478,9 +564,10 @@ def configured_search_api() -> str | None:
     """
     from backend.secrets import get_secret
 
+    import os
     for api in _SEARCH_APIS:
         try:
-            if get_secret(api["ref"]):
+            if get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])):
                 return str(api["name"])
         except Exception:
             continue
@@ -511,9 +598,10 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
         return []
     limit = max(1, min(limit, 20))
 
+    import os
     for api in _SEARCH_APIS:
         try:
-            key = get_secret(api["ref"])
+            key = get_secret(api["ref"]) or (os.environ.get(api["env"]) if "env" in api else None)
         except Exception:
             key = None
         if not key:
@@ -549,7 +637,7 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
                 "title": title,
                 "url": url,
                 "snippet": _clean_html(row.get(snippet_key))[:400],
-                "domain": urlparse(url).netloc.replace("www.", ""),
+                "domain": _extract_domain(url),
             })
         if results:
             return results
@@ -572,11 +660,13 @@ async def _search_ddg_lite(query: str, limit: int) -> list[dict[str, Any]]:
         return []
 
     async def _reset_session() -> None:
-        with contextlib.suppress(Exception):
-            if _ddg_session is not None:
-                await _ddg_session.aclose()
-        globals()["_ddg_session"] = None
-        globals()["_ddg_warmed"] = False
+        global _ddg_session, _ddg_warmed
+        old = _ddg_session
+        _ddg_session = None
+        _ddg_warmed = False
+        if old is not None:
+            with contextlib.suppress(Exception):
+                await old.aclose()
 
     async def _pause_and_reset() -> None:
         await _reset_session()
@@ -635,7 +725,7 @@ async def _search_ddg_lite(query: str, limit: int) -> list[dict[str, Any]]:
                     continue
                 seen_urls.add(url)
                 snippet = _clean_html(raw_snippets[i]) if i < len(raw_snippets) else ""
-                domain = urlparse(url).netloc.replace("www.", "")
+                domain = _extract_domain(url)
                 results.append({
                     "title": title,
                     "url": url,
@@ -714,7 +804,7 @@ async def _search_bing(query: str, limit: int) -> list[dict[str, Any]]:
             )
             snippet = _clean_html(snippet_m.group(1)) if snippet_m else ""
             url = _bing_real_url(raw_href, cite)
-            domain = urlparse(url).netloc.replace("www.", "")
+            domain = _extract_domain(url)
             if not title or not url:
                 continue
             results.append({
@@ -738,6 +828,31 @@ async def _search_bing(query: str, limit: int) -> list[dict[str, Any]]:
 _yt_pools: dict[str, dict[str, Any]] = {}
 _yt_lock = asyncio.Lock()  # ponytail: one global lock; per-query if YT ever gets hot
 _YT_POOL_TTL = 900.0
+
+
+#: Roughly how long each unit YouTube prints is, in seconds. Approximate on
+#: purpose -- this orders a list, it does not date anything.
+_AGE_UNITS = {
+    "second": 1, "minute": 60, "hour": 3600, "day": 86400,
+    "week": 604800, "month": 2592000, "year": 31536000,
+}
+
+
+def _published_age(published: str | None) -> float:
+    """"3 hours ago" -> 10800. Unknown or missing sorts last.
+
+    YouTube gives a relative phrase and no timestamp, so this is what "newest
+    first" has to be built on. `Streamed 8 hours ago` and `8 hours ago` differ
+    only by a prefix the regex skips.
+    """
+    if not published:
+        return float("inf")
+    match = re.search(
+        r"(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago", published.lower()
+    )
+    if not match:
+        return float("inf")
+    return int(match.group(1)) * _AGE_UNITS[match.group(2)]
 
 
 def _parse_video_renderer(v: dict[str, Any]) -> dict[str, Any] | None:
@@ -777,13 +892,26 @@ def _collect_videos(items: list[dict], seen: set[str], out: list[dict]) -> str |
     return token
 
 
-async def _yt_first_page(query: str) -> dict[str, Any]:
+#: YouTube's own sort filters, as the opaque `sp` parameter its UI sets.
+#:
+#: These are protobuf blobs base64'd into a URL parameter, which is why they
+#: look like noise: `CAI%3D` is "sort by upload date" and `CAASAhAB` is
+#: "relevance, this week". There is no documented API for it; this is what the
+#: site itself puts in the address bar when you pick from the filter menu.
+_YT_SORTS = {
+    "relevance": "",
+    "date": "CAI%3D",
+}
+
+
+async def _yt_first_page(query: str, sort: str = "relevance") -> dict[str, Any]:
     """Fetch page one: videos, a continuation token, and the innertube context."""
     headers = {"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"}
     client = await _pool_client()
-    resp = await client.get(
-        f"https://www.youtube.com/results?search_query={quote(query)}", headers=headers
-    )
+    url = f"https://www.youtube.com/results?search_query={quote(query)}"
+    if filter_param := _YT_SORTS.get(sort, ""):
+        url += f"&sp={filter_param}"
+    resp = await client.get(url, headers=headers)
     if resp.status_code != 200:
         return {"videos": [], "token": None, "ctx": None, "seen": set()}
     match = re.search(r"var ytInitialData = ({.*?});</script>", resp.text)
@@ -845,7 +973,9 @@ async def _yt_next_page(pool: dict[str, Any]) -> None:
         pool["token"] = None
 
 
-async def search_youtube(query: str, limit: int = 8, offset: int = 0) -> list[dict[str, Any]]:
+async def search_youtube(
+    query: str, limit: int = 8, offset: int = 0, sort: str = "relevance"
+) -> list[dict[str, Any]]:
     """One page of YouTube results from a pool that grows as it is scrolled.
 
     Page one parses the results HTML; deeper pages follow the continuation token
@@ -858,11 +988,15 @@ async def search_youtube(query: str, limit: int = 8, offset: int = 0) -> list[di
     q = query.strip()
     if not q:
         return []
-    key = q.lower()
+    # Keyed by sort as well as query: the two orderings are different result
+    # lists, and sharing one pool between them meant switching to Latest showed
+    # whatever relevance had already cached.
+    sort = sort if sort in _YT_SORTS else "relevance"
+    key = f"{sort}:{q.lower()}"
     async with _yt_lock:
         pool = _yt_pools.get(key)
         if pool is None or time.monotonic() - pool.get("at", 0) > _YT_POOL_TTL:
-            pool = await _yt_first_page(q)
+            pool = await _yt_first_page(q, sort)
             pool["at"] = time.monotonic()
             _yt_pools[key] = pool
             if len(_yt_pools) > _CACHE_MAX:
@@ -873,6 +1007,13 @@ async def search_youtube(query: str, limit: int = 8, offset: int = 0) -> list[di
             await _yt_next_page(pool)
             guard += 1
     videos = pool["videos"]
+    if sort == "date":
+        # YouTube's own upload-date filter biases towards recent without
+        # actually ordering by it -- a 47-minute-old video arrives below a
+        # 23-hour-old one. "Latest" has to mean newest first to be worth asking
+        # for, and the published phrase is the only date on offer, so the final
+        # ordering is done here. Stable, so equal ages keep YouTube's ranking.
+        videos = sorted(videos, key=lambda v: _published_age(v.get("published")))
     return videos[offset : offset + limit] if offset < len(videos) else []
 
 

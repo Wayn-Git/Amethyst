@@ -8,6 +8,7 @@ supports an open-ended provider set with four adapters.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -15,12 +16,13 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from backend.config import ProviderConfig
-from backend.runtime.failures import classify_stream_error
+from backend.runtime.failures import classify_stream_error, should_retry
 from backend.runtime.http import (
     MAX_RETRIES,
     ProviderHTTPError,
     ProviderStreamError,
     post_json,
+    stream_backoff,
     stream_sse,
 )
 from backend.runtime.types import (
@@ -232,8 +234,13 @@ class OpenAICompatClient:
         p = params or ModelParameters()
         if p.temperature is not None:
             payload["temperature"] = p.temperature
+        # `max_tokens` here bounds the answer only -- these endpoints keep
+        # reasoning tokens on their own budget -- so the answer's share is the
+        # right value when no explicit ceiling was named.
         if p.max_tokens is not None:
             payload["max_tokens"] = p.max_tokens
+        elif p.answer_tokens is not None:
+            payload["max_tokens"] = p.answer_tokens
         if p.stop:
             payload["stop"] = p.stop
         if p.seed is not None:
@@ -310,72 +317,105 @@ class OpenAICompatClient:
         finish_reason: str | None = None
         usage: dict[str, Any] = {}
 
-        async for raw in stream_sse(
-            self._url,
-            headers=self._headers(),
-            payload=payload,
-            timeout=self.timeout,
-            max_retries=self.max_retries,
-        ):
+        for stream_attempt in range(self.max_retries + 1):
+            text_parts.clear()
+            reasoning_parts.clear()
+            partial.clear()
+            dropped = 0
+            finish_reason = None
+            usage = {}
+            yielded_any = False
+            retry_stream = False
+
             try:
-                chunk = json.loads(raw)
-            except json.JSONDecodeError:
-                # Counted rather than silently dropped: a provider emitting
-                # subtly broken frames otherwise produces a blank or truncated
-                # answer with nothing anywhere to say why.
-                dropped += 1
-                continue
+                async for raw in stream_sse(
+                    self._url,
+                    headers=self._headers(),
+                    payload=payload,
+                    timeout=self.timeout,
+                    max_retries=self.max_retries if stream_attempt == 0 else 0,
+                ):
+                    try:
+                        chunk = json.loads(raw)
+                    except json.JSONDecodeError:
+                        # Counted rather than silently dropped: a provider emitting
+                        # subtly broken frames otherwise produces a blank or truncated
+                        # answer with nothing anywhere to say why.
+                        dropped += 1
+                        continue
 
-            # An OpenAI-compatible provider can report a failure *inside* the
-            # stream rather than as an HTTP status: the connection is already
-            # open and 200, so the only sign is a frame carrying `error`. This
-            # matched nothing below and was dropped, which turned a stated
-            # provider failure into a turn that produced no text and no reason
-            # -- the loop then spent its continuations asking a model that had
-            # already refused. Raising puts the provider's own words in front of
-            # the user instead.
-            if error := chunk.get("error"):
-                raise ProviderStreamError(
-                    _describe_provider_error(error), kind=classify_stream_error(error)
-                )
+                    # An OpenAI-compatible provider can report a failure *inside* the
+                    # stream rather than as an HTTP status: the connection is already
+                    # open and 200, so the only sign is a frame carrying `error`.
+                    if error := chunk.get("error"):
+                        kind = classify_stream_error(error)
+                        desc = _describe_provider_error(error)
+                        if not yielded_any and should_retry(kind) and stream_attempt < self.max_retries:
+                            log.warning(
+                                "%s stream reported %s before content (%s); retrying stream (%d/%d)",
+                                self.model,
+                                kind,
+                                desc,
+                                stream_attempt + 1,
+                                self.max_retries,
+                            )
+                            await asyncio.sleep(stream_backoff(stream_attempt))
+                            retry_stream = True
+                            break
+                        raise ProviderStreamError(desc, kind=kind)
 
-            if chunk.get("usage"):
-                usage = chunk["usage"]
+                    if chunk.get("usage"):
+                        usage = chunk["usage"]
 
-            choice = (chunk.get("choices") or [{}])[0]
-            finish_reason = choice.get("finish_reason") or finish_reason
-            delta = choice.get("delta") or {}
+                    choice = (chunk.get("choices") or [{}])[0]
+                    finish_reason = choice.get("finish_reason") or finish_reason
+                    delta = choice.get("delta") or {}
 
-            if (piece := _as_text(delta.get("content"))) is not None:
-                text_parts.append(piece)
-                yield StreamEvent(type="text", text=piece)
+                    if (piece := _as_text(delta.get("content"))) is not None:
+                        text_parts.append(piece)
+                        yielded_any = True
+                        yield StreamEvent(type="text", text=piece)
 
-            if thought := _reasoning_of(delta):
-                reasoning_parts.append(thought)
-                yield StreamEvent(type="reasoning", text=thought)
+                    if thought := _reasoning_of(delta):
+                        reasoning_parts.append(thought)
+                        yielded_any = True
+                        yield StreamEvent(type="reasoning", text=thought)
 
-            for fragment in delta.get("tool_calls") or []:
-                index = fragment.get("index", 0)
-                slot = partial.setdefault(index, {"id": None, "name": "", "arguments": ""})
-                if fragment.get("id"):
-                    slot["id"] = fragment["id"]
-                function = fragment.get("function") or {}
-                if function.get("name"):
-                    slot["name"] = function["name"]
-                if function.get("arguments"):
-                    slot["arguments"] += function["arguments"]
-                    # These fragments were accumulated silently until now, which
-                    # meant a tool carrying a document in its arguments had
-                    # nothing to show until the whole thing had arrived. The call
-                    # is still only dispatched once complete; this is so the
-                    # caller can render the part it already has.
-                    if slot["name"]:
-                        yield StreamEvent(
-                            type="tool_arguments",
-                            tool_name=slot["name"],
-                            tool_index=index,
-                            arguments_so_far=slot["arguments"],
-                        )
+                    for fragment in delta.get("tool_calls") or []:
+                        index = fragment.get("index", 0)
+                        slot = partial.setdefault(index, {"id": None, "name": "", "arguments": ""})
+                        if fragment.get("id"):
+                            slot["id"] = fragment["id"]
+                        function = fragment.get("function") or {}
+                        if function.get("name"):
+                            slot["name"] = function["name"]
+                        if function.get("arguments"):
+                            slot["arguments"] += function["arguments"]
+                            if slot["name"]:
+                                yielded_any = True
+                                yield StreamEvent(
+                                    type="tool_arguments",
+                                    tool_name=slot["name"],
+                                    tool_index=index,
+                                    arguments_so_far=slot["arguments"],
+                                )
+
+                if retry_stream:
+                    continue
+
+                break
+            except ProviderHTTPError as exc:
+                if not yielded_any and should_retry(exc.kind) and stream_attempt < self.max_retries:
+                    log.warning(
+                        "%s stream connection dropped before content (%s); retrying stream (%d/%d)",
+                        self.model,
+                        exc,
+                        stream_attempt + 1,
+                        self.max_retries,
+                    )
+                    await asyncio.sleep(stream_backoff(stream_attempt))
+                    continue
+                raise
 
         calls = [
             ToolCall(

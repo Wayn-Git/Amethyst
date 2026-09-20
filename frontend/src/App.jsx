@@ -10,9 +10,10 @@ import Sidebar from './components/Sidebar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
 import UserMenu from './components/UserMenu.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
+import PairingApprovalModal from './components/PairingApprovalModal.jsx'
 import { BootScreen, SkeletonView } from './components/Skeleton.jsx'
 import { useApp } from './store.jsx'
-import { API_ORIGIN } from './api.js'
+import { API_ORIGIN, api } from './api.js'
 import { chord, isTyping, MOD_LABEL } from './keys.js'
 import { byDigit, byId, forRoutes } from './nav.js'
 import { COMPONENTS } from './views/registry.js'
@@ -38,7 +39,7 @@ import MobileNav from './components/MobileNav.jsx'
 
 
 
-/* The daemon's side of the palette.
+/* The daemon's side of the palette and pairing notifications.
 
    The tray process owns the global hotkey, and a chord pressed while this window
    is behind another one -- or not open at all -- cannot reach the listener
@@ -51,7 +52,7 @@ import MobileNav from './components/MobileNav.jsx'
 
    EventSource reconnects on its own, which is the whole of "reconnect cleanly"
    here: the daemon restarting, or this page outliving it, needs no code. */
-function useDaemonSummon() {
+function useDaemonSummon(onPairingRequest) {
   const { setOverlay } = useApp()
 
   useEffect(() => {
@@ -71,7 +72,8 @@ function useDaemonSummon() {
     const stream = new EventSource(`${API_ORIGIN}/api/control/stream`)
     stream.onmessage = (e) => {
       try {
-        if (JSON.parse(e.data).type === 'palette') {
+        const data = JSON.parse(e.data)
+        if (data.type === 'palette') {
           // When native desktop is running with pywebview, the native spotlight window is raised.
           // The main workbench window should not open an overlapping duplicate palette!
           if (document.documentElement.dataset.native === '1') {
@@ -79,11 +81,14 @@ function useDaemonSummon() {
           }
           setOverlay((prev) => (prev === 'palette' ? null : 'palette'))
           window.focus()
+        } else if (data.type === 'pairing_request') {
+          onPairingRequest?.(data)
+          window.focus?.()
         }
       } catch { /* a frame this build does not know about is not an error */ }
     }
     return () => stream.close()
-  }, [setOverlay])
+  }, [setOverlay, onPairingRequest])
 }
 
 /* Every binding in one listener.
@@ -343,7 +348,7 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
 export default function App() {
   const {
     view, setView, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
-    betaPages,
+    betaPages, openChatWithPrompt,
   } = useApp()
 
   // Whether this browser belongs to a machine, and whether somebody has said
@@ -360,21 +365,98 @@ export default function App() {
   const [forceDesktop, setForceDesktop] = useState(wantsDesktop)
 
   useEffect(() => {
-    window.__amethyst_navigate = (pathOrId) => {
+    // `prompt` is what makes "Ask AMETHYST" work from the native spotlight. That
+    // bar is a separate window with its own React tree, so the Chat component
+    // it would have handed the question to does not exist in it -- the ask was
+    // dropped on the floor and the main window opened on an empty composer.
+    window.__amethyst_navigate = (pathOrId, prompt) => {
       const id = pathOrId.replace(/^\//, '')
+      if (prompt) {
+        openChatWithPrompt(prompt)
+        return
+      }
       setView(id || 'chat')
     }
     return () => {
       delete window.__amethyst_navigate
     }
-  }, [setView])
+  }, [setView, openChatWithPrompt])
 
   // Beta pages are not routed while they are switched off, so their addresses
   // fall through to the redirect below rather than rendering a page the rail
   // and the palette both say does not exist.
   const routed = useMemo(() => forRoutes(betaPages), [betaPages])
   useGlobalKeys()
-  useDaemonSummon()
+
+  const [pendingPairing, setPendingPairing] = useState(null)
+  const dismissedPairings = useRef(new Set())
+
+  const playPairingChime = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const now = ctx.currentTime
+
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.type = 'sine'
+      osc1.frequency.setValueAtTime(587.33, now) // D5
+      gain1.gain.setValueAtTime(0.12, now)
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3)
+      osc1.connect(gain1)
+      gain1.connect(ctx.destination)
+      osc1.start(now)
+      osc1.stop(now + 0.3)
+
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = 'sine'
+      osc2.frequency.setValueAtTime(880, now + 0.12) // A5
+      gain2.gain.setValueAtTime(0.15, now + 0.12)
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45)
+      osc2.connect(gain2)
+      gain2.connect(ctx.destination)
+      osc2.start(now + 0.12)
+      osc2.stop(now + 0.45)
+    } catch {}
+  }, [])
+
+  const handlePairingRequest = useCallback((req) => {
+    if (req?.request_id && dismissedPairings.current.has(req.request_id)) return
+    setPendingPairing(req)
+    playPairingChime()
+    window.focus?.()
+  }, [playPairingChime])
+  useDaemonSummon(handlePairingRequest)
+
+  useEffect(() => {
+    let active = true
+    const check = () => {
+      api.pendingDevices()
+        .then((res) => {
+          if (!active) return
+          const next = res?.pending?.find((p) => !dismissedPairings.current.has(p.request_id))
+          if (next) {
+            setPendingPairing((curr) => {
+              if (curr?.request_id === next.request_id) return curr
+              playPairingChime()
+              return next
+            })
+          } else {
+            setPendingPairing(null)
+          }
+        })
+        .catch(() => {})
+    }
+    check()
+    const timer = setInterval(check, 1500)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [playPairingChime])
+
   const stageRef = useRef(null)
 
   /* The tab reports where you are. It used to say the same eleven words on
@@ -416,6 +498,26 @@ export default function App() {
   // column, a stage and a resizable panel, none of which fit and none of which
   // are what somebody holding a phone came for.
   //
+  // Any device opening a pairing invite (URL with #s=, #pair, or /pair) gets
+  // the Pair view immediately instead of routing to workbench or 404.
+  const isPairIntent = typeof window !== 'undefined' && (
+    window.location.pathname === '/pair' ||
+    (window.location.hash || '').includes('s=') ||
+    (window.location.hash || '').startsWith('#pair')
+  )
+
+  if (isPairIntent && !paired) {
+    return (
+      <Pair
+        onPaired={() => setPaired(true)}
+        onDesktop={() => {
+          safeStorage.setItem(DESKTOP_KEY, '1')
+          setForceDesktop(true)
+        }}
+      />
+    )
+  }
+
   // Form factor is the honest question, because it is the one whose answer
   // decides which interface is wanted. Reachability decides something else --
   // whether the pairing screen can offer a shortcut -- and is still read below.
@@ -529,6 +631,23 @@ export default function App() {
       
       <OnboardingWizard />
       <ConfirmDialogHost />
+      {pendingPairing && (
+        <PairingApprovalModal
+          request={pendingPairing}
+          onDismiss={() => {
+            if (pendingPairing?.request_id) {
+              dismissedPairings.current.add(pendingPairing.request_id)
+            }
+            setPendingPairing(null)
+          }}
+          onResolved={() => {
+            if (pendingPairing?.request_id) {
+              dismissedPairings.current.add(pendingPairing.request_id)
+            }
+            setPendingPairing(null)
+          }}
+        />
+      )}
       <Toasts />
     </div>
   )

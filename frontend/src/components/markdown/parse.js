@@ -1,3 +1,18 @@
+
+function extractImagesFromBlock(block) {
+  if (block.type !== "p") return null
+  const inlines = parseInline(block.text)
+  const nonTrivial = inlines.filter(n => {
+    if (n.type === "br") return false
+    if (n.type === "text" && !n.value.trim()) return false
+    return true
+  })
+  if (nonTrivial.length > 0 && nonTrivial.every(n => n.type === "image")) {
+    return nonTrivial.map(n => ({ alt: n.alt, href: n.href }))
+  }
+  return null
+}
+
 /* Markdown, as data.
  *
  * Deliberately free of React, so it can be run by `node` and asserted against
@@ -170,7 +185,7 @@ function readList(lines, start, indent) {
     // A wrapped line belongs to the item it follows.
     while (
       i < lines.length && lines[i].trim()
-      && !BULLET.test(lines[i]) && !HEADING.test(lines[i]) && !readFence(lines[i])
+      && !BULLET.test(lines[i]) && !HEADING.test(lines[i]) && !readFence(lines[i]) && !QUOTE.test(lines[i])
     ) {
       item.text += `\n${lines[i].trim()}`
       i += 1
@@ -190,12 +205,98 @@ function readList(lines, start, indent) {
   ]
 }
 
+export function normalizeRow(row, expectedLength) {
+  if (!row) return Array(expectedLength).fill('')
+  if (row.length === expectedLength) return row
+  if (row.length > expectedLength) {
+    const headPart = row.slice(0, expectedLength - 1)
+    const tailPart = row.slice(expectedLength - 1).join(' ')
+    return [...headPart, tailPart]
+  }
+  const padded = [...row]
+  while (padded.length < expectedLength) padded.push('')
+  return padded
+}
+
+export function parseArticleItems(items) {
+  if (!Array.isArray(items)) return []
+  return items.map((item) => {
+    const raw = typeof item === 'string' ? item : item.text || ''
+    // Check if image is embedded in item: ![alt](url)
+    let imageUrl = ''
+    const imgMatch = /!\[([^\]]*)\]\((https?:\/\/[^\s\)]+)\)/.exec(raw)
+    if (imgMatch) imageUrl = imgMatch[2]
+
+    // Find main link: [Title](url)
+    const cleanRaw = raw.replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+    const linkMatch = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/.exec(cleanRaw)
+    if (!linkMatch) {
+      return { title: raw, url: '', domain: '', snippet: '', date: '', image: imageUrl }
+    }
+
+    const title = linkMatch[1].trim()
+    const url = linkMatch[2].trim()
+    let host = ''
+    try { host = new URL(url).hostname.replace(/^www\./, '') } catch {}
+
+    const after = cleanRaw.slice(cleanRaw.indexOf(linkMatch[0]) + linkMatch[0].length).trim()
+
+    // Check domain: *Domain* or _Domain_
+    let domain = host
+    const domainMatch = /(?:\*|_)([^*_]+)(?:\*|_)/.exec(after)
+    if (domainMatch) {
+      domain = domainMatch[1].trim()
+    }
+
+    // Check date: (Date) or snippet
+    let date = ''
+    const dateMatch = /\(([^)]*(?:today|yesterday|ago|\d{4}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[^)]*)\)/i.exec(after)
+    if (dateMatch) {
+      date = dateMatch[1].trim()
+    }
+
+    // Remaining text as snippet
+    let snippet = after
+      .replace(/(?:\*|_)[^*_]+(?:\*|_)/g, '')
+      .replace(/\([^)]+\)/g, '')
+      .replace(/^[\s—\-–:]+/, '')
+      .trim()
+
+    if (!date) {
+      const dateInSnippet = /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:,\s+\d{4})?/i.exec(snippet)
+      if (dateInSnippet) {
+        date = dateInSnippet[0]
+      }
+    }
+
+    return {
+      title,
+      url,
+      domain: domain || host,
+      date,
+      snippet,
+      image: imageUrl,
+    }
+  })
+}
+
+function isSourcesHeading(text) {
+  return /^(?:📚\s*)?(?:(?:key|verified|primary|latest)\s+)?(?:sources|coverage|articles|references)\b/i.test(String(text || '').trim())
+}
+
+function isSourcesList(block) {
+  if (!block || (block.type !== 'ul' && block.type !== 'ol')) return false
+  if (!block.items || block.items.length === 0) return false
+  const linkCount = block.items.filter((it) => /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/.test(it.text || '')).length
+  return linkCount >= Math.min(block.items.length, 2)
+}
+
 /**
  * Blocks, in document order.
  *
  * Types: `p`, `h` (level, text), `code` (lang, file, text, open), `hr`,
  * `quote` (text), `callout` (kind, text), `ul`/`ol` (items, tasks),
- * `table` (head, rows).
+ * `table` (head, rows), `article_carousel` (title, items).
  */
 export function parseBlocks(src) {
   const lines = String(src ?? '').split('\n')
@@ -279,7 +380,7 @@ export function parseBlocks(src) {
       const rows = []
       i += 2
       while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
-        rows.push(cells(lines[i]))
+        rows.push(normalizeRow(cells(lines[i]), head.length))
         i += 1
       }
       blocks.push({ type: 'table', head, rows })
@@ -291,5 +392,104 @@ export function parseBlocks(src) {
   }
 
   flushPara()
-  return blocks
+
+  // Consolidate consecutive pure-image paragraphs into unified galleries
+  const withGalleries = []
+  let pendingGallery = []
+
+  const flushGallery = () => {
+    if (pendingGallery.length > 0) {
+      withGalleries.push({ type: "gallery", items: pendingGallery })
+      pendingGallery = []
+    }
+  }
+
+  for (const b of blocks) {
+    const images = extractImagesFromBlock(b)
+    if (images) {
+      pendingGallery.push(...images)
+    } else {
+      flushGallery()
+      withGalleries.push(b)
+    }
+  }
+  flushGallery()
+
+  // Consolidate terminal or designated sources/coverage sections into article carousel
+  const consolidated = []
+  for (let j = 0; j < withGalleries.length; j++) {
+    const curr = withGalleries[j]
+    const next = withGalleries[j + 1]
+    if (curr.type === 'h' && isSourcesHeading(curr.text) && next && isSourcesList(next)) {
+      const allItems = [...next.items]
+      let offset = 1
+      while (j + offset + 1 < withGalleries.length && isSourcesList(withGalleries[j + offset + 1])) {
+        allItems.push(...withGalleries[j + offset + 1].items)
+        offset += 1
+      }
+      consolidated.push({
+        type: 'article_carousel',
+        title: curr.text,
+        items: parseArticleItems(allItems),
+      })
+      j += offset
+      continue
+    }
+    consolidated.push(curr)
+  }
+
+  return consolidated
+}
+
+/**
+ * Replace a segment of selected text in raw Markdown.
+ *
+ * When a user selects text in the rendered HTML view, markdown formatting
+ * tokens (such as `### `, `**`, `*`, `_`, `~~`, list markers) are stripped by
+ * the browser's DOM text extraction. Direct substring replacement fails on any
+ * formatted or block-level passage. This finds the corresponding span in the
+ * markdown source and replaces it while preserving untouched structure.
+ */
+export function replaceSelectedInMarkdown(markdown, selectedText, replacement) {
+  if (!markdown || !selectedText) return markdown
+  if (markdown.includes(selectedText)) {
+    return markdown.replace(selectedText, replacement)
+  }
+
+  const words = selectedText.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return markdown
+
+  const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escapedWords = words.map(escapeRegExp)
+
+  // Allow markdown formatting markers, links, tags, and whitespace between words
+  const sep = '[\\s*_#`>~\\-\\[\\]():]*'
+  try {
+    const regex = new RegExp(escapedWords.join(sep), 'i')
+    const match = regex.exec(markdown)
+    if (match) {
+      let start = match.index
+      let end = start + match[0].length
+
+      // Expand to include leading heading hashes on the same line if selected from near line start
+      const lineStart = markdown.lastIndexOf('\n', start) + 1
+      const prefix = markdown.slice(lineStart, start)
+      if (/^\s*#{1,6}\s*$/.test(prefix)) {
+        start = lineStart
+      }
+
+      // Expand to include trailing markdown emphasis markers on the same line
+      const nextNewline = markdown.indexOf('\n', end)
+      const lineEnd = nextNewline === -1 ? markdown.length : nextNewline
+      const suffix = markdown.slice(end, lineEnd)
+      if (/^\s*[*_~]+\s*$/.test(suffix)) {
+        end = lineEnd
+      }
+
+      return markdown.slice(0, start) + replacement + markdown.slice(end)
+    }
+  } catch {
+    // Fall back to direct replacement
+  }
+  return markdown.replace(selectedText, replacement)
 }

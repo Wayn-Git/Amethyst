@@ -188,6 +188,7 @@ function General() {
     confirmDestructive, setConfirmDestructive,
     restoreTabs, setRestoreTabs,
     showUsage, setShowUsage,
+    betaPages, setBetaPages,
     toast,
   } = useApp()
 
@@ -196,6 +197,38 @@ function General() {
   const [briefingHour, setBriefingHour] = useState(8)
   const [briefingEnabled, setBriefingEnabled] = useState(true)
   const [wsDraft, setWsDraft] = useState(workspace || '')
+
+  /* The web-search provider.
+     Kept here because "why are my spotlight results all Wikipedia" is almost
+     always this, and until now the only way to answer it was to set a keychain
+     entry by hand. The key is write-only: the API says whether one is stored,
+     never what it is. */
+  const [searchProviders, setSearchProviders] = useState([])
+  const [activeSearch, setActiveSearch] = useState(null)
+  const [searchDraft, setSearchDraft] = useState({})
+  const [savingSearch, setSavingSearch] = useState('')
+
+  const loadSearchProviders = useCallback(() => {
+    api.searchProvider()
+      .then((d) => { setSearchProviders(d.options || []); setActiveSearch(d.active) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(loadSearchProviders, [loadSearchProviders])
+
+  const saveSearchKey = async (name) => {
+    setSavingSearch(name)
+    try {
+      await api.setSearchProvider(name, (searchDraft[name] || '').trim())
+      setSearchDraft((d) => ({ ...d, [name]: '' }))
+      loadSearchProviders()
+      toast((searchDraft[name] || '').trim() ? 'Search provider saved' : 'Search provider removed', 'ok')
+    } catch (e) {
+      toast(e.message || 'Could not save that key', 'bad')
+    } finally {
+      setSavingSearch('')
+    }
+  }
 
   useEffect(() => {
     setWsDraft(workspace || '')
@@ -381,6 +414,54 @@ function General() {
         </div>
       </div>
 
+      {/* Category: Web search */}
+      <div className="set-section-label">Web search</div>
+      <div className="set-box">
+        <div className="set-box-row" style={{ alignItems: 'flex-start' }}>
+          <div className="set-row-text">
+            <span className="set-row-title">Search provider</span>
+            <span className="set-row-desc">
+              {activeSearch
+                ? `Spotlight is searching the web through ${activeSearch}.`
+                : 'Without one, spotlight falls back to the free scrapers — and when a network blocks those, to Wikipedia articles. Any one of these has a free tier.'}
+            </span>
+          </div>
+        </div>
+        {searchProviders.map((prov) => (
+          <div className="set-box-row" key={prov.name}>
+            <div className="set-row-text">
+              <span className="set-row-title">
+                {prov.label}
+                {prov.configured && <span className="set-badge" style={{ marginLeft: 8 }}>key saved</span>}
+              </span>
+              <span className="set-row-desc">
+                {prov.note}{' '}
+                <a href={prov.signup} target="_blank" rel="noreferrer">Get a key</a>
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="password"
+                className="set-input"
+                style={{ minWidth: 180 }}
+                placeholder={prov.configured ? 'Replace key…' : 'Paste key…'}
+                value={searchDraft[prov.name] || ''}
+                onChange={(e) => setSearchDraft((d) => ({ ...d, [prov.name]: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveSearchKey(prov.name) }}
+              />
+              <button
+                type="button"
+                className="set-btn"
+                disabled={savingSearch === prov.name}
+                onClick={() => saveSearchKey(prov.name)}
+              >
+                {savingSearch === prov.name ? 'Saving…' : (searchDraft[prov.name] || '').trim() ? 'Save' : 'Clear'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Category: Chats */}
       <div className="set-section-label">Chats</div>
       <div className="set-box">
@@ -466,6 +547,22 @@ function General() {
         </div>
       </div>
 
+      {/* Category: Beta Features */}
+      <div className="set-section-label">Beta Features</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Enable Beta Pages</span>
+            <span className="set-row-desc">Show Automations and Mail tabs in the sidebar.</span>
+          </div>
+          <Switch
+            on={Boolean(betaPages)}
+            onChange={(val) => setBetaPages?.(val)}
+            tone="default"
+          />
+        </div>
+      </div>
+
       {/* Category: Automation & Rhythm */}
       <div className="set-section-label">Automation & Rhythm</div>
       <div className="set-box">
@@ -547,6 +644,7 @@ function Appearance() {
     agentLoader, setAgentLoader,
     autoHideTopBar, setAutoHideTopBar,
     glassMaterial, setGlassMaterial,
+    spotlightAnimation, setSpotlightAnimation,
     toast,
   } = useApp()
 
@@ -561,9 +659,18 @@ function Appearance() {
     setDensity?.('comfortable')
     setAgentLoader?.('pixels')
     setGlassMaterial?.('full')
+    setSpotlightAnimation?.('spring')
     setAutoHideTopBar?.(false)
     toast('Appearance reset to defaults', 'ok')
   }
+
+  const SPOTLIGHT_ANIMATIONS = [
+    { id: 'spring', label: 'Spring', hint: 'Drops in with a slight overshoot. The default.' },
+    { id: 'fade', label: 'Fade', hint: 'Opacity only, no movement.' },
+    { id: 'scale', label: 'Scale', hint: 'Grows from its own centre.' },
+    { id: 'slide', label: 'Slide', hint: 'Rises from below, like a sheet.' },
+    { id: 'instant', label: 'Instant', hint: 'No animation at all.' },
+  ]
 
   const ACCENT_PRESETS = [
     { id: 'blue', hex: '#3b82f6', label: 'Blue' },
@@ -836,6 +943,35 @@ function Appearance() {
                 style={{ textTransform: 'capitalize' }}
               >
                 {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Spotlight */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Spotlight</span>
+      </div>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Open &amp; close animation</span>
+            <span className="set-row-desc">
+              How the spotlight arrives and leaves. Instant plays nothing at all.
+              Your system&rsquo;s reduce-motion setting overrides every option here.
+            </span>
+          </div>
+          <div className="set-seg-ctrl">
+            {SPOTLIGHT_ANIMATIONS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                title={a.hint}
+                className={`set-seg-btn${(spotlightAnimation || 'spring') === a.id ? ' is-active' : ''}`}
+                onClick={() => setSpotlightAnimation?.(a.id)}
+              >
+                {a.label}
               </button>
             ))}
           </div>
@@ -3474,7 +3610,9 @@ function Devices() {
   const hasBackend = server?.phase === 'ready'
 
   const [devices, setDevices] = useState([])
+  const [pending, setPending] = useState([])
   const [invite, setInvite] = useState(null)
+  const [pairMode, setPairMode] = useState('lan')
   const [busy, setBusy] = useState(false)
   /* Where a phone opens this app. Knowing it is what lets the code below be an
      ordinary https link that a phone's camera opens by itself, instead of an
@@ -3496,10 +3634,20 @@ function Devices() {
       setDevices(rows || [])
       setAppUrl(configured || '')
       setSavedAppUrl(configured || '')
+
+      const { pending: pendingRows } = await api.pendingDevices()
+      setPending(pendingRows || [])
     } catch { /* the backend went away mid-look; the empty list is honest */ }
   }, [hasBackend])
 
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    refresh()
+    let interval = null
+    if (invite) {
+      interval = setInterval(refresh, 2500)
+    }
+    return () => { if (interval) clearInterval(interval) }
+  }, [invite, refresh])
 
   const openPairing = async () => {
     setBusy(true)
@@ -3510,6 +3658,52 @@ function Devices() {
       toast(err.message, 'bad')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const approvePending = async (requestId) => {
+    try {
+      await api.approvePending(requestId)
+      toast('Device approved and paired.', 'ok')
+      setInvite(null)
+      await refresh()
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const rejectPending = async (requestId) => {
+    try {
+      await api.rejectPending(requestId)
+      toast('Device rejected.', 'ok')
+      await refresh()
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const [editingDeviceId, setEditingDeviceId] = useState(null)
+  const [editingPermissions, setEditingPermissions] = useState({})
+  const [savingPermissions, setSavingPermissions] = useState(false)
+
+  const toggleEditingPermission = (key) => {
+    setEditingPermissions((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }
+
+  const savePermissions = async (deviceId) => {
+    setSavingPermissions(true)
+    try {
+      await api.updateDevicePermissions(deviceId, editingPermissions)
+      toast('Device permissions updated.', 'ok')
+      setEditingDeviceId(null)
+      await refresh()
+    } catch (err) {
+      toast(err.message || 'Failed to update permissions', 'bad')
+    } finally {
+      setSavingPermissions(false)
     }
   }
 
@@ -3666,27 +3860,150 @@ function Devices() {
               </span>
             </div>
           </div>
-        ) : devices.map((device) => (
-          <div className="set-box-row" key={device.id}>
-            <div className="set-row-text">
-              <span className="set-row-title">{device.name}</span>
-              <span className="set-row-desc">
-                {device.role} · last seen {device.last_seen_at || 'never'}
-              </span>
+        ) : devices.map((device) => {
+          const perms = device.permissions || {}
+          const isEditing = editingDeviceId === device.id
+          return (
+            <div key={device.id} style={{ borderBottom: '1px solid var(--hairline-strong)', padding: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className="set-row-text">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="set-row-title">{device.name}</span>
+                    <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'var(--bg-inset)', color: 'var(--text-sub)' }}>
+                      {device.role}
+                    </span>
+                  </div>
+                  <span className="set-row-desc">
+                    Last seen {device.last_seen_at || 'never'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="set-btn-sm"
+                    onClick={() => {
+                      if (isEditing) {
+                        setEditingDeviceId(null)
+                      } else {
+                        setEditingDeviceId(device.id)
+                        setEditingPermissions(device.permissions || {})
+                      }
+                    }}
+                  >
+                    {isEditing ? 'Close' : 'Permissions'}
+                  </button>
+                  <button type="button" className="set-btn-sm" onClick={() => revoke(device)} style={{ color: 'var(--stop)' }}>
+                    Revoke
+                  </button>
+                </div>
+              </div>
+
+              {/* Badges of granted scopes */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {['screen', 'input', 'media', 'files', 'terminal', 'agent', 'power', 'webcam', 'mic', 'root'].map((k) => {
+                  const active = Boolean(perms[k === 'media' ? 'audio' : k])
+                  return (
+                    <span
+                      key={k}
+                      style={{
+                        fontSize: 10,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: active ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-inset)',
+                        color: active ? 'var(--accent)' : 'var(--text-faint)',
+                        border: `1px solid ${active ? 'rgba(99, 102, 241, 0.3)' : 'transparent'}`,
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {k}
+                    </span>
+                  )
+                })}
+              </div>
+
+              {/* Inline Permission Editor */}
+              {isEditing && (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 6, background: 'var(--bg-inset)', border: '1px solid var(--hairline-strong)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>
+                    Configure Access Scopes:
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
+                    {[
+                      { key: 'screen', label: 'Screen Capture' },
+                      { key: 'input', label: 'Mouse & Keys' },
+                      { key: 'audio', label: 'Media & Audio' },
+                      { key: 'files', label: 'File Transfer' },
+                      { key: 'terminal', label: 'Terminal' },
+                      { key: 'agent', label: 'Agent Tasks' },
+                      { key: 'power', label: 'Power Ops' },
+                      { key: 'webcam', label: 'Webcam' },
+                      { key: 'mic', label: 'Microphone' },
+                      { key: 'root', label: 'Root / Sudo' },
+                    ].map(({ key, label }) => (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editingPermissions[key])}
+                          onChange={() => toggleEditingPermission(key)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="set-btn-sm"
+                      onClick={() => setEditingDeviceId(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="pair-go"
+                      onClick={() => savePermissions(device.id)}
+                      disabled={savingPermissions}
+                      style={{ padding: '4px 12px', fontSize: 12 }}
+                    >
+                      {savingPermissions ? 'Saving…' : 'Save Scopes'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            <button type="button" className="set-btn-sm" onClick={() => revoke(device)}>Revoke</button>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <div className="set-section-label">Add a device</div>
+      {pending.length > 0 && (
+        <div className="set-box" style={{ borderColor: '#f59e0b', background: 'rgba(245, 158, 11, 0.05)', marginBottom: 12 }}>
+          <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14 }}>⚠️</span>
+              <strong style={{ fontSize: 13, color: '#f59e0b' }}>Device waiting for approval ({pending.length})</strong>
+            </div>
+            {pending.map((p) => (
+              <div key={p.request_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-inset)', borderRadius: 8, border: '1px solid var(--hairline)' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-sub)' }}>Role: {p.role} · Token: {p.request_id?.slice(0, 8)}…</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="set-btn-sm" onClick={() => approvePending(p.request_id)} style={{ background: '#f59e0b', color: '#000', fontWeight: 600 }}>Approve</button>
+                  <button type="button" className="set-btn-sm" onClick={() => rejectPending(p.request_id)} style={{ color: 'var(--stop)' }}>Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="set-box">
         <div className="set-box-row">
           <div className="set-row-text">
             <span className="set-row-title">Show a pairing code</span>
             <span className="set-row-desc">
-              Good for five minutes, once. Leave this machine running — it completes the
-              handshake within a few seconds.
+              Good for five minutes, once. Direct LAN pairing is available automatically over Wi-Fi.
             </span>
           </div>
           <button type="button" className="set-btn-sm" onClick={openPairing} disabled={busy}>
@@ -3695,51 +4012,117 @@ function Devices() {
         </div>
         {invite ? (
           <div className="set-box-row pair-invite">
-            {/* Said before the code, not after it: without a relay nothing can
-                complete this handshake, and a code somebody scans into a
-                two-minute wait is worse than one they were told not to scan. */}
-            {invite.relay_configured === false ? (
-              <p className="pair-invite-hint" style={{ color: 'var(--stop, #f85149)' }}>
-                No relay is set up yet, so nothing can answer this. Set one up under
-                Instagram → Relay first.
+            {/* Mode Switcher */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                marginBottom: 16,
+                background: 'var(--bg-inset)',
+                padding: 4,
+                borderRadius: 10,
+                border: '1px solid var(--hairline-strong)',
+                width: '100%',
+                maxWidth: 420,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setPairMode('lan')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: pairMode === 'lan' ? 'var(--raised)' : 'transparent',
+                  color: pairMode === 'lan' ? 'var(--text)' : 'var(--text-sub)',
+                  fontWeight: pairMode === 'lan' ? 700 : 500,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                  boxShadow: pairMode === 'lan' ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                }}
+              >
+                <span>📱</span>
+                <span>Same Wi-Fi (Direct LAN)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPairMode('web')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: pairMode === 'web' ? 'var(--raised)' : 'transparent',
+                  color: pairMode === 'web' ? 'var(--text)' : 'var(--text-sub)',
+                  fontWeight: pairMode === 'web' ? 700 : 500,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                  boxShadow: pairMode === 'web' ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                }}
+              >
+                <span>🌐</span>
+                <span>Cloudflare Web</span>
+              </button>
+            </div>
+
+            {pairMode === 'lan' ? (
+              <p className="pair-invite-hint" style={{ color: 'var(--text-sub)', marginBottom: 12 }}>
+                <strong>Recommended for Phone Controls:</strong> Ultra-low latency touchpad, media, camera feed, and terminal. Make sure your phone is connected to the same Wi-Fi network. If connection times out, allow port 8000 on your firewall (<code>sudo ufw allow 8000/tcp</code>).
               </p>
-            ) : null}
-            {invite.qr_svg ? (
+            ) : (
+              <p className="pair-invite-hint" style={{ color: 'var(--text-sub)', marginBottom: 12 }}>
+                <strong>Remote over Internet:</strong> Connects via Cloudflare Pages and the sync relay when you are away from home.
+              </p>
+            )}
+
+            {(pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : (invite.web_qr_svg || invite.qr_svg)) ? (
               <>
                 <div
                   className="qr-card"
-                  /* The SVG is built by segno on this machine from the same
-                     string shown below it, never from anything a remote party
-                     sent. */
-                  dangerouslySetInnerHTML={{ __html: invite.qr_svg }}
+                  dangerouslySetInnerHTML={{
+                    __html: pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : (invite.web_qr_svg || invite.qr_svg),
+                  }}
                 />
                 <p className="pair-invite-hint">
-                  {invite.app_url
-                    ? <>Point your phone’s camera at this. It opens <code>{invite.app_url}</code> and pairs itself.</>
-                    /* Not "scan this". Without an address to send it to, the
-                       payload is an `amethyst://` link, and a phone's camera
-                       cannot open one of those -- so somebody following that
-                       instruction points a camera at a code and nothing at all
-                       happens. The typed code below is the route that works. */
-                    : 'A phone camera cannot open this code — it is an amethyst:// link, not a web address. Scan it from the pairing screen inside Amethyst on your phone, or type the code below. To make it camera-openable, give Amethyst an https address (see below).'}
+                  {pairMode === 'lan' ? (
+                    invite.host_url
+                      ? <>Point your phone’s camera at this. It opens <code>{invite.host_url}</code> directly over your Wi-Fi.</>
+                      : 'Point your phone’s camera at this to pair over local network.'
+                  ) : (
+                    invite.app_url
+                      ? <>Point your phone’s camera at this. It opens <code>{invite.app_url}</code> over the web.</>
+                      : 'To make this camera-openable over web, set your Cloudflare Pages URL below.'
+                  )}
                 </p>
+
               </>
             ) : null}
-            <span className="set-row-desc">Or enter this on the other device:</span>
-            {/* Grouped in fours. It is 32 base32 characters and somebody is
-                typing it on a phone; an unbroken run of 32 is where the typo
-                comes from, and grouping costs nothing. */}
+            <span className="set-row-desc">Or enter this code manually on the other device:</span>
             <code className="rc-code">{invite.secret.match(/.{1,4}/g).join(' ')}</code>
             <button
               type="button"
               className="set-btn-sm"
-              onClick={() => { copyText(invite.qr); toast('Pairing link copied', 'ok') }}
+              onClick={() => {
+                const targetLink = pairMode === 'lan' ? (invite.lan_qr || invite.qr) : (invite.web_qr || invite.qr)
+                copyText(targetLink)
+                toast('Pairing link copied', 'ok')
+              }}
             >
-              Copy the link
+              Copy pairing link
             </button>
             <span className="set-row-desc">
-              The relay never sees this. It carries the handshake sealed under it and cannot
-              complete one itself.
+              All communications between your phone and PC are cryptographically sealed.
             </span>
           </div>
         ) : null}

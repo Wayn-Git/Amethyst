@@ -136,14 +136,47 @@ export default function CommandPalette({ bare = false }) {
   const open = bare || overlay === 'palette'
 
   // Dedicated navigation handler: works seamlessly in web app and desktop pywebview
-  const handleNavigate = useCallback((viewId) => {
+  const handleNavigate = useCallback((viewId, prompt) => {
     if (bare) {
-      window.pywebview?.api?.open_main?.(viewId)
+      window.pywebview?.api?.open_main?.(viewId, prompt || '')
+    } else if (prompt) {
+      // The store already knows how to open Chat on a fresh conversation with a
+      // question waiting in it. The palette used to call `chat.ask` instead --
+      // a ref that only exists once Chat has mounted and registered itself, so
+      // in the native bar it was always undefined and the `?.` swallowed the
+      // question silently.
+      app.openChatWithPrompt?.(prompt)
+      setOverlay(null)
     } else {
       app.setView(viewId)
       setOverlay(null)
     }
   }, [bare, app, setOverlay])
+
+  /* Play the open animation again on a window that was only ever hidden.
+   *
+   * In the native bar this component never unmounts -- `open` is `bare || ...`,
+   * so it is permanently true and the *operating system* hides and shows the
+   * window around it. A CSS animation runs once, when the element is inserted,
+   * and nothing re-inserts it. So the spotlight animated on the first summon of
+   * a session and then never again, which is indistinguishable from the setting
+   * doing nothing.
+   *
+   * Clearing the animation, forcing a reflow and clearing the override is the
+   * standard way to restart one. Reading `offsetHeight` is not a redundant
+   * statement -- it is what makes the browser flush the style change, and
+   * without it the two assignments coalesce and nothing replays.
+   *
+   * Whatever the stylesheet says for the current `data-spotlight-anim` is what
+   * plays, including `none` for Instant, because this only ever removes its own
+   * inline override. */
+  const replayOpenAnimation = useCallback(() => {
+    const card = panelRef.current
+    if (!card) return
+    card.style.animation = 'none'
+    void card.offsetHeight
+    card.style.animation = ''
+  }, [])
 
   const hideBar = useCallback(() => {
     if (bare) window.pywebview?.api?.hide?.()
@@ -201,6 +234,9 @@ export default function CommandPalette({ bare = false }) {
   // Infinite scroll: how deep each pool is paged, whether more exists, and
   // whether a page is in flight. Kept per kind so web and YouTube scroll on
   // their own. Reset whenever the query changes.
+  // Relevance or newest-first, for the video mode. A preference for the session
+  // rather than a saved one: which you want depends on what you are looking for.
+  const [ytSort, setYtSort] = useState('relevance')
   const [pageState, setPageState] = useState({})
   const loadingMoreRef = useRef({})
 
@@ -294,6 +330,7 @@ export default function CommandPalette({ bare = false }) {
     // event, which is every summon -- so the caret is in the field before the
     // hand has left the hotkey. In a browser tab the hook simply never fires.
     window.__amethyst_spotlight_shown = () => {
+      replayOpenAnimation()
       inputRef.current?.focus()
       inputRef.current?.select()
     }
@@ -306,7 +343,7 @@ export default function CommandPalette({ bare = false }) {
     api.tasks({ bucket: 'all', limit: 50 }).then((d) => setTasksList(d.tasks || [])).catch(() => setTasksList([]))
 
     return () => { delete window.__amethyst_spotlight_shown }
-  }, [open, activeId])
+  }, [open, activeId, replayOpenAnimation])
 
   // Refresh tasks callback
   const refreshTasks = useCallback(() => {
@@ -365,10 +402,18 @@ export default function CommandPalette({ bare = false }) {
     const isQ = looksLikeQuestion(q)
     const wantsAnswer = activeMode === 'web' || (activeMode === 'all' && isQ)
 
+    /* Universal mode searches the web, always.
+     *
+     * It used to fetch only Wikipedia unless the query happened to look like a
+     * question, so typing a plain subject -- a name, a library, a product --
+     * produced one encyclopaedia card and nothing else. That is the whole of
+     * "the web results are too random and it is only Wikipedia": for most
+     * queries no web search was ever made. The question test still decides
+     * whether a model is asked to *answer*, which is the part that costs
+     * something; it no longer decides whether to search at all. */
     const listKinds = {
       web: ['web'], youtube: ['yt'], images: ['img'], github: ['gh'], wiki: ['wiki'],
-    }[activeMode] || (activeMode === 'all' && isQ ? ['wiki', 'web', 'yt', 'img']
-      : activeMode === 'all' ? ['wiki'] : [])
+    }[activeMode] || (activeMode === 'all' ? ['wiki', 'web', 'yt', 'img'] : [])
 
     const applyKind = {
       web: (v) => {
@@ -396,7 +441,7 @@ export default function CommandPalette({ bare = false }) {
     }
     const fetchKind = {
       web: () => api.searchWeb(q, 8, ctrl.signal),
-      yt: () => api.searchYouTube(q, 8, ctrl.signal),
+      yt: () => api.searchYouTube(q, 8, ctrl.signal, 0, ytSort),
       img: () => api.searchImages(q, 16, ctrl.signal),
       gh: () => api.searchGitHub(q, 6, ctrl.signal),
       wiki: () => api.searchWiki(q, ctrl.signal),
@@ -404,10 +449,11 @@ export default function CommandPalette({ bare = false }) {
 
     // The synchronous paint: whatever the cache holds is on screen now,
     // and the spinner only stands where there is nothing to stand instead.
+    const cacheKey = (kind) => (kind === 'yt' ? `${q}::${ytSort}` : q)
     const hits = {}
     const got = {}
     for (const kind of listKinds) {
-      const hit = peek(kind, q)
+      const hit = peek(kind, cacheKey(kind))
       if (hit) {
         hits[kind] = hit
         got[kind] = hit.value
@@ -416,12 +462,8 @@ export default function CommandPalette({ bare = false }) {
     }
     const answerHit = wantsAnswer ? peek('answer', q) : null
     if (answerHit) setAnswerCard(answerHit.value?.answer ? answerHit.value : null)
-    if (activeMode === 'all' && !isQ) {
-      setWebResults([])
-      setYtResults([])
-      setImageResults([])
-      setAnswerCard(null)
-    }
+    // Only the answer card is question-only now; the evidence is always fetched.
+    if (activeMode === 'all' && !isQ) setAnswerCard(null)
     setSearchingExternal(listKinds.some((k) => !hits[k]?.fresh))
     setAnswerPending(wantsAnswer && !answerHit?.fresh)
 
@@ -437,7 +479,7 @@ export default function CommandPalette({ bare = false }) {
       runs[kind] = fetchKind[kind]()
         .then((value) => {
           got[kind] = value
-          put(kind, q, value)
+          put(kind, cacheKey(kind), value)
           if (!gone()) applyKind[kind](value)
           return value
         })
@@ -479,9 +521,14 @@ export default function CommandPalette({ bare = false }) {
                 activeMode === 'web' ? null : (wiki ? wiki.result ?? null : undefined),
               )
               if (value?.answer) put('answer', q, value)
-              if (!gone()) setAnswerCard(value?.answer ? value : null)
-            } catch {
-              // A missing card is not worth reporting: the evidence is on screen.
+              // An answer, or the reason there is not one. Discarding the error
+              // is what made the thinking animation look broken: the spinner
+              // ran, the card resolved to null, and it vanished with nothing in
+              // its place -- so "no model is configured" was indistinguishable
+              // from a spinner that simply stopped.
+              if (!gone()) setAnswerCard(value?.answer || value?.error ? value : null)
+            } catch (err) {
+              if (!gone()) setAnswerCard({ error: err?.message || 'The answer could not be written.' })
             } finally {
               if (!gone()) setAnswerPending(false)
             }
@@ -498,7 +545,7 @@ export default function CommandPalette({ bare = false }) {
       clearTimeout(timer)
       ctrl.abort()
     }
-  }, [effectiveQuery, activeMode])
+  }, [effectiveQuery, activeMode, ytSort])
 
   /* Fetch the next page of a pool and append it, for infinite scroll.
    *
@@ -515,9 +562,9 @@ export default function CommandPalette({ bare = false }) {
     loadingMoreRef.current[kind] = true
     setPageState((s) => ({ ...s, [kind]: { ...s[kind], loading: true } }))
     try {
-      const fetchMore = kind === 'web' ? api.searchWeb : api.searchYouTube
-      const perPage = kind === 'web' ? 8 : 8
-      const value = await fetchMore(q, perPage, undefined, page.offset)
+      const value = kind === 'web'
+        ? await api.searchWeb(q, 8, undefined, page.offset)
+        : await api.searchYouTube(q, 8, undefined, page.offset, ytSort)
       const fresh = value?.results || []
       const seenKey = kind === 'web' ? (r) => r.url : (r) => r.id || r.url
       const setter = kind === 'web' ? setWebResults : setYtResults
@@ -538,7 +585,7 @@ export default function CommandPalette({ bare = false }) {
     } finally {
       loadingMoreRef.current[kind] = false
     }
-  }, [pageState, effectiveQuery])
+  }, [pageState, effectiveQuery, ytSort])
 
   // Master commands list
   const commands = useMemo(() => {
@@ -798,10 +845,7 @@ export default function CommandPalette({ bare = false }) {
       label: `Ask AMETHYST: “${q}”`,
       hint: 'Starts an interactive turn in Chat',
       isInline: true,
-      run: () => {
-        handleNavigate('chat')
-        setTimeout(() => chat.ask?.(q), 0)
-      },
+      run: () => handleNavigate('chat', q),
     })
 
     // 4. Search triggers (Clicking changes mode WITHOUT closing Damon)
@@ -1048,8 +1092,9 @@ export default function CommandPalette({ bare = false }) {
           <>
             <AnswerCardView
               answer={answerCard?.answer}
+              error={answerCard?.error}
               sources={answerCard?.sources || []}
-              loading={(answerPending || searchingExternal) && !answerCard?.answer}
+              loading={(answerPending || searchingExternal) && !answerCard?.answer && !answerCard?.error}
               onOpen={(src) => openUrl(src.url)}
               onToast={toast}
             />
@@ -1081,6 +1126,8 @@ export default function CommandPalette({ bare = false }) {
             activeIndex={index}
             onSelect={(vid) => openUrl(vid.url)}
             onToast={toast}
+            sort={ytSort}
+            onSortChange={setYtSort}
           />
         )}
 
@@ -1149,19 +1196,26 @@ export default function CommandPalette({ bare = false }) {
            && looksLikeQuestion(effectiveQuery) && !answerCard) ? (
           <AnswerCardView
             answer={answerCard?.answer}
+            error={answerCard?.error}
             sources={answerCard?.sources || []}
-            loading={(answerPending || searchingExternal) && !answerCard?.answer}
+            loading={(answerPending || searchingExternal) && !answerCard?.answer && !answerCard?.error}
             onOpen={(src) => openUrl(src.url)}
             onToast={toast}
           />
         ) : null}
 
-        {/* A question in universal mode gets one short row of each kind of
-            evidence under the answer -- web, video, images -- the way a
-            question is answered everywhere else on the machine: briefly,
-            with a way to go deeper. Each row is a strip, not the full grid
-            the dedicated modes show. */}
-        {activeMode === 'all' && looksLikeQuestion(effectiveQuery) && !searchingExternal && (
+        {/* Universal mode gets one short row of each kind of result -- web,
+            video, images -- the way a question is answered everywhere else on
+            the machine: briefly, with a way to go deeper. Each row is a strip,
+            not the full grid the dedicated modes show.
+
+            Not gated on the query looking like a question any more: that made
+            a plain subject show nothing but an encyclopaedia card. Nor on
+            `searchingExternal`, which held every strip back until the slowest
+            of web, video and images had settled -- so a fast web answer sat
+            invisible waiting on an image search. Each row appears when it has
+            something to show. */}
+        {activeMode === 'all' && (
           <div className="damon-mixed">
             {webResults.length > 0 && (
               <section className="damon-mixed-row" data-kind="web">

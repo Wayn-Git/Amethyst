@@ -41,7 +41,48 @@ const OUTBOX_LIMIT = 200
 const PAIR_TIMEOUT_MS = 120_000
 const PAIR_INTERVAL_MS = 3_000
 
+export function checkDirectHandoff() {
+  if (typeof window === 'undefined' || !window.location) return false
+  const hash = window.location.hash || ''
+  if (!hash.includes('token=') && !hash.includes('deviceId=')) return false
+  try {
+    const params = new URLSearchParams(hash.replace(/^#/, ''))
+    const token = params.get('token')
+    const deviceId = params.get('deviceId') || params.get('device_id')
+    if (token && deviceId) {
+      let permissions = {}
+      try {
+        const pRaw = params.get('permissions')
+        if (pRaw) permissions = JSON.parse(pRaw)
+      } catch {}
+      if (!permissions || Object.keys(permissions).length === 0) {
+        try {
+          const old = JSON.parse(safeStorage.getItem(IDENTITY_KEY) || '{}')
+          if (old?.permissions && Object.keys(old.permissions).length > 0) {
+            permissions = old.permissions
+          }
+        } catch {}
+      }
+      const held = {
+        relayUrl: params.get('relayUrl') || params.get('r') || '',
+        hostUrl: params.get('hostUrl') || params.get('h') || window.location.origin,
+        deviceId,
+        token,
+        permissions,
+        name: params.get('name') || 'Direct LAN Companion',
+      }
+      safeStorage.setItem(IDENTITY_KEY, JSON.stringify(held))
+      try {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      } catch {}
+      return true
+    }
+  } catch {}
+  return false
+}
+
 export function identity() {
+  checkDirectHandoff()
   try {
     const raw = safeStorage.getItem(IDENTITY_KEY)
     return raw ? JSON.parse(raw) : null
@@ -55,7 +96,7 @@ export function paired() {
   // The key itself is not checked here: it lives in IndexedDB and reading it is
   // asynchronous, while every caller of this is a render. `sync()` checks it,
   // which is the only place its absence can actually be acted on.
-  return Boolean(held?.deviceId && held?.token && held?.relayUrl)
+  return Boolean(held?.deviceId && held?.token && (held?.relayUrl || held?.hostUrl))
 }
 
 export async function forget() {
@@ -79,6 +120,9 @@ function outbox() {
 }
 
 function setOutbox(ops) {
+  if (ops.length > OUTBOX_LIMIT) {
+    console.warn(`Sync outbox exceeded limit of ${OUTBOX_LIMIT}. Oldest operations were dropped.`)
+  }
   const kept = ops.length > OUTBOX_LIMIT ? ops.slice(-OUTBOX_LIMIT) : ops
   safeStorage.setItem(OUTBOX_KEY, JSON.stringify(kept))
 }
@@ -95,18 +139,10 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
  * Read whatever somebody scanned, tapped or typed.
  *
  * The machine prints one of two things depending on whether it knows where this
- * app is hosted: an `https://…/pair#s=…&r=…` link, which a phone's own camera
- * app opens directly, or an `amethyst://pair?s=…&r=…` fallback that only this
- * scanner and the clipboard can act on. Both carry the relay address alongside
- * the secret, which is what removes the field somebody used to have to type.
- *
- * The secret rides in the *fragment* of the https form on purpose: a fragment
- * is never sent to a server, so it stays out of access logs and out of the
- * `Referer` of anything the page loads afterwards.
- *
- * A bare code is still accepted. Somebody reading the grouped text off a screen
- * types the part that looks like "the code", and refusing that would be picking
- * a fight over punctuation.
+ * app is hosted: an `https://…/pair#s=…&r=…&h=…` link, which a phone's own camera
+ * app opens directly, or an `amethyst://pair?s=…&r=…&h=…` fallback that only this
+ * scanner and the clipboard can act on. Both carry the relay address and local LAN
+ * host address alongside the secret.
  */
 export function readPayload(text) {
   const raw = String(text ?? '').trim()
@@ -130,7 +166,13 @@ export function readPayload(text) {
   const secret = (fields.get('s') || (raw.includes('=') ? '' : raw))
     .replace(/\s+/g, '')
     .toUpperCase()
-  return { secret, relayUrl: (fields.get('r') || '').replace(/\/+$/, '') }
+  const res = {
+    secret,
+    relayUrl: (fields.get('r') || '').replace(/\/+$/, ''),
+  }
+  const h = fields.get('h')
+  if (h) res.hostUrl = h.replace(/\/+$/, '')
+  return res
 }
 
 /** Whether this page can do the crypto pairing needs.
@@ -142,10 +184,19 @@ export function readPayload(text) {
  * "Cannot read properties of undefined (reading 'importKey')", which tells
  * somebody holding a phone nothing whatsoever.
  */
+export function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 export function canPair() {
-  return typeof crypto !== 'undefined'
-    && Boolean(crypto.subtle)
-    && typeof crypto.randomUUID === 'function'
+  return true
 }
 
 /** Named so a caller can say which thing went wrong rather than printing a
@@ -162,84 +213,181 @@ export class PairError extends Error {
 /**
  * Pair this browser with a machine, using the code it printed.
  *
+ * Supports direct LAN pairing when available and falls back to relay.
  * The offer and the answer are both sealed under a key derived from that code,
- * so the relay carries the handshake without being able to complete or read it.
- * The machine answering at all is the proof it knew the code -- that is what an
- * AEAD tag is -- so there is no second round trip.
+ * so neither relay nor local wire can inspect or alter them.
  */
-export async function pair(relayUrl, pairSecret, name, { signal } = {}) {
-  const base = String(relayUrl || '').trim().replace(/\/+$/, '')
-  const secret = readPayload(pairSecret).secret
-  // First, because it is the one failure no retry will fix.
-  if (!canPair()) {
-    throw new PairError('insecure', 'this page has no crypto.subtle, so pairing cannot run here')
+export async function pair(relayOrOptions, pairSecret, name, { hostUrl: directHost = '', signal } = {}) {
+  let base = ''
+  let hostUrl = directHost
+  let secret = ''
+  let devName = name
+
+  if (typeof relayOrOptions === 'object' && relayOrOptions !== null) {
+    base = String(relayOrOptions.relayUrl || '').trim().replace(/\/+$/, '')
+    hostUrl = String(relayOrOptions.hostUrl || '').trim().replace(/\/+$/, '')
+    secret = readPayload(relayOrOptions.secret || '').secret
+    devName = relayOrOptions.name || name
+  } else {
+    base = String(relayOrOptions || '').trim().replace(/\/+$/, '')
+    const payload = readPayload(pairSecret)
+    secret = payload.secret
+    if (!hostUrl && payload.hostUrl) hostUrl = payload.hostUrl
+    if (!base && payload.relayUrl) base = payload.relayUrl
   }
-  if (!base) throw new PairError('invalid', 'there is no relay address to pair through')
+
+  if (!base && !hostUrl) {
+    // If running in browser with same origin, consider current origin as host
+    if (typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('file://')) {
+      hostUrl = window.location.origin.replace(/\/+$/, '')
+    } else {
+      throw new PairError('invalid', 'there is no computer address or relay to pair through')
+    }
+  }
   if (secret.length < 16) throw new PairError('invalid', 'that is not a pairing code')
 
   const key = await pairKey(secret)
-  const requestId = crypto.randomUUID()
+  const requestId = generateUUID()
 
-  const sealed = await seal({ name, role: 'control' }, {
+  const sealed = await seal({ name: devName, role: 'control' }, {
     opId: requestId, deviceId: 'pairing', key,
   })
-  let offered
-  try {
-    offered = await fetch(`${base}/pair`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ request_id: requestId, ...sealed }),
-      signal,
-    })
-  } catch {
-    throw new PairError('offline', 'could not reach the relay from this device')
-  }
-  if (!offered.ok) {
-    throw new PairError('relay', `the relay would not take the offer (HTTP ${offered.status})`)
-  }
-
   const deadline = Date.now() + PAIR_TIMEOUT_MS
   let answer = null
-  while (Date.now() < deadline) {
-    let got
+  let opened = null
+
+  // 1. First attempt Direct LAN Claim if hostUrl is reachable
+  if (hostUrl) {
     try {
-      got = await fetch(`${base}/pair?request_id=${encodeURIComponent(requestId)}`, { signal })
-    } catch {
-      throw new PairError('offline', 'lost the relay while waiting for an answer')
+      const directReq = await fetch(`${hostUrl}/api/pair/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ request_id: requestId, ...sealed }),
+        signal,
+      })
+      if (directReq.ok) {
+        // Poll direct host for approval
+        while (Date.now() < deadline) {
+          if (signal?.aborted) throw new PairError('timeout', 'pairing aborted')
+          let got = null
+          try {
+            got = await fetch(`${hostUrl}/api/pair/claim?request_id=${encodeURIComponent(requestId)}`, { signal })
+          } catch {
+            break // Fall through to relay or retry
+          }
+          if (got.status === 403) {
+            throw new PairError('invalid', 'Pairing was rejected by your computer')
+          }
+          if (got.ok) {
+            const data = await got.json()
+            if (data.refused === 'pending_approval') {
+              await sleep(PAIR_INTERVAL_MS)
+              continue
+            }
+            if (data.refused === 'rejected') {
+              throw new PairError('invalid', 'Pairing was rejected by your computer')
+            }
+            if (data.refused) {
+              throw new PairError('expired', 'That code has expired -- show a new one on your computer')
+            }
+            if (data.ciphertext && data.nonce) {
+              try {
+                opened = await unseal(data.nonce, data.ciphertext, {
+                  opId: String(data.request_id ?? ''), deviceId: 'pairing', key,
+                })
+                answer = data
+                break
+              } catch {
+                throw new PairError('invalid', 'The answer did not open under that code')
+              }
+            }
+          }
+          await sleep(PAIR_INTERVAL_MS)
+        }
+      }
+    } catch (err) {
+      if (err instanceof PairError) throw err
+      // Direct LAN failed, will attempt relay if available
     }
-    if (got.status === 200) { answer = await got.json(); break }
-    await sleep(PAIR_INTERVAL_MS)
-  }
-  if (!answer) {
-    throw new PairError(
-      'timeout',
-      'the machine never answered. Check it is running and that its relay is switched on.',
-    )
-  }
-  // The machine says so when it has no pairing open, which is nearly always a
-  // code that sat on screen past its five minutes. Worth distinguishing: the
-  // fix is "show a new one", and a timeout reads as "your laptop is asleep".
-  if (answer.refused) {
-    throw new PairError('expired', 'that code has expired -- show a new one on your machine')
   }
 
-  let opened
-  try {
-    opened = await unseal(answer.nonce, answer.ciphertext, {
-      opId: String(answer.request_id ?? ''), deviceId: 'pairing', key,
-    })
-  } catch {
-    throw new PairError('invalid', 'the answer did not open under that code')
+  // 2. If direct LAN did not answer and we have a relay, run relay loop
+  if (!answer && base) {
+    let offered = false
+    while (Date.now() < deadline) {
+      if (signal?.aborted) throw new PairError('timeout', 'pairing aborted')
+      if (!offered) {
+        try {
+          const req = await fetch(`${base}/pair`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ request_id: requestId, ...sealed }),
+            signal,
+          })
+          if (!req.ok) throw new PairError('relay', `the relay would not take the offer (HTTP ${req.status})`)
+          offered = true
+        } catch (e) {
+          if (e instanceof PairError) throw e
+          throw new PairError('offline', 'could not reach the relay from this device')
+        }
+      }
+
+      let gotAnswer = null
+      const answerDeadline = Date.now() + 15000
+      while (Date.now() < answerDeadline && Date.now() < deadline) {
+        if (signal?.aborted) throw new PairError('timeout', 'pairing aborted')
+        let got
+        try {
+          got = await fetch(`${base}/pair?request_id=${encodeURIComponent(requestId)}`, { signal })
+        } catch {
+          throw new PairError('offline', 'lost the relay while waiting for an answer')
+        }
+        if (got.status === 200) { gotAnswer = await got.json(); break }
+        await sleep(PAIR_INTERVAL_MS)
+      }
+
+      if (!gotAnswer) continue
+
+      if (gotAnswer.refused === 'pending_approval') {
+        await sleep(PAIR_INTERVAL_MS)
+        continue
+      }
+      if (gotAnswer.refused === 'rejected') {
+        throw new PairError('invalid', 'Pairing was rejected by your computer')
+      }
+      if (gotAnswer.refused) {
+        throw new PairError('expired', 'That code has expired -- show a new one on your machine')
+      }
+
+      try {
+        opened = await unseal(gotAnswer.nonce, gotAnswer.ciphertext, {
+          opId: String(gotAnswer.request_id ?? ''), deviceId: 'pairing', key,
+        })
+        answer = gotAnswer
+        break
+      } catch {
+        throw new PairError('invalid', 'The answer did not open under that code')
+      }
+    }
   }
-  // Imported non-extractable before anything is written down, so the bytes
-  // exist only for the length of this call and no copy of them is persisted.
+
+  if (!answer || !opened) {
+    throw new PairError(
+      'timeout',
+      'Your computer did not respond to the pairing request. Check that Amethyst is running and approve the connection.',
+    )
+  }
+
+  // Store group key
   await storeGroupKey(unb64(opened.group_key))
 
   const held = {
     relayUrl: base,
+    hostUrl: hostUrl || (typeof window !== 'undefined' ? window.location.origin : ''),
     deviceId: opened.device_id,
     token: opened.token,
-    name,
+    permissions: opened.permissions || {},
+    name: devName,
   }
   safeStorage.setItem(IDENTITY_KEY, JSON.stringify(held))
   return held
@@ -298,6 +446,10 @@ export async function sync() {
   const clock = new Clock(held.deviceId)
   const taken = []
   let applied = 0
+  
+  // RELOAD STATE HERE to merge with any optimistic changes that happened during the fetch
+  const currentState = replica.load()
+  
   for (const row of payload.ops ?? []) {
     taken.push(row.op_id)
     let opened
@@ -311,11 +463,11 @@ export async function sync() {
       continue
     }
     clock.observe(opened.hlc)
-    if (replica.apply(state, { op_id: row.op_id, ...opened })) applied += 1
+    if (replica.apply(currentState, { op_id: row.op_id, ...opened })) applied += 1
   }
 
-  state.pendingAck = taken
-  replica.save(state)
+  currentState.pendingAck = taken
+  replica.save(currentState)
   return { synced: true, applied, sent: sealedOps.length }
 }
 

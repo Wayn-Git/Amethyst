@@ -420,7 +420,7 @@ function ActionList({ tools }) {
 }
 
 /* One connector, opened. Sign-in, credentials, what it can do, and what it is. */
-function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChanged }) {
+function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChanged, onAdd }) {
   const { openChatWithPrompt, setCapEnabled, toast } = useApp()
   const [popoverOpen, setPopoverOpen] = useState(false)
   const popoverRef = useRef(null)
@@ -448,7 +448,31 @@ function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChan
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onBack])
 
-  const ready = Boolean(live?.ready || (live?.tools ?? 0) > 0)
+  const liveData = live || server.live || {}
+  const isEnabled = cap?.enabled ?? (server.enabled !== false && server.lifecycle?.state !== 'off')
+  const isAccountMismatch = Boolean(server.lifecycle?.account_mismatch || liveData.account_mismatch || server.lifecycle?.state === 'account_mismatch')
+  const blocked = (server.missing_credentials || []).length > 0 || server.lifecycle?.state === 'setup'
+  const isTokenExpired = Boolean(
+    liveData.state === 'token_expired' ||
+    liveData.state === 'auth_error' ||
+    server.lifecycle?.state === 'token_expired' ||
+    server.lifecycle?.state === 'auth_error' ||
+    server.token_healthy === false
+  )
+  const isConfigured = server.isConfigured !== false
+  const hasAccount = Boolean(server.account || liveData.account || server.lifecycle?.account)
+  const isConnected = Boolean(liveData.is_connected ?? liveData.connected ?? (liveData.tools > 0))
+  const isReady = Boolean(
+    !isAccountMismatch &&
+    !isTokenExpired &&
+    isConnected &&
+    (liveData.is_usable ?? liveData.ready ?? (liveData.tools > 0))
+  )
+  const needsAuth = !blocked && !hasAccount && !isReady && !isConnected && (
+    server.lifecycle?.state === 'sign_in' ||
+    server.lifecycle?.action === 'sign_in' ||
+    (isConfigured && server.signed_in === false && server.auth_kind !== 'none')
+  )
   
   // Format version
   const version = server.version || cap?.version || '1.0.0'
@@ -507,7 +531,19 @@ function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChan
           <div className="conn-detail-app-icon">
             <ServiceIcon name={server.name} size={48} />
           </div>
-          <TextReveal as="h2">{server.title}</TextReveal>
+          <div>
+            <TextReveal as="h2">{server.title}</TextReveal>
+            <div style={{ marginTop: 6 }}>
+              {isReady && <span className="conn-status conn-status--live"><span className="status-dot live" />Active · {liveData.tools || tools.length} tools</span>}
+              {!isReady && isAccountMismatch && <span className="conn-status conn-status--warning"><span className="status-dot warning" />Wrong account ({server.account || liveData.account})</span>}
+              {!isReady && !isAccountMismatch && isTokenExpired && <span className="conn-status conn-status--warning"><span className="status-dot warning" />Session expired</span>}
+              {!isReady && !isAccountMismatch && !isTokenExpired && blocked && <span className="conn-status conn-status--warning"><span className="status-dot warning" />Needs credentials</span>}
+              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && needsAuth && <span className="conn-status conn-status--waiting"><span className="status-dot warning" />Needs sign-in</span>}
+              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && !needsAuth && liveData.error && <span className="conn-status conn-status--off"><span className="status-dot error" />Error: {String(liveData.error).slice(0, 80)}</span>}
+              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && !needsAuth && !liveData.error && isConnected && <span className="conn-status conn-status--live"><span className="status-dot live" />Connected</span>}
+              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && !needsAuth && !liveData.error && !isConnected && <span className="conn-status conn-status--off"><span className="status-dot off" />Disconnected</span>}
+            </div>
+          </div>
         </div>
         <div className="conn-detail-actions">
           <div style={{ position: 'relative' }} ref={popoverRef}>
@@ -570,104 +606,121 @@ function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChan
               </div>
             )}
           </div>
-          <button 
-            className="btn btn--pill btn--primary"
-            onClick={() => cap?.enabled ? handleTryInChat() : onAct('switch')}
-            disabled={Boolean(busy)}
-            style={{ padding: '8px 16px', background: '#fff', color: '#000', fontSize: '14px', borderRadius: '99px' }}
-          >
-            {cap?.enabled ? 'Try in chat' : 'Install plugin'}
-          </button>
+          {server.isConfigured === false ? (
+            <button 
+              className="btn btn--pill btn--primary"
+              onClick={() => (onAdd ? onAdd() : onAct('add'))}
+              disabled={Boolean(busy)}
+              style={{ padding: '8px 16px', background: '#fff', color: '#000', fontSize: '14px', borderRadius: '99px' }}
+            >
+              Install plugin
+            </button>
+          ) : needsAuth ? (
+            <button 
+              className="btn btn--pill btn--primary"
+              onClick={() => onAct('login')}
+              disabled={Boolean(busy)}
+              style={{ padding: '8px 16px', background: '#fff', color: '#000', fontSize: '14px', borderRadius: '99px' }}
+            >
+              {busy === 'login' ? 'Opening…' : 'Sign in'}
+            </button>
+          ) : !isConnected ? (
+            <button 
+              className="btn btn--pill btn--primary"
+              onClick={() => onAct('connect')}
+              disabled={Boolean(busy)}
+              style={{ padding: '8px 16px', background: '#fff', color: '#000', fontSize: '14px', borderRadius: '99px' }}
+            >
+              {busy === 'connect' ? 'Connecting…' : 'Connect'}
+            </button>
+          ) : (
+            <button 
+              className="btn btn--pill btn--primary"
+              onClick={() => handleTryInChat()}
+              disabled={Boolean(busy)}
+              style={{ padding: '8px 16px', background: '#fff', color: '#000', fontSize: '14px', borderRadius: '99px' }}
+            >
+              Try in chat
+            </button>
+          )}
         </div>
       </div>
       
       <p className="conn-detail-desc">{server.description}</p>
 
-      <div className="conn-detail-hero-box">
-        {dynamicPrompts.map((prompt, i) => (
-          <button 
-            key={i} 
-            type="button"
-            className="plugin-prompt-pill" 
-            onClick={() => handleTryInChat(`@${server.title} ${prompt}`)}
-          >
-            <div className="plugin-prompt-pill-text">
-              <strong>@{server.title}</strong> {prompt}
-            </div>
-            <div className="plugin-prompt-pill-arrow">
-              <Icon name="arrow-up-right" size={14} />
-            </div>
-          </button>
-        ))}
-      </div>
-      
+      {/* Real connection status and sign-in management */}
       <section className="conn-detail-section">
-        <p>Access repositories, issues, and pull requests. Required for some features such as Codex</p>
-        
-        <h3>Apps</h3>
-        <div className="conn-detail-apps">
-          <div className="conn-detail-app-row">
-            <div className="conn-detail-app-row-icon">
-              <ServiceIcon name={server.name} size={32} />
-            </div>
-            <div className="conn-detail-app-row-name">{server.title}</div>
-          </div>
-        </div>
+        <ConnectionBlock server={server} busy={busy} onAct={onAct} />
       </section>
+
+      {dynamicPrompts.length > 0 && (
+        <div className="conn-detail-hero-box">
+          {dynamicPrompts.map((prompt, i) => (
+            <button 
+              key={i} 
+              type="button"
+              className="plugin-prompt-pill" 
+              onClick={() => handleTryInChat(`@${server.title} ${prompt}`)}
+            >
+              <div className="plugin-prompt-pill-text">
+                <strong>@{server.title}</strong> {prompt}
+              </div>
+              <div className="plugin-prompt-pill-arrow">
+                <Icon name="arrow-up-right" size={14} />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Real Tools List */}
+      <ActionList tools={tools} />
 
       <section className="conn-detail-section">
         <h3>Information</h3>
         <table className="conn-info-table">
           <tbody>
             <tr>
-              <td className="conn-info-label">Capabilities</td>
-              <td className="conn-info-val">Interactive, Write</td>
+              <td className="conn-info-label">Status</td>
+              <td className="conn-info-val">{isConnected ? (isReady ? 'Active' : 'Connected') : 'Disconnected'}</td>
             </tr>
+            {server.account && (
+              <tr>
+                <td className="conn-info-label">Account</td>
+                <td className="conn-info-val mono">{server.account}</td>
+              </tr>
+            )}
             <tr>
-              <td className="conn-info-label">Developer</td>
-              <td className="conn-info-val">{server.source || 'OpenAI'}</td>
+              <td className="conn-info-label">Transport</td>
+              <td className="conn-info-val mono">{server.transport || 'stdio'}</td>
             </tr>
             <tr>
               <td className="conn-info-label">Category</td>
-              <td className="conn-info-val">{server.category || 'Developer Tools'}</td>
+              <td className="conn-info-val">{server.category || 'Tools'}</td>
             </tr>
+            {server.target && (
+              <tr>
+                <td className="conn-info-label">Endpoint</td>
+                <td className="conn-info-val mono">{server.target}</td>
+              </tr>
+            )}
             {server.homepage && (
               <tr>
                 <td className="conn-info-label">Website</td>
                 <td className="conn-info-val">
                   <a href={server.homepage} target="_blank" rel="noreferrer">
-                    <Icon name="arrow-up-right" size={12} />
+                    {server.homepage} <Icon name="arrow-up-right" size={12} />
                   </a>
                 </td>
               </tr>
             )}
             <tr>
-              <td className="conn-info-label">Version</td>
-              <td className="conn-info-val">{version}</td>
-            </tr>
-            <tr>
-              <td className="conn-info-label">Privacy Policy</td>
-              <td className="conn-info-val">
-                <a href="#" target="_blank" rel="noreferrer">
-                  <Icon name="arrow-up-right" size={12} />
-                </a>
-              </td>
-            </tr>
-            <tr>
-              <td className="conn-info-label">Terms of Service</td>
-              <td className="conn-info-val">
-                <a href="#" target="_blank" rel="noreferrer">
-                  <Icon name="arrow-up-right" size={12} />
-                </a>
-              </td>
+              <td className="conn-info-label">Source</td>
+              <td className="conn-info-val">{server.source || 'Amethyst'}</td>
             </tr>
           </tbody>
         </table>
       </section>
-
-      <div className="conn-detail-footer">
-        This plugin may contain one or more apps, as listed above. When connected to an app, ChatGPT may share relevant chats and memories with the app to help provide context for your requests. An app's use of this data is subject to their terms and privacy policy, which can be found on the app's page. If you have <a href="#">Memory</a> enabled, data from the app may be used to proactively provide helpful information or suggestions. ChatGPT always respects your training data preferences, including for data from connected apps. Use of apps may come with <a href="#">elevated risk</a>. You can manage your preferences or disconnect from apps anytime in your settings. <a href="#">Learn more</a>
-      </div>
       
       {(server.auth_kind !== 'none' || server.transport === 'stdio') && (
         <section className="conn-detail-section" style={{ marginTop: 40, borderTop: '1px solid #262626', paddingTop: 32 }}>
@@ -730,12 +783,32 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
     return () => document.removeEventListener('mousedown', handleClick)
   }, [popoverOpen])
 
-  const isEnabled = item.enabled !== false && item.lifecycle?.state !== 'off'
+  const liveData = live || item.live || {}
+  const isAccountMismatch = Boolean(liveData.account_mismatch || item.lifecycle?.account_mismatch || item.lifecycle?.state === 'account_mismatch')
   const blocked = (item.missing_credentials || []).length > 0 || item.lifecycle?.state === 'setup'
-  const needsAuth = (item.lifecycle?.state === 'sign_in' || item.lifecycle?.action === 'sign_in' || (isConfigured && item.signed_in === false && item.auth_kind !== 'none')) && !blocked
-  const isWaiting = item.lifecycle?.state === 'authenticating' || busy === 'login' || busy === 'connect' || busy === 'add'
-  const isFailed = item.lifecycle?.state === 'failed' || Boolean(live?.error)
-  const isReady = Boolean(item.lifecycle?.ready || live?.ready || (live?.tools ?? 0) > 0)
+  const isTokenExpired = Boolean(
+    liveData.state === 'token_expired' ||
+    liveData.state === 'auth_error' ||
+    item.lifecycle?.state === 'token_expired' ||
+    item.lifecycle?.state === 'auth_error' ||
+    item.token_healthy === false
+  )
+  const isConnected = Boolean(liveData.is_connected ?? liveData.connected ?? (liveData.tools > 0))
+  const isReady = Boolean(
+    !isAccountMismatch &&
+    !isTokenExpired &&
+    isConnected &&
+    (liveData.is_usable ?? liveData.ready ?? (liveData.tools > 0))
+  )
+  const isEnabled = isConnected || (item.enabled !== false && item.lifecycle?.state !== 'off')
+  const hasAccount = Boolean(item.account || liveData.account || item.lifecycle?.account)
+  const isWaiting = !isConnected && !isReady && (item.lifecycle?.state === 'authenticating' || busy === 'login' || busy === 'connect' || busy === 'add' || liveData.state === 'starting')
+  const isFailed = Boolean(liveData.error || item.lifecycle?.state === 'failed' || item.lifecycle?.state === 'server_error' || item.lifecycle?.state === 'unavailable')
+  const needsAuth = !blocked && !hasAccount && !isReady && !isConnected && (
+    item.lifecycle?.state === 'sign_in' ||
+    item.lifecycle?.action === 'sign_in' ||
+    (isConfigured && item.signed_in === false && item.auth_kind !== 'none')
+  )
 
   let statusType = 'off'
   let statusText = 'Off'
@@ -745,36 +818,49 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
     statusType = 'available'
     statusText = item.auth === 'none' || item.auth_kind === 'none' ? 'Ready to add' : item.auth === 'oauth' || item.auth_kind === 'oauth' ? 'OAuth' : 'Setup'
     badgeTone = 'muted'
-  } else if (!isEnabled) {
-    statusType = 'off'
-    statusText = 'Disabled'
-    badgeTone = 'muted'
+  } else if (isReady) {
+    const toolCount = liveData.tools ?? item.tools ?? 0
+    statusType = 'running'
+    statusText = toolCount > 0 ? `Connected · ${toolCount} tools` : 'Connected'
+    badgeTone = 'success'
+  } else if (isConnected) {
+    statusType = 'running'
+    statusText = 'Connected'
+    badgeTone = 'success'
   } else if (isWaiting) {
     statusType = 'starting'
     statusText = 'Connecting…'
     badgeTone = 'info'
+  } else if (isAccountMismatch) {
+    statusType = 'warning'
+    const actualAcct = liveData.account || item.account || item.lifecycle?.account
+    statusText = actualAcct ? `Wrong account (${actualAcct})` : 'Account mismatch'
+    badgeTone = 'warning'
+  } else if (isTokenExpired) {
+    statusType = 'sign_in'
+    statusText = 'Session expired'
+    badgeTone = 'warning'
   } else if (blocked) {
     statusType = 'setup'
     const missingList = item.missing_credentials || []
     statusText = missingList.length > 0 ? `Needs credentials (${missingList.length})` : 'Needs credentials'
     badgeTone = 'warning'
+  } else if (!isEnabled) {
+    statusType = 'off'
+    statusText = 'Disabled'
+    badgeTone = 'muted'
   } else if (needsAuth) {
     statusType = 'sign_in'
     statusText = 'Needs sign-in'
     badgeTone = 'info'
-  } else if (isReady) {
-    const toolCount = live?.tools ?? item.tools ?? 0
-    statusType = 'running'
-    statusText = toolCount > 0 ? `Active · ${toolCount} tools` : 'Active'
-    badgeTone = 'success'
   } else if (isFailed) {
     statusType = 'failed'
-    statusText = live?.error ? 'Error' : (item.lifecycle?.detail || 'Failed')
+    statusText = liveData.error ? 'Error' : (item.lifecycle?.detail || 'Failed')
     badgeTone = 'error'
   } else {
-    statusType = 'starting'
-    statusText = 'Starting…'
-    badgeTone = 'info'
+    statusType = 'off'
+    statusText = 'Disconnected'
+    badgeTone = 'muted'
   }
 
   // Transparent description if credentials are required
@@ -812,82 +898,171 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
       <div className="plugin-row-info">
         <div className="plugin-row-title-wrap">
           <span className="plugin-row-title">{item.title}</span>
+          {isConfigured && (
+            <span className={`conn-status conn-status--${statusType === 'running' ? 'live' : statusType === 'warning' ? 'warning' : statusType === 'starting' ? 'waiting' : 'off'}`}>
+              <span className={`status-dot ${statusType === 'running' ? 'live' : statusType === 'starting' ? 'waiting' : statusType === 'warning' ? 'warning' : 'off'}`} />
+              {statusText}
+            </span>
+          )}
         </div>
         <p className="plugin-row-desc" title={descText}>{descText}</p>
       </div>
 
       <div className="plugin-row-actions" onClick={(e) => e.stopPropagation()}>
         {!isConfigured ? (
-          <button
-            type="button"
-            className="plugin-add-icon-btn"
-            disabled={Boolean(busy)}
-            onClick={(e) => { e.stopPropagation(); onAdd(); }}
-            title={busy === 'add' ? 'Adding…' : 'Install'}
-          >
-            {busy === 'add' ? <span className="auth-spinner" /> : <Icon name="plus" size={18} />}
-          </button>
-        ) : (
-          <>
-            {blocked && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              type="button"
+              className="plugin-add-icon-btn"
+              disabled={Boolean(busy)}
+              onClick={(e) => { e.stopPropagation(); onAdd(); }}
+              title={busy === 'add' ? 'Adding…' : 'Install'}
+            >
+              {busy === 'add' ? <span className="auth-spinner" /> : <Icon name="plus" size={18} />}
+            </button>
+            <div style={{ position: 'relative' }} ref={popoverRef}>
               <button
                 type="button"
                 className="plugin-add-icon-btn"
-                onClick={(e) => { e.stopPropagation(); onOpen(); }}
-                title="Configure required credentials"
+                onClick={(e) => { e.stopPropagation(); setPopoverOpen(!popoverOpen); }}
+                title="Options"
               >
                 <Icon name="dots" size={18} />
               </button>
-            )}
-            {!blocked && needsAuth && (
+              {popoverOpen && (
+                <div className="plugin-popover">
+                   <button
+                     type="button"
+                     className="plugin-popover-item"
+                     onClick={(e) => {
+                       e.stopPropagation()
+                       setPopoverOpen(false)
+                       onAdd && onAdd()
+                     }}
+                   >
+                     <Icon name="plus" size={16} /> Install
+                   </button>
+                   <button className="plugin-popover-item" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onOpen(); }}>
+                     <Icon name="settings" size={16} /> View details
+                   </button>
+                   {item.homepage && (
+                     <a
+                       href={item.homepage}
+                       target="_blank"
+                       rel="noreferrer"
+                       className="plugin-popover-item"
+                       onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); }}
+                       style={{ textDecoration: 'none' }}
+                     >
+                       <Icon name="arrow-up-right" size={16} /> Visit website
+                     </a>
+                   )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {needsAuth && (
               <button
                 type="button"
-                className="plugin-add-icon-btn"
+                className="plugin-pill-btn"
                 disabled={Boolean(busy)}
                 onClick={(e) => { e.stopPropagation(); onAct && onAct('login'); }}
                 title="Sign in with provider"
               >
-                {busy === 'login' ? <span className="auth-spinner" /> : <Icon name="plus" size={18} />}
+                {busy === 'login' ? <span className="auth-spinner" /> : 'Sign in'}
               </button>
             )}
-            {!blocked && !needsAuth && isWaiting && (
-              <span className="auth-spinner" style={{ margin: '0 8px' }} />
+
+            {!isReady && !isConnected && !needsAuth && !blocked && !isWaiting && (
+              <button
+                type="button"
+                className="plugin-pill-btn"
+                disabled={Boolean(busy)}
+                onClick={(e) => { e.stopPropagation(); onAct && onAct('connect'); }}
+                title="Connect server"
+              >
+                {busy === 'connect' ? <span className="auth-spinner" /> : 'Connect'}
+              </button>
             )}
-            {!blocked && !needsAuth && !isWaiting && (
-              <div style={{ position: 'relative' }} ref={popoverRef}>
-                <button
-                  type="button"
-                  className="plugin-add-icon-btn"
-                  onClick={(e) => { e.stopPropagation(); setPopoverOpen(!popoverOpen); }}
-                  title="Options"
-                >
-                  <Icon name="dots" size={18} />
-                </button>
-                {popoverOpen && (
-                  <div className="plugin-popover">
+
+            {isWaiting && (
+              <span className="auth-spinner" style={{ margin: '0 4px' }} />
+            )}
+
+            {/* Options menu (three dots) - always available */}
+            <div style={{ position: 'relative' }} ref={popoverRef}>
+              <button
+                type="button"
+                className="plugin-add-icon-btn"
+                onClick={(e) => { e.stopPropagation(); setPopoverOpen(!popoverOpen); }}
+                title="Options"
+              >
+                <Icon name="dots" size={18} />
+              </button>
+              {popoverOpen && (
+                <div className="plugin-popover">
+                   <button
+                     type="button"
+                     className="plugin-popover-item"
+                     onClick={(e) => {
+                       e.stopPropagation()
+                       setPopoverOpen(false)
+                       openChatWithPrompt(`@${item.title || item.name} `)
+                     }}
+                   >
+                     <Icon name="chat" size={16} /> Chat
+                   </button>
+                   {!isConnected && (
                      <button
                        type="button"
                        className="plugin-popover-item"
                        onClick={(e) => {
                          e.stopPropagation()
                          setPopoverOpen(false)
-                         openChatWithPrompt(`@${item.title || item.name} `)
+                         onAct && onAct('connect')
                        }}
                      >
-                       <Icon name="chat" size={16} /> Chat
+                       <Icon name="play" size={16} /> Connect
                      </button>
-                     <button className="plugin-popover-item" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onOpen(); }}>
-                       <Icon name="settings" size={16} /> Manage
+                   )}
+                   {isConnected && (
+                     <button
+                       type="button"
+                       className="plugin-popover-item"
+                       onClick={(e) => {
+                         e.stopPropagation()
+                         setPopoverOpen(false)
+                         onToggle && onToggle(false)
+                       }}
+                     >
+                       <Icon name="square" size={16} /> Disconnect
                      </button>
-                     <div className="plugin-popover-divider" />
-                     <button className="plugin-popover-item is-danger" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onRemove && onRemove(); }}>
-                       <Icon name="minus-circle" size={16} /> Uninstall
-                     </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+                   )}
+                   <button className="plugin-popover-item" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onOpen(); }}>
+                     <Icon name="settings" size={16} /> Manage
+                   </button>
+                   {item.homepage && (
+                     <a
+                       href={item.homepage}
+                       target="_blank"
+                       rel="noreferrer"
+                       className="plugin-popover-item"
+                       onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); }}
+                       style={{ textDecoration: 'none' }}
+                     >
+                       <Icon name="arrow-up-right" size={16} /> Visit website
+                     </a>
+                   )}
+                   <div className="plugin-popover-divider" />
+                   <button className="plugin-popover-item is-danger" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onRemove && onRemove(); }}>
+                     <Icon name="minus-circle" size={16} /> Uninstall
+                   </button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
@@ -921,9 +1096,10 @@ function InstalledDockChip({ item, index, onOpen }) {
           damping: 24,
           delay: Math.min(index * 0.02, 0.25),
         }}
-        aria-label={`${item.title} (${item.ready ? 'Ready' : (item.missing_credentials || []).length ? 'Needs credentials' : (item.signed_in === false && item.auth_kind !== 'none') ? 'Needs sign-in' : 'Not running'})`}
+        aria-label={`${item.title} (${item.ready ? 'Connected' : (item.missing_credentials || []).length ? 'Needs credentials' : (item.signed_in === false && item.auth_kind !== 'none') ? 'Needs sign-in' : 'Not running'})`}
       >
         <ServiceIcon name={item.name} size={38} />
+        <span className={`status-dot ${item.ready ? 'live' : 'off'}`} />
       </motion.button>
 
       <AnimatePresence>
@@ -937,7 +1113,7 @@ function InstalledDockChip({ item, index, onOpen }) {
           >
             <span>{item.title}</span>
             <span style={{ opacity: 0.75, marginLeft: 4 }}>
-              · {item.ready ? 'Ready' : (item.missing_credentials || []).length ? 'Needs credentials' : (item.signed_in === false && item.auth_kind !== 'none') ? 'Needs sign-in' : 'Not running'}
+              · {item.ready ? 'Connected' : (item.missing_credentials || []).length ? 'Needs credentials' : (item.signed_in === false && item.auth_kind !== 'none') ? 'Needs sign-in' : 'Not running'}
             </span>
           </motion.div>
         )}
@@ -1090,6 +1266,7 @@ function AuthCard({ auth, title, onRetry, onCancel, onDismiss, onCopy, onCopyCod
 
 function ConnectModal({ server, onClose, onLogin }) {
   if (!server) return null
+  const title = server.title || server.name
   return (
     <div className="conn-modal-backdrop" onClick={onClose}>
       <motion.div
@@ -1103,21 +1280,21 @@ function ConnectModal({ server, onClose, onLogin }) {
           <div className="conn-modal-icons">
              <BrandMark size={24} /> <span style={{ color: '#555', margin: '0 4px', fontSize: 24, lineHeight: 1 }}>···</span> <ServiceIcon name={server.name} size={24} />
           </div>
-          <h2>Connect {server.title || server.name}</h2>
-          <p>Developed by OpenAI</p>
+          <h2>Connect {title}</h2>
+          <p>{server.author ? `Developed by ${server.author}` : 'Amethyst Connector'}</p>
         </div>
         <div className="conn-modal-body">
           <div className="conn-modal-item">
             <h4>Permissions always respected</h4>
-            <p>ChatGPT is strictly limited to permissions you've explicitly set. Disable access anytime to revoke permissions.</p>
+            <p>Amethyst is strictly limited to permissions you've explicitly set. Disable access anytime to revoke permissions.</p>
           </div>
           <div className="conn-modal-item">
             <h4>You're in control</h4>
-            <p>ChatGPT always respects your training data preferences. Data from {server.title} may be used to provide you relevant and useful information. <a href="#">Learn more</a></p>
+            <p>Amethyst runs locally and keeps your credentials secure in the OS keychain. Data from {title} is only accessed when you explicitly invoke tools in conversation.</p>
           </div>
           <div className="conn-modal-item">
-            <h4>Connectors may introduce risk</h4>
-            <p>Connectors are designed to respect your privacy, but sites may attempt to steal your data. <a href="#">Learn more on how to stay safe</a></p>
+            <h4>Secure Communication</h4>
+            <p>Connectors communicate with external services over the Model Context Protocol (MCP). Review tool capabilities before granting execution.</p>
           </div>
         </div>
         <div className="conn-modal-auth">
@@ -1125,13 +1302,13 @@ function ConnectModal({ server, onClose, onLogin }) {
              <ServiceIcon name={server.name} size={18} />
            </div>
            <div>
-             <strong>You use {server.title} to authenticate</strong>
-             <p>For added security, enable Multi-factor authentication (MFA) on your {server.title} account or <a href="#">your ChatGPT account</a>.</p>
+             <strong>You use {title} to authenticate</strong>
+             <p>For added security, enable multi-factor authentication (MFA) on your {title} account.</p>
            </div>
         </div>
         <div className="conn-modal-footer">
           <button className="plugin-action-btn is-white w-full" onClick={() => { onLogin(server); onClose() }}>
-             Continue to {server.title} ↗
+             Continue to {title} ↗
           </button>
         </div>
       </motion.div>
@@ -1159,7 +1336,18 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
   const refreshServers = useCallback(async () => {
     try {
       const srv = await api.mcpServers(true)
-      setServers(srv)
+      if (Array.isArray(srv)) {
+        setServers(srv)
+        setLive((prev) => {
+          const next = { ...prev }
+          for (const s of srv) {
+            if (s.name && s.live) {
+              next[s.name] = { ...next[s.name], ...s.live }
+            }
+          }
+          return next
+        })
+      }
       return srv
     } catch {
       // quiet
@@ -1167,23 +1355,29 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
     }
   }, [])
 
-  // When did we last ask the backend to reconnect failed connectors. The poll
-  // observes state every 3s; reconcile is heavier and holds the registry lock,
-  // so it fires only when a server is actually due and at most every 15s.
+  // Auto-healing: periodically ensure enabled, authenticated connectors stay connected
   const lastReconcile = useRef(0)
   const maybeReconnect = useCallback(async (rows) => {
-    if (!rows) return
-    const due = rows.some((r) => r.enabled && !r.ready && (r.retry_in ?? 0) === 0 && r.error)
+    if (!rows || !Array.isArray(rows)) return
+    const due = rows.some((r) => {
+      const isConnected = Boolean(r.live?.connected || r.live?.is_connected || (r.live?.tools > 0))
+      const isReady = Boolean(r.live?.ready || r.live?.is_usable)
+      const hasAuth = Boolean(r.signed_in || r.account || r.live?.is_authenticated || r.auth_kind === 'none')
+      const isBlocked = (r.missing_credentials || []).length > 0
+      const retryIn = r.retry_in ?? r.live?.retry_in ?? 0
+      return r.enabled && (!isConnected || !isReady) && hasAuth && !isBlocked && retryIn === 0
+    })
     if (!due) return
-    if (Date.now() - lastReconcile.current < 15000) return
+    if (Date.now() - lastReconcile.current < 8000) return
     lastReconcile.current = Date.now()
     try {
       await api.mcpReconcile()
-      refreshServers()
+      await refreshServers()
+      refreshHealth()
     } catch {
       // quiet
     }
-  }, [refreshServers])
+  }, [refreshServers, refreshHealth])
 
   const refresh = useCallback(async () => {
     try {
@@ -1198,14 +1392,18 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
       setCatalogue(cat)
       setAuths(auth)
       setTools(allTools)
-      setLive(
-        Object.fromEntries(
-          (capabilities.connectors ?? []).map((c) => [
-            c.name,
-            { enabled: c.enabled, ...(c.live || { connected: false, tools: 0, error: null, ready: false }) },
-          ])
-        )
-      )
+      setLive((prev) => {
+        const next = { ...prev }
+        for (const c of (capabilities.connectors ?? [])) {
+          next[c.name] = { enabled: c.enabled, ...(c.live || {}), ...next[c.name] }
+        }
+        for (const s of (srv || [])) {
+          if (s.name && s.live) {
+            next[s.name] = { ...next[s.name], ...s.live }
+          }
+        }
+        return next
+      })
     } catch {
       // quiet
     } finally {
@@ -1521,12 +1719,22 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
     return [toolsList, categories]
   }, [servers, catalogue, configuredSet, q, filter])
 
-  // Installed connectors list for the top chips row (Screenshot 5 inspired)
+  // Installed connectors list for the top chips row
   const installedList = useMemo(() => {
-    return servers.map((s) => ({
-      ...s,
-      ready: Boolean(s.lifecycle?.ready || live[s.name]?.ready || (live[s.name]?.tools ?? 0) > 0),
-    }))
+    return servers.map((s) => {
+      const serverLive = live[s.name] || s.live || {}
+      const isConnected = Boolean(serverLive.is_connected ?? serverLive.connected ?? (serverLive.tools > 0))
+      const isUsable = Boolean(
+        isConnected &&
+        (serverLive.is_usable ?? serverLive.ready ?? (serverLive.tools > 0)) &&
+        !serverLive.account_mismatch &&
+        !s.lifecycle?.account_mismatch
+      )
+      return {
+        ...s,
+        ready: isUsable,
+      }
+    })
   }, [servers, live])
 
   const authCards = useMemo(
@@ -1535,10 +1743,21 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
   )
 
   // Active detail view
-  const openServer = servers.find((s) => s.name === open) || catalogue.find((c) => (c.id === open || c.name === open))
+  const rawOpen = servers.find((s) => s.name === open) || catalogue.find((c) => (c.id === open || c.name === open))
+  const openServer = useMemo(() => {
+    if (!rawOpen) return null
+    const name = rawOpen.name || rawOpen.id
+    const isConfigured = servers.some((s) => s.name === name)
+    return {
+      ...rawOpen,
+      name,
+      title: rawOpen.title || name,
+      isConfigured,
+    }
+  }, [rawOpen, servers])
 
   const detailTools = useMemo(() => {
-    if (!openServer) return []
+    if (!openServer || !openServer.name) return []
     const prefix = `__mcp__${openServer.name.replace(/-/g, '_2d')}`
     return tools
       .filter((t) => t.server === openServer.name)
@@ -1582,6 +1801,7 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
               tools={detailTools}
               onBack={() => setOpen(null)}
               onAct={(action, options) => act(openServer, action, options)}
+              onAdd={() => addFromCatalogue(openServer)}
               onChanged={refresh}
             />
           </motion.div>
@@ -1883,7 +2103,7 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
           if (server.isCatalogue) {
             await addFromCatalogue(server, true)
           } else {
-            await performAction(server, 'login', { force: true })
+            await act(server, 'login', { force: true })
           }
         }}
       />

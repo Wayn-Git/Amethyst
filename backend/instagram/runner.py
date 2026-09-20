@@ -94,24 +94,22 @@ class InstagramRunner:
         A no-op when nothing is running -- the delivery is already written down,
         and the next start drains it.
         """
+        self._next_relay = 0.0
         if self._wake is not None:
             self._wake.set()
 
     @staticmethod
+    def _pairing_active() -> bool:
+        return (
+            sync_devices.pairing_open()
+            or sync_devices.has_pending_pairings()
+            or sync_devices.has_approved_answers()
+        )
+
+    @staticmethod
     def _tick_seconds() -> float:
-        """How long to wait before the next tick.
-
-        Never raises: a broken sync layer must cost a faster pairing, not the
-        drain this runner exists for.
-
-        `devices` is imported at module scope rather than here. It looks like the
-        sort of import that belongs inside the function -- it is only needed on
-        this path -- and doing it here ran a module import on every pass of the
-        loop, which on the first pass is real blocking work between the runner
-        starting and it reaching its wait. That was enough to reorder the drain
-        against a webhook arriving in the same breath.
-        """
-        return PAIRING_TICK_SECONDS if sync_devices.pairing_open() else TICK_SECONDS
+        """How long to wait before the next tick."""
+        return PAIRING_TICK_SECONDS if InstagramRunner._pairing_active() else TICK_SECONDS
 
     async def _loop(self) -> None:
         wake = self._wake
@@ -220,13 +218,20 @@ class InstagramRunner:
         processed on the first tick after boot rather than the second.
         """
         loop_now = asyncio.get_running_loop().time()
+        # When a pairing code was just shown, the relay schedule from before the
+        # code was opened can be up to RELAY_POLL_SECONDS (15 s) in the future.
+        # Cap it so the first poll after opening pairing happens within
+        # PAIRING_RELAY_SECONDS rather than after the old timer expires.
+        pairing_active = self._pairing_active()
+        if pairing_active and self._next_relay > loop_now + PAIRING_RELAY_SECONDS:
+            self._next_relay = loop_now
         # An answer in hand goes back immediately whatever the interval says:
         # the device that offered itself is blocked on this one round trip, and
         # it is already single-use and already produced.
         if loop_now < self._next_relay and not self._relay.owes_pair_answer:
             return
         self._next_relay = loop_now + (
-            PAIRING_RELAY_SECONDS if self._tick_seconds() < TICK_SECONDS else RELAY_POLL_SECONDS
+            PAIRING_RELAY_SECONDS if pairing_active else RELAY_POLL_SECONDS
         )
         # Never raises; a relay that is down is a warning and a retry, never a
         # tick that fails and takes the drain with it.

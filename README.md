@@ -38,57 +38,23 @@ zero-cloud setup, or with 20+ cloud providers.
 
 Also: Mail (beta, direct Gmail), Automations (beta, a prompt on an interval), a full Activity log, and a tray + global hotkey desktop mode.
 
-## Parallel Execution
+## Enterprise-Grade Reliability
 
-Amethyst can run multiple data-gathering tasks simultaneously, dramatically
-speeding up research and data collection:
+Amethyst's backend is fortified against edge cases, resource leaks, and concurrency issues:
 
-```python
-# Example: Research multiple topics at once
-dispatch_parallel_jobs([
-  {task: "web_search", params: {query: "AI news"}},
-  {task: "web_search", params: {query: "climate change"}},
-  {task: "urls", params: {urls: ["https://example.com"]}},
-  {task: "github_activity", params: {username: "user"}},
-])
-```
+- **Bulletproof concurrency** — A global `.amethyst.lock` file prevents multiple background instances from clobbering each other's ports and logs.
+- **Leak-free streaming** — FastAPI's `BackgroundTasks` guarantee cleanup of SSE (Server-Sent Events) connections, preventing memory leaks when clients disconnect ungracefully.
+- **Orphan process prevention** — Explicit process group reaping ensures that background PTY processes spawned by the terminal manager are killed instantly on shutdown.
+- **Strict dependency isolation** — Dynamic skill loading employs robust directory existence validation and YAML mapping verification, preventing malformed skills from crashing the system.
 
-**Key features:**
-- **Task auto-correction** — Common mistakes like `fetch_url` → `urls` are
-  automatically fixed
-- **Error recovery** — Clear error messages guide the agent to use correct tools
-- **Progress tracking** — Real-time status updates in the UI
-- **Smart routing** — Fast tasks run locally, slow tasks use remote workers
+## Premium UI/UX & Motion Design
 
-**Available tasks:** `urls`, `web_search`, `gmail`, `github_activity`,
-`git_status`, `file_info`, `system_info`, `briefing`, `todo`, `rss`
+The interface is built to look and feel stunning:
 
-## Smart File Reading
-
-Amethyst reads files intelligently, preventing common issues:
-
-- **Binary detection** — Automatically detects and handles binary files
-- **Image recognition** — Shows images as base64 with metadata
-- **Hard limits** — 50KB max, 2000 lines, 2000 chars per line
-- **Pagination** — Use `offset` and `limit` for large files
-- **Truncation notices** — Clearly shows when data is truncated
-
-**Example:**
-```bash
-view_file("large_file.py", offset=100, limit=50)  # Lines 100-150
-```
-
-## LLM Intelligence Rules
-
-The agent follows strict rules to prevent common mistakes:
-
-1. **Never guess tool names** — Must check available tools before use
-2. **Never retry failed tools** — Must understand why it failed first
-3. **Never generate fake data** — Must tell user honestly what happened
-4. **Always have fallback strategy** — Primary → Alternative → Manual
-5. **Tool inspection protocol** — Mandatory check before every tool call
-
-These rules ensure the agent is reliable and transparent about its capabilities.
+- **Glassmorphism & Glow** — Soft gradients, blurred backdrops (`backdrop-filter`), and dynamic drop-shadows bring the interface to life.
+- **Fluid Motion** — Smooth page transitions (`view-swap`), slide-in sidebars, and refined popover animations make interactions feel purposeful and fast.
+- **Responsive Empty States** — Skeleton loaders and carefully crafted empty views provide a polished experience even when there is no data to show.
+- **Robust Error Boundaries** — Graceful fallbacks and toast notifications catch unhandled promise rejections and backend warnings without breaking the flow.
 
 ## The agent, briefly
 
@@ -119,6 +85,20 @@ cd Amethyst
 
 The script sets up the venv, installs dependencies, initializes the database,
 builds the frontend, and opens **http://127.0.0.1:8000**.
+
+**As a desktop application** (after the first run, no terminal needed):
+
+```bash
+amethyst desktop                    # launch it -- or use the application menu
+amethyst-show                       # raise the window of a running instance
+amethyst desktop --install-autostart # start it at login, in the background
+amethyst desktop --install-shortcut  # bind a global key to open it
+```
+
+Launching twice does not start a second copy; it raises the window of the one
+already running. Closing the window puts AMETHYST away rather than quitting it —
+schedules, jobs and the agent loop keep running. `amethyst serve` remains the
+development command. See [docs/architecture/desktop.md](docs/architecture/desktop.md).
 
 **Docker:**
 
@@ -162,6 +142,7 @@ or point `providers.yaml` at any OpenAI-compatible endpoint.
 | [QUICKSTART.md](QUICKSTART.md) | 2-minute start, setup wizard, Ollama, FAQ |
 | [docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md) | Every integration: providers, OAuth, Cloudflare relay, Library capture |
 | [docs/interface.md](docs/interface.md) | The web UI: views, keyboard bindings, design rationale |
+| [docs/architecture/desktop.md](docs/architecture/desktop.md) | The desktop app: launching, startup order, single instance, tray, global shortcut |
 | [docs/deployment.md](docs/deployment.md) | Local single-process vs. Vercel + Render split deploy |
 | [docs/architecture/overview.md](docs/architecture/overview.md) | Layer diagram, request lifecycle, design principles, ADRs |
 | [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) | Parallel execution, smart file reading, LLM intelligence rules |

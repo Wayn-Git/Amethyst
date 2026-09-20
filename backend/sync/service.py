@@ -192,35 +192,28 @@ def config(conn=None) -> dict[str, Any]:
 
 
 def answer_pairings(payload: dict[str, Any], conn=None) -> list[dict[str, Any]]:
-    """Complete any handshake the relay carried across.
-
-    This machine is the only party that can: the relay holds the sealed bytes
-    and not the secret that opens them. An offer that does not open is one from
-    somebody who did not see the QR code, and `devices.accept` returns None for
-    it without saying why.
-
-    An offer that arrives with no code open at all is different, and comes back
-    as a plaintext refusal rather than silence -- see `devices.accept`. It is
-    carried in the same list because it travels the same way; it just is not a
-    pairing, so it does not touch the clock.
-    """
     offers = payload.get("pairings") or []
-    if not offers:
-        return []
-    conn = conn or get_connection()
     answers = []
-    for offer in offers:
-        if not isinstance(offer, dict):
-            continue
-        try:
-            with transaction(conn):
-                answer = devices.accept(conn, offer)
-        except Exception:
-            log.exception("a pairing offer could not be completed")
-            continue
-        if answer is None:
-            continue
-        answers.append(answer)
-        if not answer.get("refused"):
-            reset_clock()  # the group may have just gained its first member
+    conn = conn or get_connection()
+    if offers:
+        for offer in offers:
+            if not isinstance(offer, dict):
+                continue
+            try:
+                with transaction(conn):
+                    answer = devices.accept(conn, offer, auto_approve=False)
+            except Exception:
+                log.exception("a pairing offer could not be completed")
+                continue
+            if answer is None or answer.get("refused") == "pending_approval":
+                continue
+            answers.append(answer)
+            if not answer.get("refused"):
+                reset_clock()  # the group may have just gained its first member
+
+    approved = devices.consume_approved()
+    if approved:
+        answers.extend(approved)
+        reset_clock()
+
     return answers

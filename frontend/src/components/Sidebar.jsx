@@ -72,7 +72,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
         onDoubleClick={onRename}
         title={`${conv.title || 'untitled'} (${fmtDate(conv.updated_at || conv.created_at)})`}
       >
-        {conv.pinned && (
+        {Boolean(conv.pinned) && (
           <span className="sb-conv-icon sb-conv-icon--pinned">
             <Icon name="star" size={13} filled={true} />
           </span>
@@ -264,10 +264,8 @@ export default function Sidebar() {
               className="sb-user-card-top"
               title={`User menu for ${userProfile?.name || 'User'} — Click to edit name or open settings`}
             >
-              <div className="sb-user-avatar sb-user-avatar--sm">
-                {(userProfile?.name || 'U').charAt(0).toUpperCase()}
-              </div>
-              <span className="sb-user-name-top">{userProfile?.name || 'User'}</span>
+              <BrandMark size={22} glow />
+              <span className="sb-user-name-top">{userProfile?.name ? `${userProfile.name}'s Amethyst` : 'Amethyst OS'}</span>
               <Icon name="chevron" size={10} className="sb-user-chevron" />
             </button>
           </UserMenu>

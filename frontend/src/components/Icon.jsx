@@ -1,5 +1,7 @@
 import {
   Archive,
+  ArrowClockwise,
+  ArrowCounterClockwise,
   ArrowDown,
   ArrowElbowDownLeft,
   ArrowUp,
@@ -34,6 +36,7 @@ import {
   EnvelopeOpen,
   FolderOpen,
   Gauge,
+  GitBranch,
   Globe,
   GlobeHemisphereWest,
   Image as ImageSquare,
@@ -63,6 +66,7 @@ import {
   Sidebar as SidebarRight,
   SlidersHorizontal,
   Sparkle,
+  SpeakerHigh,
   SquaresFour,
   Square,
   Gear,
@@ -87,6 +91,10 @@ import {
   CheckCircle,
   DotsSixVertical,
   DotsNine,
+  Desktop,
+  Mouse,
+  Power,
+  WifiHigh,
 } from '@phosphor-icons/react'
 
 /* One icon set, one stroke weight, one grid.
@@ -103,6 +111,10 @@ import {
 
 const MARKS = {
   alert: WarningCircle,
+  // The spotlight's two error states ask for this name. It was not in the map,
+  // so a failed web or video search drew an empty box where the icon should be
+  // -- which reads as "no results" rather than "the search failed".
+  'alert-triangle': WarningCircle,
   shield: Shield,
   'shield-check': ShieldCheck,
   zap: Lightning,
@@ -142,6 +154,12 @@ const MARKS = {
   chevron: CaretRight,
   clock: ClockAfternoon,
   copy: Copy,
+  undo: ArrowCounterClockwise,
+  redo: ArrowClockwise,
+  branch: GitBranch,
+  speaker: SpeakerHigh,
+  'read-aloud': SpeakerHigh,
+  more: DotsThree,
   cpu: Circuitry,
   dash: Gauge,
   dots: DotsThree,
@@ -195,6 +213,11 @@ const MARKS = {
   trash: Trash,
   user: User,
   camera: Camera,
+  monitor: Desktop,
+  desktop: Desktop,
+  mouse: Mouse,
+  power: Power,
+  wifi: WifiHigh,
   video: VideoCamera,
   wrap: ArrowElbowDownLeft,
   x: X,

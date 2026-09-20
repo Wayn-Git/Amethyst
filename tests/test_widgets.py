@@ -122,7 +122,7 @@ async def test_none_falls_through_to_the_ordinary_turn(monkeypatch):
 async def test_a_clear_match_comes_back_validated(monkeypatch):
     _wire(monkeypatch, _Replies(json.dumps({"type": "recipe", "data": RECIPE})))
 
-    kind, data, _ = await classify_and_extract("recipe for pancakes")
+    kind, data, _ = await classify_and_extract("give me a recipe for pancakes please")
 
     assert kind == "recipe"
     assert data["title"] == "Pancakes"
@@ -140,7 +140,7 @@ async def test_a_fenced_reply_is_tolerated(monkeypatch):
     fenced = "```json\n" + json.dumps({"type": "recipe", "data": RECIPE}) + "\n```"
     client = _wire(monkeypatch, _Replies(fenced))
 
-    kind, _, _ = await classify_and_extract("recipe for pancakes")
+    kind, _, _ = await classify_and_extract("give me a recipe for pancakes please")
 
     assert kind == "recipe"
     assert client.calls == 1
@@ -149,7 +149,7 @@ async def test_a_fenced_reply_is_tolerated(monkeypatch):
 async def test_no_configured_provider_is_not_an_error(monkeypatch):
     monkeypatch.setattr(widgets, "default_chain", lambda **kw: [])
 
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
 
 
 async def test_an_empty_message_asks_nobody(monkeypatch):
@@ -176,7 +176,7 @@ async def test_malformed_json_is_retried_once_then_given_up_on(monkeypatch):
     """
     client = _wire(monkeypatch, _Replies("sorry, I cannot do that"))
 
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
     assert client.calls == 2
 
 
@@ -186,7 +186,7 @@ async def test_the_retry_is_what_rescues_a_wobble(monkeypatch):
         _Replies("not json at all", json.dumps({"type": "recipe", "data": RECIPE})),
     )
 
-    kind, _, _ = await classify_and_extract("recipe for pancakes")
+    kind, _, _ = await classify_and_extract("give me a recipe for pancakes please")
 
     assert kind == "recipe"
     assert client.calls == 2
@@ -200,7 +200,7 @@ async def test_a_payload_that_misses_its_schema_is_rejected(monkeypatch):
     broken = json.dumps({"type": "recipe", "data": {"title": "Pancakes"}})
     client = _wire(monkeypatch, _Replies(broken))
 
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
     assert client.calls == 2
 
 
@@ -209,7 +209,7 @@ async def test_an_invented_type_is_rejected(monkeypatch):
 
     # Carries a signal ("suggest") so the call is made and its invented type is
     # what gets rejected.
-    assert await classify_and_extract("suggest my horoscope") == ("none", None, [])
+    assert await classify_and_extract("can you please suggest my horoscope") == ("none", None, [])
     assert client.calls == 2
 
 
@@ -233,7 +233,7 @@ async def test_a_dead_provider_costs_one_attempt_and_no_more(monkeypatch):
 
     client = _wire(monkeypatch, _Dead(), links=("ollama", "groq"))
 
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
     assert client.calls == 1
 
 
@@ -248,7 +248,7 @@ async def test_a_provider_already_known_to_be_down_is_not_asked(monkeypatch):
     client = _wire(monkeypatch, _Replies(json.dumps({"type": "recipe", "data": RECIPE})))
     availability.record_failure("groq", FailureKind.UPSTREAM_UNHEALTHY, "down")
 
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
     assert client.calls == 0
 
 
@@ -274,11 +274,11 @@ async def test_a_timeout_puts_the_feature_to_sleep_rather_than_the_provider(monk
     monkeypatch.setattr(widgets, "WIDGET_TIMEOUT", 0.01)
     client = _wire(monkeypatch, _Slow())
 
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
     # The provider is untouched: the turn behind this still wants it.
     assert availability.cached("groq") is None
     # But the next turn does not pay the timeout again.
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
     assert client.calls == 1
 
 
@@ -286,11 +286,11 @@ async def test_the_backoff_clears(monkeypatch):
     client = _wire(monkeypatch, _Replies(json.dumps({"type": "recipe", "data": RECIPE})))
     widgets._quiet_for(300)
 
-    assert await classify_and_extract("recipe for pancakes") == ("none", None, [])
+    assert await classify_and_extract("give me a recipe for pancakes please") == ("none", None, [])
     assert client.calls == 0
 
     widgets.reset_backoff()
-    kind, _, _ = await classify_and_extract("recipe for pancakes")
+    kind, _, _ = await classify_and_extract("give me a recipe for pancakes please")
     assert kind == "recipe"
 
 
@@ -462,7 +462,7 @@ async def test_a_widget_answers_the_turn_without_running_the_agent(db, monkeypat
     events = [
         e
         async for e in Director(_registry(), stream=False, memory=False, retrieval=False).run(
-            cid, "recipe for pancakes"
+            cid, "give me a recipe for pancakes please"
         )
     ]
 

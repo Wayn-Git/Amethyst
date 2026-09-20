@@ -167,6 +167,15 @@ def backoff(attempt: int) -> float:
     return min(2.0**attempt, 8.0) * (0.5 + random.random() / 2)
 
 
+def stream_backoff(attempt: int) -> float:
+    """Faster backoff for mid-stream errors — the provider was working moments ago.
+
+    NIM's 'Error in input stream' is intermittent; a quick retry often succeeds.
+    Uses a shorter ceiling (4s vs 8s) and tighter jitter to minimize user-visible
+    latency while still avoiding thundering herd."""
+    return min(1.5**attempt, 4.0) * (0.6 + random.random() / 4)
+
+
 # One client per (event loop, read timeout), so connections are reused across
 # calls *of the same shape*. A client was built and closed per request and per
 # retry, which meant a fresh TCP and TLS handshake to the provider every time.
@@ -332,7 +341,11 @@ def _replay_delay(data: str, attempt: int, max_retries: int) -> float | None:
     handed on, so replaying cannot duplicate output that is already on screen --
     the same rule the dropped-stream path applies.
     """
-    if attempt >= max_retries or '"error"' not in data:
+    if attempt >= max_retries:
+        return None
+    if "input stream" in data.lower():
+        return stream_backoff(attempt)
+    if '"error"' not in data:
         return None
     try:
         payload = json.loads(data)
@@ -345,7 +358,7 @@ def _replay_delay(data: str, attempt: int, max_retries: int) -> float | None:
         return None
     if not should_retry(classify_stream_error(error)):
         return None
-    return backoff(attempt)
+    return stream_backoff(attempt)
 
 
 async def stream_sse(
