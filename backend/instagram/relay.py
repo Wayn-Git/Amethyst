@@ -45,7 +45,8 @@ TOKEN_REF = f"{SERVICE}/instagram-relay-token"
 #: How often the runner asks the relay for anything. Its own interval, well
 #: above the drain's five seconds: the drain is cheap and local, this is a
 #: round trip over the internet, and 100k requests a day is the free ceiling.
-POLL_SECONDS = 15.0
+#: At 30s that is 2,880/day — comfortable on free tier.
+POLL_SECONDS = 30.0
 
 #: Rows per sync. The relay caps at 500; this keeps one poll's work bounded.
 BATCH = 25
@@ -125,6 +126,8 @@ class RelayClient:
     async def sync(self, *, ack: list[int], config: dict[str, Any],
                    job_ack: list[str] | None = None,
                    worker_ack: list[str] | None = None,
+                   ops: list[dict[str, Any]] | None = None,
+                   op_ack: list[str] | None = None,
                    limit: int = BATCH) -> dict[str, Any]:
         if not self.url or not self.token:
             raise RelayError("the relay has no URL or no token stored")
@@ -136,6 +139,8 @@ class RelayClient:
                     "ack": ack,
                     "job_ack": job_ack or [],
                     "worker_ack": worker_ack or [],
+                    "ops": ops or [],
+                    "op_ack": op_ack or [],
                     "config": config,
                     "limit": limit,
                 },
@@ -177,12 +182,21 @@ class RelayPoller:
         #: because they are acknowledged on a different route at the relay, and
         #: a failed sync must put each back where it came from.
         self._pending_worker_ack: list[str] = []
+        #: Sync ops taken last time. A fourth list for the same reason as the
+        #: third: it is a separate queue at the relay, so a failed sync has to
+        #: put these back without disturbing the others.
+        self._pending_op_ack: list[str] = []
+        #: Sealed pairing answers this machine produced, waiting to go back to
+        #: the device that asked. Produced while handling one poll's response and
+        #: sent on the next, which costs a device one extra poll to finish
+        #: pairing and keeps the round trip a single request.
+        self._pending_pair_answers: list[dict[str, Any]] = []
 
     @property
     def client(self) -> RelayClient:
         return self._client if self._client is not None else RelayClient()
 
-    def _config(self) -> dict[str, Any]:
+    def _config(self, pair_answers: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """What the relay needs to act on its own while this machine is away.
 
         Every one of these is owned here and mirrored there, refreshed on each
@@ -194,13 +208,43 @@ class RelayPoller:
         from backend import share
 
         settings = load_instagram()
-        return {
+        mirrored = {
             "access_token": signature.access_token(),
             "token_expires_on": settings.token_expires_on,
             "share_token": share.current(),
             "allow_senders": list(settings.allow_senders),
             "reply_on_save": settings.reply_on_save,
         }
+        # Who this machine is and who is paired with it. Pushed on every poll
+        # like everything else here, so revoking a device takes effect at the
+        # relay within one poll rather than on the next deploy.
+        try:
+            from backend.sync import service as sync_service
+
+            mirrored.update(sync_service.config())
+            from backend.sync import devices as sync_devices
+            answers = list(pair_answers or [])
+            answers.extend(sync_devices.consume_approved())
+            if answers:
+                mirrored["pair_answers"] = answers
+        except Exception:
+            # Sync is not a precondition for Instagram capture, which is what
+            # this poller was built for. A broken sync layer must not stop a
+            # reel arriving.
+            log.exception("could not build the sync config mirror")
+        return mirrored
+
+    @property
+    def owes_pair_answer(self) -> bool:
+        """Is a completed handshake sitting here waiting for a round trip?
+
+        The device that offered itself is blocked on exactly this, so the poller
+        goes now rather than at the next interval. Answers are produced by
+        `_collect_ops` during a sync, which means this is only ever true between
+        one round trip and the next.
+        """
+        from backend.sync import devices as sync_devices
+        return bool(self._pending_pair_answers) or sync_devices.has_approved_answers()
 
     async def sync(self, *, store: InstagramEventStore | None = None) -> dict[str, Any]:
         """One round trip. Returns what happened, and never raises."""
@@ -219,15 +263,24 @@ class RelayPoller:
         ack, self._pending_ack = self._pending_ack, []
         job_ack, self._pending_job_ack = self._pending_job_ack, []
         worker_ack, self._pending_worker_ack = self._pending_worker_ack, []
+        op_ack, self._pending_op_ack = self._pending_op_ack, []
+        pair_answers, self._pending_pair_answers = self._pending_pair_answers, []
+        outgoing_ops = self._outgoing_ops()
         try:
             payload = await self.client.sync(
-                ack=ack, job_ack=job_ack, worker_ack=worker_ack, config=self._config()
+                ack=ack, job_ack=job_ack, worker_ack=worker_ack,
+                ops=outgoing_ops, op_ack=op_ack, config=self._config(pair_answers),
             )
         except RelayError as exc:
             # Put them back: nothing was deleted at the relay, so they still need
             # acknowledging, and re-acknowledging one twice is a no-op there.
             self._pending_ack = ack + self._pending_ack
             self._pending_job_ack = job_ack + self._pending_job_ack
+            self._pending_op_ack = op_ack + self._pending_op_ack
+            # A pairing answer that did not reach the relay is one the device
+            # waiting for it will never see, and it cannot be produced again:
+            # the code was single use and has already been spent.
+            self._pending_pair_answers = pair_answers + self._pending_pair_answers
             self._pending_worker_ack = worker_ack + self._pending_worker_ack
             log.warning("relay sync failed: %s", exc)
             return {"synced": False, "pulled": 0, "queued": 0, "acked": 0,
@@ -261,7 +314,55 @@ class RelayPoller:
             "acked": len(ack),
             "jobs": await self._collect_jobs(payload),
             "workers": self._collect_workers(payload),
+            "ops": self._collect_ops(payload, sent=outgoing_ops),
         }
+
+    # -- the sync layer's half of the round trip --------------------------
+
+    def _outgoing_ops(self) -> list[dict[str, Any]]:
+        """What this machine changed since the last poll, sealed.
+
+        Never raises. The sync layer is a passenger on a round trip that exists
+        for Instagram capture, and a bug here must cost a settings change
+        reaching a phone rather than a reel reaching the library.
+        """
+        try:
+            from backend.sync import service as sync_service
+
+            return sync_service.outgoing()
+        except Exception:
+            log.exception("could not prepare the outgoing sync ops")
+            return []
+
+    def _collect_ops(self, payload: dict[str, Any], *, sent: list[dict[str, Any]]) -> int:
+        """Apply what other devices changed, and clear what the relay took.
+
+        The outbox is emptied here rather than before the call, and only for the
+        ops the relay confirmed storing -- which is the same late acknowledgement
+        the three lists above use. An op dropped before the handover is
+        confirmed is one a failed sync loses for good.
+        """
+        try:
+            from backend.db.connection import get_connection, transaction
+            from backend.sync import ops as sync_ops
+            from backend.sync import service as sync_service
+
+            # A pairing is answered before the ops are applied: a device that
+            # has just joined should be in the mirror pushed on the next poll.
+            answers = sync_service.answer_pairings(payload)
+            if answers:
+                self._pending_pair_answers.extend(answers)
+
+            if sent and payload.get("ops_stored") is not None:
+                with transaction(get_connection()) as conn:
+                    sync_ops.forget(conn, [op["op_id"] for op in sent])
+
+            applied, acks = sync_service.incoming(payload)
+            self._pending_op_ack.extend(acks)
+            return applied
+        except Exception:
+            log.exception("could not apply the incoming sync ops")
+            return 0
 
     # -- the worker mailbox's half of the round trip ----------------------
 

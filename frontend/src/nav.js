@@ -17,7 +17,7 @@ export const NAV = [
   { id: 'mail', path: '/mail', label: 'Mail', icon: 'mail', digit: 3, rail: true, settings: true, beta: true },
   { id: 'capabilities', path: '/capabilities', label: 'Skills & connectors', icon: 'grid', digit: 4, rail: true, settings: true },
   { id: 'automations', path: '/automations', label: 'Automations', icon: 'clock', digit: 5, rail: true, settings: true, beta: true },
-  { id: 'memory', path: '/memory', label: 'Memory', icon: 'spark', digit: 6, rail: true, settings: true },
+  { id: 'memory', path: '/memory', label: 'Memory', icon: 'brain', digit: 6, rail: true, settings: true },
   { id: 'library', path: '/library', label: 'Library', icon: 'book', digit: 9, rail: true, settings: true },
   // Reached from Settings rather than the rail. It is a page you open when
   // something looks wrong, not one you open every day, and the rail is worth
@@ -27,6 +27,12 @@ export const NAV = [
   // degraded/offline banner or the command palette. That's an existing
   // product decision, not an oversight this file is fixing.
   { id: 'dash', path: '/dash', label: 'Status', icon: 'dash' },
+  // The phone's page: this machine, read from somewhere else. No rail entry and
+  // no digit, because on the machine itself it is pointless -- everything it
+  // shows is a stale copy of what Chat already has live. The offline banner and
+  // Settings > Devices are how you reach it, which is also where you are when
+  // you need it.
+  { id: 'remote', path: '/remote', label: 'Remote', icon: 'link' },
   { id: 'settings', path: '/settings', label: 'Settings', icon: 'sliders' },
 ]
 

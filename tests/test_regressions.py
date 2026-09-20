@@ -588,7 +588,9 @@ async def test_concurrent_turns_share_one_mcp_manager(api, db, tmp_path, monkeyp
         async def shutdown(self):
             pass
 
-    monkeypatch.setattr(api, "MCPManager", SlowManager)
+    import backend.mcp.manager as mcp_manager
+
+    monkeypatch.setattr(mcp_manager, "MCPManager", SlowManager)
 
     first, second = await asyncio.gather(
         api._registry_for(str(tmp_path)), api._registry_for(str(tmp_path))
@@ -1002,7 +1004,7 @@ def test_a_turn_stops_counting_as_running_at_its_terminal_frame(api, db, monkeyp
             seen.append({"when": "after done", "running": conversation_id in api._active_turns})
             yield Event("memory", {"created": [], "superseded": []})
 
-    async def fake_director(workspace, mode="chat", *, reconcile_deadline=None):
+    async def fake_director(workspace, mode="chat", *, reconcile_deadline=None, **kwargs):
         return Director()
 
     monkeypatch.setattr(api, "_director", fake_director)
@@ -1719,7 +1721,9 @@ async def test_a_connector_switched_on_mid_session_becomes_usable(api, db, tmp_p
         async def shutdown(self):
             pass
 
-    monkeypatch.setattr(api, "MCPManager", FakeManager)
+    import backend.mcp.manager as mcp_manager
+
+    monkeypatch.setattr(mcp_manager, "MCPManager", FakeManager)
 
     registry, _ = await api._registry_for(str(tmp_path))
     assert connected == [], "a connector nobody switched on must not be started"
@@ -2046,7 +2050,9 @@ async def test_switching_a_connector_on_starts_it_and_says_what_happened(api, db
         async def shutdown(self):
             pass
 
-    monkeypatch.setattr(api, "MCPManager", FakeManager)
+    import backend.mcp.manager as mcp_manager
+
+    monkeypatch.setattr(mcp_manager, "MCPManager", FakeManager)
     try:
         on = await api.toggle_capability(
             "connector", "browser", api.CapabilityToggle(enabled=True)
@@ -2297,7 +2303,7 @@ def test_the_turn_says_it_is_alive_before_it_builds_the_agent(api, db, monkeypat
         async def run(self, conversation_id, message, cancel=None):
             yield Event("done", {"text": "hello"})
 
-    async def slow_director(workspace, mode="chat", *, reconcile_deadline=None):
+    async def slow_director(workspace, mode="chat", *, reconcile_deadline=None, **kwargs):
         # Stands in for a connector that will not come up quickly.
         await asyncio.sleep(0.2)
         return Director()
@@ -2334,7 +2340,7 @@ def test_an_agent_that_cannot_be_built_is_an_error_frame_not_a_stuck_turn(api, d
 
     from backend.db.repositories import ConversationRepository
 
-    async def broken_director(workspace, mode="chat", *, reconcile_deadline=None):
+    async def broken_director(workspace, mode="chat", *, reconcile_deadline=None, **kwargs):
         raise RuntimeError("the connector manager is wedged")
 
     monkeypatch.setattr(api, "_director", broken_director)

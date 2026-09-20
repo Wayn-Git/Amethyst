@@ -9,15 +9,23 @@
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b0c11" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="AMETHYST — your personal operating system. One agent over your files, shell, tasks, calendar and connected services." />
+    <meta property="og:title" content="AMETHYST · Personal Operating System" />
+    <meta property="og:description" content="One agent over your files, shell, tasks, calendar, and connected services." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/logo.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="AMETHYST · Personal Operating System" />
+    <meta name="twitter:description" content="One agent over your files, shell, tasks, calendar, and connected services." />
+    <meta name="twitter:image" content="/logo.png" />
     <title>AMETHYST · personal operating system</title>
     <!-- The API's own preconnect is added from api.js rather than written here.
          An env placeholder that no build defined stays in the markup verbatim
          as a broken href, and the same-origin build has no second host to
          connect to at all. -->
 
-    <!-- No font CDN. The IBM Plex faces are bundled through main.jsx so the
-         interface renders identically offline and tells nobody it booted;
-         see the note there. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>

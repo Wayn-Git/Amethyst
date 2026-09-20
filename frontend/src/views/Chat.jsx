@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
+import ResponseActionBar from '../components/ResponseActionBar.jsx'
+import SelectionActionMenu from '../components/SelectionActionMenu.jsx'
+import ResponseEditor from '../components/ResponseEditor.jsx'
+import ResponseArtifactBox from '../components/ResponseArtifactBox.jsx'
+import ResponseMessageActions from '../components/ResponseMessageActions.jsx'
 import ArtifactPanel from '../components/ArtifactPanel.jsx'
+import SourcesSidePanel, { extractSourcesFromMessage } from '../components/SourcesSidePanel.jsx'
 import TurnTrace from '../components/TurnTrace.jsx'
 import TurnRail from '../components/TurnRail.jsx'
 import { SmoothTextarea, FadeScrollArea } from '../components/ui/skiper/index.js'
@@ -21,9 +27,12 @@ import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
-import { BackgroundPattern } from '../components/shared-assets/background-patterns/index.tsx'
 import TerminalDrawer from '../components/TerminalDrawer.jsx'
+import { safeStorage } from '../lib/storage.js'
 import { MOD_LABEL } from '../keys.js'
+import { motion } from 'framer-motion'
+import { Blobatar } from "@blobatar/react"
+import "blobatar/motion.css"
 
 /* The composer is the interface. Everything else — which skills are live, which
    connectors it may reach, what it remembers, where it may work — hangs off the
@@ -677,10 +686,12 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
   )
 }
 
-function Msg({
+const Msg = memo(function Msg({
   item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy, onOpenArtifact,
   onResume, setInput, textareaRef,
+  conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
 }) {
+  const msgRef = useRef(null)
   const role = item.kind
 
   if (role === 'question') {
@@ -732,7 +743,7 @@ function Msg({
   if (role === 'memory') {
     return (
       <div className="msg-note msg-note--warning">
-        <Icon name="spark" size={14} />
+        <Icon name="brain" size={14} />
         <span><strong style={{ fontWeight: 500 }}>remembered</strong> — {item.text}</span>
       </div>
     )
@@ -745,25 +756,12 @@ function Msg({
     return <TurnTrace events={[{ type: 'tool', call: { name: item.name, arguments: item.arguments, content: item.content, status: item.isError ? 'error' : 'done' } }]} />
   }
   if (role === 'assistant') {
-    // A turn that only called tools has nothing to say yet, and labelling each
-    // of those as a reply from AMETHYST turns three steps of one answer into three
-    // answers.
     if (!item.text && item.toolCalls?.length) {
-      // With the panel open the calls are drawn there, and an assistant turn
-      // that only called tools has nothing left to say in the transcript.
       return <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
     }
-    /* No name over the answer. Two speakers alternating down one column is
-       already unambiguous from shape alone -- the question is a bubble against
-       the right edge, the answer is prose across the page -- and a label on
-       every turn is a word the eye has to step over to reach the sentence it
-       came for. The controls come with the hover instead of sitting in the
-       reading line permanently. */
+
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
-        {/* What it did comes before what it says. The work happened first, and
-            an answer that arrives under its own working is the order the turn
-            actually ran in. */}
         {item.toolCalls?.length > 0 && (
           <TurnTrace
             events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
@@ -771,17 +769,32 @@ function Msg({
             onOpenArtifact={onOpenArtifact}
           />
         )}
-        {/* A widget is the answer, not a decoration on one: the turn that
-            produced it never generated prose, so there is nothing to render
-            alongside. An unknown widget type renders as null, which is why the
-            markdown branch stays reachable below. */}
         {item.widget && <div className="msg-body"><WidgetRenderer widget={item.widget} /></div>}
-        {!item.widget && item.text && <div className="msg-body"><Markdown text={item.text} /></div>}
         {!item.widget && item.text && (
-          <div className="msg-actions">
-            <CopyButton text={item.text} label="Copy this answer" />
-            <PinButton item={item} onPin={onPin} />
-          </div>
+          <ResponseArtifactBox
+            text={item.text}
+            item={item}
+            conversationId={conversationId}
+            isEditing={isEditing}
+            onStartEdit={onStartEdit}
+            onCancelEdit={onCancelEdit}
+            onSaveEdit={onSaveEdit}
+            onOpenFullScreen={onOpenFullScreen}
+            onRegenerate={onRegenerate}
+            onPin={onPin}
+            onExportDocx={onExportDocx}
+          />
+        )}
+        {!item.widget && item.text && (
+          <ResponseMessageActions
+            text={item.text}
+            item={item}
+            onRegenerate={onRegenerate}
+            onPin={onPin}
+            onExportDocx={onExportDocx}
+            onViewSources={() => onViewSources?.(item)}
+            onBranchInNewChat={onBranchInNewChat}
+          />
         )}
       </div>
     )
@@ -792,8 +805,10 @@ function Msg({
 
   return (
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
-      <div className="msg-body msg-body--plain">{item.text}</div>
-      <div className="msg-user-meta">
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', justifyContent: 'flex-end', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '7px', minWidth: 0 }}>
+          <div className="msg-body msg-body--plain">{item.text}</div>
+          <div className="msg-user-meta">
         {timeStr && <span className="msg-time">{timeStr}</span>}
         <CopyButton text={item.text} label="Copy" />
         <button
@@ -806,10 +821,15 @@ function Msg({
           <Icon name="edit" size={12} />
         </button>
         <PinButton item={item} onPin={onPin} />
+          </div>
+        </div>
+        <div style={{ flexShrink: 0, width: '42px', height: '42px', marginTop: '2px', cursor: 'pointer' }} title="That's you!">
+          <Blobatar name="alain00" animate="hover" />
+        </div>
       </div>
     </div>
   )
-}
+})
 
 /* What the answer cost to produce.
 
@@ -862,6 +882,47 @@ function ArtifactSide({
       />
     </SidePanel>
   )
+}
+
+export function resolveModelContextWindow(modelId = '', provider = '') {
+  const m = (modelId || '').toLowerCase()
+  const p = (provider || '').toLowerCase()
+
+  if (p === 'google' || m.includes('gemini')) {
+    if (m.includes('1.5-pro') || m.includes('2.0-pro') || m.includes('2.5-pro')) {
+      return 2097152 // 2M
+    }
+    return 1048576 // 1M tokens
+  }
+
+  if (p === 'anthropic' || m.includes('claude')) {
+    return 200000 // 200K tokens
+  }
+
+  if (m.startsWith('o1') || m.startsWith('o3') || m.includes('-o1') || m.includes('-o3')) {
+    return 200000 // 200K tokens
+  }
+
+  if (p === 'openai' || m.includes('gpt-4o')) {
+    return 128000 // 128K tokens
+  }
+
+  if (m.includes('mistral-large') || m.includes('codestral') || m.includes('kimi') || m.includes('minimax-m2.5')) {
+    return 262144 // 256K tokens
+  }
+  if (m.includes('minimax-text') || m.includes('text-01')) {
+    return 1048576 // 1M tokens
+  }
+
+  if (p === 'deepseek' || m.includes('deepseek')) {
+    return 65536 // 64K tokens
+  }
+
+  if (m.includes('32768') || m.includes('32k') || m.includes('qwen2.5-coder')) {
+    return 32768
+  }
+
+  return 131072 // 128K default
 }
 
 export default function Chat() {
@@ -954,6 +1015,8 @@ export default function Chat() {
   const [lastSent, setLastSent] = useState('')
   const [pinsOpen, setPinsOpen] = useState(true)
   const [queuedMessages, setQueuedMessages] = useState([])
+  const [editingMessageId, setEditingMessageId] = useState(null)
+  const [fullScreenMessage, setFullScreenMessage] = useState(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [inspectOpen, setInspectOpen] = useState(false)
   const inspectCardRef = useRef(null)
@@ -993,14 +1056,18 @@ export default function Chat() {
      again. Persisted so a reload does not resurrect one the user already
      dismissed for a condition that has not changed. */
   const [dismissedBanners, setDismissedBanners] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('amethyst.dismissed.v1') || '[]')) }
-    catch { return new Set() }
+    try {
+      const raw = safeStorage.getItem('amethyst.dismissed.v1')
+      return new Set(JSON.parse(raw || '[]'))
+    } catch {
+      return new Set()
+    }
   })
   const dismissBanner = useCallback((sig) => {
     setDismissedBanners((prev) => {
       const next = new Set(prev)
       next.add(sig)
-      try { localStorage.setItem('amethyst.dismissed.v1', JSON.stringify([...next])) } catch { /* private mode */ }
+      safeStorage.setItem('amethyst.dismissed.v1', JSON.stringify([...next]))
       return next
     })
   }, [])
@@ -1746,6 +1813,51 @@ export default function Chat() {
     guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag,
   ])
 
+  const handleSaveMessageEdit = useCallback(async (msgItem, newText) => {
+    if (!activeId || !newText || newText === msgItem.text) {
+      setEditingMessageId(null)
+      return
+    }
+    try {
+      let rowId = msgItem.rowId
+      if (!rowId) {
+        const freshMsgs = await api.messages(activeId).catch(() => [])
+        const found = freshMsgs.find((m) => m.content === msgItem.text || m.id === msgItem.rowId)
+        if (found) rowId = found.id
+      }
+      if (rowId) {
+        await api.updateMessageArtifact(activeId, rowId, newText, 'User edited response')
+      }
+      setItems((prev) => prev.map((it) => {
+        if (it.id === msgItem.id || (it.rowId && it.rowId === rowId)) {
+          return { ...it, text: newText }
+        }
+        return it
+      }))
+      setEditingMessageId(null)
+      toast('Response updated and version saved', 'good')
+    } catch (err) {
+      toast(`Failed to save edit: ${err.message}`, 'bad')
+    }
+  }, [activeId, toast])
+
+  const handleExportDocx = useCallback(async (text, baseName = 'amethyst-response') => {
+    try {
+      const blob = await api.exportDocx(text, baseName)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${baseName}.docx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast('Word document exported', 'good')
+    } catch (err) {
+      toast(`Export error: ${err.message}`, 'bad')
+    }
+  }, [toast])
+
   // Queue context/messages while a turn is actively executing (matches Queue ↵ in screenshot)
   const handleQueue = useCallback(() => {
     const typed = input.trim()
@@ -1973,6 +2085,7 @@ export default function Chat() {
   // Opening a document from the conversation: show the panel, and select the
   // one the card names if it is still on screen.
   const openArtifacts = useCallback((path) => {
+    setPanelMode('artifacts')
     setPanel(true)
     if (path) {
       setArtifacts((prev) => {
@@ -1996,7 +2109,88 @@ export default function Chat() {
      all. The panel is for the documents themselves now, and only those. */
   const transcript = useMemo(() => foldTraces(rendered), [rendered])
 
+  const handleRegenerateAnswer = useCallback((msgItem) => {
+    const idx = transcript.findIndex((it) => it.id === msgItem.id || (it.rowId && it.rowId === msgItem.rowId))
+    if (idx < 0) return
+    const prevUser = transcript.slice(0, idx).reverse().find((it) => it.kind === 'user')
+    if (prevUser && prevUser.text) {
+      send(prevUser.text)
+    } else {
+      send('Please regenerate your previous response with more detail.')
+    }
+  }, [transcript, send])
 
+  const handleBranchInNewChat = useCallback(async (msgItem) => {
+    const idx = transcript.findIndex((it) => it.id === msgItem.id || (it.rowId && it.rowId === msgItem.rowId))
+    const prevUser = idx >= 0 ? transcript.slice(0, idx).reverse().find((it) => it.kind === 'user') : null
+    const title = prevUser?.text ? `Branch: ${prevUser.text.slice(0, 36)}` : 'New Branch'
+    try {
+      if (activeId) {
+        const rowId = msgItem.rowId || null
+        const { id } = await api.branchConversation(activeId, rowId, title)
+        setActiveId(id)
+        refreshConvs()
+        toast('Branched conversation created', 'good')
+      } else {
+        const { id } = await api.createConversation(
+          active?.provider || draftProvider,
+          active?.model || draftModel || '',
+          title,
+        )
+        setActiveId(id)
+        refreshConvs()
+        toast('Branched into new conversation', 'good')
+      }
+    } catch (err) {
+      toast(`Branch failed: ${err.message}`, 'bad')
+    }
+  }, [transcript, active, activeId, draftProvider, draftModel, setActiveId, refreshConvs, toast])
+
+  const [panelMode, setPanelMode] = useState('artifacts') // 'artifacts' | 'sources'
+  const [activeSourceUrl, setActiveSourceUrl] = useState(null)
+  const [activeSources, setActiveSources] = useState([])
+
+  const handleViewSources = useCallback((msgItem) => {
+    let found = []
+    if (msgItem) {
+      found = extractSourcesFromMessage(msgItem)
+    }
+    if (!found.length) {
+      const map = new Map()
+      for (const it of transcript) {
+        for (const s of extractSourcesFromMessage(it)) {
+          if (!map.has(s.url)) map.set(s.url, s)
+        }
+      }
+      found = Array.from(map.values())
+    }
+    setActiveSources(found)
+    setActiveSourceUrl(found[0]?.url || null)
+    setPanelMode('sources')
+    setPanel(true)
+  }, [transcript, setPanel])
+
+  useEffect(() => {
+    const handleOpenSourcesEvent = (e) => {
+      const { url, host, title } = e.detail || {}
+      const map = new Map()
+      for (const it of transcript) {
+        for (const s of extractSourcesFromMessage(it)) {
+          if (!map.has(s.url)) map.set(s.url, s)
+        }
+      }
+      const list = Array.from(map.values())
+      if (url && !map.has(url)) {
+        list.unshift({ url, domain: host || 'source', title: title || host })
+      }
+      setActiveSources(list)
+      setActiveSourceUrl(url)
+      setPanelMode('sources')
+      setPanel(true)
+    }
+    window.addEventListener('amethyst-open-sources', handleOpenSourcesEvent)
+    return () => window.removeEventListener('amethyst-open-sources', handleOpenSourcesEvent)
+  }, [transcript, setPanel])
 
   const pins = useMemo(() => rendered.filter((i) => i.pinned && i.text), [rendered])
 
@@ -2057,7 +2251,7 @@ export default function Chat() {
     return effort.charAt(0).toUpperCase() + effort.slice(1)
   }, [effort])
 
-  const contextPct = useMemo(() => {
+  const contextStats = useMemo(() => {
     let charCount = 0
     for (const it of items || []) {
       if (it.text) charCount += it.text.length
@@ -2065,12 +2259,28 @@ export default function Chat() {
       if (it.content) charCount += (typeof it.content === 'string' ? it.content.length : JSON.stringify(it.content).length)
       if (it.callsRaw) charCount += JSON.stringify(it.callsRaw).length
     }
-    const estimatedTokens = Math.round(charCount / 3.8)
-    // Use the selected model's actual context window if available, fallback to 128k
-    const windowSize = modelCaps?.context_length || 128000
-    const pct = Math.min(100, Math.max(0, Math.round((estimatedTokens / windowSize) * 100)))
-    return items.length > 0 ? pct : 0
-  }, [items, modelCaps])
+    const messageTokens = charCount > 0 ? Math.round(charCount / 3.7) : 0
+    const baseTokens = items.length > 0 ? 1800 : 0
+    const usedTokens = items.length > 0 ? messageTokens + baseTokens : 0
+
+    const activeModelId = active?.model ?? draftModel ?? ''
+    const activeProvider = active?.provider ?? draftProvider ?? ''
+    const maxTokens = modelCaps?.context_length || resolveModelContextWindow(activeModelId, activeProvider)
+    const compactionTokens = Math.round(maxTokens * 0.78)
+
+    const rawPct = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0
+    const pct = Math.min(100, Math.max(0, Math.round(rawPct)))
+    const displayPct = (usedTokens > 0 && pct === 0) ? '<1%' : `${pct}%`
+
+    return {
+      usedTokens,
+      maxTokens,
+      compactionTokens,
+      pct,
+      displayPct,
+    }
+  }, [items, modelCaps, active?.model, active?.provider, draftModel, draftProvider])
+  const contextPct = contextStats.pct
 
   const liveThinkingSnippet = useMemo(() => {
     if (liveReasoning) {
@@ -2273,7 +2483,7 @@ export default function Chat() {
               {activeTag.type === 'connector' ? (
                 <ServiceIcon name={activeTag.name} size={12} />
               ) : (
-                <Icon name="spark" size={12} />
+                <Icon name="grid" size={12} />
               )}
               <span className="composer-active-tag-label">{activeTag.label}</span>
               <button
@@ -2543,7 +2753,7 @@ export default function Chat() {
               <button
                 type="button"
                 className={`composer-footer-context${contextOpen ? ' is-active' : ''}`}
-                title={`Context memory usage: ${contextPct}%`}
+                title={`Context memory usage: ${contextStats.displayPct} (${contextStats.usedTokens.toLocaleString()} / ${contextStats.maxTokens.toLocaleString()} tokens)`}
                 onPointerDown={(e) => e.stopPropagation()} onClick={() => { setContextOpen((o) => !o); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setPlusOpen(false) }}
               >
                 <svg className="context-donut-svg" width="13" height="13" viewBox="0 0 36 36">
@@ -2560,18 +2770,19 @@ export default function Chat() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="4"
-                    strokeDasharray={`${Math.max(contextPct, 1)}, 100`}
+                    strokeDasharray={`${Math.max(contextStats.pct > 0 ? contextStats.pct : (contextStats.usedTokens > 0 ? 2 : 0), 0)}, 100`}
                     strokeLinecap="round"
                   />
                 </svg>
-                <span>Context {contextPct}%</span>
+                <span>Context {contextStats.displayPct}</span>
               </button>
               {contextOpen && (
                 <ContextPopover
-                  pct={contextPct}
-                  usedTokens={items.length * 150}
-                  maxTokens={128000}
-                  compactionTokens={90000}
+                  pct={contextStats.pct}
+                  displayPct={contextStats.displayPct}
+                  usedTokens={contextStats.usedTokens}
+                  maxTokens={contextStats.maxTokens}
+                  compactionTokens={contextStats.compactionTokens}
                   onClose={() => setContextOpen(false)}
                   placement="up"
                 />
@@ -2594,15 +2805,6 @@ export default function Chat() {
       />
 
       <div className="chat-main">
-        {/* Soft Ambient Accent Glow (Home Page Background) */}
-        <div className={`home-accent-glow${isEmpty ? ' is-home' : ''}`} aria-hidden="true" />
-
-        {isEmpty && (
-          <div className="hero-pattern-wrap" aria-hidden="true">
-            <BackgroundPattern pattern="grid" size="lg" className="hero-pattern-svg" />
-          </div>
-        )}
-
         {!isEmpty && elsewhere.length > 0 && (
           <div className="chat-banner msg-note msg-note--guard">
             <Icon name="key" size={14} />
@@ -2680,58 +2882,94 @@ export default function Chat() {
         )}
 
         {isEmpty ? (
-          <div className="hero-stack">
-            {/* Amethyst Crystal Logo (without background chip/orb) */}
-            <div className="hero-logo-wrap">
+          <motion.div
+            className="hero-stack"
+            initial="hidden"
+            animate="show"
+            variants={{
+              hidden: { opacity: 0 },
+              show: {
+                opacity: 1,
+                transition: { staggerChildren: 0.08, delayChildren: 0.04 },
+              },
+            }}
+          >
+            {/* Amethyst Crystal Logo with subtle ambient halo */}
+            <motion.div
+              className="hero-logo-wrap"
+              variants={{
+                hidden: { opacity: 0, scale: 0.88, y: 10 },
+                show: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
+              <div className="hero-logo-halo" aria-hidden="true" />
               <svg
                 viewBox="524.5 524 560 560"
                 className="hero-logo-mark"
-                width="54"
-                height="54"
+                width="52"
+                height="52"
                 aria-label="Amethyst Logo"
               >
-                <path fill="var(--accent, #873FFF)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z"/>
-                <path fill="var(--accent, #873FFF)" d="M1016 701L928 722L847 986L960 870L1039 846Z"/>
-                <path fill="var(--accent, #873FFF)" d="M595 701L570 845L651 870L763 985L682 722Z"/>
+                <path fill="var(--accent, #7132f5)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z"/>
+                <path fill="var(--accent, #7132f5)" d="M1016 701L928 722L847 986L960 870L1039 846Z"/>
+                <path fill="var(--accent, #7132f5)" d="M595 701L570 845L651 870L763 985L682 722Z"/>
               </svg>
-            </div>
+            </motion.div>
 
-            {/* Dynamic Greeting & Subtitle (Image 4) */}
-            <div className="hero">
+            {/* Dynamic Greeting & Subtitle */}
+            <motion.div
+              className="hero"
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
               <h1 className="hero-headline">{greeting}</h1>
               <p className="hero-subheadline">
                 What's on <span className="hero-gradient-text">your mind?</span>
               </p>
-            </div>
+            </motion.div>
 
             {/* Composer Card */}
-            {composer}
+            <motion.div
+              className="hero-composer-wrap"
+              style={{ width: '100%' }}
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
+              {composer}
+            </motion.div>
 
-            {/* Quick Start 4-Card Grid (Image 4) */}
-            <div className="hero-quick-start">
-              <div className="hero-cards-grid">
-                {QUICK_STARTS.map((card) => (
-                  <button
-                    key={card.id}
-                    type="button"
-                    className="hero-card"
-                    onClick={() => {
-                      setInput(card.prompt)
-                      textareaRef.current?.focus()
-                    }}
-                  >
-                    <div className="hero-card-body">
-                      <h3 className="hero-card-title">{card.title}</h3>
-                      <p className="hero-card-desc">{card.subtitle}</p>
-                    </div>
-                    <div className={`hero-card-icon hero-card-icon--${card.accent}`}>
-                      <Icon name={card.icon} size={15} />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+            {/* Quick starts */}
+            <motion.div
+              className="hero-chips"
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
+              {QUICK_STARTS.map((card) => (
+                <motion.button
+                  key={card.id}
+                  type="button"
+                  className="hero-chip"
+                  title={card.subtitle}
+                  whileHover={{ y: -2, scale: 1.015 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  onClick={() => {
+                    setInput(card.prompt)
+                    textareaRef.current?.focus()
+                  }}
+                >
+                  <Icon name={card.icon} size={14} />
+                  <span>{card.title}</span>
+                </motion.button>
+              ))}
+            </motion.div>
+          </motion.div>
         ) : (
           <>
             {pins.length > 0 && (
@@ -2815,6 +3053,16 @@ export default function Chat() {
                       onResume={resumeAnswer}
                       setInput={setInput}
                       textareaRef={textareaRef}
+                      conversationId={activeId}
+                      isEditing={editingMessageId === item.rowId || (item.id && editingMessageId === item.id)}
+                      onStartEdit={() => setEditingMessageId(item.rowId || item.id)}
+                      onCancelEdit={() => setEditingMessageId(null)}
+                      onSaveEdit={handleSaveMessageEdit}
+                      onOpenFullScreen={() => setFullScreenMessage(item)}
+                      onRegenerate={() => handleRegenerateAnswer(item)}
+                      onExportDocx={handleExportDocx}
+                      onBranchInNewChat={handleBranchInNewChat}
+                      onViewSources={handleViewSources}
                     />
                   </div>
                 ))}
@@ -2867,19 +3115,46 @@ export default function Chat() {
       </div>
 
       {panel && !compact && view === 'chat' && (
-        <ArtifactSide
-          artifacts={artifacts}
-          activeArtifact={activeArtifact}
-          onSelectArtifact={setActiveArtifact}
-          streamingArtifact={streamingArtifact}
-          freshArtifact={freshArtifact}
-          expanded={panelExpanded}
-          onToggleExpand={togglePanelExpanded}
-          onClose={() => { setPanelExpanded(false); setPanel(false) }}
-        />
+        panelMode === 'sources' ? (
+          <SourcesSidePanel
+            sources={activeSources}
+            activeUrl={activeSourceUrl}
+            duration="3s"
+            onClose={() => { setPanel(false); setPanelMode('artifacts') }}
+          />
+        ) : (
+          <ArtifactSide
+            artifacts={artifacts}
+            activeArtifact={activeArtifact}
+            onSelectArtifact={setActiveArtifact}
+            streamingArtifact={streamingArtifact}
+            freshArtifact={freshArtifact}
+            expanded={panelExpanded}
+            onToggleExpand={togglePanelExpanded}
+            onClose={() => { setPanelExpanded(false); setPanel(false) }}
+          />
+        )
       )}
 
       <ConfirmModal pending={pending} onDecide={onDecide} />
+      {fullScreenMessage && (
+        <div className="modal-overlay response-editor-modal-overlay" onClick={() => setFullScreenMessage(null)}>
+          <div className="response-editor-modal-window" onClick={(e) => e.stopPropagation()}>
+            <ResponseEditor
+              initialText={fullScreenMessage.text}
+              conversationId={activeId}
+              messageId={fullScreenMessage.rowId}
+              isFullScreen
+              onSave={async (newText) => {
+                await handleSaveMessageEdit(fullScreenMessage, newText)
+                setFullScreenMessage(null)
+              }}
+              onCancel={() => setFullScreenMessage(null)}
+              onCloseFullScreen={() => setFullScreenMessage(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

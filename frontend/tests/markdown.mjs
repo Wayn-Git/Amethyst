@@ -295,6 +295,97 @@ test('empty and nullish input are empty documents', () => {
   assert.deepEqual(parseInline(''), [])
 })
 
+
+test("consecutive image paragraphs consolidate into a gallery block", () => {
+  const md = [
+    "Introduction text.",
+    "",
+    "![Image 1](https://site.com/1.jpg)",
+    "",
+    "![Image 2](https://site.com/2.jpg)",
+    "",
+    "Conclusion text."
+  ].join("\n");
+  const blocks = parseBlocks(md);
+  assert.equal(blocks.length, 3);
+  assert.equal(blocks[0].type, "p");
+  assert.equal(blocks[1].type, "gallery");
+  assert.equal(blocks[1].items.length, 2);
+  assert.equal(blocks[1].items[0].alt, "Image 1");
+  assert.equal(blocks[2].type, "p");
+});
+
+test('replaceSelectedInMarkdown replaces plain-text rendered selection in formatted markdown', async () => {
+  const { replaceSelectedInMarkdown } = await import('../src/components/markdown/parse.js');
+  const md = [
+    'Header text here.',
+    '',
+    '### These images show:',
+    '',
+    '1. Official artwork confirming November 19, 2026',
+    '2. Cover image highlighting release window',
+    '',
+    '*Note: Confirmed officially.*',
+  ].join('\n');
+
+  const plain = [
+    'These images show:',
+    '',
+    '1. Official artwork confirming November 19, 2026',
+    '2. Cover image highlighting release window',
+    '',
+    'Note: Confirmed officially.',
+  ].join('\n');
+
+  const replaced = replaceSelectedInMarkdown(md, plain, 'Brand new summary text.');
+  assert.ok(replaced.includes('Header text here.'));
+  assert.ok(replaced.includes('Brand new summary text.'));
+  assert.ok(!replaced.includes('These images show:'));
+});
+
+test('normalizeRow pads short rows and merges overflowing cells to match header count', async () => {
+  const { normalizeRow } = await import('../src/components/markdown/parse.js');
+  // Normal row
+  assert.deepEqual(normalizeRow(['a', 'b', 'c'], 3), ['a', 'b', 'c']);
+  // Overflowing row (e.g. November 19, 2026 | Scheduled launch | S | PENDING)
+  const normalized = normalizeRow(['Nov 19', 'Scheduled launch date', 'S', 'PENDING'], 3);
+  assert.equal(normalized.length, 3);
+  assert.equal(normalized[0], 'Nov 19');
+  assert.equal(normalized[1], 'Scheduled launch date');
+  assert.equal(normalized[2], 'S PENDING');
+  // Short row
+  assert.deepEqual(normalizeRow(['Nov 19'], 3), ['Nov 19', '', '']);
+});
+
+test('parseBlocks transforms Sources Consulted into article_carousel block', () => {
+  const md = [
+    'Here is the news.',
+    '',
+    '| Date | Development | Status |',
+    '| - | - | - |',
+    '| Nov 19, 2026 | Launch date | S | PENDING |',
+    '',
+    '## 📚 Sources Consulted',
+    '- [Rockstar Reportedly Warns GTA 6 Actors](https://northeasttimes.com/news/1) — *Northeast Times* (Today)',
+    '- [Rockstar Games Official](https://rockstargames.com/) - Official game library',
+    '- [IGN: GTA 6 Soundtrack](https://ign.com/music) - September 17, 2026 reporting',
+  ].join('\n');
+
+  const blocks = parseBlocks(md);
+  assert.equal(blocks.length, 3);
+  assert.equal(blocks[0].type, 'p');
+  assert.equal(blocks[1].type, 'table');
+  assert.equal(blocks[1].rows[0].length, 3); // Normalized row length
+  assert.equal(blocks[1].rows[0][2], 'S PENDING'); // Merged overflow
+  assert.equal(blocks[2].type, 'article_carousel');
+  assert.equal(blocks[2].items.length, 3);
+  assert.equal(blocks[2].items[0].title, 'Rockstar Reportedly Warns GTA 6 Actors');
+  assert.equal(blocks[2].items[0].domain, 'Northeast Times');
+  assert.equal(blocks[2].items[0].date, 'Today');
+  assert.equal(blocks[2].items[1].domain, 'rockstargames.com');
+  assert.equal(blocks[2].items[2].date, 'September 17, 2026');
+});
+
 /* ---------------------------------------------------------------- report */
 
 for (const f of failures) console.log(`FAIL  ${f.name}\n      ${f.message}`)

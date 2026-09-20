@@ -48,9 +48,25 @@ class ConnectorState:
     action: str | None = None
     #: Whether this connector can be used right now.
     ready: bool = False
+    #: Strictly True ONLY when transport connection is confirmed live right now
+    is_connected: bool = False
+    #: Strictly True ONLY when credentials are valid (or auth not required)
+    is_authenticated: bool = False
+    #: Strictly True ONLY when connected + authenticated + healthy + account matches
+    is_usable: bool = False
+    account: str | None = None
+    expected_account: str | None = None
+    account_mismatch: bool = False
+    health: str = "unknown"
+    tools_count: int = 0
 
     def as_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return {
+            "state": self.state,
+            "detail": self.detail,
+            "action": self.action,
+            "ready": self.ready,
+        }
 
 
 def state_of(
@@ -61,52 +77,61 @@ def state_of(
     synced: bool = True,
     reconciled: bool = True,
 ) -> ConnectorState:
-    """Where this connector is in its setup.
+    """Where this connector is in its setup based on authoritative backend evidence.
 
     `row` is one entry from `commands.status()`; `pending` its entry from
     `GET /api/mcp/authorizations` if it has one; `live` its entry from
-    `MCPManager.state()`. Everything is optional because the CLI has no manager
-    and the catalogue view has no poll -- a partial answer beats a screen that
-    refuses to say anything until every source has reported.
-
-    The order of the checks is the whole design. A connector mid sign-in is
-    *authenticating* even though it is also not connected and also has no
-    account; reporting the deepest unmet requirement rather than the first one
-    found is what stops the screen saying "not connected" at someone who is
-    looking at a consent page.
+    `MCPManager.state()`.
     """
     name = row.get("name", "")
     pending = pending or {}
     live = live or {}
 
     if not row.get("enabled", True):
-        return ConnectorState("off", "Switched off.", action="connect")
+        return ConnectorState(
+            "off",
+            "Switched off.",
+            action="connect",
+            is_connected=False,
+            is_authenticated=False,
+            is_usable=False,
+            health="unknown",
+        )
 
-    # A sign-in in flight outranks everything: the user is at the provider, and
-    # every other fact about this connector is temporarily meaningless.
+    # A sign-in in flight outranks everything
     status = pending.get("status")
     if status == "waiting":
         return ConnectorState(
             "authenticating",
             "Waiting for you to finish signing in with the provider.",
             action=None,
+            is_connected=False,
+            is_authenticated=False,
+            is_usable=False,
+            health="unknown",
         )
     if status == "failed":
         return ConnectorState(
             "failed",
             pending.get("message") or "The sign-in did not complete.",
             action="retry",
+            is_connected=False,
+            is_authenticated=False,
+            is_usable=False,
+            health="unhealthy",
         )
 
-    # Credentials the server needs before its own flow can even start. Named
-    # rather than counted: "needs 2 credentials" is not something anyone can act
-    # on without going and finding out which two.
+    # Missing credentials
     missing = row.get("missing_credentials") or []
     if missing:
         return ConnectorState(
             "setup",
             f"Needs {_join(missing)} before it can sign in.",
             action="credentials",
+            is_connected=False,
+            is_authenticated=False,
+            is_usable=False,
+            health="unknown",
         )
 
     if row.get("signed_in") is False:
@@ -114,31 +139,134 @@ def state_of(
             "sign_in",
             "Running, but no account is signed in — its tools are withheld until one is.",
             action="sign_in",
+            is_connected=False,
+            is_authenticated=False,
+            is_usable=False,
+            health="unknown",
         )
 
-    # Tools in the registry outrank a recorded error, and this ordering is the
-    # whole of the fix. `error` used to be checked first, so one transient spawn,
-    # discovery or OAuth failure -- a string nothing ever cleared -- reported
-    # "failed to start" beside a connector that was serving its tools to the
-    # agent that same second. A registered tool is a fact about now; an error is
-    # a memory of a moment. The manager only reports one once the server has
-    # genuinely stopped being usable (see `MCPManager.is_ready`: three
-    # consecutive hard failures, or the tools gone from the registry), so a
-    # failure that survives to here has already earned the word.
-    if live.get("ready") or (live.get("tools") or 0) > 0:
+    if row.get("token_healthy") is False:
+        token_err = row.get("token_error") or "Token expired or revoked."
+        return ConnectorState(
+            "token_expired",
+            f"Sign-in expired: {token_err}",
+            action="sign_in",
+            is_connected=False,
+            is_authenticated=False,
+            is_usable=False,
+            health="unhealthy",
+        )
+
+    # Account mismatch detection
+    if row.get("account_mismatch") or live.get("account_mismatch"):
+        actual = live.get("account") or row.get("account") or "unknown"
+        expected = live.get("expected_account") or row.get("expected_account") or "unknown"
+        return ConnectorState(
+            "account_mismatch",
+            f"Signed in as '{actual}', but configured for '{expected}'.",
+            action="sign_in",
+            ready=False,
+            is_connected=bool(live.get("connected")),
+            is_authenticated=True,
+            is_usable=False,
+            account=actual,
+            expected_account=expected,
+            account_mismatch=True,
+            health="degraded",
+            tools_count=live.get("tools") or 0,
+        )
+
+    # Authoritative live status if provided
+    auth = live.get("authoritative")
+    if auth:
+        if auth.get("is_usable"):
+            return _ready_state(name, row, live, synced)
+        if auth.get("account_mismatch"):
+            return ConnectorState(
+                state="account_mismatch",
+                detail=auth.get("detail", "Account mismatch."),
+                action=auth.get("action", "sign_in"),
+                ready=False,
+                is_connected=bool(auth.get("is_connected")),
+                is_authenticated=True,
+                is_usable=False,
+                account=auth.get("account"),
+                expected_account=auth.get("expected_account"),
+                account_mismatch=True,
+                health="degraded",
+                tools_count=auth.get("tools_count", 0),
+            )
+        state_val = str(auth.get("state", "failed"))
+        if state_val in ("disconnected", "server_error", "unavailable", "health_check_failed", "connected"):
+            if not reconciled and state_val == "disconnected":
+                state_val = "starting"
+            else:
+                state_val = "failed"
+        return ConnectorState(
+            state=state_val,
+            detail=auth.get("detail", "Not usable."),
+            action=auth.get("action", "retry"),
+            ready=False,
+            is_connected=bool(auth.get("is_connected")),
+            is_authenticated=bool(auth.get("is_authenticated")),
+            is_usable=False,
+            account=auth.get("account"),
+            expected_account=auth.get("expected_account"),
+            account_mismatch=bool(auth.get("account_mismatch")),
+            health=str(auth.get("health", "unhealthy")),
+            tools_count=auth.get("tools_count", 0),
+        )
+
+    # Tools in the registry outrank a recorded error when connected:
+    tools = live.get("tools") or 0
+    connected = live.get("connected")
+    ready = live.get("ready")
+    is_live_ready = (ready is True) or (connected and tools > 0)
+
+    if is_live_ready:
         return _ready_state(name, row, live, synced)
 
     error = live.get("error")
     if error:
-        return ConnectorState("failed", _readable(name, error), action="retry")
+        return ConnectorState(
+            "failed",
+            _readable(name, error),
+            action="retry",
+            ready=False,
+            is_connected=False,
+            is_authenticated=False,
+            is_usable=False,
+            health="unhealthy",
+        )
 
-    if not live.get("connected"):
+    if not connected:
+        signed_in = bool(row.get("signed_in", False) or live.get("is_authenticated", False))
+        acc = live.get("account") or row.get("account")
         if not reconciled:
-            # Nothing has asked it to start yet. Distinct from failing to start,
-            # and they used to render identically -- so on a freshly booted
-            # server every connector looked broken.
-            return ConnectorState("starting", "Not started yet.", action="connect")
-        return ConnectorState("failed", "Not running.", action="connect")
+            return ConnectorState(
+                "starting",
+                "Not started yet.",
+                action="connect",
+                ready=False,
+                is_connected=False,
+                is_authenticated=signed_in,
+                is_usable=False,
+                account=acc,
+                expected_account=row.get("expected_account"),
+                health="unknown",
+            )
+        return ConnectorState(
+            "failed",
+            "Not running.",
+            action="connect",
+            ready=False,
+            is_connected=False,
+            is_authenticated=signed_in,
+            is_usable=False,
+            account=acc,
+            expected_account=row.get("expected_account"),
+            health="unknown",
+        )
 
     return _ready_state(name, row, live, synced)
 
@@ -146,44 +274,71 @@ def state_of(
 def _ready_state(
     name: str, row: dict[str, Any], live: dict[str, Any], synced: bool
 ) -> ConnectorState:
-    """A connector that is serving its tools, and whatever else is worth saying.
+    account = live.get("account") or row.get("account")
+    expected = live.get("expected_account") or row.get("expected_account")
+    tools = live.get("tools") or 0
 
-    Reached from two places -- a live connection, and a registry that still holds
-    this server's tools despite a recent error -- so the wording, the warnings
-    and the first-sync check cannot drift between them.
-    """
     if name in FIRST_SYNC and not synced:
         return ConnectorState(
-            "syncing",
-            f"Signed in. Its {FIRST_SYNC[name]} have not been pulled in yet.",
+            state="syncing",
+            detail=f"Signed in. Its {FIRST_SYNC[name]} have not been pulled in yet.",
             action="sync",
+            ready=False,
+            is_connected=True,
+            is_authenticated=True,
+            is_usable=False,
+            account=account,
+            expected_account=expected,
+            health="degraded",
+            tools_count=tools,
         )
 
-    tools = live.get("tools") or 0
     detail = f"Ready, {tools} tool{'' if tools == 1 else 's'}."
 
-    # Ready, but on a sign-in with a known shelf life. Google expires a test
-    # user's consent seven days after it is given -- the grant, not the token,
-    # so refreshing does not save it -- and the connector goes from working to
-    # signed-out with nothing in between. Saying so here is the difference
-    # between a weekly outage and a weekly chore.
     ageing = _ageing_grant(row)
     if ageing:
-        return ConnectorState("ready", f"{detail} {ageing}", action="sign_in", ready=True)
+        return ConnectorState(
+            state="ready",
+            detail=f"{detail} {ageing}",
+            action="sign_in",
+            ready=True,
+            is_connected=True,
+            is_authenticated=True,
+            is_usable=True,
+            account=account,
+            expected_account=expected,
+            health="healthy",
+            tools_count=tools,
+        )
 
-    # Two accounts in a store the server reads in single-user mode: it picks
-    # one, AMETHYST cannot tell which, and the tools answer for whichever it was.
     accounts = row.get("accounts") or 0
     if accounts > 1:
         return ConnectorState(
-            "ready",
-            f"{detail} {accounts} accounts are signed in and the server uses one of them"
-            " — sign out and back in to settle which.",
+            state="ready",
+            detail=f"{detail} {accounts} accounts are signed in and the server uses one of them — sign out and back in to settle which.",
             action="sign_in",
             ready=True,
+            is_connected=True,
+            is_authenticated=True,
+            is_usable=True,
+            account=account,
+            expected_account=expected,
+            health="healthy",
+            tools_count=tools,
         )
 
-    return ConnectorState("ready", detail, ready=True)
+    return ConnectorState(
+        state="ready",
+        detail=detail,
+        ready=True,
+        is_connected=True,
+        is_authenticated=True,
+        is_usable=True,
+        account=account,
+        expected_account=expected,
+        health="healthy",
+        tools_count=tools,
+    )
 
 
 #: How close to the end of a grant's life is worth mentioning.

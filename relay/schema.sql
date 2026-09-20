@@ -167,3 +167,46 @@ CREATE TABLE IF NOT EXISTS worker_reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_worker_unsynced ON worker_reports(synced_at, updated_at);
+
+-- ------------------------------------------------------------- the sync ops
+--
+-- A mailbox, like `deliveries` and `worker_reports` above, and transient for the
+-- same reason -- but this one the relay cannot read at all.
+--
+-- Everything else in this file is plaintext because the relay has to *act* on
+-- it: it answers Meta's webhook, it runs a `url_ingest`, it decides whether the
+-- laptop is away. An op needs none of that. It is carried from one of the user's
+-- devices to another and never inspected, so there is no reason for this table
+-- to hold anything but sealed bytes -- and every reason not to, since these are
+-- the user's settings and task titles rather than a public reel.
+--
+-- `op_id` and `from_device` are in the clear because routing needs them: one is
+-- the duplicate guard, the other says who must NOT be sent it back. Both are
+-- opaque identifiers. The AEAD binds the ciphertext to both, so moving a
+-- ciphertext onto another row yields a decryption failure on the far side
+-- rather than a plausible op attributed to the wrong device.
+CREATE TABLE IF NOT EXISTS ops (
+    -- The whole of duplicate detection at this layer. A device retrying an
+    -- upload it already made writes nothing the second time, for the same
+    -- reason `idx_delivery_hash` makes Meta's redelivery free.
+    op_id       TEXT PRIMARY KEY,
+    from_device TEXT NOT NULL,
+    ciphertext  TEXT NOT NULL,
+    nonce       TEXT NOT NULL,
+    created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ops_order ON ops(created_at, op_id);
+
+-- Who has taken what.
+--
+-- An op is deleted once every registered device except its sender has acked it,
+-- which is what keeps this table a queue rather than a log of everything the
+-- user has ever changed. Without the fan-out cursor the relay would either
+-- delete on first collection -- losing the op for the second device -- or keep
+-- it forever.
+CREATE TABLE IF NOT EXISTS op_acks (
+    op_id     TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    PRIMARY KEY (op_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_op_acks_device ON op_acks(device_id);

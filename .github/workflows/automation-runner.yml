@@ -1,0 +1,64 @@
+name: Amethyst Cloud Automation Runner
+
+on:
+  schedule:
+    # Runs periodically (every hour by default). Individual automations can also be run manually.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      automation:
+        description: 'Automation to execute (name like "example_briefing", file path, or "all")'
+        required: true
+        default: 'all'
+
+# Concurrency group ensures runs do not overlap unobserved
+concurrency:
+  group: amethyst-cloud-${{ github.workflow }}-${{ inputs.automation || 'scheduled' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run-automation:
+    name: Run Cloud Automation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
+
+      - name: Install Amethyst dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Execute Automation Turn
+        env:
+          # Model Provider Credentials
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          # Search / Cloud Tool Credentials
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET="${{ inputs.automation }}"
+          if [ -z "$TARGET" ]; then
+            TARGET="all"
+          fi
+          echo "Triggering automation target: $TARGET"
+          python -m backend.automation_worker --automation "$TARGET"

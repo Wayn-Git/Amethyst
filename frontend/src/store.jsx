@@ -2,7 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, onServerState, serverState, wakeBackend } from './api.js'
 import { byId, pathFor } from './nav.js'
-import { useCompact } from './hooks/useMediaQuery.js'
+import { useCompact, usePhone } from './hooks/useMediaQuery.js'
+
+import { safeStorage } from './lib/storage.js'
+import { useSync } from './lib/sync/useSync.js'
 
 function pathToId(pathname) {
   if (pathname === '/' || pathname === '/chat') return 'chat'
@@ -25,17 +28,107 @@ const KEY = 'amethyst.ui.v1'
 
 function loadPrefs() {
   try {
-    return JSON.parse(localStorage.getItem(KEY)) || {}
+    const raw = safeStorage.getItem(KEY)
+    const base = raw ? JSON.parse(raw) : {}
+    // Graceful migration from legacy ad-hoc keys if not already present in base
+    if (base.sendWith === undefined && safeStorage.getItem('amethyst_send_with')) {
+      base.sendWith = safeStorage.getItem('amethyst_send_with')
+    }
+    if (base.defaultGuard === undefined && safeStorage.getItem('amethyst_default_guard')) {
+      base.defaultGuard = safeStorage.getItem('amethyst_default_guard')
+    }
+    if (base.defaultEffort === undefined && safeStorage.getItem('amethyst_default_effort')) {
+      base.defaultEffort = safeStorage.getItem('amethyst_default_effort')
+    }
+    if (base.archiveChats === undefined && safeStorage.getItem('amethyst_archive_instead')) {
+      base.archiveChats = safeStorage.getItem('amethyst_archive_instead') !== 'false'
+    }
+    if (base.confirmDestructive === undefined && safeStorage.getItem('amethyst_confirm_destructive')) {
+      base.confirmDestructive = safeStorage.getItem('amethyst_confirm_destructive') !== 'false'
+    }
+    if (base.restoreTabs === undefined && safeStorage.getItem('amethyst_restore_tabs')) {
+      base.restoreTabs = safeStorage.getItem('amethyst_restore_tabs') !== 'false'
+    }
+    if (base.showUsage === undefined && safeStorage.getItem('amethyst_show_usage')) {
+      base.showUsage = safeStorage.getItem('amethyst_show_usage') !== 'false'
+    }
+    if (base.glassMaterial === undefined && safeStorage.getItem('amethyst_glass')) {
+      base.glassMaterial = safeStorage.getItem('amethyst_glass')
+    }
+    if (base.shellConfirm === undefined && safeStorage.getItem('amethyst_confirm_shell')) {
+      base.shellConfirm = safeStorage.getItem('amethyst_confirm_shell') !== 'false'
+    }
+    if (base.fileConfirm === undefined && safeStorage.getItem('amethyst_confirm_files')) {
+      base.fileConfirm = safeStorage.getItem('amethyst_confirm_files') !== 'false'
+    }
+    if (base.netConfirm === undefined && safeStorage.getItem('amethyst_confirm_network')) {
+      base.netConfirm = safeStorage.getItem('amethyst_confirm_network') !== 'false'
+    }
+    return base
   } catch {
     return {}
   }
 }
 
+// The preferences that follow you between devices, as opposed to the ones that
+// should not. Panel width, text size, which conversation is open and which
+// workspace is loaded are per-device on purpose -- a phone and a laptop want
+// different answers -- so they are absent here deliberately rather than by
+// omission. The server holds the same list and refuses anything outside it;
+// see backend/sync/registry.py and ADR-0024.
+const SYNCED_PREFS = new Set([
+  'theme', 'accentColor', 'defaultGuard', 'defaultEffort', 'sendWith',
+  'archiveChats', 'confirmDestructive', 'shellConfirm', 'fileConfirm',
+  'netConfirm', 'showUsage', 'notifyOnDone', 'draftProvider', 'draftModel',
+])
+
 function savePrefs(patch) {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ ...loadPrefs(), ...patch }))
+    safeStorage.setItem(KEY, JSON.stringify({ ...loadPrefs(), ...patch }))
   } catch {
     /* private mode, or a full quota: preferences are a convenience, not state */
+  }
+  // localStorage stays the source of truth for the browser, and the server is
+  // told separately. Deliberately not awaited and deliberately unable to throw:
+  // a backend that is asleep must not stop a theme from changing, and the write
+  // above has already happened. The change reaches the other devices on the
+  // next relay poll, or on the next preference change after the backend wakes.
+  const crossing = {}
+  for (const [name, value] of Object.entries(patch)) {
+    if (SYNCED_PREFS.has(name)) crossing[name] = value
+  }
+  if (Object.keys(crossing).length) {
+    api.savePreferences(crossing).catch(() => { /* offline; localStorage holds */ })
+  }
+}
+
+// What the user's other devices have changed since this browser last looked.
+//
+// Applied to localStorage rather than to React state: every preference here is
+// read through `loadPrefs` at mount, and the ones with a live visual effect
+// (theme, accent) are applied to documentElement by the provider below. Writing
+// the blob and letting the next read pick it up avoids threading fourteen
+// setters through a network callback.
+async function adoptRemotePrefs() {
+  try {
+    const { preferences } = await api.preferences()
+    if (!preferences || !Object.keys(preferences).length) return null
+    const current = loadPrefs()
+    const merged = {}
+    for (const [name, raw] of Object.entries(preferences)) {
+      if (!SYNCED_PREFS.has(name)) continue
+      // The server stores every value as text; restore the shape the interface
+      // expects, so a boolean does not come back as the string "false" -- which
+      // is truthy, and would silently invert every confirmation setting.
+      const before = current[name]
+      const value = typeof before === 'boolean' ? raw === 'true' || raw === '1' : raw
+      if (value !== before) merged[name] = value
+    }
+    if (!Object.keys(merged).length) return null
+    safeStorage.setItem(KEY, JSON.stringify({ ...current, ...merged }))
+    return merged
+  } catch {
+    return null   // offline, or an older backend with no /preferences route
   }
 }
 
@@ -51,7 +144,7 @@ const HEALTH_INTERVAL = 8000
    be set to. 'system' is still selectable and still follows the machine; it is
    just no longer the answer nobody chose. The chosen value is written to the
    document element so the stylesheet -- not JavaScript -- owns every colour. */
-const THEMES = ['system', 'graphite', 'ink', 'nocturne', 'paper', 'sand']
+const THEMES = ['system', 'apple', 'anthropic', 'cohere', 'sunshine', 'stripe', 'graphite', 'ink', 'nocturne', 'paper', 'sand']
 
 /* The panel has to stay wide enough to hold a line of code and narrow enough to
    leave a conversation beside it. A stored value from a wider monitor is
@@ -68,15 +161,14 @@ function clampPanel(value) {
 
 function applyTheme(theme) {
   const root = document.documentElement
-  /* Resolve `system` to the machine's preference, then stamp it. All six
-     themes (graphite, ink, nocturne, paper, sand + system-resolved) map to
-     either a dark or light colour scheme for the browser chrome. */
+  /* Resolve `system` to the machine's preference, then stamp it. All
+     themes map to either a dark or light colour scheme for the browser chrome. */
   const resolved = theme === 'system'
     ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'graphite' : 'paper')
     : theme
   root.setAttribute('data-theme', resolved)
-  // Dark-family themes: graphite, ink, nocturne. Light-family: paper, sand.
-  const isDark = ['graphite', 'ink', 'nocturne'].includes(resolved)
+  // Dark-family themes: graphite, ink, nocturne, cohere, stripe. Light-family: apple, anthropic, sunshine, paper, sand.
+  const isDark = ['graphite', 'ink', 'nocturne', 'cohere', 'stripe'].includes(resolved)
   root.style.colorScheme = isDark ? 'dark' : 'light'
   const tag = document.querySelector('meta[name="theme-color"]')
   if (tag) {
@@ -137,6 +229,10 @@ function applyDensity(density) {
 applyTextSize(loadPrefs().textSize || 100)
 applyDensity(loadPrefs().density || 'comfortable')
 if (typeof document !== 'undefined') document.documentElement.setAttribute('data-glass', loadPrefs().glassMaterial || 'full')
+// Before mount, like the material above: the spotlight can be summoned within a
+// frame of the page loading, and reading this from state would mean the first
+// summon of a session played the default animation rather than the chosen one.
+if (typeof document !== 'undefined') document.documentElement.setAttribute('data-spotlight-anim', loadPrefs().spotlightAnimation || 'spring')
 
 
 export function AppProvider({ children }) {
@@ -147,6 +243,7 @@ export function AppProvider({ children }) {
      beside it, so "is the rail showing" stops being one persisted preference
      and becomes two different questions. See `railOpen` below. */
   const compact = useCompact()
+  const isPhone = usePhone()
 
   // The URL is the source of truth now. `view` is derived from it every
   // render rather than tracked as its own state, so a browser back/forward
@@ -167,7 +264,7 @@ export function AppProvider({ children }) {
   const [activeId, setActiveIdRaw] = useState((prefs.restoreTabs !== false) ? prefs.activeId || null : null)
   const [userProfile, setUserProfile] = useState(() => {
     try {
-      const cached = localStorage.getItem('amethyst_user_profile')
+      const cached = safeStorage.getItem('amethyst_user_profile')
       return cached ? JSON.parse(cached) : null
     } catch {
       return null
@@ -275,11 +372,36 @@ export function AppProvider({ children }) {
   const [draftModel, setDraftModelRaw] = useState(prefs.draftModel || '')
   const setDraftModel = useCallback((value) => { setDraftModelRaw(value); savePrefs({ draftModel: value }) }, [])
 
+  const [spotlightAnimation, setSpotlightAnimationRaw] = useState(prefs.spotlightAnimation || 'spring')
+  const setSpotlightAnimation = useCallback((value) => {
+    setSpotlightAnimationRaw(value)
+    savePrefs({ spotlightAnimation: value })
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-spotlight-anim', value)
+    }
+  }, [])
+
   const [glassMaterial, setGlassMaterialRaw] = useState(prefs.glassMaterial || 'full')
   const setGlassMaterial = useCallback((value) => {
     setGlassMaterialRaw(value)
     savePrefs({ glassMaterial: value })
-    document.documentElement.setAttribute('data-glass', value)
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-glass', value)
+    }
+  }, [])
+
+  const [shellConfirm, setShellConfirmRaw] = useState(prefs.shellConfirm !== false)
+  const setShellConfirm = useCallback((value) => { setShellConfirmRaw(value); savePrefs({ shellConfirm: value }) }, [])
+  const [fileConfirm, setFileConfirmRaw] = useState(prefs.fileConfirm !== false)
+  const setFileConfirm = useCallback((value) => { setFileConfirmRaw(value); savePrefs({ fileConfirm: value }) }, [])
+  const [netConfirm, setNetConfirmRaw] = useState(prefs.netConfirm !== false)
+  const setNetConfirm = useCallback((value) => { setNetConfirmRaw(value); savePrefs({ netConfirm: value }) }, [])
+
+  const resetAllPreferences = useCallback(() => {
+    safeStorage.clear()
+    if (typeof window !== 'undefined') {
+      window.location.reload()
+    }
   }, [])
 
   const [terminalOpen, setTerminalOpen] = useState(false)
@@ -369,7 +491,7 @@ export function AppProvider({ children }) {
      in the backend settings. `nav.js` is where "hidden" is spelled out; every
      surface that lists pages reads it from there rather than keeping its own
      idea of which ones exist. */
-  const [betaPages, setBetaPagesRaw] = useState(prefs.betaPages === true)
+  const [betaPages, setBetaPagesRaw] = useState(prefs.betaPages !== false)
   const setBetaPages = useCallback((next) => {
     const value = Boolean(next)
     setBetaPagesRaw(value)
@@ -437,8 +559,15 @@ export function AppProvider({ children }) {
      number that is about to change again. */
   const setPanelWidth = useCallback((value, { persist = true } = {}) => {
     const next = clampPanel(value)
-    setPanelWidthRaw(next)
-    if (persist) savePrefs({ panelWidth: next })
+    if (persist) {
+      setPanelWidthRaw(next)
+      savePrefs({ panelWidth: next })
+    }
+    // Update the DOM element directly during drag to avoid app-wide re-renders
+    const panelEl = document.getElementById('wb-panel')
+    if (panelEl) {
+      panelEl.style.setProperty('--panel-w', `${next}px`)
+    }
   }, [])
 
   const togglePanelExpanded = useCallback(() => setPanelExpanded((on) => !on), [])
@@ -583,7 +712,7 @@ export function AppProvider({ children }) {
       if (p?.name) {
         setUserProfile(p)
         try {
-          localStorage.setItem('amethyst_user_profile', JSON.stringify(p))
+          safeStorage.setItem('amethyst_user_profile', JSON.stringify(p))
         } catch {}
         return p
       }
@@ -607,7 +736,7 @@ export function AppProvider({ children }) {
       const updated = await api.updateUserProfile(patch)
       setUserProfile(updated)
       try {
-        localStorage.setItem('amethyst_user_profile', JSON.stringify(updated))
+        safeStorage.setItem('amethyst_user_profile', JSON.stringify(updated))
       } catch {}
       return updated
     } catch (err) {
@@ -627,6 +756,50 @@ export function AppProvider({ children }) {
   useEffect(() => { if (ready) refreshConvs() }, [ready, refreshConvs])
   useEffect(() => { if (ready) refreshCaps() }, [ready, refreshCaps])
   useEffect(() => { if (ready) refreshUserProfile() }, [ready, refreshUserProfile])
+
+  /* The phone's poll.
+   *
+   * The question this answers is "is this browser a control device, or is it
+   * the machine's own interface". A machine syncs through `RelayPoller` in
+   * Python already, and a second poll from the browser sitting on top of it
+   * would be two devices' worth of requests for one device.
+   *
+   * "No backend answers" was the whole test, and it is only half of one. It is
+   * right for a phone out in the world. It is wrong for a phone on the same
+   * network as the machine, where the server does answer -- and that phone is
+   * still not the machine. It got the remote view and then never polled, so the
+   * transcript it showed was whatever had arrived before, forever.
+   *
+   * A handheld is never the machine, so it polls either way.
+   */
+  const onSyncedPrefs = useCallback((changed) => {
+    if (changed.theme !== undefined) { setThemeRaw(changed.theme); applyTheme(changed.theme) }
+    if (changed.accentColor !== undefined) {
+      setAccentColorRaw(changed.accentColor)
+      applyAccentColor(changed.accentColor)
+    }
+  }, [])
+  useSync(server.phase !== 'ready' || isPhone, onSyncedPrefs)
+
+  // What the user changed on another device. Runs once the backend answers, on
+  // the same "wait for the wake" rule as the four above. The theme and accent
+  // are re-applied by hand because both are written to documentElement before
+  // React mounts, so a value that arrives afterwards has nothing else to pick
+  // it up. The remaining preferences are read through `loadPrefs` wherever they
+  // are used and need no nudge.
+  useEffect(() => {
+    if (!ready) return
+    let cancelled = false
+    adoptRemotePrefs().then((adopted) => {
+      if (cancelled || !adopted) return
+      if (adopted.theme !== undefined) { setThemeRaw(adopted.theme); applyTheme(adopted.theme) }
+      if (adopted.accentColor !== undefined) {
+        setAccentColorRaw(adopted.accentColor)
+        applyAccentColor(adopted.accentColor)
+      }
+    })
+    return () => { cancelled = true }
+  }, [ready])
 
   // A connector can die between messages and the API only notices at the start
   // of a turn, so the header has to keep asking.
@@ -672,7 +845,8 @@ export function AppProvider({ children }) {
     guard: defaultGuard, setGuard: setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
+    shellConfirm, setShellConfirm, fileConfirm, setFileConfirm, netConfirm, setNetConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
@@ -699,7 +873,8 @@ export function AppProvider({ children }) {
     defaultGuard, setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
-    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial,
+    archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
+    shellConfirm, fileConfirm, netConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,

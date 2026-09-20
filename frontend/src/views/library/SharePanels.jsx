@@ -12,7 +12,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
   const panelRef = useRef(null)
   useModalDismiss(open, onClose)
 
-  const [activeTab, setActiveTab] = useState('bookmarklet') // 'bookmarklet' | 'share' | 'instagram'
+  const [activeTab, setActiveTab] = useState('bookmarklet') // 'bookmarklet' | 'phone' | 'instagram'
   const origin = typeof window === 'undefined' ? '' : window.location.origin
 
   // Share token state
@@ -21,13 +21,6 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
 
   // Instagram state
   const [igState, setIgState] = useState(null)
-  const [igBusy, setIgBusy] = useState('')
-  const [igForm, setIgForm] = useState({
-    app_secret: '',
-    verify_token: '',
-    access_token: '',
-    owner: '',
-  })
   const [relayForm, setRelayForm] = useState({ url: '', token: '' })
   const [relaySyncing, setRelaySyncing] = useState(false)
 
@@ -78,19 +71,6 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
     }
   }
 
-  // Instagram actions
-  const runIg = async (key, work, note) => {
-    setIgBusy(key)
-    try {
-      setIgState(await work())
-      if (note) toast(note, 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setIgBusy('')
-    }
-  }
-
   const syncRelay = async () => {
     setRelaySyncing(true)
     try {
@@ -109,429 +89,255 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
     }
   }
 
-  const saveRelay = () =>
-    runIg(
-      'relay',
-      async () => {
-        const next = await api.setInstagramRelay({
-          url: relayForm.url || undefined,
-          token: relayForm.token || undefined,
-          enabled: true,
-        })
-        setRelayForm({ url: '', token: '' })
-        return next
-      },
-      'Relay connected'
-    )
+  const saveRelay = async (e) => {
+    e?.preventDefault()
+    try {
+      const next = await api.setInstagramRelay({
+        url: relayForm.url || undefined,
+        token: relayForm.token || undefined,
+        enabled: true,
+      })
+      setIgState(next)
+      setRelayForm({ url: '', token: '' })
+      toast('Relay connection saved', 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
 
   return (
     <AnimatePresence>
-      {open && (
+      <div
+        className="lib-modal-overlay"
+        onMouseDown={(e) => onOverlayMouseDown(e, panelRef, onClose)}
+      >
         <motion.div
-          className="modal-overlay"
-          onMouseDown={onOverlayMouseDown(onClose)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
+          ref={panelRef}
+          className="lib-modal-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Capture & Integrations"
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 12 }}
+          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
-          <motion.div
-            className="modal lib-integrations-modal"
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Capture Integrations"
-            initial={{ opacity: 0, scale: 0.96, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-          >
-        <div className="modal-head">
-          <div>
-            <div className="lib-header-eyebrow mono">
-              <Icon name="link" size={12} />
-              <span>External Capture</span>
-            </div>
-            <h2 className="modal-title">Capture & Integrations</h2>
+          {/* Header */}
+          <div className="lib-modal-header">
+            <h2 className="lib-modal-title">
+              <Icon name="link" size={16} />
+              <span>Capture & Sync Integrations</span>
+            </h2>
+            <button
+              type="button"
+              className="lib-modal-close"
+              onClick={onClose}
+              aria-label="Close dialog"
+            >
+              <Icon name="x" size={14} />
+            </button>
           </div>
-          <button
-            type="button"
-            className="icon-btn modal-close"
-            onClick={onClose}
-            aria-label="Close modal"
-          >
-            <Icon name="x" size={14} />
-          </button>
-        </div>
 
-        {/* Segmented Pill Tabs */}
-        <div className="lib-modal-tabs" role="tablist">
-          <button
-            type="button"
-            className={`lib-modal-tab ${activeTab === 'bookmarklet' ? 'lib-modal-tab--active' : ''}`}
-            onClick={() => setActiveTab('bookmarklet')}
-            role="tab"
-            aria-selected={activeTab === 'bookmarklet'}
-          >
-            <Icon name="book" size={13} />
-            <span>Bookmarklet</span>
-          </button>
-          <button
-            type="button"
-            className={`lib-modal-tab ${activeTab === 'share' ? 'lib-modal-tab--active' : ''}`}
-            onClick={() => setActiveTab('share')}
-            role="tab"
-            aria-selected={activeTab === 'share'}
-          >
-            <Icon name="send" size={13} />
-            <span>Mobile Share Token</span>
-          </button>
-          <button
-            type="button"
-            className={`lib-modal-tab ${activeTab === 'instagram' ? 'lib-modal-tab--active' : ''}`}
-            onClick={() => setActiveTab('instagram')}
-            role="tab"
-            aria-selected={activeTab === 'instagram'}
-          >
-            <Icon name="image" size={13} />
-            <span>Instagram Reels</span>
-          </button>
-        </div>
+          {/* Tabs */}
+          <div style={{ padding: '16px 20px 0' }}>
+            <div className="lib-modal-tabs">
+              <button
+                type="button"
+                className={`lib-modal-tab ${activeTab === 'bookmarklet' ? 'lib-modal-tab--active' : ''}`}
+                onClick={() => setActiveTab('bookmarklet')}
+              >
+                <Icon name="bookmark" size={14} />
+                <span>Browser Bookmarklet</span>
+              </button>
+              <button
+                type="button"
+                className={`lib-modal-tab ${activeTab === 'phone' ? 'lib-modal-tab--active' : ''}`}
+                onClick={() => setActiveTab('phone')}
+              >
+                <Icon name="link" size={14} />
+                <span>Phone / Shortcuts</span>
+              </button>
+              <button
+                type="button"
+                className={`lib-modal-tab ${activeTab === 'instagram' ? 'lib-modal-tab--active' : ''}`}
+                onClick={() => setActiveTab('instagram')}
+              >
+                <Icon name="camera" size={14} />
+                <span>Instagram Relay</span>
+              </button>
+            </div>
+          </div>
 
-        <div className="lib-modal-body">
-          {/* 1. Bookmarklet Tab */}
-          {activeTab === 'bookmarklet' && (
-            <div className="lib-integ-section">
-              <div className="lib-integ-card">
-                <div className="lib-integ-card-head">
-                  <div className="lib-integ-card-title">Browser One-Click Bookmarklet</div>
-                  <span className="lib-integ-badge mono">Zero Config</span>
-                </div>
-                <p className="lib-integ-desc">
-                  Drag this button directly to your browser's bookmarks bar. Whenever you are on an article, paper, or video page, click it to immediately capture it into AMETHYST.
+          {/* Body */}
+          <div className="lib-modal-body">
+            {activeTab === 'bookmarklet' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  Drag this button into your browser bookmarks bar. Clicking it on any article, YouTube video, or page will instantly send it to Amethyst.
                 </p>
 
-                <div className="lib-bookmarklet-target-box">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
                   <a
-                    className="btn btn--primary lib-bookmarklet-btn"
                     href={bookmarklet(origin)}
-                    onClick={(e) => e.preventDefault()}
-                    title="Drag this button to your bookmarks bar"
+                    className="lib-btn lib-btn--primary"
+                    style={{ cursor: 'grab', padding: '10px 20px', height: 'auto', fontSize: 14 }}
+                    onClick={(e) => {
+                      if (!e.metaKey && !e.ctrlKey) {
+                        e.preventDefault()
+                        toast('Drag this button to your browser bookmarks toolbar', 'info')
+                      }
+                    }}
                   >
-                    <Icon name="plus" size={14} /> Save to AMETHYST
+                    <Icon name="bookmark" size={16} />
+                    <span>+ Save to Amethyst</span>
                   </a>
-                  <span className="lib-bookmarklet-hint mono">← Drag to Bookmarks Bar</span>
+                </div>
+
+                <div style={{ fontSize: 11, color: 'var(--text-faint)', textAlign: 'center' }}>
+                  Bookmarklet URL targets: <code>{origin}/library?url=...</code>
                 </div>
               </div>
+            )}
 
-              <div className="lib-integ-steps">
-                <div className="lib-integ-step">
-                  <span className="lib-step-num mono">1</span>
-                  <span>Drag the button into your browser bookmarks bar</span>
-                </div>
-                <div className="lib-integ-step">
-                  <span className="lib-step-num mono">2</span>
-                  <span>Visit any article, tutorial, paper, or video on the web</span>
-                </div>
-                <div className="lib-integ-step">
-                  <span className="lib-step-num mono">3</span>
-                  <span>Click <b>Save to AMETHYST</b> to capture and index in real-time</span>
-                </div>
-              </div>
-            </div>
-          )}
+            {activeTab === 'phone' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  Send links from your phone's share sheet via Apple Shortcuts, Tasker, or webhook.
+                </p>
 
-          {/* 2. Mobile Share Token Tab */}
-          {activeTab === 'share' && (
-            <div className="lib-integ-section">
-              <div className="lib-integ-card">
-                <div className="lib-integ-card-head">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--hairline)' }}>
                   <div>
-                    <div className="lib-integ-card-title">Mobile Shortcut Capture Token</div>
-                    <div className="lib-integ-subtitle">
-                      Endpoint: <code>POST /api/share/capture</code>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                      Share Ingestion Webhook
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
+                      Status: {shareStatus?.enabled ? 'Active' : 'Disabled'}
                     </div>
                   </div>
-                  <span
-                    className={`lib-integ-status-pill mono ${
-                      shareStatus?.enabled
-                        ? 'lib-integ-status-pill--active'
-                        : 'lib-integ-status-pill--inactive'
-                    }`}
-                  >
-                    {shareStatus?.enabled ? 'Active' : 'Disabled'}
-                  </span>
-                </div>
 
-                <p className="lib-integ-desc">
-                  Use this token in an iOS Shortcut or Android webhook to send links straight from your phone's Share sheet into your library.
-                </p>
-
-                <div className="lib-integ-actions-row">
-                  {shareStatus?.enabled ? (
-                    <>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="lib-btn"
+                      onClick={rotateToken}
+                    >
+                      {shareStatus?.enabled ? 'Rotate Token' : 'Enable & Create Token'}
+                    </button>
+                    {shareStatus?.enabled && (
                       <button
                         type="button"
-                        className="btn btn--small btn--ghost"
-                        onClick={rotateToken}
-                      >
-                        Rotate Token
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--small btn--ghost lib-btn-danger"
+                        className="lib-btn"
+                        style={{ color: '#ef4444' }}
                         onClick={revokeToken}
                       >
-                        Revoke Access
+                        Revoke
                       </button>
-                    </>
-                  ) : (
-                    <button type="button" className="btn btn--small btn--primary" onClick={rotateToken}>
-                      Generate Token
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {shareToken && (
-                  <div className="lib-token-display">
-                    <code>{shareToken}</code>
-                    <button
-                      type="button"
-                      className="btn btn--small btn--ghost"
-                      onClick={() => {
-                        copyText(shareToken)
-                        toast('Token copied to clipboard', 'ok')
-                      }}
-                    >
-                      <Icon name="copy" size={13} /> Copy
-                    </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 12, borderRadius: 8, background: 'rgba(113, 50, 245, 0.06)', border: '1px solid rgba(113, 50, 245, 0.2)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
+                      Your Private Share Token (Copy Now):
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        readOnly
+                        value={shareToken}
+                        className="lib-form-input"
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                      />
+                      <button
+                        type="button"
+                        className="lib-btn lib-btn--primary"
+                        onClick={() => {
+                          copyText(shareToken)
+                          toast('Token copied to clipboard', 'ok')
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
                   </div>
                 )}
+              </div>
+            )}
 
-                {/* Shortcut Setup Options */}
-                <div className="lib-shortcut-recipes">
-                  <div className="lib-shortcut-recipe-card">
-                    <div className="lib-shortcut-recipe-header">
-                      <Icon name="link" size={14} />
-                      <span className="mono">1. Standard Shortcut (Reels & Articles)</span>
+            {activeTab === 'instagram' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  Automatically pull saved posts, reels, and carousels from your Instagram relay container.
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--hairline)' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                      Relay Status
                     </div>
-                    <p className="lib-shortcut-recipe-desc">
-                      Saves reels, videos, and articles normally into your feed without cluttering your music library:
-                    </p>
-                    <pre className="lib-shortcut-code mono">
-{`POST /api/share/capture
-Headers: Authorization: Bearer <token>
-Body: { "url": "<Shared Link>" }`}
-                    </pre>
+                    <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
+                      {igState?.relay?.configured ? `Connected: ${igState.relay.url}` : 'Not connected'}
+                    </div>
                   </div>
 
-                  <div className="lib-shortcut-recipe-card lib-shortcut-recipe-card--music">
-                    <div className="lib-shortcut-recipe-header">
-                      <Icon name="music" size={14} />
-                      <span className="mono">2. Music Shortcut (Extract Song from Reel or Music App)</span>
-                    </div>
-                    <p className="lib-shortcut-recipe-desc">
-                      Captures the audio track from a reel or music app, tags it, and prepares it for Spotify playlist export:
-                    </p>
-                    <pre className="lib-shortcut-code mono">
-{`POST /api/share/capture
-Headers: Authorization: Bearer <token>
-Body: { "url": "<Shared Link>", "kind": "music" }`}
-                    </pre>
-                  </div>
+                  <button
+                    type="button"
+                    className="lib-btn"
+                    disabled={relaySyncing}
+                    onClick={syncRelay}
+                  >
+                    <Icon name="refresh" size={13} />
+                    <span>{relaySyncing ? 'Syncing...' : 'Sync Now'}</span>
+                  </button>
                 </div>
-              </div>
 
-              <div className="lib-integ-callout">
-                <Icon name="info" size={13} />
-                <span>
-                  Capture-only endpoint: this token cannot read, list, or execute anything on your system.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 3. Instagram Capture Tab */}
-          {activeTab === 'instagram' && (
-            <div className="lib-integ-section">
-              {!igState ? (
-                <div className="lib-integ-loading mono">Loading Instagram settings...</div>
-              ) : !igState.configured ? (
-                <div className="lib-integ-card">
-                  <div className="lib-integ-card-head">
-                    <div className="lib-integ-card-title">Setup Meta Credentials</div>
+                <form onSubmit={saveRelay} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="lib-form-group">
+                    <label className="lib-form-label" htmlFor="lib-relay-url">Relay Endpoint URL</label>
+                    <input
+                      id="lib-relay-url"
+                      type="url"
+                      className="lib-form-input"
+                      placeholder="http://localhost:8081"
+                      value={relayForm.url}
+                      onChange={(e) => setRelayForm({ ...relayForm, url: e.target.value })}
+                    />
                   </div>
-                  <p className="lib-integ-desc">
-                    Enter your Meta app credentials to enable reel capturing. They are stored securely in your OS keychain.
-                  </p>
-                  <div className="lib-manual-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="lib-form-group">
+                    <label className="lib-form-label" htmlFor="lib-relay-token">Relay Bearer Token</label>
                     <input
-                      className="lib-input"
-                      placeholder="App secret"
+                      id="lib-relay-token"
                       type="password"
-                      value={igForm.app_secret}
-                      onChange={(e) => setIgForm({ ...igForm, app_secret: e.target.value })}
-                    />
-                    <input
-                      className="lib-input"
-                      placeholder="Verify token"
-                      value={igForm.verify_token}
-                      onChange={(e) => setIgForm({ ...igForm, verify_token: e.target.value })}
-                    />
-                    <input
-                      className="lib-input"
-                      placeholder="Access token"
-                      type="password"
-                      value={igForm.access_token}
-                      onChange={(e) => setIgForm({ ...igForm, access_token: e.target.value })}
-                    />
-                    <input
-                      className="lib-input"
-                      placeholder="Your Instagram account ID"
-                      value={igForm.owner}
-                      onChange={(e) => setIgForm({ ...igForm, owner: e.target.value })}
+                      className="lib-form-input"
+                      placeholder="••••••••••••"
+                      value={relayForm.token}
+                      onChange={(e) => setRelayForm({ ...relayForm, token: e.target.value })}
                     />
                   </div>
                   <button
-                    type="button"
-                    className="btn btn--primary btn--small"
-                    style={{ marginTop: 12 }}
-                    disabled={igBusy === 'save'}
-                    onClick={() =>
-                      runIg(
-                        'save',
-                        async () => {
-                          const saved = await api.saveInstagramCredentials({
-                            app_secret: igForm.app_secret || null,
-                            verify_token: igForm.verify_token || null,
-                            access_token: igForm.access_token || null,
-                            expires_in_days: igForm.access_token ? 60 : null,
-                          })
-                          if (igForm.owner) await api.updateInstagram({ owner_ig_id: igForm.owner })
-                          setIgForm({ app_secret: '', verify_token: '', access_token: '', owner: '' })
-                          return saved
-                        },
-                        'Credentials stored'
-                      )
-                    }
+                    type="submit"
+                    className="lib-btn lib-btn--primary"
+                    style={{ alignSelf: 'flex-start' }}
                   >
-                    Save Credentials
+                    Save Relay Connection
                   </button>
-                </div>
-              ) : (
-                <div className="lib-integ-rows">
-                  {/* Webhook row */}
-                  <div className="lib-integ-row">
-                    <div>
-                      <div className="lib-integ-row-title">Accepting Deliveries</div>
-                      <div className="lib-integ-row-sub mono">{origin}{igState.webhook_path}</div>
-                    </div>
-                    <button
-                      type="button"
-                      className={`btn btn--small ${igState.settings.enabled ? 'btn--primary' : 'btn--ghost'}`}
-                      disabled={igBusy === 'toggle'}
-                      onClick={() =>
-                        runIg(
-                          'toggle',
-                          () => api.updateInstagram({ enabled: !igState.settings.enabled }),
-                          igState.settings.enabled ? 'Capture paused' : 'Capture active'
-                        )
-                      }
-                    >
-                      {igState.settings.enabled ? 'Active' : 'Paused'}
-                    </button>
-                  </div>
+                </form>
+              </div>
+            )}
+          </div>
 
-                  {/* Relay row */}
-                  <div className="lib-integ-row">
-                    <div>
-                      <div className="lib-integ-row-title">Cloudflare Worker Relay</div>
-                      <div className="lib-integ-row-sub mono">
-                        {igState.relay.ready ? igState.relay.url : 'Not connected'}
-                      </div>
-                    </div>
-                    {igState.relay.ready ? (
-                      <div className="lib-integ-row-actions">
-                        <button
-                          type="button"
-                          className="btn btn--small btn--ghost"
-                          disabled={relaySyncing}
-                          onClick={syncRelay}
-                        >
-                          {relaySyncing ? 'Syncing...' : 'Sync Now'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--small btn--ghost lib-btn-danger"
-                          disabled={igBusy === 'relay-off'}
-                          onClick={() =>
-                            runIg(
-                              'relay-off',
-                              () => api.clearInstagramRelay(),
-                              'Relay disconnected'
-                            )
-                          }
-                        >
-                          Disconnect
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="lib-integ-form-inline">
-                        <input
-                          className="lib-input"
-                          placeholder="Worker URL"
-                          value={relayForm.url}
-                          onChange={(e) => setRelayForm({ ...relayForm, url: e.target.value })}
-                        />
-                        <input
-                          className="lib-input"
-                          type="password"
-                          placeholder="Token"
-                          value={relayForm.token}
-                          onChange={(e) => setRelayForm({ ...relayForm, token: e.target.value })}
-                        />
-                        <button
-                          type="button"
-                          className="btn btn--small btn--primary"
-                          disabled={igBusy === 'relay' || !relayForm.url || !relayForm.token}
-                          onClick={saveRelay}
-                        >
-                          Connect
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Transcription info */}
-                  <div className="lib-integ-row">
-                    <div>
-                      <div className="lib-integ-row-title">Whisper Audio Transcription</div>
-                      <div className="lib-integ-row-sub">
-                        {igState.transcription
-                          ? `${igState.transcription.provider} · ${igState.transcription.model}`
-                          : 'No transcription provider configured'}
-                      </div>
-                    </div>
-                    <span className="lib-integ-badge mono">
-                      {igState.ffmpeg ? 'ffmpeg ready' : 'ffmpeg missing'}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </motion.div>
-      )}
+          <div className="lib-modal-footer">
+            <button
+              type="button"
+              className="lib-btn"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+        </motion.div>
+      </div>
     </AnimatePresence>
   )
-}
-
-// Backward-compatible stubs if needed
-export function SharePanel({ _toast } = {}) {
-  return null
-}
-export function InstagramPanel({ _toast } = {}) {
-  return null
 }

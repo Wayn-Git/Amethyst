@@ -11,7 +11,6 @@ export default function LibraryToolbar({
   railOpen,
   onToggleRail,
   onOpenAdd,
-  onOpenAskChat,
   onToggleShare,
   showShare,
   onOpenExportPlaylist,
@@ -23,30 +22,34 @@ export default function LibraryToolbar({
     /Mac|iPod|iPhone|iPad/.test(navigator.platform || '')
 
   return (
-    <div className="lib-toolbar" data-enter>
+    <nav className="lib-toolbar" aria-label="Library commands and filters">
       <div className="lib-toolbar-left">
-        {/* Toggle tag rail */}
+        {/* Toggle Taxonomy Sidebar */}
         <button
           type="button"
-          className={`btn btn--ghost btn--icon-only ${railOpen ? 'btn--active' : ''}`}
+          className={`lib-rail-toggle-btn ${railOpen ? 'lib-rail-toggle-btn--active' : ''}`}
           onClick={onToggleRail}
-          title={railOpen ? 'Hide knowledge index' : 'Show knowledge index'}
-          aria-label={railOpen ? 'Hide knowledge index' : 'Show knowledge index'}
+          title={railOpen ? 'Collapse knowledge index' : 'Expand knowledge index'}
+          aria-label={railOpen ? 'Collapse knowledge index' : 'Expand knowledge index'}
           aria-pressed={railOpen}
         >
           <Icon name="sidebar" size={15} />
-          {activeFilterCount > 0 && <span className="lib-filter-dot" />}
+          <span>Filters</span>
+          {activeFilterCount > 0 && (
+            <span className="lib-filter-count-badge">{activeFilterCount}</span>
+          )}
         </button>
 
-        {/* Search Input with Shortcut */}
-        <div className="lib-search">
+        {/* Global Instant Search */}
+        <div className="lib-search-box">
           <Icon name="search" size={14} />
           <input
             ref={searchRef}
-            className="lib-search-input"
-            placeholder="Search your knowledge (title, notes, concepts)..."
+            type="search"
+            placeholder="Search knowledge by title, topic, domain..."
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
+            aria-label="Search library"
           />
           {query ? (
             <button
@@ -58,20 +61,17 @@ export default function LibraryToolbar({
               <Icon name="x" size={12} />
             </button>
           ) : (
-            <span className="lib-shortcut-badge mono">
-              {isMac ? '⌘/' : 'Ctrl+/'}
-            </span>
+            <kbd className="lib-kbd">{isMac ? '⌘/' : 'Ctrl+/'}</kbd>
           )}
         </div>
-
       </div>
 
       <div className="lib-toolbar-right">
-        {/* Sort order */}
-        <div className="lib-select-wrap">
-          <Icon name="clock" size={13} className="lib-select-icon" />
+        {/* Sort Chronology */}
+        <div className="lib-select-container">
+          <span>{order === 'asc' ? 'Oldest first' : 'Newest first'}</span>
+          <Icon name="down" size={12} className="lib-select-icon" />
           <select
-            className="lib-select"
             value={order}
             onChange={(e) => onOrderChange(e.target.value)}
             aria-label="Sort order"
@@ -81,69 +81,69 @@ export default function LibraryToolbar({
           </select>
         </div>
 
-        {/* Layout switcher */}
-        <div className="lib-layout-switch" role="group" aria-label="Layout view">
+        {/* Segmented Layout Toggle: Grid vs List */}
+        <div className="lib-segmented-control" role="group" aria-label="View display">
           <button
             type="button"
-            className={`lib-layout-btn ${layout === 'grid' ? 'lib-layout-btn--active' : ''}`}
+            className={`lib-segmented-btn ${layout === 'grid' ? 'lib-segmented-btn--active' : ''}`}
             onClick={() => onLayoutChange('grid')}
-            title="Grid view"
-            aria-label="Grid view"
+            title="Bento Grid view"
+            aria-label="Bento Grid view"
             aria-pressed={layout === 'grid'}
           >
             <Icon name="grid" size={14} />
           </button>
           <button
             type="button"
-            className={`lib-layout-btn ${layout === 'list' ? 'lib-layout-btn--active' : ''}`}
+            className={`lib-segmented-btn ${layout === 'list' ? 'lib-segmented-btn--active' : ''}`}
             onClick={() => onLayoutChange('list')}
-            title="List view"
-            aria-label="List view"
+            title="Dense Stream view"
+            aria-label="Dense Stream view"
             aria-pressed={layout === 'list'}
           >
             <Icon name="list" size={14} />
           </button>
         </div>
 
-        {/* Capture Integrations button */}
+        {/* External Capture & Integrations */}
         <button
           type="button"
-          className={`btn btn--ghost ${showShare ? 'btn--active' : ''}`}
-          aria-expanded={showShare}
+          className={`lib-btn ${showShare ? 'lib-btn--active' : ''}`}
           onClick={onToggleShare}
-          title="Save from phone, Instagram, or browser"
+          title="External capture & integrations (browser, phone, relay)"
+          aria-expanded={showShare}
         >
           <Icon name="link" size={14} />
-          <span className="lib-btn-label">Capture Integrations</span>
+          <span>Sync & Capture</span>
         </button>
 
-        {/* Export Playlist button */}
+        {/* Export to Spotify Playlist */}
         {hasMusic && onOpenExportPlaylist && (
           <button
             type="button"
-            className="btn btn--ghost"
+            className="lib-btn"
             onClick={onOpenExportPlaylist}
-            title="Export music items to Spotify playlist"
+            title="Export discovered audio to Spotify playlist"
           >
             <Icon name="music" size={14} />
-            <span className="lib-btn-label">Export Playlist</span>
+            <span>Playlist</span>
           </button>
         )}
 
-        {/* Single Primary Add button (Screenshot 4) with Ctrl+K badge */}
+        {/* Primary Add Resource */}
         <button
           type="button"
-          className="btn add-content-primary-btn"
+          className="lib-btn lib-btn--primary"
           onClick={onOpenAdd}
-          title="Add content (Ctrl+K)"
+          title={`Add resource (${isMac ? '⌘K' : 'Ctrl+K'})`}
         >
           <Icon name="plus" size={14} />
           <span>Add</span>
-          <span className="lib-shortcut-badge lib-shortcut-badge--contrast mono">
+          <kbd className="lib-kbd" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderColor: 'transparent' }}>
             {isMac ? '⌘K' : 'Ctrl+K'}
-          </span>
+          </kbd>
         </button>
       </div>
-    </div>
+    </nav>
   )
 }

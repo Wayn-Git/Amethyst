@@ -307,12 +307,30 @@ class TerminalSession:
             self.master_fd = None
 
         if self.proc is not None:
+            import os
+            import signal
+            pid = self.proc.pid
+            if pid:
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGTERM)
+                except OSError:
+                    with contextlib.suppress(Exception):
+                        self.proc.terminate()
+            else:
+                with contextlib.suppress(Exception):
+                    self.proc.terminate()
+                    
             try:
-                self.proc.terminate()
                 await asyncio.wait_for(self.proc.wait(), timeout=1.0)
             except Exception:
+                if pid:
+                    with contextlib.suppress(Exception):
+                        pgid = os.getpgid(pid)
+                        os.killpg(pgid, signal.SIGKILL)
                 with contextlib.suppress(Exception):
                     self.proc.kill()
+                    await asyncio.wait_for(self.proc.wait(), timeout=1.0)
             self.proc = None
 
         for ws in list(self.subscribers.keys()):

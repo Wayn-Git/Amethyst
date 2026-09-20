@@ -1306,3 +1306,43 @@ def clear_transcription(path: Path | None = None) -> bool:
         _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
     )
     return True
+
+
+# ------------------------------------------------------------------- the hotkey
+
+#: Where the global chord is kept. One scalar in `app_settings`, the same shape
+#: as the loop ceiling above, because it is the same kind of thing: a single
+#: value the user set once that has to survive a restart.
+_HOTKEY_SETTING = "desktop.hotkey"
+
+
+def load_hotkey() -> str | None:
+    """The chord the user chose for the global shortcut, or None for the default.
+
+    Never raises: this is read on the launch path, and a machine whose database
+    cannot be opened is one that still has to be able to start and say so.
+    """
+    try:
+        from backend.db.connection import get_connection
+
+        row = get_connection().execute(
+            "SELECT value FROM app_settings WHERE key = ?", (_HOTKEY_SETTING,)
+        ).fetchone()
+        return str(row[0]) if row and row[0] else None
+    except Exception:
+        return None
+
+
+def save_hotkey(value: str) -> str:
+    """Persist the global chord. Returns what was stored."""
+    from backend.db.connection import get_connection
+
+    chord = value.strip()
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+        " ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
+        (_HOTKEY_SETTING, chord),
+    )
+    conn.commit()
+    return chord

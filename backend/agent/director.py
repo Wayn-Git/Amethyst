@@ -1,8 +1,8 @@
 """The Director: the single owner of the reason -> act -> observe cycle (ADR-0016).
 
-Nothing else decides what happens next. Tool calls run sequentially by default,
-because AMETHYST's tools mutate local filesystem and database state and a single
-user gains almost nothing from concurrency here.
+Nothing else decides what happens next. Tool calls are segmented into parallel
+and sequential batches: read-only tools run concurrently for speed, while
+writers and interactive tools run sequentially to prevent race conditions.
 """
 
 from __future__ import annotations
@@ -12,9 +12,12 @@ import contextlib
 import hashlib
 import json
 import logging
+import os
+import re
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from backend.agent.planning import (
@@ -43,7 +46,16 @@ from backend.agent.prompt import (
 )
 from backend.agent.state import AgentState, IllegalTransition
 from backend.agent.tool_selector import select_tools
+from backend.agent.tool_search import (
+    ToolSearchConfig,
+    assemble_tool_defs,
+    dispatch_tool_call,
+    dispatch_tool_describe,
+    dispatch_tool_search,
+)
+from backend.agent.context_compressor import ContextCompressor
 from backend.agent.widgets import classify_and_extract, to_envelope
+from backend.runtime.variant_store import depth_instruction
 from backend.db.repositories import (
     AgentRunRepository,
     ConversationRepository,
@@ -124,6 +136,36 @@ FINAL_STEP_INSTRUCTION = (
     " you found, and what is left. Do not apologise for the limit."
 )
 
+def failed_tools_instruction(failures: list[dict[str, str]]) -> str:
+    """Told to the model before it writes the answer, when tools failed.
+
+    The failures were already in the transcript, as `tool` messages the model
+    read -- and the observed behaviour was to read them and then write a
+    confident answer as though the data had arrived. A connector that is down
+    is indistinguishable, in the finished reply, from one that returned nothing
+    interesting.
+
+    So the failures are restated at the point the answer is written, with the
+    one instruction that changes the output: say so. Naming them individually
+    rather than counting them, because "a connector failed" is not something
+    the reader can act on and "Gmail is not connected" is.
+    """
+    lines = []
+    for failure in failures:
+        where = failure.get("server") or "builtin"
+        lines.append(f"- {failure['tool']} ({where}): {failure['reason']}")
+    return (
+        "Some tools failed during this turn:\n"
+        + "\n".join(lines)
+        + "\n\nYou MUST tell the user which of these failed and what it means for"
+        " your answer -- what you could not check, and how that limits what you"
+        " are about to say. Do not present partial results as complete, do not"
+        " quietly leave the failure out, and do not fill the gap with a plausible"
+        " guess. If the answer is still sound without the failed tool, say that"
+        " explicitly instead of staying silent about it."
+    )
+
+
 # --- Dispatch hints: injected into the system prompt when the tool selector
 #    detects patterns that suggest parallel or delegated work. These are
 #    lightweight signals, not hard rules — the model still decides.
@@ -158,7 +200,7 @@ _SUBAGENT_SIGNALS = frozenset({
 
 def _inject_dispatch_hints(
     system_prompt: str,
-    tool_schemas: list[dict[str, Any]],
+    tool_schemas: list[Any],
     user_message: str,
 ) -> str:
     """Append dispatch hints to the system prompt based on tool selection patterns.
@@ -177,9 +219,13 @@ def _inject_dispatch_hints(
         "list_files", "view_file", "grep_files",
         "list_calendar", "list_upcoming", "find_free_slot",
     }
+    
+    def _name(s: Any) -> str | None:
+        return s.name if hasattr(s, "name") else s.get("name") if isinstance(s, dict) else None
+
     available_gathering = sum(
         1 for s in tool_schemas
-        if s.get("name") in data_gathering_tools
+        if _name(s) in data_gathering_tools
     )
     if available_gathering >= 4:
         hints.append(_PARALLEL_HINT)
@@ -273,7 +319,7 @@ class Event:
     # | confirmation_required | tool_result | status | plan | step_started
     # | step_done | warning | guard | error | done | memory
     # | artifact_open | artifact_delta | artifact_done
-    # | question_required | question_settled | widget
+    # | question_required | question_settled | widget | connector_failed
     data: dict[str, Any] = field(default_factory=dict)
 
 
@@ -381,6 +427,112 @@ def _nothing_can_answer(routed: Any) -> str:
             " or pick a model for this conversation."
         )
     return "No provider could take this turn: " + "; ".join(reasons) + "."
+
+
+# ---- smart parallel/sequential segmentation ----
+# Tools that must never run concurrently (interactive / user-facing).
+_NEVER_PARALLEL = frozenset({"clarify", "manage_connections"})
+
+# Tools that are always safe to run in parallel (read-only, no shared state).
+_ALWAYS_PARALLEL = frozenset({
+    "read_file", "grep_files", "search_files", "view_file", "list_files",
+    "search_web", "web_search", "tavily_search", "research_web", "extract_page",
+    "fetch_url", "list_calendar", "list_upcoming",
+})
+
+# Filesystem tools that mutate state — path overlap forces sequential.
+_PATH_WRITERS = frozenset({"edit_file", "write_file", "create_file"})
+_PATH_READERS = frozenset({"read_file", "grep_files", "view_file"})
+_PATH_SCOPED = _PATH_WRITERS | _PATH_READERS
+
+
+def _canonical_path(raw: str) -> Path:
+    """Canonical path for overlap detection (realpath + normcase)."""
+    expanded = Path(raw).expanduser()
+    candidate = expanded if expanded.is_absolute() else Path.cwd() / expanded
+    return Path(os.path.normcase(os.path.realpath(candidate)))
+
+
+def _extract_paths(call: ToolCall) -> list[Path]:
+    """Extract canonical paths from a tool call for overlap detection."""
+    if call.name not in _PATH_SCOPED:
+        return []
+    args = call.arguments if isinstance(call.arguments, dict) else {}
+    raw = args.get("path") or args.get("root") or args.get("directory")
+    if isinstance(raw, str) and raw.strip():
+        return [_canonical_path(raw)]
+    return []
+
+
+def _paths_overlap(left: Path, right: Path) -> bool:
+    """True when two canonical paths may refer to the same subtree."""
+    lp, rp = left.parts, right.parts
+    if not lp or not rp:
+        return False
+    common = min(len(lp), len(rp))
+    return lp[:common] == rp[:common]
+
+
+def _plan_tool_segments(
+    tool_calls: list[ToolCall],
+) -> list[tuple[str, list[ToolCall]]]:
+    """Split tool calls into ordered (parallel | sequential) segments.
+
+    Barriers: _NEVER_PARALLEL tools, anything not parallel-safe, and
+    path-overlap between writers and any overlapping call. Runs shorter
+    than 2 calls demote to sequential.
+    """
+    segments: list[tuple[str, list[ToolCall]]] = []
+    current: list[ToolCall] = []
+    reserved_paths: list[tuple[Path, bool]] = []  # (path, is_writer)
+
+    def _close_parallel() -> None:
+        nonlocal current, reserved_paths
+        if len(current) >= 2:
+            segments.append(("parallel", current))
+        elif current:
+            if segments and segments[-1][0] == "sequential":
+                segments[-1][1].extend(current)
+            else:
+                segments.append(("sequential", current))
+        current, reserved_paths = [], []
+
+    for call in tool_calls:
+        # Never-parallel tools are always barriers
+        if call.name in _NEVER_PARALLEL:
+            _close_parallel()
+            if segments and segments[-1][0] == "sequential":
+                segments[-1][1].append(call)
+            else:
+                segments.append(("sequential", [call]))
+            continue
+
+        # Determine if this call is always-parallel or path-scoped
+        scoped = _extract_paths(call)
+        is_writer = call.name in _PATH_WRITERS
+
+        if not scoped and call.name not in _ALWAYS_PARALLEL and call.name not in _PATH_SCOPED:
+            # Unknown tool — treat as barrier (safe default)
+            _close_parallel()
+            if segments and segments[-1][0] == "sequential":
+                segments[-1][1].append(call)
+            else:
+                segments.append(("sequential", [call]))
+            continue
+
+        # Check path overlap with reserved paths
+        if any(
+            (is_writer or existing_writer) and _paths_overlap(p, existing)
+            for p in scoped
+            for existing, existing_writer in reserved_paths
+        ):
+            _close_parallel()
+
+        reserved_paths.extend((p, is_writer) for p in scoped)
+        current.append(call)
+
+    _close_parallel()
+    return segments
 
 
 def _fingerprint(call: ToolCall) -> str:
@@ -703,6 +855,7 @@ class Director:
         retrieval: bool = True,
         memory: bool = True,
         mode: str = "chat",
+        depth: str = "standard",
     ):
         self.registry = registry
         self.workspace_root = workspace_root
@@ -717,11 +870,20 @@ class Director:
         # it -- the tool schemas, the permission gate and dispatch were
         # identical either way. See `backend/agent/planning.py`.
         self.mode = mode
+        # How much answer the user asked for -- brief, standard or deep. Kept
+        # beside `mode` and appended to the prompt the same way, rather than
+        # passed into `build_system_prompt`: that result is cached across turns
+        # by a hash of its inputs, and depth is the one input that changes from
+        # one turn to the next in the same conversation.
+        self.depth = depth
         self.conversations = ConversationRepository()
         self.messages = MessageRepository()
         # Where this turn's own state goes, so it outlives the process
         # running it. See `backend/agent/state.py`.
         self.runs = AgentRunRepository()
+        # Context compression engine. Uses a cheap auxiliary LLM to summarize
+        # middle turns when the conversation approaches the context window.
+        self._context_engine: ContextCompressor | None = None
 
     async def run(
         self,
@@ -827,6 +989,7 @@ class Director:
         # the slash menu in the interface. The marker is stripped so the model
         # sees the request, not the routing syntax.
         pinned, user_message = extract_skill_invocations(user_message)
+
         # Written before anything that can fail.
         #
         # This used to sit after the chain was built and the model resolved,
@@ -1062,6 +1225,17 @@ class Director:
         # iteration -- for the schema order and for the tool cap.
         ready_servers = self._ready_connectors()
 
+        # Initialize or update the context compression engine with the
+        # resolved model's context window. A model switch mid-turn
+        # (fallback chain) changes the window.
+        if self._context_engine is None or self._context_engine.context_length != model.capabilities.context_window:
+            compression_model = getattr(self, "_compression_model", None)
+            self._context_engine = ContextCompressor(
+                context_length=model.capabilities.context_window,
+                threshold_percent=0.50,
+                compression_model=compression_model,
+            )
+
         context = ToolContext(
             conversation_id=conversation_id,
             workspace_root=self.workspace_root,
@@ -1096,6 +1270,11 @@ class Director:
             self.messages.history(conversation_id)
         )
         state.seen_message_id = self._last_message_id(conversation_id)
+        # Cached tool schemas within a turn: rebuilt only when the underlying
+        # tool set changes (connector state, planning mode), not every iteration.
+        _cached_tool_schemas: list | None = None
+        _cached_tool_hash: str | None = None
+        self._tool_search_catalog = None  # for bridge tool dispatch in _execute()
 
         for iteration in range(self.guards.max_iterations):
             if cancel is not None and cancel.is_set():
@@ -1178,44 +1357,63 @@ class Director:
                     # The old prefix lived in the message, so a conversation
                     # asked for a plan once kept being asked for one forever.
                     system_prompt = f"{system_prompt}\n\n{PLAN_INSTRUCTION}"
-                tool_schemas = (
-                    self.registry.schemas(
-                        hidden_servers=hidden_servers,
-                        read_only=planning,
-                        priority_servers=ready_servers,
-                    )
-                    if model.capabilities.tools
-                    else None
-                )
-                # Describe the tools this request plausibly needs, not all 178.
-                # The schemas measured 29,620 tokens across 132 tools and go out
-                # on *every* round trip, which is more than a free tier's whole
-                # per-minute allowance -- and a model handed 178 options chooses
-                # worse than one handed twenty. Nothing is unregistered: a tool
-                # left undescribed still dispatches if the model names it.
-                #
-                # What the assistant has said so far is part of the signal, so a
-                # model that announces "let me check GitHub" is offered the
-                # GitHub connector on the very next iteration.
-                if tool_schemas is not None:
-                    tool_schemas, withheld = select_tools(
-                        tool_schemas, f"{user_message}\n{' '.join(said[-3:])}"
-                    )
-                    if withheld and not state.warned_about_selection:
-                        state.warned_about_selection = True
-                        log.info("tool selection offered %d tools, withheld %d",
-                                 len(tool_schemas), withheld)
-                    # Always compress: full descriptions cost ~29K tokens across
-                    # 132 tools. Headline-only cuts to ~8-10K with minimal
-                    # quality loss -- the model calls tools by name, and a
-                    # one-line description is enough to pick the right one.
-                    tool_schemas = compress_tool_schemas(tool_schemas)
-                    # Inject dispatch hints when the tool selector surfaces
-                    # patterns that suggest parallel or delegated work.
-                    if not state.warned_about_selection:
-                        system_prompt = _inject_dispatch_hints(
-                            system_prompt, tool_schemas, user_message
+                system_prompt = f"{system_prompt}\n\n{depth_instruction(self.depth)}"
+                # Tool schemas are cached within a turn: the underlying tool set
+                # (registry contents, connector state, planning mode) does not
+                # change between iterations, so selection + compression runs
+                # once instead of up to 24 times per turn.
+                if model.capabilities.tools:
+                    _tool_hash_key = f"{hidden_servers}:{planning}:{ready_servers}"
+                    if _cached_tool_schemas is None or _tool_hash_key != _cached_tool_hash:
+                        raw_schemas = self.registry.schemas(
+                            hidden_servers=hidden_servers,
+                            read_only=planning,
+                            priority_servers=ready_servers,
                         )
+                        # Progressive tool disclosure: when there are many tools
+                        # (178+ across connectors), replace deferrable tools with
+                        # bridge tools (tool_search, tool_describe, tool_call) so
+                        # the model discovers them on demand instead of seeing all
+                        # schemas at once (~29K tokens).
+                        _ts_config = ToolSearchConfig.from_raw(
+                            getattr(self, "_tool_search_config", {})
+                        )
+                        tool_schemas, _catalog = assemble_tool_defs(
+                            raw_schemas,
+                            context_length=model.capabilities.context_window,
+                            config=_ts_config,
+                            registry=self.registry,
+                        )
+                        if _catalog is not None:
+                            # Bridge tools were injected; store catalog for dispatch
+                            self._tool_search_catalog = _catalog
+                        else:
+                            # No deferral; still apply keyword selection + compression
+                            tool_schemas, withheld = select_tools(
+                                tool_schemas, f"{user_message}\n{' '.join(said[-3:])}"
+                            )
+                            if withheld and not state.warned_about_selection:
+                                state.warned_about_selection = True
+                                log.info(
+                                    "tool selection offered %d tools, withheld %d",
+                                    len(tool_schemas), withheld,
+                                )
+                            # Headline-only cuts to ~8-10K from ~29K with minimal
+                            # quality loss -- the model calls tools by name.
+                            tool_schemas = compress_tool_schemas(tool_schemas)
+                            # Inject dispatch hints when the tool selector surfaces
+                            # patterns that suggest parallel or delegated work.
+                            if not state.warned_about_selection:
+                                system_prompt = _inject_dispatch_hints(
+                                    system_prompt, tool_schemas, user_message
+                                )
+                            self._tool_search_catalog = None
+                        _cached_tool_schemas = tool_schemas
+                        _cached_tool_hash = _tool_hash_key
+                    else:
+                        tool_schemas = list(_cached_tool_schemas)
+                else:
+                    tool_schemas = None
                 if not planning and executing and tool_schemas is not None:
                     # Only where there is a plan to be part-way through. Offering
                     # it on every chat turn would be a tool with nothing to
@@ -1273,6 +1471,17 @@ class Director:
                         if message.id is not None and message.id > state.seen_message_id:
                             history.append(to_wire_message(message))
                             state.seen_message_id = message.id
+                    # Context compression: when the conversation approaches the
+                    # context window, use an auxiliary LLM to summarize middle
+                    # turns before budgeting. This preserves more information
+                    # than drop-oldest.
+                    if (
+                        self._context_engine is not None
+                        and self._context_engine.should_compress(
+                            estimate_tokens(system_prompt) + tool_schema_tokens(tool_schemas)
+                        )
+                    ):
+                        history = self._context_engine.compress(history)
                     # Re-budgeted against whichever model is about to be called.
                     # Carrying a 200,000-token history into a 32,000-token
                     # fallback trades one provider's outage for the next one's
@@ -1332,6 +1541,17 @@ class Director:
                     wire.append({"role": "system", "content": state.nudge})
                 if final_step:
                     wire.append({"role": "system", "content": FINAL_STEP_INSTRUCTION})
+                if state.failed_calls:
+                    # Every round trip, not only the final step: the model
+                    # decides whether to retry, work around it or report it at
+                    # the point it reads the failure, and a reminder that only
+                    # arrives at the end arrives after that decision was made.
+                    wire.append(
+                        {
+                            "role": "system",
+                            "content": failed_tools_instruction(state.failed_calls),
+                        }
+                    )
 
                 # Some accounts cap tokens *per minute*, not just context window
                 # or tool count -- Groq's free tier is 8,000, and the system
@@ -1563,13 +1783,9 @@ class Director:
                     # handover that was always the right answer.
                     can_resume = (
                         (bool(streamed_text or state.carried)
-                         or isinstance(exc, ProviderError))
+                         or isinstance(exc, ProviderStreamError))
                         and should_retry(kind)
                         and state.resumes < self.guards.max_resumes
-                        # One attempt stays reserved for the links behind this
-                        # one, so a provider that state.resumes twice and then dies
-                        # does not leave the chain with nothing to spend.
-                        and budget.remaining > 1
                     )
                     if can_resume:
                         state.resumes += 1
@@ -1634,7 +1850,6 @@ class Director:
                     can_hand_over = (
                         links_after > 0
                         and should_fall_back(kind)
-                        and budget.remaining > 0
                     )
                     if can_hand_over:
                         resuming = bool(streamed_text or state.carried)
@@ -1761,6 +1976,13 @@ class Director:
                         * TPM_SAFETY_MARGIN
                     ),
                 )
+                # Update the context engine with real usage from the provider.
+                if self._context_engine is not None:
+                    self._context_engine.update_from_response({
+                        "prompt_tokens": response.input_tokens or 0,
+                        "completion_tokens": response.output_tokens or 0,
+                        "total_tokens": (response.input_tokens or 0) + (response.output_tokens or 0),
+                    })
                 state.nudge = None
                 break
 
@@ -1904,12 +2126,10 @@ class Director:
                 state.tool_message_ids.append(asked)
             self._checkpoint(state, "acting", budget=budget)
 
-            # ---- parallel dispatch: launch all tool calls concurrently ----
-            # When the model returns multiple tool calls, they are independent
-            # by construction (the model chose to bundle them). Running them
-            # concurrently bounds total latency to the slowest tool rather than
-            # the sum. Step-tool calls are instant and handled inline; only
-            # real dispatches join the parallel batch.
+            # ---- segmented dispatch: parallel where safe, sequential where needed ----
+            # Tool calls are split into ordered segments. Parallel segments run
+            # concurrently (fastest path). Sequential segments run one-by-one
+            # (safe for tools that mutate shared state or need user interaction).
             calls = list(response.tool_calls)
             # Separate step notifications (instant) from real dispatches
             step_calls = [c for c in calls if c.name == STEP_TOOL_NAME]
@@ -1933,84 +2153,130 @@ class Director:
                     tool_name=call.name,
                 )
 
-            # Launch all real dispatches concurrently
-            dispatch_tasks: list[tuple[ToolCall, asyncio.Task]] = []
-            for call in dispatch_calls:
-                if state.tool_calls_made >= self.guards.max_tool_calls:
-                    state.error = "tool call limit reached"
-                    self._checkpoint(state, "stopped", budget=budget)
-                    yield _guard(
-                        "tool call limit reached", said, iteration, state.tool_calls_made, started
-                    )
-                    self.conversations.touch(conversation_id)
-                    return
-                state.tool_calls_made += 1
+            # Plan segments: parallel for independent reads, sequential for writers/conflicts
+            segments = _plan_tool_segments(dispatch_calls) if dispatch_calls else []
 
-                fingerprint = _fingerprint(call)
-                seen = state.call_fingerprints.get(fingerprint, 0) + 1
-                state.call_fingerprints[fingerprint] = seen
-                if seen > self.guards.max_repeated_calls:
-                    # Stash error result; will be yielded below
-                    dispatch_tasks.append((call, None))  # sentinel
-                    continue
+            # Execute segments in order, collecting all (call, task) pairs
+            dispatch_tasks: list[tuple[ToolCall, asyncio.Task | None]] = []
 
-                tool = self.registry.get(call.name)
-                server = getattr(tool, "server_name", None)
-                yield Event(
-                    "status",
-                    {
-                        "state": "connector" if server else "tool",
-                        "tool": call.name,
-                        "server": server,
-                    },
-                )
-                yield Event("tool_call", {"name": call.name, "arguments": call.arguments})
-                for event in self._artifact_opening(
-                    conversation_id,
-                    call,
-                    already_sent=live_artifacts.sent_for(call),
-                    already_open=live_artifacts.opened(call),
-                ):
-                    yield event
-                task = asyncio.create_task(self._execute(call, context))
-                dispatch_tasks.append((call, task))
+            for seg_type, seg_calls in segments:
+                if seg_type == "parallel":
+                    # Launch all calls in this segment concurrently
+                    for call in seg_calls:
+                        if state.tool_calls_made >= self.guards.max_tool_calls:
+                            state.error = "tool call limit reached"
+                            self._checkpoint(state, "stopped", budget=budget)
+                            yield _guard(
+                                "tool call limit reached", said, iteration, state.tool_calls_made, started
+                            )
+                            self.conversations.touch(conversation_id)
+                            return
+                        state.tool_calls_made += 1
 
-            # Attach cancel watchers to all tasks
-            stoppers = []
-            for _call, task in dispatch_tasks:
-                if task is not None:
-                    stoppers.append(self._cancel_on_request(cancel, task))
+                        fingerprint = _fingerprint(call)
+                        seen = state.call_fingerprints.get(fingerprint, 0) + 1
+                        state.call_fingerprints[fingerprint] = seen
+                        if seen > self.guards.max_repeated_calls:
+                            dispatch_tasks.append((call, None))
+                            continue
 
-            # Drain events from all tasks concurrently. Events arrive on
-            # context.events; we drain until all tasks are done.
-            if dispatch_tasks:
-                pending_tasks = [t for _, t in dispatch_tasks if t is not None]
-                done_count = 0
-                total = len(pending_tasks)
-                # Mark each task to put a sentinel when done
-                sentinels = []
-                for task in pending_tasks:
-                    sentinel = object()
-                    sentinels.append(sentinel)
+                        tool = self.registry.get(call.name)
+                        server = getattr(tool, "server_name", None)
+                        yield Event(
+                            "status",
+                            {
+                                "state": "connector" if server else "tool",
+                                "tool": call.name,
+                                "server": server,
+                            },
+                        )
+                        yield Event("tool_call", {"name": call.name, "arguments": call.arguments})
+                        for event in self._artifact_opening(
+                            conversation_id,
+                            call,
+                            already_sent=live_artifacts.sent_for(call),
+                            already_open=live_artifacts.opened(call),
+                        ):
+                            yield event
+                        task = asyncio.create_task(self._execute(call, context))
+                        dispatch_tasks.append((call, task))
 
-                    def _done_cb(_result, s=sentinel):
-                        context.events.put_nowait(("__parallel_done__", s))
+                    # Drain events from parallel tasks
+                    parallel_tasks = [t for _, t in dispatch_tasks if t is not None and not isinstance(t, type(None))]
+                    pending = [t for t in parallel_tasks if not t.done()]
+                    if pending:
+                        done_count = 0
+                        total = len(pending)
+                        for task in pending:
+                            sentinel = object()
+                            def _done_cb(_result, s=sentinel):
+                                context.events.put_nowait(("__parallel_done__", s))
+                            task.add_done_callback(_done_cb)
+                        while done_count < total:
+                            item = await context.events.get()
+                            if item[0] == "__parallel_done__":
+                                done_count += 1
+                                continue
+                            event_type, data = item
+                            self._note_suspension(state, Event(event_type, data))
+                            yield Event(event_type, data)
 
-                    task.add_done_callback(_done_cb)
-                # Also handle the "no tasks" case
-                while done_count < total:
-                    item = await context.events.get()
-                    if item[0] == "__parallel_done__":
-                        done_count += 1
-                        continue
-                    event_type, data = item
-                    self._note_suspension(state, Event(event_type, data))
-                    yield Event(event_type, data)
+                else:
+                    # Sequential segment: execute one-by-one
+                    for call in seg_calls:
+                        if state.tool_calls_made >= self.guards.max_tool_calls:
+                            state.error = "tool call limit reached"
+                            self._checkpoint(state, "stopped", budget=budget)
+                            yield _guard(
+                                "tool call limit reached", said, iteration, state.tool_calls_made, started
+                            )
+                            self.conversations.touch(conversation_id)
+                            return
+                        state.tool_calls_made += 1
 
-            # Stop cancel watchers
-            for stopper in stoppers:
-                if stopper is not None:
-                    stopper.cancel()
+                        fingerprint = _fingerprint(call)
+                        seen = state.call_fingerprints.get(fingerprint, 0) + 1
+                        state.call_fingerprints[fingerprint] = seen
+                        if seen > self.guards.max_repeated_calls:
+                            dispatch_tasks.append((call, None))
+                            continue
+
+                        tool = self.registry.get(call.name)
+                        server = getattr(tool, "server_name", None)
+                        yield Event(
+                            "status",
+                            {
+                                "state": "connector" if server else "tool",
+                                "tool": call.name,
+                                "server": server,
+                            },
+                        )
+                        yield Event("tool_call", {"name": call.name, "arguments": call.arguments})
+                        for event in self._artifact_opening(
+                            conversation_id,
+                            call,
+                            already_sent=live_artifacts.sent_for(call),
+                            already_open=live_artifacts.opened(call),
+                        ):
+                            yield event
+                        # Execute sequentially and drain events inline
+                        task = asyncio.create_task(self._execute(call, context))
+                        dispatch_tasks.append((call, task))
+                        stopper = self._cancel_on_request(cancel, task) if cancel else None
+                        # Wait for this task to complete before moving to next
+                        sentinel = object()
+                        def _seq_done(_result, s=sentinel):
+                            context.events.put_nowait(("__parallel_done__", s))
+                        task.add_done_callback(_seq_done)
+                        while not task.done():
+                            item = await context.events.get()
+                            if item[0] == "__parallel_done__":
+                                break
+                            event_type, data = item
+                            self._note_suspension(state, Event(event_type, data))
+                            yield Event(event_type, data)
+                        if stopper is not None:
+                            stopper.cancel()
 
             # Collect and yield results in original order
             for call, task in dispatch_tasks:
@@ -2048,6 +2314,19 @@ class Director:
                     "tool_result",
                     {"name": call.name, "content": result.content, "is_error": result.is_error},
                 )
+                if result.is_error:
+                    failed_tool = self.registry.get(call.name)
+                    failure = {
+                        "tool": call.name,
+                        "server": getattr(failed_tool, "server_name", None) or "",
+                        "reason": result.content[:300],
+                    }
+                    state.failed_calls.append(failure)
+                    # A separate event from `tool_result`, because the interface
+                    # needs to mark the *turn* as having failed something -- a
+                    # result card scrolled past on the way to a confident answer
+                    # is exactly how a broken connector went unnoticed.
+                    yield Event("connector_failed", failure)
                 for event in self._artifact_closing(conversation_id, call, result):
                     yield event
 
@@ -2137,11 +2416,24 @@ class Director:
         except Exception as exc:
             log.debug("could not read connector state, advertising all of them: %s", exc)
 
-        from backend.mcp import guidance
+        from backend.mcp import guidance, live
 
         unsigned = guidance.unsigned_connectors() & servers
         if unsigned:
             log.info("withholding tools of connectors with no account: %s", sorted(unsigned))
+
+        # Also withhold any connector that is managed by the live manager but not verified usable right now
+        try:
+            mgr = live.get_manager()
+            if mgr is not None and hasattr(mgr, "is_ready"):
+                managed = set(getattr(mgr, "servers", {})) | set(getattr(mgr, "connections", {}))
+                unusable = {s for s in (servers & managed) if not mgr.is_ready(s)}
+                if unusable:
+                    log.info("withholding tools of connectors not verified usable: %s", sorted(unusable))
+                    hidden |= unusable
+        except Exception as exc:
+            log.debug("could not verify connector readiness: %s", exc)
+
         return hidden | unsigned
 
     @staticmethod
@@ -2162,25 +2454,23 @@ class Director:
     def _is_trivial_turn(self, user_message: str, attachments: list | None = None) -> bool:
         """Heuristic: should retrieval and memory be skipped for this turn?
 
-        Trivial turns are short greetings, acknowledgments, and simple questions
+        Trivial turns are short greetings, acknowledgments, and conversational pleasantries
         where there's nothing to retrieve and no memories to recall. Skipping
         them saves 1-5s of embedding + DB calls per turn.
         """
-        words = user_message.split()
-        if len(words) > 40:
-            return False
         if attachments:
             return False
-        # Context-seeking language means the user expects the agent to remember
-        # something — retrieval and memory should run.
-        context_signals = {
-            "remember", "last time", "before", "previously", "earlier",
-            "forgot", "remind", "what did", "how did", "when did",
+        cleaned = user_message.strip().lower().rstrip(".!? ")
+        greetings = {
+            "hi", "hello", "hey", "yo", "sup",
+            "good morning", "good afternoon", "good evening", "good night",
+            "thanks", "thank you", "thx", "ty",
+            "ok", "okay", "k", "cool", "great", "nice", "awesome", "perfect",
+            "yes", "yeah", "yep", "no", "nope",
+            "bye", "goodbye", "cya", "see ya",
+            "ping", "test",
         }
-        lower = user_message.lower()
-        if any(sig in lower for sig in context_signals):
-            return False
-        return True
+        return cleaned in greetings
 
     async def _recall(self, conversation_id: str, user_message: str) -> list[str]:
         """Standing facts about the user, for the top of the prompt.
@@ -2578,6 +2868,11 @@ class Director:
     async def _execute(self, call: ToolCall, context: ToolContext) -> ToolResult:
         """Dispatch, converting anything it raises into a result (ADR-0016).
 
+        Bridge tools (tool_search, tool_describe, tool_call) are intercepted
+        here and dispatched through the tool search module instead of the
+        normal registry dispatch. This lets the model discover and invoke
+        deferred tools without having their full schemas in context.
+
         `ToolRegistry.dispatch` already catches what the *handler* raises, which
         left everything before the handler uncovered: the permission gate, the
         connector-enabled lookup, the audit write. A raise from any of those
@@ -2590,6 +2885,35 @@ class Director:
         swallowing it here would turn "the user pressed Stop" into "the tool
         returned an error" and let the turn keep going.
         """
+        # --- Bridge tool dispatch (progressive tool disclosure) ---
+        catalog = getattr(self, "_tool_search_catalog", None)
+        if call.name == "tool_search" and catalog is not None:
+            try:
+                queries = call.arguments.get("queries", [])
+                result = await dispatch_tool_search(queries, catalog)
+                return ToolResult.ok(json.dumps(result, indent=2))
+            except Exception as exc:
+                return ToolResult.error(f"tool_search failed: {exc}")
+
+        if call.name == "tool_describe" and catalog is not None:
+            try:
+                names = call.arguments.get("names", [])
+                result = await dispatch_tool_describe(names, catalog)
+                return ToolResult.ok(json.dumps(result, indent=2))
+            except Exception as exc:
+                return ToolResult.error(f"tool_describe failed: {exc}")
+
+        if call.name == "tool_call" and catalog is not None:
+            try:
+                calls = call.arguments.get("calls", [])
+                results = await dispatch_tool_call(
+                    calls, catalog, self.registry, context
+                )
+                return ToolResult.ok(json.dumps(results, indent=2))
+            except Exception as exc:
+                return ToolResult.error(f"tool_call failed: {exc}")
+
+        # --- Normal dispatch ---
         try:
             return await self.registry.dispatch(call.name, call.arguments, context)
         except asyncio.CancelledError:

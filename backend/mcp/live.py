@@ -58,14 +58,18 @@ def ready_connectors() -> dict[str, int]:
 
 
 def connection(server_name: str):
-    """A connected server by name, or None.
+    """A connected, verified usable server by name, or None.
 
     None covers every "not usable" case -- no registry, connector switched off,
-    process died -- because callers all want the same fallback and none of them
+    process died, auth error, or account mismatch -- because callers all want the same fallback and none of them
     can do anything different about the reason.
     """
     manager = _manager
     if manager is None:
         return None
     found = getattr(manager, "connections", {}).get(server_name)
-    return found if found is not None and found.connected else None
+    if found is None or not found.connected:
+        return None
+    if hasattr(manager, "is_ready") and not manager.is_ready(server_name):
+        return None
+    return found

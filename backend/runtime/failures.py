@@ -185,15 +185,19 @@ def classify_stream_error(error: object) -> FailureKind:
     text = error if isinstance(error, str) else str(error)
     if looks_like_quota(text):
         return FailureKind.NON_RETRYABLE_RATE_LIMIT
+    # NVIDIA NIM emits bare `Error in input stream` frames intermittently.
+    # This is a known NIM issue — the provider falters mid-generation. Treat it
+    # as transient so the same provider is asked again. The conservative reading
+    # costs a dead turn; this costs at worst one wasted retry.
+    if "input stream" in text.lower():
+        return FailureKind.UPSTREAM_UNHEALTHY
     # An error frame arriving *inside* a 200 stream is a different animal from a
     # 4xx at the door: the request already passed auth, routing and validation
     # to open the stream, so a break part-way through is almost always the
-    # provider faltering mid-generation, not a malformed request. NVIDIA's NIM
-    # emits bare `Error in input stream` frames this way, ~intermittently, and
-    # the old default (NON_RETRYABLE) turned each into a dead turn with no
-    # retry. Treat an unrecognised mid-stream error as transient so the same
-    # provider is asked again -- the conservative reading costs a dead turn,
-    # this costs at worst one wasted retry.
+    # provider faltering mid-generation, not a malformed request. Treat an
+    # unrecognised mid-stream error as transient so the same provider is asked
+    # again -- the conservative reading costs a dead turn, this costs at worst
+    # one wasted retry.
     return FailureKind.UPSTREAM_UNHEALTHY
 
 

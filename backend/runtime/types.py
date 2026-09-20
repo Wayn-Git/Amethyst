@@ -61,6 +61,15 @@ class ModelParameters:
 
     temperature: float | None = None
     max_tokens: int | None = None
+    #: Room for the answer itself, as distinct from a hard output ceiling.
+    #:
+    #: On Anthropic `max_tokens` bounds thinking *and* answer together, so
+    #: setting it from a "how long an answer do you want" control would clamp
+    #: the thinking budget right back down -- which is the bug that made every
+    #: reasoning effort identical. This is the answer's share; the adapter adds
+    #: the thinking budget on top and bounds the total by what the model
+    #: accepts. Adapters whose `max_tokens` means output-only use it directly.
+    answer_tokens: int | None = None
     reasoning_effort: str | None = None  # none | low | medium | high
     thinking_budget: int | None = None
     stop: list[str] | None = None

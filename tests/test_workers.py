@@ -130,7 +130,7 @@ def test_a_scheduled_automation_goes_to_the_automation_account(db, lanes):
 
 
 def test_a_parallel_batch_goes_to_the_subagent_account(db, lanes):
-    decision = choose(ExecutionRequest(fanout=6, interactive=False), settings=lanes)
+    decision = choose(ExecutionRequest(fanout=12, interactive=False), settings=lanes)
     assert decision.lane == SUBAGENT
 
 
@@ -942,7 +942,7 @@ async def test_the_dispatch_tool_explains_a_graph_it_cannot_run(db):
         ToolContext(conversation_id="c1", workspace_root="."),
     )
     assert result.is_error
-    assert "not a collector" in result.content
+    assert "not found" in result.content
 
 
 async def test_collecting_a_finished_batch_returns_its_results(db, registry):
@@ -1034,7 +1034,7 @@ async def test_a_batch_the_agent_asked_for_goes_to_the_subagent_account(
     chat = ConversationRepository().create("p", "m", "a chat")
     sent = await _dispatch_through_the_tool(
         chat,
-        [{"id": "a", "task": "collect_it"}, {"id": "b", "task": "collect_it"}],
+        [{"id": str(i), "task": "collect_it"} for i in range(12)],
         monkeypatch,
         lanes,
     )

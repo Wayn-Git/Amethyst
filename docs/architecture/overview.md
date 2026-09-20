@@ -110,6 +110,15 @@ Every arrow in that walkthrough is a component boundary that exists in the diagr
 
 **Build nothing AMETHYST does not need yet.** No message broker, no vector service, no container orchestration, no multi-tenancy, no distributed coordination. Every such omission is a decision recorded in an ADR, with a named escape hatch if scale ever changes the answer.
 
+## Reliability Constraints
+
+As a local-first application, the system runs everything in a single process to minimize overhead, which necessitates strict reliability constraints:
+
+- **Concurrency isolation:** Background workers and the web server share the same process footprint. A file-based locking mechanism (`.amethyst.lock`) ensures multiple instances of `amethyst serve` cannot clobber ports or corrupt logs.
+- **Resource lifecycle:** The terminal manager strictly reaps spawned background process groups (like PTY instances) on shutdown to prevent zombie processes.
+- **Connection resilience:** Server-Sent Events (SSE) rely on FastAPI's `BackgroundTasks` for deterministic cleanup, preventing memory leaks when clients disconnect ungracefully.
+- **Untrusted extensions:** Skills are loaded dynamically, but are subjected to strict dependency isolation and YAML shape validation to prevent malformed extensions from crashing the agent loop.
+
 ## What each layer owns
 
 | Layer | Owns | Explicitly does not own |
@@ -129,6 +138,8 @@ Every arrow in that walkthrough is a component boundary that exists in the diagr
 
 - [components.md](components.md) — precise definitions of Tool, Skill, MCP Tool, and Agent, and the rule for choosing between them
 - [jobs.md](jobs.md) — which workloads are durable jobs, which deliberately are not, and why
+- [desktop.md](desktop.md) — the desktop shell: how a launch becomes a window, single instance,
+  the window/service lifecycle split, and the global shortcut
 - [ai-runtime.md](ai-runtime.md) — the provider abstraction and the agent loop
 - [providers.md](providers.md) — the provider catalogue, the failure taxonomy and the fallback chain
 - [connectors.md](connectors.md) — connector setup: what is offered, what is said, and what state it is in

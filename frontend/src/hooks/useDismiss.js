@@ -15,10 +15,10 @@ export function useDismiss(ref, active, { onAway, onEscape = onAway } = {}) {
        mouse event after the tap has finished, and browsers suppress it
        entirely in some cases -- so an open menu could survive a tap outside
        it and need a second one. */
-    document.addEventListener('pointerdown', away)
+    document.addEventListener('pointerdown', away, true)
     document.addEventListener('keydown', key, true)
     return () => {
-      document.removeEventListener('pointerdown', away)
+      document.removeEventListener('pointerdown', away, true)
       document.removeEventListener('keydown', key, true)
     }
   }, [ref, active, onAway, onEscape])

@@ -27,6 +27,7 @@ from backend.instagram.relay import POLL_SECONDS as RELAY_POLL_SECONDS
 from backend.instagram.relay import RelayPoller
 from backend.instagram.service import IngestService
 from backend.instagram.store import InstagramEventStore
+from backend.sync import devices as sync_devices
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,15 @@ log = logging.getLogger(__name__)
 JOB_KIND = "instagram_ingest"
 
 TICK_SECONDS = 5.0
+#: What the tick and the relay interval drop to while a pairing code is on
+#: screen. The wait somebody actually sits through is this machine's next two
+#: round trips -- one to collect the offer, one to hand back the answer -- and
+#: at the ordinary fifteen seconds that is half a minute of staring at a phone
+#: wondering whether it worked. Bounded twice over: only while
+#: `devices.pairing_open()`, which is five minutes at the outside, and only when
+#: somebody pressed the button that opened it.
+PAIRING_TICK_SECONDS = 1.0
+PAIRING_RELAY_SECONDS = 2.0
 #: How many events one drain will take before yielding, so a large backlog does
 #: not hold the lock for an hour.
 DRAIN_LIMIT = 20
@@ -84,19 +94,34 @@ class InstagramRunner:
         A no-op when nothing is running -- the delivery is already written down,
         and the next start drains it.
         """
+        self._next_relay = 0.0
         if self._wake is not None:
             self._wake.set()
+
+    @staticmethod
+    def _pairing_active() -> bool:
+        return (
+            sync_devices.pairing_open()
+            or sync_devices.has_pending_pairings()
+            or sync_devices.has_approved_answers()
+        )
+
+    @staticmethod
+    def _tick_seconds() -> float:
+        """How long to wait before the next tick."""
+        return PAIRING_TICK_SECONDS if InstagramRunner._pairing_active() else TICK_SECONDS
 
     async def _loop(self) -> None:
         wake = self._wake
         while True:
             try:
+                delay = self._tick_seconds()
                 if wake is not None:
                     with contextlib.suppress(TimeoutError):
-                        await asyncio.wait_for(wake.wait(), timeout=TICK_SECONDS)
+                        await asyncio.wait_for(wake.wait(), timeout=delay)
                     wake.clear()
                 else:
-                    await asyncio.sleep(TICK_SECONDS)
+                    await asyncio.sleep(delay)
                 await self.tick()
             except asyncio.CancelledError:
                 raise
@@ -193,9 +218,21 @@ class InstagramRunner:
         processed on the first tick after boot rather than the second.
         """
         loop_now = asyncio.get_running_loop().time()
-        if loop_now < self._next_relay:
+        # When a pairing code was just shown, the relay schedule from before the
+        # code was opened can be up to RELAY_POLL_SECONDS (15 s) in the future.
+        # Cap it so the first poll after opening pairing happens within
+        # PAIRING_RELAY_SECONDS rather than after the old timer expires.
+        pairing_active = self._pairing_active()
+        if pairing_active and self._next_relay > loop_now + PAIRING_RELAY_SECONDS:
+            self._next_relay = loop_now
+        # An answer in hand goes back immediately whatever the interval says:
+        # the device that offered itself is blocked on this one round trip, and
+        # it is already single-use and already produced.
+        if loop_now < self._next_relay and not self._relay.owes_pair_answer:
             return
-        self._next_relay = loop_now + RELAY_POLL_SECONDS
+        self._next_relay = loop_now + (
+            PAIRING_RELAY_SECONDS if pairing_active else RELAY_POLL_SECONDS
+        )
         # Never raises; a relay that is down is a warning and a retry, never a
         # tick that fails and takes the drain with it.
         await self._relay.sync(store=store)

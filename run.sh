@@ -195,10 +195,16 @@ if [ ! -f ".env" ]; then
     success "Created .env. (You can add API keys in .env or configure them via the UI)"
 fi
 
-# 6. Initialize AMETHYST (DB, directories, skills)
-info "Running AMETHYST initialization..."
-amethyst init >/dev/null 2>&1 || python -m backend.cli init
-success "AMETHYST storage and database verified."
+# 6. Storage and database.
+#
+# `amethyst serve` does this itself now, so the normal path does not need it --
+# but the modes below exit before ever reaching `serve`, and the wizard and the
+# doctor both expect a database to exist.
+if [ "$MODE" == "setup" ] || [ "$MODE" == "init" ] || [ "$MODE" == "doctor" ]; then
+    info "Running AMETHYST initialization..."
+    amethyst init >/dev/null 2>&1 || python -m backend.cli init
+    success "AMETHYST storage and database verified."
+fi
 
 # Handle setup mode
 if [ "$MODE" == "setup" ]; then
@@ -220,21 +226,21 @@ if [ "$MODE" == "doctor" ]; then
     exit 0
 fi
 
-# 7. Frontend Setup
-if [ ! -d "frontend/node_modules" ]; then
-    info "Installing frontend dependencies (npm install)..."
-    (cd frontend && npm install)
-    success "Frontend dependencies installed."
-fi
-
-# Rebuild frontend if requested or if dist doesn't exist
-if [ "$MODE" == "build" ] || [ ! -f "frontend/dist/index.html" ]; then
+# 7. Frontend.
+#
+# Only for `--build`, which is the one mode that is *about* building. Every
+# other path leaves it to `amethyst serve`, which installs and builds when there
+# is nothing to serve -- so there is one place that decides whether a build is
+# needed rather than two that can disagree.
+if [ "$MODE" == "build" ]; then
+    if [ ! -d "frontend/node_modules" ]; then
+        info "Installing frontend dependencies (npm install)..."
+        (cd frontend && npm install)
+    fi
     info "Building frontend web app (npm run build)..."
     (cd frontend && npm run build)
     success "Frontend built successfully in frontend/dist."
-    if [ "$MODE" == "build" ]; then
-        exit 0
-    fi
+    exit 0
 fi
 
 # 8. Start AMETHYST
@@ -265,8 +271,9 @@ if [ "$MODE" == "dev" ]; then
     }
     trap cleanup EXIT INT TERM
 
-    # Start backend
-    amethyst serve --port "$PORT" --reload &
+    # Start backend. `--no-build`: the Vite dev server below serves the
+    # interface in this mode, so a production build would be work nobody reads.
+    amethyst serve --port "$PORT" --reload --no-build &
     BACKEND_PID=$!
 
     # Start frontend dev server

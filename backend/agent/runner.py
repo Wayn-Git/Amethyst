@@ -8,6 +8,8 @@ return result.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import AsyncIterator
@@ -59,6 +61,8 @@ class SubagentEvent:
 class SubagentRunner:
     """A lightweight agent loop for subagent execution."""
 
+    HEARTBEAT_INTERVAL = 30  # seconds between heartbeat pings
+
     def __init__(
         self,
         registry: ToolRegistry | None = None,
@@ -67,12 +71,36 @@ class SubagentRunner:
     ):
         self.registry = registry or self._build_registry()
         self.stream = stream
+        self._steer_queue: asyncio.Queue[str] = asyncio.Queue()
 
     def _build_registry(self) -> ToolRegistry:
         """Build a minimal tool registry for subagent use."""
         from backend.tools.registry import build_default_registry
 
         return build_default_registry()
+
+    async def _heartbeat_loop(self, session_id: str, stop: asyncio.Event) -> None:
+        """Periodically update the heartbeat timestamp for this subagent."""
+        from backend.db.repositories import SubagentSessionRepository
+
+        repo = SubagentSessionRepository()
+        while not stop.is_set():
+            try:
+                repo.update_heartbeat(session_id)
+            except Exception:
+                log.debug("Heartbeat update failed for %s", session_id)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=self.HEARTBEAT_INTERVAL)
+            except asyncio.TimeoutError:
+                pass
+
+    def steer(self, goal: str) -> None:
+        """Inject a steering message into the running subagent's conversation.
+
+        The message is queued and injected as a system message at the start
+        of the next iteration.
+        """
+        self._steer_queue.put_nowait(goal)
 
     async def run(
         self,
@@ -97,149 +125,196 @@ class SubagentRunner:
         max_tool_calls = agent_type.max_tool_calls
         max_seconds = agent_type.max_seconds
 
-        # Build the system prompt
-        system_prompt = self._build_system_prompt(agent_type, prompt)
+        # Start heartbeat loop
+        heartbeat_stop = asyncio.Event()
+        heartbeat_task = asyncio.create_task(
+            self._heartbeat_loop(session_id, heartbeat_stop)
+        )
 
-        # Resolve the model
-        model = self._resolve_model(agent_type, conversation_id)
-        if model is None:
-            yield {"type": "error", "message": "No model available for subagent"}
-            return
+        try:
+            # Build the system prompt
+            system_prompt = self._build_system_prompt(agent_type, prompt)
 
-        # Build tool schemas (filtered by permissions)
-        tool_schemas = self._build_tools(model, permissions)
-
-        # Build history from the prompt
-        history: list[dict[str, Any]] = [
-            {"role": "user", "content": prompt}
-        ]
-
-        tool_calls_made = 0
-        said: list[str] = []
-
-        for iteration in range(max_iterations):
-            # Check limits
-            if time.monotonic() - started > max_seconds:
-                yield {"type": "error", "message": "Time limit reached"}
+            # Resolve the model
+            model = self._resolve_model(agent_type, conversation_id)
+            if model is None:
+                yield {"type": "error", "message": "No model available for subagent"}
                 return
 
-            if iteration == max_iterations - 1:
-                # Last iteration: no tools, force answer
-                tool_schemas_this = None
-            else:
-                tool_schemas_this = tool_schemas
+            # Build tool schemas (filtered by permissions)
+            tool_schemas = self._build_tools(model, permissions)
 
-            # Build the wire messages
-            wire = [{"role": "system", "content": system_prompt}, *history]
+            # Build history from the prompt
+            history: list[dict[str, Any]] = [
+                {"role": "user", "content": prompt}
+            ]
 
-            # Call the model
-            response = None
-            try:
-                if self.stream and hasattr(model.client, "stream"):
-                    streamed_text: list[str] = []
-                    async for chunk in model.client.stream(
-                        wire, tools=tool_schemas_this, params=ModelParameters()
-                    ):
-                        if chunk.type == "text" and chunk.text:
-                            streamed_text.append(chunk.text)
-                            said.append(chunk.text)
-                            yield {"type": "delta", "text": chunk.text}
-                        elif chunk.type == "done":
-                            response = chunk.response
-                    if response is None and streamed_text:
-                        response = ModelResponse(
-                            text="".join(streamed_text),
-                            stop_reason="stop",
+            tool_calls_made = 0
+            said: list[str] = []
+
+            for iteration in range(max_iterations):
+                # Check limits
+                if time.monotonic() - started > max_seconds:
+                    yield {"type": "error", "message": "Time limit reached"}
+                    return
+
+                # Check for steering messages (from in-memory queue or database)
+                while not self._steer_queue.empty():
+                    try:
+                        steer_goal = self._steer_queue.get_nowait()
+                        history.append({
+                            "role": "system",
+                            "content": f"NEW GOAL from parent: {steer_goal}",
+                        })
+                        yield {"type": "steer", "goal": steer_goal}
+                    except asyncio.QueueEmpty:
+                        break
+
+                # Also check database for steer goals (from API)
+                try:
+                    from backend.db.repositories import SubagentSessionRepository
+                    repo = SubagentSessionRepository()
+                    row = repo.get(session_id)
+                    if row and row["metadata"]:
+                        import json
+                        meta = json.loads(row["metadata"])
+                        db_queue = meta.get("steer_queue", [])
+                        if db_queue:
+                            # Clear the queue in database
+                            meta["steer_queue"] = []
+                            repo.update_status(session_id, "running", metadata=json.dumps(meta))
+                            for goal in db_queue:
+                                history.append({
+                                    "role": "system",
+                                    "content": f"NEW GOAL from parent: {goal}",
+                                })
+                                yield {"type": "steer", "goal": goal}
+                except Exception:
+                    pass  # Best-effort; don't fail the run on DB errors
+
+                if iteration == max_iterations - 1:
+                    # Last iteration: no tools, force answer
+                    tool_schemas_this = None
+                else:
+                    tool_schemas_this = tool_schemas
+
+                # Build the wire messages
+                wire = [{"role": "system", "content": system_prompt}, *history]
+
+                # Call the model
+                response = None
+                try:
+                    if self.stream and hasattr(model.client, "stream"):
+                        streamed_text: list[str] = []
+                        async for chunk in model.client.stream(
+                            wire, tools=tool_schemas_this, params=ModelParameters()
+                        ):
+                            if chunk.type == "text" and chunk.text:
+                                streamed_text.append(chunk.text)
+                                said.append(chunk.text)
+                                yield {"type": "delta", "text": chunk.text}
+                            elif chunk.type == "done":
+                                response = chunk.response
+                        if response is None and streamed_text:
+                            response = ModelResponse(
+                                text="".join(streamed_text),
+                                stop_reason="stop",
+                            )
+                    else:
+                        response = await model.client.complete(
+                            wire, tools=tool_schemas_this, params=ModelParameters()
                         )
-                else:
-                    response = await model.client.complete(
-                        wire, tools=tool_schemas_this, params=ModelParameters()
-                    )
-            except Exception as exc:
-                log.warning("Subagent model call failed: %s", exc)
-                yield {"type": "error", "message": f"Model call failed: {exc}"}
-                return
+                except Exception as exc:
+                    log.warning("Subagent model call failed: %s", exc)
+                    yield {"type": "error", "message": f"Model call failed: {exc}"}
+                    return
 
-            if response is None:
-                yield {"type": "error", "message": "No response from model"}
-                return
+                if response is None:
+                    yield {"type": "error", "message": "No response from model"}
+                    return
 
-            # No tool calls: we're done
-            if not response.tool_calls:
-                text = response.text or ""
-                if text:
-                    said.append(text)
-                    yield {"type": "delta", "text": text}
-                # Report usage
-                if hasattr(response, "usage") and response.usage:
+                # No tool calls: we're done
+                if not response.tool_calls:
+                    text = response.text or ""
+                    if text:
+                        said.append(text)
+                        yield {"type": "delta", "text": text}
+                    # Report usage
+                    if hasattr(response, "usage") and response.usage:
+                        yield {
+                            "type": "usage",
+                            "input_tokens": getattr(response.usage, "input_tokens", 0),
+                            "output_tokens": getattr(response.usage, "output_tokens", 0),
+                        }
+                    yield {"type": "done", "text": "".join(said)}
+                    return
+
+                # Dispatch tool calls
+                tool_calls_made += len(response.tool_calls)
+                if tool_calls_made > max_tool_calls:
                     yield {
-                        "type": "usage",
-                        "input_tokens": getattr(response.usage, "input_tokens", 0),
-                        "output_tokens": getattr(response.usage, "output_tokens", 0),
+                        "type": "error",
+                        "message": f"Tool call limit reached ({max_tool_calls})",
                     }
-                yield {"type": "done", "text": "".join(said)}
-                return
+                    return
 
-            # Dispatch tool calls
-            tool_calls_made += len(response.tool_calls)
-            if tool_calls_made > max_tool_calls:
-                yield {
-                    "type": "error",
-                    "message": f"Tool call limit reached ({max_tool_calls})",
-                }
-                return
-
-            # Add assistant message to history
-            history.append({
-                "role": "assistant",
-                "content": response.text,
-                "tool_calls": [
-                    {
-                        "id": c.id,
-                        "function": {"name": c.name, "arguments": c.arguments},
-                    }
-                    for c in response.tool_calls
-                ],
-            })
-
-            # Execute each tool call
-            for call in response.tool_calls:
-                yield {"type": "tool_call", "tool": call.name, "input": call.arguments}
-
-                # Permission check
-                action = self._check_permission(call, permissions)
-                if action == "deny":
-                    result = ToolResult.error(
-                        f"Permission denied for tool '{call.name}'"
-                    )
-                elif action == "ask":
-                    # Subagents can't ask for permission — deny
-                    result = ToolResult.error(
-                        f"Permission required for tool '{call.name}' but subagents cannot ask"
-                    )
-                else:
-                    result = await self._execute_tool(call)
-
-                yield {
-                    "type": "tool_result",
-                    "tool": call.name,
-                    "output": result.content[:2000],  # truncate for history
-                    "is_error": result.is_error,
-                }
-
-                # Add tool result to history
+                # Add assistant message to history
                 history.append({
-                    "role": "tool",
-                    "tool_call_id": call.id,
-                    "content": result.content[:5000],  # truncate for context
+                    "role": "assistant",
+                    "content": response.text,
+                    "tool_calls": [
+                        {
+                            "id": c.id,
+                            "function": {"name": c.name, "arguments": c.arguments},
+                        }
+                        for c in response.tool_calls
+                    ],
                 })
 
-            # After max iterations, nudge the model to answer
-            if iteration >= max_iterations - 2:
-                history.append({
-                    "role": "system",
-                    "content": SUBAGENT_DONE_INSTRUCTION,
-                })
+                # Execute each tool call
+                for call in response.tool_calls:
+                    yield {"type": "tool_call", "tool": call.name, "input": call.arguments}
+
+                    # Permission check
+                    action = self._check_permission(call, permissions)
+                    if action == "deny":
+                        result = ToolResult.error(
+                            f"Permission denied for tool '{call.name}'"
+                        )
+                    elif action == "ask":
+                        # Subagents can't ask for permission — deny
+                        result = ToolResult.error(
+                            f"Permission required for tool '{call.name}' but subagents cannot ask"
+                        )
+                    else:
+                        result = await self._execute_tool(call)
+
+                    yield {
+                        "type": "tool_result",
+                        "tool": call.name,
+                        "output": result.content[:2000],  # truncate for history
+                        "is_error": result.is_error,
+                    }
+
+                    # Add tool result to history
+                    history.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result.content[:5000],  # truncate for context
+                    })
+
+                # After max iterations, nudge the model to answer
+                if iteration >= max_iterations - 2:
+                    history.append({
+                        "role": "system",
+                        "content": SUBAGENT_DONE_INSTRUCTION,
+                    })
+        finally:
+            # Stop heartbeat loop
+            heartbeat_stop.set()
+            heartbeat_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat_task
 
     def _build_system_prompt(
         self,

@@ -108,6 +108,34 @@ async def test_a_maze_of_unrelated_results_is_kept_out_of_the_pool(monkeypatch):
     assert len(results) == 3
 
 
+def test_a_specific_query_is_not_thrown_away_for_one_absent_word():
+    """The gate used to require *every* query term, and that is why searches
+    came back as Wikipedia.
+
+    A real page about rotating a matrix need not carry the word "efficiently"
+    in the title or in the fragment that was scraped for it. Demanding all of
+    them meant one ordinary absence discarded the whole engine, and the longer
+    and more specific the query the likelier that was -- so the searches most
+    worth doing were the ones most likely to fall through to the encyclopaedia.
+    """
+    results = [
+        {"title": "Rotate a matrix in Python", "snippet": "transpose then reverse each row"},
+        {"title": "Matrix rotation", "snippet": "in-place 90 degree turn in python"},
+    ]
+    # "efficiently" appears nowhere in the results. Under the old rule that was
+    # a zero; the set is plainly about the query.
+    assert search_service._relevance(results, "rotate a matrix efficiently python") > 0.2
+
+
+def test_a_maze_sharing_one_stray_word_still_fails_the_gate():
+    """The relaxation must not cost the thing the gate exists for."""
+    maze = [
+        {"title": "Alan's Universe - Drama Shorts", "snippet": "subscribe for more"},
+        {"title": "Alan Walker Faded", "snippet": "official music video"},
+    ]
+    assert search_service._relevance(maze, "alan turing enigma codebreaker") == 0.0
+
+
 @pytest.mark.asyncio
 async def test_an_unreachable_engine_cannot_hold_the_pool_open(monkeypatch):
     """A search box that sits for six seconds should have answered at two."""
@@ -232,7 +260,7 @@ async def test_youtube_pool_grows_by_continuation_as_it_is_scrolled(monkeypatch)
             {"id": str(i), "url": f"https://youtu.be/{i}", "title": f"v{i}"} for i in range(a, b)
         ]
 
-    async def first(query):
+    async def first(query, sort="relevance"):
         return {"videos": _vids(0, 10), "token": "T1", "ctx": {"key": "k", "ver": "1"},
                 "seen": {str(i) for i in range(10)}}
 
@@ -252,3 +280,59 @@ async def test_youtube_pool_grows_by_continuation_as_it_is_scrolled(monkeypatch)
     assert [v["id"] for v in page3] == [str(i) for i in range(16, 24)], "pool did not grow"
     # Past the end of an exhausted pool, an empty page stops infinite scroll.
     assert await search_service.search_youtube("cats", limit=8, offset=100) == []
+
+
+def test_published_age_reads_youtubes_relative_phrases():
+    """There is no timestamp on a search result -- only "3 hours ago" -- so this
+    parse is the only thing "newest first" can be built on."""
+    age = search_service._published_age
+    assert age("47 minutes ago") < age("3 hours ago") < age("1 day ago") < age("2 years ago")
+    # A livestream says so before the phrase; the number is still in there.
+    assert age("Streamed 8 hours ago") == age("8 hours ago")
+    # Unknown sorts last rather than first, which is where a 0 would put it.
+    assert age(None) == age("") == float("inf")
+
+
+@pytest.mark.asyncio
+async def test_latest_orders_newest_first(monkeypatch):
+    """YouTube's own upload-date filter biases towards recent without ordering
+    by it -- a 47-minute-old video arrives below a 23-hour-old one. "Latest" has
+    to mean newest first to be worth asking for."""
+    jumbled = [
+        {"id": "a", "url": "u/a", "title": "a", "published": "23 hours ago"},
+        {"id": "b", "url": "u/b", "title": "b", "published": "47 minutes ago"},
+        {"id": "c", "url": "u/c", "title": "c", "published": "2 years ago"},
+        {"id": "d", "url": "u/d", "title": "d", "published": "Streamed 3 hours ago"},
+    ]
+
+    async def first(query, sort="relevance"):
+        return {"videos": list(jumbled), "token": None, "ctx": None, "seen": set()}
+
+    monkeypatch.setattr(search_service, "_yt_first_page", first)
+    search_service._yt_pools.clear()
+
+    latest = await search_service.search_youtube("q", limit=4, sort="date")
+    assert [v["id"] for v in latest] == ["b", "d", "a", "c"]
+
+    # Relevance keeps whatever order YouTube ranked them in.
+    search_service._yt_pools.clear()
+    top = await search_service.search_youtube("q", limit=4, sort="relevance")
+    assert [v["id"] for v in top] == ["a", "b", "c", "d"]
+
+
+@pytest.mark.asyncio
+async def test_the_two_sorts_do_not_share_a_pool(monkeypatch):
+    """Switching to Latest must not show whatever relevance had already cached."""
+    asked: list[str] = []
+
+    async def first(query, sort="relevance"):
+        asked.append(sort)
+        return {"videos": [{"id": sort, "url": f"u/{sort}", "title": sort, "published": "1 hour ago"}],
+                "token": None, "ctx": None, "seen": set()}
+
+    monkeypatch.setattr(search_service, "_yt_first_page", first)
+    search_service._yt_pools.clear()
+
+    await search_service.search_youtube("same query", limit=1, sort="relevance")
+    await search_service.search_youtube("same query", limit=1, sort="date")
+    assert asked == ["relevance", "date"], "the second sort reused the first one's pool"

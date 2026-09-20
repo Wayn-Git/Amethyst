@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
+import platform
 import shutil
 import sys
 from pathlib import Path
 
 from backend import provider_catalogue as catalogue
 from backend.agent.director import Director
-from backend.config import configured_providers, load_providers, paths
+from backend.config import (
+    configured_providers,
+    load_hotkey,
+    load_providers,
+    paths,
+    save_hotkey,
+)
 from backend.db.connection import get_connection
 from backend.db.repositories import ConversationRepository, ExecutionLogRepository
 from backend.security.confirmation import ConfirmationRequest, ConfirmationService
@@ -849,27 +857,101 @@ def cmd_permissions(args: argparse.Namespace) -> int:
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
-    """Run the HTTP API, and the built interface with it if one exists."""
+    """Start everything Amethyst needs, and serve it.
+
+    One command, because there is only ever one process. Every background
+    worker -- automations, reminders, the journal, both job lanes, the relay
+    poll, the browser watcher, the MCP connectors -- is an asyncio task started
+    by the application's own lifespan, so starting the server *is* starting
+    Amethyst. See `backend/api/main.py`, `_lifespan`.
+
+    What was missing was never a supervisor. It was the two steps around the
+    server that only `run.sh` did: making sure the storage exists, and making
+    sure there is an interface to serve. Both are here now, so `amethyst serve`
+    on a fresh checkout is the whole thing rather than the last step of it.
+    """
+    # Load .env so AGENTMAIL_API_KEY and other keys are in the process environment
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
     import uvicorn
 
-    from backend.api.main import _DIST
+    # Storage. Cheap, idempotent, and the difference between working and a
+    # stack trace on a machine that has never run this.
+    #
+    # Only the directories. `get_connection()` and `seed_builtin_skills()` used
+    # to be here too, and the application's own lifespan does both a moment
+    # later (see `_lifespan` in backend/api/main.py) -- so every start opened
+    # the database twice and walked and hashed all fifty shipped skill
+    # directories twice. Doing it here bought nothing: the lifespan's copy is
+    # the one the running server actually uses.
+    try:
+        paths().ensure()
+    except Exception as exc:
+        print(f"! could not prepare {paths().home}: {exc}")
+        return 1
 
-    url = f"http://{args.host}:{args.port}"
-    # AMETHYST has no authentication, by design (ADR-0001): the security model is
-    # that it is only reachable from this machine. Binding elsewhere changes
-    # that silently, and the person doing it usually means "let my phone reach
-    # the share endpoint" rather than "publish my shell".
+    # Already running? Say which kind of "already", and never start a second
+    # server against the same database.
+    #
+    # This replaced an flock on ~/.amethyst/amethyst.lock, for two reasons.
+    # `import fcntl` does not exist on Windows, so that guard raised ImportError
+    # there rather than guarding anything. And a lock file guards the wrong
+    # thing: what must not happen twice is two servers on one port and one
+    # SQLite file, and binding the port is already an atomic lock on exactly
+    # that -- held by the kernel, released on crash, never stale. Asking the
+    # running instance who it is costs one loopback round trip and answers
+    # something a lock file cannot: whether it is AMETHYST at all.
+    from backend.desktop import _control
+
+    _FREE = object()
+    try:
+        answer = _control(args.port, "show", timeout=1.0)
+    except OSError:
+        answer = _FREE  # nothing listening; the port is ours
+    if answer is not _FREE:
+        if answer is None:
+            print(f"! port {args.port} is held by something that is not AMETHYST.")
+            print(f"! stop it, or serve elsewhere:  amethyst serve --port {args.port + 1}")
+        else:
+            shape = "with a window" if answer.get("native") else "without a window"
+            print(f"! AMETHYST is already running {shape} at http://{args.host}:{args.port}")
+            print("! bring it up with:  amethyst-show")
+        return 1
+
+    # Before `backend.api.main` is imported, and that ordering is the whole
+    # point: the interface is mounted at *import* time, from whatever is on disk
+    # at that moment. Building afterwards produced a server that had already
+    # decided there was no interface to serve -- a fresh checkout answered
+    # /api/ping and gave the browser a 404, which is exactly the "it built
+    # something and then served nothing" that one command is supposed to end.
+    if not _ensure_frontend(args):
+        return 1
+
+    from backend.api.main import BIND_HOST_ENV, BIND_PORT_ENV
+
+    display_host = "127.0.0.1" if str(args.host) in ("0.0.0.0", "::") else str(args.host)
+    url = f"http://{display_host}:{args.port}"
+    # What the guard in `backend/api/main.py` reads. Set before uvicorn starts,
+    # and through the environment rather than a global, because `--reload` runs
+    # the application in a child process.
+    os.environ[BIND_HOST_ENV] = str(args.host)
+    os.environ[BIND_PORT_ENV] = str(args.port)
+
     if args.host not in ("127.0.0.1", "localhost", "::1"):
-        print(f"! Binding to {args.host}, which is not loopback.")
-        print("! This API has no authentication. Anything that can reach this port")
-        print("! can read your files, run shell commands and read your mail.")
-        print("! Put a reverse proxy in front of it -- see docs/deployment.md.")
-    if (_DIST / "index.html").is_file():
-        print(f"AMETHYST is at {url}")
-    else:
-        print(f"API at {url}/api — no built interface found at {_DIST}")
-        print("build it with:  cd frontend && npm install && npm run build")
-        print(f"or run the dev server:  npm run dev  (it proxies /api to {url})")
+        # This used to say the whole API was published, which was true and is
+        # no longer. Saying it anyway would train people to ignore the warning.
+        print(f"! Binding to {args.host}, which is accessible on your local network.")
+        print("! From other machines only the interface, /api/ping and pairing answer;")
+        print("! everything else is refused. Pair a device to use it from a phone.")
+        print("! To expose the full API deliberately, put a reverse proxy in front")
+        print("! of the loopback port instead -- see docs/deployment.md.")
+
+    print(f"AMETHYST is at {url}")
+    _print_services(args)
     if args.open:
         import webbrowser
 
@@ -884,6 +966,120 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ensure_frontend(args: argparse.Namespace) -> bool:
+    """Make sure there is an interface to serve, building one if there is not.
+
+    A missing `frontend/dist` used to print instructions and then serve an API
+    with no interface in front of it, which reads as a broken install. It is one
+    npm command, it is needed exactly once, and the machine can run it.
+
+    Returns False only when the user asked for a build that then failed. A
+    missing build with no npm is a warning, not a stop: the API is still worth
+    running, and `--no-build` is how somebody says they meant it.
+    """
+    import subprocess
+
+    # Deliberately not `from backend.api.main import _DIST`: importing that
+    # module is what mounts the interface, and this runs in order to decide
+    # whether there is one to mount. Same path, computed without the import.
+    root = Path(__file__).resolve().parents[1]
+    frontend = root / "frontend"
+    dist = frontend / "dist"
+    built = (dist / "index.html").is_file()
+    rebuild = getattr(args, "rebuild", False)
+    no_build = getattr(args, "no_build", False)
+    if built and not rebuild:
+        return True
+    if no_build:
+        if not built:
+            print(f"! no built interface at {dist}, and --no-build was passed.")
+            print("! The API will answer; the browser will not have anything to load.")
+        return True
+    if not frontend.is_dir():
+        return True
+    if not shutil.which("npm"):
+        print(f"! no built interface at {dist}, and npm is not installed.")
+        print("! Install Node 18+ and run:  cd frontend && npm install && npm run build")
+        return True
+
+    if not (frontend / "node_modules").is_dir():
+        print("Installing interface dependencies (once)...")
+        if subprocess.run(["npm", "install"], cwd=frontend).returncode != 0:
+            print("! npm install failed.")
+            return not rebuild
+    print("Building the interface (once)...")
+    if subprocess.run(["npm", "run", "build"], cwd=frontend).returncode != 0:
+        print("! the interface build failed.")
+        return not rebuild
+    return True
+
+
+def _print_services(args: argparse.Namespace) -> None:
+    """Say which optional pieces are on, and which are not and why.
+
+    Everything here starts inside the server, so "did it start" is not the
+    interesting question -- "is it configured" is. A phone that will not pair is
+    almost always a relay that was never set up, and before this there was
+    nothing anywhere that said so: the code appeared, the phone waited two
+    minutes, and nothing on either end mentioned the missing piece.
+
+    Never raises. A summary that cannot be printed must not stop the server.
+    """
+    lines: list[str] = []
+    try:
+        from backend.config import load_instagram
+
+        relay = load_instagram()
+        if relay.relay_enabled and relay.relay_url:
+            lines.append(f"  relay:       on — {relay.relay_url}")
+        elif relay.relay_url:
+            lines.append("  relay:       configured but switched off (amethyst sync --on)")
+        else:
+            lines.append("  relay:       not set up — phone pairing needs one")
+    except Exception:
+        lines.append("  relay:       unknown (could not read the configuration)")
+
+    try:
+        from backend.db.connection import get_connection as _conn
+        from backend.sync import devices as _devices
+
+        live = _devices.live(_conn())
+        lines.append(
+            f"  devices:     {len(live)} paired" if live else "  devices:     none paired yet"
+        )
+    except Exception as exc:
+        lines.append(f"  devices:     unknown ({type(exc).__name__})")
+
+    try:
+        # Names, not objects: `configured_providers` returns the ids.
+        names = sorted(str(name) for name in configured_providers())
+        lines.append(
+            f"  models:      {', '.join(names)}" if names
+            else "  models:      none configured — add one in Settings, or: amethyst providers add"
+        )
+    except Exception as exc:
+        # Named rather than swallowed. A summary line that silently disappears
+        # is one nobody notices is wrong -- which is exactly what happened to
+        # this one the first time it ran.
+        lines.append(f"  models:      unknown ({type(exc).__name__})")
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        lines.append(f"  reachable:   {args.host} — restricted surface, see the warning above")
+        try:
+            import shutil
+            import subprocess
+
+            if shutil.which("ufw"):
+                res = subprocess.run(["ufw", "status"], capture_output=True, text=True, timeout=1)
+                if "Status: active" in res.stdout and str(args.port) not in res.stdout:
+                    lines.append(f"  firewall:    UFW active! If phone cannot connect over LAN, run: sudo ufw allow {args.port}/tcp")
+        except Exception:
+            pass
+
+    if lines:
+        print("\n".join(lines))
+
+
 def cmd_desktop(args: argparse.Namespace) -> int:
     """Run AMETHYST in the tray, or arrange for login to do it.
 
@@ -891,6 +1087,13 @@ def cmd_desktop(args: argparse.Namespace) -> int:
     open: an icon, a global hotkey, and a way to quit that is not closing a
     terminal.
     """
+    # Load .env so AGENTMAIL_API_KEY and other keys are in the process environment
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
     from backend import desktop
 
     if args.install_autostart:
@@ -900,13 +1103,40 @@ def cmd_desktop(args: argparse.Namespace) -> int:
         removed = desktop.uninstall_autostart()
         print(f"removed {removed}" if removed else "nothing was set to start at login")
         return 0
+
+    # The chord, in order of how specifically it was asked for: this invocation,
+    # then what was saved, then the default.
+    hotkey = args.hotkey or load_hotkey() or desktop.DEFAULT_HOTKEY
+
+    if args.install_shortcut:
+        if args.hotkey:
+            save_hotkey(args.hotkey)
+        ok, note = desktop.install_shortcut(hotkey)
+        print(note)
+        return 0 if ok else 1
+    if args.uninstall_shortcut:
+        ok, note = desktop.uninstall_shortcut()
+        print(note)
+        return 0 if ok else 1
+
+    # Before `backend.api.main` is imported -- and `run_tray` imports it, so this
+    # is the last point at which it can happen. The interface is mounted at
+    # import time from whatever is on disk at that moment, so a build that
+    # happened afterwards would produce a server that had already decided there
+    # was nothing to serve. `serve` has always done this; this path never did,
+    # which is why launching from the application icon on a fresh checkout gave
+    # an empty window.
+    if not _ensure_frontend(args):
+        return 1
+
     return desktop.run_tray(
         host=args.host,
         port=args.port,
-        hotkey=args.hotkey or desktop.DEFAULT_HOTKEY,
+        hotkey=hotkey,
         log_level=args.log_level,
         open_browser=args.open,
         native_window=not args.no_window,
+        present=not args.background,
     )
 
 
@@ -921,6 +1151,177 @@ def cmd_palette(args: argparse.Namespace) -> int:
 
     desktop.summon_palette(args.port)
     return 0
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    """Switch cross-device sync on, and say where it stands.
+
+    The relay it points at is the same one Instagram capture uses, and this
+    writes the same settings -- `amethyst instagram relay` is the other door to
+    one room, not a second room. It exists because "run an Instagram command to
+    sync your phone" is a sentence nobody should have to be told, and because
+    the relay was named after the first thing that needed it rather than the
+    only thing.
+    """
+    from backend.config import load_instagram, save_instagram
+    from backend.db.connection import get_connection
+    from backend.instagram import relay
+    from backend.secrets import CredentialError
+    from backend.sync import crypto, devices
+
+    patch: dict = {}
+    if args.url:
+        url = args.url.strip().rstrip("/")
+        if not url.startswith("https://"):
+            # Every op travels this link, sealed -- but the device tokens and
+            # the pairing handshake travel it too, and those are only as private
+            # as the transport.
+            print("the relay URL has to be https")
+            return 1
+        patch["relay_url"] = url
+    if args.token:
+        try:
+            relay.set_token(args.token)
+        except CredentialError as exc:
+            print(f"could not store the token: {exc}")
+            return 1
+    if args.on:
+        patch["relay_enabled"] = True
+    if args.off:
+        patch["relay_enabled"] = False
+    if patch:
+        save_instagram(patch)
+
+    settings = load_instagram()
+    if patch.get("relay_enabled") and not relay.configured():
+        print("sync needs both a relay URL and its token before it can start")
+        print("  amethyst sync --url https://…workers.dev --token <RELAY_TOKEN> --on")
+        return 1
+
+    if args.now:
+        result = asyncio.run(relay.RelayPoller().sync())
+        if not result.get("synced"):
+            print(result.get("error") or "the relay was not asked")
+            return 1
+        print(f"synced. {result.get('ops', 0)} change(s) applied.")
+        return 0
+
+    conn = get_connection()
+    paired = devices.live(conn)
+    print(f"relay:    {settings.relay_url or 'not set'}")
+    print(f"polling:  {'on' if settings.relay_enabled and relay.configured() else 'off'}")
+    print(f"identity: {devices.local_id(conn)}")
+    print(f"key:      {'shared with paired devices' if crypto.group_key() else 'not created yet'}")
+    if paired:
+        print("devices:")
+        for device in paired:
+            print(f"  {device.name} ({device.role}) — last seen {device.last_seen_at or 'never'}")
+    else:
+        print("devices: none paired yet. Add one with: amethyst device --pair")
+    if not settings.relay_enabled or not relay.configured():
+        print()
+        print("Nothing syncs until a relay is set. Deploy one from relay/, then:")
+        print("  amethyst sync --url https://…workers.dev --token <RELAY_TOKEN> --on")
+    return 0
+
+
+def cmd_device(args: argparse.Namespace) -> int:
+    """List, pair and revoke the devices this machine syncs with.
+
+    Pairing prints a secret and waits. The secret is the only thing that lets the
+    far side open what comes back, and it is never sent anywhere -- the relay
+    carries two sealed blobs and cannot complete the handshake itself. See
+    ADR-0024.
+    """
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices
+
+    conn = get_connection()
+
+    if args.revoke:
+        with transaction(conn):
+            gone = devices.revoke(conn, args.revoke)
+        if not gone:
+            print(f"no live device has the id {args.revoke}")
+            return 1
+        print("Revoked. It stops being recognised at the relay within one poll.")
+        return 0
+
+    if args.join:
+        from backend.config import load_instagram
+
+        secret = args.join.rsplit("s=", 1)[-1].strip()
+        relay_url = args.relay or load_instagram().relay_url
+        if not relay_url:
+            print("no relay is configured. Pass --relay https://…workers.dev,")
+            print("or set one up first:  amethyst instagram relay --url …")
+            return 1
+        print(f"Offering this machine to {relay_url} …")
+        print("The other machine answers on its next poll; this can take a minute.")
+        try:
+            joined = asyncio.run(
+                devices.join(relay_url, secret, name=args.name or platform.node())
+            )
+        except Exception as exc:
+            print(f"could not pair: {exc}")
+            return 1
+        print(f"Paired. This machine is {joined['device_id']}.")
+        print("Changes now travel on the relay poll this machine was already making.")
+        return 0
+
+    if args.pair:
+        secret, payload = devices.open_pairing(name_hint=args.name or "", conn=conn)
+        # An actual symbol. This used to say "Scan this" above a bare URL, which
+        # is the one thing a camera cannot do anything with.
+        drawn = _terminal_qr(payload)
+        if drawn:
+            print("Scan this with your phone:")
+            print()
+            print(drawn)
+        else:
+            print("Type this into the other device:")
+            print()
+        print(f"  {payload}")
+        print()
+        # Grouped in fours: it is 32 base32 characters, and an unbroken run of
+        # 32 is where the typo comes from.
+        print(f"  code: {' '.join(secret[i:i + 4] for i in range(0, len(secret), 4))}")
+        print()
+        print(f"Good for {int(devices.PAIRING_TTL_SECONDS / 60)} minutes, once.")
+        if not payload.startswith("http"):
+            print("Tip: set where your phone opens Amethyst (Settings, Devices) and this")
+            print("     becomes a link its camera can open on its own.")
+        print("Leave this machine running: it completes the handshake within seconds.")
+        return 0
+
+    live = devices.live(conn)
+    if not live:
+        print("No devices are paired. Run:  amethyst device --pair")
+        return 0
+    print(f"{'id':38} {'role':9} {'last seen':20} name")
+    for device in live:
+        print(f"{device.id:38} {device.role:9} {device.last_seen_at or 'never':20} {device.name}")
+    return 0
+
+
+def _terminal_qr(payload: str) -> str:
+    """The pairing payload drawn with half-block characters, or "" if it cannot be.
+
+    Never raises: a terminal that cannot show this still gets the link and the
+    code printed underneath, which is what pairing was before and still works.
+    """
+    try:
+        import io
+
+        import segno
+
+        buf = io.StringIO()
+        # Half blocks rather than full: two rows of modules per line of text, so
+        # the symbol comes out roughly square in a terminal whose cells are not.
+        segno.make(payload, error="m").terminal(buf, compact=True, border=2)
+        return buf.getvalue()
+    except Exception:
+        return ""
 
 
 def cmd_share_token(args: argparse.Namespace) -> int:
@@ -1608,6 +2009,27 @@ def main(argv: list[str] | None = None) -> int:
     marks.set_defaults(func=cmd_bookmarks)
     instagram.set_defaults(func=cmd_instagram)
 
+    syn = sub.add_parser(
+        "sync", help="cross-device sync: where it stands, and switching it on"
+    )
+    syn.add_argument("--url", help="https://amethyst-relay.<you>.workers.dev")
+    syn.add_argument("--token", help="the RELAY_TOKEN the Worker was deployed with")
+    syn.add_argument("--on", action="store_true", help="start syncing")
+    syn.add_argument("--off", action="store_true", help="stop syncing")
+    syn.add_argument("--now", action="store_true", help="sync immediately rather than waiting")
+    syn.set_defaults(func=cmd_sync)
+
+    dev = sub.add_parser(
+        "device", help="the devices this machine syncs with"
+    )
+    dev.add_argument("--pair", action="store_true", help="show a code to pair a new device")
+    dev.add_argument("--name", help="what to call the device being paired")
+    dev.add_argument("--join", metavar="SECRET",
+                     help="pair THIS machine to another, using the code it showed")
+    dev.add_argument("--relay", help="the relay to pair through; defaults to the configured one")
+    dev.add_argument("--revoke", metavar="ID", help="stop recognising one device")
+    dev.set_defaults(func=cmd_device)
+
     token = sub.add_parser(
         "share-token", help="the capture token a phone can post a link with"
     )
@@ -1704,15 +2126,30 @@ def main(argv: list[str] | None = None) -> int:
     permissions.set_defaults(func=cmd_permissions)
 
     serve = sub.add_parser("serve", help="run the web interface and API")
-    serve.add_argument("--host", default="127.0.0.1", help="bind address (default: loopback only)")
+    serve.add_argument(
+        "--host",
+        default=os.environ.get("AMETHYST_BIND_HOST", "0.0.0.0"),
+        help="bind address (default: 0.0.0.0 for LAN phone companion)",
+    )
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--reload", action="store_true", help="restart on source changes")
     serve.add_argument("--open", action="store_true", help="open a browser once it is up")
     serve.add_argument("--log-level", default="info")
+    serve.add_argument(
+        "--no-build", action="store_true",
+        help="do not build the interface, even if there is none to serve",
+    )
+    serve.add_argument(
+        "--rebuild", action="store_true", help="rebuild the interface before starting",
+    )
     serve.set_defaults(func=cmd_serve)
 
-    desk = sub.add_parser("desktop", help="run in the system tray, always available")
-    desk.add_argument("--host", default="127.0.0.1", help="bind address (default: loopback only)")
+    desk = sub.add_parser("desktop", help="launch AMETHYST (this is how it is meant to be run)")
+    desk.add_argument(
+        "--host",
+        default=os.environ.get("AMETHYST_BIND_HOST", "0.0.0.0"),
+        help="bind address (default: 0.0.0.0 for LAN phone companion)",
+    )
     desk.add_argument("--port", type=int, default=8000)
     desk.add_argument("--hotkey", default=None, help="global chord for the palette")
     desk.add_argument("--open", action="store_true", help="open a browser once it is up")
@@ -1723,11 +2160,26 @@ def main(argv: list[str] | None = None) -> int:
         help="do not open a window of its own; use the browser",
     )
     desk.add_argument(
+        "--background",
+        action="store_true",
+        help="start without showing a window (what the login entry uses)",
+    )
+    desk.add_argument(
         "--install-autostart", action="store_true", help="start the tray at login"
     )
     desk.add_argument(
         "--uninstall-autostart", action="store_true", help="stop starting it at login"
     )
+    desk.add_argument(
+        "--install-shortcut",
+        action="store_true",
+        help="bind the global chord in your desktop's own shortcut settings",
+    )
+    desk.add_argument(
+        "--uninstall-shortcut", action="store_true", help="remove that binding"
+    )
+    desk.add_argument("--no-build", action="store_true", help=argparse.SUPPRESS)
+    desk.add_argument("--rebuild", action="store_true", help=argparse.SUPPRESS)
     desk.set_defaults(func=cmd_desktop)
 
     pal = sub.add_parser("palette", help="open the command palette in the interface")

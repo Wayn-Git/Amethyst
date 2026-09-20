@@ -4,17 +4,22 @@ import Icon from './Icon.jsx'
 import { useDismiss } from '../hooks/useDismiss.js'
 
 function fmtTokens(n) {
-  if (!n || Number.isNaN(n)) return '0K'
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1).replace(/\.0$/, '')}M`
-  if (n >= 1000) return `${Math.round(n / 1000)}K`
+  if (!n || Number.isNaN(n)) return '0'
+  if (n >= 1000000) {
+    const val = (n / 1000000).toFixed(1).replace(/\.0$/, '')
+    return `${val}M`
+  }
+  if (n >= 10000) return `${Math.round(n / 1000)}K`
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
   return `${n}`
 }
 
 export default function ContextPopover({
-  pct = 5,
-  usedTokens = 13000,
-  maxTokens = 262000,
-  compactionTokens = 245000,
+  pct = 0,
+  displayPct = null,
+  usedTokens = 0,
+  maxTokens = 128000,
+  compactionTokens = 95000,
   onClose,
   onCompact,
   placement = 'up',
@@ -49,6 +54,11 @@ export default function ContextPopover({
     Math.max(50, Math.round((compactionTokens / maxTokens) * 100))
   )
 
+  const formattedPct = displayPct || (usedTokens > 0 && pct === 0 ? '<1%' : `${pct}%`)
+  const fillWidth = usedTokens > 0
+    ? Math.max(2, Math.min(100, (usedTokens / maxTokens) * 100))
+    : 0
+
   return (
     <motion.div
       ref={ref}
@@ -73,7 +83,7 @@ export default function ContextPopover({
 
       {/* Main Stat Row */}
       <div className="context-popover-stat-row">
-        <span className="context-popover-pct">{pct}%</span>
+        <span className="context-popover-pct">{formattedPct}</span>
         <span className="context-popover-ratio">
           <strong>{fmtTokens(usedTokens)}</strong> / {fmtTokens(maxTokens)} tokens
         </span>
@@ -84,7 +94,7 @@ export default function ContextPopover({
         <div className="context-popover-track">
           <div
             className="context-popover-fill"
-            style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+            style={{ width: `${fillWidth}%` }}
           />
           <div
             className="context-popover-marker"

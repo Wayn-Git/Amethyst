@@ -158,6 +158,16 @@ class AgentState:
     tool_message_ids: list[int] = field(default_factory=list)
     tool_calls_made: int = 0
 
+    #: Tools that failed this turn, as `{"tool", "server", "reason"}`.
+    #:
+    #: The failure is already in the transcript as a `tool` message the model
+    #: read -- and read, and then wrote a confident answer around, which is the
+    #: complaint this exists to answer. Keeping the list separately is what lets
+    #: the final step be *told* about it rather than left to notice, and what
+    #: lets the interface mark the answer as having been produced over a broken
+    #: connector.
+    failed_calls: list[dict[str, str]] = field(default_factory=list)
+
     # -- retrieved context, by reference.
     #
     # `{"kind": "memory", "id": int}` -- `memories.id` is permanently stable

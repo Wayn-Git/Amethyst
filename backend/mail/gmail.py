@@ -455,3 +455,90 @@ async def reply(thread_id: str, body: str) -> dict[str, Any]:
     raw = base64.urlsafe_b64encode(mail.as_bytes()).decode()
     sent = await _call("POST", "/messages/send", body={"raw": raw, "threadId": thread_id})
     return {"id": sent.get("id"), "thread_id": sent.get("threadId") or thread_id}
+
+
+def _compose(
+    body: str, *, subject: str, to: str | None, cc: str | None = None, html: str | None = None
+) -> tuple[EmailMessage, MailAccount]:
+    """The message and the account it goes out as. Shared by send and draft."""
+    account = _preferred()
+    if not account.can_send:
+        raise MailUnavailable(
+            f"The Gmail sign-in for {account.address} cannot send mail — it was granted"
+            " read access only. Sign in again and include the send scope."
+        )
+    recipient = (to or account.address).strip()
+    if "@" not in recipient:
+        raise MailUnavailable(f"'{recipient}' is not an email address")
+    message = EmailMessage()
+    message["To"] = recipient
+    message["From"] = account.address
+    message["Subject"] = subject or "(no subject)"
+    if cc:
+        message["Cc"] = cc
+    message.set_content(body)
+    if html:
+        message.add_alternative(html, subtype="html")
+    return message, account
+
+
+async def draft(
+    body: str, *, subject: str, to: str | None = None, html: str | None = None
+) -> dict[str, Any]:
+    """Save a draft rather than sending it.
+
+    The honest option for an automation that reviews mail: a model drafting
+    replies to strangers on a schedule and sending them is a different decision
+    from a model writing them down for someone to read first, and the
+    automation says which it is.
+    """
+    message, account = _compose(body, subject=subject, to=to, html=html)
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    saved = await _call("POST", "/drafts", body={"message": {"raw": raw}})
+    if not saved.get("id"):
+        raise MailUnavailable("Gmail accepted the draft but did not return an id")
+    return {
+        "id": saved["id"],
+        "to": message["To"],
+        "from": account.address,
+        "subject": message["Subject"],
+    }
+
+
+async def send(
+    body: str,
+    *,
+    subject: str,
+    to: str | None = None,
+    cc: str | None = None,
+    html: str | None = None,
+) -> dict[str, Any]:
+    """Send a new message, and answer with what Gmail said about it.
+
+    The module could only `reply` before this, in a thread that already existed.
+    So "email me my morning briefing" had nothing to call: the automation
+    generated the briefing, recorded `ok`, and no message was ever sent. The
+    engine now delivers through here, and a run is only successful if this
+    returns an id.
+
+    `to` defaults to the signed-in account itself, which is the common case for
+    a briefing and the one that cannot be a mistake -- an automation that means
+    to write to somebody else says so.
+
+    Failure is a `MailUnavailable` with a sentence in it, raised rather than
+    swallowed: the caller records it against the run, and the user reads why.
+    """
+    message, account = _compose(body, subject=subject, to=to, cc=cc, html=html)
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    sent = await _call("POST", "/messages/send", body={"raw": raw})
+    # Gmail answers 200 with the stored message. No id means it did not store
+    # one, and reporting that as sent is the lie this whole change is about.
+    if not sent.get("id"):
+        raise MailUnavailable("Gmail accepted the request but did not return a message id")
+    return {
+        "id": sent["id"],
+        "thread_id": sent.get("threadId"),
+        "to": message["To"],
+        "from": account.address,
+        "subject": message["Subject"],
+    }

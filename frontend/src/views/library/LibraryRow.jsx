@@ -13,7 +13,7 @@ function LibraryRowComponent({
   onTagClick,
 }) {
   const isOptimistic = Boolean(item.isOptimistic)
-  const isProcessing = Boolean(item.isProcessing)
+  const isProcessing = Boolean(item.isProcessing) || item.status === 'processing' || item.status === 'enriching'
   const [thumbFailed, setThumbFailed] = useState(false)
   const hasThumbnail = Boolean(item.thumbnail_path) && !thumbFailed
   const domain = getDomain(item.url, item.site)
@@ -27,13 +27,11 @@ function LibraryRowComponent({
   return (
     <article
       data-item-id={item.id}
-      className={`card lib-row ${isOptimistic ? 'lib-row--optimistic' : ''} ${
-        isProcessing ? 'lib-row--processing' : ''
-      }`}
+      className={`lib-row ${isProcessing ? 'lib-card--processing' : ''}`}
       onClick={handleRowClick}
       tabIndex={0}
       role="button"
-      aria-label={`View ${item.title || 'resource'}`}
+      aria-label={`Inspect ${item.title || 'knowledge resource'}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           if (!e.target.closest('a, button, .lib-tag-pill')) {
@@ -43,155 +41,93 @@ function LibraryRowComponent({
         }
       }}
     >
-      <div className="lib-row-icon">
+      {/* Thumbnail or Format Icon */}
+      <div className="lib-row-leading">
         {hasThumbnail ? (
           <img
-            className="lib-thumb"
+            className="lib-row-thumb"
             src={api.thumbnailUrl(item.id)}
             alt=""
             loading="lazy"
             onError={() => setThumbFailed(true)}
           />
         ) : (
-          <div className="lib-row-icon-fallback">
-            <Icon name={KIND_ICON[item.kind] || 'link'} size={18} />
-          </div>
+          <Icon name={KIND_ICON[item.kind] || 'link'} size={18} />
         )}
       </div>
 
-      <div className="lib-row-body">
-        <div className="lib-row-head">
-          <div className="lib-row-title-wrap">
-            <span className="lib-kind-badge mono">{item.kind || 'article'}</span>
-            <h3 className="lib-row-title">
-              {item.url ? (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {item.title || 'Untitled Resource'}
-                </a>
-              ) : (
-                item.title || 'Untitled Resource'
-              )}
-            </h3>
-          </div>
-
-          {(isOptimistic || isProcessing) && (
-            <span className="lib-row-processing-pill mono">
-              <span className="lib-card-spinner" />
-              {isOptimistic ? 'Saving...' : 'Analyzing...'}
-            </span>
+      {/* Main Content Info */}
+      <div className="lib-row-main">
+        <div className="lib-row-title-line">
+          <span className="lib-card-kind-badge">
+            {item.app || item.kind || 'link'}
+          </span>
+          <h3 className="lib-row-title">
+            {item.url ? (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {item.title || 'Untitled Resource'}
+              </a>
+            ) : (
+              item.title || 'Untitled Resource'
+            )}
+          </h3>
+          {isProcessing && (
+            <span className="lib-card-spinner" style={{ flexShrink: 0 }} />
           )}
         </div>
 
-        <div className="lib-row-meta mono">
-          {favicon ? (
+        <div className="lib-row-meta-line">
+          {favicon && (
             <img
-              className="lib-row-favicon"
               src={favicon}
               alt=""
-              onError={(e) => {
-                e.currentTarget.style.display = 'none'
-              }}
+              style={{ width: 12, height: 12, borderRadius: 2 }}
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
-          ) : null}
-          {[domain || item.site, item.author, fmtDate(item.consumed_on || item.created_at)]
-            .filter(Boolean)
-            .join(' · ')}
-          {item.rating ? (
-            <span className="lib-row-rating"> · {'★'.repeat(item.rating)}</span>
-          ) : null}
+          )}
+          <span style={{ fontFamily: 'var(--font-mono)' }}>
+            {[domain || item.author, fmtDate(item.consumed_on || item.created_at)].filter(Boolean).join(' · ')}
+          </span>
+          {item.summary && (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
+              — {item.summary}
+            </span>
+          )}
         </div>
-
-        {/* What it is about */}
-        {isProcessing && !item.summary ? (
-          <div className="lib-row-skel-lines">
-            <span className="skel" style={{ width: '90%', height: 11 }} />
-            <span className="skel" style={{ width: '65%', height: 11 }} />
-          </div>
-        ) : item.summary ? (
-          <p className="lib-row-excerpt">{item.summary}</p>
-        ) : item.excerpt ? (
-          <p className="lib-row-excerpt">{item.excerpt}</p>
-        ) : item.notes ? (
-          <p className="lib-row-excerpt lib-row-excerpt--notes">{item.notes}</p>
-        ) : null}
-
-        {/* Tags (minimized to max 3 tags per row) */}
-        {item.tags?.length ? (
-          <div className="lib-tags">
-            {item.tags.slice(0, 3).map((tag) => (
-              <button
-                type="button"
-                key={tag}
-                className="lib-tag lib-tag-pill"
-                title={`Filter by #${tag}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onTagClick?.(tag)
-                }}
-              >
-                #{tag}
-              </button>
-            ))}
-            {item.tags.length > 3 ? (
-              <span className="lib-tag-more mono">+{item.tags.length - 3}</span>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* Extracted named entities/resources */}
-        {item.resources?.length ? (
-          <ul className="lib-resources">
-            {item.resources.map((r, i) => (
-              <li key={i}>
-                <span className="lib-resource-kind mono">{r.type}</span>
-                {r.url ? (
-                  <a
-                    href={r.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="lib-resource-link"
-                    title={`${r.name}: ${r.url}`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Icon name="link" size={11} />
-                    <span className="lib-resource-link-name">{r.name}</span>
-                    {getDomain(r.url) && (
-                      <span className="lib-resource-domain mono">{getDomain(r.url)}</span>
-                    )}
-                    <span className="lib-resource-arrow">↗</span>
-                  </a>
-                ) : (
-                  <span className="lib-resource-name">{r.name}</span>
-                )}
-                {r.detail ? <span className="lib-resource-detail"> — {r.detail}</span> : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {/* Capture note explanation */}
-        {item.capture_note ? (
-          <p className="lib-row-note">
-            <Icon name="info" size={13} /> {item.capture_note}
-          </p>
-        ) : null}
       </div>
 
-      {/* Row action buttons */}
+      {/* Tags */}
+      {item.tags?.length > 0 && (
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+          {item.tags.slice(0, 2).map((tag) => (
+            <span
+              key={tag}
+              className="lib-tag-pill"
+              onClick={(e) => {
+                e.stopPropagation()
+                onTagClick?.(tag)
+              }}
+            >
+              #{tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Row Action Buttons */}
       <div className="lib-row-actions">
         {item.url && (
           <a
             href={item.url}
             target="_blank"
             rel="noreferrer"
-            className="btn btn--ghost btn--small"
+            className="lib-dock-btn"
             title="Open original URL"
-            aria-label="Open source link"
             onClick={(e) => e.stopPropagation()}
           >
             <Icon name="link" size={13} />
@@ -200,25 +136,23 @@ function LibraryRowComponent({
         {item.indexed && !item.summary && (
           <button
             type="button"
-            className="btn btn--ghost btn--small"
+            className="lib-dock-btn"
             disabled={busy}
             title="Summarise with AI"
-            aria-label={`Summarise ${item.title}`}
             onClick={(e) => {
               e.stopPropagation()
               onEnrich?.()
             }}
           >
-            <Icon name="spark" size={13} />
+            <Icon name="brain" size={13} />
           </button>
         )}
         {item.indexed && (
           <button
             type="button"
-            className="btn btn--ghost btn--small"
+            className="lib-dock-btn"
             disabled={busy}
-            title="Index text again"
-            aria-label={`Re-index ${item.title}`}
+            title="Re-index resource"
             onClick={(e) => {
               e.stopPropagation()
               onReindex?.()
@@ -229,10 +163,9 @@ function LibraryRowComponent({
         )}
         <button
           type="button"
-          className="btn btn--ghost btn--small lib-btn-danger"
+          className="lib-dock-btn lib-dock-btn--danger"
           disabled={busy}
-          title="Remove item"
-          aria-label={`Remove ${item.title}`}
+          title="Delete resource"
           onClick={(e) => {
             e.stopPropagation()
             onDelete?.()

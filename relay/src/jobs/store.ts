@@ -225,6 +225,37 @@ export class JobStore {
 		return summary;
 	}
 
+	/**
+	 * Single-query replacement for collectable + pending. UNION ALL instead of
+	 * two separate SELECT * calls. Counts stays separate (it is a cheap GROUP BY).
+	 */
+	async syncBundle(limit: number): Promise<{
+		ready: Job[];
+		pending: Job[];
+	}> {
+		const collectableStates = [...COLLECTABLE].map((s) => `'${s}'`).join(',');
+		const { results } = await this.db
+			.prepare(
+				`SELECT *, 0 AS _tag FROM jobs
+				WHERE state IN (${collectableStates}) AND synced_at IS NULL
+				ORDER BY created_at, rowid LIMIT ?
+				UNION ALL
+				SELECT *, 1 AS _tag FROM jobs
+				WHERE state IN ('queued','running','waiting')
+				ORDER BY created_at, rowid LIMIT ?`,
+			)
+			.bind(limit, limit)
+			.all<Row & { _tag: number }>();
+
+		const ready: Job[] = [];
+		const pendingJobs: Job[] = [];
+		for (const row of results ?? []) {
+			if (row._tag === 0) ready.push(hydrate(row));
+			else pendingJobs.push(hydrate(row));
+		}
+		return { ready, pending: pendingJobs };
+	}
+
 	// ---- writing
 
 	/** Move state, or refuse. The only way `state` changes. */

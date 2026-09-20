@@ -68,6 +68,14 @@ def _no_widget_classifier(monkeypatch):
     monkeypatch.setattr(widgets, "default_chain", lambda **kw: [])
 
 
+@pytest.fixture(autouse=True)
+async def reset_search_clients():
+    from backend.web.search_service import reset_clients
+    await reset_clients()
+    yield
+    await reset_clients()
+
+
 @pytest.fixture
 def db(amethyst_home):
     return connection.get_connection()

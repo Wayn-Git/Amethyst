@@ -1347,6 +1347,83 @@ def identity_valid(name: str) -> bool | None:
     return valid
 
 
+def verify_account(name: str, expected_account: str | None = None) -> tuple[str | None, bool]:
+    """Return (authenticated_account, is_mismatch).
+
+    If an expected account is configured, checks whether the authenticated
+    provider account matches it (case-insensitive and trimmed). If they do not match,
+    is_mismatch is True.
+    """
+    auth_acc = account(name)
+    if expected_account is None:
+        config = load_servers().get(name)
+        if config is not None and config.account:
+            expected_account = config.account
+
+    if not expected_account or not auth_acc:
+        return auth_acc, False
+
+    clean_auth = auth_acc.strip().lower()
+    clean_expected = expected_account.strip().lower()
+    # If comma-separated multiple accounts are signed in, check if expected is one of them
+    if "," in clean_auth:
+        accounts = [a.strip() for a in clean_auth.split(",")]
+        return auth_acc, clean_expected not in accounts
+
+    is_mismatch = clean_auth != clean_expected
+    return auth_acc, is_mismatch
+
+
+def verify_token_health(config: ServerConfig) -> tuple[bool, str | None]:
+    """Verify whether credentials for this server are present and healthy.
+
+    Returns (is_healthy, error_detail).
+    """
+    entry = entry_for(config)
+    kind = auth_kind(config)
+    if kind == "none":
+        return True, None
+
+    missing = missing_credentials(config)
+    if missing:
+        return False, f"Missing required credentials: {', '.join(missing)}"
+
+    if kind == "oauth":
+        raw = get_secret(token_ref(config.name))
+        if not raw:
+            return False, "Not authenticated (no tokens found)"
+        try:
+            import json
+
+            data = json.loads(raw)
+            if not data.get("access_token") and not data.get("refresh_token"):
+                return False, "Invalid or empty token data"
+            expires_at = data.get("expires_at")
+            if expires_at and float(expires_at) < time.time() and not data.get("refresh_token"):
+                return False, "Access token expired and no refresh token available"
+        except Exception:
+            return False, "Malformed token storage"
+
+        val = identity_valid(config.name)
+        if val is False:
+            return False, "Token rejected by provider (401/revoked)"
+
+    elif kind == "setup":
+        if _credentials_dir(config) is not None:
+            accs = _accounts_of(config)
+            if not accs:
+                return False, "No signed-in accounts found in credential store"
+            age = grant_age_days(config)
+            if entry and entry.grant_lifetime_days and age is not None:
+                if age >= entry.grant_lifetime_days:
+                    return False, f"Sign-in consent expired ({age} days old; limit {entry.grant_lifetime_days})"
+
+    if config.api_key_ref and not get_secret(config.api_key_ref):
+        return False, f"Missing API key for reference '{config.api_key_ref}'"
+
+    return True, None
+
+
 def _client_source(config: ServerConfig, entry: cat.CatalogueEntry | None) -> str | None:
     """`"user"`, `"default"` or None -- whose app registration a sign-in uses.
 
@@ -1435,6 +1512,8 @@ def status(*, with_accounts: bool = False) -> list[dict]:
     for name, config in load_servers().items():
         entry = entry_for(config)
         signed_in = is_signed_in(config)
+        acc, mismatch = verify_account(name, config.account)
+        token_healthy, token_err = verify_token_health(config)
         out.append(
             {
                 "name": name,
@@ -1477,7 +1556,11 @@ def status(*, with_accounts: bool = False) -> list[dict]:
                 # `account_from_filename` exists to stop the interface making
                 # when it prints a filename as an address.
                 "accounts": account_count(config),
-                "account": account(name) if with_accounts and signed_in else None,
+                "account": acc if signed_in else None,
+                "expected_account": config.account,
+                "account_mismatch": mismatch,
+                "token_healthy": token_healthy,
+                "token_error": token_err,
                 # Whose app registration the sign-in will use. The distinction
                 # the interface owes a friend: "Using AMETHYST's shared app
                 # registration -- you are signing in with your own account" is a

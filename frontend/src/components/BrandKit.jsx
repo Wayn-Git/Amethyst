@@ -168,7 +168,7 @@ export default function BrandKit() {
           <div className="set-box-row">
             <div className="set-row-left">
               <div className="set-row-icon-box">
-                <Icon name="spark" size={16} />
+                <Icon name="type" size={16} />
               </div>
               <div className="set-row-text">
                 <span className="set-row-title">Active Persona Injection</span>

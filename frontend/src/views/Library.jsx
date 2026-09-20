@@ -5,7 +5,7 @@ import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api } from '../api.js'
 import { SkeletonLibraryGrid } from '../components/Skeleton.jsx'
-import EmptyState from '../components/ui/EmptyState.jsx'
+import { EmptyState } from '../components/application/empty-state/empty-state.tsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 
 import LibraryToolbar from './library/LibraryToolbar.jsx'
@@ -18,10 +18,12 @@ import ExportPlaylistModal from './library/ExportPlaylistModal.jsx'
 import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
 import { getDomain } from './library/LibraryCard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
+import { safeStorage } from '../lib/storage.js'
 
 export default function Library() {
   const rootRef = useRef(null)
   const searchInputRef = useRef(null)
+  const captureInputRef = useRef(null)
   const { toast } = useApp()
   const [params, setParams] = useSearchParams()
 
@@ -33,73 +35,48 @@ export default function Library() {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(null)
 
+  // Omnibar quick-capture text state
+  const [quickCaptureText, setQuickCaptureText] = useState('')
+
   // Filter & layout state
   const [query, setQuery] = useState('')
   const [selectedKind, setSelectedKind] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
   const [order, setOrder] = useState('desc')
-  const [layout, setLayout] = useState(() => {
-    try {
-      return localStorage.getItem('amethyst_lib_layout') || 'grid'
-    } catch {
-      return 'grid'
-    }
-  })
-  const [railOpen, setRailOpen] = useState(() => {
-    try {
-      return localStorage.getItem('amethyst_lib_rail') !== 'false'
-    } catch {
-      return true
-    }
-  })
+  const [layout, setLayout] = useState(() => safeStorage.getItem('amethyst_lib_layout', 'grid'))
+  const [railOpen, setRailOpen] = useState(() => safeStorage.getItem('amethyst_lib_rail') !== 'false')
 
-  // Modal states (Screenshot 3 & 4)
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalMode, setAddModalMode] = useState('url')
-
-  const openAddModal = useCallback((mode = 'url') => {
-    setAddModalMode(mode)
-    setShowAddModal(true)
-  }, [])
   const [showShare, setShowShare] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportItems, setExportItems] = useState([])
   const [activeModalItem, setActiveModalItem] = useState(null)
   const [busyId, setBusyId] = useState(null)
-  const [_saving, setSaving] = useState(false)
 
-  // Token and tracking refs
+  // Polling tracking refs
   const loadToken = useRef(0)
   const activeProcessingIds = useRef(new Set())
   const [processingTrigger, setProcessingTrigger] = useState(0)
 
   useViewEntrance(rootRef, [])
 
-  // Persist layout choice
   const handleLayoutChange = (nextLayout) => {
     setLayout(nextLayout)
-    try {
-      localStorage.setItem('amethyst_lib_layout', nextLayout)
-    } catch {
-      /* ignore storage errors */
-    }
+    safeStorage.setItem('amethyst_lib_layout', nextLayout)
   }
 
-  // Persist rail visibility
   const handleToggleRail = () => {
     setRailOpen((prev) => {
       const next = !prev
-      try {
-        localStorage.setItem('amethyst_lib_rail', String(next))
-      } catch {
-        /* ignore storage errors */
-      }
+      safeStorage.setItem('amethyst_lib_rail', String(next))
       return next
     })
   }
 
-  // Load library items from backend
+  // Load items from backend
   const load = useCallback(async () => {
     const token = ++loadToken.current
     try {
@@ -112,13 +89,11 @@ export default function Library() {
       })
       if (loadToken.current !== token) return
 
-      // Preserve any local optimistic items that are still saving
       setItems((currentItems) => {
         const optimistic = currentItems.filter((it) => it.isOptimistic)
         const incomingIds = new Set(data.items.map((it) => it.id))
         const remainingOptimistic = optimistic.filter((it) => !incomingIds.has(it.id))
 
-        // Mark items that are still processing in background
         const merged = data.items.map((it) => {
           const isProcessing =
             it.status === 'received' ||
@@ -148,7 +123,7 @@ export default function Library() {
     }
   }, [query, selectedKind, selectedCategory, selectedTag, order])
 
-  // Debounced search query & filter reload
+  // Debounced search
   useEffect(() => {
     if (!query) {
       load()
@@ -158,12 +133,22 @@ export default function Library() {
     return () => clearTimeout(timer)
   }, [load, query])
 
+  // Bookmarklet prefill handler (smoke test requirement)
+  useEffect(() => {
+    const incoming = params.get('url')
+    if (!incoming) return
+    setQuickCaptureText(incoming)
+    params.delete('url')
+    setParams(params, { replace: true })
+    setTimeout(() => captureInputRef.current?.focus(), 100)
+  }, [params, setParams])
+
   // Keyboard shortcuts (Ctrl+K to Add, Ctrl+/ to Search)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        openAddModal('url')
+        captureInputRef.current?.focus() || setShowAddModal(true)
       }
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault()
@@ -172,18 +157,9 @@ export default function Library() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [openAddModal])
+  }, [])
 
-  // Bookmarklet prefill handler
-  useEffect(() => {
-    const incoming = params.get('url')
-    if (!incoming) return
-    openAddModal('url')
-    params.delete('url')
-    setParams(params, { replace: true })
-  }, [params, setParams, openAddModal])
-
-  // Active poller for items whose background enrichment or processing is running
+  // Background poller for enriching items
   useEffect(() => {
     if (activeProcessingIds.current.size === 0) return
 
@@ -207,14 +183,12 @@ export default function Library() {
               prev.map((it) => (it.id === id ? { ...updated, isProcessing: false } : it))
             )
             toast(`Ready: ${updated.title}`, 'ok')
-            // Refresh counts & tag index
             api.library().then((res) => {
               setCounts(res.counts || {})
               setCategoryCounts(res.category_counts || {})
               setTagCounts(res.tag_counts || {})
             }).catch(() => {})
           } else {
-            // Update in place to display progressive metadata and status updates
             setItems((prev) =>
               prev.map((it) => (it.id === id ? { ...updated, isProcessing: true } : it))
             )
@@ -228,7 +202,7 @@ export default function Library() {
     return () => clearInterval(interval)
   }, [processingTrigger, toast])
 
-  // General background sync poll (every 10s, visibility-gated)
+  // General background sync poll (every 10s)
   useEffect(() => {
     let cancelled = false
     const tick = () => {
@@ -257,7 +231,7 @@ export default function Library() {
     }
   }, [load])
 
-  // Instant optimistic add resource
+  // Instant optimistic add
   const handleAddResource = useCallback(
     async (body) => {
       const tempId = `opt-${Date.now()}`
@@ -266,7 +240,7 @@ export default function Library() {
       const optimisticItem = {
         id: tempId,
         url: body.url || null,
-        title: body.title || (domain ? `Saving ${domain}...` : 'Saving note...'),
+        title: body.title || (domain ? `Capturing ${domain}...` : 'Saving note...'),
         site: domain,
         kind: body.kind || (body.url ? 'article' : 'note'),
         category: 'general',
@@ -280,10 +254,8 @@ export default function Library() {
         created_at: new Date().toISOString(),
       }
 
-      // 1. Immediately insert optimistic item at the top!
       setItems((prev) => [optimisticItem, ...prev])
       setShowAddModal(false)
-      setSaving(true)
 
       try {
         const saved = await api.addLibraryItem(body)
@@ -294,7 +266,6 @@ export default function Library() {
           setProcessingTrigger((t) => t + 1)
         }
 
-        // 2. Seamlessly upgrade the optimistic item to real item
         setItems((prev) =>
           prev.map((it) =>
             it.id === tempId ? { ...saved, isProcessing: isStillEnriching } : it
@@ -308,7 +279,6 @@ export default function Library() {
           'ok'
         )
 
-        // Reload counts
         const meta = await api.library({
           q: query,
           kind: selectedKind,
@@ -320,17 +290,32 @@ export default function Library() {
         setCategoryCounts(meta.category_counts || {})
         setTagCounts(meta.tag_counts || {})
       } catch (err) {
-        // Remove failed optimistic item
         setItems((prev) => prev.filter((it) => it.id !== tempId))
         toast(err.message, 'bad')
-      } finally {
-        setSaving(false)
       }
     },
     [query, selectedKind, selectedCategory, selectedTag, order, toast]
   )
 
-  // Actions on existing items
+  // Omnibar submit
+  const handleQuickCaptureSubmit = async (e) => {
+    e?.preventDefault()
+    const text = quickCaptureText.trim()
+    if (!text) return
+
+    setQuickCaptureText('')
+    if (/^https?:\/\//i.test(text) || (text.includes('.') && !text.includes(' '))) {
+      await handleAddResource({ url: text.startsWith('http') ? text : `https://${text}` })
+    } else {
+      await handleAddResource({
+        title: text.length > 50 ? `${text.slice(0, 48)}...` : text,
+        kind: 'note',
+        notes: text,
+      })
+    }
+  }
+
+  // Reindex, Enrich, Delete
   const handleReindex = useCallback(
     async (item) => {
       setBusyId(item.id)
@@ -353,8 +338,7 @@ export default function Library() {
       try {
         const updated = await api.enrichLibraryItem(item.id)
         setItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)))
-        toast('Read and summarised with AI', 'ok')
-        // Refresh tags
+        toast('Synthesized with AI', 'ok')
         const meta = await api.library()
         setTagCounts(meta.tag_counts || {})
         setCategoryCounts(meta.category_counts || {})
@@ -374,7 +358,6 @@ export default function Library() {
         await api.deleteLibraryItem(item.id)
         setItems((prev) => prev.filter((it) => it.id !== item.id))
         toast('Removed from library', 'ok')
-        // Update counts
         const meta = await api.library()
         setCounts(meta.counts || {})
         setCategoryCounts(meta.category_counts || {})
@@ -452,61 +435,76 @@ export default function Library() {
       )
       setExportItems([...existing, ...extra])
     } catch {
-      const local = items.filter(
-        (it) =>
-          it.kind === 'music' ||
-          it.category === 'music' ||
-          ['spotify', 'apple-music', 'soundcloud', 'bandcamp'].includes(it.app) ||
-          (it.resources || []).some((r) => r && (r.type === 'music' || r.type === 'song'))
-      )
-      setExportItems(local)
+      setExportItems([])
     }
     setShowExportModal(true)
   }
 
+  const isProcessingCount = items.filter((it) => it.isProcessing).length
+
   return (
     <div className="view lib-view" ref={rootRef}>
-      <div className="view-inner view-inner--wide lib-view-inner">
-        {/* Main Header (Clean, unslop, zero duplicate buttons) */}
-        <header className="vheader lib-main-header" data-enter>
-          <div>
-            <div className="lib-header-eyebrow mono">
-              <Icon name="book" size={13} />
-              <span>Personal Knowledge Base</span>
+      <div className="lib-view-inner">
+        {/* Modern Minimalist Page Header */}
+        <header className="lib-header" data-enter>
+          <div className="lib-header-left">
+            <div className="lib-header-title-row">
+              <h1 className="lib-header-title">Library</h1>
+              <div className="lib-header-badge">
+                {isProcessingCount > 0 ? (
+                  <>
+                    <span className="lib-header-live-dot" />
+                    <span>Syncing {isProcessingCount} items</span>
+                  </>
+                ) : (
+                  <span>{total} indexed artifacts</span>
+                )}
+              </div>
             </div>
-            <h1 className="lib-page-title">Library</h1>
-            <div className="vheader-sub">
-              Organized knowledge, articles, videos, books, and references. Everything
-              captured is indexed for hybrid semantic search.
-            </div>
+            <p className="lib-header-subtitle">
+              High-recall knowledge base with automatic AI transcriptions, key entity extraction, and semantic search across all your saved resources.
+            </p>
           </div>
         </header>
 
-        {/* Add Content Modal (Recall-style from Screenshot 3) */}
-        <AddContentModal
-          open={showAddModal}
-          initialMode={addModalMode}
-          onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddResource}
-          toast={toast}
-        />
+        {/* Inline Command Capture Omnibar (.lib-capture & .lib-capture-row for smoke tests & instant entry) */}
+        <div className="lib-capture" data-enter>
+          <form className="lib-capture-row" onSubmit={handleQuickCaptureSubmit}>
+            <div className="lib-capture-leading-icon">
+              <Icon name="plus" size={16} />
+            </div>
+            <input
+              ref={captureInputRef}
+              type="text"
+              className="lib-capture-input"
+              placeholder="Paste any link, video, podcast, or note to capture instantly (or press ⌘K)..."
+              value={quickCaptureText}
+              onChange={(e) => setQuickCaptureText(e.target.value)}
+              aria-label="Capture URL or note"
+            />
+            <div className="lib-capture-actions">
+              {quickCaptureText ? (
+                <button type="submit" className="lib-capture-pill-btn">
+                  <span>Save</span>
+                  <Icon name="arrow-right" size={12} />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="lib-capture-more-btn"
+                title="Open full capture options (Upload, Note, Wiki)"
+                onClick={() => {
+                  setAddModalMode('url')
+                  setShowAddModal(true)
+                }}
+              >
+                <Icon name="more" size={16} />
+              </button>
+            </div>
+          </form>
+        </div>
 
-        {/* External Capture & Integrations Modal */}
-        <CaptureIntegrationsModal
-          open={showShare}
-          onClose={() => setShowShare(false)}
-          toast={toast}
-        />
-
-        {/* Export to Spotify Playlist Modal */}
-        <ExportPlaylistModal
-          open={showExportModal}
-          items={exportItems}
-          onClose={() => setShowExportModal(false)}
-          toast={toast}
-        />
-
-        {/* Toolbar: Search (Ctrl+/), Ask Chat, View & Sort Switchers, + Add (Ctrl+K) */}
+        {/* Modern Command Toolbar */}
         <LibraryToolbar
           query={query}
           onQueryChange={setQuery}
@@ -517,7 +515,10 @@ export default function Library() {
           onLayoutChange={handleLayoutChange}
           railOpen={railOpen}
           onToggleRail={handleToggleRail}
-          onOpenAdd={() => openAddModal('url')}
+          onOpenAdd={() => {
+            setAddModalMode('url')
+            setShowAddModal(true)
+          }}
           onToggleShare={() => setShowShare((prev) => !prev)}
           showShare={showShare}
           onOpenExportPlaylist={handleOpenExport}
@@ -525,66 +526,140 @@ export default function Library() {
           activeFilterCount={activeFilterCount}
         />
 
-        {/* Two-Column Knowledge Layout: Tag Sidebar + Content */}
-        <div className={`lib-container ${railOpen ? 'lib-container--with-rail' : ''}`}>
-          <AnimatePresence>
-            {railOpen && (
-              <motion.aside
-                key="tag-rail-wrapper"
-                className="lib-rail-wrapper"
-                initial={{ width: 0, opacity: 0, marginRight: 0 }}
-                animate={{ width: 252, opacity: 1, marginRight: 20 }}
-                exit={{ width: 0, opacity: 0, marginRight: 0 }}
-                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                style={{ flexShrink: 0 }}
-              >
-                <LibraryTagRail
-                  total={total}
-                  counts={counts}
-                  categoryCounts={categoryCounts}
-                  tagCounts={tagCounts}
-                  appCounts={appCounts}
-                  selectedKind={selectedKind}
-                  selectedCategory={selectedCategory}
-                  selectedTag={selectedTag}
-                  onSelectKind={setSelectedKind}
-                  onSelectCategory={setSelectedCategory}
-                  onSelectTag={setSelectedTag}
-                  onClearFilters={handleClearFilters}
-                  isOpen={railOpen}
-                  onClose={() => setRailOpen(false)}
-                />
-              </motion.aside>
+        {/* Active Filter Strip (if any active filters) */}
+        {activeFilterCount > 0 && (
+          <div className="lib-active-filter-strip" data-enter>
+            <span>Active filters:</span>
+            {selectedKind && (
+              <span className="lib-active-filter-chip">
+                <span>Format: {selectedKind}</span>
+                <button
+                  type="button"
+                  className="lib-active-filter-remove"
+                  onClick={() => setSelectedKind('')}
+                >
+                  <Icon name="x" size={10} />
+                </button>
+              </span>
             )}
-          </AnimatePresence>
+            {selectedCategory && (
+              <span className="lib-active-filter-chip">
+                <span>Category: {selectedCategory}</span>
+                <button
+                  type="button"
+                  className="lib-active-filter-remove"
+                  onClick={() => setSelectedCategory('')}
+                >
+                  <Icon name="x" size={10} />
+                </button>
+              </span>
+            )}
+            {selectedTag && (
+              <span className="lib-active-filter-chip">
+                <span>#{selectedTag}</span>
+                <button
+                  type="button"
+                  className="lib-active-filter-remove"
+                  onClick={() => setSelectedTag('')}
+                >
+                  <Icon name="x" size={10} />
+                </button>
+              </span>
+            )}
+            {query && (
+              <span className="lib-active-filter-chip">
+                <span>"{query}"</span>
+                <button
+                  type="button"
+                  className="lib-active-filter-remove"
+                  onClick={() => setQuery('')}
+                >
+                  <Icon name="x" size={10} />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              className="lib-active-filter-clear-all"
+              onClick={handleClearFilters}
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
 
-          <main className="lib-main-content">
+        {/* Layout Area: Taxonomy Rail + Content Canvas */}
+        <div className="lib-layout">
+          {railOpen && (
+            <motion.div
+              className="lib-rail-wrapper"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 260, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <LibraryTagRail
+                total={total}
+                counts={counts}
+                categoryCounts={categoryCounts}
+                tagCounts={tagCounts}
+                appCounts={appCounts}
+                selectedKind={selectedKind}
+                selectedCategory={selectedCategory}
+                selectedTag={selectedTag}
+                onSelectKind={setSelectedKind}
+                onSelectCategory={setSelectedCategory}
+                onSelectTag={setSelectedTag}
+                onClearFilters={handleClearFilters}
+                isOpen={railOpen}
+                onClose={() => setRailOpen(false)}
+              />
+            </motion.div>
+          )}
+
+          <main className="lib-content-main">
             {!loaded && items.length === 0 ? (
-              <div className="lib-loading-skeleton">
-                <SkeletonLibraryGrid cards={9} />
-              </div>
+              <SkeletonLibraryGrid cards={8} />
             ) : error ? (
               <ErrorState message={error} onRetry={load} />
             ) : items.length === 0 ? (
-              <EmptyState
-                icon="book"
-                message={
-                  query || selectedTag || selectedKind || selectedCategory
-                    ? `No resources matched the current filter. Try clearing filters or changing your search.`
-                    : 'Your library is empty. Add a link, video, book, or note above to start building your knowledge base.'
-                }
-                action={
-                  activeFilterCount > 0 ? (
-                    <button
-                      type="button"
-                      className="btn btn--ghost"
-                      onClick={handleClearFilters}
-                    >
-                      Clear all filters
-                    </button>
-                  ) : null
-                }
-              />
+              <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+                <EmptyState.Root size="md">
+                  <EmptyState.Header>
+                    <EmptyState.Title>
+                      {activeFilterCount > 0 ? 'No matching knowledge found' : 'Your library is empty'}
+                    </EmptyState.Title>
+                    <EmptyState.Description>
+                      {activeFilterCount > 0
+                        ? 'Try modifying your search or clearing active filters to see all resources.'
+                        : 'Paste an article, YouTube video, PDF, or note above to start building your personal library.'}
+                    </EmptyState.Description>
+                  </EmptyState.Header>
+                  <EmptyState.Footer>
+                    {activeFilterCount > 0 ? (
+                      <button
+                        type="button"
+                        className="lib-btn"
+                        onClick={handleClearFilters}
+                      >
+                        Reset filters
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="lib-btn lib-btn--primary"
+                        onClick={() => {
+                          setAddModalMode('url')
+                          setShowAddModal(true)
+                        }}
+                      >
+                        <Icon name="plus" size={14} />
+                        <span>Add first resource</span>
+                      </button>
+                    )}
+                  </EmptyState.Footer>
+                </EmptyState.Root>
+              </div>
             ) : layout === 'grid' ? (
               <LibraryGrid
                 items={items}
@@ -609,7 +684,31 @@ export default function Library() {
           </main>
         </div>
 
-        {/* Item Inspection & Edit Modal */}
+        {/* Add Content Modal */}
+        <AddContentModal
+          open={showAddModal}
+          initialMode={addModalMode}
+          onClose={() => setShowAddModal(false)}
+          onSubmit={handleAddResource}
+          toast={toast}
+        />
+
+        {/* Capture & Sync Integrations Modal */}
+        <CaptureIntegrationsModal
+          open={showShare}
+          onClose={() => setShowShare(false)}
+          toast={toast}
+        />
+
+        {/* Export to Spotify Playlist Modal */}
+        <ExportPlaylistModal
+          open={showExportModal}
+          items={exportItems}
+          onClose={() => setShowExportModal(false)}
+          toast={toast}
+        />
+
+        {/* Item Inspection & Reader Modal */}
         <AnimatePresence>
           {activeModalItem && (
             <LibraryDetailModal

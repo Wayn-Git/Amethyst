@@ -286,7 +286,7 @@ function Thought({ text }) {
     <div className={`trace-item trace-item--thought${open ? ' is-open' : ''}`}>
       <button type="button" className="trace-item-line" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="trace-tool-badge trace-tool-badge--thought">
-          <Icon name="spark" size={13} className="trace-tool-icon" />
+          <Icon name="brain" size={13} className="trace-tool-icon" />
           <span className="trace-tool-name">Thinking</span>
         </span>
         {!open && <span className="trace-tool-subject">{firstLine(text)}</span>}
@@ -468,7 +468,7 @@ export default function TurnTrace({ events, live, reasoning, running, ms, onOpen
               <div className="trace-item">
                 <span className="trace-item-line trace-item-line--static">
                   <span className="trace-tool-badge">
-                    <Icon name="spark" size={12} className="trace-tool-icon" />
+                    <Icon name="brain" size={12} className="trace-tool-icon" />
                     <span className="trace-tool-name">Thinking</span>
                   </span>
                   <span className="ellipsis trace-live"><i /><i /><i /></span>

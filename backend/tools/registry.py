@@ -19,6 +19,56 @@ from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSou
 MAX_RESULT_CHARS = 100_000
 MCP_DELIMITER = "__mcp__"
 
+#: Canonical capability routing table.
+#: Decouples the model's high-level intent from the physical tool name.
+CAPABILITY_MAP: dict[str, str] = {
+    # Web search capabilities
+    "web_search": "search_web",
+    "search": "search_web",
+    "google": "search_web",
+    "google_search": "search_web",
+    "bing_search": "search_web",
+    "tavily": "search_web",
+    "tavily_search": "search_web",
+    "tavily__tavily_search": "search_web",
+    "web_search__mcp__tavily": "search_web",
+    "research": "research_web",
+    "deep_search": "research_web",
+
+    # Web fetch / scrape capabilities
+    "fetch": "fetch_url",
+    "fetch_page": "fetch_url",
+    "fetch_webpage": "fetch_url",
+    "scrape": "fetch_url",
+    "scrape_url": "fetch_url",
+    "read_url": "fetch_url",
+    "open_url": "fetch_url",
+    "firecrawl": "fetch_url",
+    "firecrawl_scrape": "fetch_url",
+    "scrape__mcp__firecrawl": "fetch_url",
+
+    # Shell execution capabilities
+    "bash": "run_shell_command",
+    "terminal": "run_shell_command",
+    "shell": "run_shell_command",
+    "sh": "run_shell_command",
+    "exec": "run_shell_command",
+    "cmd": "run_shell_command",
+
+    # File capabilities
+    "read_file": "view_file",
+    "cat": "view_file",
+    "show_file": "view_file",
+    "modify_file": "edit_file",
+    "create_file": "write_file",
+    "make_file": "write_file",
+    "find_file": "list_files",
+    "search_files": "grep_files",
+    "grep": "grep_files",
+    "ls": "list_files",
+    "dir": "list_files",
+}
+
 #: How long a repeated read may be answered from the last one. Deliberately
 #: short. A longer window saves more calls, but a file the user edits in their
 #: own editor is changed by something this process never sees -- and an agent
@@ -53,7 +103,7 @@ def truncate(text: str, limit: int = MAX_RESULT_CHARS) -> str:
     head = text[:head_size]
     tail = text[-tail_size:]
     omitted = len(text) - head_size - tail_size
-    return f"{head}\n\n[... {omitted} characters omitted ...]\n\n{tail}"
+    return f"{head}\n\n[... {omitted} characters truncated / omitted ...]\n\n{tail}"
 
 
 class ToolRegistry:
@@ -107,7 +157,80 @@ class ToolRegistry:
             del self._tools[name]
 
     def get(self, name: str) -> Tool | None:
-        return self._tools.get(name)
+        return self.resolve_tool(name)
+
+    def resolve_tool(self, name: str) -> Tool | None:
+        if not name:
+            return None
+        # 1. Exact match
+        if name in self._tools:
+            return self._tools[name]
+
+        clean_name = name.strip()
+        # 2. Check MCP delimiter and prefix/suffix variations
+        # e.g. tavily__tavily_search -> tavily_search__mcp__tavily
+        # e.g. firecrawl__scrape -> scrape__mcp__firecrawl
+        if "__" in clean_name:
+            parts = clean_name.split("__")
+            s, t = parts[0], parts[-1]
+            cand1 = f"{t}__mcp__{s}"
+            if cand1 in self._tools:
+                return self._tools[cand1]
+            cand2 = f"{s}__mcp__{t}"
+            if cand2 in self._tools:
+                return self._tools[cand2]
+
+        # 3. Check if any MCP tool has matching base name or server prefix
+        for tool_name, tool in self._tools.items():
+            if MCP_DELIMITER in tool_name:
+                t_base, s_name = tool_name.split(MCP_DELIMITER, 1)
+                if clean_name in (t_base, f"{s_name}_{t_base}", f"{s_name}__{t_base}"):
+                    return tool
+
+        # 4. Capability alias map
+        target = CAPABILITY_MAP.get(clean_name.lower())
+        if target and target in self._tools:
+            return self._tools[target]
+
+        return None
+
+    @staticmethod
+    def normalize_arguments(tool: Tool, arguments: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(arguments, dict):
+            return {}
+        args = dict(arguments)
+        props = tool.parameters.get("properties", {}) if isinstance(tool.parameters, dict) else {}
+
+        # Search / topic normalization
+        if "query" in props and "query" not in args:
+            for syn in ("q", "topic", "search_query", "search", "input", "prompt", "question"):
+                if syn in args:
+                    args["query"] = args[syn]
+                    break
+        elif "topic" in props and "topic" not in args:
+            for syn in ("query", "q", "search_query", "search", "input", "prompt"):
+                if syn in args:
+                    args["topic"] = args[syn]
+                    break
+
+        # URL normalization
+        if "url" in props and "url" not in args:
+            for syn in ("link", "href", "address", "target_url", "uri"):
+                if syn in args:
+                    args["url"] = args[syn]
+                    break
+
+        # File path normalization
+        if "path" in props and "path" not in args and "file_path" in args:
+            args["path"] = args["file_path"]
+        elif "file_path" in props and "file_path" not in args and "path" in args:
+            args["file_path"] = args["path"]
+
+        # Command normalization
+        if "command" in props and "command" not in args and "cmd" in args:
+            args["command"] = args["cmd"]
+
+        return args
 
     def list(self) -> list[Tool]:
         return list(self._tools.values())
@@ -183,7 +306,9 @@ class ToolRegistry:
         context: ToolContext | None = None,
     ) -> ToolResult:
         ctx = context or ToolContext()
-        tool = self._tools.get(name)
+        tool = self.resolve_tool(name)
+        if tool is not None:
+            arguments = self.normalize_arguments(tool, arguments)
         if tool is None:
             known = ", ".join(sorted(self._tools)[:20]) or "none"
             return ToolResult.error(f"unknown tool '{name}'. Available tools: {known}")
@@ -327,6 +452,7 @@ def build_default_registry(
         documents,
         filesystem,
         library,
+        mail,
         sharing,
         shell,
         social,
@@ -341,6 +467,7 @@ def build_default_registry(
     registry.register_all(shell.tools())
     registry.register_all(desktop.tools())
     registry.register_all(tasks.tools())
+    registry.register_all(mail.tools())
     registry.register_all(documents.tools())
     registry.register_all(library.tools())
     registry.register_all(web.tools())

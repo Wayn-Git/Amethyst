@@ -63,7 +63,7 @@ function getThemeTransitionCSS() {
   `
 }
 
-const DARK_THEMES = ['graphite', 'ink', 'nocturne']
+const DARK_THEMES = ['graphite', 'ink', 'nocturne', 'cohere', 'stripe']
 
 export function useSkiperThemeToggle({ theme, setTheme }) {
   const isDark = theme === 'system'

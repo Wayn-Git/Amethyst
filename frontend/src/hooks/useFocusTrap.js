@@ -52,10 +52,8 @@ export function useFocusTrap(ref, active) {
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
     }
 
-    root.addEventListener('keydown', onKey)
     document.addEventListener('keydown', onKey)
     return () => {
-      root.removeEventListener('keydown', onKey)
       document.removeEventListener('keydown', onKey)
       // Back where it came from, if that element is still on the page. Losing
       // focus to `<body>` is how a keyboard user ends up starting over from

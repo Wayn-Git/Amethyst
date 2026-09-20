@@ -105,7 +105,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
             <div className="export-playlist-body">
               {/* Playlist name */}
               <div className="export-playlist-field">
-                <label className="export-playlist-label mono">Playlist name</label>
+                <label className="export-playlist-label">Playlist name</label>
                 <input
                   className="export-playlist-input"
                   placeholder={`Amethyst — ${new Date().toISOString().slice(0, 10)}`}
@@ -119,12 +119,12 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
               <div className="export-playlist-list-header">
                 <button
                   type="button"
-                  className="export-playlist-select-all mono"
+                  className="export-playlist-select-all"
                   onClick={toggleAll}
                 >
                   {selected.size === items.length ? 'Deselect all' : 'Select all'}
                 </button>
-                <span className="export-playlist-count mono">
+                <span className="export-playlist-count">
                   {selected.size} of {items.length} selected
                 </span>
               </div>
@@ -147,22 +147,27 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
                       />
                       <span className="export-playlist-item-info">
                         <span className="export-playlist-item-title">
-                          {isReelWithMusic ? `🎵 ${displayTitle}` : displayTitle}
+                          {isReelWithMusic ? (
+                            <>
+                              <Icon name="music" size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                              {displayTitle}
+                            </>
+                          ) : displayTitle}
                         </span>
                         {displayAuthor && (
-                          <span className="export-playlist-item-author mono">
+                          <span className="export-playlist-item-author">
                             {displayAuthor} {isReelWithMusic ? '(from Reel)' : ''}
                           </span>
                         )}
                       </span>
                       {item.app && (
-                        <span className="export-playlist-item-app mono">{item.app}</span>
+                        <span className="export-playlist-item-app">{item.app}</span>
                       )}
                     </label>
                   )
                 })}
                 {items.length === 0 && (
-                  <div className="export-playlist-empty mono">
+                  <div className="export-playlist-empty">
                     No music items to export. Save some songs to your library first!
                   </div>
                 )}
@@ -185,10 +190,10 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
           {phase === 'exporting' && (
             <div className="export-playlist-body export-playlist-center">
               <div className="export-playlist-spinner" />
-              <p className="export-playlist-status mono">
+              <p className="export-playlist-status">
                 Searching Spotify for {selected.size} track{selected.size !== 1 ? 's' : ''}…
               </p>
-              <p className="export-playlist-sub mono">This may take a moment</p>
+              <p className="export-playlist-sub">This may take a moment</p>
             </div>
           )}
 
@@ -215,7 +220,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
               {/* Found tracks */}
               {result.tracks && result.tracks.length > 0 && (
                 <div className="export-playlist-section">
-                  <div className="export-playlist-section-title mono">
+                  <div className="export-playlist-section-title">
                     Found ({result.found})
                   </div>
                   <div className="export-playlist-track-list">
@@ -223,7 +228,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
                       <div key={i} className="export-playlist-track">
                         <Icon name="check" size={12} />
                         <span>{t.name}</span>
-                        {t.artist && <span className="mono">— {t.artist}</span>}
+                        {t.artist && <span>— {t.artist}</span>}
                       </div>
                     ))}
                   </div>
@@ -233,7 +238,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
               {/* Not found */}
               {result.missed && result.missed.length > 0 && (
                 <div className="export-playlist-section">
-                  <div className="export-playlist-section-title mono">
+                  <div className="export-playlist-section-title">
                     Not Found ({result.not_found})
                   </div>
                   <div className="export-playlist-track-list">
@@ -241,7 +246,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
                       <div key={i} className="export-playlist-track export-playlist-track--missed">
                         <Icon name="x" size={12} />
                         <span>{m.title || `Item #${m.item_id}`}</span>
-                        <span className="mono export-playlist-reason">{m.reason}</span>
+                        <span className="export-playlist-reason">{m.reason}</span>
                       </div>
                     ))}
                   </div>

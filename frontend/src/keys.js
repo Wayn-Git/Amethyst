@@ -18,24 +18,41 @@ export function isTyping(target) {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
 }
 
+import { safeStorage } from './lib/storage.js'
+
 /** KeyboardEvent -> `mod+shift+k`. Modifier order is fixed so bindings compare as strings. */
+let cachedKeybindings = null
+
+export function refreshKeybindings() {
+  try {
+    const raw = safeStorage.getItem('amethyst.ui.v1')
+    const prefs = raw ? JSON.parse(raw) : {}
+    cachedKeybindings = prefs.keybindings || {}
+  } catch {
+    cachedKeybindings = {}
+  }
+}
+
 export function chord(e) {
+  if (e.repeat) return false
+
   const parts = []
   if (IS_MAC ? e.metaKey : e.ctrlKey) parts.push('mod')
   if (IS_MAC ? e.ctrlKey : e.metaKey) parts.push('ctrl')
   if (e.altKey) parts.push('alt')
   if (e.shiftKey) parts.push('shift')
+
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase()
   parts.push(key)
   const combo = parts.join('+')
   
-  try {
-     const prefs = JSON.parse(localStorage.getItem('amethyst.ui.v1')) || {}
-     const keybindings = prefs.keybindings || {}
-     for (const [action, mappedCombo] of Object.entries(keybindings)) {
-        if (mappedCombo === combo) return action
-     }
-  } catch (err) {}
+  if (cachedKeybindings === null) {
+    refreshKeybindings()
+  }
+  
+  for (const [action, mappedCombo] of Object.entries(cachedKeybindings)) {
+    if (mappedCombo === combo) return action
+  }
   
   return combo
 }

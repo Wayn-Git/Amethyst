@@ -25,16 +25,22 @@ and opens a window itself only when nothing answered.
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import re
 import sys
 import threading
+import time
+from functools import lru_cache
+from typing import Any
 
 # Everything else -- shlex, shutil, signal, subprocess, webbrowser, pathlib --
 # is imported inside the function that needs it, and none of them is on the path
 # `amethyst-palette` takes. That command runs on a keystroke and does two
 # milliseconds of work; importing webbrowser and shutil for it cost thirty times
 # that each. Measured, not guessed: see main_palette.
+
+log = logging.getLogger(__name__)
 
 #: Not `mod+k`: that is the in-window palette chord and belongs to the browser.
 #: A global grab has to be one nothing else has taken, on three platforms.
@@ -98,6 +104,121 @@ def _launch_desktop_daemon(port: int = DEFAULT_PORT) -> bool:
 # --------------------------------------------------------------------- summon
 
 
+def _control(
+    port: int = DEFAULT_PORT,
+    action: str = "palette",
+    timeout: float = 1.5,
+    **body: Any,
+) -> dict[str, Any] | None:
+    """POST /api/control/<action> and return what AMETHYST answered.
+
+    A socket and six lines of HTTP rather than a client library. This runs on a
+    keystroke, in a process started for it, and the work it has to do takes two
+    milliseconds. httpx costs 160ms to import and urllib.request 57ms -- both of
+    them more than everything else on this path put together, for a fixed POST
+    to a known local port that answers a small JSON object. Measured end to end,
+    the summons went from 308ms to about 45.
+
+    Three outcomes, and the caller needs all three kept apart -- they are the
+    whole single-instance decision (see `run_tray`):
+
+    * **raises `OSError`** -- nothing is listening on the port. It is free.
+    * **returns `None`** -- something answered, but not with JSON we understand.
+      That is somebody else's server sitting on our port, not AMETHYST.
+    * **returns a dict** -- AMETHYST answered. `native` says whether a desktop
+      shell with real windows heard it, or only browser tabs.
+    """
+    import json
+    import socket
+
+    payload = json.dumps(body).encode() if body else b""
+    request = (
+        f"POST /api/control/{action} HTTP/1.1\r\n"
+        f"Host: 127.0.0.1:{port}\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(payload)}\r\n"
+        "Connection: close\r\n\r\n"
+    ).encode() + payload
+
+    # Deliberately outside the try: a refused connection is the "port is free"
+    # answer and must reach the caller, not be flattened into "no".
+    sock = socket.create_connection(("127.0.0.1", port), timeout)
+    try:
+        with sock:
+            sock.sendall(request)
+            reply = b""
+            while chunk := sock.recv(4096):
+                reply += chunk
+    except Exception:
+        return None
+    try:
+        parsed = json.loads(reply.rsplit(b"\r\n\r\n", 1)[-1])
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _control_or_none(port: int, action: str, timeout: float = 1.5, **body: Any):
+    """`_control`, with a free port folded into the same `None` as a stranger.
+
+    For the callers that only want "did AMETHYST take it" and have their own
+    fallback either way.
+    """
+    try:
+        return _control(port, action, timeout, **body)
+    except OSError:
+        return None
+
+
+def _activation_token() -> dict[str, Any]:
+    """The compositor's permission to raise a window, if this process has one.
+
+    GNOME grants focus to the window whose activation token it issued, and that
+    token belongs to the process the keyboard shortcut launched -- this one --
+    rather than to the daemon that owns the window. Forwarding it is what makes
+    the difference between a window that appears in front and one that appears
+    behind what you were looking at.
+    """
+    token = os.environ.get("XDG_ACTIVATION_TOKEN") or os.environ.get("DESKTOP_STARTUP_ID")
+    return {"token": token} if token else {}
+
+
+def _summon(port: int, action: str, fallback_path: str, timeout: float = 1.5) -> bool:
+    """Ask the running AMETHYST for a window; start one if there is none.
+
+    Shared by the palette and the show paths, which differ only in which verb
+    they send and where they land if nothing is running.
+
+    Returns True when a running AMETHYST took it.
+    """
+    body = _activation_token()
+    try:
+        answer = _control(port, action, timeout, **body)
+        if answer and answer.get("delivered"):
+            return True
+        if answer is None:
+            # Something that is not AMETHYST holds the port. Launching the daemon
+            # would only fail to bind, so go straight to the fallback.
+            answer = None
+    except OSError:
+        # Nothing is serving. This is the case where the keyboard shortcut is the
+        # only thing alive; start the daemon and retry rather than opening the
+        # browser as the first action.
+        if _launch_desktop_daemon(port):
+            import time
+
+            for _ in range(60):
+                time.sleep(0.15)
+                with contextlib.suppress(OSError):
+                    if (_control(port, action, timeout, **body) or {}).get("delivered"):
+                        return True
+
+    import webbrowser
+
+    webbrowser.open(url_for(port, fallback_path))
+    return False
+
+
 def summon_palette(port: int = DEFAULT_PORT, timeout: float = 1.5) -> bool:
     """Show the command palette, from wherever it has to come from.
 
@@ -109,71 +230,20 @@ def summon_palette(port: int = DEFAULT_PORT, timeout: float = 1.5) -> bool:
     Returns True when an existing window took it. Shared by the hotkey, the tray
     menu and `amethyst palette`, so all three behave identically.
     """
-    # A socket and six lines of HTTP rather than a client library.
-    #
-    # This runs on a keystroke, in a process started for it, and the work it has
-    # to do takes two milliseconds. httpx costs 160ms to import and
-    # urllib.request 57ms -- both of them more than everything else on this path
-    # put together, for a fixed POST to a known local port that answers a small
-    # JSON object. Measured end to end, the summons went from 308ms to about 45.
-    import json
-    import socket
-
-    request = (
-        "POST /api/control/palette HTTP/1.1\r\n"
-        f"Host: 127.0.0.1:{port}\r\n"
-        "Content-Length: 0\r\n"
-        "Connection: close\r\n\r\n"
-    ).encode()
-    try:
-        with socket.create_connection(("127.0.0.1", port), timeout) as sock:
-            sock.sendall(request)
-            reply = b""
-            while chunk := sock.recv(4096):
-                reply += chunk
-        body = reply.rsplit(b"\r\n\r\n", 1)[-1]
-        if json.loads(body).get("delivered"):
-            return True
-    except Exception:
-        # Nothing is serving, it did not answer in time, or it answered with
-        # something this cannot read. This is the case where the keyboard shortcut
-        # is the only thing alive; start the daemon and retry once instead of
-        # opening the browser as the first action.
-        pass
-
-    if _launch_desktop_daemon(port):
-        import time
-
-        for _ in range(30):
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout) as sock:
-                    sock.sendall(request)
-                    reply = b""
-                    while chunk := sock.recv(4096):
-                        reply += chunk
-                body = reply.rsplit(b"\r\n\r\n", 1)[-1]
-                if json.loads(body).get("delivered"):
-                    return True
-                time.sleep(0.15)
-            except Exception:
-                time.sleep(0.15)
-                continue
-
-    import webbrowser
-
-    webbrowser.open(url_for(port, "/?cmd=palette"))
-    return False
+    return _summon(port, "palette", "/?cmd=palette", timeout)
 
 
-def main_palette(argv: list[str] | None = None) -> int:
-    """`amethyst-palette`: the keyboard shortcut's entry point.
+def summon_window(port: int = DEFAULT_PORT, timeout: float = 1.5) -> bool:
+    """Raise the application window. The other half of the palette's summons.
 
-    Its own console script rather than a subcommand of `amethyst`, because
-    `backend.cli` imports the director, the tool registry and the database layer
-    at module scope -- about a quarter of a second, paid on every press of a key
-    whose whole job takes two milliseconds. Nothing here imports more than the
-    standard library.
+    This is what a global "open AMETHYST" shortcut and a second launch from the
+    application icon both do. The palette is for doing one thing without going
+    anywhere; this is for going there.
     """
+    return _summon(port, "show", "/", timeout)
+
+
+def _port_from_argv(argv: list[str] | None) -> int:
     import sys as _sys
 
     port = DEFAULT_PORT
@@ -183,7 +253,31 @@ def main_palette(argv: list[str] | None = None) -> int:
             port = int(args[i + 1])
         elif arg.startswith("--port="):
             port = int(arg.split("=", 1)[1])
-    summon_palette(port)
+    return port
+
+
+def main_palette(argv: list[str] | None = None) -> int:
+    """`amethyst-palette`: the palette shortcut's entry point.
+
+    Its own console script rather than a subcommand of `amethyst`, because
+    `backend.cli` imports the director, the tool registry and the database layer
+    at module scope -- about a quarter of a second, paid on every press of a key
+    whose whole job takes two milliseconds. Nothing here imports more than the
+    standard library.
+    """
+    summon_palette(_port_from_argv(argv))
+    return 0
+
+
+def main_show(argv: list[str] | None = None) -> int:
+    """`amethyst-show`: bring AMETHYST's window up, starting it if it is not on.
+
+    The twin of `amethyst-palette`, and the thing a desktop environment's own
+    shortcut settings should be pointed at -- on Wayland that is the only route
+    to a global chord, because the compositor refuses the grab `run_tray` would
+    otherwise take. Same stdlib-only budget, for the same reason.
+    """
+    summon_window(_port_from_argv(argv))
     return 0
 
 
@@ -230,6 +324,44 @@ def _wait_until_serving(server, thread, seconds: float = 30.0) -> bool:
     return False
 
 
+def _api_answers(port: int, timeout: float = 5.0) -> bool:
+    """Whether /api/ping answers with the JSON it is supposed to.
+
+    `server.started` says uvicorn finished its startup, which is a claim about
+    this process. This is the claim the *interface* depends on: that a request
+    goes in over a socket, through routing, and comes back as the right JSON. It
+    is the same probe the Docker healthcheck and the frontend's own cold-start
+    wake already use, deliberately -- a third idea of what "ready" means is a
+    third thing to keep true.
+
+    Cheap enough to be worth doing properly: /api/ping touches no database, no
+    provider and no connector.
+    """
+    import json
+    import socket
+
+    request = (
+        "GET /api/ping HTTP/1.1\r\n"
+        f"Host: 127.0.0.1:{port}\r\n"
+        "Connection: close\r\n\r\n"
+    ).encode()
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), 2.0) as sock:
+                sock.sendall(request)
+                reply = b""
+                while chunk := sock.recv(4096):
+                    reply += chunk
+            body = json.loads(reply.rsplit(b"\r\n\r\n", 1)[-1])
+            if body.get("status") == "ok":
+                return True
+        except Exception:
+            pass
+        time.sleep(0.05)
+    return False
+
+
 # ------------------------------------------------------------------- autostart
 
 _WIN_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -251,6 +383,30 @@ def _autostart_path():
     return Path.home() / ".config" / "autostart" / "amethyst.desktop"
 
 
+def _launcher_command() -> str:
+    """An absolute path to the `amethyst` console script, for a .desktop Exec.
+
+    It has to be absolute. A desktop entry is run by the session with an
+    arbitrary working directory, so `Exec=.venv/bin/amethyst desktop` -- which is
+    what `sys.argv[0]` gives when the app was started as `.venv/bin/amethyst` --
+    is a launcher icon that silently does nothing. That is the one thing the
+    entry exists to make work.
+
+    PATH first, because an installed console script is the stable name; the
+    running program's own path second, absolutised, which covers a venv that is
+    not on PATH.
+    """
+    import shutil
+
+    found = shutil.which("amethyst")
+    if found:
+        return found
+    argv0 = sys.argv[0]
+    if os.sep in argv0 or not shutil.which(argv0):
+        return os.path.abspath(argv0)
+    return shutil.which(argv0) or os.path.abspath(argv0)
+
+
 def _autostart_argv() -> list[str]:
     """What login should run. The installed console script where there is one.
 
@@ -260,10 +416,12 @@ def _autostart_argv() -> list[str]:
     """
     import shutil
 
+    # `--background`: login means "be available", not "put a window on screen".
+    # Clicking the application icon is the other entry point and it presents.
     exe = shutil.which("amethyst")
     if exe:
-        return [exe, "desktop"]
-    return [sys.executable, "-m", "backend.cli", "desktop"]
+        return [exe, "desktop", "--background"]
+    return [sys.executable, "-m", "backend.cli", "desktop", "--background"]
 
 
 def install_autostart() -> str:
@@ -311,6 +469,8 @@ def install_autostart() -> str:
         "Comment=Personal operating system, running in the background\n"
         f"Exec={shlex.join(argv)}\n"
         "Terminal=false\n"
+        "Icon=amethyst\n"
+        "StartupWMClass=amethyst\n"
         "X-GNOME-Autostart-enabled=true\n"
     )
     return str(entry)
@@ -335,6 +495,119 @@ def uninstall_autostart() -> str | None:
         entry.unlink()
         return str(entry)
     return None
+
+
+# --------------------------------------------------------- the desktop shortcut
+
+#: Where GNOME keeps user-defined chords. A list of paths in one key, and a
+#: name/command/binding triple at each path.
+_GNOME_MEDIA_KEYS = "org.gnome.settings-daemon.plugins.media-keys"
+_GNOME_CUSTOM = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"
+_GNOME_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/amethyst/"
+
+
+def _gnome_chord(hotkey: str) -> str:
+    """pynput's chord spelling, in GNOME's.
+
+    `<ctrl>+<alt>+<space>` -> `<Control><Alt>space`. The two notations agree on
+    almost nothing: pynput joins with `+` and lowercases, GNOME concatenates and
+    capitalises, and they disagree about the name of the control key.
+    """
+    names = {"ctrl": "Control", "control": "Control", "alt": "Alt", "shift": "Shift",
+             "super": "Super", "cmd": "Super", "win": "Super"}
+    mods, key = [], ""
+    for part in hotkey.split("+"):
+        bare = part.strip().strip("<>").lower()
+        if bare in names:
+            mods.append(f"<{names[bare]}>")
+        else:
+            key = bare
+    return "".join(mods) + key
+
+
+def install_shortcut(hotkey: str = DEFAULT_HOTKEY) -> tuple[bool, str]:
+    """Bind the chord in the desktop environment's own shortcut settings.
+
+    This exists because of Wayland. A global key grab is refused there by
+    design, so `_start_hotkey` cannot work and the only route to a global chord
+    is to ask the desktop environment to run a command -- which is exactly what
+    `amethyst-show` is for.
+
+    Deliberately an explicit command and not something a launch does by itself:
+    this writes into a list of the user's own keybindings, it can collide with a
+    chord they already use, and doing it on every start would silently put back
+    one they had deliberately removed.
+
+    GNOME only for now. KDE's equivalent lives in `kglobalshortcutsrc` and needs
+    a `kglobalaccel` reload to take effect, which is a lot of machinery for a
+    second desktop; there, and everywhere else, this says what to bind by hand.
+    """
+    import shutil
+    import subprocess
+
+    exe = shutil.which("amethyst-show") or "amethyst-show"
+    chord = _gnome_chord(hotkey)
+
+    if not shutil.which("gsettings"):
+        return False, (
+            f"bind this command to {hotkey} in your desktop's keyboard settings:\n"
+            f"  {exe}"
+        )
+
+    def gset(*argv: str) -> None:
+        subprocess.run(["gsettings", *argv], check=True, capture_output=True, timeout=5)
+
+    try:
+        listed = subprocess.run(
+            ["gsettings", "get", _GNOME_MEDIA_KEYS, "custom-keybindings"],
+            check=True, capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        # "@as []" is how GNOME spells an empty list of strings.
+        paths = [] if "[]" in listed else [
+            piece.strip().strip("'\"") for piece in listed.strip("[]").split(",") if piece.strip()
+        ]
+        if _GNOME_PATH not in paths:
+            paths.append(_GNOME_PATH)
+            gset("set", _GNOME_MEDIA_KEYS, "custom-keybindings",
+                 "[" + ", ".join(f"'{q}'" for q in paths) + "]")
+        base = f"{_GNOME_CUSTOM}:{_GNOME_PATH}"
+        gset("set", base, "name", "AMETHYST")
+        gset("set", base, "command", exe)
+        gset("set", base, "binding", chord)
+    except Exception as exc:
+        return False, (
+            f"could not set the shortcut ({exc}).\n"
+            f"bind this command to {hotkey} by hand in your keyboard settings:\n  {exe}"
+        )
+    return True, f"{hotkey} now opens AMETHYST (runs {exe})"
+
+
+def uninstall_shortcut() -> tuple[bool, str]:
+    """Take the binding back out of the desktop environment's list."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("gsettings"):
+        return True, "nothing to remove (no gsettings on this machine)"
+    try:
+        listed = subprocess.run(
+            ["gsettings", "get", _GNOME_MEDIA_KEYS, "custom-keybindings"],
+            check=True, capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        paths = [] if "[]" in listed else [
+            piece.strip().strip("'\"") for piece in listed.strip("[]").split(",") if piece.strip()
+        ]
+        if _GNOME_PATH not in paths:
+            return True, "nothing was bound"
+        paths.remove(_GNOME_PATH)
+        value = "@as []" if not paths else "[" + ", ".join(f"'{q}'" for q in paths) + "]"
+        subprocess.run(
+            ["gsettings", "set", _GNOME_MEDIA_KEYS, "custom-keybindings", value],
+            check=True, capture_output=True, timeout=5,
+        )
+    except Exception as exc:
+        return False, f"could not remove the shortcut ({exc})"
+    return True, "the AMETHYST shortcut was removed"
 
 
 # ------------------------------------------------------------------ the hotkey
@@ -420,43 +693,73 @@ def _stop_on_signal(signals, shutdown) -> None:
     threading.Thread(target=wait, name="amethyst-signals", daemon=True).start()
 
 
+#: The application icon, best first.
+#:
+#: `icon.png` is the real one: a purpose-made 512x512 app icon, the crystal on
+#: its rounded tile, drawn to be seen at dock size. `logo.png` is the same mark
+#: without the tile. The SVGs are last and `favicon.svg` is last of all -- it is
+#: a different drawing entirely, made for a browser tab, and using it meant the
+#: desktop application wore a logo that appears nowhere else in the product.
+_ICON_CANDIDATES = ("icon.png", "logo.png", "logo.svg", "favicon.svg")
+
+
 def _logo_path() -> "pathlib.Path | None":
-    """Absolute path to the amethyst logo SVG shipped with the frontend.
+    """Absolute path to the best available application icon, or None.
 
     Resolves relative to this file's location so it works regardless of
-    working directory.  Returns None when the file cannot be found.
+    working directory.
     """
     from pathlib import Path
 
-    candidate = Path(__file__).parent.parent / "frontend" / "public" / "favicon.svg"
-    return candidate if candidate.exists() else None
+    public = Path(__file__).parent.parent / "frontend" / "public"
+    for name in _ICON_CANDIDATES:
+        candidate = public / name
+        if candidate.exists():
+            return candidate
+    return None
 
 
+@lru_cache(maxsize=1)
 def _icon_image():
-    """The tray glyph — renders the real SVG logo when possible.
+    """The application icon: the real mark, at 256x256 RGBA.
 
-    GdkPixbuf (present on Linux with GTK) can rasterise SVG directly, so this
-    gives us a crisp 256 × 256 RGBA image from the same source the browser
-    favicon uses.  Falls back to the hand-drawn diamond on macOS / Windows or
-    when the SVG is missing, so nothing breaks there.
+    Cached: `_install_xdg_assets`, `_build_icon` and `_icon_png_path` each ask
+    for it on every boot, and each ask was a fresh rasterisation of the same
+    file at the same size.
+
+    A PNG is opened directly by Pillow, which is the usual case and needs no
+    GTK. An SVG is rasterised by GdkPixbuf, which is present wherever the GTK
+    backend is; that path does not exist on macOS or Windows, which is one
+    reason a ready-made PNG is preferred. See `_ICON_CANDIDATES` for the order.
+
+    Falls back to a hand-drawn diamond only when there is no usable file at
+    all, so the tray always has something to show.
     """
     from PIL import Image
 
-    svg = _logo_path()
-    if svg is not None:
-        try:
-            import gi
+    source = _logo_path()
+    if source is not None:
+        if source.suffix.lower() == ".png":
+            try:
+                return Image.open(source).convert("RGBA").resize((256, 256), Image.LANCZOS)
+            except Exception:
+                pass
+        else:
+            try:
+                import gi
 
-            gi.require_version("GdkPixbuf", "2.0")
-            from gi.repository import GdkPixbuf
+                gi.require_version("GdkPixbuf", "2.0")
+                from gi.repository import GdkPixbuf
 
-            pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(svg), 256, 256, True)
-            raw = pb.get_pixels()
-            mode = "RGBA" if pb.get_has_alpha() else "RGB"
-            img = Image.frombytes(mode, (pb.get_width(), pb.get_height()), raw, "raw", mode, pb.get_rowstride())
-            return img.convert("RGBA")
-        except Exception:
-            pass
+                pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(source), 256, 256, True)
+                raw = pb.get_pixels()
+                mode = "RGBA" if pb.get_has_alpha() else "RGB"
+                img = Image.frombytes(
+                    mode, (pb.get_width(), pb.get_height()), raw, "raw", mode, pb.get_rowstride()
+                )
+                return img.convert("RGBA")
+            except Exception:
+                pass
 
     # Fallback: draw a simple amethyst-coloured diamond
     from PIL import ImageDraw
@@ -508,9 +811,7 @@ def _install_xdg_assets() -> None:
 
     It is idempotent and silently does nothing when it cannot write.
     """
-    import os
     import shlex
-    import sys
     from pathlib import Path
 
     try:
@@ -528,11 +829,7 @@ def _install_xdg_assets() -> None:
         app_dir = Path.home() / ".local" / "share" / "applications"
         app_dir.mkdir(parents=True, exist_ok=True)
 
-        exe = sys.argv[0]  # full path to the amethyst console script
-        if not os.path.isabs(exe):
-            import shutil
-
-            exe = shutil.which(exe) or exe
+        exe = _launcher_command()
 
         entry = app_dir / "amethyst.desktop"
         entry.write_text(
@@ -572,29 +869,76 @@ class _SpotlightBridge:
     manager and not a second back door into AMETHYST.
     """
 
+    # Every attribute here is underscore-prefixed, and that is load-bearing
+    # rather than style. pywebview builds the JavaScript API by walking `dir()`
+    # of this object and *recursing into any public attribute that is a
+    # non-callable object* (`webview/util.py`, `get_functions`) -- so a plain
+    # `self.main = <Window>` exposed the entire Window API, and the GTK widget
+    # underneath it, to any script running in the page. That is a 300KB
+    # `_createApi` payload that crashed the bridge outright, and a back door
+    # into the process for anything the page loads. Names starting with `_` are
+    # skipped, which is the whole fix.
     def __init__(self) -> None:
-        self.spotlight = None
-        self.main = None
+        self._spotlight = None
+        self._main = None
+        #: Set by the page itself, once, when React has committed a tree.
+        #: This is the difference between "the window has a URL" and "there is
+        #: an interface in it", and it is the last gate before the window is
+        #: shown.
+        #:
+        #: Mount rather than paint, and that is forced: a hidden window is not
+        #: composited, so WebKit never runs a requestAnimationFrame callback in
+        #: one. Waiting for a paint deadlocked -- the window was not shown until
+        #: it painted, and could not paint until it was shown.
+        self._painted = threading.Event()
+
+    def ready(self, which: str = "main") -> None:
+        """Called by the page once it has mounted. See `frontend/src/main.jsx`.
+
+        Everything the shell can check by itself -- the server answering, the
+        URL loading -- says the application *should* come up. This is the page
+        saying it *has*.
+        """
+        if which == "main":
+            self._painted.set()
 
     def hide(self) -> None:
-        if self.spotlight is not None:
+        if self._spotlight is not None:
             with contextlib.suppress(Exception):
-                self.spotlight.hide()
+                self._spotlight.hide()
             # The toggle flag tracks this window, and the bridge is one of the
             # two things that ever hides it (Esc from the page is the other,
             # and it comes through here).
             _spotlight_up.clear()
 
-    def open_main(self, path: str = "") -> None:
-        """For the commands that are a place rather than an action."""
-        if self.main is not None:
-            if path:
+    def open_main(self, path: str = "", prompt: str = "") -> None:
+        """For the commands that are a place rather than an action.
+
+        `prompt` carries a question the bar was asked but cannot answer: the
+        spotlight is its own window with its own React tree, so it has no Chat
+        to hand one to. Without this, "Ask AMETHYST" from the bar flashed
+        "Done", closed, opened the main window on an empty composer, and lost
+        the question.
+
+        `evaluate_js` on a window pywebview has not finished creating blocks the
+        caller for twenty seconds and then raises (see `webview/window.py`), so
+        the navigation is only attempted once the page has said it painted.
+        """
+        if self._main is not None:
+            if path and self._painted.is_set():
                 clean_path = "/" + path.lstrip("/")
+                # json.dumps, not an f-string quote: `prompt` is whatever the
+                # user typed into the bar, and a lone apostrophe in it ("what's
+                # a monad") would otherwise end the JS string literal and throw
+                # away the rest of the question.
+                import json
+
                 with contextlib.suppress(Exception):
-                    self.main.evaluate_js(
-                        f"window.__amethyst_navigate && window.__amethyst_navigate('{clean_path}')"
+                    self._main.evaluate_js(
+                        "window.__amethyst_navigate && window.__amethyst_navigate("
+                        f"{json.dumps(clean_path)}, {json.dumps(prompt or None)})"
                     )
-            _present(self.main)
+            _present(self._main)
         self.hide()
 
     def open_external(self, url: str) -> None:
@@ -619,10 +963,26 @@ def _hide_rather_than_close(window) -> None:
     The jobs, the schedules and the agent loop belong to the daemon and go on
     without any window at all, so the close button hides. Quitting is the tray's
     Quit, or a signal.
+
+    Returning False is what cancels the close. That reads backwards and is worth
+    stating once: pywebview's `Event.set` collects every handler's return value
+    and cancels if any of them is exactly `False` (`webview/event.py`), so False
+    means "no, do not close" rather than "no, do not cancel".
+
+    Cancelling was all this used to do, and that is why the close button
+    appeared dead: the destroy was refused and nothing hid the window, so
+    clicking X left it exactly where it was. The hide has to happen here.
     """
 
     def _closing() -> bool:
-        return bool(_QUITTING.is_set())  # False cancels the close
+        if _QUITTING.is_set():
+            return True  # a real quit: nothing is False, so the close proceeds
+        with contextlib.suppress(Exception):
+            window.hide()
+        # The spotlight is the window whose visibility this process tracks, and
+        # Esc is not the only way it gets put away.
+        _spotlight_up.clear()
+        return False  # cancel the destroy; it is hidden, not gone
 
     window.events.closing += _closing
 
@@ -674,12 +1034,26 @@ def _build_windows(port: int):
         return None, None, None
 
     bridge = _SpotlightBridge()
+    # Created blank and navigated later, by `_gate`, once the server answers.
+    #
+    # Two things fall out of that. GTK and WebKit initialise while the backend is
+    # still importing and booting -- a few hundred milliseconds that used to be
+    # spent one after the other and are now spent at the same time. And a window
+    # that exists before there is anything to put in it is also the window an
+    # unrecoverable startup failure can be *reported* in, with `load_html`,
+    # instead of the user getting a silent process and no clue.
+    #
+    # Both windows are created here, before `webview.start()`, and that is not
+    # optional: pywebview's GTK backend only honours `hidden=True` while the GTK
+    # loop is not yet running (`platforms/gtk.py`), so a window created later
+    # appears on screen whatever the flag says. Creating the spotlight lazily is
+    # therefore off the table.
     main = webview.create_window(
-        "AMETHYST", url_for(port, "/?native=1"), width=1180, height=800, hidden=True
+        "AMETHYST", html="", width=1180, height=800, hidden=True, js_api=bridge
     )
     spotlight = webview.create_window(
         "AMETHYST",
-        url_for(port, "/?spotlight=1&native=1"),
+        html="",
         width=760,
         height=520,
         frameless=True,
@@ -698,26 +1072,42 @@ def _build_windows(port: int):
         transparent=_corners_are_free(),
         js_api=bridge,
     )
-    bridge.spotlight, bridge.main = spotlight, main
+    bridge._spotlight, bridge._main = spotlight, main
     for window in (main, spotlight):
         _hide_rather_than_close(window)
 
-    # `shown` fires on every reveal, not only the first -- `_present` calls
-    # `show()` again each summon -- which makes it the one hook that covers both
-    # the window's first appearance and every hide/show cycle after it. The
-    # page does the focusing; all this does is tell it that it is visible, the
-    # one thing a page cannot know about its own window.
-    def _spotlight_shown():
-        with contextlib.suppress(Exception):
-            spotlight.evaluate_js(
-                "window.__amethyst_spotlight_shown && window.__amethyst_spotlight_shown()"
-            )
-
-    spotlight.events.shown += _spotlight_shown
+    # Telling the page it is visible, which is the one thing a page cannot work
+    # out for itself here.
+    #
+    # `shown` is NOT enough on its own, though it long claimed to be. It is
+    # bound to `notify::visible` on the *webview widget* (`platforms/gtk.py`,
+    # `on_webview_ready`), and hiding the window does not change that widget's
+    # visible property -- so it fires once, on the first reveal, and never
+    # again. Measured: three hide/show cycles produced one event. Everything
+    # hung on it was therefore first-summon-only, including refocusing the
+    # input and replaying the open animation.
+    #
+    # So the event covers the first reveal and `notify_spotlight_shown` is
+    # called explicitly by whoever shows the window after that. Calling it twice
+    # would be harmless; never calling it is what was wrong.
+    spotlight.events.shown += lambda: notify_spotlight_shown(spotlight)
     return main, spotlight, bridge
 
 
-def _present(window, *, pinned: bool = False) -> None:
+def notify_spotlight_shown(window) -> None:
+    """Tell the spotlight page it has just been put on screen.
+
+    The bar is one permanently-mounted page whose window is hidden and shown
+    around it, so "it appeared" is not something the page can observe: nothing
+    re-mounts, no CSS animation restarts, and focus stays wherever it was.
+    """
+    with contextlib.suppress(Exception):
+        window.evaluate_js(
+            "window.__amethyst_spotlight_shown && window.__amethyst_spotlight_shown()"
+        )
+
+
+def _present(window, *, pinned: bool = False, token: str | None = None) -> None:
     """Put the window in front, from whichever thread asked for it.
 
     `on_top` is pinned for a moment rather than left on. A compositor that
@@ -726,12 +1116,18 @@ def _present(window, *, pinned: bool = False) -> None:
     and leaving it pinned would mean using AMETHYST as an ordinary window meant one
     that floats over everything else forever.
 
-    ponytail: this buys visibility, not keyboard focus. GNOME grants focus to a
-    window whose activation token it issued, and that token belongs to the process
-    its shortcut launched -- `amethyst palette` -- rather than to this one.
-    Forwarding the token through the POST is the fix if one click to type is one
-    click too many.
+    `token` is the compositor's permission to raise a window, forwarded from the
+    process the shortcut actually launched (`amethyst-show`, `amethyst-palette`).
+    GNOME grants focus to the window whose activation token it issued, and that
+    token belongs to *that* process rather than to this one -- so without it the
+    window comes up behind whatever the user was looking at, which is
+    indistinguishable from not showing it. Best-effort: a compositor that does
+    not do activation tokens simply has none to forward, and the window still
+    shows.
     """
+    if token:
+        with contextlib.suppress(Exception):
+            window.native.set_startup_id(token)
     with contextlib.suppress(Exception):
         window.restore()  # no-op unless it was minimised
     with contextlib.suppress(Exception):
@@ -803,6 +1199,74 @@ def _build_icon(port: int, window, on_quit):
         return None
 
 
+#: What the window says when the backend genuinely could not start. Deliberately
+#: plain: no retry button that would need a working backend to mean anything, and
+#: no spinner pretending something is still happening. The person who sees this
+#: launched from an application icon and has no terminal to read.
+_ERROR_HTML = """<!doctype html><html><head><meta charset="utf-8">
+<style>
+  :root {{ color-scheme: dark; }}
+  body {{ margin: 0; height: 100vh; display: flex; align-items: center;
+         justify-content: center; background: #131317; color: #e8e8ec;
+         font: 15px/1.6 system-ui, -apple-system, Segoe UI, sans-serif; }}
+  main {{ max-width: 34rem; padding: 2rem; }}
+  h1 {{ font-size: 1.15rem; margin: 0 0 .75rem; font-weight: 600; }}
+  p {{ margin: 0 0 .75rem; color: #a5a5b0; }}
+  code {{ background: #1e1e24; padding: .15rem .4rem; border-radius: 4px;
+          font-size: .9em; color: #c4b5fd; }}
+</style></head><body><main>
+<h1>AMETHYST could not start</h1>
+<p>{msg}</p>
+<p>Run <code>amethyst doctor</code> in a terminal to see what is wrong, or
+   <code>amethyst serve</code> to watch it start with the log in front of you.</p>
+</main></body></html>"""
+
+
+def _already_running(port: int) -> int | None:
+    """Hand the running AMETHYST this launch, if there is one. Returns an exit code.
+
+    The listening socket is the lock, and the reply is what disambiguates it.
+    Binding the port is already an atomic, kernel-held mutex that is released on
+    crash and cannot go stale -- and it is the actual contended resource, since
+    two servers on one SQLite file is the thing that must never happen. What a
+    port alone cannot tell you is *who* holds it, and that is what the control
+    reply answers:
+
+    * nothing listening -> None, and the caller boots normally;
+    * AMETHYST with windows -> it raised them, and this launch is done;
+    * AMETHYST with no windows (a bare `amethyst serve`) -> nothing to raise, so
+      open the interface in a browser rather than starting a second server that
+      could only fail to bind;
+    * anything else -> someone else's server is on our port, and that is a real
+      error with a readable cause rather than a confusing bind failure.
+    """
+    try:
+        answer = _control(port, "show", timeout=2.0, **_activation_token())
+    except OSError:
+        return None  # the port is free; this launch is the one that boots
+
+    if answer is None:
+        print(
+            f"! something that is not AMETHYST is already listening on port {port}.",
+            file=sys.stderr,
+        )
+        print("! stop it, or start AMETHYST on another port:  amethyst desktop --port 8001",
+              file=sys.stderr)
+        return 1
+
+    if answer.get("native"):
+        # A desktop shell owns the windows and has just raised them. Nothing to
+        # say -- the user pressed an icon and a window came up, which is the
+        # whole of what they asked for.
+        return 0
+
+    print(f"AMETHYST is already running at {url_for(port)} without a window.")
+    import webbrowser
+
+    webbrowser.open(url_for(port))
+    return 0
+
+
 def run_tray(
     host: str = "127.0.0.1",
     port: int = DEFAULT_PORT,
@@ -810,27 +1274,52 @@ def run_tray(
     log_level: str = "warning",
     open_browser: bool = False,
     native_window: bool = True,
+    present: bool = True,
 ) -> int:
-    """Serve, sit in the background, and show the palette when asked."""
+    """Serve, sit in the background, and show the window when asked.
+
+    `present` is what separates the two ways this is started. Clicking the
+    application icon means "open AMETHYST", so the window is shown as soon as
+    there is something in it to show. Starting at login means "be available",
+    so it stays hidden until something asks for it -- a window appearing on its
+    own at login is not what running in the background means.
+    """
+    # Single instance, before anything is started. See `_already_running`.
+    existing = _already_running(port)
+    if existing is not None:
+        return existing
+
     signals = _block_signals()  # before any thread exists; see the docstring
+
+    # What the remote-caller guard in backend/api/main.py reads. `amethyst serve`
+    # has always set this (see cli.py) and this path never did, which meant
+    # `amethyst desktop --host 0.0.0.0` published the entire API to the network
+    # with the guard reading the loopback default and standing down. Now that the
+    # desktop command is how the application is started, that is the door.
+    from backend.api.main import BIND_HOST_ENV, BIND_PORT_ENV
+
+    os.environ[BIND_HOST_ENV] = str(host)
+    os.environ[BIND_PORT_ENV] = str(port)
+
     server, thread = _serve_in_thread(host, port, log_level)
-    if not _wait_until_serving(server, thread):
-        print(f"! the API did not come up on {url_for(port)}", file=sys.stderr)
-        return 1
-    print(f"AMETHYST is running at {url_for(port)}")
 
-    # Register icon + .desktop file so GNOME Wayland resolves the gem icon in
-    # the dock and the alt-tab switcher.  Idempotent; safe to call every boot.
-    _install_xdg_assets()
+    # Neither of these gates anything, and both are slow enough to be worth not
+    # waiting for: the icon install rasterises an SVG and shells out to
+    # `gtk-update-icon-cache` with a three second timeout, and the hotkey grab
+    # talks to the display server. They run while uvicorn boots.
+    def _background_setup() -> None:
+        _install_xdg_assets()
+        problem = _hotkey_unavailable_reason() or _start_hotkey(
+            hotkey, lambda: summon_palette(port)
+        )
+        if problem:
+            print(f"! no global hotkey: {problem}")
+            print("  bind a key to `amethyst-show` (and `amethyst-palette`) in your")
+            print("  desktop's own shortcut settings:  amethyst desktop --install-shortcut")
+        else:
+            print(f"press {hotkey} anywhere for the command palette")
 
-    problem = _hotkey_unavailable_reason() or _start_hotkey(
-        hotkey, lambda: summon_palette(port)
-    )
-    if problem:
-        print(f"! no global hotkey: {problem}")
-        print("  bind a key to `amethyst-palette` in your desktop settings instead")
-    else:
-        print(f"press {hotkey} anywhere for the command palette")
+    threading.Thread(target=_background_setup, name="amethyst-setup", daemon=True).start()
 
     def stop() -> None:
         # The control streams go first, and before `should_exit` rather than from
@@ -888,10 +1377,16 @@ def run_tray(
     # the MCP subprocesses it started, leaving them orphaned.
     _stop_on_signal(signals, shutdown)
 
-    if open_browser:
-        if window is not None:
-            _present(window)
-        else:
+    if window is None:
+        # No GUI to gate. The readiness wait is still the thing that decides
+        # whether this process is worth keeping, so it happens here instead.
+        if not _wait_until_serving(server, thread):
+            if _already_running(port) == 0:
+                return 0  # lost the race to another launch; it has the window
+            print(f"! the API did not come up on {url_for(port)}", file=sys.stderr)
+            return 1
+        print(f"AMETHYST is running at {url_for(port)}")
+        if open_browser or present:
             import webbrowser
 
             webbrowser.open(url_for(port))
@@ -913,7 +1408,7 @@ def run_tray(
         # spotlight, so a flag it keeps itself is the truth -- and pressing the
         # summon again while the bar is up puts it away, the way every other
         # spotlight on the machine behaves.
-        def _toggle_spotlight():
+        def _toggle_spotlight(_body=None):
             if _spotlight_up.is_set():
                 with contextlib.suppress(Exception):
                     spotlight.hide()
@@ -921,16 +1416,111 @@ def run_tray(
                 return
             _spotlight_up.set()
             _present(spotlight, pinned=True)
+            notify_spotlight_shown(spotlight)
 
-        api.on_palette(_toggle_spotlight)
-        if icon is not None:
-            # The GTK loop webview is about to start is the one it hooks into.
+        def _show_main(body=None):
+            """Raise the application window. The second launch and the shortcut."""
+            _present(main, token=(body or {}).get("token"))
+
+        api.on_control("palette", _toggle_spotlight)
+        api.on_control("show", _show_main)
+        api.on_control("pairing_request", _show_main)
+
+        def _fail(message: str) -> None:
+            """Say why, in the window, and let the close button mean quit.
+
+            `_QUITTING` is set because `_hide_rather_than_close` would otherwise
+            turn the close button on an error window into "hide" -- leaving a
+            process the user cannot get rid of and cannot see.
+            """
+            print(f"! {message}", file=sys.stderr)
+            _QUITTING.set()
             with contextlib.suppress(Exception):
-                icon.run_detached()
-        print("its window stays hidden until you ask for it")
+                main.load_html(_ERROR_HTML.format(msg=message))
+            _present(main)
+
+        def _gate() -> None:
+            """Bring the application up in order, then show it. Runs off the GTK loop.
+
+            Every step here is a real check on a real thing. Nothing sleeps for a
+            fixed time and nothing is presented on a guess:
+
+            1. uvicorn reports started -- and because uvicorn only sets that flag
+               after the lifespan's startup has returned, that already means every
+               background runner is up and the database is open.
+            2. /api/ping answers with the JSON it is supposed to, which proves
+               routing works and not merely that a socket is open.
+            3. the page is loaded, and says for itself that it has painted.
+
+            Only then is the window shown. A failure in 1 or 2 is unrecoverable
+            and is shown as such; a failure in 3 is not, because by then the
+            interface owns the problem and has its own way of saying so.
+            """
+            began = time.monotonic()
+
+            def mark(stage: str) -> None:
+                """Say how long each stage took, on the stream the user can see.
+
+                `log.info` alone was invisible here: uvicorn configures its own
+                loggers and nothing configures `backend.desktop`, so the
+                instrumentation that exists to explain a slow launch printed
+                nothing at all. The log line stays for anyone capturing logs;
+                the print is what makes it useful from a terminal.
+                """
+                elapsed = time.monotonic() - began
+                log.info("startup: %s at +%.2fs", stage, elapsed)
+                if log_level in ("debug", "info", "trace"):
+                    print(f"  startup: {stage} at +{elapsed:.2f}s")
+
+            if not _wait_until_serving(server, thread):
+                # Losing a race to another launch looks exactly like failing to
+                # start, because the symptom is the same: the port was taken. Ask
+                # who has it before calling this a failure.
+                if _already_running(port) == 0:
+                    mark("another instance won the port")
+                    shutdown()
+                    return
+                _fail("the backend did not start.")
+                return
+            mark("backend serving")
+
+            if not _api_answers(port):
+                _fail("the backend started but is not answering.")
+                return
+            mark("api answering")
+
+            with contextlib.suppress(Exception):
+                main.load_url(url_for(port, "/?native=1"))
+            with contextlib.suppress(Exception):
+                spotlight.load_url(url_for(port, "/?spotlight=1&native=1"))
+            mark("interface loading")
+
+            if icon is not None:
+                # The GTK loop is running by now, which is the one it hooks into.
+                with contextlib.suppress(Exception):
+                    icon.run_detached()
+
+            print(f"AMETHYST is running at {url_for(port)}")
+            if not present:
+                print("its window stays hidden until you ask for it")
+                return
+
+            # The last gate, and a soft one. If the page has not said it
+            # mounted within a few seconds it is not coming up any faster for
+            # being waited on, and the interface has its own "the backend is
+            # down" state, which is a better thing to show than a window that
+            # never appears.
+            if not _bridge._painted.wait(8.0):
+                log.warning("the interface did not report that it mounted; showing anyway")
+            mark("interface mounted")
+            _present(main)
+
         icon_path = _icon_png_path()
         try:
-            webview.start(icon=icon_path)  # blocks the main thread, which GTK requires
+            # `func` runs on a worker thread as soon as the GUI loop is up, so the
+            # readiness wait overlaps GTK and WebKit initialising rather than
+            # following it.
+            webview.start(func=_gate, icon=icon_path)  # blocks the main thread, which GTK requires
         except KeyboardInterrupt:
             pass
         finally:

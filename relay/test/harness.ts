@@ -63,6 +63,25 @@ export class FakeD1 {
 	prepare(sql: string): Statement {
 		return new Statement(this.db, sql);
 	}
+
+	/**
+	 * D1's batch: several statements, one round trip, one transaction. Real D1
+	 * rolls the whole batch back if any statement throws, so the shim does too --
+	 * a fake that committed the successful half would let a test pass against
+	 * code that leaves the table half written.
+	 */
+	async batch(statements: Statement[]): Promise<{ meta: { changes: number } }[]> {
+		this.db.exec('BEGIN');
+		try {
+			const out = [];
+			for (const statement of statements) out.push(await statement.run());
+			this.db.exec('COMMIT');
+			return out;
+		} catch (error) {
+			this.db.exec('ROLLBACK');
+			throw error;
+		}
+	}
 }
 
 /** R2, as a Map. Enough to prove a staged object is deleted when it should be. */

@@ -53,9 +53,6 @@ export function SkiperNavItem({
          statement the markup was missing. */
       aria-current={active ? 'page' : undefined}
       className={cn('skiper-nav-item', active && 'is-active', className)}
-      whileHover={{ x: 2 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
       {...props}
     >
       {active && (

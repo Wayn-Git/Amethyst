@@ -150,7 +150,6 @@ export default function Today() {
 
   return (
     <div className="view" ref={rootRef} style={{ position: 'relative', overflow: 'hidden' }}>
-      <div className="home-accent-glow is-home" aria-hidden="true" />
       <div className="view-inner view-inner--wide" style={{ position: 'relative', zIndex: 1 }}>
         <header className="vheader" data-enter>
           <div>
@@ -271,7 +270,7 @@ export default function Today() {
                     <ul className="today-list today-list--capped">
                       {signals.tasks.completed.slice(0, 4).map((task, i) => (
                         <li className="today-row today-row--done" key={i}>
-                          <span className="today-when mono">
+                          <span className="today-when">
                             <Icon name="check" size={12} />
                           </span>
                           <span className="today-what">{task.title}</span>

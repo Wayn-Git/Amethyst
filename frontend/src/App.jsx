@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import Icon from './components/Icon.jsx'
 import BrandMark from './components/BrandMark.jsx'
@@ -10,13 +10,20 @@ import Sidebar from './components/Sidebar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
 import UserMenu from './components/UserMenu.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
+import PairingApprovalModal from './components/PairingApprovalModal.jsx'
 import { BootScreen, SkeletonView } from './components/Skeleton.jsx'
 import { useApp } from './store.jsx'
-import { API_ORIGIN } from './api.js'
+import { API_ORIGIN, api } from './api.js'
 import { chord, isTyping, MOD_LABEL } from './keys.js'
 import { byDigit, byId, forRoutes } from './nav.js'
 import { COMPONENTS } from './views/registry.js'
+import Pair from './views/Pair.jsx'
+import RemoteOnly from './views/RemoteOnly.jsx'
+import { paired as isPaired } from './lib/sync/client.js'
+import { usePhone } from './hooks/useMediaQuery.js'
+import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
+import MobileNav from './components/MobileNav.jsx'
 
 /* The workbench.
 
@@ -32,7 +39,7 @@ import Chat from './views/Chat.jsx'
 
 
 
-/* The daemon's side of the palette.
+/* The daemon's side of the palette and pairing notifications.
 
    The tray process owns the global hotkey, and a chord pressed while this window
    is behind another one -- or not open at all -- cannot reach the listener
@@ -45,7 +52,7 @@ import Chat from './views/Chat.jsx'
 
    EventSource reconnects on its own, which is the whole of "reconnect cleanly"
    here: the daemon restarting, or this page outliving it, needs no code. */
-function useDaemonSummon() {
+function useDaemonSummon(onPairingRequest) {
   const { setOverlay } = useApp()
 
   useEffect(() => {
@@ -65,7 +72,8 @@ function useDaemonSummon() {
     const stream = new EventSource(`${API_ORIGIN}/api/control/stream`)
     stream.onmessage = (e) => {
       try {
-        if (JSON.parse(e.data).type === 'palette') {
+        const data = JSON.parse(e.data)
+        if (data.type === 'palette') {
           // When native desktop is running with pywebview, the native spotlight window is raised.
           // The main workbench window should not open an overlapping duplicate palette!
           if (document.documentElement.dataset.native === '1') {
@@ -73,11 +81,14 @@ function useDaemonSummon() {
           }
           setOverlay((prev) => (prev === 'palette' ? null : 'palette'))
           window.focus()
+        } else if (data.type === 'pairing_request') {
+          onPairingRequest?.(data)
+          window.focus?.()
         }
       } catch { /* a frame this build does not know about is not an error */ }
     }
     return () => stream.close()
-  }, [setOverlay])
+  }, [setOverlay, onPairingRequest])
 }
 
 /* Every binding in one listener.
@@ -165,6 +176,18 @@ function useGlobalKeys() {
   ])
 }
 
+function useUnhandledRejections() {
+  const { toast } = useApp()
+  useEffect(() => {
+    const onUnhandled = (e) => {
+      console.error('Unhandled Promise Rejection:', e.reason)
+      toast(`Error: ${e.reason?.message || e.reason || 'An unexpected error occurred'}`, 'bad')
+    }
+    window.addEventListener('unhandledrejection', onUnhandled)
+    return () => window.removeEventListener('unhandledrejection', onUnhandled)
+  }, [toast])
+}
+
 /* The bar over the working column.
 
    It says where you are, which the rail no longer can now that the rail is
@@ -184,26 +207,25 @@ function WorkbenchBar() {
             <div className="wb-bar-toggle-group">
               <button
                 type="button"
-                className="wb-icon-btn"
+                className="wb-icon-btn wb-sidebar-trigger"
                 onClick={toggleRail}
                 title={`Open sidebar — ${MOD_LABEL}+B`}
                 aria-label="Open sidebar"
               >
-                <Icon name="sidebar" size={15} />
+                <Icon name="sidebar" size={17} />
               </button>
-              <UserMenu align="start" side="bottom" sideOffset={8}>
-                <button
-                  type="button"
-                  className="wb-bar-user-btn"
-                  title={`User menu for ${userProfile?.name || 'User'} — Click to edit name or open settings`}
-                >
-                  <div className="sb-user-avatar sb-user-avatar--xs">
-                    {(userProfile?.name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="wb-bar-user-name">{userProfile?.name || 'User'}</span>
-                  <Icon name="chevron" size={9} style={{ opacity: 0.6 }} />
-                </button>
-              </UserMenu>
+              <div
+                className="wb-bar-brand-compact"
+                onClick={() => setView('chat')}
+                title="Amethyst Home"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') setView('chat') }}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}
+              >
+                <BrandMark size={22} glow />
+                <span className="wb-bar-brand-text">AMETHYST</span>
+              </div>
             </div>
           )}
         </div>
@@ -229,8 +251,8 @@ function WorkbenchBar() {
             type="button"
             className={`wb-icon-btn${panel ? ' is-active' : ''}`}
             onClick={togglePanel}
-            title={panel ? 'Hide artifact panel' : 'Show artifact panel'}
-            aria-label={panel ? 'Hide artifact panel' : 'Show artifact panel'}
+            title={panel ? 'Hide detail panel' : 'Show detail panel'}
+            aria-label={panel ? 'Hide detail panel' : 'Show detail panel'}
             aria-pressed={panel}
           >
             <Icon name="layout" size={15} />
@@ -246,8 +268,13 @@ function WorkbenchBar() {
             <Icon name="sliders" size={15} />
           </button>
 
-          <div className="wb-bar-brand-wrap wb-bar-brand-right" title="Amethyst">
-            <BrandMark size={20} />
+          <div
+            className="wb-bar-brand-wrap wb-bar-brand-right"
+            title="Amethyst Home"
+            onClick={() => setView('chat')}
+            style={{ cursor: 'pointer' }}
+          >
+            <BrandMark size={22} glow />
             <span className="wb-bar-brand-text">AMETHYST</span>
           </div>
         </div>
@@ -289,28 +316,147 @@ function Toasts() {
   )
 }
 
+/* The escape hatch, and why it is sticky.
+
+   Somebody with a big phone, or a tablet this query does catch, may genuinely
+   want the workbench -- and having made that choice once, they should not have
+   to make it again on every load. It lives in localStorage rather than the URL
+   so it survives the app navigating, and it is readable as a URL parameter so
+   it can be sent to somebody who is stuck. */
+const DESKTOP_KEY = 'amethyst.ui.forceDesktop'
+
+function wantsDesktop() {
+  try {
+    if (new URLSearchParams(window.location.search).get('desktop') === '1') {
+      safeStorage.setItem(DESKTOP_KEY, '1')
+      return true
+    }
+  } catch { /* no URL to read; the stored answer below still stands */ }
+  return safeStorage.getItem(DESKTOP_KEY) === '1'
+}
+
+/* What a phone actually gets: pairing, or the remote control, and nothing else.
+
+   Not the workbench with things hidden. Every other page in this application
+   opens by fetching from a backend the phone may not be able to reach, and the
+   ones it can reach are laid out for a screen it does not have. */
+function PhoneApp({ paired, onPaired, onDesktop }) {
+  if (!paired) return <Pair onPaired={onPaired} onDesktop={onDesktop} />
+  return <RemoteOnly onDesktop={onDesktop} />
+}
+
 export default function App() {
   const {
     view, setView, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
-    betaPages,
+    betaPages, openChatWithPrompt,
   } = useApp()
 
+  // Whether this browser belongs to a machine, and whether somebody has said
+  // they want to set that up. Held here rather than read on every render
+  // because `isPaired` touches localStorage, and because pairing has to move
+  // this screen on without a reload.
+  const [paired, setPaired] = useState(isPaired)
+  const [remoteFirst, setRemoteFirst] = useState(false)
+
+  // Whether this is a handheld, and whether somebody on one has asked for the
+  // workbench anyway. See `usePhone` for why this is a media query rather than
+  // a user-agent test, and `DESKTOP_KEY` for why the override is sticky.
+  const phone = usePhone()
+  const [forceDesktop, setForceDesktop] = useState(wantsDesktop)
+
   useEffect(() => {
-    window.__amethyst_navigate = (pathOrId) => {
+    // `prompt` is what makes "Ask AMETHYST" work from the native spotlight. That
+    // bar is a separate window with its own React tree, so the Chat component
+    // it would have handed the question to does not exist in it -- the ask was
+    // dropped on the floor and the main window opened on an empty composer.
+    window.__amethyst_navigate = (pathOrId, prompt) => {
       const id = pathOrId.replace(/^\//, '')
+      if (prompt) {
+        openChatWithPrompt(prompt)
+        return
+      }
       setView(id || 'chat')
     }
     return () => {
       delete window.__amethyst_navigate
     }
-  }, [setView])
+  }, [setView, openChatWithPrompt])
 
   // Beta pages are not routed while they are switched off, so their addresses
   // fall through to the redirect below rather than rendering a page the rail
   // and the palette both say does not exist.
   const routed = useMemo(() => forRoutes(betaPages), [betaPages])
   useGlobalKeys()
-  useDaemonSummon()
+
+  const [pendingPairing, setPendingPairing] = useState(null)
+  const dismissedPairings = useRef(new Set())
+
+  const playPairingChime = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const now = ctx.currentTime
+
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.type = 'sine'
+      osc1.frequency.setValueAtTime(587.33, now) // D5
+      gain1.gain.setValueAtTime(0.12, now)
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3)
+      osc1.connect(gain1)
+      gain1.connect(ctx.destination)
+      osc1.start(now)
+      osc1.stop(now + 0.3)
+
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = 'sine'
+      osc2.frequency.setValueAtTime(880, now + 0.12) // A5
+      gain2.gain.setValueAtTime(0.15, now + 0.12)
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45)
+      osc2.connect(gain2)
+      gain2.connect(ctx.destination)
+      osc2.start(now + 0.12)
+      osc2.stop(now + 0.45)
+    } catch {}
+  }, [])
+
+  const handlePairingRequest = useCallback((req) => {
+    if (req?.request_id && dismissedPairings.current.has(req.request_id)) return
+    setPendingPairing(req)
+    playPairingChime()
+    window.focus?.()
+  }, [playPairingChime])
+  useDaemonSummon(handlePairingRequest)
+
+  useEffect(() => {
+    let active = true
+    const check = () => {
+      api.pendingDevices()
+        .then((res) => {
+          if (!active) return
+          const next = res?.pending?.find((p) => !dismissedPairings.current.has(p.request_id))
+          if (next) {
+            setPendingPairing((curr) => {
+              if (curr?.request_id === next.request_id) return curr
+              playPairingChime()
+              return next
+            })
+          } else {
+            setPendingPairing(null)
+          }
+        })
+        .catch(() => {})
+    }
+    check()
+    const timer = setInterval(check, 1500)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [playPairingChime])
+
   const stageRef = useRef(null)
 
   /* The tab reports where you are. It used to say the same eleven words on
@@ -328,8 +474,81 @@ export default function App() {
   // a page of failures and then leaves it there -- a deploy that looks broken
   // for the fifty seconds it takes to start. The frame says what is happening
   // instead, and the views mount into real data.
-  if (server.phase !== 'ready') {
-    return <BootScreen server={server} onRetry={retryServer} />
+  //
+  // Except on a device that has no backend to wait for. A phone loads this app
+  // from wherever it is hosted and the machine is at home behind a router, so
+  // "the API did not answer" is not a fault there -- it is the normal state,
+  // and the workbench below is the wrong thing to show even if it could load.
+  //
+  // This used to fall through to the boot screen regardless, which meant a
+  // phone waited ninety seconds for a server that was never going to answer and
+  // then sat on an error, with the pairing controls stranded inside a Settings
+  // page it could not reach. The device that most needed to pair was the one
+  // that could not.
+  // `verified` rather than `phase` alone: 'ready' is optimistic until a ping has
+  // actually answered, and a paired phone must not be shown the workbench for
+  // the length of that guess.
+  // A phone gets the remote control, whether or not a backend answers.
+  //
+  // This used to be decided by reachability alone -- "the API did not respond,
+  // so this must be a phone" -- which is true of a phone out in the world and
+  // false of one on the same network as the machine. On a home network the
+  // server answers, `server.verified` goes true, and the branch below handed a
+  // four-column desktop workbench to a 390px screen: a rail, a transcript
+  // column, a stage and a resizable panel, none of which fit and none of which
+  // are what somebody holding a phone came for.
+  //
+  // Any device opening a pairing invite (URL with #s=, #pair, or /pair) gets
+  // the Pair view immediately instead of routing to workbench or 404.
+  const isPairIntent = typeof window !== 'undefined' && (
+    window.location.pathname === '/pair' ||
+    (window.location.hash || '').includes('s=') ||
+    (window.location.hash || '').startsWith('#pair')
+  )
+
+  if (isPairIntent && !paired) {
+    return (
+      <Pair
+        onPaired={() => setPaired(true)}
+        onDesktop={() => {
+          safeStorage.setItem(DESKTOP_KEY, '1')
+          setForceDesktop(true)
+        }}
+      />
+    )
+  }
+
+  // Form factor is the honest question, because it is the one whose answer
+  // decides which interface is wanted. Reachability decides something else --
+  // whether the pairing screen can offer a shortcut -- and is still read below.
+  if (phone && !forceDesktop) {
+    return (
+      <PhoneApp
+        paired={paired}
+        onPaired={() => setPaired(true)}
+        onDesktop={() => {
+          safeStorage.setItem(DESKTOP_KEY, '1')
+          setForceDesktop(true)
+        }}
+      />
+    )
+  }
+
+  if (server.phase !== 'ready' || !server.verified) {
+    if (paired) return <RemoteOnly />
+    // Offered immediately rather than after the wake gives up: a paired phone
+    // knows what it is, and an unpaired one asking to be paired is not a
+    // failure state worth making somebody wait out.
+    if (server.phase === 'down' || remoteFirst) {
+      return <Pair onPaired={() => setPaired(true)} />
+    }
+    return (
+      <BootScreen
+        server={server}
+        onRetry={retryServer}
+        onRemote={() => setRemoteFirst(true)}
+      />
+    )
   }
 
   const isChat = view === 'chat'
@@ -378,18 +597,32 @@ export default function App() {
             </ErrorBoundary>
           </main>
         )}
+        <MobileNav />
       </div>
       {/* The panel is a slot rather than a component: whichever view is open
           fills it through a portal, and it collapses on its own when nothing
           has anything to put there. */}
       {view !== 'settings' && (
       <aside
-        className="wb-panel"
+        className={`wb-panel${compact && panel ? ' wb-panel--mobile-sheet' : ''}`}
         id="wb-panel"
         aria-label="Run detail"
         inert={drawerOpen}
-        style={{ '--panel-w': `${panelWidth}px` }}
+        style={{ '--panel-w': compact ? '100%' : `${panelWidth}px` }}
       >
+        {compact && panel && (
+          <div className="wb-panel-mobile-header">
+            <span className="wb-panel-mobile-title">Details & Context</span>
+            <button
+              type="button"
+              className="wb-panel-mobile-close"
+              onClick={togglePanel}
+              aria-label="Close details panel"
+            >
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+        )}
         <PanelResizer />
       </aside>
       )}
@@ -398,6 +631,23 @@ export default function App() {
       
       <OnboardingWizard />
       <ConfirmDialogHost />
+      {pendingPairing && (
+        <PairingApprovalModal
+          request={pendingPairing}
+          onDismiss={() => {
+            if (pendingPairing?.request_id) {
+              dismissedPairings.current.add(pendingPairing.request_id)
+            }
+            setPendingPairing(null)
+          }}
+          onResolved={() => {
+            if (pendingPairing?.request_id) {
+              dismissedPairings.current.add(pendingPairing.request_id)
+            }
+            setPendingPairing(null)
+          }}
+        />
+      )}
       <Toasts />
     </div>
   )

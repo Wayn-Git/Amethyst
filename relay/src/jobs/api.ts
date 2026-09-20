@@ -135,14 +135,14 @@ export async function jobsForSync<E extends DispatchEnv>(
 	limit: number,
 ): Promise<Record<string, unknown>> {
 	const store = new JobStore(env.DB);
-	const [ready, pending, counts] = await Promise.all([
-		store.collectable(limit),
-		store.pending(limit),
+	// Two queries instead of three: UNION the two job lists, counts stays separate.
+	const [bundle, counts] = await Promise.all([
+		store.syncBundle(limit),
 		store.counts(),
 	]);
 	return {
-		ready: ready.map(desktopView),
-		pending: pending.map(publicView),
+		ready: bundle.ready.map(desktopView),
+		pending: bundle.pending.map(publicView),
 		counts,
 	};
 }

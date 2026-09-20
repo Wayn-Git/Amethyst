@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, ValidationError
 
 from backend import jobs
@@ -33,6 +33,7 @@ from backend.automation import (
     RUN_TIMEOUT_SECONDS,
     AutomationError,
     AutomationRepository,
+    AutomationRunRepository,
     AutomationRunner,
 )
 from backend.automation import (
@@ -47,10 +48,14 @@ from backend.db.repositories import (
     ExecutionLogRepository,
     MessageRepository,
 )
+# `backend.mcp.manager` is deliberately NOT imported in this block. It pulls in
+# the `mcp` package, which was 393ms of the 1.13s this module cost to import --
+# and that import sits between pressing the application icon and seeing a
+# window. All three uses of it are inside functions, so it is imported there and
+# paid by the first turn that needs a connector instead of by every launch.
 from backend.instagram.runner import InstagramRunner
 from backend.journal.runner import JournalRunner
 from backend.mcp import live
-from backend.mcp.manager import STARTUP_DEADLINE_SECONDS, MCPManager
 from backend.reminders import ReminderRunner
 from backend.runtime import availability
 from backend.runtime.http import close_clients
@@ -153,6 +158,70 @@ _runner = AutomationRunner(lambda callback: _LazyDirector(callback))
 # no-op; one that hands the choice to a model cannot, so a run whose process
 # died is checked against `execution_logs` before anything repeats it. See
 # `backend.jobs.replayable_after_crash`.
+# A turn somebody asked for from their phone.
+#
+# The same shape as the automation handler below and for the same reason: it
+# runs a turn with nobody watching, so the work has to survive the process that
+# started it. What is different is where the request came from -- an intent that
+# `backend/sync/intents.py` already checked -- and that the transcript it writes
+# is swept back out to the phone by the next poll, so the answer appears there
+# without anything streaming to it.
+def sync_intents_kind() -> str:
+    from backend.sync.intents import TURN_JOB_KIND
+
+    return TURN_JOB_KIND
+
+
+#: How a remote turn gets its director. A module-level seam rather than a
+#: hardcoded call so the handler can be driven without a provider key -- the
+#: loop around the director (settling the intent, surfacing an error, counting
+#: what was said) is the part a phone depends on, and it deserves a test that
+#: does not need a model to answer.
+_remote_director_for = lambda: _LazyDirector(lambda *_a, **_k: None)
+
+
+async def _run_remote_turn(job, store) -> dict:
+    from backend.sync import intents as sync_intents
+
+    conversation_id = job.payload.get("conversation_id")
+    text = job.payload.get("text") or ""
+    shown = []
+    async for event in _remote_director_for().run(conversation_id, text):
+        if event.type in ("assistant_delta", "assistant_text"):
+            shown.append(event.data.get("text") or "")
+        elif event.type == "error":
+            raise RuntimeError(event.data.get("message") or "the turn failed")
+
+    # The intent is settled here rather than in the handler's caller so a job
+    # that was retried settles once, on the attempt that finished.
+    try:
+        from backend.db.connection import get_connection, transaction
+        from backend.sync import service as sync_service
+
+        conn = get_connection()
+        with transaction(conn):
+            sync_intents.settle(
+                conn, sync_service.clock(conn), job.payload.get("intent_id"), "done",
+            )
+    except Exception:
+        log.exception("the remote turn ran but its intent could not be settled")
+    return {"characters": sum(len(part) for part in shown)}
+
+
+jobs.register(
+    jobs.Handler(
+        kind=sync_intents_kind(),
+        run=_run_remote_turn,
+        backoff_base=60.0,
+        backoff_cap=1800.0,
+        # One retry, like an automation, and for the same reason: the model
+        # chooses the tool calls, so a replay cannot be promised to be a no-op.
+        max_attempts=2,
+        lease_seconds=RUN_TIMEOUT_SECONDS + 60.0,
+        auto_retry_after_crash=False,
+    )
+)
+
 jobs.register(
     jobs.Handler(
         kind=AUTOMATION_JOB_KIND,
@@ -171,7 +240,10 @@ jobs.register(
         auto_retry_after_crash=False,
     )
 )
-_automation_lane = jobs.JobRunner([AUTOMATION_JOB_KIND], name="automations")
+# A remote turn gets the automation lane's company rather than a lane of its
+# own: both run a turn, both take minutes, and one person's phone cannot ask for
+# two at once faster than one lane can take them.
+_automation_lane = jobs.JobRunner([AUTOMATION_JOB_KIND, sync_intents_kind()], name="automations")
 _runner.lane = _automation_lane
 
 # Fan-out batches (`backend/workers/batch.py`). Its own lane, and that is the
@@ -293,6 +365,8 @@ async def _manager_with(name: str):
     #
     # Bounded as well, and not cancelled at the deadline: it lands when it
     # lands, and `_mcp["errors"]` is resynced by the next reconcile.
+    from backend.mcp.manager import STARTUP_DEADLINE_SECONDS
+
     await manager.start_one(config, deadline=STARTUP_DEADLINE_SECONDS)
     if name in manager.errors:
         _mcp["errors"][name] = manager.errors[name]
@@ -330,6 +404,35 @@ _instagram = InstagramRunner()
 # a bookmark fetches a page and summarises it, and that is minutes of work the
 # other loops should not be waiting behind.
 _browser = BrowserRunner()
+
+
+async def _stale_subagent_cleanup_loop() -> None:
+    """Periodically clean up stale subagents with expired heartbeats.
+
+    Runs every 60s. Marks subagents as failed if no heartbeat within 1200s (20 min)
+    or if running for more than 3600s (1 hour) without completion.
+    """
+    from backend.db.repositories import SubagentSessionRepository
+
+    while True:
+        await asyncio.sleep(60)
+        try:
+            repo = SubagentSessionRepository()
+            # Find running subagents with stale heartbeats
+            stale = repo.stale_sessions(idle_seconds=1200)
+            for row in stale:
+                session_id = row["id"]
+                log.warning(
+                    "auto-cancelling stale subagent %s (no heartbeat > 1200s)",
+                    session_id,
+                )
+                repo.update_status(
+                    session_id,
+                    "failed",
+                    error="subagent heartbeat timeout: no response for over 20 minutes",
+                )
+        except Exception:
+            log.debug("stale subagent cleanup pass failed", exc_info=True)
 
 
 @asynccontextmanager
@@ -450,16 +553,30 @@ async def _lifespan(_: FastAPI):
     async def _start_connectors() -> None:
         began = time.monotonic()
         try:
+            # `backend.mcp.manager` is no longer imported at module scope (it
+            # cost 393ms of a 1.1s import on the launch path), so this is where
+            # that cost lands. In a thread, because an import is blocking work
+            # and doing it on the event loop would stall every request racing
+            # the boot -- including the readiness check the desktop shell is
+            # waiting on.
+            import importlib
+
+            await asyncio.to_thread(importlib.import_module, "backend.mcp.manager")
             await _registry_for(None, reconcile_deadline=BOOT_STARTUP_SECONDS)
             log.info("connectors started in %.1fs", time.monotonic() - began)
         except Exception:
             log.exception("the boot-time connector start failed")
 
     _boot_connectors = asyncio.create_task(_start_connectors())
+    # Stale subagent cleanup: runs every 60s, marks heartbeated-out subagents as failed
+    _stale_cleanup_task = asyncio.create_task(_stale_subagent_cleanup_loop())
     yield
     # First: these are the only responses that would otherwise still be open when
     # the grace period expires.
     close_control_streams()
+    _stale_cleanup_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await _stale_cleanup_task
     await _browser.stop()
     await _instagram.stop()
     await _journal.stop()
@@ -480,7 +597,177 @@ async def _lifespan(_: FastAPI):
     await close_clients()
 
 
+#: What answers a caller that is not this machine.
+#:
+#: ADR-0011 declined to build authentication because the boundary was the
+#: operating system's own user account, and `serve` binds to loopback so that
+#: held. Then `--host 0.0.0.0` printed a warning and published the lot -- and
+#: the reason people pass it is the ordinary one: they want to open Amethyst on
+#: their phone. So the warning was aimed at exactly the person with a good
+#: reason to ignore it, and what they got for it was a shell, their files and
+#: their mail on the local network.
+#:
+#: This is the smallest thing that makes that bind survivable. From anywhere but
+#: this machine, only these answer:
+#:
+#:   - the built interface, which is static files and the point of binding wide
+#:   - `/api/ping`, which the interface uses to decide whether a backend exists
+#:     and which says nothing but that one
+#:   - `/api/pair/claim`, the pairing handshake -- unauthenticated by necessity,
+#:     because a device with no credential is what it exists to give one to, and
+#:     safe for the same reason the relay's `/pair` is: the 160-bit secret from
+#:     the QR code is the only thing that opens it
+#:
+#: Everything else is 403. Not 404: pretending the route does not exist would
+#: make a misconfiguration look like a bug in the client.
+#:
+#: **This does nothing behind a reverse proxy**, where every request arrives
+#: from loopback. That is the deployment `docs/deployment.md` describes, and the
+#: proxy is where authentication belongs in it. This defends the case the proxy
+#: is not there for: somebody on their own network, with no proxy, who wanted
+#: their phone to reach this.
+_PUBLIC_PATHS = frozenset({"/api/ping", "/api/pair/claim"})
+
+#: Set by `amethyst serve` to the address it bound, before uvicorn starts.
+#:
+#: An environment variable rather than a module global because `--reload` runs
+#: the application in a child process, which inherits the environment and not
+#: the parent's memory.
+BIND_HOST_ENV = "AMETHYST_BIND_HOST"
+#: And the port, which `backend/sync/devices.py` needs to build the address a
+#: phone opens this app at. Same reasoning: the child process of `--reload`
+#: inherits the environment and not the parent's memory.
+BIND_PORT_ENV = "AMETHYST_BIND_PORT"
+
+
+def _bound_wide() -> bool:
+    """Is this server reachable from anywhere but this machine?
+
+    When it is not -- the default, and every test -- the operating system is
+    already the boundary ADR-0011 relies on, nothing off-machine can open a
+    socket to it at all, and the check below is pure risk: a peer address it
+    reads as unfamiliar would refuse a request that could only have come from
+    here. So the guard engages exactly when there is something to guard.
+    """
+    return not _is_local(os.environ.get(BIND_HOST_ENV, "127.0.0.1").strip() or "127.0.0.1")
+
+
+def _is_local(host: str | None) -> bool:
+    """Whether an address is this machine. Anything unrecognised is not."""
+    if not host:
+        return False
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        # A hostname rather than an address. `localhost` is the only one that
+        # can be answered without a lookup, and a DNS round trip on the request
+        # path deciding an authorisation question is not one worth having.
+        return host == "localhost"
+
+
+class RemoteCallerGuard:
+    """Refuse an unauthenticated non-local caller anything but the interface and pairing.
+
+    Authenticated paired devices (presenting their bearer token) are allowed access to
+    their authorized permission scopes.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket") or not _bound_wide():
+            return await self.app(scope, receive, send)
+        client = scope.get("client")
+        if _is_local(client[0] if client else None):
+            return await self.app(scope, receive, send)
+
+        path = scope.get("path", "")
+        # Public paths (ping, pairing claim handshake)
+        if not path.startswith("/api/") or path in _PUBLIC_PATHS or path == "/api/pair/claim":
+            return await self.app(scope, receive, send)
+
+        # The preflight still has to be answered
+        if scope["type"] == "http" and scope.get("method") == "OPTIONS":
+            return await self.app(scope, receive, send)
+
+        # Extract bearer token from header or query string
+        token = ""
+        headers = dict(scope.get("headers", []))
+        auth_header = headers.get(b"authorization", b"").decode("latin1")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        elif b"x-amethyst-device-token" in headers:
+            token = headers[b"x-amethyst-device-token"].decode("latin1").strip()
+
+        if not token:
+            query = scope.get("query_string", b"").decode("latin1")
+            if "token=" in query:
+                from urllib.parse import parse_qs
+
+                token = parse_qs(query).get("token", [""])[0]
+
+        if token:
+            from backend.db.connection import get_connection
+            from backend.sync import devices as sync_devices
+
+            conn = get_connection()
+            device = sync_devices.authenticate(conn, token)
+            if device and device.revoked_at is None:
+                scope["device"] = device
+                perms = device.permissions
+
+                # Scope enforcement
+                if (path.startswith("/api/terminal") or path.startswith("/ws/terminal")) and not perms.get("terminal", True):
+                    if scope["type"] == "websocket":
+                        return await send({"type": "websocket.close", "code": 1008})
+                    res = JSONResponse({"detail": "Device lacks terminal permission"}, status_code=403)
+                    return await res(scope, receive, send)
+
+                if path.startswith("/api/remote/power") and not perms.get("power", True):
+                    res = JSONResponse({"detail": "Device lacks power control permission"}, status_code=403)
+                    return await res(scope, receive, send)
+
+                if (path.startswith("/api/remote/camera") or path.startswith("/api/remote/webcam")) and not perms.get("webcam", True):
+                    res = JSONResponse({"detail": "Device lacks webcam permission"}, status_code=403)
+                    return await res(scope, receive, send)
+
+                if (path.startswith("/api/remote/screen") or path.startswith("/api/remote/screenshot")) and not perms.get("screen", True):
+                    res = JSONResponse({"detail": "Device lacks screen permission"}, status_code=403)
+                    return await res(scope, receive, send)
+
+                if path.startswith("/api/remote/audio") and not (perms.get("mic", True) or perms.get("audio", True)):
+                    res = JSONResponse({"detail": "Device lacks audio permission"}, status_code=403)
+                    return await res(scope, receive, send)
+
+                if path.startswith("/api/remote/files") and not perms.get("files", True):
+                    res = JSONResponse({"detail": "Device lacks file transfer permission"}, status_code=403)
+                    return await res(scope, receive, send)
+
+                if path.startswith("/api/remote/input") and not perms.get("input", True):
+                    res = JSONResponse({"detail": "Device lacks input permission"}, status_code=403)
+                    return await res(scope, receive, send)
+
+                return await self.app(scope, receive, send)
+
+        if scope["type"] == "websocket":
+            return await send({"type": "websocket.close", "code": 1008})
+        response = JSONResponse(
+            {
+                "detail": "This machine only answers the full API on its own loopback address. Pair a device instead -- Settings, Devices.",
+            },
+            status_code=403,
+        )
+        return await response(scope, receive, send)
+
+
 app = FastAPI(title="AMETHYST", version="0.1.0", lifespan=_lifespan)
+# Added before CORS, which means it runs inside it: the last middleware added is
+# the outermost, so a 403 from the guard still comes back with the headers a
+# browser needs to read it.
+app.add_middleware(RemoteCallerGuard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
@@ -489,6 +776,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(terminal_router)
+from backend.remote import router as remote_router
+
+# Remote control and companion APIs
+app.include_router(remote_router)
+
+
+@app.post("/api/pair/claim")
+def claim_pairing(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    """Complete a pairing without the relay, for a device that can reach this
+    machine directly."""
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    conn = get_connection()
+    client_ip = request.client.host if request.client else ""
+    body_with_meta = dict(body)
+    body_with_meta["client_ip"] = client_ip
+    body_with_meta["user_agent"] = request.headers.get("user-agent", "")
+
+    with transaction(conn):
+        answer = sync_devices.accept(conn, body_with_meta, auto_approve=False)
+    if answer is None:
+        raise HTTPException(404, "no pairing is open, or that offer did not open one")
+    if answer.get("refused") == "expired":
+        raise HTTPException(410, "that code has expired")
+    return answer
+
+
+@app.get("/api/pair/claim")
+def check_pairing_claim(request_id: str) -> dict[str, Any]:
+    """Check pairing status for direct LAN pairing while phone waits for PC approval."""
+    from backend.sync import devices as sync_devices
+
+    status = sync_devices.get_pairing_status(request_id)
+    if status is None:
+        raise HTTPException(404, "pairing request not found")
+    if status.get("refused") == "expired":
+        raise HTTPException(410, "that code has expired")
+    if status.get("refused") == "rejected":
+        raise HTTPException(403, "pairing was rejected by the computer")
+    if status.get("refused") == "pending_approval":
+        return {"request_id": request_id, "refused": "pending_approval"}
+    return status
 
 # Confirmations awaiting a decision from the interface, keyed by request id.
 _pending: dict[str, dict[str, Any]] = {}
@@ -735,6 +1065,8 @@ async def _registry_locked(
         registry = build_default_registry(
             ConfirmationService(callback=_await_confirmation), workspace_root=root
         )
+        from backend.mcp.manager import MCPManager
+
         manager = MCPManager(registry, open_browser=False)
         _mcp.update(
             {"manager": manager, "registry": registry, "workspace": root, "errors": {}}
@@ -786,6 +1118,8 @@ async def _registry_locked(
     registry = build_default_registry(
         ConfirmationService(callback=_await_confirmation), workspace_root=root
     )
+    from backend.mcp.manager import MCPManager
+
     manager = MCPManager(registry, open_browser=False)
     errors: dict[str, str] = {}
     try:
@@ -838,11 +1172,18 @@ async def _director(
     model_id: str | None = None,
     conversation_id: str | None = None,
     guard: str | None = None,
+    depth: str | None = None,
 ) -> Director:
     from backend.agent.director import Guards
     from backend.config import load_max_iterations
     from backend.runtime.types import ModelParameters
-    from backend.runtime.variant_store import resolve, set_session_effort
+    from backend.runtime.variant_store import (
+        depth_max_tokens,
+        resolve,
+        resolve_depth,
+        set_session_depth,
+        set_session_effort,
+    )
     from backend.security.confirmation import ConfirmationService, ConfirmationRequest
 
     registry, root = await _registry_for(workspace, reconcile_deadline=reconcile_deadline)
@@ -894,8 +1235,25 @@ async def _director(
     # Remember the effort used in this conversation for next time
     if conversation_id and resolved_effort:
         set_session_effort(conversation_id, resolved_effort)
-    params = ModelParameters(reasoning_effort=resolved_effort) if resolved_effort else None
-    return Director(registry, workspace_root=root, stream=True, mode=mode, guards=guards, params=params)
+    # Depth is independent of effort: `answer_tokens` is room for the answer,
+    # `reasoning_effort` is room to think. Setting `max_tokens` here instead
+    # would clamp the thinking budget back down -- see `_budget_and_max_tokens`.
+    resolved_depth = resolve_depth(depth, conversation_id=conversation_id)
+    if conversation_id:
+        set_session_depth(conversation_id, resolved_depth)
+    params = ModelParameters(
+        reasoning_effort=resolved_effort or None,
+        answer_tokens=depth_max_tokens(resolved_depth),
+    )
+    return Director(
+        registry,
+        workspace_root=root,
+        stream=True,
+        mode=mode,
+        guards=guards,
+        params=params,
+        depth=resolved_depth,
+    )
 
 
 
@@ -945,12 +1303,16 @@ _control_loop: asyncio.AbstractEventLoop | None = None
 # Listeners inside this process rather than on the other end of a stream: the
 # tray's own native window, which has an OS window to raise as well as a palette
 # to open. A browser tab can only be told; a window we own can be shown.
-_control_listeners: list[Any] = []
+#
+# Keyed by action, because there are two of them now and they are not the same
+# request: "show the palette" is a thing any open interface can do, and "raise
+# the application window" is a thing only a process that owns an OS window can.
+_control_listeners: dict[str, list[Any]] = {}
 
 
-def on_palette(callback: Any) -> None:
-    """Run `callback` whenever a palette is asked for. Used by backend/desktop.py."""
-    _control_listeners.append(callback)
+def on_control(action: str, callback: Any) -> None:
+    """Run `callback(body)` whenever `action` is asked for. Used by backend/desktop.py."""
+    _control_listeners.setdefault(action, []).append(callback)
 
 
 def close_control_streams() -> None:
@@ -1005,25 +1367,120 @@ async def control_stream() -> StreamingResponse:
     )
 
 
-@app.post("/api/control/palette")
-def open_palette() -> dict[str, Any]:
-    """Ask every open interface to show the command palette.
+#: Every control action there is. An allowlist rather than a free-form path,
+#: because this endpoint is reachable from anything that can open a loopback
+#: socket and "whatever the caller typed" is not a set worth having.
+_CONTROL_ACTIONS = frozenset({"palette", "show"})
 
-    `delivered` is how the caller knows whether anything heard it: zero means
-    nothing is open, and the tray answers that by opening a window at
-    `/?cmd=palette` instead.
+
+@app.post("/api/control/{action}")
+async def control(action: str, request: Request) -> dict[str, Any]:
+    """Ask the running AMETHYST to do one window thing.
+
+    `palette` shows the command palette; `show` raises the application window.
+
+    Two counts come back, and they answer different questions. `delivered` is
+    whether anything at all heard it -- zero means nothing is open, and the
+    caller answers that by opening a window itself. `native` is whether a
+    *desktop shell* heard it, which is how a second launch tells "AMETHYST is
+    already running with windows" from "a bare `amethyst serve` owns this port"
+    from "something else entirely is on 8000". That three-way answer is the
+    whole single-instance mechanism; see `backend/desktop.py`.
     """
-    frame = _frame("palette")
+    if action not in _CONTROL_ACTIONS:
+        raise HTTPException(status_code=404, detail=f"no such control action: {action}")
+    body: dict[str, Any] = {}
+    with contextlib.suppress(Exception):
+        if request.headers.get("content-type", "").startswith("application/json"):
+            parsed = await request.json()
+            if isinstance(parsed, dict):
+                body = parsed
+    return control_push(action, body)
+
+
+def control_push(action: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Fan one action out to every stream and every in-process window.
+
+    Split out of the endpoint so it can be called without a Request -- by the
+    tests, and by anything in-process that wants to raise a window without
+    talking to itself over a socket.
+    """
+    frame = _frame(action)
     for queue in list(_control_subscribers):
         queue.put_nowait(frame)
-    for callback in list(_control_listeners):
+    native = _control_listeners.get(action, [])
+    for callback in list(native):
         try:
-            callback()
+            callback(body or {})
         except Exception:
             # A window that cannot be raised is not a reason to fail the request:
-            # the palette still went to every stream that was listening.
+            # the action still went to every stream that was listening.
             log.exception("a control listener failed")
-    return {"delivered": len(_control_subscribers) + len(_control_listeners)}
+    return {
+        "delivered": len(_control_subscribers) + len(native),
+        "native": len(native),
+    }
+
+
+def broadcast_control(event_type: str, **data: Any) -> None:
+    frame = _frame(event_type, **data)
+
+    def _deliver() -> None:
+        for queue in list(_control_subscribers):
+            try:
+                queue.put_nowait(frame)
+            except Exception:
+                pass
+
+    loop = _control_loop
+    if loop is not None and not loop.is_closed():
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+        if current_loop is loop:
+            _deliver()
+        else:
+            loop.call_soon_threadsafe(_deliver)
+    else:
+        _deliver()
+
+
+def _on_pending_pairing_event(event: dict[str, Any]) -> None:
+    broadcast_control("pairing_request", **event)
+    name = event.get("name") or "Device"
+
+    async def _send_desktop_notification() -> None:
+        try:
+            from backend import notify as desktop_notify
+
+            await desktop_notify.notify(
+                "Amethyst · Device Pairing Request",
+                f"'{name}' is requesting to pair with your PC. Review permissions and approve in Amethyst.",
+            )
+        except Exception:
+            pass
+
+    loop = _control_loop
+    if loop is not None and not loop.is_closed():
+        loop.create_task(_send_desktop_notification())
+
+
+def _on_camera_event(event: dict[str, Any]) -> None:
+    broadcast_control("camera_state", **event)
+
+
+def _on_mic_event(event: dict[str, Any]) -> None:
+    broadcast_control("mic_state", **event)
+
+
+from backend.sync import devices as sync_devices
+sync_devices.add_pairing_listener(_on_pending_pairing_event)
+
+from backend.remote.camera import add_camera_listener
+from backend.remote.audio import add_mic_listener
+add_camera_listener(_on_camera_event)
+add_mic_listener(_on_mic_event)
 
 
 # A registry built only to count tools for /api/health and /api/tools before
@@ -1703,6 +2160,93 @@ def create_conversation(body: CreateConversation) -> dict[str, str]:
     return {"id": cid}
 
 
+class BranchConversation(BaseModel):
+    from_message_id: int | None = None
+    title: str | None = None
+
+
+@app.post("/api/conversations/{conversation_id}/branch")
+def branch_conversation(conversation_id: str, body: BranchConversation) -> dict[str, Any]:
+    """Branch a conversation up to a specific message, copying settings, history, and artifacts."""
+    from backend.db.repositories import ConversationRepository, MessageRepository, ResponseArtifactRepository
+
+    conv_repo = ConversationRepository()
+    msg_repo = MessageRepository()
+    art_repo = ResponseArtifactRepository()
+
+    source = conv_repo.get(conversation_id)
+    if source is None:
+        raise HTTPException(404, "no such conversation")
+
+    history = msg_repo.history(conversation_id)
+    if body.from_message_id is not None:
+        cutoff = -1
+        for idx, msg in enumerate(history):
+            if msg.id == body.from_message_id:
+                cutoff = idx
+                break
+        messages_to_copy = history[: cutoff + 1] if cutoff >= 0 else history
+    else:
+        messages_to_copy = history
+
+    new_title = body.title
+    if not new_title:
+        user_msg = next((m for m in messages_to_copy if m.role == "user" and m.content), None)
+        if user_msg and user_msg.content:
+            new_title = f"Branch: {user_msg.content[:40].strip()}"
+        else:
+            base = source["title"] or "Chat"
+            new_title = f"Branch: {base}"
+
+    new_cid = conv_repo.create(
+        provider=source["provider"],
+        model=source["model"],
+        title=new_title,
+    )
+
+    if "fallback" in source.keys() and source["fallback"]:
+        try:
+            raw_fb = source["fallback"]
+            fb = json.loads(raw_fb) if isinstance(raw_fb, str) else raw_fb
+            if isinstance(fb, list):
+                conv_repo.update(new_cid, fallback=fb)
+        except Exception:
+            pass
+
+    copied_count = 0
+    for msg in messages_to_copy:
+        new_mid = msg_repo.append(
+            new_cid,
+            role=msg.role,
+            content=msg.content,
+            tool_calls=msg.tool_calls,
+            tool_call_id=msg.tool_call_id,
+            tool_name=msg.tool_name,
+            is_error=msg.is_error,
+            token_count=getattr(msg, "token_count", None),
+        )
+        copied_count += 1
+        if msg.pinned:
+            msg_repo.set_pinned(new_cid, new_mid, True)
+
+        art = art_repo.get_by_message(conversation_id, msg.id)
+        if art:
+            new_art = art_repo.get_or_create(new_cid, new_mid, art["original_content"])
+            if art.get("current_content") and art["current_content"] != art["original_content"]:
+                art_repo.save_version(
+                    new_art["id"],
+                    art["current_content"],
+                    author="user",
+                    change_summary="Copied from branched conversation",
+                )
+
+    return {
+        "id": new_cid,
+        "title": new_title,
+        "messages_copied": copied_count,
+    }
+
+
 class UpdateConversation(BaseModel):
     title: str | None = None
     provider: str | None = None
@@ -2017,6 +2561,233 @@ def list_pins(conversation_id: str) -> list[dict[str, Any]]:
     ]
 
 
+class ArtifactUpdate(BaseModel):
+    content: str
+    change_summary: str | None = None
+
+
+class ArtifactRevert(BaseModel):
+    version: int
+
+
+class ExportDocxRequest(BaseModel):
+    markdown: str
+    title: str | None = None
+
+
+class AiTransformRequest(BaseModel):
+    text: str
+    action: str = "rewrite"
+    instruction: str | None = None
+
+
+@app.get("/api/conversations/{conversation_id}/messages/{message_id}/artifact")
+def get_message_artifact(conversation_id: str, message_id: int) -> dict[str, Any]:
+    from backend.db.repositories import ConversationRepository, MessageRepository, ResponseArtifactRepository
+
+    if ConversationRepository().get(conversation_id) is None:
+        raise HTTPException(404, "no such conversation")
+
+    messages = MessageRepository().history(conversation_id)
+    target_msg = next((m for m in messages if m.id == message_id), None)
+    if not target_msg:
+        raise HTTPException(404, "no such message in this conversation")
+
+    repo = ResponseArtifactRepository()
+    artifact = repo.get_or_create(
+        conversation_id,
+        message_id,
+        target_msg.content or "",
+        artifact_type="response",
+        metadata={"role": target_msg.role, "tool_name": target_msg.tool_name},
+    )
+    return artifact
+
+
+@app.post("/api/conversations/{conversation_id}/messages/{message_id}/artifact")
+def update_message_artifact(
+    conversation_id: str, message_id: int, body: ArtifactUpdate
+) -> dict[str, Any]:
+    from backend.db.repositories import ConversationRepository, MessageRepository, ResponseArtifactRepository
+
+    if ConversationRepository().get(conversation_id) is None:
+        raise HTTPException(404, "no such conversation")
+
+    repo = ResponseArtifactRepository()
+    artifact_id = repo.identify(conversation_id, message_id)
+    if not repo.get(artifact_id):
+        messages = MessageRepository().history(conversation_id)
+        target_msg = next((m for m in messages if m.id == message_id), None)
+        if not target_msg:
+            raise HTTPException(404, "no such message in this conversation")
+        repo.get_or_create(conversation_id, message_id, target_msg.content or "")
+
+    return repo.save_version(
+        artifact_id,
+        body.content,
+        author="user",
+        change_summary=body.change_summary or "Edited by user",
+    )
+
+
+@app.post("/api/conversations/{conversation_id}/messages/{message_id}/artifact/revert")
+def revert_message_artifact(
+    conversation_id: str, message_id: int, body: ArtifactRevert
+) -> dict[str, Any]:
+    from backend.db.repositories import ResponseArtifactRepository
+
+    repo = ResponseArtifactRepository()
+    artifact_id = repo.identify(conversation_id, message_id)
+    if not repo.get(artifact_id):
+        raise HTTPException(404, "no such artifact")
+
+    try:
+        return repo.revert_to_version(artifact_id, body.version)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post("/api/export/docx")
+def export_docx(body: ExportDocxRequest):
+    from fastapi.responses import Response
+    from backend.web.exporter import markdown_to_docx
+
+    docx_bytes = markdown_to_docx(body.markdown, title=body.title)
+    filename = re.sub(r"[^\w\-.]", "_", (body.title or "document").strip()) + ".docx"
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _fallback_transform(text: str, action: str, instruction: str = "") -> str:
+    instr = (instruction or "").lower()
+    if "bullet" in instr or "list" in instr:
+        lines = [s.strip() for s in re.split(r"(?<=[.!?\n])\s+", text) if s.strip()]
+        return "\n".join(f"- {line}" for line in lines)
+    if "check" in instr or "todo" in instr:
+        lines = [s.strip() for s in re.split(r"(?<=[.!?\n])\s+", text) if s.strip()]
+        return "\n".join(f"- [ ] {line}" for line in lines)
+    if "heading" in instr or "title" in instr:
+        clean = re.sub(r"^#+\s*", "", text).strip()
+        return f"## {clean}"
+    if "table" in instr:
+        lines = [s.strip() for s in re.split(r"(?<=[.!?\n])\s+", text) if s.strip()]
+        rows = "\n".join(f"| {i+1} | {line} |" for i, line in enumerate(lines))
+        return f"| # | Item |\n|---|---|\n{rows}"
+
+    if action == "shorten":
+        condensed = re.sub(r"\b(in order to|as a matter of fact|it is important to note that|at this point in time|for the purpose of)\b\s*", "", text, flags=re.I)
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", condensed) if s.strip()]
+        if len(sentences) > 1:
+            return " ".join(sentences[:max(1, int(len(sentences) * 0.6))])
+        clauses = [c.strip() for c in re.split(r"[,;]", condensed) if c.strip()]
+        return ", ".join(clauses[:max(1, len(clauses) // 2 + 1)]) + "."
+
+    if action == "expand":
+        base = text.rstrip(".!?")
+        return f"{base}. Furthermore, this development introduces comprehensive operational nuances and depth that warrant close attention across related domains."
+
+    if action == "fix_grammar":
+        fixed = re.sub(r"\b(\w+)\s+\1\b", r"\1", text, flags=re.I)
+        fixed = re.sub(r"\s+([,.;:!?])", r"\1", fixed)
+        sentences = re.split(r"([.!?]\s*)", fixed)
+        fixed_s = "".join(s.capitalize() if not re.match(r"^[.!?]\s*$", s) else s for s in sentences)
+        return fixed_s.strip()
+
+    if action == "professional":
+        subs = [
+            (r"\ba lot of\b", "substantial"),
+            (r"\blook into\b", "investigate"),
+            (r"\bfigure out\b", "determine"),
+            (r"\bget\b", "obtain"),
+            (r"\bshow\b", "demonstrate"),
+            (r"\bbig\b", "significant"),
+            (r"\bstuff\b", "elements"),
+            (r"\bmake sure\b", "ensure"),
+        ]
+        res = text
+        for pat, rep in subs:
+            res = re.sub(pat, rep, res, flags=re.I)
+        return res
+
+    if action == "casual":
+        subs = [
+            (r"\butilize\b", "use"),
+            (r"\bdemonstrate\b", "show"),
+            (r"\bfacilitate\b", "help"),
+            (r"\bcommence\b", "start"),
+            (r"\bterminate\b", "end"),
+            (r"\bsubstantial\b", "huge"),
+        ]
+        res = text
+        for pat, rep in subs:
+            res = re.sub(pat, rep, res, flags=re.I)
+        return res
+
+    # action == "rewrite" / general polish
+    polished = re.sub(r"\b(very|really|basically|actually|literally)\b\s*", "", text, flags=re.I)
+    polished = re.sub(r"\s{2,}", " ", polished).strip()
+    if instruction and not any(k in instr for k in ("improve", "rewrite", "polish")):
+        return f"{polished} ({instruction.strip().capitalize()})"
+    return f"{polished} (Refined for clarity and flow)"
+
+
+@app.post("/api/ai/transform")
+async def ai_transform_text(body: AiTransformRequest) -> dict[str, Any]:
+    """Perform targeted AI transformation on a selected passage of text."""
+    from backend.runtime.registry import default_chain, resolve
+    from backend.runtime.types import ModelParameters
+
+    text = body.text.strip()
+    if not text:
+        return {"result": text, "transformed": text}
+
+    action_instructions = {
+        "rewrite": "Rewrite the text to improve clarity, flow, and expression while preserving all core facts.",
+        "shorten": "Make the text significantly more concise, removing filler and redundancy while keeping all key points.",
+        "expand": "Expand the text with explanatory detail, examples, and depth while maintaining the author's voice.",
+        "fix_grammar": "Correct all grammar, spelling, punctuation, and typos without altering the meaning.",
+        "professional": "Rewrite the text with an authoritative, polished, and professional tone.",
+        "casual": "Rewrite the text with an approachable, conversational, and direct tone.",
+    }
+    instruction = body.instruction or action_instructions.get(body.action, "Improve the text.")
+
+    system_prompt = (
+        "You are an expert text editor. Your task is to transform ONLY the provided text according to "
+        "the instruction. Return ONLY the transformed text without preamble, pleasantries, or explanations."
+    )
+    user_prompt = f"Instruction: {instruction}\n\nText:\n{text}"
+
+    links = default_chain(limit=3)
+    if links:
+        for link in links:
+            try:
+                model = resolve(link.provider, link.model)
+                resp = await asyncio.wait_for(
+                    model.client.complete(
+                        [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        tools=None,
+                        params=ModelParameters(max_tokens=1500),
+                    ),
+                    timeout=15.0,
+                )
+                if resp.text:
+                    ans = resp.text.strip()
+                    if ans:
+                        return {"result": ans, "transformed": ans}
+            except Exception:
+                continue
+
+    fallback = _fallback_transform(text, body.action, body.instruction)
+    return {"result": fallback, "transformed": fallback}
+
+
+
 #: "chat" acts; "plan" looks and hands back steps for approval. A field rather
 #: than a sentence prepended to the message: the sentence was persisted into the
 #: transcript and replayed on every later turn, and nothing on this side even
@@ -2048,10 +2819,14 @@ class TurnRequest(BaseModel):
     effort: str | None = None
     variant: str | None = None
     model: str | None = None
+    #: brief | standard | deep. How much answer, as opposed to how much
+    #: thinking -- `effort` is the other one. Unset means "whatever this
+    #: conversation last used, else the saved default".
+    depth: str | None = None
 
 
 @app.post("/api/conversations/{conversation_id}/turn")
-async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse:
+async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: BackgroundTasks) -> StreamingResponse:
     global _connectors_warm
     if ConversationRepository().get(conversation_id) is None:
         raise HTTPException(404, "no such conversation")
@@ -2078,6 +2853,8 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
         if _active_turns.get(conversation_id) is cancel:
             del _active_turns[conversation_id]
 
+    background_tasks.add_task(release)
+
     async def stream():
         global _connectors_warm
         # Whether the reader has been told how the turn ended.
@@ -2102,7 +2879,7 @@ async def run_turn(conversation_id: str, body: TurnRequest) -> StreamingResponse
             # and just need a quick health check, not a cold start wait.
             reconcile_deadline = CONNECTOR_WARM_DEADLINE if _connectors_warm else TURN_STARTUP_SECONDS
             build = asyncio.ensure_future(
-                _director(body.workspace, body.mode, reconcile_deadline=reconcile_deadline, effort=body.effort, variant=body.variant, model_id=body.model, conversation_id=conversation_id, guard=body.guard)
+                _director(body.workspace, body.mode, reconcile_deadline=reconcile_deadline, effort=body.effort, variant=body.variant, model_id=body.model, conversation_id=conversation_id, guard=body.guard, depth=body.depth)
             )
             try:
                 while True:
@@ -2293,22 +3070,28 @@ async def decide_confirmation(request_id: str, body: ConfirmationDecision) -> di
 
 # ------------------------------------------------------------- automations
 #
-# BETA. A turn that runs without anyone typing: a prompt, an interval, and a
-# record of what happened. Two things are deliberately not here -- cron
-# expressions and any trigger that is not the clock -- and one thing is
-# deliberately refused: an unattended turn cannot answer a permission prompt,
-# so it runs with the gate denying anything the user has not already approved
-# standing, and reports `blocked` naming the operation it wanted.
+# A turn that runs without anyone typing: a prompt, a schedule, and a
+# record of what happened. Supports interval, daily_at, and weekly_at
+# scheduling with timezone awareness. Runs while AMETHYST is open, and
+# via GitHub Actions when it is not.
 
 
 class CreateAutomation(BaseModel):
     name: str
     prompt: str
-    every_minutes: int
+    every_minutes: int = 60
     provider: str | None = None
     model: str | None = None
     enabled: bool = True
     capability_profile: str | None = None
+    description: str | None = None
+    schedule_type: str = "interval"
+    daily_at_time: str | None = None
+    weekly_day: int | None = None
+    timezone: str | None = None
+    notification: str = "app"
+    template_id: str | None = None
+    actions: list[str] | None = None
 
 
 class UpdateAutomation(BaseModel):
@@ -2319,6 +3102,13 @@ class UpdateAutomation(BaseModel):
     provider: str | None = None
     model: str | None = None
     capability_profile: str | None = None
+    description: str | None = None
+    schedule_type: str | None = None
+    daily_at_time: str | None = None
+    weekly_day: int | None = None
+    timezone: str | None = None
+    notification: str | None = None
+    actions: list[str] | None = None
 
 
 def _check_capability_profile(name: str | None) -> None:
@@ -2332,10 +3122,24 @@ def _check_capability_profile(name: str | None) -> None:
 
 @app.get("/api/automations")
 def list_automations() -> dict[str, Any]:
+    from backend.automation import system_timezone, unavailable_actions
+
+    rows = AutomationRepository().list()
+    out = []
+    for automation in rows:
+        data = automation.to_json()
+        # Grants it holds that cannot work right now. The row shows this as a
+        # warning instead of waiting for the run to record `blocked`.
+        data["unavailable_actions"] = unavailable_actions(automation)
+        out.append(data)
     return {
         "beta": True,
         "running_while_server_is_up": True,
-        "automations": [a.to_json() for a in AutomationRepository().list()],
+        # What a schedule with no zone of its own is read in, and what the
+        # editor should offer as the default. Sent rather than assumed, because
+        # a hosted backend's zone is not the browser's.
+        "server_timezone": system_timezone(),
+        "automations": out,
     }
 
 
@@ -2353,6 +3157,14 @@ def create_automation(body: CreateAutomation) -> dict[str, Any]:
             model=body.model,
             enabled=body.enabled,
             capability_profile=body.capability_profile,
+            description=body.description,
+            schedule_type=body.schedule_type,
+            daily_at_time=body.daily_at_time,
+            weekly_day=body.weekly_day,
+            timezone=body.timezone,
+            notification=body.notification,
+            template_id=body.template_id,
+            actions=body.actions,
         )
     except AutomationError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -2378,21 +3190,274 @@ def update_automation(automation_id: int, body: UpdateAutomation) -> dict[str, A
             provider=body.provider,
             model=body.model,
             capability_profile=body.capability_profile,
+            description=body.description,
+            schedule_type=body.schedule_type,
+            daily_at_time=body.daily_at_time,
+            weekly_day=body.weekly_day,
+            timezone=body.timezone,
+            notification=body.notification,
+            actions=body.actions,
         )
     except AutomationError as exc:
         raise HTTPException(400, str(exc)) from exc
-    return updated.to_json()  # type: ignore[union-attr]
+    if updated is None:
+        raise HTTPException(404, "no such automation")
+    return updated.to_json()
+
+
+@app.get("/api/automations/runs/recent")
+def list_recent_runs(limit: int = 100) -> dict[str, Any]:
+    """All recent automation runs across all automations, for the Runs tab."""
+    from backend.automation import AutomationRunRepository
+
+    run_repo = AutomationRunRepository()
+    runs = run_repo.recent_runs(limit=limit)
+    # Enrich with automation names
+    repo = AutomationRepository()
+    automations = {a.id: a for a in repo.list()}
+    result = []
+    for run in runs:
+        data = run.to_json()
+        auto = automations.get(run.automation_id)
+        data["automation_name"] = auto.name if auto else "Unknown"
+        result.append(data)
+    return {"runs": result}
+
+
+@app.get("/api/automations/due")
+def list_due_automations() -> dict[str, Any]:
+    """Automations that are due right now. Read-only; the tick below runs them."""
+    due = AutomationRepository().due()
+    return {
+        "automations": [a.to_json() for a in due],
+        "count": len(due),
+    }
+
+
+#: What an external scheduler presents to `POST /api/automations/tick`, and the
+#: only thing it may do. Unset means there is no external scheduler: the
+#: endpoint refuses rather than defaulting open, because this API can read files
+#: and run shell commands and "anybody who knows the URL may start an
+#: unattended agent turn" is not an acceptable default.
+WORKER_TOKEN_ENV = "AMETHYST_WORKER_TOKEN"
+
+
+def _check_worker_token(authorization: str | None) -> None:
+    """Constant-time check of the scheduler's bearer token.
+
+    Nothing about the token reaches a response body, a log line or an error
+    message -- the caller learns only that it was wrong. `compare_digest`
+    because a `!=` on a secret leaks its prefix to anyone patient enough to
+    time the difference.
+    """
+    import secrets as _secrets
+
+    expected = (os.environ.get(WORKER_TOKEN_ENV) or "").strip()
+    if not expected:
+        raise HTTPException(
+            503,
+            f"no external scheduler is configured on this server; set {WORKER_TOKEN_ENV}"
+            " to the same value as the GitHub Actions secret",
+        )
+    presented = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        presented = authorization[7:].strip()
+    if not presented or not _secrets.compare_digest(presented, expected):
+        raise HTTPException(401, "the scheduler token was not accepted")
+
+
+@app.post("/api/automations/tick")
+async def automation_tick(
+    authorization: str = Header(default=""),
+    wait: bool = True,
+) -> dict[str, Any]:
+    """Wake up, run whatever is due, and say what happened.
+
+    **This is the whole of what the external scheduler does.** GitHub Actions
+    holds a cron line and a token; it does not hold automation definitions, a
+    model call, a tool, or any idea of what "due" means. Those live here, on
+    the one copy of the data, behind the one gate. The workflow that existed
+    before this ran its own agent loop against its own JSON copy of the
+    automations, and the two disagreed about timezones and about how often --
+    which is precisely the split this endpoint exists to remove.
+
+    Both schedulers -- this and the in-process tick -- go through
+    `enqueue_due`, and every run claims its slot under a unique index, so a
+    workflow that retries or overlaps cannot produce a second run of the same
+    scheduled execution.
+
+    `wait=true` (the default) holds the response until the queued runs finish,
+    so the workflow's log is the truth about them and a failing automation
+    turns the scheduled job red. It is bounded: the lane is serial and each run
+    has a ceiling, so this cannot outlive the workflow's own timeout.
+    """
+    from backend.automation import RUN_TIMEOUT_SECONDS as _ceiling
+    from backend.automation import enqueue_due
+
+    _check_worker_token(authorization)
+
+    started = enqueue_due()
+    if started:
+        _automation_lane.nudge()
+    if not started:
+        return {"triggered": [], "count": 0, "waited": False}
+
+    if not wait:
+        return {"triggered": started, "count": len(started), "waited": False}
+
+    # One run at a time on this lane, so the wait is bounded by how many came
+    # due together. Capped well under a sensible workflow timeout: a scheduler
+    # that hangs must fail loudly rather than hold a request open.
+    store = jobs.JobStore()
+    deadline = time.monotonic() + min(len(started) * (_ceiling + 30), 600)
+    pending = {item["job_id"] for item in started}
+    while pending and time.monotonic() < deadline:
+        await asyncio.sleep(2.0)
+        for job_id in list(pending):
+            job = store.get(job_id)
+            if job is None or job.state in ("succeeded", "failed", "cancelled"):
+                pending.discard(job_id)
+
+    outcome = []
+    for item in started:
+        job = store.get(item["job_id"])
+        run = AutomationRunRepository().runs_of(item["automation_id"], limit=1)
+        outcome.append(
+            {
+                **item,
+                "state": job.state if job else "unknown",
+                "status": run[0].status if run else None,
+                "summary": run[0].result_summary if run else None,
+            }
+        )
+    return {
+        "triggered": outcome,
+        "count": len(outcome),
+        "waited": True,
+        "unfinished": len(pending),
+    }
+
+
+@app.get("/api/automations/scheduler")
+def automation_scheduler() -> dict[str, Any]:
+    """Whether anything will run these when this process is not running.
+
+    Read by the page, and deliberately honest about the thing that is easy to
+    get wrong: automations run on the machine serving this API. If that is a
+    laptop, closing it stops them, and no GitHub workflow can change that --
+    the workflow's only job is to *wake* a server that is reachable. Saying so
+    on the page is better than a green tick that means nothing.
+    """
+    from backend.automation import TICK_SECONDS, system_timezone
+
+    configured = bool((os.environ.get(WORKER_TOKEN_ENV) or "").strip())
+    runs = AutomationRunRepository()
+    last = runs.conn.execute(
+        "SELECT created_at, automation_id FROM automation_runs"
+        " WHERE trigger = 'scheduled' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    return {
+        # Always true while this responds: the in-process runner is started
+        # with the server.
+        "in_process": True,
+        "tick_seconds": TICK_SECONDS,
+        "external_configured": configured,
+        "external_token_env": WORKER_TOKEN_ENV,
+        "timezone": system_timezone(),
+        "last_scheduled_run_at": last["created_at"] if last else None,
+        "enabled_count": sum(1 for a in AutomationRepository().list() if a.enabled),
+    }
+
+
+@app.get("/api/automations/actions")
+def automation_actions() -> dict[str, Any]:
+    """The grants an automation can hold, and whether each can work right now."""
+    from backend.automation import grantable_actions
+
+    return {"actions": grantable_actions()}
+
+
+@app.get("/api/automations/runs/stats")
+def automation_overall_stats(days: int = 30) -> dict[str, Any]:
+    """Run counts across every automation. What the chart is actually about."""
+    return AutomationRunRepository().overall_stats(days=days)
+
+
+@app.get("/api/automations/runs/{run_id}")
+def automation_run_detail(run_id: int) -> dict[str, Any]:
+    """One run, in full: what ran, what it called, and what it produced.
+
+    The result is read back out of the transcript the run wrote rather than
+    copied into a column, so what the detail shows is the answer that was
+    actually given.
+    """
+    runs = AutomationRunRepository()
+    row = runs.conn.execute(
+        "SELECT * FROM automation_runs WHERE id = ?", (run_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "no such run")
+    from backend.automation import AutomationRun
+
+    run = AutomationRun.from_row(row)
+    automation = AutomationRepository().get(run.automation_id)
+    data = run.to_json()
+    data["automation_name"] = automation.name if automation else "a deleted automation"
+    data["automation_exists"] = automation is not None
+    data["result"] = None
+    if run.conversation_id:
+        said = ConversationRepository().conn.execute(
+            "SELECT content FROM messages WHERE conversation_id = ? AND role = 'assistant'"
+            " AND content IS NOT NULL AND content != '' ORDER BY id DESC LIMIT 1",
+            (run.conversation_id,),
+        ).fetchone()
+        data["result"] = said["content"] if said else None
+    return data
+
+
+@app.get("/api/automations/templates")
+def list_automation_templates(category: str | None = None) -> dict[str, Any]:
+    """Available automation templates."""
+    from backend.automation_templates import list_templates, categories
+
+    templates = list_templates(category)
+    return {
+        "templates": [t.to_json() for t in templates],
+        "categories": categories(),
+    }
 
 
 @app.get("/api/automations/{automation_id}/runs")
-def list_automation_runs(automation_id: int) -> list[dict[str, Any]]:
-    """Every run this automation has kept, newest first.
+def list_automation_runs(automation_id: int, limit: int = 50) -> dict[str, Any]:
+    """Run history for an automation, newest first. Includes both the new
+    automation_runs records and legacy conversation-based runs."""
+    from backend.automation import AutomationRunRepository
 
-    Only the newest was reachable before: `record` overwrites
-    `last_conversation_id`, so every earlier run became unreferenced the moment
-    the next one finished, findable only by scrolling the rail it was flooding.
-    """
-    return [dict(r) for r in ConversationRepository().runs_of(str(automation_id))]
+    run_repo = AutomationRunRepository()
+    runs = run_repo.runs_of(automation_id, limit=limit)
+    # Also include legacy conversation-based runs
+    legacy = [dict(r) for r in ConversationRepository().runs_of(str(automation_id))]
+    return {
+        "runs": [r.to_json() for r in runs],
+        "legacy_runs": legacy,
+    }
+
+
+@app.get("/api/automations/{automation_id}/stats")
+def automation_stats(automation_id: int, days: int = 30) -> dict[str, Any]:
+    """Aggregate stats for run history chart."""
+    from backend.automation import AutomationRunRepository
+
+    return AutomationRunRepository().stats(automation_id, days=days)
+
+
+@app.post("/api/automations/{automation_id}/retry")
+def retry_automation(automation_id: int) -> dict[str, Any]:
+    """Retry a failed automation. Same as Run now but with trigger=manual."""
+    automation = AutomationRepository().get(automation_id)
+    if automation is None:
+        raise HTTPException(404, "no such automation")
+    return _runner.run_now(automation).to_json()
 
 
 @app.delete("/api/automations/{automation_id}")
@@ -2692,10 +3757,22 @@ def mcp_servers(accounts: bool = False) -> list[dict[str, Any]]:
         # renders as `off` with a Connect action, which is what it is.
         row["enabled"] = capabilities.is_enabled(Kind.CONNECTOR, name)
         p = PENDING.get(name)
+        server_live = live.get(name)
+        row["live"] = server_live or {
+            "connected": False,
+            "tools": 0,
+            "error": None,
+            "ready": False,
+            "is_connected": False,
+            "is_authenticated": False,
+            "is_usable": False,
+            "state": "off" if not row.get("enabled") else "disconnected",
+            "health": "unknown",
+        }
         row["lifecycle"] = state_of(
             row,
             pending={"status": p.status, "message": p.message} if p else None,
-            live=live.get(name),
+            live=server_live,
             synced=name in synced,
             reconciled=reconciled,
         ).as_dict()
@@ -3655,8 +4732,12 @@ async def subagent_events(session_id: str) -> StreamingResponse:
 
 
 @app.post("/api/subagents/{session_id}/cancel")
-def cancel_subagent(session_id: str) -> dict[str, Any]:
-    """Cancel a running subagent."""
+def cancel_subagent(session_id: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Cancel or steer a running subagent.
+
+    POST {} or omit body to cancel.
+    POST {"action": "steer", "goal": "..."} to redirect the subagent.
+    """
     from backend.db.repositories import SubagentSessionRepository
 
     repo = SubagentSessionRepository()
@@ -3665,6 +4746,21 @@ def cancel_subagent(session_id: str) -> dict[str, Any]:
         raise HTTPException(404, f"subagent session not found: {session_id}")
     if row["status"] != "running":
         raise HTTPException(400, f"subagent is not running (status: {row['status']})")
+
+    action = (body or {}).get("action", "cancel")
+    if action == "steer":
+        goal = (body or {}).get("goal", "").strip()
+        if not goal:
+            raise HTTPException(400, "steer action requires a 'goal' field")
+        # Store steer goal in metadata; runner checks it on next iteration
+        import json
+        meta = json.loads(row["metadata"] or "{}") if row["metadata"] else {}
+        steer_queue = meta.get("steer_queue", [])
+        steer_queue.append(goal)
+        meta["steer_queue"] = steer_queue
+        repo.update_status(session_id, "running", metadata=json.dumps(meta))
+        return {"status": "steered", "session_id": session_id, "goal": goal}
+
     repo.update_status(session_id, "cancelled")
     return {"status": "cancelled", "session_id": session_id}
 
@@ -4261,6 +5357,314 @@ def update_settings(body: Settings) -> dict[str, Any]:
     return get_settings()
 
 
+# -- the preferences that follow you between devices ---------------------
+#
+# The interface keeps its settings in one localStorage blob, which is right for
+# the ones that should differ per device -- panel width, text size, which
+# conversation is open. The handful that should *not* differ live here as well,
+# under `ui.`, because localStorage is per browser and a preference the user set
+# on their laptop should be the one their phone opens with.
+#
+# Which ones cross is an allowlist in backend/sync/registry.py, checked on the
+# way in as well as the way out, so this route cannot be used to reach the rest
+# of `app_settings` -- which holds, among other things, the embedding model this
+# database was indexed with.
+
+
+@app.get("/api/preferences")
+def get_preferences() -> dict[str, Any]:
+    """The synced preferences, as {name: value} without the `ui.` prefix."""
+    from backend.db.connection import get_connection
+    from backend.sync.registry import SYNCED_PREFERENCES
+
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT key, value FROM app_settings WHERE key LIKE 'ui.%'"
+    ).fetchall()
+    known = set(SYNCED_PREFERENCES)
+    return {
+        "preferences": {
+            row[0][3:]: row[1] for row in rows if row[0][3:] in known
+        }
+    }
+
+
+@app.patch("/api/preferences")
+def update_preferences(body: dict[str, Any]) -> dict[str, Any]:
+    """Record a preference change and queue it for the user's other devices.
+
+    The ordinary write and the op are one transaction: a preference that reached
+    the database without an op would be one the other devices never hear about,
+    and one that reached the outbox without the write would be a change this
+    device does not itself have.
+    """
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import ops as sync_ops
+    from backend.sync import service as sync_service
+    from backend.sync.registry import SYNCED_PREFERENCES
+
+    incoming = body.get("preferences")
+    if not isinstance(incoming, dict):
+        raise HTTPException(400, "send {\"preferences\": {name: value}}")
+
+    known = set(SYNCED_PREFERENCES)
+    unknown = sorted(set(incoming) - known)
+    if unknown:
+        raise HTTPException(
+            400,
+            f"these do not sync: {', '.join(unknown)}."
+            f" The ones that do: {', '.join(sorted(known))}",
+        )
+
+    conn = get_connection()
+    clock = sync_service.clock(conn)
+    with transaction(conn):
+        for name, value in incoming.items():
+            key = f"ui.{name}"
+            text = "" if value is None else str(value)
+            conn.execute(
+                "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+                " updated_at = datetime('now')",
+                (key, text),
+            )
+            sync_ops.emit(conn, clock, "settings", key, {"value": text})
+    return get_preferences()
+
+
+# -- the devices this machine syncs with ---------------------------------
+
+
+@app.get("/api/devices")
+def list_devices() -> dict[str, Any]:
+    from backend.db.connection import get_connection
+    from backend.sync import devices as sync_devices
+
+    conn = get_connection()
+    return {
+        "devices": [
+            {
+                "id": d.id,
+                "name": d.name,
+                "role": d.role,
+                "last_seen_at": d.last_seen_at,
+                "permissions": d.permissions,
+            }
+            for d in sync_devices.live(conn)
+        ],
+        "app_url": sync_devices.app_url(conn),
+        "host_url": sync_devices.host_url(),
+    }
+
+
+@app.patch("/api/devices/{device_id}/permissions")
+def update_device_permissions(device_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    permissions = body.get("permissions")
+    if not isinstance(permissions, dict):
+        raise HTTPException(400, "permissions dictionary required")
+    conn = get_connection()
+    with transaction(conn):
+        ok = sync_devices.update_permissions(conn, device_id, permissions)
+    if not ok:
+        raise HTTPException(404, "device not found or revoked")
+    dev = sync_devices.get_device(conn, device_id)
+    return {"ok": True, "permissions": dev.permissions if dev else {}}
+
+
+@app.post("/api/devices/pair")
+def start_pairing(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Open a pairing window and return the QR code to show."""
+    from backend.db.connection import get_connection
+    from backend.sync import devices as sync_devices
+
+    conn = get_connection()
+    secret, payload = sync_devices.open_pairing(
+        name_hint=str((body or {}).get("name") or ""), conn=conn
+    )
+    with contextlib.suppress(Exception):
+        _instagram.nudge()
+    relay_ready = False
+    relay_url = ""
+    with contextlib.suppress(Exception):
+        from backend.config import load_instagram
+
+        settings = load_instagram()
+        relay_ready = bool(settings.relay_enabled and settings.relay_url)
+        relay_url = (settings.relay_url or "").strip()
+
+    app_url = sync_devices.app_url(conn)
+    host_url = sync_devices.host_url()
+
+    lan_payload = sync_devices.pairing_payload(secret, host=host_url, relay=relay_url, prefer_lan=True) if host_url else ""
+    web_payload = sync_devices.pairing_payload(secret, app=app_url, relay=relay_url, host=host_url) if app_url else ""
+
+    # Direct LAN is preferred for remote PC controls, falling back to Web or general payload
+    active_payload = lan_payload if lan_payload else (web_payload if web_payload else payload)
+
+    return {
+        "secret": secret,
+        "qr": active_payload,
+        "qr_svg": _qr_svg(active_payload),
+        "lan_qr": lan_payload,
+        "lan_qr_svg": _qr_svg(lan_payload) if lan_payload else "",
+        "web_qr": web_payload,
+        "web_qr_svg": _qr_svg(web_payload) if web_payload else "",
+        "app_url": app_url,
+        "host_url": host_url,
+        "relay_configured": relay_ready,
+        "expires_in": int(sync_devices.PAIRING_TTL_SECONDS),
+    }
+
+
+@app.get("/api/devices/pending")
+def list_pending_pairings() -> dict[str, Any]:
+    from backend.sync import devices as sync_devices
+    return {"pending": sync_devices.list_pending()}
+
+
+@app.post("/api/devices/pending/{request_id}/approve")
+def approve_pending_pairing(request_id: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    permissions = None
+    if body and "permissions" in body and isinstance(body["permissions"], dict):
+        permissions = body["permissions"]
+
+    conn = get_connection()
+    with transaction(conn):
+        answer = sync_devices.approve_pending(conn, request_id, permissions=permissions)
+    if answer is None:
+        raise HTTPException(404, "Pending pairing not found or expired")
+
+    with contextlib.suppress(Exception):
+        _instagram.nudge()
+    return {"ok": True, "device_id": answer.get("device_id")}
+
+
+@app.post("/api/devices/pending/{request_id}/reject")
+def reject_pending_pairing(request_id: str) -> dict[str, Any]:
+    from backend.sync import devices as sync_devices
+    answer = sync_devices.reject_pending(request_id)
+    if answer is None:
+        raise HTTPException(404, "Pending pairing not found")
+
+    with contextlib.suppress(Exception):
+        _instagram.nudge()
+    return {"ok": True}
+
+
+def _qr_svg(payload: str) -> str:
+    """The pairing payload as an inline SVG, or "" if it cannot be drawn.
+
+    Never raises. A machine whose QR library is missing still shows the code as
+    text, which is what pairing used to be and is still a working route.
+    """
+    try:
+        import io
+
+        import segno
+
+        buf = io.BytesIO()
+        # Error correction M: a screen is a clean scanning surface, and the
+        # payload is long enough that H would push the module count up and the
+        # symbol's features down for redundancy nothing here needs.
+        #
+        # `omitsize` leaves only a viewBox, so the stylesheet decides how big it
+        # is. The modules stay black on purpose rather than following the theme:
+        # a QR code inverted to light-on-dark is one a good half of scanners
+        # will not read, so the panel draws it on a white card in every theme.
+        segno.make(payload, error="m").save(
+            buf, kind="svg", xmldecl=False, svgns=True, border=2, unit="", omitsize=True
+        )
+        return buf.getvalue().decode("utf-8")
+    except Exception:
+        log.exception("could not render the pairing QR code")
+        return ""
+
+
+def _is_secure_origin(url: str) -> bool:
+    """Would a browser treat this http origin as a secure context?
+
+    Loopback only, per the Secure Contexts spec -- `localhost`, `127.0.0.0/8`,
+    `[::1]` and the `.localhost` names. Deliberately *not* the private ranges:
+    a browser gives `192.168.1.6` no more trust than a public address, which is
+    the whole reason an address on your own network cannot carry this.
+    """
+    import ipaddress
+    from urllib.parse import urlsplit
+
+    host = (urlsplit(url).hostname or "").lower()
+    if not host:
+        return False
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+@app.put("/api/devices/app-url")
+def set_app_url(body: dict[str, Any]) -> dict[str, Any]:
+    """Where a phone opens this app.
+
+    Knowing it is what lets the QR code be an ordinary https link that a phone's
+    camera opens by itself, rather than an `amethyst://` payload only this app's
+    own scanner can act on. Unset is a working configuration and the fallback
+    says so.
+    """
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    given = str(body.get("app_url") or "").strip().rstrip("/")
+    if given and not given.startswith(("http://", "https://")):
+        raise HTTPException(400, "that needs to be a full http:// or https:// address")
+    # https, or an http origin a browser treats as secure -- which is loopback
+    # and nothing else.
+    #
+    # Not a preference and not about the scanner. Pairing derives a key with
+    # HKDF and opens the envelope with AES-GCM, both through `crypto.subtle`,
+    # and `crypto.subtle` is undefined outside a secure context. A LAN address
+    # was briefly allowed here on the reasoning that a camera only has to
+    # *open* the link; the camera does open it, and then `window.isSecureContext`
+    # is false, `crypto.randomUUID` is undefined, and the pairing screen throws
+    # before it sends anything. Refusing the address is the honest place to fail.
+    if given.startswith("http://") and not _is_secure_origin(given):
+        raise HTTPException(
+            400,
+            "that has to be https. A phone loading this over plain http gets no"
+            " crypto.subtle -- browsers only give one to a secure context -- so"
+            " pairing cannot run there at all. Put it behind https, or use a"
+            " tunnel: cloudflared tunnel --url http://localhost:8000",
+        )
+    conn = get_connection()
+    with transaction(conn):
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            (sync_devices.APP_URL_KEY, given),
+        )
+    return {"app_url": sync_devices.app_url(conn)}
+
+
+@app.delete("/api/devices/{device_id}")
+def revoke_device(device_id: str) -> dict[str, Any]:
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    conn = get_connection()
+    with transaction(conn):
+        gone = sync_devices.revoke(conn, device_id)
+    if not gone:
+        raise HTTPException(404, "no live device has that id")
+    return {"revoked": device_id}
+
+
 @app.post("/api/memory/toggle")
 def toggle_memory(body: MemoryToggle) -> dict[str, Any]:
     from backend.memory import MemoryStore
@@ -4835,16 +6239,21 @@ async def search_web_endpoint(q: str, limit: int = 8, offset: int = 0) -> dict[s
 
 
 @app.get("/api/search/youtube")
-async def search_youtube_endpoint(q: str, limit: int = 8, offset: int = 0) -> dict[str, Any]:
+async def search_youtube_endpoint(
+    q: str, limit: int = 8, offset: int = 0, sort: str = "relevance"
+) -> dict[str, Any]:
+    """Videos for a query. `sort=date` is newest first, not YouTube's idea of it."""
     from backend.web.search_service import search_youtube
-    results = await search_youtube(q, limit=limit, offset=offset)
-    has_more = len(await search_youtube(q, limit=1, offset=offset + limit)) > 0
+
+    results = await search_youtube(q, limit=limit, offset=offset, sort=sort)
+    has_more = len(await search_youtube(q, limit=1, offset=offset + limit, sort=sort)) > 0
     return {
         "query": q,
         "results": results,
         "offset": offset,
         "next_offset": offset + len(results),
         "has_more": has_more,
+        "sort": sort,
     }
 
 
@@ -4860,6 +6269,59 @@ async def search_github_endpoint(q: str, limit: int = 6) -> dict[str, Any]:
     from backend.web.search_service import search_github
     results = await search_github(q, limit=limit)
     return {"query": q, "results": results}
+
+
+class SearchKey(BaseModel):
+    name: str
+    key: str
+
+
+@app.get("/api/search/provider")
+def search_provider_route() -> dict[str, Any]:
+    """Which search API is set up, and which ones could be.
+
+    Write-only for the key itself: this says a provider *has* one, never what
+    it is. The interface needs the distinction because "no provider" is the
+    single commonest reason a web search comes back as encyclopaedia articles,
+    and until this existed there was no way to see or fix that outside a
+    terminal.
+    """
+    from backend.secrets import get_secret
+    from backend.web.search_service import configured_search_api, search_api_catalogue
+
+    options = []
+    for api in search_api_catalogue():
+        try:
+            has_key = bool(get_secret(api["ref"]))
+        except Exception:
+            has_key = False
+        options.append({**api, "configured": has_key})
+    return {"active": configured_search_api(), "options": options}
+
+
+@app.put("/api/search/provider")
+def set_search_provider_route(body: SearchKey) -> dict[str, Any]:
+    """Store a search API key in the keychain. An empty key removes it."""
+    from backend.secrets import CredentialError, delete_secret, set_secret
+    from backend.web.search_service import configured_search_api, search_api_catalogue
+
+    match = next((a for a in search_api_catalogue() if a["name"] == body.name.strip().lower()), None)
+    if match is None:
+        raise HTTPException(400, f"'{body.name}' is not a search provider AMETHYST knows about.")
+    key = body.key.strip()
+    try:
+        if key:
+            set_secret(match["ref"], key)
+        else:
+            delete_secret(match["ref"])
+    except CredentialError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    # The pool is keyed by query and was built with whatever was configured at
+    # the time, so a new key would otherwise not be believed until it expired.
+    from backend.web import search_service
+
+    search_service._results.clear()
+    return {"active": configured_search_api(), "name": match["name"], "configured": bool(key)}
 
 
 @app.get("/api/search/wiki")
@@ -6109,6 +7571,8 @@ def get_analytics_usage_windows() -> dict[str, Any]:
 _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
+
+
 def _mount_frontend() -> None:
     if not (_DIST / "index.html").is_file():
         return
@@ -6116,9 +7580,26 @@ def _mount_frontend() -> None:
     from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
 
+    class _Immutable(StaticFiles):
+        """StaticFiles that actually says the bundle is cacheable.
+
+        The line below has claimed since it was written that hashed filenames
+        mean the bundle can be cached hard, and it was not true: StaticFiles
+        sends an ETag and a Last-Modified and no `Cache-Control` at all, so
+        every asset cost a conditional request on every load -- a round trip
+        each for the WebView on a cold start, and a real one over the relay for
+        a phone. Vite content-hashes every name under /assets, so a changed
+        file is a changed URL and `immutable` is simply the truth.
+        """
+
+        def file_response(self, *args: Any, **kwargs: Any) -> Any:
+            response = super().file_response(*args, **kwargs)
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return response
+
     # Hashed filenames, so the bundle can be cached hard; index.html must not be
     # or a deploy would keep serving the previous build's script tags.
-    app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
+    app.mount("/assets", _Immutable(directory=_DIST / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str) -> FileResponse:

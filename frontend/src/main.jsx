@@ -12,14 +12,10 @@ import { BrowserRouter } from 'react-router-dom'
 
    Latin subsets only: the variable Sans covers 400-700 in one file, and Mono
    is pulled at the two weights the interface actually sets. */
-import '@fontsource-variable/ibm-plex-sans/wght.css'
-import '@fontsource-variable/ibm-plex-sans/wght-italic.css'
-import '@fontsource/ibm-plex-serif/400.css'
-import '@fontsource/ibm-plex-serif/500.css'
-import '@fontsource/ibm-plex-mono/400.css'
-import '@fontsource/ibm-plex-mono/500.css'
+import './styles/fonts.css'
 import './globals.css'
 import './index.css'
+import './views/library/library.css'
 import App from './App.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
 import { AppProvider } from './store.jsx'
@@ -56,3 +52,33 @@ createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+/* Tell the desktop shell the interface is mounted and safe to show.
+
+   The shell keeps its window hidden until this fires, which is what stops a
+   launch from ever showing an empty WebView or a half-drawn page.
+
+   Deliberately NOT requestAnimationFrame. A hidden window is not composited, so
+   WebKit never runs a rAF callback in one -- which made "wait for the first
+   paint" a deadlock: the shell would not show the window until it painted, and
+   it could not paint until it was shown. The 8s fallback hid it, so the window
+   appeared late and looked like a slow backend rather than a bug.
+
+   What is actually being asked is "has React committed a tree yet", and that
+   question has a direct answer: the root has children. setTimeout runs in a
+   hidden window where rAF does not, so this polls on a short clock and gives up
+   quietly -- the shell has its own fallback, and a signal that never comes must
+   not be a page that never loads. */
+const signalMounted = () => {
+  const send = () => window.pywebview?.api?.ready?.(SPOTLIGHT ? 'spotlight' : 'main')
+  const root = document.getElementById('root')
+  let tries = 0
+  const check = () => {
+    if (root?.firstChild) return send()
+    if ((tries += 1) > 150) return send() // ~3s: tell it anyway rather than never
+    setTimeout(check, 20)
+  }
+  check()
+}
+if (window.pywebview) signalMounted()
+else window.addEventListener('pywebviewready', signalMounted, { once: true })

@@ -13,6 +13,19 @@ dependencies = [
     "httpx>=0.27",
     "python-dateutil>=2.9",
     "python-multipart>=0.0.9",   # file uploads from the browser composer
+    # AES-GCM for the sync layer's sealed ops, and HKDF for pairing. Present
+    # transitively today via keyring/mcp, declared here because backend/sync/
+    # imports it directly and a transitive dependency is one a provider bump can
+    # take away. Python has no AEAD in the standard library and hand-rolling one
+    # is not a corner worth cutting.
+    "cryptography>=43.0",
+    # The QR code a phone points its camera at. Pure Python and dependency-free,
+    # which is why it is here rather than behind an extra: a QR symbol is
+    # Reed-Solomon error correction plus mask evaluation, there is no standard
+    # library for it, and pairing is the one flow where "type these 32
+    # characters" is the difference between a feature people use and one they
+    # do not. See backend/sync/devices.py, pairing_payload.
+    "segno>=1.6",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +81,7 @@ amethyst = "backend.cli:main"
 # The keyboard shortcut's own entry point. See backend.desktop.main_palette
 # for why it does not go through the `amethyst` CLI.
 amethyst-palette = "backend.desktop:main_palette"
+amethyst-show = "backend.desktop:main_show"
 
 [build-system]
 requires = ["hatchling"]
@@ -78,6 +92,7 @@ packages = ["backend"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["test_*.py"]
 asyncio_mode = "auto"
 # Live tests spawn real MCP servers and reach the network; opt in with `pytest -m live`.
 addopts = "-m 'not live'"

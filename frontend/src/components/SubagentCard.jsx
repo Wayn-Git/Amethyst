@@ -78,7 +78,7 @@ function SubagentCard({ call, running }) {
     <div className={`subagent-card${running ? ' is-running' : ''}${isDone ? ' is-done' : ''}${isFailed ? ' is-failed' : ''}`}>
       <button type="button" className="tool-card-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
         <div className="subagent-icon-wrapper">
-          <Icon name="spark" size={14} />
+          <Icon name="cpu" size={14} />
           {running && <div className="subagent-pulse" />}
         </div>
 

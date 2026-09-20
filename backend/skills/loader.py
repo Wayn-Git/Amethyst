@@ -66,6 +66,9 @@ def parse_skill_md(path: Path) -> tuple[Skill | None, str | None]:
     except yaml.YAMLError as exc:
         return None, f"invalid frontmatter: {exc}"
 
+    if not isinstance(meta, dict):
+        return None, "frontmatter must be a YAML mapping"
+
     name = meta.get("name")
     description = meta.get("description")
     if not name or not isinstance(name, str):
@@ -108,12 +111,20 @@ def scan(skills_dir: Path | None = None) -> tuple[list[Skill], list[SkillLoadErr
 
     skills: list[Skill] = []
     errors: list[SkillLoadError] = []
-    if not root.exists():
+    if not root.is_dir():
+        if root.exists():
+            errors.append(SkillLoadError(root, "skills directory is a file, not a directory"))
         if skills_dir is None:
             _scan_cache = (time.monotonic() + SCAN_TTL_SECONDS, root, (skills, errors))
         return skills, errors
 
-    for child in sorted(root.iterdir()):
+    try:
+        children = sorted(root.iterdir())
+    except OSError as exc:
+        errors.append(SkillLoadError(root, f"unreadable directory: {exc}"))
+        return skills, errors
+
+    for child in children:
         if not child.is_dir() or child.name.startswith("."):
             continue
         skill_md = child / "SKILL.md"

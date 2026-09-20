@@ -1,0 +1,15 @@
+{
+  "name": "example_briefing",
+  "description": "Daily tech briefing and summary",
+  "schedule": "0 8 * * *",
+  "provider": "auto",
+  "model": null,
+  "prompt": "Search the web for the latest artificial intelligence developments from today. Provide a concise bulleted summary with 3 key highlights and sources.",
+  "actions": [
+    "search_web",
+    "search_duckduckgo",
+    "search_google",
+    "fetch_url",
+    "read_url"
+  ]
+}

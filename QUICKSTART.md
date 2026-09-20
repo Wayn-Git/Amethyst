@@ -100,18 +100,20 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 # 2. Install Python dependencies
 pip install -r requirements.txt
 
-# 3. Initialize AMETHYST database & configuration
-amethyst init
-
-# 4. Build the web frontend
-cd frontend
-npm install
-npm run build
-cd ..
-
-# 5. Start the server
+# 3. Start everything
 amethyst serve --open
 ```
+
+`amethyst serve` is the whole thing. It prepares the database on first run,
+builds the web interface if there is not one yet, and starts every background
+service — automations, reminders, the journal, both job lanes, the relay poll,
+the browser watcher and your MCP connectors — inside the one process. It then
+prints which optional pieces are configured and which are not, so a phone that
+will not pair tells you the relay is missing rather than leaving you guessing.
+
+Useful variations: `--no-build` skips the interface build, `--rebuild` forces
+one, `--port 8001` moves it, and `--dev` runs the API with reload alongside the
+Vite dev server.
 
 ---
 
@@ -156,8 +158,13 @@ amethyst secrets set amethyst/groq
 | `./run.sh --dev` | Starts backend with hot-reload + Vite dev server concurrently |
 | `./run.sh --doctor` / `run.bat --doctor` | Runs system diagnostics (checks models, DB, tools, connectors) |
 | `./run.sh --build` | Rebuilds the frontend bundle |
+| `amethyst serve` | Starts everything: database, interface, and every background service |
+| `amethyst serve --dev` | The same, with reload and the Vite dev server |
 | `amethyst doctor` | Checks what is working and what is missing |
 | `amethyst chat "Hello"` | Run a chat turn directly from your terminal |
+| `amethyst device --pair` | Shows a scannable QR code to pair a phone |
+| `amethyst device` | Lists paired devices |
+| `amethyst device --revoke <id>` | Disconnects one |
 
 ---
 
@@ -189,6 +196,39 @@ This starts the backend on port `8000` and the Vite dev server on `http://127.0.
 
 ---
 
+## 📱 Using Amethyst From Your Phone
+
+Your computer keeps your files and runs your work. Your phone attaches to it,
+watches what it publishes, and can send it more. Everything between the two is
+sealed — the relay carrying it cannot read any of it.
+
+**On your computer:** open **Settings → Devices** and press **Pair a device**.
+A QR code appears, good for five minutes, once.
+
+**On your phone:** open Amethyst and point the camera at the code. That is the
+whole flow — the code carries the relay address as well as the secret, so there
+is nothing to type and nothing to configure.
+
+Two things make this smoother if you set them up:
+
+- **A relay.** Pairing completes through it, so without one nothing can answer
+  your phone. `amethyst serve` says so at startup if it is missing. See
+  [relay/README.md](relay/README.md).
+- **Where your phone opens Amethyst** (Settings → Devices). Set this and the QR
+  code becomes an ordinary `https` link that your phone's own camera app opens
+  by itself. Leave it blank and the code still works — it just has to be scanned
+  from the pairing screen inside the app.
+
+To disconnect a phone, press **Revoke** beside it. Anything it had queued is
+cancelled in the same breath, and it stops being recognised within one poll.
+Pair it again the same way.
+
+> Opening Amethyst on a phone always shows the pairing screen or the remote
+> control, never the desktop interface — that layout needs a screen a phone does
+> not have. If you want it anyway, add `?desktop=1` to the address.
+
+---
+
 ## 🗺️ Your First Five Minutes
 
 Now that the app is open at http://127.0.0.1:8000, here is the fastest path to a useful answer:
@@ -217,47 +257,18 @@ A permission prompt suspends the turn until answered; check for an amber prompt 
 
 ## 🚀 New Features
 
-### Parallel Execution
+### Enterprise-Grade Reliability
 
-Run multiple data-gathering tasks simultaneously for faster research:
+Amethyst's backend is fortified against edge cases, resource leaks, and concurrency issues:
+- **Bulletproof concurrency** — A global `.amethyst.lock` file prevents multiple background instances from clobbering each other's ports and logs.
+- **Leak-free streaming** — FastAPI's `BackgroundTasks` guarantee cleanup of SSE (Server-Sent Events) connections, preventing memory leaks when clients disconnect ungracefully.
+- **Orphan process prevention** — Explicit process group reaping ensures that background PTY processes spawned by the terminal manager are killed instantly on shutdown.
+- **Strict dependency isolation** — Dynamic skill loading employs robust directory existence validation and YAML mapping verification, preventing malformed skills from crashing the system.
 
-```
-# Example: Research multiple topics at once
-dispatch_parallel_jobs([
-  {task: "web_search", params: {query: "AI news"}},
-  {task: "web_search", params: {query: "climate change"}},
-  {task: "urls", params: {urls: ["https://example.com"]}},
-])
-```
+### Premium UI/UX & Motion Design
 
-**Available tasks:** `urls`, `web_search`, `gmail`, `github_activity`, `git_status`, `file_info`, `system_info`, `briefing`, `todo`, `rss`
-
-**Auto-correction:** Common mistakes are automatically fixed:
-- `fetch_url` → `urls`
-- `search` → `web_search`
-- `git` → `git_status`
-
-### Smart File Reading
-
-Files are read intelligently with hard limits:
-- **50KB max** file size
-- **2,000 lines** maximum
-- **2,000 characters** per line
-- **Binary detection** — automatically handles binary files
-- **Image recognition** — shows images as base64
-
-**Pagination for large files:**
-```python
-view_file("large_file.py", offset=100, limit=50)  # Lines 100-150
-```
-
-### LLM Intelligence Rules
-
-The agent follows strict rules to prevent mistakes:
-1. **Never guess tool names** — Must check available tools first
-2. **Never retry failed tools** — Must understand why it failed
-3. **Never generate fake data** — Must tell user honestly what happened
-4. **Always have fallback strategy** — Primary → Alternative → Manual
-5. **Tool inspection protocol** — Mandatory check before every tool call
-
-These rules ensure the agent is reliable and transparent. See [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for details.
+The interface is built to look and feel stunning:
+- **Glassmorphism & Glow** — Soft gradients, blurred backdrops (`backdrop-filter`), and dynamic drop-shadows bring the interface to life.
+- **Fluid Motion** — Smooth page transitions (`view-swap`), slide-in sidebars, and refined popover animations make interactions feel purposeful and fast.
+- **Responsive Empty States** — Skeleton loaders and carefully crafted empty views provide a polished experience even when there is no data to show.
+- **Robust Error Boundaries** — Graceful fallbacks and toast notifications catch unhandled promise rejections and backend warnings without breaking the flow.
