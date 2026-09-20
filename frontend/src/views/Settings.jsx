@@ -4131,35 +4131,65 @@ function Devices() {
               </p>
             )}
 
-            {(pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : (invite.web_qr_svg || invite.qr_svg)) ? (
-              <>
-                <div
-                  className="qr-card"
-                  dangerouslySetInnerHTML={{
-                    __html: pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : (invite.web_qr_svg || invite.qr_svg),
-                  }}
-                />
-                <p className="pair-invite-hint">
-                  {pairMode === 'lan' ? (
-                    invite.host_url
-                      ? <>Point your phone’s camera at this. It opens <code>{invite.host_url}</code> directly over your Wi-Fi.</>
-                      : 'Point your phone’s camera at this to pair over local network.'
-                  ) : (
-                    invite.app_url
-                      ? <>Point your phone’s camera at this. It opens <code>{invite.app_url}</code> over the web.</>
-                      : 'To make this camera-openable over web, set your Cloudflare Pages URL below.'
-                  )}
+            {pairMode === 'web' && !invite.app_url ? (
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: 420,
+                  padding: '16px',
+                  borderRadius: 12,
+                  background: 'var(--bg-inset)',
+                  border: '1px dashed var(--hairline-strong)',
+                  textAlign: 'center',
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🌐</div>
+                <strong style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>Cloudflare Web URL not configured</strong>
+                <p style={{ fontSize: 12, color: 'var(--text-sub)', lineHeight: 1.5, marginBottom: 14 }}>
+                  To pair over the web when you are away from home, enter your Cloudflare Pages or Tunnel URL (<code>https://...</code>) in the field below and click <strong>Save</strong>.
                 </p>
-
-              </>
-            ) : null}
+                <button
+                  type="button"
+                  className="set-btn-sm"
+                  onClick={() => setPairMode('lan')}
+                  style={{ background: 'var(--accent, #6366f1)', color: '#fff', fontWeight: 600, padding: '6px 14px' }}
+                >
+                  📱 Use Same Wi-Fi (Direct LAN)
+                </button>
+              </div>
+            ) : (
+              (pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : invite.web_qr_svg) ? (
+                <>
+                  <div
+                    className="qr-card"
+                    dangerouslySetInnerHTML={{
+                      __html: pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : invite.web_qr_svg,
+                    }}
+                  />
+                  <p className="pair-invite-hint">
+                    {pairMode === 'lan' ? (
+                      invite.host_url
+                        ? <>Point your phone’s camera at this. It opens <code>{invite.host_url}</code> directly over your Wi-Fi.</>
+                        : 'Point your phone’s camera at this to pair over local network.'
+                    ) : (
+                      <>Point your phone’s camera at this. It opens <code>{invite.app_url}</code> over the web.</>
+                    )}
+                  </p>
+                </>
+              ) : null
+            )}
             <span className="set-row-desc">Or enter this code manually on the other device:</span>
             <code className="rc-code">{invite.secret.match(/.{1,4}/g).join(' ')}</code>
             <button
               type="button"
               className="set-btn-sm"
               onClick={() => {
-                const targetLink = pairMode === 'lan' ? (invite.lan_qr || invite.qr) : (invite.web_qr || invite.qr)
+                const targetLink = pairMode === 'lan' ? (invite.lan_qr || invite.qr) : invite.web_qr
+                if (!targetLink) {
+                  toast('Please configure your Cloudflare Pages URL below first', 'bad')
+                  return
+                }
                 copyText(targetLink)
                 toast('Pairing link copied', 'ok')
               }}
@@ -4177,7 +4207,7 @@ function Devices() {
             <span className="set-row-desc">
               {appUrl
                 ? 'The pairing code is a link to this address, which your phone’s camera opens by itself.'
-                : 'Nothing is set, so the code is not camera-openable. It has to be an https address: browsers only allow the encryption pairing needs on one, so a plain http address on your own network cannot work however convenient it would be. Deploy the interface, or run a tunnel — cloudflared tunnel --url http://localhost:8000 — and paste the address it prints.'}
+                : 'Enter your deployed Cloudflare Pages URL or Cloudflare Tunnel (cloudflared tunnel --url http://localhost:8000) and click Save to enable internet pairing.'}
             </span>
           </div>
           <input

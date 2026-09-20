@@ -31,6 +31,9 @@
  * needed again, which is a worse experience and the right trade: the
  * alternative is writing an extractable copy somewhere a script can read.
  */
+import { safeStorage } from '../storage.js'
+import { b64, unb64 } from './crypto.js'
+
 let held = null
 
 const DB_NAME = 'amethyst.keys'
@@ -66,29 +69,76 @@ function transact(db, mode, run) {
  * can serialise.
  */
 export async function storeGroupKey(raw) {
-  const key = await crypto.subtle.importKey(
-    'raw', raw, { name: 'AES-GCM' }, false /* extractable */, ['encrypt', 'decrypt'],
-  )
+  const rawBytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw)
+  let key = rawBytes
+
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    try {
+      key = await crypto.subtle.importKey(
+        'raw', rawBytes, { name: 'AES-GCM' }, false /* extractable */, ['encrypt', 'decrypt'],
+      )
+    } catch {
+      key = rawBytes
+    }
+  }
+
   held = key
   try {
     const db = await open()
     await transact(db, 'readwrite', (store) => store.put(key, GROUP_KEY_ID))
     db.close()
   } catch { /* see `held` above: usable now, gone on reload */ }
+
+  try {
+    safeStorage.setItem('amethyst.gk', b64(rawBytes))
+  } catch {}
+
   return key
 }
 
 export async function groupKey() {
   if (held) return held
+
   try {
     const db = await open()
-    const key = await transact(db, 'readonly', (store) => store.get(GROUP_KEY_ID))
+    let key = await transact(db, 'readonly', (store) => store.get(GROUP_KEY_ID))
     db.close()
-    held = key ?? null
-    return held
+    if (key) {
+      if ((key instanceof Uint8Array || key instanceof ArrayBuffer) && typeof crypto !== 'undefined' && crypto.subtle) {
+        try {
+          const imported = await crypto.subtle.importKey(
+            'raw', key, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'],
+          )
+          held = imported
+          return held
+        } catch {}
+      }
+      held = key
+      return held
+    }
   } catch {
-    return null
+    // IndexedDB failure or not accessible
   }
+
+  try {
+    const stored = safeStorage.getItem('amethyst.gk')
+    if (stored) {
+      const rawBytes = unb64(stored)
+      if (typeof crypto !== 'undefined' && crypto.subtle) {
+        try {
+          const imported = await crypto.subtle.importKey(
+            'raw', rawBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'],
+          )
+          held = imported
+          return held
+        } catch {}
+      }
+      held = rawBytes
+      return held
+    }
+  } catch {}
+
+  return null
 }
 
 export async function forgetGroupKey() {
@@ -98,4 +148,7 @@ export async function forgetGroupKey() {
     await transact(db, 'readwrite', (store) => store.delete(GROUP_KEY_ID))
     db.close()
   } catch { /* nothing stored, or no store to delete it from */ }
+  try {
+    safeStorage.removeItem('amethyst.gk')
+  } catch {}
 }

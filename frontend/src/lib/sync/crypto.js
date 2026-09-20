@@ -64,10 +64,39 @@ function canonical(value) {
   return JSON.stringify(value)
 }
 
+export function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  const bytes = getRandomBytes(16)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40 // Version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80 // Variant 10xx
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+async function toRawKey(key) {
+  if (typeof CryptoKey !== 'undefined' && key instanceof CryptoKey) {
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      try {
+        return new Uint8Array(await crypto.subtle.exportKey('raw', key))
+      } catch {}
+    }
+  }
+  if (key instanceof Uint8Array) return key
+  if (key?.buffer) return new Uint8Array(key.buffer, key.byteOffset, key.byteLength)
+  if (Array.isArray(key)) return new Uint8Array(key)
+  return new Uint8Array(key)
+}
+
 async function aesKey(key) {
   if (typeof CryptoKey !== 'undefined' && key instanceof CryptoKey) return key
   if (typeof crypto !== 'undefined' && crypto.subtle) {
-    return crypto.subtle.importKey('raw', key, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+    try {
+      return await crypto.subtle.importKey('raw', key, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+    } catch {
+      return key
+    }
   }
   return key
 }
@@ -79,21 +108,22 @@ export async function seal(payload, { opId, deviceId, key }) {
 
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     try {
-      const ciphertext = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: nonce, additionalData: associatedData },
-        await aesKey(key),
-        raw,
-      )
-      return { nonce: b64(nonce), ciphertext: b64(ciphertext) }
+      const cryptoKey = await aesKey(key)
+      if (typeof CryptoKey !== 'undefined' && cryptoKey instanceof CryptoKey) {
+        const ciphertext = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv: nonce, additionalData: associatedData },
+          cryptoKey,
+          raw,
+        )
+        return { nonce: b64(nonce), ciphertext: b64(ciphertext) }
+      }
     } catch {
       // Fall back to noble
     }
   }
 
   // Pure JavaScript fallback using @noble/ciphers
-  const rawKey = (typeof CryptoKey !== 'undefined' && key instanceof CryptoKey)
-    ? new Uint8Array(await crypto.subtle.exportKey('raw', key))
-    : (key instanceof Uint8Array ? key : new Uint8Array(key))
+  const rawKey = await toRawKey(key)
   const cipher = gcm(rawKey, nonce, associatedData)
   const ciphertext = cipher.encrypt(raw)
   return { nonce: b64(nonce), ciphertext: b64(ciphertext) }
@@ -106,21 +136,22 @@ export async function unseal(nonce, ciphertext, { opId, deviceId, key }) {
 
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     try {
-      const raw = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: nonceBytes, additionalData: associatedData },
-        await aesKey(key),
-        cipherBytes,
-      )
-      return JSON.parse(new TextDecoder().decode(raw))
+      const cryptoKey = await aesKey(key)
+      if (typeof CryptoKey !== 'undefined' && cryptoKey instanceof CryptoKey) {
+        const raw = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: nonceBytes, additionalData: associatedData },
+          cryptoKey,
+          cipherBytes,
+        )
+        return JSON.parse(new TextDecoder().decode(raw))
+      }
     } catch {
       // Fall back to noble or throw
     }
   }
 
   try {
-    const rawKey = (typeof CryptoKey !== 'undefined' && key instanceof CryptoKey)
-      ? new Uint8Array(await crypto.subtle.exportKey('raw', key))
-      : (key instanceof Uint8Array ? key : new Uint8Array(key))
+    const rawKey = await toRawKey(key)
     const cipher = gcm(rawKey, nonceBytes, associatedData)
     const raw = cipher.decrypt(cipherBytes)
     return JSON.parse(new TextDecoder().decode(raw))

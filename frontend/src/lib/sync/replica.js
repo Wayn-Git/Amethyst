@@ -19,6 +19,7 @@
 
 import { safeStorage } from '../storage.js'
 import { wins } from './hlc.js'
+import { generateUUID } from './crypto.js'
 
 const KEY = 'amethyst.sync.v1'
 
@@ -87,7 +88,7 @@ export function emit(state, clock, entity, key, fields) {
     row.stamps[name] = stamp
   }
   return {
-    op_id: crypto.randomUUID(),
+    op_id: generateUUID(),
     hlc: stamp,
     entity,
     key,

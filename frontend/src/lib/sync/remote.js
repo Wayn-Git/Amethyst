@@ -13,6 +13,7 @@
  */
 
 import { change, replica } from './client.js'
+import { generateUUID } from './crypto.js'
 
 /** Newest first, archived hidden, matching what the API's list does. */
 export function conversations() {
@@ -106,7 +107,7 @@ export function stop(conversationId) {
 /** One request, in the shape the intents table takes. The op's key is the
  *  intent's id, which is what makes a redelivery an INSERT the merge refuses. */
 function intent(kind, payload) {
-  return change('intents', crypto.randomUUID(), {
+  return change('intents', generateUUID(), {
     kind,
     state: 'pending',
     payload: JSON.stringify(payload),
