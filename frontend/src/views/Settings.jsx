@@ -13,6 +13,7 @@ import { LoaderIcon } from '../components/OnboardingWizard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import { safeStorage } from '../lib/storage.js'
 import * as syncClient from '../lib/sync/client.js'
+import PairingApprovalModal from '../components/PairingApprovalModal.jsx'
 
 /* ==========================================================================
    NAVIGATION SECTIONS & THEME DEFINITIONS
@@ -3612,6 +3613,7 @@ function Devices() {
   const [devices, setDevices] = useState([])
   const [pending, setPending] = useState([])
   const [invite, setInvite] = useState(null)
+  const [activeModalRequest, setActiveModalRequest] = useState(null)
   const [pairMode, setPairMode] = useState('lan')
   const [busy, setBusy] = useState(false)
   /* Where a phone opens this app. Knowing it is what lets the code below be an
@@ -3990,7 +3992,8 @@ function Devices() {
                   <div style={{ fontSize: 11, color: 'var(--text-sub)' }}>Role: {p.role} · Token: {p.request_id?.slice(0, 8)}…</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="set-btn-sm" onClick={() => approvePending(p.request_id)} style={{ background: '#f59e0b', color: '#000', fontWeight: 600 }}>Approve</button>
+                  <button type="button" className="set-btn-sm" onClick={() => setActiveModalRequest(p)} style={{ background: 'var(--accent, #6366f1)', color: '#fff', fontWeight: 600 }}>Review & Approve</button>
+                  <button type="button" className="set-btn-sm" onClick={() => approvePending(p.request_id)} style={{ background: '#f59e0b', color: '#000', fontWeight: 600 }}>Quick Approve</button>
                   <button type="button" className="set-btn-sm" onClick={() => rejectPending(p.request_id)} style={{ color: 'var(--stop)' }}>Reject</button>
                 </div>
               </div>
@@ -4012,6 +4015,48 @@ function Devices() {
         </div>
         {invite ? (
           <div className="set-box-row pair-invite">
+            {pending.length > 0 && (
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: 420,
+                  padding: '12px 14px',
+                  marginBottom: 16,
+                  borderRadius: 10,
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid #f59e0b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  animation: 'fadeIn 0.2s ease-out',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>⚠️</span> Device waiting for approval
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-sub)', marginTop: 2 }}>
+                    “{pending[0].name}” requested to connect.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="set-btn-sm"
+                  onClick={() => setActiveModalRequest(pending[0])}
+                  style={{
+                    background: '#f59e0b',
+                    color: '#000',
+                    fontWeight: 700,
+                    padding: '6px 14px',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Review & Approve
+                </button>
+              </div>
+            )}
             {/* Mode Switcher */}
             <div
               style={{
@@ -4154,6 +4199,16 @@ function Devices() {
           </button>
         </div>
       </div>
+      {activeModalRequest && (
+        <PairingApprovalModal
+          request={activeModalRequest}
+          onDismiss={() => setActiveModalRequest(null)}
+          onResolved={() => {
+            setActiveModalRequest(null)
+            refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

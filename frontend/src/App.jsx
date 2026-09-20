@@ -13,7 +13,7 @@ import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
 import PairingApprovalModal from './components/PairingApprovalModal.jsx'
 import { BootScreen, SkeletonView } from './components/Skeleton.jsx'
 import { useApp } from './store.jsx'
-import { API_ORIGIN, api } from './api.js'
+import { API_ORIGIN, getApiOrigin, api } from './api.js'
 import { chord, isTyping, MOD_LABEL } from './keys.js'
 import { byDigit, byId, forRoutes } from './nav.js'
 import { COMPONENTS } from './views/registry.js'
@@ -69,25 +69,40 @@ function useDaemonSummon(onPairingRequest) {
       )
     }
 
-    const stream = new EventSource(`${API_ORIGIN}/api/control/stream`)
-    stream.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        if (data.type === 'palette') {
-          // When native desktop is running with pywebview, the native spotlight window is raised.
-          // The main workbench window should not open an overlapping duplicate palette!
-          if (document.documentElement.dataset.native === '1') {
-            return
+    const origin = getApiOrigin() || API_ORIGIN
+    const streamUrl = origin ? `${origin}/api/control/stream` : '/api/control/stream'
+    let stream = null
+    let active = true
+
+    try {
+      stream = new EventSource(streamUrl)
+      stream.onmessage = (e) => {
+        if (!active) return
+        try {
+          const data = JSON.parse(e.data)
+          if (data.type === 'palette') {
+            // When native desktop is running with pywebview, the native spotlight window is raised.
+            // The main workbench window should not open an overlapping duplicate palette!
+            if (document.documentElement.dataset.native === '1') {
+              return
+            }
+            setOverlay((prev) => (prev === 'palette' ? null : 'palette'))
+            window.focus?.()
+          } else if (data.type === 'pairing_request') {
+            onPairingRequest?.(data)
+            window.focus?.()
           }
-          setOverlay((prev) => (prev === 'palette' ? null : 'palette'))
-          window.focus()
-        } else if (data.type === 'pairing_request') {
-          onPairingRequest?.(data)
-          window.focus?.()
-        }
-      } catch { /* a frame this build does not know about is not an error */ }
+        } catch { /* a frame this build does not know about is not an error */ }
+      }
+      stream.onerror = () => {
+        // EventSource will automatically retry connecting
+      }
+    } catch { /* EventSource constructor failure fallback */ }
+
+    return () => {
+      active = false
+      if (stream) stream.close()
     }
-    return () => stream.close()
   }, [setOverlay, onPairingRequest])
 }
 
@@ -436,7 +451,8 @@ export default function App() {
       api.pendingDevices()
         .then((res) => {
           if (!active) return
-          const next = res?.pending?.find((p) => !dismissedPairings.current.has(p.request_id))
+          const pendingList = res?.pending || []
+          const next = pendingList.find((p) => !dismissedPairings.current.has(p.request_id))
           if (next) {
             setPendingPairing((curr) => {
               if (curr?.request_id === next.request_id) return curr
@@ -444,13 +460,17 @@ export default function App() {
               return next
             })
           } else {
-            setPendingPairing(null)
+            setPendingPairing((curr) => {
+              if (!curr?.request_id) return null
+              const stillPending = pendingList.some((p) => p.request_id === curr.request_id)
+              return stillPending ? curr : null
+            })
           }
         })
         .catch(() => {})
     }
     check()
-    const timer = setInterval(check, 1500)
+    const timer = setInterval(check, 2000)
     return () => {
       active = false
       clearInterval(timer)
@@ -498,6 +518,24 @@ export default function App() {
   // column, a stage and a resizable panel, none of which fit and none of which
   // are what somebody holding a phone came for.
   //
+  const approvalModal = pendingPairing ? (
+    <PairingApprovalModal
+      request={pendingPairing}
+      onDismiss={() => {
+        if (pendingPairing?.request_id) {
+          dismissedPairings.current.add(pendingPairing.request_id)
+        }
+        setPendingPairing(null)
+      }}
+      onResolved={() => {
+        if (pendingPairing?.request_id) {
+          dismissedPairings.current.add(pendingPairing.request_id)
+        }
+        setPendingPairing(null)
+      }}
+    />
+  ) : null
+
   // Any device opening a pairing invite (URL with #s=, #pair, or /pair) gets
   // the Pair view immediately instead of routing to workbench or 404.
   const isPairIntent = typeof window !== 'undefined' && (
@@ -508,13 +546,16 @@ export default function App() {
 
   if (isPairIntent && !paired) {
     return (
-      <Pair
-        onPaired={() => setPaired(true)}
-        onDesktop={() => {
-          safeStorage.setItem(DESKTOP_KEY, '1')
-          setForceDesktop(true)
-        }}
-      />
+      <>
+        <Pair
+          onPaired={() => setPaired(true)}
+          onDesktop={() => {
+            safeStorage.setItem(DESKTOP_KEY, '1')
+            setForceDesktop(true)
+          }}
+        />
+        {approvalModal}
+      </>
     )
   }
 
@@ -523,31 +564,37 @@ export default function App() {
   // whether the pairing screen can offer a shortcut -- and is still read below.
   if (phone && !forceDesktop) {
     return (
-      <PhoneApp
-        paired={paired}
-        onPaired={() => setPaired(true)}
-        onDesktop={() => {
-          safeStorage.setItem(DESKTOP_KEY, '1')
-          setForceDesktop(true)
-        }}
-      />
+      <>
+        <PhoneApp
+          paired={paired}
+          onPaired={() => setPaired(true)}
+          onDesktop={() => {
+            safeStorage.setItem(DESKTOP_KEY, '1')
+            setForceDesktop(true)
+          }}
+        />
+        {approvalModal}
+      </>
     )
   }
 
   if (server.phase !== 'ready' || !server.verified) {
-    if (paired) return <RemoteOnly />
+    if (paired) return <><RemoteOnly />{approvalModal}</>
     // Offered immediately rather than after the wake gives up: a paired phone
     // knows what it is, and an unpaired one asking to be paired is not a
     // failure state worth making somebody wait out.
     if (server.phase === 'down' || remoteFirst) {
-      return <Pair onPaired={() => setPaired(true)} />
+      return <><Pair onPaired={() => setPaired(true)} />{approvalModal}</>
     }
     return (
-      <BootScreen
-        server={server}
-        onRetry={retryServer}
-        onRemote={() => setRemoteFirst(true)}
-      />
+      <>
+        <BootScreen
+          server={server}
+          onRetry={retryServer}
+          onRemote={() => setRemoteFirst(true)}
+        />
+        {approvalModal}
+      </>
     )
   }
 
@@ -631,23 +678,7 @@ export default function App() {
       
       <OnboardingWizard />
       <ConfirmDialogHost />
-      {pendingPairing && (
-        <PairingApprovalModal
-          request={pendingPairing}
-          onDismiss={() => {
-            if (pendingPairing?.request_id) {
-              dismissedPairings.current.add(pendingPairing.request_id)
-            }
-            setPendingPairing(null)
-          }}
-          onResolved={() => {
-            if (pendingPairing?.request_id) {
-              dismissedPairings.current.add(pendingPairing.request_id)
-            }
-            setPendingPairing(null)
-          }}
-        />
-      )}
+      {approvalModal}
       <Toasts />
     </div>
   )

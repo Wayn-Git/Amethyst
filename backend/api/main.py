@@ -15,6 +15,7 @@ import re
 import shutil
 import time
 from contextlib import asynccontextmanager, suppress
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -649,7 +650,33 @@ def _bound_wide() -> bool:
     reads as unfamiliar would refuse a request that could only have come from
     here. So the guard engages exactly when there is something to guard.
     """
-    return not _is_local(os.environ.get(BIND_HOST_ENV, "127.0.0.1").strip() or "127.0.0.1")
+    host = os.environ.get(BIND_HOST_ENV, "127.0.0.1").strip() or "127.0.0.1"
+    if host in ("0.0.0.0", "::"):
+        return True
+    return not _is_local(host)
+
+
+@lru_cache(maxsize=2)
+def _local_ips_cached(ttl_bucket: int) -> set[str]:
+    ips = {"127.0.0.1", "::1", "localhost"}
+    try:
+        import socket
+
+        hostname = socket.gethostname()
+        ips.add(hostname)
+        for info in socket.getaddrinfo(hostname, None):
+            ips.add(info[4][0])
+    except Exception:
+        pass
+    try:
+        from backend.sync import devices as sync_devices
+
+        lan = sync_devices.lan_address()
+        if lan:
+            ips.add(lan)
+    except Exception:
+        pass
+    return ips
 
 
 def _is_local(host: str | None) -> bool:
@@ -657,14 +684,26 @@ def _is_local(host: str | None) -> bool:
     if not host:
         return False
     import ipaddress
+    import time
 
     try:
-        return ipaddress.ip_address(host).is_loopback
+        addr = ipaddress.ip_address(host)
+        if addr.is_loopback:
+            return True
+        if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped and addr.ipv4_mapped.is_loopback:
+            return True
     except ValueError:
-        # A hostname rather than an address. `localhost` is the only one that
-        # can be answered without a lookup, and a DNS round trip on the request
-        # path deciding an authorisation question is not one worth having.
-        return host == "localhost"
+        if host == "localhost":
+            return True
+
+    # Check if host matches any of this machine's own network interface IPs
+    bucket = int(time.monotonic() // 30)
+    try:
+        if host in _local_ips_cached(bucket):
+            return True
+    except Exception:
+        pass
+    return False
 
 
 class RemoteCallerGuard:
@@ -1431,6 +1470,12 @@ def broadcast_control(event_type: str, **data: Any) -> None:
                 queue.put_nowait(frame)
             except Exception:
                 pass
+        native = _control_listeners.get(event_type, [])
+        for callback in list(native):
+            try:
+                callback(data)
+            except Exception:
+                log.exception("a control listener failed")
 
     loop = _control_loop
     if loop is not None and not loop.is_closed():

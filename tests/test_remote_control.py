@@ -320,3 +320,37 @@ def test_broadcast_control_thread_safety():
     t.start()
     t.join()
     assert err is None
+
+
+def test_broadcast_control_invokes_listeners():
+    from backend.api import main as api_main
+
+    received = []
+    def on_pairing(data):
+        received.append(data)
+
+    api_main.on_control("test_action", on_pairing)
+    try:
+        api_main.broadcast_control("test_action", test_key="test_val")
+        assert len(received) == 1
+        assert received[0]["test_key"] == "test_val"
+    finally:
+        api_main._control_listeners.get("test_action", []).remove(on_pairing)
+
+
+def test_host_lan_ip_recognized_as_local(bound_wide, monkeypatch):
+    from backend.api import main as api_main
+    from backend.sync.devices import lan_address
+
+    host_lan = lan_address()
+    if not host_lan:
+        pytest.skip("No LAN address found on host")
+
+    # Host LAN IP should be considered local
+    assert api_main._is_local(host_lan) is True
+
+    # Client accessing via host LAN IP can list pending devices
+    with TestClient(api_main.app, client=(host_lan, 54321)) as host_client:
+        res = host_client.get("/api/devices/pending")
+        assert res.status_code == 200
+

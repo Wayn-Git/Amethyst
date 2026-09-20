@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from './Icon.jsx'
 import { api } from '../api.js'
 
@@ -100,7 +101,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onDismiss])
 
-  if (!request) return null
+  if (!request || typeof document === 'undefined') return null
 
   const togglePermission = (id) => {
     if (busy) return
@@ -142,12 +143,14 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
     }
   }
 
-  return (
+  return createPortal(
     <div
       className="modal-overlay"
       style={{
-        zIndex: 9999,
-        background: 'rgba(0, 0, 0, 0.75)',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100000,
+        background: 'rgba(0, 0, 0, 0.8)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -538,6 +541,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
