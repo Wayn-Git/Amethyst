@@ -805,25 +805,25 @@ const Msg = memo(function Msg({
 
   return (
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', justifyContent: 'flex-end', width: '100%' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '7px', minWidth: 0 }}>
+      <div className="msg-user-row">
+        <div className="msg-user-content">
           <div className="msg-body msg-body--plain">{item.text}</div>
           <div className="msg-user-meta">
-        {timeStr && <span className="msg-time">{timeStr}</span>}
-        <CopyButton text={item.text} label="Copy" />
-        <button
-          type="button"
-          className="msg-action-btn"
-          title="Edit message"
-          aria-label="Edit message"
-          onClick={() => { setInput(item.text); textareaRef.current?.focus() }}
-        >
-          <Icon name="edit" size={12} />
-        </button>
-        <PinButton item={item} onPin={onPin} />
+            {timeStr && <span className="msg-time">{timeStr}</span>}
+            <CopyButton text={item.text} label="Copy" />
+            <button
+              type="button"
+              className="msg-action-btn"
+              title="Edit message"
+              aria-label="Edit message"
+              onClick={() => { setInput(item.text); textareaRef.current?.focus() }}
+            >
+              <Icon name="edit" size={12} />
+            </button>
+            <PinButton item={item} onPin={onPin} />
           </div>
         </div>
-        <div style={{ flexShrink: 0, width: '42px', height: '42px', marginTop: '2px', cursor: 'pointer' }} title="That's you!">
+        <div className="msg-user-avatar" title="That's you!">
           <Blobatar name="alain00" animate="hover" />
         </div>
       </div>

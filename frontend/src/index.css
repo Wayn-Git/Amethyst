@@ -1321,7 +1321,10 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .chat-scroll { flex: 1; overflow-y: auto; padding: 28px 24px 16px; display: flex; flex-direction: column; }
-.chat-stream { max-width: 768px; width: 100%; margin: auto auto 0; display: grid; gap: 30px; }
+@media (min-width: 901px) {
+  .chat-scroll { padding-right: 64px; }
+}
+.chat-stream { max-width: min(768px, 100%); width: 100%; margin: auto auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 30px; box-sizing: border-box; }
 
 /* ------------------------------------------------------------------ hero */
 
@@ -2836,15 +2839,52 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 .msg-body--plain { white-space: pre-wrap; }
 
+.msg-user {
+  justify-items: end;
+  width: 100%;
+}
+
+.msg-user-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.msg-user-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(84%, 62ch);
+}
+
+.msg-user-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
 .msg-user .msg-body {
-  padding: 9px 14px;
+  padding: 10px 16px;
   border: 1px solid var(--hairline);
-  border-radius: 14px;
+  border-radius: 18px;
   background: var(--surface-2);
   color: var(--text);
   text-align: left;
   font-size: calc(14.5px * var(--text-scale, 1));
-  line-height: 1.5;
+  line-height: 1.55;
+  width: fit-content;
+  min-width: fit-content;
+  max-width: 100%;
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  box-sizing: border-box;
 }
 .msg-user-meta {
   display: flex;
@@ -3327,7 +3367,7 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 @media (min-width: 901px) {
   .chat-scroll {
-    padding-right: 56px;
+    padding-right: 64px;
   }
 }
 
@@ -22655,7 +22695,10 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .chat-scroll { flex: 1; overflow-y: auto; padding: 28px 24px 16px; display: flex; flex-direction: column; }
-.chat-stream { max-width: 768px; width: 100%; margin: auto auto 0; display: grid; gap: 30px; }
+@media (min-width: 901px) {
+  .chat-scroll { padding-right: 64px; }
+}
+.chat-stream { max-width: min(768px, 100%); width: 100%; margin: auto auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 30px; box-sizing: border-box; }
 
 /* ------------------------------------------------------------------ hero */
 
@@ -24180,15 +24223,52 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 .msg-body--plain { white-space: pre-wrap; }
 
+.msg-user {
+  justify-items: end;
+  width: 100%;
+}
+
+.msg-user-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.msg-user-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(84%, 62ch);
+}
+
+.msg-user-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
 .msg-user .msg-body {
-  padding: 9px 14px;
+  padding: 10px 16px;
   border: 1px solid var(--hairline);
-  border-radius: 14px;
+  border-radius: 18px;
   background: var(--surface-2);
   color: var(--text);
   text-align: left;
   font-size: calc(14.5px * var(--text-scale, 1));
-  line-height: 1.5;
+  line-height: 1.55;
+  width: fit-content;
+  min-width: fit-content;
+  max-width: 100%;
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  box-sizing: border-box;
 }
 .msg-user-meta {
   display: flex;
@@ -24667,6 +24747,12 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 @media (pointer: coarse), (max-width: 900px) {
   .rail { display: none; }
+}
+
+@media (min-width: 901px) {
+  .chat-scroll {
+    padding-right: 64px;
+  }
 }
 
 .rail-step {
@@ -45409,7 +45495,9 @@ a.text-reveal-wrap {
   color: #f1f5f9;
   font-size: 14.5px;
   line-height: 1.68;
-  overflow-x: auto;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .artifact-card-body p {
@@ -45859,61 +45947,59 @@ a.text-reveal-wrap {
 
 .md-image-gallery {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
+  max-width: 100%;
   margin: 16px 0 24px;
 }
 
 .md-image-gallery--count-1 {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   max-width: 580px;
 }
 
 .md-image-gallery--count-1 .md-image-thumb-wrap,
 .md-image-single .md-image-thumb-wrap {
+  width: 100%;
   aspect-ratio: 16 / 10;
-  height: 310px;
-  max-height: 380px;
+  height: auto;
+  max-height: 340px;
 }
 
 .md-image-gallery--count-2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .md-image-gallery--count-2 .md-image-thumb-wrap {
-  aspect-ratio: 4 / 3;
-  height: 230px;
-  max-height: 260px;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  height: auto;
+  max-height: 240px;
 }
 
 .md-image-gallery--count-3 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .md-image-gallery--count-3 .md-image-thumb-wrap {
-  aspect-ratio: 4 / 3;
-  height: 210px;
-  max-height: 240px;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  height: auto;
+  max-height: 220px;
 }
 
 @media (max-width: 640px) {
   .md-image-gallery {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
-  }
-  .md-image-thumb-wrap {
-    height: 170px !important;
   }
 }
 
 @media (max-width: 420px) {
   .md-image-gallery {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
-  }
-  .md-image-thumb-wrap {
-    height: 200px !important;
   }
 }
 
@@ -45930,6 +46016,9 @@ a.text-reveal-wrap {
   cursor: pointer;
   outline: none;
   margin: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .md-image-card--inline {
@@ -45949,8 +46038,8 @@ a.text-reveal-wrap {
 .md-image-thumb-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
-  height: 210px;
+  aspect-ratio: 16 / 10;
+  height: auto;
   max-height: 240px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.4);
@@ -46787,10 +46876,10 @@ a.text-reveal-wrap {
 }
 
 .openai-carousel-nav--left {
-  left: -14px;
+  left: 6px;
 }
 
 .openai-carousel-nav--right {
-  right: -14px;
+  right: 6px;
 }
 
