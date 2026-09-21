@@ -582,6 +582,7 @@ export const api = {
   // connector answers in prose written for a model, see backend/mail/gmail.py.
   userProfile: () => j('/user/profile'),
   updateUserProfile: (profile) => j('/user/profile', json('POST', profile)),
+  updateProfile: (profile) => j('/user/profile', json('POST', profile)),
   mailAccount: () => j('/mail/account'),
   mailThreads: ({ q = 'in:inbox', limit = 25 } = {}) =>
     j(`/mail/threads?q=${encodeURIComponent(q)}&limit=${limit}`),
