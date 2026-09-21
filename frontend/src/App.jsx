@@ -448,6 +448,7 @@ export default function App() {
   useEffect(() => {
     let active = true
     const check = () => {
+      if (document.hidden && !pendingPairing) return
       api.pendingDevices()
         .then((res) => {
           if (!active) return
@@ -469,13 +470,20 @@ export default function App() {
         })
         .catch(() => {})
     }
+
     check()
-    const timer = setInterval(check, 2000)
+    window.addEventListener('focus', check)
+
+    // Only poll quickly (4s) when a pairing is active to detect remote acceptance/dismissal.
+    // When idle, fall back to a 60s interval that only runs when the tab is visible.
+    const pollInterval = pendingPairing ? 4000 : 60000
+    const timer = setInterval(check, pollInterval)
     return () => {
       active = false
+      window.removeEventListener('focus', check)
       clearInterval(timer)
     }
-  }, [playPairingChime])
+  }, [playPairingChime, pendingPairing])
 
   const stageRef = useRef(null)
 

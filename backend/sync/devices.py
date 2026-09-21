@@ -283,6 +283,28 @@ def revoke(conn: sqlite3.Connection, device_id: str) -> bool:
     return revoked
 
 
+def prune_stale_devices(conn: sqlite3.Connection, max_unseen_days: int = 14) -> int:
+    """Revoke devices that were created but never seen, or unseen for a long period."""
+    _ensure_schema(conn)
+    cursor = conn.execute(
+        """
+        UPDATE devices
+        SET revoked_at = datetime('now')
+        WHERE revoked_at IS NULL
+          AND (
+            (last_seen_at IS NULL AND created_at < datetime('now', ?))
+            OR (last_seen_at < datetime('now', ?))
+          )
+        """,
+        (f"-{max_unseen_days} days", f"-{max_unseen_days * 2} days"),
+    )
+    revoked = cursor.rowcount
+    if revoked:
+        conn.commit()
+        log.info("auto-revoked %d stale device(s)", revoked)
+    return revoked
+
+
 def live(conn: sqlite3.Connection) -> list[Device]:
     _ensure_schema(conn)
     result = []

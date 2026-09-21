@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state, created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_kind ON jobs(kind, created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_synced ON jobs(synced_at, state);
 
 -- The ledger that makes a retry safe.
 --
@@ -196,6 +197,7 @@ CREATE TABLE IF NOT EXISTS ops (
     created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ops_order ON ops(created_at, op_id);
+CREATE INDEX IF NOT EXISTS idx_ops_from_device ON ops(from_device);
 
 -- Who has taken what.
 --
