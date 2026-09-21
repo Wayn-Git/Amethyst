@@ -26,7 +26,7 @@ export function useMenuFit(ref, deps = []) {
 
     const fit = () => {
       const floor = window.innerHeight - 12
-      const body = menu.querySelector('.menu-body')
+      const body = menu.querySelector('.menu-body') || menu.querySelector('.model-menu-list')
 
       if (body) {
         const currentMax = body.style.maxHeight
@@ -39,6 +39,13 @@ export function useMenuFit(ref, deps = []) {
           nextMax = `${Math.max(140, h - over)}px`
         }
         body.style.maxHeight = nextMax !== currentMax ? nextMax : currentMax
+      }
+
+      const mRect = menu.getBoundingClientRect()
+      if (mRect.bottom > floor) {
+        menu.style.maxHeight = `${Math.max(140, floor - mRect.top)}px`
+      } else if (mRect.top < 12) {
+        menu.style.maxHeight = `${Math.max(140, mRect.bottom - 12)}px`
       }
 
       for (const flyout of menu.querySelectorAll('.menu-flyout')) {

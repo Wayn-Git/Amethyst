@@ -1920,11 +1920,13 @@ export default function Chat() {
     
     if (!activeId) { setDraft((d) => ({ ...d, ...db_patch })) }
     else {
-      api.updateConversation(activeId, db_patch).catch((err) => {
+      api.updateConversation(activeId, db_patch).then(() => {
+        refreshConvs()
+      }).catch((err) => {
         toast(err.message, 'bad')
       })
     }
-  }, [activeId, toast])
+  }, [activeId, toast, refreshConvs])
 
   /* Ask something without typing it here.
 
@@ -2605,7 +2607,15 @@ export default function Chat() {
               <button
                 type="button"
                 className="composer-model-pill"
-                onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setModelOpen((o) => !o)
+                  setPlusOpen(false)
+                  setGuardOpen(false)
+                  setEffortOpen(false)
+                  setContextOpen(false)
+                }}
                 title="Provider and model"
               >
                 <AiProviderIcon

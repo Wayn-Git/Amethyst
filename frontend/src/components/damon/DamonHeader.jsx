@@ -71,7 +71,7 @@ export default function DamonHeader({
             : 'Type a command, question, or search (e.g. > youtube, > google, 24*7)…'
         }
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
+        onKeyDown={(e) => { e.stopPropagation(); onKeyDown?.(e) }}
         aria-label="Spotlight search and commands"
       />
 

@@ -52,6 +52,9 @@ const VENDOR_PRESETS = [
   { slug: 'google', name: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', default_model: 'gemini-1.5-flash-latest', hint: 'Direct Gemini OpenAI compatibility' },
   { slug: 'groq', name: 'Groq', base_url: 'https://api.groq.com/openai/v1', default_model: 'llama-3.3-70b-versatile', hint: 'Ultra-low latency Llama & Mixtral' },
   { slug: 'mistral', name: 'Mistral AI', base_url: 'https://api.mistral.ai/v1', default_model: 'mistral-large-latest', hint: 'European enterprise frontier models' },
+  { slug: 'nvidia', name: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', default_model: 'nvidia/llama-3.1-nemotron-70b-instruct', hint: 'Enterprise inference microservices' },
+  { slug: 'kilocode', name: 'Kilo Code', base_url: 'https://api.kilo.ai/api/gateway', default_model: 'stepfun/step-3.7-flash:free', hint: 'Fast multi-model gateway' },
+  { slug: 'opencode-zen', name: 'OpenCode Zen', base_url: '', default_model: '', hint: 'OpenCode inference gateway' },
   { slug: 'ollama', name: 'Ollama (Local)', base_url: 'http://localhost:11434/v1', default_model: 'llama3:8b', hint: 'Run local open-source models completely offline' },
   { slug: 'openrouter', name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', default_model: 'meta-llama/llama-3.3-70b-instruct:free', hint: 'Unified access to all model endpoints' },
   { slug: 'together', name: 'Together AI', base_url: 'https://api.together.xyz/v1', default_model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', hint: 'Open-weights serverless inference' },
@@ -1021,7 +1024,7 @@ function Models() {
   const loadProviders = useCallback(async () => {
     try {
       const data = await api.providers()
-      setProviders(data.providers || [])
+      setProviders(data.configured || [])
     } catch (err) {
       toast(err.message, 'bad')
     }
@@ -1422,6 +1425,7 @@ function EditKeyModal({ provider, onClose, onSaved }) {
     try {
       await api.addProvider({
         name: provider.name,
+        api_key: key.trim(),
         key: key.trim(),
         base_url: url.trim() || undefined,
         default_model: provider.default_model || provider.model,
@@ -1545,6 +1549,7 @@ function AddProviderModal({ onClose, onAdded }) {
     try {
       await api.addProvider({
         name: name.trim().toLowerCase(),
+        api_key: key.trim(),
         key: key.trim(),
         base_url: url.trim() || undefined,
         default_model: model.trim() || undefined,
@@ -2314,31 +2319,7 @@ function Usage() {
       const res = await api.usageWindows()
       setData(res)
     } catch {
-      // Fallback to direct routing if usage windows endpoint unavailable
-      try {
-        const routeRes = await api.routing()
-        if (routeRes?.providers) {
-          const defaultFams = ['DEEPSEEK', 'GLM', 'KIMI', 'LUNA', 'MINIMAX', 'MISTRAL', 'QWEN']
-          setData({
-            plan_title: 'FREE LAUNCH',
-            plan_subtitle: `${defaultFams.length} FAMILIES · NO CARD REQUIRED`,
-            access_ends: '4D 19H',
-            next_reset: '4D 19H',
-            windows_at_zero: 0,
-            families_count: defaultFams.length,
-            families: defaultFams.map((name) => ({
-              name,
-              runs_5h: 0,
-              runs_7d: 0,
-              left_5h_pct: 100,
-              left_7d_pct: 100,
-              ticks_5h_filled: 18,
-              ticks_7d_filled: 18,
-              resets_in: '4h 19m',
-            })),
-          })
-        }
-      } catch {}
+      // Usage endpoint unavailable — show empty state
     } finally {
       setLoading(false)
     }
@@ -2346,15 +2327,7 @@ function Usage() {
 
   useEffect(() => { load() }, [load])
 
-  const families = data?.families || [
-    { name: 'KILOCODE', provider: 'kilocode', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'MISTRAL', provider: 'mistral', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'GOOGLE', provider: 'google', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'NVIDIA', provider: 'nvidia', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'NOUS', provider: 'nous', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'OPENCODE', provider: 'opencode.ai', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'CLOUDFLARE', provider: 'cloudflare', left_5h_pct: 0, left_7d_pct: 0, ticks_5h_filled: 0, ticks_7d_filled: 0, resets_in: '4h 15m' },
-  ]
+  const families = data?.families || []
 
   const activeHover = hoveredFamily ? families.find((f) => f.name === hoveredFamily) : null
 

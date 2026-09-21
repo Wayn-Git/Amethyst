@@ -18230,8 +18230,8 @@ a.text-reveal-wrap {
   position: absolute;
   bottom: calc(100% + 10px);
   right: 0;
-  width: 360px;
-  height: 420px;
+  width: min(360px, calc(100vw - 24px));
+  height: min(420px, calc(100vh - 120px));
   max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
@@ -40467,8 +40467,8 @@ a.text-reveal-wrap {
   position: absolute;
   bottom: calc(100% + 10px);
   right: 0;
-  width: 360px;
-  height: 420px;
+  width: min(360px, calc(100vw - 24px));
+  height: min(420px, calc(100vh - 120px));
   max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;

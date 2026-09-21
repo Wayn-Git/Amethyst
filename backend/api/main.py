@@ -1695,6 +1695,7 @@ class AddProvider(BaseModel):
     #: Stored in the OS keychain and never returned by any route. Omitted when
     #: the key is already there, or when the endpoint needs none.
     api_key: str | None = None
+    key: str | None = None
 
 
 @app.get("/api/providers")
@@ -1796,8 +1797,9 @@ def add_provider_route(body: AddProvider) -> dict[str, Any]:
 
     default_ref = None if (preset and preset.local) else f"amethyst/{name}"
     api_key_ref = entry.get("api_key_ref") or default_ref
-    if body.api_key is not None:
-        value = body.api_key
+    key_val = body.api_key if body.api_key is not None else body.key
+    if key_val is not None:
+        value = key_val
         if not value.strip():
             raise HTTPException(400, "a key cannot be empty")
         if value != value.strip():

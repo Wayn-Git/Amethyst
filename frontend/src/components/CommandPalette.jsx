@@ -343,7 +343,7 @@ export default function CommandPalette({ bare = false }) {
     api.tasks({ bucket: 'all', limit: 50 }).then((d) => setTasksList(d.tasks || [])).catch(() => setTasksList([]))
 
     return () => { delete window.__amethyst_spotlight_shown }
-  }, [open, activeId, replayOpenAnimation])
+  }, [open, replayOpenAnimation])
 
   // Refresh tasks callback
   const refreshTasks = useCallback(() => {
@@ -539,7 +539,7 @@ export default function CommandPalette({ bare = false }) {
       // spend six seconds on one query, where waiting longer to ask was the
       // cheapest way to ask less. The engines race now and cancel cleanly on a
       // keystroke, so the wait is only there to skip the middle of a word.
-    }, 140)
+    }, 260)
 
     return () => {
       clearTimeout(timer)

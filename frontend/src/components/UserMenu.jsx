@@ -92,6 +92,7 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onKeyDown={(e) => {
+                  e.stopPropagation()
                   if (e.key === 'Enter') handleSaveName(e)
                   if (e.key === 'Escape') setEditingName(false)
                 }}
