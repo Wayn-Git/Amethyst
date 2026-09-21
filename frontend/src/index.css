@@ -7275,6 +7275,10 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   padding: 8px !important;
   user-select: none;
+  max-height: calc(100vh - 100px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
 [data-theme="light"] .pm-menu-container {
@@ -7284,7 +7288,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 }
 
 .pm-scroll-body {
-  max-height: min(65vh, 520px) !important;
+  max-height: min(65vh, 520px);
   padding: 2px !important;
   display: flex;
   flex-direction: column;
@@ -14457,6 +14461,7 @@ a.text-reveal-wrap {
 /* Nothing to show and nothing to reserve. The column is `auto`, so a hidden
    panel takes the working column's width with it. */
 .wb-panel:empty { display: none; }
+.wb-panel:not(:has(.wb-panel-inner)) { display: none !important; }
 .wb--panel-hidden .wb-panel { display: none; }
 
 /* Filling the window. The panel leaves the grid and covers the working area
@@ -28598,6 +28603,10 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   padding: 8px !important;
   user-select: none;
+  max-height: calc(100vh - 100px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
 [data-theme="light"] .pm-menu-container {
@@ -28607,7 +28616,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 }
 
 .pm-scroll-body {
-  max-height: min(65vh, 520px) !important;
+  max-height: min(65vh, 520px);
   padding: 2px !important;
   display: flex;
   flex-direction: column;
@@ -36694,6 +36703,7 @@ a.text-reveal-wrap {
 /* Nothing to show and nothing to reserve. The column is `auto`, so a hidden
    panel takes the working column's width with it. */
 .wb-panel:empty { display: none; }
+.wb-panel:not(:has(.wb-panel-inner)) { display: none !important; }
 .wb--panel-hidden .wb-panel { display: none; }
 
 /* Filling the window. The panel leaves the grid and covers the working area

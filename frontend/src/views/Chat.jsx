@@ -2313,7 +2313,7 @@ export default function Chat() {
     <div className={`composer-wrap${isEmpty ? ' composer-wrap--hero' : ''}`}>
       {plusOpen && (
         <PlusMenu
-          placement={isEmpty ? 'down' : 'up'}
+          placement={isEmpty ? 'up' : 'up'}
           conversationId={activeId}
           workspace={workspace}
           onWorkspace={setWorkspace}
@@ -2559,7 +2559,7 @@ export default function Chat() {
               type="button"
               className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+              onClick={(e) => { e.stopPropagation(); setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
               title={`Files, skills, connectors — ${MOD_LABEL}+/`}
               aria-label="Add attachments or context"
             >
@@ -3126,23 +3126,27 @@ export default function Chat() {
 
       {panel && !compact && view === 'chat' && (
         panelMode === 'sources' ? (
-          <SourcesSidePanel
-            sources={activeSources}
-            activeUrl={activeSourceUrl}
-            duration="3s"
-            onClose={() => { setPanel(false); setPanelMode('artifacts') }}
-          />
+          activeSources?.length > 0 ? (
+            <SourcesSidePanel
+              sources={activeSources}
+              activeUrl={activeSourceUrl}
+              duration="3s"
+              onClose={() => { setPanel(false); setPanelMode('artifacts') }}
+            />
+          ) : null
         ) : (
-          <ArtifactSide
-            artifacts={artifacts}
-            activeArtifact={activeArtifact}
-            onSelectArtifact={setActiveArtifact}
-            streamingArtifact={streamingArtifact}
-            freshArtifact={freshArtifact}
-            expanded={panelExpanded}
-            onToggleExpand={togglePanelExpanded}
-            onClose={() => { setPanelExpanded(false); setPanel(false) }}
-          />
+          (!isEmpty && artifacts.length > 0) ? (
+            <ArtifactSide
+              artifacts={artifacts}
+              activeArtifact={activeArtifact}
+              onSelectArtifact={setActiveArtifact}
+              streamingArtifact={streamingArtifact}
+              freshArtifact={freshArtifact}
+              expanded={panelExpanded}
+              onToggleExpand={togglePanelExpanded}
+              onClose={() => { setPanelExpanded(false); setPanel(false) }}
+            />
+          ) : null
         )
       )}
 
