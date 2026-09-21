@@ -807,7 +807,13 @@ const Msg = memo(function Msg({
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
       <div className="msg-user-row">
         <div className="msg-user-content">
-          <div className="msg-body msg-body--plain">{item.text}</div>
+          <div className="msg-body msg-body--plain">
+            {item.text?.startsWith('>') ? (
+              <Markdown text={item.text} />
+            ) : (
+              item.text
+            )}
+          </div>
           <div className="msg-user-meta">
             {timeStr && <span className="msg-time">{timeStr}</span>}
             <CopyButton text={item.text} label="Copy" />
@@ -1019,6 +1025,25 @@ export default function Chat() {
   const [fullScreenMessage, setFullScreenMessage] = useState(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [inspectOpen, setInspectOpen] = useState(false)
+  const [referencedQuote, setReferencedQuote] = useState(null)
+
+  const handleReferQuote = useCallback((quoteText) => {
+    if (!quoteText || !quoteText.trim()) return
+    setReferencedQuote(quoteText.trim())
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 40)
+  }, [])
+
+  useEffect(() => {
+    const onRefer = (e) => {
+      if (e.detail?.text) {
+        handleReferQuote(e.detail.text)
+      }
+    }
+    window.addEventListener('amethyst-refer-quote', onRefer)
+    return () => window.removeEventListener('amethyst-refer-quote', onRefer)
+  }, [handleReferQuote])
   const inspectCardRef = useRef(null)
   const thoughtsStreamRef = useRef(null)
 
@@ -1238,12 +1263,14 @@ export default function Chat() {
   const selectConversation = useCallback((cid) => {
     if (cid === activeId) return
     leaveTurn()
+    setReferencedQuote(null)
     setActiveId(cid)
   }, [activeId, leaveTurn, setActiveId])
 
   const startFresh = useCallback(() => {
     leaveTurn()
     setActiveId(null)
+    setReferencedQuote(null)
     setItems([])
     setInput('')
     setTimeout(() => textareaRef.current?.focus(), 0)
@@ -1738,6 +1765,17 @@ export default function Chat() {
     if (activeTag && activeTag.name && !typed.toLowerCase().includes(`@${activeTag.name.toLowerCase()}`)) {
       typed = `@${activeTag.name} ${typed}`.trim()
     }
+    const quoteToAttach = overrideText === undefined ? referencedQuote : null
+    if (quoteToAttach) {
+      const quoteBlock = quoteToAttach.trim().split('\n').map((l) => `> ${l}`).join('\n')
+      if (typed) {
+        typed = `${quoteBlock}\n\n${typed}`
+      } else {
+        typed = `${quoteBlock}\n\nCan you explain or elaborate on this?`
+      }
+      setReferencedQuote(null)
+    }
+
     const sending = overrideFiles !== undefined ? overrideFiles : attachments
     if ((!typed && sending.length === 0) || turnState !== 'idle') return
     // A new turn: whatever the last one wrote is no longer new.
@@ -1810,7 +1848,7 @@ export default function Chat() {
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag,
+    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag, referencedQuote,
   ])
 
   const handleSaveMessageEdit = useCallback(async (msgItem, newText) => {
@@ -2478,6 +2516,29 @@ export default function Chat() {
           onRemove={(file) => setAttachments((list) => list.filter((f) => f.path !== file.path))}
         />
 
+        {referencedQuote && (
+          <div className="composer-quote-banner" role="region" aria-label="Referenced text">
+            <div className="composer-quote-main">
+              <div className="composer-quote-header">
+                <Icon name="quote" size={12} className="composer-quote-icon" />
+                <span>Referenced text</span>
+              </div>
+              <div className="composer-quote-snippet">
+                {referencedQuote}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="composer-quote-remove"
+              onClick={() => setReferencedQuote(null)}
+              title="Remove reference"
+              aria-label="Remove reference"
+            >
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+        )}
+
         {/* Top Input Row */}
         <div className="composer-card-input-wrap">
           {activeTag && (
@@ -2505,7 +2566,7 @@ export default function Chat() {
             placeholder={
               turnState === 'running'
                 ? 'Add context while this runs'
-                : (isEmpty ? 'How can I help you today?' : 'Ask for follow-up changes')
+                : (referencedQuote ? 'Ask about this referenced text...' : (isEmpty ? 'How can I help you today?' : 'Ask for follow-up changes'))
             }
             aria-label="Message"
             onChange={(e) => {
@@ -3025,6 +3086,10 @@ export default function Chat() {
             {/* The transcript fades at whichever edge it actually runs past,
                 so a reply that continues above the fold says so without a rule
                 across the page. */}
+            <SelectionActionMenu
+              containerRef={scrollRef}
+              onRefer={handleReferQuote}
+            />
             <FadeScrollArea className="chat-scroll" scrollRef={scrollRef} onScroll={onScroll} fadeHeight={28}>
               <div className={`chat-stream${settledStream ? ' is-settled' : ''}`}>
                 {loadError && (

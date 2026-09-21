@@ -95,6 +95,7 @@ import {
   Mouse,
   Power,
   WifiHigh,
+  Quotes,
 } from '@phosphor-icons/react'
 
 /* One icon set, one stroke weight, one grid.
@@ -146,6 +147,8 @@ const MARKS = {
   'caret-up': CaretUp,
   'caret-right': CaretRight,
   'chevron-right': CaretRight,
+  quote: Quotes,
+  quotes: Quotes,
   chat: ChatCenteredText,
   'chat-bubble': ChatCenteredText,
   'chat-dots': ChatCircleDots,
