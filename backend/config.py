@@ -623,6 +623,48 @@ def remove_provider(name: str, path: Path | None = None) -> bool:
     return True
 
 
+def set_primary_provider(name: str, path: Path | None = None) -> bool:
+    """Make this provider the primary route by moving it to the top of providers.yaml.
+    
+    Also updates the default cognitive tier if the provider has a model specified.
+    """
+    entries = provider_entries(path)
+    target = None
+    rest = []
+    for entry in entries:
+        if entry.get("name") == name:
+            target = entry
+        else:
+            rest.append(entry)
+    if not target:
+        return False
+    # Ensure primary provider is enabled
+    target.pop("enabled", None)
+    save_providers([target] + rest, path)
+
+    model = target.get("default_model") or target.get("model")
+    if model:
+        try:
+            set_tier("default", name, model, path)
+        except Exception as e:
+            log.warning("failed to align default tier with primary provider: %s", e)
+
+    return True
+
+
+def reorder_providers(order: list[str], path: Path | None = None) -> list[str]:
+    """Reorder provider entries in providers.yaml according to the given name order."""
+    entries = provider_entries(path)
+    by_name = {e.get("name"): e for e in entries if e.get("name")}
+    reordered = []
+    for name in order:
+        if name in by_name:
+            reordered.append(by_name.pop(name))
+    reordered.extend(by_name.values())
+    save_providers(reordered, path)
+    return [e.get("name") for e in reordered if e.get("name")]
+
+
 #: When the day's briefing and review are filed. Local hours on the machine's
 #: own clock, because "seven in the morning" means seven where the user is --
 #: the same reason `backend/reminders.py` compares against `datetime.now()`.

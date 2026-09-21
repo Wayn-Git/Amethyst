@@ -1861,6 +1861,30 @@ def set_provider_enabled_route(name: str, body: ProviderEnabled) -> dict[str, An
     return {"status": "updated", "name": name, "enabled": body.enabled}
 
 
+class ProviderReorder(BaseModel):
+    order: list[str]
+
+
+@app.post("/api/providers/{name}/primary")
+def set_primary_provider_route(name: str) -> dict[str, Any]:
+    """Set one provider as the primary route at the top of providers.yaml."""
+    from backend.config import set_primary_provider
+
+    if not set_primary_provider(name):
+        raise HTTPException(404, f"'{name}' is not in providers.yaml")
+    availability.forget(name)
+    return {"status": "ok", "primary": name}
+
+
+@app.post("/api/providers/reorder")
+def reorder_providers_route(body: ProviderReorder) -> dict[str, Any]:
+    """Reorder provider entries in providers.yaml."""
+    from backend.config import reorder_providers
+
+    order = reorder_providers(body.order)
+    return {"status": "ok", "order": order}
+
+
 @app.get("/api/routing")
 async def routing() -> dict[str, Any]:
     """Why the router would pick what it picks, right now.

@@ -261,6 +261,10 @@ export const api = {
   // state DELETE cannot express.
   setProviderEnabled: (name, enabled) =>
     j(`/providers/${encodeURIComponent(name)}`, json('PATCH', { enabled })),
+  setPrimaryProvider: (name) =>
+    j(`/providers/${encodeURIComponent(name)}/primary`, json('POST')),
+  reorderProviders: (order) =>
+    j('/providers/reorder', json('POST', { order })),
   // Why the router would pick what it picks: each provider's health, how much
   // of its declared minute is left, and the ranked decision with its reasons.
   routing: () => j('/routing'),
