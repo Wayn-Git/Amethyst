@@ -9,6 +9,7 @@ being recalled, unprompted, in a different one.
 from __future__ import annotations
 
 import hashlib
+import json
 
 import pytest
 
@@ -103,6 +104,24 @@ def test_a_plain_diff_is_read():
 def test_a_fenced_diff_is_read():
     diff = parse_diff('```json\n{"create": ["a"], "supersede": []}\n```')
     assert diff.create == ["a"]
+
+
+def test_diff_with_dict_objects_is_read():
+    payload = json.dumps({
+        "create": [
+            {"id": "user_preferred_language", "value": "Rust"},
+            {"id": "location", "value": "Seattle"},
+            {"fact": "owns a cat named Luna"},
+        ],
+        "supersede": [{"id": 3}],
+    })
+    diff = parse_diff(payload, known_ids={3})
+    assert diff.create == [
+        "user preferred language: Rust",
+        "location: Seattle",
+        "owns a cat named Luna",
+    ]
+    assert diff.supersede == [3]
 
 
 def test_unparseable_output_costs_only_that_turn():

@@ -474,14 +474,13 @@ export default function App() {
     check()
     window.addEventListener('focus', check)
 
-    // Only poll quickly (4s) when a pairing is active to detect remote acceptance/dismissal.
-    // When idle, fall back to a 60s interval that only runs when the tab is visible.
-    const pollInterval = pendingPairing ? 4000 : 60000
-    const timer = setInterval(check, pollInterval)
+    // Only poll when a pairing is active on screen to detect remote acceptance/dismissal.
+    // When idle, do not poll periodically at all (real-time SSE push handles arrivals).
+    const timer = pendingPairing ? setInterval(check, 4000) : null
     return () => {
       active = false
       window.removeEventListener('focus', check)
-      clearInterval(timer)
+      if (timer) clearInterval(timer)
     }
   }, [playPairingChime, pendingPairing])
 

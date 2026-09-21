@@ -2513,9 +2513,27 @@ class Director:
             client = self._memory_client(conversation_id, answered_with)
             if client is None:
                 return
-            diff = await service.extract(conversation_id, user_message, answer, client)
+
+            diff = None
+            try:
+                diff = await service.extract(conversation_id, user_message, answer, client)
+            except Exception as exc:
+                log.warning("preferred memory model extraction failed (%s); trying fallback", exc)
+                fallback_client = None
+                if answered_with is not None:
+                    with contextlib.suppress(Exception):
+                        fallback_client = resolve(answered_with.provider, answered_with.model).client
+                if fallback_client is None or fallback_client is client:
+                    conversation = self.conversations.get(conversation_id)
+                    if conversation:
+                        with contextlib.suppress(Exception):
+                            fallback_client = resolve(conversation["provider"], conversation["model"]).client
+                if fallback_client is not None and fallback_client is not client:
+                    diff = await service.extract(conversation_id, user_message, answer, fallback_client)
+                else:
+                    raise
         except Exception as exc:
-            log.debug("memory extraction failed: %s", exc)
+            log.warning("memory extraction failed: %s", exc)
             return
 
         if diff:

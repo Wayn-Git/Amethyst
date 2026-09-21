@@ -101,15 +101,30 @@ def parse_diff(text: str, *, known_ids: set[int] | None = None) -> MemoryDiff:
     if not isinstance(payload, dict):
         return MemoryDiff()
 
-    create = [
-        _sanitize_fact(fact)
-        for fact in payload.get("create") or []
-        if isinstance(fact, str) and fact.strip()
-    ]
+    create = []
+    for item in payload.get("create") or []:
+        if isinstance(item, str) and item.strip():
+            create.append(_sanitize_fact(item))
+        elif isinstance(item, dict):
+            val = (
+                item.get("fact")
+                or item.get("statement")
+                or item.get("text")
+                or item.get("content")
+                or item.get("value")
+            )
+            if isinstance(val, str) and val.strip():
+                topic = item.get("id") or item.get("key") or item.get("topic")
+                if topic and isinstance(topic, str) and topic.lower() not in val.lower():
+                    clean_topic = topic.replace("_", " ").strip()
+                    val = f"{clean_topic}: {val.strip()}"
+                create.append(_sanitize_fact(val))
     create = [f for f in create if f]
 
     supersede: list[int] = []
     for raw in payload.get("supersede") or []:
+        if isinstance(raw, dict):
+            raw = raw.get("id") or raw.get("memory_id")
         try:
             value = int(raw)
         except (TypeError, ValueError):

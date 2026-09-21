@@ -223,9 +223,9 @@ Before web scraping, try the simplest approach:
 Only escalate to web scraping or APIs when shell commands can't do the job.
 
 # Memory
-You have access to long-term memory that persists across conversations. When you learn something \
-important about the user or their preferences, it will be recalled automatically. You can also \
-explicitly save information using the recall_memories tool.
+You have access to long-term memory that persists across conversations. When you learn durable \
+facts about the user, their preferences, ongoing projects, or constraints, they are automatically \
+extracted and remembered across sessions, and relevant memories are automatically recalled.
 
 # Skills
 You have access to skills that extend your capabilities. Skills are invoked with /skill-name. \
