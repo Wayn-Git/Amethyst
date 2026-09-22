@@ -81,3 +81,30 @@ async def test_thread_summaries_optional_cached_and_linked(db, monkeypatch):
     assert cached["payload"]["unavailable"] == ["Slack"]
     service.read_data("comm.thread-summary")
     assert len(calls) == 1
+
+
+async def test_newsletter_detection_and_suggestions(db, monkeypatch):
+    from backend.dashboard.remote import project_mail
+
+    raw = {
+        "id": "n",
+        "from": "Digest <news@example.org>",
+        "subject": "Weekly",
+        "date": "2026-10-25",
+        "body": "PRIVATE",
+        "headers": [{"name": "List-Unsubscribe", "value": "https://example.org/unsubscribe"}],
+    }
+    # The connector projection receives no bodies and retains no unsubscribe action URL.
+    row = project_mail({k: v for k, v in raw.items() if k != "body"})
+    assert row["newsletter"] and "PRIVATE" not in str(row)
+    assert "unsubscribe" not in str(row).lower()
+
+    async def read(widget, toolkit, slug, args):
+        assert slug == "GMAIL_FETCH_EMAILS"
+        return {"messages": [row, {**row, "id": "personal", "newsletter": False}]}
+
+    monkeypatch.setattr(connectors, "read", read)
+    result = await communication.provide("comm.newsletters")
+    assert len(result["items"]) == 1
+    assert result["items"][0]["count"] == 1
+    assert "Consider unsubscribing" in result["items"][0]["suggestion"]

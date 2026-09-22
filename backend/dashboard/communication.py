@@ -47,6 +47,8 @@ async def slack_dms(widget_id):
 async def provide(widget_id):
     if widget_id == "need.lor-slack":
         return await slack_dms(widget_id)
+    if widget_id == "comm.newsletters":
+        return await newsletters(widget_id)
     return await summaries(widget_id)
 
 
@@ -141,3 +143,49 @@ async def summaries(widget_id):
             if isinstance(result, Exception)
         ],
     }
+
+
+async def newsletters(widget_id):
+    from email.utils import parseaddr
+
+    rows = await mail.messages(widget_id, "-in:sent -in:drafts newer_than:30d")
+    limited = len(rows) >= 100
+    groups = {}
+    for row in rows:
+        if not row.get("newsletter"):
+            continue
+        sender = parseaddr(row["from"])[1].lower() or row["from"]
+        groups.setdefault(sender, []).append(row)
+    items = []
+    for sender, rows in groups.items():
+        rows.sort(key=lambda r: mail.mail_date(r["date"]), reverse=True)
+        items.append(
+            {
+                "id": sender,
+                "title": sender,
+                "source": "Gmail",
+                "url": "https://mail.google.com/mail/u/0/#all/"
+                + quote(rows[0].get("thread_id") or rows[0]["id"], safe=""),
+                "summary": "; ".join(r["subject"] for r in rows[:5]),
+                "count": len(rows),
+                "suggestion": "Consider unsubscribing in Gmail if no longer useful.",
+            }
+        )
+    enabled = settings_read(widget_id).get("model_enabled", False)
+    if items and enabled:
+        text = await mail.generate(
+            "Summarize this newsletter digest, using only these subjects. "
+            'Return a JSON array of {"id", "summary"}. ' + json.dumps(items)
+        )
+        result = json.loads(text)
+        if not isinstance(result, list):
+            raise ValueError("Invalid newsletter digest")
+        by_id = {row["id"]: row for row in items}
+        for row in result:
+            if (
+                isinstance(row, dict)
+                and row.get("id") in by_id
+                and isinstance(row.get("summary"), str)
+            ):
+                by_id[row["id"]]["summary"] = row["summary"][:2000]
+    return {"items": items, "model_enabled": enabled, "limited": limited}

@@ -7,10 +7,10 @@ import time
 from collections import defaultdict
 from datetime import datetime
 
-from backend.agent.projection import project_email_item
 from backend.agent.read_cache import read_cache
 from backend.agent.trace import finish_turn_trace, record_tool_dispatch, start_turn_trace
 from backend.config import paths
+from backend.dashboard.remote import project_mail
 from backend.dashboard.store import settings_read, stamp
 from backend.db.connection import transaction
 from backend.db.repositories import ExecutionLogRepository
@@ -216,7 +216,7 @@ async def _read(widget_id, toolkit, slug, arguments):
                 # Never turn a full body into a snippet or retain raw connector responses.
                 value = {
                     "messages": [
-                        project_email_item(
+                        project_mail(
                             {
                                 **{
                                     key: row[key]
@@ -226,6 +226,7 @@ async def _read(widget_id, toolkit, slug, arguments):
                                         "threadId",
                                         "thread_id",
                                         "from",
+                                        "to",
                                         "sender",
                                         "subject",
                                         "date",

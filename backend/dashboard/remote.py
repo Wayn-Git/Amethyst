@@ -141,3 +141,23 @@ def slack_row(row):
         "channel": row.get("channel", {}).get("id", ""),
         "url": row.get("permalink", ""),
     }
+
+
+def project_mail(row):
+    from backend.agent.projection import project_email_item
+
+    headers = row.get("payload", {}).get("headers") or row.get("headers") or []
+    if isinstance(headers, list):
+        headers = {
+            h.get("name", "").lower(): h.get("value", "") for h in headers if isinstance(h, dict)
+        }
+    elif isinstance(headers, dict):
+        headers = {str(k).lower(): v for k, v in headers.items()}
+    else:
+        headers = {}
+    return {
+        **project_email_item(row),
+        "to": str(row.get("to") or headers.get("to") or "")[:2000],
+        "newsletter": bool(headers.get("list-unsubscribe") or headers.get("list-id")),
+        "sent": "SENT" in (row.get("labelIds") or row.get("label_ids") or []),
+    }

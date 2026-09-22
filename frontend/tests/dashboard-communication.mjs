@@ -28,5 +28,14 @@ try {
   })
   await page.getByText('Summary fixture', { exact: true }).waitFor()
   assert.equal(await page.getByRole('button', { name: 'Disable summaries' }).count(), 1)
+  await page.evaluate(async () => {
+    const { default: React } = await import('/node_modules/.vite/deps/react.js')
+    const { default: ReactDOM } = await import('/node_modules/.vite/deps/react-dom_client.js')
+    const { default: Component } = await import('/src/dashboard/widgets/Communication.jsx')
+    const host = document.createElement('div'); document.body.append(host)
+    ReactDOM.createRoot(host).render(React.createElement(Component, { widgetId: 'comm.newsletters', data: { items: [{ id: 'n', title: 'Newsletter fixture', suggestion: 'Consider unsubscribing in Gmail.' }] } }))
+  })
+  await page.getByText('Consider unsubscribing in Gmail.', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: /unsubscribe/i }).count(), 0)
   console.log('Communication UI passed')
 } finally { await browser.close() }

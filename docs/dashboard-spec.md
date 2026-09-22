@@ -212,7 +212,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | comm.unread | Unread digest by person | cmp:gmail | MVP | [x] |
 | comm.thread-summary | Long-thread summaries | cmp:gmail, cmp:slack, llm | v2 | [x] |
 | comm.schedule-send | Scheduled send queue | cmp:gmail, gate | v2 | [ ] |
-| comm.newsletters | Newsletter digest and unsubscribe suggestions | cmp:gmail, llm | v2 | [ ] |
+| comm.newsletters | Newsletter digest and unsubscribe suggestions | cmp:gmail, llm | v2 | [x] |
 | comm.meeting | Meeting request handler (proposes times) | cmp:gmail, cmp:googlecalendar, llm | v2 | [ ] |
 | comm.contacts | Contact cards (last contact, shared context) | local, cmp:gmail | v2 | [ ] |
 | comm.reachout | Birthdays and reach-out nudges | local, cmp:gmail | v2 | [ ] |

@@ -95,3 +95,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - need.lor-slack: Read-only Composio DM candidates checked against latest conversation search; bounded discovery is disclosed; no read-receipt claims. Provider and minimal UI tests pass.
 
 - comm.thread-summary: Optional async local/free-model summaries of partial Gmail/Slack thread snippets, source links and shared caches; provider and UI tests pass.
+
+- comm.newsletters: List-header detection, subject digest, optional local/free-model summaries and manual unsubscribe suggestions only; no send/unsubscribe tools or actions. Mocked connector and UI tests pass.
