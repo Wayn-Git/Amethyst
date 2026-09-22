@@ -1576,6 +1576,14 @@ export default function Chat() {
         setStreamingArtifact((id) => (id === evt.id ? null : id))
         break
 
+      case 'memory': {
+        const created = evt.created || []
+        if (created.length > 0) {
+          toast(created.length === 1 ? `Remembered: "${created[0]}"` : `Remembered ${created.length} new facts`, 'ok')
+        }
+        break
+      }
+
       default:
         /* A frame added on the server used to vanish here without trace, which
            is how you spend an afternoon wondering why the backend's new event

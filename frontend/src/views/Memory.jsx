@@ -14,6 +14,7 @@ export default function Memory() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState('')
   const [filter, setFilter] = useState('')
+  const [newFact, setNewFact] = useState('')
   useViewEntrance(rootRef)
 
   const load = useCallback(async () => {
@@ -36,6 +37,23 @@ export default function Memory() {
     try {
       const next = await api.toggleMemory(!state.enabled)
       toast(next.enabled ? 'Memory on' : 'Memory off — nothing new will be recorded', 'ok')
+      await load()
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const addFact = async (e) => {
+    e?.preventDefault()
+    const trimmed = newFact.trim()
+    if (!trimmed) return
+    setBusy('add')
+    try {
+      await api.addMemory(trimmed)
+      setNewFact('')
+      toast('Memory recorded', 'ok')
       await load()
     } catch (err) {
       toast(err.message, 'bad')
@@ -97,6 +115,43 @@ export default function Memory() {
             </span>
           </div>
         )}
+
+        {/* Direct manual memory entry */}
+        <form
+          className="mem-add-form"
+          onSubmit={addFact}
+          data-enter
+          style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}
+        >
+          <div className="inline-search" style={{ flex: 1, maxWidth: 'none' }}>
+            <Icon name="plus" size={13} style={{ opacity: 0.65 }} />
+            <input
+              value={newFact}
+              onChange={(e) => setNewFact(e.target.value)}
+              placeholder="Add a fact for AMETHYST to remember (e.g. 'Prefers dark mode', 'Lives in Berlin')..."
+              aria-label="Add a new fact"
+              disabled={busy === 'add'}
+            />
+            {newFact && (
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setNewFact('')}
+                aria-label="Clear input"
+              >
+                <Icon name="x" size={13} />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            className="btn btn--primary btn--small"
+            disabled={!newFact.trim() || busy === 'add'}
+            style={{ flexShrink: 0 }}
+          >
+            <Icon name="spark" size={13} /> {busy === 'add' ? 'Saving…' : 'Remember'}
+          </button>
+        </form>
 
         {/* The filter used to be an `<input>` carrying its own hand-written
             colours and radius in a style attribute — a control that belonged

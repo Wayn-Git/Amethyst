@@ -1849,7 +1849,7 @@ class Director:
                     # continuation and not a restart.
                     can_hand_over = (
                         links_after > 0
-                        and should_fall_back(kind)
+                        and (should_fall_back(kind) or state.active > 0)
                     )
                     if can_hand_over:
                         resuming = bool(streamed_text or state.carried)
@@ -1952,12 +1952,17 @@ class Director:
                         return
 
                     # Nothing was produced, so this really is a failed turn.
-                    noted = f"[model error] {message}"
+                    clean_msg = (
+                        "The model stream was interrupted by the provider. Please try again."
+                        if "input stream" in str(raw_message).lower() or "input stream" in str(message).lower()
+                        else message
+                    )
+                    noted = f"[model error] {clean_msg}"
                     self._persist(conversation_id, "assistant", noted)
-                    state.error = message
+                    state.error = clean_msg
                     self._checkpoint(state, "failed", budget=budget)
                     yield Event("status", {"state": "failed"})
-                    yield Event("error", {"message": message, "resumable": False})
+                    yield Event("error", {"message": clean_msg, "resumable": False})
                     return
 
                 availability.record_success(chain[state.active].provider)
@@ -2515,23 +2520,34 @@ class Director:
                 return
 
             diff = None
-            try:
-                diff = await service.extract(conversation_id, user_message, answer, client)
-            except Exception as exc:
-                log.warning("preferred memory model extraction failed (%s); trying fallback", exc)
-                fallback_client = None
-                if answered_with is not None:
-                    with contextlib.suppress(Exception):
-                        fallback_client = resolve(answered_with.provider, answered_with.model).client
-                if fallback_client is None or fallback_client is client:
-                    conversation = self.conversations.get(conversation_id)
-                    if conversation:
-                        with contextlib.suppress(Exception):
-                            fallback_client = resolve(conversation["provider"], conversation["model"]).client
-                if fallback_client is not None and fallback_client is not client:
-                    diff = await service.extract(conversation_id, user_message, answer, fallback_client)
-                else:
-                    raise
+            clients_to_try = [client]
+            seen_clients = {client}
+
+            if answered_with is not None:
+                with contextlib.suppress(Exception):
+                    c = resolve(answered_with.provider, answered_with.model).client
+                    if c not in seen_clients:
+                        seen_clients.add(c)
+                        clients_to_try.append(c)
+
+            with contextlib.suppress(Exception):
+                from backend.config import load_tiers
+                tiers = load_tiers()
+                for tier_key in ("fast", "default"):
+                    tier = tiers.get(tier_key)
+                    if tier and getattr(tier, "provider", None) and getattr(tier, "model", None):
+                        c = resolve(tier.provider, tier.model).client
+                        if c not in seen_clients:
+                            seen_clients.add(c)
+                            clients_to_try.append(c)
+
+            for candidate_client in clients_to_try:
+                try:
+                    diff = await service.extract(conversation_id, user_message, answer, candidate_client)
+                    if diff:
+                        break
+                except Exception as exc:
+                    log.warning("memory extraction candidate failed: %s", exc)
         except Exception as exc:
             log.warning("memory extraction failed: %s", exc)
             return

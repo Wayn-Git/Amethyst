@@ -87,22 +87,51 @@ def parse_diff(text: str, *, known_ids: set[int] | None = None) -> MemoryDiff:
     candidate = text.strip()
     fenced = _FENCE.search(candidate)
     if fenced:
-        candidate = fenced.group(1)
+        candidate = fenced.group(1).strip()
     else:
-        start, end = candidate.find("{"), candidate.rfind("}")
-        if start != -1 and end > start:
-            candidate = candidate[start : end + 1]
+        obj_start = candidate.find("{")
+        arr_start = candidate.find("[")
+        if arr_start != -1 and (obj_start == -1 or arr_start < obj_start):
+            arr_end = candidate.rfind("]")
+            if arr_end > arr_start:
+                candidate = candidate[arr_start : arr_end + 1]
+        elif obj_start != -1:
+            obj_end = candidate.rfind("}")
+            if obj_end > obj_start:
+                candidate = candidate[obj_start : obj_end + 1]
 
     try:
         payload = json.loads(candidate)
     except (ValueError, TypeError):
         log.warning("memory extraction returned unparseable output: %r", text[:200])
         return MemoryDiff()
-    if not isinstance(payload, dict):
+
+    raw_create = []
+    raw_supersede = []
+
+    if isinstance(payload, list):
+        raw_create = payload
+    elif isinstance(payload, dict):
+        for k in ("create", "memories", "facts", "add", "new", "items"):
+            val = payload.get(k)
+            if isinstance(val, list):
+                raw_create.extend(val)
+            elif isinstance(val, (str, dict)):
+                raw_create.append(val)
+        if not raw_create and any(k in payload for k in ("fact", "statement", "text", "value")):
+            raw_create.append(payload)
+
+        for k in ("supersede", "retire", "remove", "delete", "superseded"):
+            val = payload.get(k)
+            if isinstance(val, list):
+                raw_supersede.extend(val)
+            elif isinstance(val, (int, str, dict)):
+                raw_supersede.append(val)
+    else:
         return MemoryDiff()
 
     create = []
-    for item in payload.get("create") or []:
+    for item in raw_create:
         if isinstance(item, str) and item.strip():
             create.append(_sanitize_fact(item))
         elif isinstance(item, dict):
@@ -122,7 +151,7 @@ def parse_diff(text: str, *, known_ids: set[int] | None = None) -> MemoryDiff:
     create = [f for f in create if f]
 
     supersede: list[int] = []
-    for raw in payload.get("supersede") or []:
+    for raw in raw_supersede:
         if isinstance(raw, dict):
             raw = raw.get("id") or raw.get("memory_id")
         try:

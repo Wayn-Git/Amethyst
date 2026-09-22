@@ -915,7 +915,7 @@ HEARTBEAT_SECONDS = 10.0
 TURN_STARTUP_SECONDS = 8.0
 # Warm connectors (confirmed alive at least once) need much less time — just
 # enough to check they're still responsive, not to wait for cold start.
-CONNECTOR_WARM_DEADLINE = 1.5
+CONNECTOR_WARM_DEADLINE = 0.5
 
 # The same ceiling for the boot-time connector start. It holds the registry
 # lock while it runs, and a turn that arrives during it queues behind that
@@ -1133,22 +1133,21 @@ async def _registry_locked(
 
     if _mcp["registry"] is not None and _mcp["workspace"] == root:
         # Pick up connectors switched on or off since the registry was
-        # built. Without this the toggle only took effect on restart, so a
-        # connector the user turned on in the interface stayed unusable.
-        for name, outcome in (
-            await _mcp["manager"].reconcile(deadline=reconcile_deadline)
-        ).items():
-            # A connector whose tools are in the registry is working, whatever
-            # this pass reported. Recording the failure anyway is what put a
-            # permanently degraded banner over connectors the agent was
-            # calling successfully -- see `MCPManager.is_ready`.
-            if isinstance(outcome, int) or _mcp["manager"].is_ready(name):
-                _mcp["errors"].pop(name, None)
-            else:
-                _mcp["errors"][name] = str(outcome)
-        # A server that is no longer configured cannot be degraded.
-        for name in [n for n in _mcp["errors"] if n not in _mcp["manager"].state()]:
-            del _mcp["errors"][name]
+        # built. Bounded by reconcile_deadline (fast when warm) so it does
+        # not stall turn startup.
+        try:
+            for name, outcome in (
+                await _mcp["manager"].reconcile(deadline=reconcile_deadline)
+            ).items():
+                if isinstance(outcome, int) or _mcp["manager"].is_ready(name):
+                    _mcp["errors"].pop(name, None)
+                else:
+                    _mcp["errors"][name] = str(outcome)
+            # A server that is no longer configured cannot be degraded.
+            for name in [n for n in _mcp["errors"] if n not in _mcp["manager"].state()]:
+                del _mcp["errors"][name]
+        except Exception:
+            log.debug("connector reconciliation encountered an issue", exc_info=True)
         return _mcp["registry"], root
 
     if _mcp["manager"] is not None:
@@ -2974,7 +2973,8 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
                 log.exception("could not build the agent for this turn")
                 settled = True
                 release()
-                yield _frame("error", message=f"{type(exc).__name__}: {exc}")
+                clean_msg = "The agent could not start for this turn." if "input stream" in str(exc).lower() else f"{type(exc).__name__}: {exc}"
+                yield _frame("error", message=clean_msg)
                 return
 
             async for event in _with_heartbeats(
@@ -3027,6 +3027,11 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
             if not settled:
                 yield _frame("error", message="the server stopped this turn")
             raise
+        except Exception as exc:
+            log.exception("Turn stream failed")
+            if not settled:
+                clean_msg = "The model connection was interrupted." if "input stream" in str(exc).lower() else f"Turn failed: {exc}"
+                yield _frame("error", message=clean_msg)
         finally:
             # A backstop for the stream that ends without a terminal frame at
             # all -- a client that hangs up, or a generator closed early.
@@ -5280,6 +5285,12 @@ def list_calendar(days: int = 14) -> list[dict[str, Any]]:
 # /api/capabilities.
 
 
+class MemoryCreate(BaseModel):
+    model_config = {"extra": "ignore"}
+    fact: str
+    conversation_id: str | None = None
+
+
 class MemoryToggle(BaseModel):
     enabled: bool
     conversation_id: str | None = None  # omit to change the global default
@@ -5302,6 +5313,41 @@ def list_memories(conversation_id: str | None = None, limit: int = 200) -> dict[
             }
             for m in store.live(limit)
         ],
+    }
+
+
+@app.post("/api/memory")
+async def create_memory(body: MemoryCreate) -> dict[str, Any]:
+    from backend.memory import MemoryService
+    from backend.memory.service import _sanitize_fact, MemoryDiff
+
+    clean = _sanitize_fact(body.fact)
+    if not clean:
+        raise HTTPException(400, "fact cannot be empty")
+
+    service = MemoryService()
+    diff = await service.apply(MemoryDiff(create=[clean]), conversation_id=body.conversation_id)
+    if not diff.create:
+        existing = [m for m in service.store.live() if m.fact.lower().strip() == clean.lower().strip()]
+        if existing:
+            m = existing[0]
+            return {
+                "id": m.id,
+                "fact": m.fact,
+                "conversation_id": m.conversation_id,
+                "created_at": m.created_at,
+                "already_existed": True,
+            }
+
+    live_facts = service.store.live(10)
+    matched = next((m for m in live_facts if m.fact == clean), live_facts[0] if live_facts else None)
+    if not matched:
+        raise HTTPException(500, "could not save memory")
+    return {
+        "id": matched.id,
+        "fact": matched.fact,
+        "conversation_id": matched.conversation_id,
+        "created_at": matched.created_at,
     }
 
 
