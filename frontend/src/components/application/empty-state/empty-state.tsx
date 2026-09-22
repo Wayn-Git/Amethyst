@@ -315,6 +315,7 @@ const AvatarGrid = ({ avatars = [], ...props }: AvatarGridProps) => {
 };
 
 const EmptyState = Root as typeof Root & {
+    Root: typeof Root;
     Title: typeof Title;
     Header: typeof Header;
     Footer: typeof Footer;
@@ -328,6 +329,7 @@ const EmptyState = Root as typeof Root & {
     AvatarGrid: typeof AvatarGrid;
 };
 
+EmptyState.Root = Root;
 EmptyState.Title = Title;
 EmptyState.Header = Header;
 EmptyState.Footer = Footer;

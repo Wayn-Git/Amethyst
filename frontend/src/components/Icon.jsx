@@ -127,7 +127,9 @@ const MARKS = {
   pause: Pause,
   'check-circle': CheckCircle,
   'arrow-up': ArrowUp,
+  'arrow-right': CaretRight,
   up: ArrowUp,
+  file: FileText,
   square: Square,
   /* Four marks were being asked for by name and had no entry, so `Icon`
      returned null and the button around them rendered as a label with a hole

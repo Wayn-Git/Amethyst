@@ -558,6 +558,8 @@ export const api = {
 
   memory: (conversationId) =>
     j(`/memory${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
+  addMemory: (fact, conversationId) =>
+    j('/memory', json('POST', { fact, conversation_id: conversationId || null })),
   toggleMemory: (enabled, conversationId) =>
     j('/memory/toggle', json('POST', { enabled, conversation_id: conversationId || null })),
   forgetMemory: (id) => j(`/memory/${id}`, json('DELETE')),

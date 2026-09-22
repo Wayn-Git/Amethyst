@@ -32,6 +32,21 @@ export default function DamonHeader({
 
   const badge = getModeBadge()
 
+  const defaultPlaceholder =
+    activeMode === 'youtube'
+      ? 'Search YouTube videos…'
+      : activeMode === 'web'
+      ? 'Search the web…'
+      : activeMode === 'images'
+      ? 'Search free images…'
+      : activeMode === 'commands'
+      ? 'Type an action or shortcut…'
+      : activeMode === 'library'
+      ? 'Search or add to library…'
+      : activeMode === 'tasks'
+      ? 'Search tasks or type a new task…'
+      : 'Type a command, question, or search (e.g. > youtube, > google, 24*7)…'
+
   return (
     <div className="palette-input damon-header">
       <div className="damon-input-leading">
@@ -55,21 +70,7 @@ export default function DamonHeader({
         ref={inputRef}
         autoFocus
         value={query}
-        placeholder={
-          activeMode === 'youtube'
-            ? 'Search YouTube videos…'
-            : activeMode === 'web'
-            ? 'Search the web…'
-            : activeMode === 'images'
-            ? 'Search free images…'
-            : activeMode === 'commands'
-            ? 'Type an action or shortcut…'
-            : activeMode === 'library'
-            ? 'Search or add to library…'
-            : activeMode === 'tasks'
-            ? 'Search tasks or type a new task…'
-            : 'Type a command, question, or search (e.g. > youtube, > google, 24*7)…'
-        }
+        placeholder={defaultPlaceholder}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => { e.stopPropagation(); onKeyDown?.(e) }}
         aria-label="Spotlight search and commands"

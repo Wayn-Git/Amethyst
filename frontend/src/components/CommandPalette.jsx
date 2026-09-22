@@ -19,6 +19,7 @@ import TasksView from './damon/views/TasksView.jsx'
 import LibraryView from './damon/views/LibraryView.jsx'
 import { evaluateMath } from './damon/calculator.js'
 import { peek, put } from './damon/searchCache.js'
+import { ChevronRight } from 'lucide-react'
 
 const THEMES = [
   { id: 'apple', icon: 'sun', label: 'Switch to Apple', hint: 'clean museum gallery & Action Blue' },
@@ -1308,7 +1309,7 @@ export default function CommandPalette({ bare = false }) {
                 {header && <div className="palette-group">{header}</div>}
                 <button
                   type="button"
-                  className={`palette-item${i === index ? ' active' : ''}`}
+                  className={`palette-item group/item${i === index ? ' active' : ''}`}
                   data-active={i === index}
                   onClick={() => runCommand(command)}
                 >
@@ -1330,6 +1331,7 @@ export default function CommandPalette({ bare = false }) {
                       ))}
                     </span>
                   )}
+                  <ChevronRight className="size-4 opacity-0 group-hover/item:opacity-70 transition-opacity ml-auto text-faint flex-shrink-0" />
                 </button>
               </div>
             ))}
