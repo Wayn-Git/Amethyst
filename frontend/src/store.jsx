@@ -895,6 +895,97 @@ export function AppProvider({ children }) {
     }
   }, [ready, refreshHealth, refreshCaps])
 
+  const [updateInfo, setUpdateInfo] = useState({
+    checking: false,
+    available: false,
+    downloaded: false,
+    version: null,
+    releaseUrl: null,
+    error: null,
+  })
+
+  // Listen for Electron autoUpdater notifications if running in desktop shell
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.amethystDesktop) {
+      const unsubAvail = window.amethystDesktop.onUpdateAvailable?.((info) => {
+        setUpdateInfo((prev) => ({
+          ...prev,
+          available: true,
+          version: info?.version || null,
+        }))
+        toast(`Amethyst update ${info?.version ? `v${info.version}` : ''} is downloading...`, 'ok')
+      })
+      const unsubDown = window.amethystDesktop.onUpdateDownloaded?.((info) => {
+        setUpdateInfo((prev) => ({
+          ...prev,
+          available: true,
+          downloaded: true,
+          version: info?.version || null,
+        }))
+        toast(`Amethyst update ${info?.version ? `v${info.version}` : ''} is ready to install!`, 'ok')
+      })
+      return () => {
+        unsubAvail?.()
+        unsubDown?.()
+      }
+    }
+  }, [toast])
+
+  const checkForUpdates = useCallback(async (manual = false) => {
+    setUpdateInfo((prev) => ({ ...prev, checking: true, error: null }))
+    try {
+      if (typeof window !== 'undefined' && window.amethystDesktop?.checkForUpdates) {
+        const res = await window.amethystDesktop.checkForUpdates()
+        if (res?.updateInfo?.version) {
+          setUpdateInfo((prev) => ({
+            ...prev,
+            available: true,
+            version: res.updateInfo.version,
+            checking: false,
+          }))
+          if (manual) toast(`Update found: v${res.updateInfo.version}`, 'ok')
+          return
+        }
+      }
+
+      // Web/fallback: check GitHub releases
+      const res = await fetch('https://api.github.com/repos/wayn-wayn/amethyst/releases/latest', {
+        headers: { Accept: 'application/vnd.github.v3+json' },
+      }).catch(() => null)
+
+      if (res && res.ok) {
+        const data = await res.json()
+        const latestTag = data.tag_name ? data.tag_name.replace(/^v/, '') : null
+        const currentVersion = '0.1.2'
+        if (latestTag && latestTag !== currentVersion) {
+          setUpdateInfo((prev) => ({
+            ...prev,
+            available: true,
+            version: latestTag,
+            releaseUrl: data.html_url,
+            checking: false,
+          }))
+          if (manual) toast(`Update available: v${latestTag}`, 'ok')
+          return
+        }
+      }
+
+      setUpdateInfo((prev) => ({ ...prev, checking: false, available: false }))
+      if (manual) toast('You are using the latest version of Amethyst.', 'ok')
+    } catch (err) {
+      setUpdateInfo((prev) => ({ ...prev, checking: false, error: err.message }))
+      if (manual) toast(`Could not check for updates: ${err.message}`, 'amber')
+    }
+  }, [toast])
+
+  const quitAndInstallUpdate = useCallback(() => {
+    if (typeof window !== 'undefined' && window.amethystDesktop?.quitAndInstall) {
+      window.amethystDesktop.quitAndInstall()
+    } else if (updateInfo.releaseUrl) {
+      window.open(updateInfo.releaseUrl, '_blank')
+    }
+  }, [updateInfo.releaseUrl])
+
   const value = useMemo(() => ({
     view, setView,
     server, retryServer: wakeBackend,
@@ -933,6 +1024,7 @@ export function AppProvider({ children }) {
     terminalOpen, setTerminalOpen, toggleTerminal,
     terminalHeight, setTerminalHeight,
     terminalMinimized, setTerminalMinimized,
+    updateInfo, checkForUpdates, quitAndInstallUpdate,
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
@@ -961,6 +1053,7 @@ export function AppProvider({ children }) {
     userProfile, refreshUserProfile, updateUserProfile,
     renaming, renameConversation, deleteConversation, deleteAllConversations,
     terminalOpen, toggleTerminal, terminalHeight, terminalMinimized,
+    updateInfo, checkForUpdates, quitAndInstallUpdate,
   ])
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

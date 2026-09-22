@@ -80,7 +80,7 @@ function LibraryCardComponent({
   const isLiveProcessing = isOptimistic || isReceived || isProcessing || isEnriching
 
   const [thumbFailed, setThumbFailed] = useState(false)
-  const hasThumbnail = Boolean(item.thumbnail_path) && !thumbFailed
+  const hasThumbnail = (Boolean(item.thumbnail_path) || Boolean(item.url)) && !thumbFailed
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)

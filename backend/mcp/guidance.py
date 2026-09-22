@@ -156,8 +156,16 @@ def ready_connectors_block() -> str | None:
         except Exception as exc:
             log.debug("could not list active composio toolkits: %s", exc)
 
+        withheld_servers: set[str] = set()
+        try:
+            from backend.mcp.provider_ownership import get_withheld_local_servers
+
+            withheld_servers = get_withheld_local_servers()
+        except Exception:
+            pass
+
         for name, count in ready.items():
-            if name == "composio":
+            if name == "composio" or name in withheld_servers:
                 continue
 
             config = configured.get(name)

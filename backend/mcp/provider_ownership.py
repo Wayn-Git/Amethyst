@@ -28,6 +28,22 @@ for _tk, _local_servers in PROVIDER_MAPPING.items():
     for _server in _local_servers:
         LOCAL_TO_COMPOSIO_TOOLKITS.setdefault(_server, set()).add(_tk)
 
+#: Mapping of Composio toolkit slugs to corresponding local builtin tool names.
+PROVIDER_BUILTIN_TOOLS: dict[str, set[str]] = {
+    "gmail": {
+        "search_email",
+        "read_email",
+        "send_email",
+        "reply_email",
+        "draft_email",
+    },
+    "googlecalendar": {
+        "create_calendar_event",
+        "list_calendar",
+        "find_free_slot",
+    },
+}
+
 CACHE_TTL_SECONDS = 5.0
 _cache: tuple[float, set[str]] | None = None
 
@@ -112,6 +128,57 @@ def get_active_target(provider: str) -> str:
     if equivalent_local_servers and (equivalent_local_servers & get_active_local_servers()):
         return "local"
     return "composio"
+
+
+def is_provider_owned_by_composio(provider: str) -> bool:
+    """Return True if Composio has active ownership of this provider (connected and not overridden by local)."""
+    normalized = provider.strip().lower()
+    try:
+        from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
+
+        if not composio_service.is_configured():
+            return False
+        conns = composio_service.get_connections()
+        if normalized not in conns and not is_no_auth_toolkit(normalized):
+            return False
+        return not is_provider_overridden_by_local(normalized)
+    except Exception as exc:
+        log.debug("Error checking if provider %s is owned by Composio: %s", provider, exc)
+        return False
+
+
+def get_withheld_local_tool_names() -> set[str]:
+    """Return set of local builtin tool names that must be withheld when Composio owns the provider."""
+    withheld: set[str] = set()
+    for provider, builtin_tools in PROVIDER_BUILTIN_TOOLS.items():
+        if is_provider_owned_by_composio(provider):
+            withheld.update(builtin_tools)
+    return withheld
+
+
+def get_withheld_local_servers() -> set[str]:
+    """Return set of local MCP server names that must be withheld when Composio owns the provider."""
+    withheld: set[str] = set()
+    for provider, servers in PROVIDER_MAPPING.items():
+        if is_provider_owned_by_composio(provider):
+            withheld.update(servers)
+    return withheld
+
+
+def is_local_tool_owned_by_composio(tool_name: str) -> tuple[bool, str | None]:
+    """Check if a tool name is a local tool belonging to a provider owned by Composio."""
+    clean_name = tool_name.split("__mcp__")[0]
+    for provider, tools in PROVIDER_BUILTIN_TOOLS.items():
+        if clean_name in tools and is_provider_owned_by_composio(provider):
+            return True, provider
+
+    # Check local MCP servers
+    if "__mcp__" in tool_name:
+        server_suffix = tool_name.split("__mcp__")[-1]
+        for provider, servers in PROVIDER_MAPPING.items():
+            if server_suffix in servers and is_provider_owned_by_composio(provider):
+                return True, provider
+    return False, None
 
 
 def switch_target(provider: str, target: str, reason: str | None = None) -> bool:
