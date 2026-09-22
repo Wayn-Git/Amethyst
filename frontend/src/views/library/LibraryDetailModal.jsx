@@ -51,6 +51,13 @@ export default function LibraryDetailModal({
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)
   const hasThumbnail = Boolean(item.thumbnail_path)
+  const app = item.app || (
+    (item.url || '').includes('instagram.') || (item.url || '').includes('instagr.am') ? 'instagram' :
+    (item.url || '').includes('pinterest.') || (item.url || '').includes('pin.it') ? 'pinterest' :
+    (item.url || '').includes('youtube.') || (item.url || '').includes('youtu.be') ? 'youtube' :
+    (item.url || '').includes('tiktok.') ? 'tiktok' : null
+  )
+  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
 
   const handleRating = async (stars) => {
     const newRating = rating === stars ? null : stars
@@ -216,39 +223,31 @@ export default function LibraryDetailModal({
               SCROLLABLE CARD BODY
               ======================================================== */}
           <div className="lib-modal-body">
-            {/* 1. Complete Uncropped Hero Media Showcase */}
+            {/* 1. Clean Natural Media Container (No artificial ambient blur or letterbox voids) */}
             {hasThumbnail && (
-              <div className="lib-modal-hero-showcase">
-                {/* Ambient Blurred Backdrop matching the artwork colors */}
-                <div
-                  className="lib-modal-hero-ambient"
-                  style={{ backgroundImage: `url(${api.thumbnailUrl(item.id)})` }}
-                  aria-hidden="true"
-                />
-
-                {/* Foreground Full Uncropped Image */}
+              <div className={`lib-modal-media-frame ${isVertical ? 'lib-modal-media-frame--portrait' : 'lib-modal-media-frame--landscape'}`}>
                 <img
                   src={api.thumbnailUrl(item.id)}
                   alt={item.title || 'Resource media cover'}
-                  className="lib-modal-hero-img"
+                  className={`lib-modal-media-img ${isVertical ? 'lib-modal-media-img--portrait' : 'lib-modal-media-img--landscape'}`}
                   onClick={() => setShowLightbox(true)}
                   title="Click to view full resolution"
                 />
 
                 {/* Floating Media Controls Pill */}
-                <div className="lib-modal-hero-dock">
+                <div className="lib-modal-media-dock">
                   <button
                     type="button"
-                    className="lib-modal-hero-btn"
+                    className="lib-modal-dock-btn"
                     onClick={() => setShowLightbox(true)}
                     title="Inspect in full resolution lightbox"
                   >
-                    <Icon name="maximize" size={13} />
+                    <Icon name="maximize" size={12} />
                     <span>Full View</span>
                   </button>
                   {duration && (
-                    <span className="lib-modal-hero-duration">
-                      <Icon name="play" size={11} />
+                    <span className="lib-modal-dock-duration">
+                      <Icon name="play" size={10} />
                       <span>{duration}</span>
                     </span>
                   )}
@@ -257,11 +256,11 @@ export default function LibraryDetailModal({
                       href={item.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="lib-modal-hero-btn"
+                      className="lib-modal-dock-btn"
                       title="Open original website"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Icon name="link" size={13} />
+                      <Icon name="link" size={12} />
                       <span>Source</span>
                     </a>
                   )}

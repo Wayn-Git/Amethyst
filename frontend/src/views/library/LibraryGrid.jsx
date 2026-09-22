@@ -17,16 +17,40 @@ export function getBentoItemConfig(item, index, totalInGroup) {
   const isNote = item.kind === 'note' || (!hasThumb && !item.url)
   const isEssential = item.rating === 5
 
-  // Small groups (1, 2, 3 items): Clean, proportionate standard cards. Never stretched wide.
-  if (totalInGroup <= 3) {
+  // Small groups (1 or 2 items): clean single or pair cards
+  if (totalInGroup <= 2) {
     return {
       spanClass: 'col-span-1',
       variant: isNote ? 'note' : isVertical ? 'portrait' : isVideo ? 'landscape' : 'standard',
     }
   }
 
-  // 4+ items: Full Dynamic Bento Grid Architecture
-  // 1) Editorial notes always occupy a clean 1x1 bento tile
+  // True Bento Grid layout for 3+ items:
+  // 1) Vertical media (Instagram Reels, TikTok, Pinterest): Tall Bento Card with BIG, full thumbnail
+  if (isVertical && hasThumb) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-2',
+      variant: 'portrait',
+    }
+  }
+
+  // 2) Hero / Featured first item (if horizontal, article, or 5-star essential): Spans 2 columns
+  if (index === 0 && totalInGroup >= 4 && (hasThumb || isEssential) && !isVertical) {
+    return {
+      spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
+      variant: 'wide',
+    }
+  }
+
+  // 3) Rhythmic Wide Card for horizontal items
+  if (index > 0 && index % 5 === 0 && hasThumb && !isVertical) {
+    return {
+      spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
+      variant: 'wide',
+    }
+  }
+
+  // 4) Note cards: Editorial typography bento block
   if (isNote) {
     return {
       spanClass: 'col-span-1 sm:row-span-1',
@@ -34,51 +58,7 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     }
   }
 
-  // 2) Hero Brick for the first item in the date group:
-  // - If vertical video: prominent 1x2 tall portrait brick
-  // - If horizontal video, article, or 5-star essential: prominent 2x1 wide brick
-  if (index === 0) {
-    if (isVertical && hasThumb) {
-      return {
-        spanClass: 'col-span-1 sm:row-span-2',
-        variant: 'portrait',
-      }
-    }
-    if (hasThumb || isEssential) {
-      return {
-        spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
-        variant: 'wide',
-      }
-    }
-  }
-
-  // 3) Rhythmic Bento Variation for vertical media (e.g. consecutive Instagram Reels):
-  // Alternates between 2-row tall cards and 1-row standard cards so it forms an interlocking mosaic instead of a flat wall
-  if (isVertical && hasThumb) {
-    const isTall = index % 3 === 1 || index % 5 === 0
-    if (isTall) {
-      return {
-        spanClass: 'col-span-1 sm:row-span-2',
-        variant: 'portrait',
-      }
-    }
-    return {
-      spanClass: 'col-span-1 sm:row-span-1',
-      variant: 'standard',
-    }
-  }
-
-  // 4) Horizontal media / articles / high-impact cards:
-  // Periodically introduce a 2-col wide brick for visual rhythm, provided there is room
-  const isWide = (index % 6 === 1 || index % 6 === 4) && (index < totalInGroup - 1)
-  if (isWide && hasThumb) {
-    return {
-      spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
-      variant: 'wide',
-    }
-  }
-
-  // 5) Default standard 1x1 bento cell
+  // 5) Default standard bento cell
   return {
     spanClass: 'col-span-1 sm:row-span-1',
     variant: isVideo ? 'landscape' : 'standard',
@@ -121,8 +101,6 @@ export default function LibraryGrid({
                   ? 'lib-bento-grid--single'
                   : group.items.length === 2
                   ? 'lib-bento-grid--pair'
-                  : group.items.length === 3
-                  ? 'lib-bento-grid--trio'
                   : ''
               } w-full`}
             >
