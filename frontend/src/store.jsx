@@ -893,7 +893,7 @@ export function AppProvider({ children }) {
           error: null,
         })
         setOpencodeIframeKey((k) => k + 1)
-        toastNotify('OpenCode Engine started')
+        toast('OpenCode Engine started', 'good')
       } else {
         await refreshOpencodeStatus()
       }
@@ -903,9 +903,9 @@ export function AppProvider({ children }) {
         loading: false,
         error: err.message || 'Failed to start OpenCode',
       }))
-      toastNotify(err.message || 'Failed to start OpenCode', { type: 'error' })
+      toast(err.message || 'Failed to start OpenCode', 'bad')
     }
-  }, [refreshOpencodeStatus])
+  }, [refreshOpencodeStatus, toast])
 
   const stopOpencode = useCallback(async () => {
     setOpencodeStatus((prev) => ({ ...prev, loading: true }))
@@ -917,16 +917,16 @@ export function AppProvider({ children }) {
         loading: false,
         error: null,
       })
-      toastNotify('OpenCode Engine stopped')
+      toast('OpenCode Engine stopped', 'info')
     } catch (err) {
       setOpencodeStatus((prev) => ({
         ...prev,
         loading: false,
         error: err.message || 'Failed to stop OpenCode',
       }))
-      toastNotify(err.message || 'Failed to stop OpenCode', { type: 'error' })
+      toast(err.message || 'Failed to stop OpenCode', 'bad')
     }
-  }, [])
+  }, [toast])
 
   const syncOpencodeKeys = useCallback(async () => {
     if (opencodeSyncing) return
@@ -934,18 +934,18 @@ export function AppProvider({ children }) {
     try {
       const res = await opencode.syncAmethyst()
       const count = res?.synced?.length || 0
-      toastNotify(count > 0 ? `Synced ${count} provider keys to OpenCode` : 'Provider keys are up to date')
+      toast(count > 0 ? `Synced ${count} provider keys to OpenCode` : 'Provider keys are up to date', 'good')
     } catch (err) {
-      toastNotify(err.message || 'Failed to sync API keys', { type: 'error' })
+      toast(err.message || 'Failed to sync API keys', 'bad')
     } finally {
       setOpencodeSyncing(false)
     }
-  }, [opencodeSyncing])
+  }, [opencodeSyncing, toast])
 
   const reloadOpencode = useCallback(() => {
     setOpencodeIframeKey((k) => k + 1)
-    toastNotify('Reloaded OpenCode')
-  }, [])
+    toast('Reloaded OpenCode', 'info')
+  }, [toast])
 
   const openOpencodeExternal = useCallback(() => {
     const host = typeof window !== 'undefined' ? window.location.hostname || '127.0.0.1' : '127.0.0.1'
