@@ -143,3 +143,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 — `need.inbox`: UI-only read-only list pilot on `ui-redesign`; shared theme primitives, responsive states and pattern guide; existing contracts and permission flow retained.
 - 2026-10-25 — `task.today`: UI-only editable list pilot on `ui-redesign`; shared theme primitives, responsive states and pattern guide; existing contracts and permission flow retained.
 - 2026-10-25 — `agent.feed`: UI-only timeline pilot on `ui-redesign`; shared theme primitives, responsive states and pattern guide; existing contracts and permission flow retained.
+
+- 2026-10-25 — `glance.clock`, `need.inbox`, `task.today`, `agent.feed`: revise pilot hierarchy after visual feedback; contrasting theme-based clock, smaller metadata, denser borderless lists, reduced preview bounds; full Home and narrow-slot fixture checks pass.

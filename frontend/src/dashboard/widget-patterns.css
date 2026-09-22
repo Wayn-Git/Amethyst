@@ -1,8 +1,8 @@
 /* Widget-owned presentation; shell placement and control primitives stay unchanged. */
 .widget-home .widget-card {
   padding: var(--ui-space-4);
-  gap: var(--ui-space-4);
-  border: 1px solid var(--ui-border);
+  gap: var(--ui-space-3);
+  border: 1px solid transparent;
   border-radius: var(--ui-panel-radius);
   background: var(--ui-panel);
   color: var(--ui-text);
@@ -11,13 +11,13 @@
   overflow: visible;
   transition: border-color var(--ui-fast) var(--ui-ease);
 }
-.widget-home .widget-card:hover { border-color: var(--ui-border-strong); box-shadow: none; transform: none; }
+.widget-home .widget-card:hover { border-color: transparent; box-shadow: none; transform: none; }
 .widget-home .widget-header { gap: var(--ui-space-2); align-items: center; }
 .widget-home .widget-title { gap: var(--ui-space-2); }
 .widget-home .widget-title h2 { font: 600 14px/20px var(--ui-display); letter-spacing: normal; text-transform: none; }
 .widget-home .widget-card .widget-heading-icon {
-  width: 28px; height: 28px; border-radius: var(--ui-radius);
-  background: var(--ui-raised); color: var(--ui-muted);
+  width: 20px; height: 20px; border-radius: 0;
+  background: transparent; color: var(--ui-muted);
 }
 .widget-home .widget-heading-icon svg { width: 16px; height: 16px; }
 .widget-home .widget-chip, .widget-home .widget-source, .widget-home .task-due-chip {
@@ -26,13 +26,14 @@
   padding: 0 var(--ui-space-2); background: var(--ui-raised); color: var(--ui-muted);
   font: 400 11px/16px var(--ui-font); letter-spacing: normal; text-transform: none;
 }
-.widget-home .widget-source { background: none; border-color: transparent; }
+.widget-home .widget-source { background: none; border-color: transparent; font-size: 11px; }
+.widget-home .widget-card:not(.home-needs) .widget-source { display: none; }
 .widget-home .widget-freshness { font: 400 11px/16px var(--ui-mono); color: var(--ui-muted); }
 .widget-home .state-stale, .widget-home .task-due-chip.is-due { color: var(--confirm); }
 .widget-home .state-error, .widget-home .task-due-chip.is-overdue { color: var(--stop); }
 .widget-home .widget-content { font: 500 13px/20px var(--ui-font); overflow: visible; }
 .widget-home .widget-list > li {
-  min-height: 56px; padding: var(--ui-space-3) 0; gap: var(--ui-space-3);
+  min-height: 48px; padding: var(--ui-space-2) 0; gap: var(--ui-space-3);
   font: 500 13px/20px var(--ui-font); border-color: var(--ui-border);
 }
 .widget-home .widget-list strong { font: 500 13px/20px var(--ui-font); color: var(--ui-text); }
@@ -51,15 +52,34 @@
 .widget-home .widget-skeleton { min-height: 160px; align-content: start; padding: var(--ui-space-4) 0; gap: var(--ui-space-4); }
 .widget-home .widget-skeleton span { height: 32px; background: var(--ui-raised); border-radius: var(--ui-radius); }
 /* Reserve the same five-row preview slot for empty, loading, and populated pilots. */
-.widget-home .widget-card:is([data-widget='task.today'], [data-widget='need.inbox'], [data-widget='agent.feed']) > .widget-content { min-height: 360px; }
-.widget-home .widget-card[data-widget='need.inbox'] > .widget-content { min-height: 624px; }
-.widget-home .widget-card[data-widget='task.today'] > .widget-content { min-height: 400px; }
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] { height: 176px; min-height: 176px; max-height: none; }
+.widget-home .widget-card:is([data-widget='task.today'], [data-widget='need.inbox'], [data-widget='agent.feed']) > .widget-content { min-height: 300px; }
+.widget-home .widget-card[data-widget='need.inbox'] > .widget-content { min-height: 464px; }
+.widget-home .widget-card[data-widget='task.today'] > .widget-content { min-height: 360px; }
+.widget-home .widget-card.home-tile { height: 192px; min-height: 192px; max-height: none; }
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] {
+  background: var(--ui-text); color: var(--ui-panel);
+  padding: var(--ui-space-4); gap: var(--ui-space-2);
+}
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-heading-icon { display: none; }
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] :is(.widget-title h2, .widget-freshness) {
+  color: color-mix(in srgb, var(--ui-panel) 70%, transparent); font: 400 11px/16px var(--ui-font);
+}
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] :is(.widget-refresh, .widget-menu > summary) { color: var(--ui-panel); background: transparent; }
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] :is(.home-clock, .clock-date, .clock-zone) { color: var(--ui-panel); }
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] .clock-zone {
+  justify-self: start; padding: var(--ui-space-1) var(--ui-space-2); border-radius: var(--ui-radius);
+  background: color-mix(in srgb, var(--ui-panel) 10%, transparent);
+}
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] .clock-date { opacity: .7; }
+.widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-skeleton span { background: color-mix(in srgb, var(--ui-panel) 15%, transparent); }
 .widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-content { flex: 1; display: flex; justify-content: center; }
 .widget-home .widget-card[data-widget='glance.clock'] .widget-tile { display: grid; gap: var(--ui-space-2); }
 .widget-home .widget-card[data-widget='glance.clock'] .home-clock {
-  font: 500 40px/1 var(--ui-display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--ui-text);
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--ui-space-2);
+  font: 500 clamp(28px, 14cqi, 48px)/1 var(--ui-display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--ui-text);
 }
+.widget-home .clock-period { font: 400 12px/18px var(--ui-font); }
+.widget-home .clock-digits { white-space: nowrap; }
 .widget-home .clock-date, .widget-home .clock-zone { font: 400 11px/16px var(--ui-mono); color: var(--ui-muted); overflow-wrap: anywhere; }
 .widget-home .clock-proof { display: grid; gap: var(--ui-space-4); }
 .widget-home .world-clock { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-space-2); padding-block: var(--ui-space-2); border-bottom: 1px solid var(--ui-border); }
@@ -75,13 +95,22 @@
 .widget-home .mail-date { flex: none; font-family: var(--ui-mono); }
 .widget-home .mail-item-row strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .widget-home .mail-snippet { display: none; }
-.widget-home .mail-reason { border-inline-start: 2px solid var(--ui-accent); padding-inline-start: var(--ui-space-2); }
+.widget-home .mail-row-context { display: flex; align-items: baseline; gap: var(--ui-space-2); min-width: 0; }
+.widget-home .mail-row-context .mail-snippet { flex: 1; min-width: 0; }
+.widget-home .mail-row-context .mail-reason { flex: none; max-width: 70%; margin-top: var(--ui-space-1); color: var(--ui-text); }
+.widget-home .widget-mail .mail-row-meta { margin-bottom: 0; }
+.widget-home .widget-mail .mail-item-row strong { -webkit-line-clamp: 1; }
+.widget-home .widget-mail .mail-item-row { border: 0; }
+.widget-home .widget-mail .mail-row-meta > span:first-child { max-width: 75%; }
+.widget-home .mail-toolbar .ui-button[data-variant='ghost'] { background: transparent !important; border-color: transparent !important; color: var(--ui-muted) !important; }
+.widget-home .mail-source-note { border-top: 1px solid var(--ui-border); padding-top: var(--ui-space-2); }
 .widget-home .widget-tasks .task-label-wrap { display: grid; gap: var(--ui-space-1); }
-.widget-home .widget-tasks .task-due-chip { margin: 0; }
+.widget-home .widget-tasks .task-due-chip { margin: 0; padding: 0; border: 0; background: transparent; }
+.widget-home .widget-tasks .task-item-row { border: 0; }
 .widget-home .widget-tasks .task-content-wrap { gap: var(--ui-space-3); }
 .widget-home .widget-tasks .task-check-button {
   min-width: 28px; width: 28px; height: 28px; padding: var(--ui-space-1);
-  border: 1px solid var(--ui-border-strong); border-radius: var(--ui-space-1); background: transparent; color: var(--ui-text);
+  border: 1px solid var(--ui-border-strong); border-radius: 50%; background: transparent; color: var(--ui-text);
 }
 .widget-home .widget-tasks .task-check-button:hover { border-color: var(--ui-accent); }
 .widget-home .widget-tasks .task-check-button.is-completed { background: var(--ui-accent); color: var(--ui-on-accent); }
@@ -117,7 +146,7 @@
 .widget-home .timeline-row:last-child::before { display: none; }
 .widget-home .timeline-row::after { content: ''; position: absolute; left: 0; top: 20px; width: 9px; height: 9px; border: 2px solid var(--ui-panel); border-radius: 50%; background: var(--ui-muted); }
 .widget-home .timeline-row:first-child::after { background: var(--ui-accent); }
-.widget-home .timeline-row strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.widget-home .widget-timeline .timeline-row strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .widget-home .timeline-detail { font-variant-numeric: tabular-nums; }
 @container widget (min-width: 360px) { .widget-home .mail-snippet { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; } }
 @container widget (max-width: 319px) {
@@ -131,6 +160,16 @@
 }
 @container widget (max-width: 239px) {
   .widget-home .clock-zone { display: none; }
-  .widget-home .widget-card[data-widget='glance.clock'] .home-clock { font-size: 32px; }
   .widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-heading-icon { display: none; }
 }
+
+.widget-home .widget-card .widget-header { flex-wrap: nowrap; }
+.widget-home .widget-card .widget-title h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget-home .widget-card .widget-actions { flex: none; }
+.widget-home .widget-card .widget-state { border: 0; background: transparent; padding: var(--ui-space-2) 0; }
+.widget-home .widget-card .widget-connection { border: 0; background: var(--ui-raised); }
+.widget-home .widget-card .widget-show-all {
+  border: 0 !important; background: transparent !important; padding: 0 !important;
+  min-height: 28px !important; color: var(--ui-muted) !important;
+}
+.widget-home .widget-card .widget-show-all:hover { color: var(--ui-text) !important; }

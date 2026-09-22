@@ -18,10 +18,14 @@ the legacy widget and shell CSS. It overrides legacy form sizing where that
 would otherwise shrink the shared controls; control implementations and tokens
 are unchanged.
 
-Cards use the panel fill, a single border, 12 px panel radius, 16 px padding and
-16 px header/body gap. No gradients, decorative shadows or hover translation.
-Header anatomy: neutral 28 px icon badge, 14/20 display heading, optional count,
-quiet source, freshness, refresh and menu. Body text is 13/20; descriptions
+Cards use the panel fill, a transparent border, 12 px panel radius, 16 px padding
+and 12 px header/body gap. No gradients, decorative shadows or hover translation.
+The clock tile uses the text token as its contrasting surface and the panel token
+for its foreground, so the contrast follows each palette without fixed colors.
+Header anatomy: unboxed 20 px icon, 14/20 display heading, optional count,
+freshness, refresh and menu. Omit the redundant source chip visually except in
+the combined Needs you region; keep source explanations and connected-source
+editing restrictions in their existing content. Body text is 13/20; descriptions
 12/18; short dates and freshness 11/16 mono. Never infer a status from a title.
 Chips use raised fill, border, 8 px radius and 11/16 text in sentence case.
 Only an existing warning/error condition gets confirm/stop color.
@@ -34,7 +38,7 @@ accessible names retain the full value. Forms, open explanations and unusually
 long metadata may grow the card instead of clipping controls or hiding data.
 
 Reserve body minima across loading, empty, error and normal rendering:
-clock tile 176 px total; inbox 624 px body; Today 400 px body; timeline 360 px
+Glance tiles share a 192 px total height; inbox 464 px body; Today 360 px body; timeline 300 px
 body. These are five-row preview bounds, not fixed-height content clips. Other
 widgets receive shared primitive styling but need their own height calibration
 when adopted. Skeletons use three static raised bars; no pulsing decoration.
@@ -47,10 +51,13 @@ and Dismiss. Do not fabricate sample content or connection success.
 
 Use `ClockFace` for both the Home tile and the clock settings content. Stack a
 short local date, the time, and a quiet timezone label, with 8 px gaps. Time is
-40 px Space Grotesk with tabular numerals; the date and timezone are 11/16 mono.
-The time is the dominant mark, without a background illustration or synthetic
-clock face. Below 240 px hide the secondary timezone text, reduce the value to
-32 px and omit the header badge. Keep the date and real time legible.
+Space Grotesk with tabular numerals, scaling from 28 to 48 px with the actual
+slot width. Keep the localized day period separately at 12/18 so AM/PM does not
+compete with the digits. The date and timezone are 11/16 mono; the timezone sits
+in a quiet inset on the contrasting tile. The time is the dominant mark, without
+a background illustration or synthetic clock face. The tile header omits the
+icon badge and uses a quiet 11/16 title. Below 240 px hide the secondary timezone
+text. Keep the date and real time legible.
 
 The tile retains refresh/menu access and its stable height. The full view
 retains world timezone rows, Remove and the timezone add form. Validation,
@@ -59,15 +66,15 @@ seconds display, countdown, progress bar or invented location is introduced.
 
 ## Read-only list — need.inbox
 
-Rows use the full width, with a hairline divider between items and 12 px block
-padding. Each row has a sender/date metadata line (sender left, supplied date
+Rows use the full width, without horizontal dividers, and 8 px block padding. Each row has a sender/date metadata line (sender left, supplied date
 right), a 13/20 subject, an optional snippet, and the supplied ranking reason.
-Clamp the subject to two lines; never parse or rewrite the provider's date.
-Above 360 px container width show one snippet line; at narrower widths omit
-that secondary line and allow sender/date to stack. Ranking reasons remain
-visible at every width, with a small accent rule rather than a colored tile.
+Clamp the subject to one line; never parse or rewrite the provider's date.
+Above 360 px container width show the snippet and ranking reason together in
+one context row, with the reason retaining readable width. At narrower widths
+omit the snippet and allow sender/date to stack. Ranking reasons remain visible
+at every width, using ordinary text rather than a colored tile or accent rule.
 
-Keep the model-ranking control above the list, using the shared small button.
+Keep the model-ranking control above the list, using the shared small ghost button.
 Fallback copy remains visible when ranking is off or unavailable. Generating
 and failed setting changes keep their status/alert semantics. Move the existing
 source/privacy explanation into an expandable “About this inbox” after the
@@ -78,10 +85,12 @@ combined Needs you region still opens this widget through the existing drawer.
 
 Keep the inline Add item form first, in a raised 8 px rounded inset with a
 36 px input and shared small submit button. Each row has a 28 px completion
-action, a wrapping task title with an optional due chip underneath, and an
-Actions disclosure at the trailing edge. Use 12 px gaps and row padding. A
+action with a circular outline, a wrapping task title with optional due metadata
+underneath, and an Actions disclosure at the trailing edge. Use 12 px gaps and
+8 px row padding, without horizontal table dividers. A
 completed title is struck through; its completion mark uses accent/on-accent.
-Due chips use the actual due condition and confirm/stop text on a neutral fill.
+Due metadata uses the actual due condition and confirm/stop text without an
+extra badge fill or border.
 Do not invent categories, progress percentages or counts beyond the provider.
 
 Actions opens a bordered opaque menu of the existing Edit, Complete and Delete
@@ -111,6 +120,9 @@ use the shared frame exactly as other read-only lists.
 Existing primitive and inbox browser tests pass without test changes. Isolated
 synthetic-fixture browser checks cover task review approval/rejection,
 source-managed restrictions, all five states, equal loading/populated heights,
-and no card overflow in graphite and paper at 1440, 768 and 360 px. Two 1440 px
-reference captures were taken (graphite and paper); no other screenshots.
+and no card overflow in graphite and paper at 1440, 768 and 360 px. The first pass used two 1440 px reference captures (graphite and paper). No
+additional screenshots were taken for this revision. Full Home fixture checks
+now also exercise the actual glance strip at 1440, 1024, 768 and 360 px, plus
+isolated clock slots at 148, 180, 220 and 280 px; these establish layout and
+behavior, not a visual-fidelity verdict.
 No live accounts, backend changes, contract changes or new dependencies.
