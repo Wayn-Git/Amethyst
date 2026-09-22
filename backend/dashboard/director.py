@@ -35,7 +35,18 @@ async def provide(widget_id):
                     "conversation_id": prompt.conversation_id,
                 }
                 for prompt in await list_confirmations()
-            ]
+            ],
+            "history": [
+                {
+                    "id": row["id"],
+                    "title": row["tool_name"],
+                    "detail": f"{row['created_at']} · {row['confirmation_decision']}",
+                }
+                for row in ExecutionLogRepository().conn.execute(
+                    "SELECT * FROM execution_logs WHERE confirmation_decision IS NOT NULL "
+                    "AND confirmation_decision != 'auto' ORDER BY id DESC LIMIT 50"
+                )
+            ],
         }
     if widget_id == "agent.errors":
         rows = (

@@ -13,6 +13,7 @@ from backend.agent.trace import finish_turn_trace, record_tool_dispatch, start_t
 from backend.dashboard.models import StrictModel
 from backend.dashboard.store import settings_read, stamp
 from backend.db.connection import get_connection, transaction
+from backend.db.repositories import ExecutionLogRepository
 from backend.security.confirmation import ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext
 
@@ -242,6 +243,8 @@ async def decide(widget_id, draft_id, approved):
         "dashboard", f"{widget_id}: {action}", turn_id=draft_id
     )
     started = time.monotonic()
+    outcome = None
+    error = None
     try:
         outcome = await ConfirmationService(callback=answer).check(
             tool,
@@ -272,7 +275,19 @@ async def decide(widget_id, draft_id, approved):
             with transaction() as conn:
                 conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id LIKE 'lib.%'")
         return {"state": "applied" if allowed else "denied"}
+    except Exception as exc:
+        error = str(exc)
+        raise
     finally:
+        ExecutionLogRepository().record(
+            tool_name="dashboard_item",
+            tool_source="native",
+            arguments={"widget_id": widget_id, "action": action},
+            confirmation_decision=outcome.decision if outcome else "gate_error",
+            risk_level=outcome.risk.value if outcome else None,
+            error=error,
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
         record_tool_dispatch(
             "dashboard_item",
             (time.monotonic() - started) * 1000,

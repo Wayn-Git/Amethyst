@@ -121,7 +121,11 @@ async def refresh(widget_id):
                 if payload is None
                 or payload == []
                 or payload == {}
-                or (isinstance(payload, dict) and payload.get("items") == [])
+                or (
+                    isinstance(payload, dict)
+                    and payload.get("items") == []
+                    and not payload.get("history")
+                )
                 else "ok",
                 synced_at=stamp(),
             )

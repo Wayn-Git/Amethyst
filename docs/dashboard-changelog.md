@@ -46,3 +46,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-24 need.approvals: Uses existing live confirmation snapshot (including zombie filtering) and existing approve/deny endpoint; gate and audit remain Director-owned.
 
 - 2026-10-24 need.decisions: Uses existing suspended question waiters and answer/dismiss endpoints; options shown with free-text answers. All six Director widgets verified with isolated fixtures.
+
+- 2026-10-24: Reused SQLite execution_logs for audit; persisted dashboard gate outcomes and exposed read-only approval history across restarts.

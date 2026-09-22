@@ -52,7 +52,7 @@ async def test_errors_select_failures_and_existing_trace_errors(db, monkeypatch)
     assert "Test retry failed" == rows[1]["detail"]
 
 
-async def test_approvals_reuses_live_gate_snapshot(monkeypatch):
+async def test_approvals_reuses_live_gate_snapshot(db, monkeypatch):
     import sys
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -74,7 +74,7 @@ async def test_approvals_reuses_live_gate_snapshot(monkeypatch):
     assert rows[0]["id"] == "pending-test"
     assert "/test" in rows[0]["arguments"]
     snapshot.return_value = []
-    assert await director.provide("need.approvals") == {"items": []}
+    assert await director.provide("need.approvals") == {"items": [], "history": []}
 
 
 async def test_decisions_use_existing_question_waiters(monkeypatch):
@@ -115,3 +115,27 @@ async def test_registered_director_widgets_cache_independently(db, monkeypatch):
         value = service.read_data(widget_id)
         assert value["state"] == "ok"
         assert value["payload"]["items"][0]["id"] == widget_id
+
+
+async def test_dashboard_decisions_survive_restart(db, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from backend.dashboard.items import ItemInput, decide, draft
+    from backend.db.connection import reset_connection
+
+    monkeypatch.setitem(
+        sys.modules,
+        "backend.api.main",
+        SimpleNamespace(list_confirmations=AsyncMock(return_value=[])),
+    )
+    for approved in (False, True):
+        saved = draft("task.today", "add", ItemInput(title="Test persistence"))
+        await decide("task.today", saved["draft_id"], approved)
+    reset_connection()
+    audit = (await director.provide("agent.audit"))["items"]
+    history = (await director.provide("need.approvals"))["history"]
+    assert len(audit) == len(history) == 2
+    assert "approved" in history[0]["detail"]
+    assert "denied" in history[1]["detail"]
