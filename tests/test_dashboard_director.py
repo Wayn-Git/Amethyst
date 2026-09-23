@@ -75,3 +75,43 @@ async def test_approvals_reuses_live_gate_snapshot(monkeypatch):
     assert "/test" in rows[0]["arguments"]
     snapshot.return_value = []
     assert await director.provide("need.approvals") == {"items": []}
+
+
+async def test_decisions_use_existing_question_waiters(monkeypatch):
+    from backend.agent import questions
+
+    ask = {
+        "id": "test-question",
+        "conversation_id": "test",
+        "questions": [{"question": "Which folder?", "options": [], "multi_select": False}],
+    }
+    monkeypatch.setattr(questions, "outstanding", lambda: [ask])
+    rows = (await director.provide("need.decisions"))["items"]
+    assert rows[0]["questions"] == ask["questions"]
+    monkeypatch.setattr(questions, "outstanding", lambda: [])
+    assert await director.provide("need.decisions") == {"items": []}
+
+
+async def test_registered_director_widgets_cache_independently(db, monkeypatch):
+    from backend.dashboard import service
+    from backend.dashboard.registry import REGISTRY
+
+    ids = (
+        "agent.feed",
+        "agent.running",
+        "agent.audit",
+        "agent.errors",
+        "need.approvals",
+        "need.decisions",
+    )
+
+    async def fixture_provider(widget_id):
+        return {"items": [{"id": widget_id, "title": "Test fixture"}]}
+
+    for widget_id in ids:
+        assert REGISTRY[widget_id]["enabled"]
+        monkeypatch.setitem(service.PROVIDERS, widget_id, fixture_provider)
+        await service.refresh(widget_id)
+        value = service.read_data(widget_id)
+        assert value["state"] == "ok"
+        assert value["payload"]["items"][0]["id"] == widget_id

@@ -106,6 +106,7 @@ MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     director_manifest("agent.running", "Running tasks", ("stop",)),
     director_manifest("agent.feed", "Activity feed"),
+    director_manifest("need.decisions", "Decisions waiting", ("answer", "dismiss")),
     director_manifest("need.approvals", "Permission approvals", ("approve", "deny")),
     director_manifest("agent.errors", "Errors and retries"),
     director_manifest("agent.audit", "Tool-call audit log"),

@@ -8,6 +8,20 @@ from backend.secrets import redact
 
 
 async def provide(widget_id):
+    if widget_id == "need.decisions":
+        from backend.agent.questions import outstanding
+
+        return {
+            "items": [
+                {
+                    "id": ask["id"],
+                    "title": "Decision waiting",
+                    "conversation_id": ask["conversation_id"],
+                    "questions": ask["questions"],
+                }
+                for ask in outstanding()
+            ]
+        }
     if widget_id == "need.approvals":
         from backend.api.main import list_confirmations
 

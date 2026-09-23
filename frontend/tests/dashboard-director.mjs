@@ -8,9 +8,10 @@ const executablePath = process.env.CHROMIUM_PATH || readdirSync(root).filter(n =
 const browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] })
 const page = await browser.newPage()
 const calls = []
+let rejectAction = false
 await page.route('**/api/**', route => {
   calls.push({ path: new URL(route.request().url()).pathname, body: route.request().postDataJSON() })
-  return route.fulfill({ json: {} })
+  return route.fulfill(rejectAction ? { status: 410, json: { detail: 'Test request expired' } } : { json: {} })
 })
 try {
   await page.goto(`${process.env.BASE || 'http://127.0.0.1:5177'}/@vite/client`)
@@ -36,5 +37,20 @@ try {
   await page.getByRole('button', { name: 'Deny', exact: true }).click()
   assert.deepEqual(calls.slice(-2).map(call => call.body), [{ allow: true }, { allow: false }])
   assert.equal(calls.at(-1).path, '/api/confirmations/test')
+  await page.evaluate(() => window.mount('need.decisions', [{ id: 'test-question', title: 'Decision waiting', questions: [{ question: 'Which folder?', options: [{ label: 'Test folder', description: 'Fixture option' }] }] }]))
+  await page.getByLabel('Which folder?', { exact: true }).fill('Test folder')
+  await page.getByRole('button', { name: 'Answer', exact: true }).click()
+  assert.deepEqual(calls.at(-1), { path: '/api/questions/test-question', body: { answers: ['Test folder'] } })
+  await page.getByRole('button', { name: 'Dismiss', exact: true }).click()
+  assert.equal(calls.at(-1).path, '/api/questions/test-question/reject')
+  rejectAction = true
+  await page.getByRole('button', { name: 'Dismiss', exact: true }).click()
+  await page.getByRole('alert').filter({ hasText: 'Test request expired' }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Dismiss', exact: true }).isEnabled(), true)
+  for (const id of ['agent.feed', 'agent.running', 'agent.audit', 'agent.errors', 'need.approvals', 'need.decisions']) {
+    await page.evaluate(id => window.mount(id, []), id)
+    await page.waitForFunction(() => document.querySelectorAll('li').length === 0)
+    assert.equal(await page.getByRole('button').count(), 0)
+  }
   console.log('Director component tests passed')
 } finally { await browser.close() }

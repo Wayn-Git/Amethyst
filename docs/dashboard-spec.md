@@ -197,7 +197,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | need.waiting | Waiting on (sent, no answer) with nudge drafts | cmp:gmail, local, llm | MVP | [ ] |
 | need.overdue | Overdue items | local | MVP | [x] |
 | need.mentions | Unanswered mentions | cmp:slack, cmp:github | MVP | [ ] |
-| need.decisions | Decisions the agent is waiting on | dir | MVP | [ ] |
+| need.decisions | Decisions the agent is waiting on | dir | MVP | [x] |
 | need.snoozed | Snoozed items returning today | local | MVP | [x] |
 | need.approvals | Permission-gate approval queue | dir | MVP | [x] |
 | need.lor-slack | Left on read: unreplied Slack DMs | cmp:slack | v2 | [ ] |

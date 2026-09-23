@@ -39,6 +39,7 @@ def test_registry_contains_shipped_local_widgets(client):
     response = client.get("/api/widgets").json()
     assert {entry["manifest"]["id"] for entry in response["widgets"]} == {
         "agent.feed",
+        "need.decisions",
         "need.approvals",
         "agent.errors",
         "agent.audit",
