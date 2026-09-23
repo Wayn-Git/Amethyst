@@ -1,11 +1,12 @@
 import Icon from '../components/Icon.jsx'
 import { freshness } from './layout.js'
 
-export function WidgetCard({ as: Tag = 'article', ...props }) { return <Tag {...props} /> }
+export function WidgetCard({ as: Tag = 'article', className = '', ...props }) { return <Tag className={`widget-card ${className}`} {...props} /> }
 export function CardHeader(props) { return <header {...props} /> }
-export function WidgetRow(props) { return <li {...props} /> }
+export function WidgetRow({ className = 'widget-row', ...props }) { return <li className={className} {...props} /> }
+export function Tile({ className = '', ...props }) { return <div className={`widget-tile ${className}`} {...props} /> }
 export function WidgetChip({ className = 'widget-chip', ...props }) { return <span className={className} {...props} /> }
-export function StateView(props) { return <p {...props} /> }
+export function StateView({ className = 'widget-state', ...props }) { return <p className={className} {...props} /> }
 
 export function Skeleton() {
   return <div className="widget-skeleton" role="status" aria-label="Loading widget…"><span /><span /><span /></div>

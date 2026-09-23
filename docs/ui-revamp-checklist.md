@@ -23,13 +23,13 @@
 
 ## Widget ownership
 
-No widget completed or redesigned in this session; all IDs below are owned by the widgets session.
+Pilot widget visuals are checked below; remaining IDs still await adoption of `docs/ui-widget-patterns.md`.
 
 - [ ] `agent.audit` — owned by the widgets session.
 - [ ] `agent.brief` — owned by the widgets session.
 - [ ] `agent.delegated` — owned by the widgets session.
 - [ ] `agent.errors` — owned by the widgets session.
-- [ ] `agent.feed` — owned by the widgets session.
+- [x] `agent.feed` — pilot visuals; see `ui-widget-patterns.md`.
 - [ ] `agent.jobs` — owned by the widgets session.
 - [ ] `agent.knows` — owned by the widgets session.
 - [ ] `agent.next` — owned by the widgets session.
@@ -84,7 +84,7 @@ No widget completed or redesigned in this session; all IDs below are owned by th
 - [ ] `feed.sports` — owned by the widgets session.
 - [ ] `feed.watchlater` — owned by the widgets session.
 - [ ] `glance.air` — owned by the widgets session.
-- [ ] `glance.clock` — owned by the widgets session.
+- [x] `glance.clock` — pilot visuals; see `ui-widget-patterns.md`.
 - [ ] `glance.listen-stats` — owned by the widgets session.
 - [ ] `glance.music` — owned by the widgets session.
 - [ ] `glance.next-event` — owned by the widgets session.
@@ -116,7 +116,7 @@ No widget completed or redesigned in this session; all IDs below are owned by th
 - [ ] `need.approvals` — owned by the widgets session.
 - [ ] `need.decisions` — owned by the widgets session.
 - [ ] `need.drafts` — owned by the widgets session.
-- [ ] `need.inbox` — owned by the widgets session.
+- [x] `need.inbox` — pilot visuals; see `ui-widget-patterns.md`.
 - [ ] `need.lor-slack` — owned by the widgets session.
 - [ ] `need.lor-social` — owned by the widgets session.
 - [ ] `need.mentions` — owned by the widgets session.
@@ -158,4 +158,4 @@ No widget completed or redesigned in this session; all IDs below are owned by th
 - [ ] `task.plan` — owned by the widgets session.
 - [ ] `task.reminders` — owned by the widgets session.
 - [ ] `task.risk` — owned by the widgets session.
-- [ ] `task.today` — owned by the widgets session.
+- [x] `task.today` — pilot visuals; see `ui-widget-patterns.md`.

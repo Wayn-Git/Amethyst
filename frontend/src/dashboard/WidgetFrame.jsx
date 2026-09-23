@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { useWidget } from './useWidget.js'
 import { WIDGETS } from './registry.js'
 import Drawer from './Drawer.jsx'
+import { ClockFace } from './widgets/Clock.jsx'
 import { useDashboard } from './context.js'
 import { previewRows } from './layout.js'
 import { WidgetCard, WidgetHeader, WidgetState, Skeleton, StateView } from './primitives.jsx'
@@ -38,28 +39,7 @@ export function ConnectionRow({ manifest, remove, label }) {
 
 function Glance({ manifest, data, now, settings }) {
   const item = data?.items?.[0]
-  if (manifest.id === 'glance.clock') return <div className="glance-clock-face">
-    <svg className="glance-dot-mesh" aria-hidden="true" width="100%" height="100%">
-      <defs>
-        <pattern id="glance-clock-dots" width="16" height="16" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1.5" fill="currentColor" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#glance-clock-dots)" />
-    </svg>
-    <pre className="home-ascii" aria-hidden="true">{`       . : .
-    .  : | :  .
-  .  / .-+-. \u005c  .
- - -  /     \u005c  - -
-  .  |       |  .
- - -  \u005c     /  - -
-  .  \u005c '-+-' /  .
-    '  : | :  '
-       ' : '`}</pre>
-    <span className="glance-caption">Local time</span>
-    <time className="home-clock" dateTime={now.toISOString()}>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
-    <p>{Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' ')}</p>
-  </div>
+  if (manifest.id === 'glance.clock') return <ClockFace now={now} />
 
   if (manifest.id === 'glance.weather') return data?.set_location ? <div className="glance-setup"><Icon name="cloud" size={40} /><p>Weather, where you are.</p><button onClick={settings}>Set location<Icon name="arrow-up-right" size={16} /></button></div> : <div className="glance-weather-face">
     <Icon name="cloud" size={38} />

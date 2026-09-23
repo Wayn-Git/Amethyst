@@ -11,8 +11,8 @@ export default function Director({ data, widgetId, refresh }) {
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
-  return <>{error && <StateView role="alert">{error}</StateView>}<ul className={`widget-list${widgetId === 'agent.feed' ? ' widget-timeline' : ''}`}>{(data?.items || []).map(item => <WidgetRow key={item.id}>
-    <div><strong>{item.title}</strong><p>{item.detail}</p>
+  return <>{error && <StateView role="alert">{error}</StateView>}<ul className={`widget-list${widgetId === 'agent.feed' ? ' widget-timeline' : ''}`}>{(data?.items || []).map(item => <WidgetRow key={item.id} className={widgetId === 'agent.feed' ? 'timeline-row' : undefined}>
+    <div><strong>{item.title}</strong><p className={widgetId === 'agent.feed' ? 'timeline-detail' : undefined}>{item.detail}</p>
       {widgetId === 'need.decisions' && <form onSubmit={event => {
         event.preventDefault()
         const form = new FormData(event.currentTarget)

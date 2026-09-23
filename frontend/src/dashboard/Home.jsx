@@ -19,6 +19,7 @@ import AddWidget from './AddWidget.jsx'
 import { toast } from 'sonner'
 import './home.css'
 import './home-shell.css'
+import './widget-patterns.css'
 
 const WidgetView = memo(function WidgetView({ context, ...props }) {
   return <DashboardContext.Provider value={context}><WidgetBoundary id={props.manifest.id} onRetry={context.refreshAll}><WidgetFrame {...props} /></WidgetBoundary></DashboardContext.Provider>

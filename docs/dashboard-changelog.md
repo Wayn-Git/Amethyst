@@ -138,3 +138,8 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 agent.knows: existing memory facts, gated edits and real deletes, audit entries, shared-primitives UI; targeted backend and browser checks passed.
 
 - 2026-10-25 — UI shell on ui-redesign: theme-aware controls, responsive slots, accessible edit/undo, grouped Add widget drawer, design-system/ownership docs and raw-control warnings; no widget or backend changes.
+
+- 2026-10-25 — `glance.clock`: UI-only instrument tile pilot on `ui-redesign`; shared theme primitives, responsive states and pattern guide; existing contracts and permission flow retained.
+- 2026-10-25 — `need.inbox`: UI-only read-only list pilot on `ui-redesign`; shared theme primitives, responsive states and pattern guide; existing contracts and permission flow retained.
+- 2026-10-25 — `task.today`: UI-only editable list pilot on `ui-redesign`; shared theme primitives, responsive states and pattern guide; existing contracts and permission flow retained.
+- 2026-10-25 — `agent.feed`: UI-only timeline pilot on `ui-redesign`; shared theme primitives, responsive states and pattern guide; existing contracts and permission flow retained.

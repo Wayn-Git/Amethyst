@@ -2,6 +2,8 @@ import { WidgetRow, WidgetChip, StateView } from '../primitives.jsx'
 import { useEffect, useState } from 'react'
 import { request } from '../api.js'
 import Icon from '../../components/Icon.jsx'
+import Button from '../../components/ui/AppButton.jsx'
+import { Input } from '../../components/ui/input.tsx'
 
 function localInput(value) {
   if (!value) return ''
@@ -39,27 +41,27 @@ export default function Items({ data, widgetId }) {
       else if (approved) setError('Permission denied. No item changed.')
     } catch (e) { setError(e.message); setDraft(null) } finally { setBusy(false) }
   }
-  return <div>
+  return <div className={widgetId === 'task.today' ? 'widget-tasks' : undefined}>
     {widgetId === 'dev.recovery' && <p>Track mirror, local clone and export recovery steps.</p>}
     {widgetId === 'task.reminders' && <p>Due state only. Notifications are not enabled.</p>}
     {error && <StateView role="alert">{error}</StateView>}
     {draft ? <section aria-label="Review item change">
       <p>{draft.action}: {draft.item.title || data?.items?.find(item => item.id === draft.item.id)?.title}</p>
       {['add', 'edit'].includes(draft.action) && <p>{draft.item.due_at ? `Due ${new Date(draft.item.due_at).toLocaleString()}` : 'No due date'}</p>}
-      <div className="widget-buttons"><button disabled={busy} onClick={() => decide(true)}>Approve change</button><button disabled={busy} onClick={() => decide(false)}>Reject change</button></div>
+      <div className="widget-buttons"><Button size="small" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button size="small" disabled={busy} onClick={() => decide(false)}>Reject change</Button></div>
     </section> : <>
       {editing ? <form onSubmit={event => { event.preventDefault(); propose(editing.id ? 'edit' : 'add', { id: editing.id || null, title: editing.title, due_at: editing.due ? new Date(editing.due).toISOString() : null }) }}>
-        <label>Title<input required maxLength={500} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
-        {widgetId !== 'dev.recovery' && <label>Due<input type="datetime-local" required={['task.deadlines', 'task.reminders'].includes(widgetId)} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>}
-        <div className="widget-buttons"><button disabled={busy} type="submit">Review change</button><button disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</button></div>
-      </form> : <form className="widget-inline-add" onSubmit={event => { event.preventDefault(); setEditing({ title, due: '' }); setTitle('') }}><input aria-label="New item title" placeholder="Add a task…" maxLength={500} value={title} onChange={event => setTitle(event.target.value)} /><button disabled={busy}>Add item</button></form>}
+        <label>Title<Input required maxLength={500} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
+        {widgetId !== 'dev.recovery' && <label>Due<Input type="datetime-local" required={['task.deadlines', 'task.reminders'].includes(widgetId)} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>}
+        <div className="widget-buttons"><Button size="small" disabled={busy} type="submit">Review change</Button><Button size="small" disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</Button></div>
+      </form> : <form className="widget-inline-add" onSubmit={event => { event.preventDefault(); setEditing({ title, due: '' }); setTitle('') }}><Input aria-label="New item title" placeholder="Add a task…" maxLength={500} value={title} onChange={event => setTitle(event.target.value)} /><Button size="small" type="submit" disabled={busy}>Add item</Button></form>}
       <ul className="widget-list">{(data?.items || []).map(item => {
         const isOverdue = item.due_at && new Date(item.due_at).getTime() <= now
         const isCompleted = item.completed || item.status === 'done' || item.state === 'done'
         return <WidgetRow key={item.id} className="task-item-row">
           <div className="task-content-wrap">
             {widgetId === 'task.today' && item.editable && (
-              <button
+              <Button size="small"
                 type="button"
                 className={`task-check-button${isCompleted ? ' is-completed' : ''}`}
                 disabled={busy}
@@ -68,7 +70,7 @@ export default function Items({ data, widgetId }) {
                 title="Complete task"
               >
                 {isCompleted && <Icon name="check-simple" size={13} />}
-              </button>
+              </Button>
             )}
             <div className={`task-label-wrap${isCompleted ? ' is-completed' : ''}`}>
               <strong>{item.title}</strong>
@@ -82,10 +84,10 @@ export default function Items({ data, widgetId }) {
             </div>
           </div>
           {item.editable ? <details className="widget-row-menu"><summary aria-label={`Actions ${item.title}`}>Actions</summary><div className="widget-buttons">
-            <button disabled={busy} aria-label={`Edit ${item.title}`} onClick={() => setEditing({ id: item.id, title: item.title, due: localInput(item.due_at) })}>Edit</button>
-            <button disabled={busy} aria-label={`Complete ${item.title}`} onClick={() => propose('complete', { id: item.id })}>Complete</button>
-            <button disabled={busy} aria-label={`Delete ${item.title}`} onClick={() => propose('delete', { id: item.id })}>Delete</button>
-          </div></details> : null}
+            <Button size="small" disabled={busy} aria-label={`Edit ${item.title}`} onClick={() => setEditing({ id: item.id, title: item.title, due: localInput(item.due_at) })}>Edit</Button>
+            <Button size="small" disabled={busy} aria-label={`Complete ${item.title}`} onClick={() => propose('complete', { id: item.id })}>Complete</Button>
+            <Button size="small" disabled={busy} aria-label={`Delete ${item.title}`} onClick={() => propose('delete', { id: item.id })}>Delete</Button>
+          </div></details> : <span className="task-source-note">Edit in connected source.</span>}
         </WidgetRow>
       })}</ul>
     </>}
