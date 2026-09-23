@@ -55,7 +55,7 @@ async def local_provider(widget_id):
         from backend.dashboard.weather import provide
 
         return await provide(widget_id)
-    if widget_id == "need.lor-slack":
+    if widget_id in ("need.lor-slack", "comm.thread-summary"):
         from backend.dashboard.communication import provide
 
         return await provide(widget_id)
@@ -176,7 +176,9 @@ async def refresh(widget_id):
                 raise SourceUnavailable
             payload = await asyncio.wait_for(
                 PROVIDERS[widget_id](widget_id),
-                timeout=60 if widget_id in ("agent.brief", "agent.next") else 10,
+                timeout=60
+                if widget_id in ("agent.brief", "agent.next", "comm.thread-summary")
+                else 10,
             )
             cache_write(
                 widget_id,

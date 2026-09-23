@@ -1,10 +1,25 @@
+import { useState } from 'react'
+import { request } from '../api.js'
 import { WidgetRow, StateView } from '../primitives.jsx'
 
-export default function Communication({ data }) {
+export default function Communication({ data, widgetId, refresh }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function toggleModel() {
+    setBusy(true); setError('')
+    try {
+      await request(`/widgets/${widgetId}/settings`, 'PUT', { model_enabled: !data?.model_enabled })
+      await refresh()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
   return <div>
+    {widgetId === 'comm.thread-summary' && <><button disabled={busy} onClick={toggleModel}>{data?.model_enabled ? 'Disable summaries' : 'Enable summaries'}</button><StateView role="status">{busy ? 'Generating…' : data?.model_enabled ? 'Summaries use partial source snippets.' : 'Summaries off. Enable a configured local or free model.'}</StateView></>}
+    {error && <StateView role="alert">{error}</StateView>}
+    {data?.unavailable?.length > 0 && <StateView role="status">Unavailable: {data.unavailable.join(', ')}</StateView>}
     {data?.limited && <StateView role="status">Results limited to available source metadata.</StateView>}
     <ul>{(data?.items || []).map(item => <WidgetRow key={item.id}><div>
       <strong>{/^https:\/\//.test(item.url || '') ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : item.title}</strong>
+      <p>{item.summary}</p>
       <p>{item.source}{item.person && ` · ${item.person}`}</p>
     </div></WidgetRow>)}</ul>
   </div>

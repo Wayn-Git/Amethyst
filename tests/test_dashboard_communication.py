@@ -39,3 +39,45 @@ async def test_unreplied_dms(db, monkeypatch):
 
     monkeypatch.setattr(connectors, "read", empty)
     assert (await communication.provide("need.lor-slack"))["items"] == []
+
+
+async def test_thread_summaries_optional_cached_and_linked(db, monkeypatch):
+    from backend.dashboard import mail, service
+    from backend.dashboard.store import cache_read, settings_write
+
+    async def read(widget, toolkit, slug, args):
+        if toolkit == "slack":
+            raise connectors.SourceUnavailable
+        return {
+            "messages": [
+                {
+                    "id": str(i),
+                    "thread_id": "abc",
+                    "subject": "Topic",
+                    "snippet": "Snippet",
+                    "date": "2026-10-25",
+                }
+                for i in range(3)
+            ]
+        }
+
+    calls = []
+
+    async def generate(prompt, **kwargs):
+        calls.append(prompt)
+        return '[{"id":"gmail:abc","summary":"Summary fixture"},{"id":"invented","summary":"No"}]'
+
+    monkeypatch.setattr(connectors, "read", read)
+    monkeypatch.setattr(mail, "generate", generate)
+    result = await communication.provide("comm.thread-summary")
+    assert not calls and result["items"][0]["summary"] == ""
+    settings_write("comm.thread-summary", {"model_enabled": True})
+    await service.refresh("comm.thread-summary")
+    cached = cache_read("comm.thread-summary")
+    assert cached["state"] == "ok" and len(calls) == 1
+    assert cached["payload"]["items"][0]["summary"] == "Summary fixture"
+    assert cached["payload"]["items"][0]["url"].endswith("/abc")
+    assert "snippets" not in cached["payload"]["items"][0]
+    assert cached["payload"]["unavailable"] == ["Slack"]
+    service.read_data("comm.thread-summary")
+    assert len(calls) == 1

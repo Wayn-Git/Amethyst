@@ -45,6 +45,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "glance.sun",
         "glance.weather",
         "need.lor-slack",
+        "comm.thread-summary",
         "comm.templates",
         "comm.tone",
         "comm.unread",

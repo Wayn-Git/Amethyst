@@ -49,7 +49,10 @@ def project(slug, value, arguments=None):
         }
     if slug == "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION":
         return {
-            "items": [{"id": row["ts"], "user": row.get("user", "")} for row in value["messages"]],
+            "items": [
+                {"id": row["ts"], "user": row.get("user", ""), "title": row.get("text", "")[:200]}
+                for row in value["messages"]
+            ],
             "cursor": value.get("response_metadata", {}).get("next_cursor", ""),
             "limited": bool(value.get("has_more")),
         }
