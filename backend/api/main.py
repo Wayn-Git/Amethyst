@@ -411,6 +411,12 @@ _instagram = InstagramRunner()
 # other loops should not be waiting behind.
 _browser = BrowserRunner()
 
+# The library auto-enrich sweeper. Summarises items in the background
+# so captures and bookmarks get synthesis and taxonomy without blocking.
+from backend.library.runner import LibraryRunner
+
+_library = LibraryRunner()
+
 
 #: How long a suspension has to have been sitting there before a run row with
 #: nothing behind it is believed to be abandoned rather than mid-decision.
@@ -632,7 +638,9 @@ async def _lifespan(_: FastAPI):
     _instagram.start()
     # Fifth. A no-op on every tick until someone switches the browser on.
     _browser.start()
-    # Sixth, and first to be stopped after the browser: connectors.
+    # Sixth. Sweeps and synthesizes unsummarized library items in the background.
+    _library.start()
+    # Seventh, and first to be stopped after the browser: connectors.
 
     # Switched-on connectors start at boot rather than on the first turn.
     # The manager used to be built lazily by the first chat request, so on a
@@ -676,6 +684,7 @@ async def _lifespan(_: FastAPI):
     _stale_cleanup_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await _stale_cleanup_task
+    await _library.stop()
     await _browser.stop()
     await _instagram.stop()
     await _journal.stop()
@@ -1776,6 +1785,16 @@ class AddProvider(BaseModel):
     #: the key is already there, or when the endpoint needs none.
     api_key: str | None = None
     key: str | None = None
+    account_id: str | None = None
+
+
+class VerifyProvider(BaseModel):
+    api_key: str | None = None
+    key: str | None = None
+    base_url: str | None = None
+    default_model: str | None = None
+    adapter: str | None = None
+    account_id: str | None = None
 
 
 @app.get("/api/providers")
@@ -1821,6 +1840,10 @@ async def list_providers() -> dict[str, Any]:
                 "docs_url": preset.docs_url,
                 "local": preset.local,
                 "note": preset.note,
+                "free": preset.free,
+                "core": preset.core,
+                "adapter": preset.adapter,
+                "strengths": sorted(preset.strengths),
                 "listed": preset.slug in listed,
             }
             for preset in PROVIDER_PRESETS
@@ -1854,6 +1877,10 @@ def add_provider_route(body: AddProvider) -> dict[str, Any]:
     ):
         if value:
             entry[field] = value
+
+    if body.account_id and entry.get("base_url"):
+        acc = body.account_id.strip()
+        entry["base_url"] = entry["base_url"].replace("{account_id}", acc).replace("ACCOUNT_ID", acc)
 
     # Without a base URL the OpenAI-compatible adapter silently posts to
     # OpenAI, which fails as an authentication error and reads as a bad key.
@@ -2206,6 +2233,402 @@ async def provider_models(name: str) -> dict[str, Any]:
 #: parsing test imports, and moving a function is not a reason to rewrite a test
 #: that is about the parsing rather than about where it lives.
 _model_list = openai_compat.list_models
+
+
+@app.post("/api/providers/{name}/verify")
+async def verify_provider_route(name: str, body: VerifyProvider) -> dict[str, Any]:
+    """Verify provider credentials against live /models endpoint before saving.
+
+    Never persists invalid keys to disk or OS keychain (R1).
+    Returns valid=True for 200 (ok) and 429 (rate-limited but valid key).
+    Returns valid=False for 401/403 (invalid key) or network connection errors.
+    """
+    clean_name = name.strip().lower()
+    from backend.config import ProviderConfig
+    from backend.provider_catalogue import preset as find_preset
+    from backend.runtime.reasoning_catalog import capabilities_for
+    from backend.runtime.registry import model_lister
+    from backend.secrets import resolve_api_key
+
+    preset = find_preset(clean_name)
+    key_val = (body.api_key or body.key or "").strip()
+    is_local = bool(preset and preset.local)
+
+    if not key_val and not is_local:
+        # Check if already resolved in keychain or environment
+        ref = f"amethyst/{clean_name}"
+        env_var = None
+        if preset and preset.api_key_env:
+            env_var = preset.api_key_env
+        existing_key = resolve_api_key(ref=ref, env=env_var)
+        if existing_key:
+            key_val = existing_key
+        else:
+            return {
+                "valid": False,
+                "status": "invalid_key",
+                "message": f"API key is required for {clean_name}",
+                "models": [],
+                "latency_ms": 0,
+            }
+
+    adapter = body.adapter or (preset.adapter if preset else None) or clean_name
+    base_url = body.base_url or (preset.base_url if preset else None) or ""
+    if body.account_id and base_url:
+        acc = body.account_id.strip()
+        base_url = base_url.replace("{account_id}", acc).replace("ACCOUNT_ID", acc)
+
+    temp_cfg = ProviderConfig(
+        name=clean_name,
+        base_url=base_url,
+        provider=adapter,
+        default_model=body.default_model or (preset.default_model if preset else None),
+    )
+    base = availability.resolve_base_url(temp_cfg)
+    headers_fn, parse_fn = model_lister(temp_cfg)
+    headers = headers_fn(key_val)
+
+    t0 = time.monotonic()
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            try:
+                response = await client.get(f"{base}/models", headers=headers)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404 and "/openai/v1" in base:
+                    alt_base = base.replace("/openai/v1", "/v1")
+                    response = await client.get(f"{alt_base}/models", headers=headers)
+                    response.raise_for_status()
+                else:
+                    raise
+            payload = response.json()
+            models = parse_fn(payload)
+
+            for m in models:
+                if "capabilities" not in m:
+                    provider_caps = m.get("_provider_reasoning")
+                    m["capabilities"] = capabilities_for(m.get("id", ""), provider_caps)
+
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "valid": True,
+                "status": "ok",
+                "message": f"Verified successfully ({len(models)} models found)" if models else "Verified successfully",
+                "models": models,
+                "latency_ms": elapsed_ms,
+            }
+    except httpx.HTTPStatusError as exc:
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        code = exc.response.status_code
+        detail = exc.response.text
+        if code in (401, 403):
+            return {
+                "valid": False,
+                "status": "invalid_key",
+                "message": f"Authentication failed ({code}): Check your API key. {detail[:200]}",
+                "models": [],
+                "latency_ms": elapsed_ms,
+            }
+        elif code == 429:
+            return {
+                "valid": True,
+                "status": "rate_limited",
+                "message": f"Key is valid, but provider returned rate limit or quota exceeded (429): {detail[:200]}",
+                "models": [],
+                "latency_ms": elapsed_ms,
+            }
+        else:
+            return {
+                "valid": False,
+                "status": "error",
+                "message": f"Provider returned error ({code}): {detail[:200]}",
+                "models": [],
+                "latency_ms": elapsed_ms,
+            }
+    except Exception as exc:
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        return {
+            "valid": False,
+            "status": "unreachable",
+            "message": f"Could not reach {base} ({type(exc).__name__}: {exc})",
+            "models": [],
+            "latency_ms": elapsed_ms,
+        }
+
+
+@app.get("/api/setup/status")
+async def setup_status_route() -> dict[str, Any]:
+    """Single source of truth for Amethyst setup and onboarding readiness (R3)."""
+    from backend.setup_status import get_setup_status
+
+    errors = dict(_mcp.get("errors", {}))
+    tools_count = len(_listing_registry().list())
+    return await get_setup_status(mcp_errors=errors, active_tools_count=tools_count)
+
+
+class CompleteSetupRequest(BaseModel):
+    browser_enabled: bool | None = None
+    tray_enabled: bool | None = None
+
+
+@app.post("/api/setup/complete")
+async def complete_setup_route(body: CompleteSetupRequest) -> dict[str, Any]:
+    """Mark onboarding complete in SQLite app_settings and persist privacy preferences (R4)."""
+    from backend.retrieval.embeddings import auto_configure_embeddings
+    from backend.setup_status import mark_setup_complete
+
+    opts = body.model_dump(exclude_unset=True)
+    res = mark_setup_complete(opts)
+    try:
+        embed_res = await auto_configure_embeddings()
+        if embed_res:
+            res["embeddings"] = {"provider": embed_res[0], "model": embed_res[1]}
+    except Exception:
+        log.debug("auto_configure_embeddings failed during setup completion", exc_info=True)
+    return res
+
+
+@app.post("/api/setup/embeddings/auto")
+async def auto_configure_embeddings_route() -> dict[str, Any]:
+    """Auto-detect and configure embeddings from available candidates (R17)."""
+    from backend.retrieval.embeddings import auto_configure_embeddings
+
+    res = await auto_configure_embeddings()
+    if res:
+        provider, model = res
+        return {"configured": True, "provider": provider, "model": model}
+    return {"configured": False, "provider": None, "model": None}
+
+
+class KeychainFallbackRequest(BaseModel):
+    consent: bool
+
+
+@app.post("/api/setup/keychain/fallback")
+def enable_keychain_fallback_route(body: KeychainFallbackRequest) -> dict[str, Any]:
+    """Activate user-consented file fallback for storing credentials on headless/minimal systems (R9)."""
+    if not body.consent:
+        raise HTTPException(status_code=400, detail="Consent is required to enable file storage fallback.")
+
+    from backend.db.connection import get_connection, transaction
+    from backend.secrets import enable_file_store
+
+    store = enable_file_store()
+    conn = get_connection()
+    with transaction(conn):
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('keychain.fallback_consented', '1')"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')"
+        )
+
+    return {
+        "ok": True,
+        "storage_type": "file",
+        "path": str(store.path),
+        "message": "File-backed secrets storage enabled with user consent.",
+    }
+
+
+@app.post("/api/setup/runtimes/uv/install")
+async def install_uv_route() -> dict[str, Any]:
+    """Download and set up official standalone uv/uvx binary in ~/.amethyst/bin (R12)."""
+    import io
+    import platform
+    import shutil
+    import sys
+    import tarfile
+    import zipfile
+    from pathlib import Path
+
+    bin_dir = Path.home() / ".amethyst" / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    uv_dest = bin_dir / ("uv.exe" if sys.platform == "win32" else "uv")
+    uvx_dest = bin_dir / ("uvx.exe" if sys.platform == "win32" else "uvx")
+
+    os_name = sys.platform
+    arch = platform.machine().lower()
+    if arch in ("x86_64", "amd64"):
+        arch_tag = "x86_64"
+    elif arch in ("aarch64", "arm64"):
+        arch_tag = "aarch64"
+    elif arch in ("i386", "i686"):
+        arch_tag = "i686"
+    else:
+        arch_tag = "x86_64"
+
+    if os_name == "linux":
+        target = f"{arch_tag}-unknown-linux-gnu"
+        ext = "tar.gz"
+    elif os_name == "darwin":
+        target = f"{arch_tag}-apple-darwin"
+        ext = "tar.gz"
+    elif os_name == "win32":
+        target = f"{arch_tag}-pc-windows-msvc"
+        ext = "zip"
+    else:
+        target = f"{arch_tag}-unknown-linux-gnu"
+        ext = "tar.gz"
+
+    url = f"https://github.com/astral-sh/uv/releases/latest/download/uv-{target}.{ext}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            content = resp.content
+
+            extracted_uv = None
+            extracted_uvx = None
+
+            try:
+                if tarfile.is_tarfile(io.BytesIO(content)):
+                    with tarfile.open(fileobj=io.BytesIO(content), mode="r:*") as tar:
+                        for member in tar.getmembers():
+                            name = Path(member.name).name
+                            if name in ("uv", "uv.exe"):
+                                f = tar.extractfile(member)
+                                if f:
+                                    extracted_uv = f.read()
+                            elif name in ("uvx", "uvx.exe"):
+                                f = tar.extractfile(member)
+                                if f:
+                                    extracted_uvx = f.read()
+                elif zipfile.is_zipfile(io.BytesIO(content)):
+                    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                        for item in zf.namelist():
+                            name = Path(item).name
+                            if name in ("uv", "uv.exe"):
+                                extracted_uv = zf.read(item)
+                            elif name in ("uvx", "uvx.exe"):
+                                extracted_uvx = zf.read(item)
+            except Exception:
+                pass
+
+            if not extracted_uv:
+                extracted_uv = content
+
+            uv_dest.write_bytes(extracted_uv)
+            uv_dest.chmod(0o755)
+
+            if extracted_uvx:
+                uvx_dest.write_bytes(extracted_uvx)
+                uvx_dest.chmod(0o755)
+            elif not uvx_dest.exists():
+                try:
+                    uvx_dest.symlink_to(uv_dest)
+                except Exception:
+                    uvx_dest.write_bytes(extracted_uv)
+                    uvx_dest.chmod(0o755)
+
+            bin_str = str(bin_dir)
+            curr_path = os.environ.get("PATH", "")
+            if bin_str not in curr_path:
+                os.environ["PATH"] = f"{bin_str}{os.pathsep}{curr_path}"
+
+            return {
+                "ok": True,
+                "path": str(uv_dest),
+                "bin_dir": bin_str,
+                "message": "Standalone uv runtime installed successfully.",
+            }
+    except Exception as exc:
+        log.exception("Failed to install uv runtime: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to install uv: {exc}")
+
+
+class RelayVerifyRequest(BaseModel):
+    token: str
+    account_id: str | None = None
+    database_name: str = "amethyst-relay"
+
+
+class RelayDeployRequest(BaseModel):
+    token: str
+    account_id: str
+    database_id: str | None = None
+    relay_url: str | None = None
+
+
+@app.post("/api/relay/verify")
+async def verify_relay_route(body: RelayVerifyRequest) -> dict[str, Any]:
+    """Verify Cloudflare API token and check/resolve D1 database (R18)."""
+    from backend.relay_deploy import verify_cloudflare_token, check_or_create_d1
+
+    valid, message = await verify_cloudflare_token(body.token)
+    if not valid:
+        return {"valid": False, "message": message, "d1": None}
+
+    d1_info = None
+    if body.account_id:
+        try:
+            d1_info = await check_or_create_d1(body.token, body.account_id, body.database_name)
+        except Exception as e:
+            return {"valid": True, "message": message, "d1_error": str(e), "d1": None}
+
+    return {"valid": True, "message": message, "d1": d1_info}
+
+
+@app.post("/api/relay/deploy")
+async def deploy_relay_route(body: RelayDeployRequest) -> dict[str, Any]:
+    """Save Cloudflare relay credentials and configure relay URL (R18)."""
+    from backend.secrets import set_secret
+    from backend.config import save_instagram
+
+    set_secret("amethyst/cloudflare-token", body.token)
+    set_secret("amethyst/cloudflare-account-id", body.account_id)
+    if body.database_id:
+        set_secret("amethyst/cloudflare-database-id", body.database_id)
+
+    if body.relay_url:
+        save_instagram({"relay_url": body.relay_url, "relay_enabled": True})
+
+    return {
+        "ok": True,
+        "message": "Relay credentials configured successfully.",
+        "account_id": body.account_id,
+        "database_id": body.database_id,
+    }
+
+
+class OllamaPullRequest(BaseModel):
+    model: str = "llama3.2"
+
+
+@app.post("/api/ollama/pull")
+async def pull_ollama_model(body: OllamaPullRequest) -> StreamingResponse:
+    """Stream model download progress from local Ollama and register on success (R10)."""
+    from backend.runtime.providers.ollama import stream_pull
+    from backend.config import add_provider, configured_providers, set_primary_provider
+
+    target_model = (body.model or "llama3.2").strip()
+
+    async def _generator():
+        success = False
+        async for chunk in stream_pull(target_model):
+            try:
+                line = chunk.decode("utf-8", errors="replace").strip()
+                if line:
+                    for l in line.split("\n"):
+                        data = json.loads(l)
+                        if data.get("status") == "success":
+                            success = True
+            except Exception:
+                pass
+            yield chunk
+
+        if success:
+            with contextlib.suppress(Exception):
+                entry = {"name": "ollama", "default_model": target_model, "enabled": True}
+                add_provider(entry)
+                configured = configured_providers()
+                if not any(cfg.enabled for name, cfg in configured.items() if name != "ollama"):
+                    set_primary_provider("ollama")
+
+    return StreamingResponse(_generator(), media_type="application/x-ndjson")
+
+
 
 
 @app.delete("/api/providers/{name}")
@@ -4476,6 +4899,46 @@ def mcp_set_oauth_client(name: str, body: OAuthClient) -> dict[str, str]:
     return {"status": "stored"}
 
 
+class McpApiKey(BaseModel):
+    api_key: str
+
+
+@app.post("/api/mcp/servers/{name}/api-key")
+def mcp_set_api_key(name: str, body: McpApiKey) -> dict[str, str]:
+    """Store an API key or Personal Access Token in the keychain for an MCP server (R13)."""
+    from backend.mcp import catalogue as cat
+    from backend.mcp import commands as mcp
+    from backend.mcp.config import load_servers, save_servers
+    from backend.secrets import set_secret
+
+    key = body.api_key.strip()
+    if not key:
+        raise HTTPException(400, "API key cannot be empty")
+
+    servers = load_servers()
+    config = servers.get(name)
+    entry = cat.get(name)
+
+    ref = (
+        (config.api_key_ref if config else None)
+        or (entry.api_key_ref if entry else None)
+        or f"amethyst-mcp/{name}.api_key"
+    )
+    set_secret(ref, key)
+
+    if config is not None:
+        config.api_key_ref = ref
+        save_servers(servers)
+    elif entry is not None:
+        mcp.add_from_catalogue(name)
+        servers = load_servers()
+        if name in servers:
+            servers[name].api_key_ref = ref
+            save_servers(servers)
+
+    return {"status": "stored", "name": name, "api_key_ref": ref}
+
+
 class ServerEnv(BaseModel):
     key: str
     value: str
@@ -6366,10 +6829,15 @@ def update_device_permissions(device_id: str, body: dict[str, Any]) -> dict[str,
 
 
 @app.post("/api/devices/pair")
-def start_pairing(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def start_pairing(
+    body: dict[str, Any] | None = None,
+    prefer_lan: bool = False,
+) -> dict[str, Any]:
     """Open a pairing window and return the QR code to show."""
     from backend.db.connection import get_connection
     from backend.sync import devices as sync_devices
+
+    want_lan = prefer_lan or bool((body or {}).get("prefer_lan"))
 
     conn = get_connection()
     secret, payload = sync_devices.open_pairing(
@@ -6392,8 +6860,18 @@ def start_pairing(body: dict[str, Any] | None = None) -> dict[str, Any]:
     lan_payload = sync_devices.pairing_payload(secret, host=host_url, relay=relay_url, prefer_lan=True) if host_url else ""
     web_payload = sync_devices.pairing_payload(secret, app=app_url, relay=relay_url, host=host_url) if app_url else ""
 
-    # Direct LAN is preferred for remote PC controls, falling back to Web or general payload
-    active_payload = lan_payload if lan_payload else (web_payload if web_payload else payload)
+    # Prioritize secure HTTPS / Web origin for mobile crypto.subtle compatibility (R11)
+    if want_lan and lan_payload:
+        active_payload = lan_payload
+    elif web_payload and (app_url.startswith("https://") or relay_url.startswith("https://")):
+        active_payload = web_payload
+    elif web_payload:
+        active_payload = web_payload
+    elif lan_payload:
+        active_payload = lan_payload
+    else:
+        active_payload = payload
+
 
     return {
         "secret": secret,
@@ -6651,6 +7129,7 @@ class LibraryBody(BaseModel):
     text: str | None = None
     consumed_on: str | None = None
     rating: int | None = None
+    media_path: str | None = None
 
 
 class LibraryPatch(BaseModel):
@@ -6681,6 +7160,7 @@ async def list_library(
 
     with contextlib.suppress(Exception):
         _instagram.nudge()
+        _library.nudge()
 
     service = LibraryService()
     limit = max(1, min(limit, 200))
@@ -6722,6 +7202,17 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
                 notes=body.notes,
                 title=body.title,
             )
+        elif body.media_path and Path(body.media_path).is_file():
+            captured = await service.capture_media_file(
+                body.media_path,
+                title=body.title,
+                kind=body.kind,
+                category=body.category,
+                notes=body.notes,
+                consumed_on=body.consumed_on,
+                rating=body.rating,
+                author=body.author,
+            )
         else:
             captured = await service.log_manual(
                 title=body.title or "",
@@ -6738,7 +7229,23 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
     except Exception as exc:
         log.exception("failed to capture library item: %s", exc)
         raise HTTPException(500, f"Failed to capture item: {exc}") from exc
+    with contextlib.suppress(Exception):
+        _library.nudge()
     return {**captured.item, "already_logged": captured.already_logged}
+
+
+@app.post("/api/library/sweep")
+async def sweep_library(force: bool = True) -> dict[str, Any]:
+    """Sweep and automatically enrich unsummarized items in the background."""
+    from backend.library.service import LibraryService
+    from backend.library.store import LibraryStore
+
+    _library.nudge()
+    service = LibraryService()
+    count = await service.sweep_unsummarized(max_items=50, force=force)
+    unsummarized = len(LibraryStore().unsummarized(limit=500))
+    return {"status": "sweeping", "swept": count, "unsummarized": unsummarized}
+
 
 
 @app.get("/api/library/{item_id}")
@@ -6779,17 +7286,39 @@ def delete_library_item(item_id: int) -> dict[str, Any]:
     return {"status": "deleted", "id": item_id}
 
 
+@app.get("/api/settings/library")
+def get_library_settings() -> dict[str, Any]:
+    """Library settings, including auto_enrich, enrich_provider, and enrich_model."""
+    from backend.config import load_library
+    return load_library().as_dict()
+
+
+@app.patch("/api/settings/library")
+def update_library_settings(body: dict[str, Any]) -> dict[str, Any]:
+    """Update library settings."""
+    from backend.config import save_library
+    return save_library(body).as_dict()
+
+
 @app.post("/api/library/{item_id}/enrich")
-async def enrich_library_item(item_id: int) -> dict[str, Any]:
+async def enrich_library_item(
+    item_id: int,
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Say what this item is about, from the text it has. The mirror of reindex."""
     from backend.library.service import LibraryError, LibraryService
 
+    provider = body.get("provider") if isinstance(body, dict) else None
+    model = body.get("model") if isinstance(body, dict) else None
+
     try:
-        return await LibraryService().enrich(item_id)
+        return await LibraryService().enrich(item_id, provider=provider, model=model)
     except LibraryError as exc:
         raise HTTPException(404, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(500, f"Enrichment failed: {exc}") from exc
+
+
 
 
 @app.api_route("/api/library/{item_id}/thumbnail", methods=["GET", "HEAD"])
@@ -6814,7 +7343,23 @@ async def library_thumbnail(item_id: int) -> FileResponse:
             if alt.is_file():
                 path = alt
         if path.is_file():
-            return FileResponse(path, media_type="image/jpeg")
+            import mimetypes
+            mime, _ = mimetypes.guess_type(str(path))
+            return FileResponse(path, media_type=mime or "image/jpeg")
+
+    # Check if a thumbnail already exists on disk for this item
+    from backend.library.store import thumbnail_path
+    cand = thumbnail_path(item_id)
+    if cand.is_file():
+        import mimetypes
+        mime, _ = mimetypes.guess_type(str(cand))
+        return FileResponse(cand, media_type=mime or "image/jpeg")
+    for ext in (".jpg", ".jpeg", ".png", ".webp"):
+        alt_cand = cand.parent / f"{item_id:06d}-thumb{ext}"
+        if alt_cand.is_file():
+            import mimetypes
+            mime, _ = mimetypes.guess_type(str(alt_cand))
+            return FileResponse(alt_cand, media_type=mime or "image/jpeg")
 
     # If missing or not yet downloaded, try on-demand fetch once
     if row["url"]:
@@ -6825,12 +7370,14 @@ async def library_thumbnail(item_id: int) -> FileResponse:
             if row and row["thumbnail_path"]:
                 path = Path(row["thumbnail_path"])
                 if path.is_file():
-                    return FileResponse(path, media_type="image/jpeg")
+                    import mimetypes
+                    mime, _ = mimetypes.guess_type(str(path))
+                    return FileResponse(path, media_type=mime or "image/jpeg")
 
     raise HTTPException(404, "there is no thumbnail for that item")
 
 
-@app.get("/api/library/{item_id}/slides/{index}")
+@app.api_route("/api/library/{item_id}/slides/{index}", methods=["GET", "HEAD"])
 async def library_slide(item_id: int, index: int) -> FileResponse:
     """One slide of a multi-image carousel post."""
     from backend.library.service import LibraryService
@@ -6854,7 +7401,7 @@ async def library_slide(item_id: int, index: int) -> FileResponse:
     raise HTTPException(404, f"slide {index} not found for item {item_id}")
 
 
-@app.get("/api/library/{item_id}/media")
+@app.api_route("/api/library/{item_id}/media", methods=["GET", "HEAD"])
 def library_media(item_id: int) -> FileResponse:
     """Stream raw media content, downloading on-demand if needed."""
     import mimetypes
@@ -6867,18 +7414,56 @@ def library_media(item_id: int) -> FileResponse:
     
     if row is None:
         raise HTTPException(404, f"no library item {item_id}")
+    row = dict(row)
         
-    path = Path(row["media_path"]) if row["media_path"] else None
-    if path and path.is_file():
+    path = Path(row["media_path"]) if row.get("media_path") else None
+    if path and path.is_file() and path.stat().st_size > 1000:
         mime_type, _ = mimetypes.guess_type(str(path))
         return FileResponse(path, media_type=mime_type or "video/mp4")
+
+    # Check if a media file for this item already exists on disk
+    from backend.library.store import media_path
+    for ext in (".mp4", ".webm", ".mov", ".mkv"):
+        candidate = media_path(item_id, ext)
+        if candidate.is_file() and candidate.stat().st_size > 1000:
+            with get_connection() as conn:
+                conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(candidate), item_id))
+                conn.commit()
+            mime_type, _ = mimetypes.guess_type(str(candidate))
+            return FileResponse(candidate, media_type=mime_type or "video/mp4")
         
-    # On-demand download for videos / reels (pure MP4 like videodropper / savefromins)
-    url = row["url"]
-    if url:
+    # On-demand download for videos / reels (Instagram, TikTok, Twitter/X, Reddit, etc.)
+    # 1. First check if a direct video URL exists in resources
+    if row.get("resources"):
+        try:
+            import json as _json
+            import httpx
+            res_list = _json.loads(row["resources"])
+            for r in res_list:
+                if isinstance(r, dict) and r.get("type") == "video" and r.get("url"):
+                    v_url = r["url"]
+                    if v_url.startswith("http"):
+                        target = media_path(item_id, ".mp4")
+                        if not target.is_file() or target.stat().st_size < 1000:
+                            with httpx.Client(timeout=45.0, follow_redirects=True) as client:
+                                resp = client.get(v_url)
+                                if resp.status_code == 200 and len(resp.content) > 1000:
+                                    target.parent.mkdir(parents=True, exist_ok=True)
+                                    target.write_bytes(resp.content)
+                        if target.is_file() and target.stat().st_size > 1000:
+                            with get_connection() as conn:
+                                conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
+                                conn.commit()
+                            mime_type, _ = mimetypes.guess_type(str(target))
+                            return FileResponse(target, media_type=mime_type or "video/mp4")
+        except Exception:
+            pass
+
+    # 2. General yt-dlp on-demand extractor (only for video/audio kinds)
+    url = row.get("url")
+    if url and row.get("kind") in ("video", "podcast", "music"):
         try:
             import yt_dlp
-            from backend.library.store import media_path
             from backend.config import load_instagram
             settings = load_instagram()
             target = media_path(item_id, ".mp4")
@@ -6890,14 +7475,23 @@ def library_media(item_id: int) -> FileResponse:
             }
             if settings.cookies_from_browser:
                 ydl_opts["cookiesfrombrowser"] = (settings.cookies_from_browser,)
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            if target.is_file() and target.stat().st_size > 1000:
-                with get_connection() as conn:
-                    conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
-                    conn.commit()
-                mime_type, _ = mimetypes.guess_type(str(target))
-                return FileResponse(target, media_type=mime_type or "video/mp4")
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+            except Exception:
+                # Retry anonymously without browser cookies if browser locked
+                if "cookiesfrombrowser" in ydl_opts:
+                    ydl_opts.pop("cookiesfrombrowser", None)
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
+            for ext in (".mp4", ".webm", ".mov", ".mkv"):
+                cand = media_path(item_id, ext)
+                if cand.is_file() and cand.stat().st_size > 1000:
+                    with get_connection() as conn:
+                        conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(cand), item_id))
+                        conn.commit()
+                    mime_type, _ = mimetypes.guess_type(str(cand))
+                    return FileResponse(cand, media_type=mime_type or "video/mp4")
         except Exception:
             pass
 

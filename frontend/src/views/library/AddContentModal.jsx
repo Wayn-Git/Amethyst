@@ -163,6 +163,7 @@ export default function AddContentModal({
         category: 'general',
         notes: `Uploaded file: ${file.name} (${Math.round((file.size || 0) / 1024)} KB)`,
         text: uploaded?.name || file.name,
+        media_path: uploaded?.path || null,
       })
 
       toast?.(`Added ${file.name} to library`, 'ok')

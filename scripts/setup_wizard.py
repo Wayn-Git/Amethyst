@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.mcp import commands as mcp_cmds
+from backend.mcp.catalogue import GOOGLE_SETUP_HINT
 from backend.secrets import get_secret, set_secret
 
 ENV_PATH = ROOT / ".env"
@@ -75,6 +76,19 @@ def print_header(title: str) -> None:
     print("=" * 64)
 
 
+def _save_provider_key(name: str, key: str) -> None:
+    from backend.config import add_provider
+    from backend.provider_catalogue import entry_for, preset as find_preset
+
+    ref = f"amethyst/{name}"
+    set_secret(ref, key)
+
+    p = find_preset(name)
+    entry = entry_for(p) if p else {"name": name}
+    entry["api_key_ref"] = ref
+    add_provider(entry)
+
+
 # ----------------------------------------------------------------------
 # 1. AI Models Setup
 # ----------------------------------------------------------------------
@@ -101,60 +115,55 @@ def setup_models() -> None:
         input("Press Enter to continue...")
 
     elif choice == "2":
-        current = env.get("ANTHROPIC_API_KEY", "") or (get_secret("amethyst/anthropic") or "")
+        current = get_secret("amethyst/anthropic") or env.get("ANTHROPIC_API_KEY", "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent Anthropic Key: {display}")
         key = prompt_input("Enter Anthropic API Key (sk-ant-...) [leave blank to keep]")
         if key:
-            write_env_key("ANTHROPIC_API_KEY", key)
-            set_secret("amethyst/anthropic", key)
+            _save_provider_key("anthropic", key)
             print("✓ Saved Anthropic API Key.")
 
     elif choice == "3":
-        current = env.get("OPENAI_API_KEY", "") or (get_secret("amethyst/openai") or "")
+        current = get_secret("amethyst/openai") or env.get("OPENAI_API_KEY", "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent OpenAI Key: {display}")
         key = prompt_input("Enter OpenAI API Key (sk-...) [leave blank to keep]")
         if key:
-            write_env_key("OPENAI_API_KEY", key)
-            set_secret("amethyst/openai", key)
+            _save_provider_key("openai", key)
             print("✓ Saved OpenAI API Key.")
 
     elif choice == "4":
-        current = env.get("GROQ_API_KEY", "") or (get_secret("amethyst/groq") or "")
+        current = get_secret("amethyst/groq") or env.get("GROQ_API_KEY", "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent Groq Key: {display}")
         key = prompt_input("Enter Groq API Key (gsk_...) [leave blank to keep]")
         if key:
-            write_env_key("GROQ_API_KEY", key)
-            set_secret("amethyst/groq", key)
+            _save_provider_key("groq", key)
             print("✓ Saved Groq API Key.")
 
     elif choice == "5":
-        current = env.get("GEMINI_API_KEY", "") or (get_secret("amethyst/google") or "")
+        current = get_secret("amethyst/google") or env.get("GEMINI_API_KEY", "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent Gemini Key: {display}")
         key = prompt_input("Enter Google Gemini API Key (AIzaSy...) [leave blank to keep]")
         if key:
-            write_env_key("GEMINI_API_KEY", key)
-            set_secret("amethyst/google", key)
+            _save_provider_key("google", key)
             print("✓ Saved Google Gemini API Key.")
 
     elif choice == "6":
-        current = env.get("OPENROUTER_API_KEY", "") or (get_secret("amethyst/openrouter") or "")
+        current = get_secret("amethyst/openrouter") or env.get("OPENROUTER_API_KEY", "")
         display = (current[:8] + "..." + current[-4:]) if len(current) > 12 else (current or "None")
         print(f"\nCurrent OpenRouter Key: {display}")
         key = prompt_input("Enter OpenRouter API Key (sk-or-...) [leave blank to keep]")
         if key:
-            write_env_key("OPENROUTER_API_KEY", key)
-            set_secret("amethyst/openrouter", key)
+            _save_provider_key("openrouter", key)
             print("✓ Saved OpenRouter API Key.")
 
 
 # ----------------------------------------------------------------------
 # 2. App Connectors & OAuth Setup
 # ----------------------------------------------------------------------
-def setup_connectors() -> None:
+def setup_connectors(auto_choice: str | None = None) -> None:
     print_header("2. App Connectors & OAuth Configuration")
     print("Connect your external apps so the assistant can act on your behalf.")
     print("\nSelect a connector to configure:")
@@ -165,7 +174,7 @@ def setup_connectors() -> None:
     print("  5) Web Search (Tavily / Exa API keys)")
     print("  6) Return to Main Menu")
 
-    choice = prompt_input("Enter choice (1-6)", "1")
+    choice = auto_choice if auto_choice is not None else prompt_input("Enter choice (1-6)", "1")
 
     if choice == "1":
         print("\n[Microsoft To Do]")
@@ -183,21 +192,16 @@ def setup_connectors() -> None:
 
     elif choice == "2":
         print("\n[Google Workspace - Gmail, Calendar, Drive]")
-        print("Google OAuth requires an OAuth Client ID & Secret from Google Cloud Console.")
-        print("Steps:")
-        print("  1. Visit: https://console.cloud.google.com/apis/credentials")
-        print("  2. Create OAuth client ID -> Application type: Desktop app")
-        print("  3. Set redirect URI (if asked): http://127.0.0.1:33418/oauth/callback")
-        print("  4. Enable Gmail, Calendar, and Drive APIs in API Library.")
+        print(GOOGLE_SETUP_HINT)
         client_id = prompt_input("Enter Google Client ID (or leave blank to skip)")
         if client_id:
             client_secret = prompt_input("Enter Google Client Secret")
-            write_env_key("AMETHYST_DEFAULT_GOOGLE_CLIENT_ID", client_id)
-            write_env_key("AMETHYST_DEFAULT_GOOGLE_CLIENT_SECRET", client_secret)
             set_secret("amethyst/google-client-id", client_id)
             set_secret("amethyst/google-client-secret", client_secret)
+            set_secret("amethyst-mcp/google-workspace.client_secret", client_secret)
             try:
                 mcp_cmds.add_from_catalogue("google-workspace")
+                mcp_cmds.set_oauth_client("google-workspace", client_id, client_secret)
                 print("✓ Google Workspace connector added with your OAuth credentials!")
                 print("To sign in to Google, open the Connectors tab in AMETHYST or run:")
                 print("  amethyst mcp login google-workspace")
@@ -210,6 +214,7 @@ def setup_connectors() -> None:
         print("   (Scopes needed: repo, read:user)")
         token = prompt_input("Enter GitHub Personal Access Token (or leave blank to skip)")
         if token:
+            set_secret("amethyst-mcp/github.api_key", token)
             set_secret("amethyst/github-token", token)
             try:
                 mcp_cmds.add_from_catalogue("github")
@@ -225,10 +230,12 @@ def setup_connectors() -> None:
         client_id = prompt_input("Enter Spotify Client ID (or leave blank to skip)")
         if client_id:
             client_secret = prompt_input("Enter Spotify Client Secret")
-            write_env_key("AMETHYST_DEFAULT_SPOTIFY_CLIENT_ID", client_id)
-            write_env_key("AMETHYST_DEFAULT_SPOTIFY_CLIENT_SECRET", client_secret)
+            set_secret("amethyst/spotify-client-id", client_id)
+            set_secret("amethyst/spotify-client-secret", client_secret)
+            set_secret("amethyst-mcp/spotify.client_secret", client_secret)
             try:
                 mcp_cmds.add_from_catalogue("spotify")
+                mcp_cmds.set_oauth_client("spotify", client_id, client_secret)
                 print("✓ Spotify connector configured!")
             except Exception as e:
                 print(f"Note: {e}")
@@ -262,8 +269,18 @@ def setup_cloudflare() -> None:
     if account_id:
         token = prompt_input("Enter Cloudflare API Token")
         set_secret("amethyst/cloudflare", token)
-        write_env_key("CLOUDFLARE_ACCOUNT_ID", account_id)
-        write_env_key("CLOUDFLARE_API_KEY", token)
+        try:
+            from backend.config import add_provider
+
+            add_provider({
+                "name": "cloudflare",
+                "adapter": "openai",
+                "base_url": f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
+                "api_key_ref": "amethyst/cloudflare",
+                "default_model": "@cf/meta/llama-3.1-8b-instruct",
+            })
+        except Exception as e:
+            print(f"Note: {e}")
         print("✓ Stored Cloudflare credentials.")
 
         use_emb = (

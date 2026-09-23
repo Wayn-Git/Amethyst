@@ -11,17 +11,30 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     url.includes('youtube.') || url.includes('youtu.be') ? 'youtube' :
     url.includes('tiktok.') ? 'tiktok' : null
   )
-  const hasThumb = Boolean(item.thumbnail_path)
-  const isVideo = item.kind === 'video' || app === 'youtube' || app === 'instagram' || app === 'tiktok'
-  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
+  const hasThumb = Boolean(item.thumbnail_path || item.url)
+  const isReelOrShort = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/')
+  const isVertical = isReelOrShort || app === 'tiktok' || app === 'pinterest'
+  const isVideo = (
+    item.kind === 'video' ||
+    app === 'youtube' ||
+    app === 'tiktok' ||
+    isReelOrShort ||
+    Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path)) ||
+    Boolean(item.duration_seconds)
+  )
+  const isSlidePost = (
+    (app === 'instagram' && !isVertical) ||
+    item.kind === 'post' ||
+    (Array.isArray(item.resources) && item.resources.some((r) => r?.type === 'slide'))
+  )
   const isNote = item.kind === 'note' || (!hasThumb && !item.url)
   const isEssential = item.rating === 5
 
   // Small groups (1 or 2 items): clean single or pair cards
   if (totalInGroup <= 2) {
     return {
-      spanClass: 'col-span-1',
-      variant: isNote ? 'note' : isVertical ? 'portrait' : isVideo ? 'landscape' : 'standard',
+      spanClass: isVertical && hasThumb ? 'col-span-1 sm:row-span-2' : 'col-span-1',
+      variant: isNote ? 'note' : isVertical ? 'portrait' : isSlidePost ? 'square' : isVideo ? 'landscape' : 'standard',
     }
   }
 
@@ -42,7 +55,7 @@ export function getBentoItemConfig(item, index, totalInGroup) {
   }
 
   // 2) Hero / Featured first item (if horizontal or 5-star essential): Spans 2 columns
-  if (index === 0 && totalInGroup >= 4 && !isVertical) {
+  if ((index === 0 && totalInGroup >= 4 && !isVertical) || (isEssential && totalInGroup >= 4 && !isVertical && index < 3)) {
     return {
       spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
       variant: 'wide',
@@ -50,14 +63,22 @@ export function getBentoItemConfig(item, index, totalInGroup) {
   }
 
   // 3) Rhythmic Wide Card for horizontal items
-  if (index > 0 && index % 5 === 0 && !isVertical) {
+  if (index > 0 && index % 6 === 0 && !isVertical) {
     return {
       spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
       variant: 'wide',
     }
   }
 
-  // 4) Note cards: Editorial typography bento block
+  // 4) Square Post cards (Instagram photo carousels, artwork)
+  if (isSlidePost) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-1',
+      variant: 'square',
+    }
+  }
+
+  // 5) Note cards: Editorial typography bento block
   if (isNote) {
     return {
       spanClass: 'col-span-1 sm:row-span-1',
@@ -65,7 +86,7 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     }
   }
 
-  // 5) Default standard bento cell
+  // 6) Default standard/landscape bento cell
   return {
     spanClass: 'col-span-1 sm:row-span-1',
     variant: isVideo ? 'landscape' : 'standard',

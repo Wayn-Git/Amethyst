@@ -8,6 +8,7 @@ writers and interactive tools run sequentially to prevent race conditions.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import hashlib
 import json
@@ -41,6 +42,7 @@ from backend.agent.prompt import (
     extract_skill_invocations,
     fit_tools_to_budget,
     message_tokens,
+    sanitize_client_context,
     to_wire_message,
     to_wire_messages,
     tool_schema_tokens,
@@ -54,8 +56,20 @@ from backend.agent.tool_search import (
     dispatch_tool_describe,
     dispatch_tool_search,
 )
+from backend.agent.intent_router import (
+    IntentRoute,
+    route_intent_fast,
+    resolve_intent_route,
+)
 from backend.agent.context_compressor import ContextCompressor
 from backend.agent.jev import classify_presentation
+from backend.agent.trace import (
+    finish_turn_trace,
+    is_trace_enabled,
+    record_step,
+    record_tool_dispatch,
+    start_turn_trace,
+)
 from backend.agent.widgets import classify_and_extract, to_envelope, FENCE
 from backend.runtime.variant_store import depth_instruction
 from backend.security.confirmation import guard_instruction
@@ -70,9 +84,25 @@ from backend.runtime.failures import FailureKind, looks_like_quota, should_fall_
 from backend.runtime.http import ProviderError, ProviderHTTPError, ProviderStreamError
 from backend.runtime.registry import resolve
 from backend.runtime.router import AUTO, RouteRequest, route
-from backend.runtime.types import ModelParameters, ModelResponse, ToolCall
+from backend.runtime.types import ModelParameters, ModelResponse, ToolCall, ToolSchema
 from backend.tools.base import ToolContext, ToolResult
 from backend.tools.registry import ToolRegistry
+from backend.capabilities import CapabilityService, Kind
+from backend.conversations import summaries as convo_summaries
+from backend.config import load_memory_model, load_tiers
+from backend.db.connection import get_connection
+from backend.db.repositories import ArtifactRepository
+from backend.mcp import guidance, live
+from backend.mcp.composio_service import composio_service
+from backend.mcp.provider_ownership import (
+    compute_turn_ownership_async,
+    forget as forget_ownership,
+)
+from backend.memory import MemoryService
+from backend.retrieval.indexer import Indexer
+from backend.retrieval.search import SearchService
+from backend.runtime.partial_json import partial_string
+from backend.tools.builtin.filesystem import artifact_type
 
 log = logging.getLogger(__name__)
 
@@ -699,9 +729,6 @@ def _with_images(wire: list[dict[str, Any]], attachments: list[dict[str, Any]] |
     if not attachments:
         return wire
 
-    import base64
-    from pathlib import Path
-
     blocks: list[dict[str, Any]] = []
     for item in attachments:
         media = str(item.get("media_type") or "").lower()
@@ -773,8 +800,6 @@ class _LiveArtifacts:
         raw = chunk.arguments_so_far or ""
         index = chunk.tool_index or 0
 
-        from backend.runtime.partial_json import partial_string
-
         state = self._open.get(index)
         if state is None:
             # The path has to be complete before anything can be announced --
@@ -829,11 +854,6 @@ class _LiveArtifacts:
 
     def _announce(self, raw_path: str, title: str):
         """The `artifact_open` for a path, or None if it cannot be resolved."""
-        from pathlib import Path
-
-        from backend.db.repositories import ArtifactRepository
-        from backend.tools.builtin.filesystem import artifact_type
-
         resolved = self._director._artifact_path(ToolCall(id="", name=self._director.ARTIFACT_TOOL, arguments={"path": raw_path}))
         if resolved is None:
             return None
@@ -1014,6 +1034,7 @@ class Director:
         # conversation exists; until then this is an object nothing has stored,
         # and a checkpoint against it updates no rows.
         state = AgentState(conversation_id=conversation_id, mode=self.mode)
+        _trace, _watchdog, _trace_token = start_turn_trace(conversation_id, user_message)
         try:
             async for event in self._run(
                 state, conversation_id, user_message, cancel, attachments, client_context
@@ -1102,6 +1123,15 @@ class Director:
                 if not state.error:
                     state.error = "the turn ended without a result"
                 self._checkpoint(state, "failed")
+            try:
+                await self.runs.flush_async()
+            except Exception:
+                self.runs.flush()
+            try:
+                forget_ownership()
+            except Exception:
+                pass
+            finish_turn_trace(_trace, _watchdog, _trace_token)
 
     async def _run(
         self,
@@ -1116,6 +1146,11 @@ class Director:
         if conversation is None:
             yield Event("error", {"message": f"unknown conversation {conversation_id}"})
             return
+
+        try:
+            await compute_turn_ownership_async()
+        except Exception as exc:
+            log.debug("could not compute turn provider ownership: %s", exc)
 
         # "/weekly-review do the thing" pins that skill for this turn, mirroring
         # the slash menu in the interface. The marker is stripped so the model
@@ -1150,71 +1185,165 @@ class Director:
         # Skip the widget classifier for messages that are obviously code/file
         # tasks — the classifier never returns a widget for these, and skipping
         # it saves a model call (0.5-2s) per turn.
-        _CODE_SIGNALS = {
-            "fix", "bug", "error", "refactor", "edit", "write", "create",
-            "delete", "rename", "move", "debug", "test", "lint", "build",
-            "compile", "run", "deploy", "commit", "push", "pull", "merge",
-            "review", "analyze", "explain", "implement", "add", "remove",
-            "update", "change", "modify", "install", "configure", "setup",
-        }
-        _skip_widget = bool(
-            set(user_message.lower().split()) & _CODE_SIGNALS
-        ) or len(user_message) > 500
+        # Fast synchronous intent routing (< 0.02ms)
+        history_raw = self.messages.history(conversation_id)
+        max_iters_configured = self.guards.max_iterations or 40
+        intent_route, need_remote_jev, need_widget_extract = route_intent_fast(
+            user_message,
+            history_raw=history_raw,
+            mode=self.mode,
+            attachments=attachments,
+            max_iterations=max_iters_configured,
+        )
 
-        # TypeSafe Jev Presentation Routing (OpenIntelligentUI)
-        jev_decision = "text"
-        if self.mode != "plan" and not attachments:
+        # Preserve generative UI on short follow-up after a widget turn
+        if intent_route.lane != "widget" and history_raw:
+            last_assistant = next((m for m in reversed(history_raw) if m.role == "assistant"), None)
+            if last_assistant and ("sandboxed_ui" in (last_assistant.content or "") or "generate_sandboxed_ui" in (last_assistant.content or "")):
+                clean_lower = user_message.lower().strip(".!? ")
+                if clean_lower in ("continue", "proceed", "go on", "next", "more", "keep going", "update", "extend") or len(clean_lower.split()) <= 6:
+                    intent_route.lane = "widget"
+                    intent_route.presentation = "calculator"
+                    intent_route.presentation_steer = VISUALIZATION_STEER_INSTRUCTIONS.get("calculator")
+                    need_remote_jev = False
+                    need_widget_extract = False
+
+        if intent_route.presentation_steer:
+            state.presentation_steer = intent_route.presentation_steer
+
+        # If remote classification is not needed, record zero / skipped immediately
+        if not need_remote_jev:
+            record_step("classify_presentation", 0.0)
+        if not need_widget_extract:
+            record_step("classify_and_extract", 0.0, skipped=True)
+
+        # P0 timing: prefetch_ms measures gate to first model call.
+        # Run Jev API and widget extraction concurrently with prefetch when needed.
+        _prefetch_started = time.monotonic()
+        trivial = self._is_trivial_turn(user_message, attachments)
+        should_retrieve = self.retrieval and (not trivial) and self._should_retrieve(user_message, attachments)
+        should_recall = self.memory and (not trivial)
+
+        async def _run_prefetch():
+            if trivial:
+                recent_val = await self._recent(conversation_id)
+                log.debug("turn prefetch trivial skip in %.0fms", (time.monotonic() - _prefetch_started) * 1000)
+                return (None, []), [], recent_val
+            elif not should_retrieve and not should_recall:
+                recent_val = await self._recent(conversation_id)
+                log.debug("turn prefetch direct skip in %.0fms", (time.monotonic() - _prefetch_started) * 1000)
+                return (None, []), [], recent_val
+            else:
+                return await asyncio.gather(
+                    self._retrieve(user_message) if should_retrieve else _none(),
+                    self._recall(conversation_id, user_message) if should_recall else _empty(),
+                    self._recent(conversation_id),
+                )
+
+        async def _run_jev():
+            if not need_remote_jev:
+                return intent_route.presentation
+            _t_jev0 = time.perf_counter()
             try:
-                history_raw = self.messages.history(conversation_id)
                 recent_msgs = to_wire_messages(history_raw)[-3:]
                 recent_msgs.append({"role": "user", "content": user_message})
-                jev_decision = await classify_presentation(recent_msgs)
-
-                # If user says "continue", "next", "update", etc. after a widget turn, preserve generative UI
-                if jev_decision == "text" and history_raw:
-                    last_assistant = next((m for m in reversed(history_raw) if m.role == "assistant"), None)
-                    if last_assistant and ("sandboxed_ui" in (last_assistant.content or "") or "generate_sandboxed_ui" in (last_assistant.content or "")):
-                        clean_lower = user_message.lower().strip(".!? ")
-                        if clean_lower in ("continue", "proceed", "go on", "next", "more", "keep going", "update", "extend") or len(clean_lower.split()) <= 6:
-                            jev_decision = "calculator"
-
-                if jev_decision and jev_decision != "text":
-                    state.presentation_steer = VISUALIZATION_STEER_INSTRUCTIONS.get(jev_decision)
+                j_dec = await classify_presentation(recent_msgs)
+                record_step("classify_presentation", (time.perf_counter() - _t_jev0) * 1000.0)
+                return j_dec
             except Exception as exc:
                 log.debug("Jev classification failed: %s", exc)
+                record_step("classify_presentation", (time.perf_counter() - _t_jev0) * 1000.0)
+                return "text"
 
-        if self.mode != "plan" and not attachments and not _skip_widget and jev_decision not in ("calculator", "simulation", "diagram", "chart"):
-            widget_started = time.monotonic()
-            widget_type, widget_data, widget_media = await classify_and_extract(user_message)
-            if widget_type != "none" and widget_data is not None:
-                full_text = widget_data.pop("_full_text", None)
-                envelope = to_envelope(widget_type, widget_data, widget_media)
-                delivered_text = full_text or envelope
-                self._persist(conversation_id, "assistant", delivered_text)
-                self.conversations.touch(conversation_id)
-                self._checkpoint(state, "reasoning")
-                self._checkpoint(state, "completed")
-                yield Event(
-                    "widget",
-                    {
-                        "widget": {
-                            "type": widget_type,
-                            "data": widget_data,
-                            "media": widget_media,
-                        },
-                        "text": delivered_text,
+        async def _run_widget_extract():
+            if not need_widget_extract:
+                return ("none", None, [])
+            _t_we0 = time.perf_counter()
+            try:
+                w_res = await classify_and_extract(user_message)
+                record_step("classify_and_extract", (time.perf_counter() - _t_we0) * 1000.0, skipped=False)
+                return w_res
+            except Exception as exc:
+                log.debug("classify_and_extract failed: %s", exc)
+                record_step("classify_and_extract", (time.perf_counter() - _t_we0) * 1000.0, skipped=False)
+                return ("none", None, [])
+
+        async def _warm_composio():
+            try:
+                if composio_service.is_configured():
+                    await composio_service.get_connections_async()
+            except Exception:
+                pass
+
+        prefetch_fut = asyncio.ensure_future(
+            asyncio.gather(
+                _run_prefetch(),
+                _run_jev(),
+                _run_widget_extract(),
+                _warm_composio(),
+            )
+        )
+        done, _ = await asyncio.wait({prefetch_fut}, timeout=0.05)
+        if not done:
+            if should_retrieve:
+                yield Event("status", {"state": "retrieving"})
+            elif should_recall:
+                yield Event("status", {"state": "recalling"})
+
+        (
+            (retrieved, recalled, recent_conversations),
+            jev_decision,
+            (widget_type, widget_data, widget_media),
+            _,
+        ) = await prefetch_fut
+        if not done:
+            yield Event("status", {"state": "thinking"})
+        log.debug(
+            "turn prefetch retrieve+recall in %.0fms (trivial=%s, memories=%d)",
+            (time.monotonic() - _prefetch_started) * 1000, trivial, len(recalled or []),
+        )
+        record_step("prefetch", (time.monotonic() - _prefetch_started) * 1000.0)
+
+        # If a widget was extracted, deliver it immediately and complete turn without resolving model
+        if widget_type != "none" and widget_data is not None:
+            full_text = widget_data.pop("_full_text", None)
+            envelope = to_envelope(widget_type, widget_data, widget_media)
+            delivered_text = full_text or envelope
+            self._persist(conversation_id, "assistant", delivered_text)
+            self.conversations.touch(conversation_id)
+            self._checkpoint(state, "reasoning")
+            self._checkpoint(state, "completed")
+            yield Event(
+                "widget",
+                {
+                    "widget": {
+                        "type": widget_type,
+                        "data": widget_data,
+                        "media": widget_media,
                     },
-                )
-                yield Event("status", {"state": "completed"})
-                yield Event(
-                    "done",
-                    {
-                        "text": delivered_text,
-                        "iterations": 1,
-                        **_cost(1, 0, widget_started),
-                    },
-                )
-                return
+                    "text": delivered_text,
+                },
+            )
+            yield Event("status", {"state": "completed"})
+            yield Event(
+                "done",
+                {
+                    "text": delivered_text,
+                    "iterations": 1,
+                    **_cost(1, 0, _prefetch_started),
+                },
+            )
+            return
+
+        # Finalize intent route
+        intent_route = resolve_intent_route(
+            intent_route,
+            jev_decision=jev_decision,
+            widget_extracted=False,
+            max_iterations=max_iters_configured,
+        )
+        if intent_route.presentation_steer:
+            state.presentation_steer = intent_route.presentation_steer
 
         # The chosen provider, then whatever else could answer if it cannot.
         # Built once per turn rather than per iteration: it costs a read of
@@ -1230,7 +1359,12 @@ class Director:
         # configured by hand is left exactly as they configured it.
         routed = None
         if chosen == AUTO or stated is None:
-            routed = route(self._route_request(user_message, attachments))
+            _t_rt0 = time.perf_counter()
+            route_req = self._route_request(user_message, attachments)
+            routed = await asyncio.to_thread(route, route_req)
+            record_step("route", (time.perf_counter() - _t_rt0) * 1000.0)
+        else:
+            record_step("route", 0.0)
         if chosen == AUTO:
             if routed is None or routed.head is None:
                 # Nothing can answer. Said here rather than left to `resolve`,
@@ -1250,11 +1384,8 @@ class Director:
         else:
             head_provider, head_model = chosen, conversation["model"]
 
-        chain = build_chain(
-            head_provider,
-            head_model,
-            order=stated if stated is not None else (routed.order if routed else None),
-        )
+        chain_order = stated if stated is not None else (routed.order if routed else None)
+        chain = await asyncio.to_thread(build_chain, head_provider, head_model, order=chain_order)
         # Kept so the run row can answer "why this provider" later. Recorded
         # even when only the order was routed: the head the user picked is not
         # the interesting half of that question.
@@ -1310,11 +1441,14 @@ class Director:
             )
         while state.active < len(chain):
             try:
-                model = resolve(
+                _t_res0 = time.perf_counter()
+                model = await asyncio.to_thread(
+                    resolve,
                     chain[state.active].provider,
                     chain[state.active].model,
                     max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
                 )
+                record_step("resolve", (time.perf_counter() - _t_res0) * 1000.0)
                 # Which link is actually answering, recorded the moment it is
                 # known. The conversation's own provider column is what the user
                 # picked, not what replied -- and after a switch those differ.
@@ -1363,47 +1497,15 @@ class Director:
         # Skip retrieval and memory for trivial turns — short greetings,
         # acknowledgments, and simple questions don't need document search or
         # memory recall, and skipping them saves 1-5s of embedding + DB calls.
-        # P0 timing: prefetch_ms measures gate to first model call.
-        _prefetch_started = time.monotonic()
-        trivial = self._is_trivial_turn(user_message, attachments)
-        should_retrieve = self.retrieval and self._should_retrieve(user_message, attachments)
-        should_recall = self.memory
-        if trivial or (not should_retrieve and not should_recall):
-            retrieved = await self._retrieve(user_message) if should_retrieve else await _none()
-            recalled = await self._recall(conversation_id, user_message) if should_recall else await _empty()
-            recent_conversations = await self._recent(conversation_id)
-            log.debug("turn prefetch trivial/direct skip in %.0fms", (time.monotonic() - _prefetch_started) * 1000)
-        else:
-            prefetch_fut = asyncio.ensure_future(
-                asyncio.gather(
-                    self._retrieve(user_message) if should_retrieve else _none(),
-                    self._recall(conversation_id, user_message) if should_recall else _empty(),
-                    self._recent(conversation_id),
-                )
-            )
-            done, _ = await asyncio.wait({prefetch_fut}, timeout=0.05)
-            if not done:
-                if should_retrieve:
-                    yield Event("status", {"state": "retrieving"})
-                elif should_recall:
-                    yield Event("status", {"state": "recalling"})
-            retrieved, recalled, recent_conversations = await prefetch_fut
-            if not done:
-                yield Event("status", {"state": "thinking"})
-            log.debug(
-                "turn prefetch retrieve+recall in %.0fms (trivial=%s, memories=%d)",
-                (time.monotonic() - _prefetch_started) * 1000, trivial, len(recalled or []),
-            )
         retrieved_context, chunk_refs = retrieved
         # What the turn was given, by reference rather than by copy: the text
         # is already in the vault and in `memories`, and a second copy here is
         # the one that would go stale. See `_memory_references`.
         state.retrieved = [*self._memory_references(recalled), *chunk_refs]
-        hidden_servers = self._disabled_connectors(conversation_id)
-        # Which connectors can actually be reached this turn. Resolved once:
-        # it is the same answer on every round trip, and it is read twice per
-        # iteration -- for the schema order and for the tool cap.
-        ready_servers = self._ready_connectors()
+        hidden_servers, ready_servers = await asyncio.gather(
+            asyncio.to_thread(self._disabled_connectors, conversation_id),
+            asyncio.to_thread(self._ready_connectors),
+        )
 
         # Initialize or update the context compression engine with the
         # resolved model's context window. A model switch mid-turn
@@ -1455,8 +1557,12 @@ class Director:
         _cached_tool_schemas: list | None = None
         _cached_tool_hash: str | None = None
         self._tool_search_catalog = None  # for bridge tool dispatch in _execute()
+        self._promoted_tools: dict[str, ToolSchema] = {}  # promoted from tool_search for live invocation
 
-        max_iters = 1000 if (self.guards.max_iterations is None or self.guards.max_iterations <= 0) else self.guards.max_iterations
+        base_max_iters = 1000 if (self.guards.max_iterations is None or self.guards.max_iterations <= 0) else self.guards.max_iterations
+        min_allowed_iters = (self.guards.max_continuations or 0) + 2
+        effective_budget = max(intent_route.step_budget, min_allowed_iters)
+        max_iters = min(base_max_iters, effective_budget)
         for iteration in range(max_iters):
             if cancel is not None and cancel.is_set():
                 self._checkpoint(state, "cancelled", budget=budget)
@@ -1503,9 +1609,8 @@ class Director:
                 # so they are still appended per iteration to the cached base.
                 if system_base is None:
                     try:
-                        from backend.agent.prompt import sanitize_client_context
-
-                        system_base = build_system_prompt(
+                        system_base = await asyncio.to_thread(
+                            build_system_prompt,
                             workspace_root=self.workspace_root,
                             conversation_id=conversation_id,
                             pinned_skills=pinned,
@@ -1523,11 +1628,9 @@ class Director:
                             "system prompt assembly failed, using the base prompt: %s", exc
                         )
                         try:
-                            from backend.agent.prompt import sanitize_client_context as _san
-
                             system_base = (
                                 f"{BASE_PROMPT}\n\n"
-                                f"{environment_block(self.workspace_root, _san(client_context))}"
+                                f"{environment_block(self.workspace_root, sanitize_client_context(client_context))}"
                             )
                         except Exception:
                             system_base = f"{BASE_PROMPT}\n\n{environment_block(self.workspace_root)}"
@@ -1578,36 +1681,48 @@ class Director:
                         _ts_config = ToolSearchConfig.from_raw(
                             getattr(self, "_tool_search_config", {})
                         )
+                        _t_atd0 = time.perf_counter()
                         tool_schemas, _catalog = assemble_tool_defs(
                             raw_schemas,
                             context_length=model.capabilities.context_window,
                             config=_ts_config,
                             registry=self.registry,
                         )
+                        record_step(
+                            "assemble_tool_defs",
+                            (time.perf_counter() - _t_atd0) * 1000.0,
+                            deferral_active=(_catalog is not None),
+                            catalog_size=len(_catalog) if _catalog else 0,
+                            visible_count=len(tool_schemas),
+                        )
                         if _catalog is not None:
                             # Bridge tools were injected; store catalog for dispatch
                             self._tool_search_catalog = _catalog
                         else:
-                            # No deferral; still apply keyword selection + compression
-                            tool_schemas, withheld = select_tools(
-                                tool_schemas, f"{user_message}\n{' '.join(said[-3:])}"
-                            )
-                            if withheld and not state.warned_about_selection:
-                                state.warned_about_selection = True
-                                log.info(
-                                    "tool selection offered %d tools, withheld %d",
-                                    len(tool_schemas), withheld,
-                                )
-                            # Headline-only cuts to ~8-10K from ~29K with minimal
-                            # quality loss -- the model calls tools by name.
-                            tool_schemas = compress_tool_schemas(tool_schemas)
-                            # Inject dispatch hints when the tool selector surfaces
-                            # patterns that suggest parallel or delegated work.
-                            if not state.warned_about_selection:
-                                system_prompt = _inject_dispatch_hints(
-                                    system_prompt, tool_schemas, user_message
-                                )
                             self._tool_search_catalog = None
+
+                        # Selection and compression run even under deferral, keeping
+                        # visible schemas compact and within token budgets.
+                        tool_schemas, withheld = select_tools(
+                            tool_schemas,
+                            f"{user_message}\n{' '.join(said[-3:])}",
+                            lane=intent_route.lane,
+                        )
+                        if withheld and not state.warned_about_selection:
+                            state.warned_about_selection = True
+                            log.info(
+                                "tool selection offered %d tools, withheld %d",
+                                len(tool_schemas), withheld,
+                            )
+                        # Headline-only cuts to ~8-10K from ~29K with minimal
+                        # quality loss -- the model calls tools by name.
+                        tool_schemas = compress_tool_schemas(tool_schemas)
+                        # Inject dispatch hints when the tool selector surfaces
+                        # patterns that suggest parallel or delegated work.
+                        if not state.warned_about_selection:
+                            system_prompt = _inject_dispatch_hints(
+                                system_prompt, tool_schemas, user_message
+                            )
                         has_images_tag = any(
                             tag in user_message.lower() for tag in ("@images", "@image", "/images", "/image")
                         )
@@ -1617,6 +1732,17 @@ class Director:
                         _cached_tool_hash = _tool_hash_key
                     else:
                         tool_schemas = list(_cached_tool_schemas)
+
+                    # Promote matched bridge tools into active schemas for subsequent iterations
+                    if tool_schemas is not None and getattr(self, "_promoted_tools", None):
+                        current_names = {getattr(t, "name", "") for t in tool_schemas}
+                        promoted_to_add = [
+                            schema
+                            for name, schema in self._promoted_tools.items()
+                            if name not in current_names
+                        ]
+                        if promoted_to_add:
+                            tool_schemas.extend(compress_tool_schemas(promoted_to_add))
                 else:
                     tool_schemas = None
                 if not planning and executing and tool_schemas is not None:
@@ -1828,7 +1954,8 @@ class Director:
                         if can_hand_over:
                             failed = chain[state.active]
                             state.active += 1
-                            model = resolve(
+                            model = await asyncio.to_thread(
+                                resolve,
                                 chain[state.active].provider,
                                 chain[state.active].model,
                                 max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
@@ -2111,10 +2238,11 @@ class Director:
                         state.carried = merge_partial(state.carried, "".join(streamed_text))
                         failed = chain[state.active]
                         state.active += 1
-                        model = resolve(
+                        model = await asyncio.to_thread(
+                            resolve,
                             chain[state.active].provider,
                             chain[state.active].model,
-                    max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
+                            max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
                         )
                         state.link = str(chain[state.active])
                         try:
@@ -2819,8 +2947,6 @@ class Director:
 
         hidden: set[str] = set()
         try:
-            from backend.capabilities import CapabilityService, Kind
-
             service = CapabilityService()
             hidden |= {
                 name
@@ -2829,8 +2955,6 @@ class Director:
             }
         except Exception as exc:
             log.debug("could not read connector state, advertising all of them: %s", exc)
-
-        from backend.mcp import guidance, live
 
         unsigned = guidance.unsigned_connectors() & servers
         if unsigned:
@@ -2858,8 +2982,6 @@ class Director:
         the order this loop has always used.
         """
         try:
-            from backend.mcp import live
-
             return set(live.ready_connectors())
         except Exception as exc:
             log.debug("could not read connector readiness for this turn: %s", exc)
@@ -2964,8 +3086,6 @@ class Director:
         recall: never fails a turn. Excludes current conversation.
         """
         try:
-            from backend.conversations import summaries as convo_summaries
-
             return await asyncio.to_thread(
                 convo_summaries.recent_block, conversation_id, 15,
             )
@@ -2976,8 +3096,6 @@ class Director:
     def _refresh_summary(self, conversation_id: str) -> None:
         """Update this conversation's summary post-turn. Sync SQLite, no LLM."""
         try:
-            from backend.conversations import summaries as convo_summaries
-
             convo_summaries.refresh_conversation_summary(conversation_id)
         except Exception as exc:
             log.debug("conversation summary refresh failed: %s", exc)
@@ -2992,8 +3110,6 @@ class Director:
         if not self.memory:
             return []
         try:
-            from backend.memory import MemoryService
-
             return await asyncio.wait_for(
                 MemoryService().recall(user_message, conversation_id), timeout=0.4
             )
@@ -3017,8 +3133,6 @@ class Director:
         if not self.memory or not answer.strip():
             return
         try:
-            from backend.memory import MemoryService
-
             service = MemoryService()
             if not service.store.is_enabled(conversation_id):
                 return
@@ -3038,7 +3152,6 @@ class Director:
                         clients_to_try.append(c)
 
             with contextlib.suppress(Exception):
-                from backend.config import load_tiers
                 tiers = load_tiers()
                 for tier_key in ("fast", "default"):
                     tier = tiers.get(tier_key)
@@ -3073,8 +3186,6 @@ class Director:
         configured -- and after a fallback that is not the provider named on the
         conversation, which has just been proven unable to answer.
         """
-        from backend.config import load_memory_model
-
         pinned = load_memory_model()
         if pinned:
             try:
@@ -3122,10 +3233,8 @@ class Director:
         if not self.retrieval or not user_message.strip():
             return None, []
         try:
-            from backend.retrieval.indexer import Indexer
-            from backend.retrieval.search import SearchService
-
-            if Indexer().stats()["chunks"] == 0:
+            stats = await asyncio.to_thread(lambda: Indexer().stats())
+            if stats.get("chunks", 0) == 0:
                 return None, []
             context, hits = await asyncio.wait_for(
                 SearchService().context_and_hits(user_message), timeout=0.4
@@ -3154,8 +3263,6 @@ class Director:
     def conn_or_none(self):
         """The shared connection, or None if the database will not open."""
         try:
-            from backend.db.connection import get_connection
-
             return get_connection()
         except Exception:
             return None
@@ -3175,7 +3282,6 @@ class Director:
         raw = (call.arguments or {}).get("path")
         if not isinstance(raw, str) or not raw.strip():
             return None
-        from pathlib import Path
 
         root = Path(self.workspace_root or Path.cwd()).expanduser().resolve()
         path = Path(raw).expanduser()
@@ -3200,11 +3306,6 @@ class Director:
         path = self._artifact_path(call)
         if path is None:
             return
-
-        from pathlib import Path
-
-        from backend.db.repositories import ArtifactRepository
-        from backend.tools.builtin.filesystem import artifact_type
 
         media_type, language = artifact_type(Path(path))
         arguments = call.arguments or {}
@@ -3250,11 +3351,6 @@ class Director:
         path = self._artifact_path(call)
         if path is None:
             return
-
-        from pathlib import Path
-
-        from backend.db.repositories import ArtifactRepository
-        from backend.tools.builtin.filesystem import artifact_type
 
         artifact_id = ArtifactRepository.identify(conversation_id, path)
         if result.is_error:
@@ -3356,7 +3452,7 @@ class Director:
                 state.budget_spent = budget.spent
             if phase is not None and phase != state.phase:
                 state.enter(phase)
-            self.runs.save(state)
+            self.runs.save_background(state)
         except IllegalTransition:
             # A loop that thinks a finished turn is still running has a defect,
             # but not one worth ending a turn the user is watching over. Logged
@@ -3432,46 +3528,86 @@ class Director:
         swallowing it here would turn "the user pressed Stop" into "the tool
         returned an error" and let the turn keep going.
         """
-        # --- Bridge tool dispatch (progressive tool disclosure) ---
-        catalog = getattr(self, "_tool_search_catalog", None)
-        if call.name == "tool_search" and catalog is not None:
-            try:
-                queries = call.arguments.get("queries", [])
-                result = await dispatch_tool_search(queries, catalog)
-                return ToolResult.ok(json.dumps(result, indent=2))
-            except Exception as exc:
-                return ToolResult.error(f"tool_search failed: {exc}")
-
-        if call.name == "tool_describe" and catalog is not None:
-            try:
-                names = call.arguments.get("names", [])
-                result = await dispatch_tool_describe(names, catalog)
-                return ToolResult.ok(json.dumps(result, indent=2))
-            except Exception as exc:
-                return ToolResult.error(f"tool_describe failed: {exc}")
-
-        if call.name == "tool_call" and catalog is not None:
-            try:
-                calls = call.arguments.get("calls", [])
-                results = await dispatch_tool_call(
-                    calls, catalog, self.registry, context
-                )
-                return ToolResult.ok(json.dumps(results, indent=2))
-            except Exception as exc:
-                return ToolResult.error(f"tool_call failed: {exc}")
-
-        # --- Normal dispatch ---
+        _t_disp0 = time.perf_counter()
+        _is_bridge = False
         try:
-            return await self.registry.dispatch(call.name, call.arguments, context)
-        except asyncio.CancelledError:
-            raise
-        except BaseException as exc:
-            log.exception("dispatching %s failed outside the tool handler", call.name)
-            return ToolResult.error(
-                f"'{call.name}' could not be run: {type(exc).__name__}: {exc}."
-                " This is a fault in AMETHYST, not in the request. Carry on without this"
-                " tool and tell the user which part of the task it cost.",
-                recoverable=True,
+            # --- Bridge tool dispatch (progressive tool disclosure) ---
+            catalog = getattr(self, "_tool_search_catalog", None)
+            if call.name == "tool_search" and catalog is not None:
+                _is_bridge = True
+                try:
+                    queries = call.arguments.get("queries")
+                    if queries is None:
+                        queries = call.arguments.get("query") or call.arguments.get("use_case") or []
+                    if isinstance(queries, str):
+                        queries = [queries]
+                    result = await dispatch_tool_search(queries, catalog)
+                    # Promote matched tools to live tool array for subsequent iterations
+                    if not hasattr(self, "_promoted_tools") or self._promoted_tools is None:
+                        self._promoted_tools = {}
+                    for r in result.get("results", []):
+                        for m in r.get("matches", []):
+                            m_name = m.get("name")
+                            if m_name and m_name not in self._promoted_tools:
+                                self._promoted_tools[m_name] = ToolSchema(
+                                    name=m_name,
+                                    description=m.get("description", ""),
+                                    parameters=m.get("parameters", {}),
+                                )
+                    return ToolResult.ok(json.dumps(result, indent=2))
+                except Exception as exc:
+                    return ToolResult.error(f"tool_search failed: {exc}")
+
+            if call.name == "tool_describe" and catalog is not None:
+                _is_bridge = True
+                try:
+                    names = call.arguments.get("names")
+                    if names is None:
+                        names = call.arguments.get("name") or call.arguments.get("tool_name") or []
+                    if isinstance(names, str):
+                        names = [names]
+                    result = await dispatch_tool_describe(names, catalog)
+                    return ToolResult.ok(json.dumps(result, indent=2))
+                except Exception as exc:
+                    return ToolResult.error(f"tool_describe failed: {exc}")
+
+            if call.name == "tool_call" and catalog is not None:
+                _is_bridge = True
+                try:
+                    calls = call.arguments.get("calls")
+                    if calls is None:
+                        if "name" in call.arguments or "tool_slug" in call.arguments:
+                            calls = [call.arguments]
+                        else:
+                            calls = []
+                    elif isinstance(calls, dict):
+                        calls = [calls]
+                    results = await dispatch_tool_call(
+                        calls, catalog, self.registry, context
+                    )
+                    return ToolResult.ok(json.dumps(results, indent=2))
+                except Exception as exc:
+                    return ToolResult.error(f"tool_call failed: {exc}")
+
+            # --- Normal dispatch ---
+            try:
+                return await self.registry.dispatch(call.name, call.arguments, context)
+            except asyncio.CancelledError:
+                raise
+            except BaseException as exc:
+                log.exception("dispatching %s failed outside the tool handler", call.name)
+                return ToolResult.error(
+                    f"'{call.name}' could not be run: {type(exc).__name__}: {exc}."
+                    " This is a fault in AMETHYST, not in the request. Carry on without this"
+                    " tool and tell the user which part of the task it cost.",
+                    recoverable=True,
+                )
+        finally:
+            record_tool_dispatch(
+                call.name,
+                (time.perf_counter() - _t_disp0) * 1000.0,
+                arguments=call.arguments,
+                is_bridge=_is_bridge,
             )
 
     @staticmethod

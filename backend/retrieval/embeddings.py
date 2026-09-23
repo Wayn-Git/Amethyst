@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from backend.config import EMBEDDING_CANDIDATES, load_embeddings, load_providers
+from backend.config import EMBEDDING_CANDIDATES, load_embeddings, load_providers, save_embeddings
 from backend.runtime.failures import FailureKind
 from backend.runtime.http import ProviderHTTPError, post_json
 from backend.secrets import resolve_api_key
@@ -201,3 +201,27 @@ async def available(provider: str = "ollama", model: str | None = None) -> tuple
     except Exception as exc:
         return False, str(exc)
     return True, f"{embedder.model} ({len(vector)} dimensions)"
+
+
+async def auto_configure_embeddings() -> tuple[str, str] | None:
+    """Probe available embedding candidates and configure the first working one (R17).
+
+    If an embedding provider is already configured in providers.yaml, it is preserved.
+    Otherwise, detect() probes local Ollama and configured cloud providers for working
+    embeddings models, and persists the first operational candidate via save_embeddings().
+    """
+    configured = load_embeddings()
+    if configured:
+        return configured
+
+    candidates = await detect()
+    if not candidates:
+        return None
+
+    provider, model, _ = candidates[0]
+    try:
+        save_embeddings(provider, model)
+        log.info("Auto-configured embeddings to %s (%s)", provider, model)
+    except Exception:
+        log.exception("Failed to persist auto-configured embeddings (%s, %s)", provider, model)
+    return provider, model

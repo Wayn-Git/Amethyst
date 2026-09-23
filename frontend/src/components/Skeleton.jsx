@@ -288,3 +288,12 @@ export function BootScreen({ server, onRetry, onRemote }) {
     </div>
   )
 }
+
+export {
+  PluginCardSkeleton,
+  PluginGridSkeleton,
+  PluginInstalledStripSkeleton,
+  PluginCategoryBridgeSkeleton,
+  PluginsDirectorySkeleton,
+  PluginDetailSkeleton,
+} from '../views/capabilities/plugins/PluginSkeletons.jsx'

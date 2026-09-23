@@ -79,12 +79,37 @@ function LibraryCardComponent({
   const isEnriching = status === 'enriching' || busy
   const isLiveProcessing = isOptimistic || isReceived || isProcessing || isEnriching
 
+  const app = getAppFromItem(item)
+  const isPost = item.kind === 'post' || app === 'x' || app === 'reddit' || app === 'threads'
+
+  const avatarResource = useMemo(() => {
+    let res = item.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    if (Array.isArray(res)) {
+      return res.find((r) => r && r.type === 'avatar')
+    }
+    return null
+  }, [item.resources])
+
+  const authorAvatar = useMemo(() => {
+    if (avatarResource?.url) return avatarResource.url
+    if (app === 'x' && item.author) {
+      const handle = item.author.replace(/.*@([A-Za-z0-9_]+).*/, '$1')
+      if (handle && handle !== item.author) return `https://unavatar.io/x/${handle}`
+    }
+    if (app === 'github' && item.author) {
+      return `https://github.com/${item.author.replace(/^@/, '')}.png?size=64`
+    }
+    return null
+  }, [avatarResource, app, item.author])
+
   const [thumbFailed, setThumbFailed] = useState(false)
-  const hasThumbnail = (Boolean(item.thumbnail_path) || Boolean(item.url)) && !thumbFailed
+  const hasThumbnail = Boolean((item.thumbnail_path || item.url) && !thumbFailed)
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)
-  const app = getAppFromItem(item)
 
   const slideCount = useMemo(() => {
     let res = item.resources
@@ -98,14 +123,55 @@ function LibraryCardComponent({
   }, [item.resources])
 
   const isCarousel = slideCount > 1
-  const isVideo = !isCarousel && (item.kind === 'video' || app === 'youtube' || (app === 'instagram' && (item.url || '').includes('/reel/')) || app === 'tiktok')
-  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
+
+  const hasVideoResource = useMemo(() => {
+    let res = item.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    return Array.isArray(res) && res.some(
+      (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|mov|webm)(\?|$)/i.test(r.url)))
+    )
+  }, [item.resources])
+
+  const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
+  const urlLower = (item.url || '').toLowerCase()
+  const isDirectVideoUrl = /\.(mp4|mov|webm)(\?|$)/i.test(urlLower)
+  const isReelOrShort = urlLower.includes('/reel/') || urlLower.includes('/reels/') || urlLower.includes('/shorts/')
+
+  const isVideo = (
+    item.kind === 'video' ||
+    app === 'youtube' ||
+    app === 'tiktok' ||
+    isReelOrShort ||
+    hasLocalVideo ||
+    hasVideoResource ||
+    isDirectVideoUrl ||
+    (app === 'instagram' && (item.duration_seconds || isReelOrShort)) ||
+    (app === 'x' && (hasVideoResource || item.kind === 'video')) ||
+    (app === 'reddit' && (urlLower.includes('v.redd.it') || item.kind === 'video')) ||
+    (item.duration_seconds > 0 && item.kind !== 'podcast' && item.kind !== 'music')
+  )
+
+  const isVertical = (
+    isReelOrShort ||
+    app === 'tiktok' ||
+    app === 'pinterest'
+  )
+
+  const isSlidePost = (
+    (app === 'instagram' && !isVertical) ||
+    item.kind === 'post' ||
+    isCarousel
+  )
+
   const isNote = item.kind === 'note' || (!hasThumbnail && !item.url)
 
   const cardVariant = variant || (
     isFeatured ? 'wide' :
     isNote ? 'note' :
     isVertical ? 'portrait' :
+    isSlidePost ? 'square' :
     isVideo ? 'landscape' : 'standard'
   )
 
@@ -182,7 +248,7 @@ function LibraryCardComponent({
     <article
       ref={cardRef}
       data-item-id={item.id}
-      className={`lib-card lib-card--${cardVariant} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
+      className={`lib-card lib-card--${cardVariant} ${isPost ? 'lib-card--post' : ''} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
       onClick={handleCardClick}
       onMouseMove={handleMouseMove}
       tabIndex={0}
@@ -200,68 +266,12 @@ function LibraryCardComponent({
       {/* Spotlight glow layer */}
       <div className="lib-card-spotlight" aria-hidden="true" />
 
-      {/* Floating Action Dock */}
-      {!isOptimistic && (
-        <div className="lib-card-action-dock" role="toolbar" aria-label="Card quick actions">
-          {item.url && (
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              className="lib-dock-btn"
-              title="Open original website"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Icon name="link" size={13} />
-            </a>
-          )}
-          {item.indexed && !item.summary && (
-            <button
-              type="button"
-              className="lib-dock-btn"
-              disabled={busy}
-              title="Read & synthesize with AI"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEnrich?.(item)
-              }}
-            >
-              <Icon name="brain" size={13} />
-            </button>
-          )}
-          {item.indexed && (
-            <button
-              type="button"
-              className="lib-dock-btn"
-              disabled={busy}
-              title="Re-index embeddings"
-              onClick={(e) => {
-                e.stopPropagation()
-                onReindex?.(item)
-              }}
-            >
-              <Icon name="refresh" size={13} />
-            </button>
-          )}
-          <button
-            type="button"
-            className="lib-dock-btn lib-dock-btn--danger"
-            disabled={busy}
-            title="Delete from library"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete?.(item)
-            }}
-          >
-            <Icon name="trash" size={13} />
-          </button>
-        </div>
-      )}
+
 
       {/* Bento Media (Single clean card boundary, flush to edges) */}
       {hasThumbnail ? (
         <div className="lib-card-media-wrap">
-          <div className="lib-card-media">
+          <div className="lib-card-media lib-card-media--contain">
             <img
               className="lib-card-media-img"
               src={api.thumbnailUrl(item.id)}
@@ -293,10 +303,15 @@ function LibraryCardComponent({
               </div>
             )}
 
-            {/* Center Frosted Play Button for Videos / Reels (never on multi-slide posts) */}
-            {!isCarousel && (isVideo || duration) && (
-              <div className="lib-card-play-btn" aria-hidden="true">
-                <Icon name="play" size={13} />
+            {/* Center Frosted Play Button for Videos / Reels */}
+            {(isVideo || duration || hasLocalVideo) && (
+              <div
+                className="lib-card-play-btn"
+                role="button"
+                aria-label="Play video"
+                title="Play video"
+              >
+                <Icon name="play" size={16} />
               </div>
             )}
 
@@ -319,11 +334,20 @@ function LibraryCardComponent({
       ) : null}
 
       {/* Card Content Core */}
-      <div className={`lib-card-body ${!hasThumbnail ? 'lib-card-body--textonly' : ''}`}>
+      <div className={`lib-card-body ${!hasThumbnail ? 'lib-card-body--textonly' : ''} ${isPost ? 'lib-card-body--post' : ''}`}>
         {/* Source metadata strip (prevents duplicate platform mentions) */}
         <div className="lib-card-source-row">
           <div className="lib-card-source-left">
-            {favicon ? (
+            {authorAvatar ? (
+              <img
+                className="lib-card-author-avatar"
+                src={authorAvatar}
+                alt=""
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            ) : favicon ? (
               <img
                 className="lib-card-favicon"
                 src={favicon}
@@ -338,14 +362,16 @@ function LibraryCardComponent({
               </span>
             )}
             <span className="lib-card-domain">
-              {hasThumbnail && app && (domain || '').toLowerCase().includes(app.toLowerCase())
-                ? (item.author ? `@${item.author.replace(/^@/, '')}` : (item.site || 'RESOURCE'))
+              {app === 'reddit' && (item.subreddit || domain)
+                ? (item.subreddit ? `r/${item.subreddit.replace(/^r\//, '')}` : domain)
+                : item.author
+                ? (item.author.startsWith('@') || item.author.startsWith('/u/') ? item.author : `@${item.author}`)
                 : (domain || item.site || (isNote ? 'NOTE' : 'RESOURCE'))}
             </span>
 
-            {item.author && (!hasThumbnail || !app || !(domain || '').toLowerCase().includes(app.toLowerCase())) && (
+            {item.author && app === 'reddit' && (
               <span className="lib-card-author" title={item.author}>
-                · {item.author}
+                · {item.author.startsWith('/u/') ? item.author : `/u/${item.author}`}
               </span>
             )}
           </div>
@@ -355,6 +381,53 @@ function LibraryCardComponent({
               <span className="lib-card-kind-badge">
                 <span>{app ? app.toUpperCase() : (item.kind || 'article').toUpperCase()}</span>
               </span>
+            )}
+
+            {!isOptimistic && (
+              <div className="lib-card-inline-actions" role="toolbar" aria-label="Card quick actions" onClick={(e) => e.stopPropagation()}>
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-card-action-btn"
+                    title="Open original website"
+                  >
+                    <Icon name="link" size={12} />
+                  </a>
+                )}
+                {!item.summary && (
+                  <button
+                    type="button"
+                    className="lib-card-action-btn"
+                    disabled={busy}
+                    title="Read & synthesize with AI"
+                    onClick={() => onEnrich?.(item)}
+                  >
+                    <Icon name="spark" size={12} />
+                  </button>
+                )}
+                {item.indexed && (
+                  <button
+                    type="button"
+                    className="lib-card-action-btn"
+                    disabled={busy}
+                    title="Re-index embeddings"
+                    onClick={() => onReindex?.(item)}
+                  >
+                    <Icon name="refresh" size={12} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="lib-card-action-btn lib-card-action-btn--danger"
+                  disabled={busy}
+                  title="Delete from library"
+                  onClick={() => onDelete?.(item)}
+                >
+                  <Icon name="trash" size={12} />
+                </button>
+              </div>
             )}
           </div>
         </div>

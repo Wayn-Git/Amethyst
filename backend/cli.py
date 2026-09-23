@@ -970,14 +970,25 @@ def cmd_serve(args: argparse.Namespace) -> int:
         "log_level": args.log_level,
     }
     if args.reload:
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
         uvicorn_kwargs["reload_dirs"] = [str(root / "backend")]
         uvicorn_kwargs["reload_excludes"] = [
             ".venv", "frontend", "storage", "*.db", "*.sqlite", "logs", "*.log", "tests", "*.tmp"
         ]
-    uvicorn.run(
-        "backend.api.main:app",
-        **uvicorn_kwargs,
-    )
+    if getattr(sys, "frozen", False):
+        from backend.api.main import app as fastapi_app
+
+        uvicorn.run(
+            fastapi_app,
+            **uvicorn_kwargs,
+        )
+    else:
+        uvicorn.run(
+            "backend.api.main:app",
+            **uvicorn_kwargs,
+        )
     return 0
 
 
@@ -992,6 +1003,9 @@ def _ensure_frontend(args: argparse.Namespace) -> bool:
     missing build with no npm is a warning, not a stop: the API is still worth
     running, and `--no-build` is how somebody says they meant it.
     """
+    if getattr(sys, "frozen", False):
+        return True
+
     import subprocess
 
     # Deliberately not `from backend.api.main import _DIST`: importing that

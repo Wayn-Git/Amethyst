@@ -370,18 +370,6 @@ export default function LibraryFilterBar({
             </div>
           )}
 
-          {/* Reset all active filters */}
-          {hasFilter && (
-            <button
-              type="button"
-              className="lib-filter-clear-btn"
-              onClick={onClearFilters}
-              title="Reset all active filters"
-            >
-              <Icon name="x" size={12} />
-              <span>Reset</span>
-            </button>
-          )}
         </div>
       </div>
 

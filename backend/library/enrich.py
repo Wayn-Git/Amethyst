@@ -261,9 +261,18 @@ REAL_TEXT_SOURCES = (
     "slide analysis",
     "caption and slide analysis",
     "page",
+    "note",
     "notes",
     "description",
     "video description",
+    "thread text",
+    "tweet",
+    "social post",
+    "document",
+    "manual",
+    "text",
+    "user",
+    "file",
 )
 
 PROMPT = """\
@@ -690,13 +699,38 @@ def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
 
 def _refusal(text: str, text_source: str | None) -> str | None:
     """The reason not to ask a model, when there is one."""
-    if (text_source or "none") not in REAL_TEXT_SOURCES:
+    src = (text_source or "none").lower().strip()
+    if src not in REAL_TEXT_SOURCES and not any(
+        known in src
+        for known in (
+            "caption",
+            "transcript",
+            "visual",
+            "slide",
+            "page",
+            "note",
+            "desc",
+            "tweet",
+            "thread",
+            "post",
+            "doc",
+            "text",
+            "manual",
+            "user",
+            "file",
+        )
+    ):
         return (
             "there is no text for this one. A direct-message share carries the video"
             " and a title, and no caption -- nothing was summarised because there"
             " would have been nothing to summarise from."
         )
-    if len(text.strip()) < MIN_ENRICHABLE_CHARS:
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return (
+            "there was no readable text, transcript or caption available for this item to summarise."
+        )
+    if len(cleaned) < MIN_ENRICHABLE_CHARS:
         return (
             "the text is a line or two, which is already the whole of it. Summarising"
             " it would just be repeating it."
@@ -704,8 +738,16 @@ def _refusal(text: str, text_source: str | None) -> str | None:
     return None
 
 
+
 async def enrich_text(
-    text: str, *, title: str, kind: str = "video", text_source: str = "none", client=None
+    text: str,
+    *,
+    title: str,
+    kind: str = "video",
+    text_source: str = "none",
+    client=None,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> Enrichment:
     """Summary, tags and resources for some text -- or a stated reason there are none."""
     refusal = _refusal(text, text_source)
@@ -733,7 +775,37 @@ async def enrich_text(
     if client is not None:
         return await _ask(client, messages, None, None, source_text=body)
 
-    links = default_chain(limit=BACKGROUND_FALLBACK_LINKS)
+    from backend.config import load_library
+    lib_settings = load_library()
+    target_provider = provider or (lib_settings.enrich_provider if lib_settings else None)
+    target_model = model or (lib_settings.enrich_model if lib_settings else None)
+
+    if target_provider and target_model:
+        try:
+            m = resolve(target_provider, target_model)
+            res = await _ask(m.client, messages, target_provider, target_model, source_text=body)
+            if not res.empty:
+                availability.record_success(target_provider)
+                return res
+            if res.provider and res.note is None:
+                availability.record_success(target_provider)
+                clean_fallback = body.strip() if (10 <= len(body.strip()) <= 320) else None
+                return Enrichment(
+                    category=res.category,
+                    summary=clean_fallback,
+                    tags=res.tags,
+                    resources=res.resources,
+                    provider=res.provider,
+                    model=res.model,
+                    note=None if clean_fallback else "the text was too brief to extract further insights from.",
+                )
+        except Exception as exc:
+            log.warning("explicit enrichment model %s:%s failed: %s; falling back to chain", target_provider, target_model, exc)
+
+    # Use default chain; check default tier first (often higher quality) then fast
+    links = default_chain(tier="default", limit=BACKGROUND_FALLBACK_LINKS)
+    if not links:
+        links = default_chain(tier="fast", limit=BACKGROUND_FALLBACK_LINKS)
     if not links:
         return Enrichment(
             note="no model is configured, so there is no summary. The text above is"
@@ -743,24 +815,25 @@ async def enrich_text(
     last: Enrichment | None = None
     for link in links:
         try:
-            model = resolve(link.provider, link.model)
+            m_resolved = resolve(link.provider, link.model)
         except Exception as exc:
             last = Enrichment(note=f"{link.provider} could not be resolved: {exc}")
             continue
-        result = await _ask(model.client, messages, link.provider, link.model, source_text=body)
+        result = await _ask(m_resolved.client, messages, link.provider, link.model, source_text=body)
         if not result.empty:
             availability.record_success(link.provider)
             return result
         if result.provider and result.note is None:
             availability.record_success(link.provider)
+            clean_fallback = body.strip() if (10 <= len(body.strip()) <= 320) else None
             return Enrichment(
                 category=result.category,
-                summary=None,
+                summary=clean_fallback,
                 tags=result.tags,
                 resources=result.resources,
                 provider=result.provider,
                 model=result.model,
-                note="the text was too brief to extract further insights from.",
+                note=None if clean_fallback else "the text was too brief to extract further insights from.",
             )
         last = result
 
@@ -953,7 +1026,19 @@ def render_markdown(
 #: The headings `render_markdown` writes a body under. Knowing them is what lets
 #: the source text be read back out of a file that has already been enriched --
 #: without it, re-enriching would summarise the previous summary.
-BODY_HEADINGS = ("Transcript", "Caption", "Caption and Transcript", "Text", "Notes")
+BODY_HEADINGS = (
+    "Transcript",
+    "Caption",
+    "Caption and Transcript",
+    "Text",
+    "Notes",
+    "Post",
+    "Description",
+    "Slide Analysis",
+    "Visual Content",
+    "Document",
+    "Title",
+)
 
 _HEADING = re.compile(rf"^## ({'|'.join(BODY_HEADINGS)})\s*$", re.MULTILINE)
 
@@ -968,17 +1053,28 @@ def body_of(markdown: str) -> tuple[str, str]:
     match = _HEADING.search(text)
     if match:
         body = text[match.end() :]
-        # Everything up to the provenance rule, which is the last thing written.
-        cut = body.rfind("\n---\n")
+        # Cut at first provenance divider rule so legacy stacked footers are discarded
+        cut = body.find("\n---\n")
         if cut != -1:
             body = body[:cut]
+        # Clean any repeated headings from past buggy cycles
+        body = re.sub(
+            rf"^##\s*(?:{'|'.join(BODY_HEADINGS)})\s*\n*", "", body, flags=re.MULTILINE
+        )
         return body.strip(), match.group(1)
 
-    # Never enriched: the file is a title and then the text.
+    # Never enriched or non-standard format: the file is a title and then the text.
     lines = text.splitlines()
     if lines and lines[0].startswith("# "):
         lines = lines[1:]
-    return "\n".join(lines).strip(), "Text"
+    body = "\n".join(lines).strip()
+    cut = body.find("\n---\n")
+    if cut != -1:
+        body = body[:cut]
+    body = re.sub(
+        rf"^##\s*(?:{'|'.join(BODY_HEADINGS)})\s*\n*", "", body, flags=re.MULTILINE
+    )
+    return body.strip(), "Text"
 
 
 def stamp() -> str:

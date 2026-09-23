@@ -225,3 +225,4 @@ amethyst.db-wal
 # Local compose overrides, which are per-machine by definition.
 docker-compose.override.yml
 frontend/pnpm-lock.yaml
+benchmark_results.json

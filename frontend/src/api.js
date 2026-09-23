@@ -252,16 +252,72 @@ async function j(url, opts) {
 const json = (method, body) => ({ method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
+  get: (url) => j(url),
+  post: (url, body) => j(url, json('POST', body)),
+  patch: (url, body) => j(url, json('PATCH', body)),
+  delete: (url, body) => j(url, json('DELETE', body)),
+
   // Cheap by design: it exists to be the request that wakes a stopped
   // container, so it must not do any work of its own.
   ping: () => j('/ping'),
   health: () => j('/health'),
+  setupStatus: () => j('/setup/status'),
+  completeSetup: (body = {}) => j('/setup/complete', json('POST', body)),
+  enableKeychainFallback: () => j('/setup/keychain/fallback', json('POST', { consent: true })),
+  installUv: () => j('/setup/runtimes/uv/install', json('POST', {})),
+  autoConfigureEmbeddings: () => j('/setup/embeddings/auto', json('POST', {})),
+  pullOllamaModel: async (model, onProgress, signal) => {
+    const base = getApiOrigin() || API_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : '')
+    const url = (base ? base.replace(/\/$/, '') : '') + '/api/ollama/pull'
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model }),
+      signal,
+    })
+    if (!res.ok) {
+      let errText = res.statusText
+      try {
+        const errJson = await res.json()
+        errText = errJson.detail || errJson.error || errText
+      } catch {}
+      throw new Error(`Ollama pull failed: ${errText}`)
+    }
+    const reader = res.body?.getReader()
+    if (!reader) throw new Error('ReadableStream not supported')
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.trim()) continue
+        try {
+          const parsed = JSON.parse(line.trim())
+          if (onProgress) onProgress(parsed)
+        } catch {}
+      }
+    }
+    if (buffer.trim()) {
+      try {
+        const parsed = JSON.parse(buffer.trim())
+        if (onProgress) onProgress(parsed)
+      } catch {}
+    }
+    return { ok: true }
+  },
+
 
   // Providers. `addProvider` is the only call that carries a key, and nothing
   // gives one back: the server stores it in the OS keychain and every response
   // reports whether a key exists, never what it is.
   providers: () => j('/providers'),
   addProvider: (body) => j('/providers', json('POST', body)),
+  verifyProvider: (name, body) =>
+    j(`/providers/${encodeURIComponent(name)}/verify`, json('POST', body)),
   removeProvider: (name) => j(`/providers/${encodeURIComponent(name)}`, json('DELETE')),
   deleteProvider: (name) => j(`/providers/${encodeURIComponent(name)}`, json('DELETE')),
   // A fresh liveness check the user asked for, cache ignored. `pingAll` is the
@@ -720,7 +776,7 @@ export const api = {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             resolve(JSON.parse(xhr.responseText))
-          } catch (e) {
+          } catch {
             reject(new Error('Invalid JSON response'))
           }
         } else {
@@ -769,6 +825,8 @@ export const api = {
   mcpOauthClient: (name, body) =>
     j(`/mcp/servers/${encodeURIComponent(name)}/oauth-client`, json('POST', body)),
   mcpSetEnv: (name, body) => j(`/mcp/servers/${encodeURIComponent(name)}/env`, json('POST', body)),
+  mcpSetApiKey: (name, apiKey) =>
+    j(`/mcp/servers/${encodeURIComponent(name)}/api-key`, json('POST', { api_key: apiKey })),
   mcpUnsetEnv: (name, key) =>
     j(`/mcp/servers/${encodeURIComponent(name)}/env/${encodeURIComponent(key)}`, json('DELETE')),
   // `force` signs out first, so the provider shows its account chooser rather
@@ -824,7 +882,9 @@ export const api = {
   saveBrand: (body) => j('/brand', json('PUT', body)),
 
   // Enrichment is the mirror of reindex: "add a provider and press this".
-  enrichLibraryItem: (id) => j(`/library/${id}/enrich`, json('POST')),
+  enrichLibraryItem: (id, body) => j(`/library/${id}/enrich`, json('POST', body || {})),
+  librarySettings: () => j('/settings/library'),
+  updateLibrarySettings: (patch) => j('/settings/library', json('PATCH', patch)),
   // A route rather than a path: the browser is never handed a filesystem
   // location, and a missing still is a 404 rather than a broken <img>.
   thumbnailUrl: (id) => `${getBase()}/library/${id}/thumbnail`,

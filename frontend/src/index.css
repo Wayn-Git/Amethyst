@@ -50870,6 +50870,119 @@ a.text-reveal-wrap {
   box-sizing: border-box;
 }
 
+/* Privacy consent options on Welcome screen */
+.splash-consent-group {
+  width: 100%;
+  max-width: 520px;
+  margin: 18px 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.splash-consent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-cards, 8px);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.splash-consent-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.splash-consent-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.splash-consent-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text, #f1f5f9);
+}
+
+.splash-consent-desc {
+  font-size: 11.5px;
+  color: var(--text-dim, #64748b);
+}
+
+/* Runtime badges */
+.splash-badge-runtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.splash-countdown-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text, #f1f5f9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* AI selection segment control */
+.splash-segmented-control {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  padding: 3px;
+  gap: 4px;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.splash-segment-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim, #94a3b8);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.splash-segment-btn:hover {
+  color: var(--text, #f1f5f9);
+}
+
+.splash-segment-btn.is-active {
+  background: var(--accent, #7132f5);
+  color: #ffffff;
+  box-shadow: 0 2px 8px -2px var(--accent-soft, rgba(113, 50, 245, 0.4));
+}
+
 /* ==========================================================================
    AGENT OUTPUT UI MODERNIZATION (Screenshots 1 & 2 Overhaul)
    ========================================================================== */

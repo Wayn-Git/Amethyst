@@ -320,10 +320,14 @@ class ContextCompressor(ContextEngine):
                 f"{summary}"
             ),
         }
+        summary_ack = {
+            "role": "assistant",
+            "content": "I understand the conversation history and context from earlier turns. Continuing.",
+        }
 
-        compressed = head + [summary_message] + tail
+        compressed = head + [summary_message, summary_ack] + tail
         log.info(
-            "compressed %d messages -> %d (head=%d, summary=1, tail=%d)",
+            "compressed %d messages -> %d (head=%d, summary=2, tail=%d)",
             len(messages),
             len(compressed),
             head_end,
@@ -332,7 +336,10 @@ class ContextCompressor(ContextEngine):
         return compressed
 
     def _find_head_end(self, messages: list[dict]) -> int:
-        """Index of the first message after the protected head."""
+        """Index of the first message after the protected head.
+
+        Ensures head never splits an assistant's tool-calls from their tool responses.
+        """
         idx = 0
         # Skip system message if present
         if messages and messages[0].get("role") == "system":
@@ -343,10 +350,18 @@ class ContextCompressor(ContextEngine):
             if messages[idx].get("role") in ("user", "assistant"):
                 protected += 1
             idx += 1
+
+        # Advance past any pending tool execution in the head turn
+        while idx < len(messages) and messages[idx].get("role") == "tool":
+            idx += 1
         return idx
 
     def _find_tail_start(self, messages: list[dict], head_end: int) -> int:
-        """Index where the protected tail begins."""
+        """Index where the protected tail begins.
+
+        Snaps to a clean conversational turn boundary (a user message) and guarantees
+        the tail never begins on an orphaned tool message.
+        """
         tail_budget = max(10000, min(25000, self.context_length // 40))
         running = 0
         idx = len(messages) - 1
@@ -364,7 +379,28 @@ class ContextCompressor(ContextEngine):
                 break
             running += cost
             idx -= 1
-        return idx + 1
+        tail_start = idx + 1
+
+        # Snap to a user turn boundary:
+        # 1. Search backward to include the user prompt for the active turn
+        candidate = tail_start
+        while candidate > head_end and messages[candidate].get("role") != "user":
+            candidate -= 1
+        if candidate > head_end and messages[candidate].get("role") == "user":
+            tail_start = candidate
+        else:
+            # 2. If moving backward crosses head_end, search forward for the next user turn
+            candidate = tail_start
+            while candidate < len(messages) and messages[candidate].get("role") != "user":
+                candidate += 1
+            if candidate < len(messages) and messages[candidate].get("role") == "user":
+                tail_start = candidate
+            else:
+                # 3. Fallback: guarantee tail never starts with an orphaned tool result
+                while tail_start < len(messages) and messages[tail_start].get("role") == "tool":
+                    tail_start += 1
+
+        return tail_start
 
     def _generate_summary(self, middle: list[dict]) -> str | None:
         """Call the auxiliary LLM to summarize the middle window."""

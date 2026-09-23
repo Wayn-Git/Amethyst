@@ -74,6 +74,7 @@ class Reel:
     thumbnail_url: str | None
     video_path: Path | None
     slide_urls: list[str] = field(default_factory=list)
+    direct_video_url: str | None = None
 
     @property
     def has_text(self) -> bool:
@@ -88,9 +89,26 @@ def yt_dlp_missing() -> str | None:
     """Why this cannot run, or None. Never raises -- it is asked on a status page."""
     try:
         import yt_dlp  # noqa: F401
+        return None
     except ImportError:
-        return "yt-dlp is not installed, so Instagram links cannot be opened"
-    return None
+        pass
+
+    import sys
+    from pathlib import Path
+
+    # Check local workspace .venv if running outside the virtual environment
+    venv_site = Path(__file__).resolve().parents[2] / ".venv" / "lib"
+    if venv_site.is_dir():
+        for sp in venv_site.glob("python*/site-packages"):
+            if sp.is_dir() and str(sp) not in sys.path:
+                sys.path.insert(0, str(sp))
+                try:
+                    import yt_dlp  # noqa: F401
+                    return None
+                except ImportError:
+                    pass
+
+    return "yt-dlp is not installed, so Instagram links cannot be opened"
 
 
 def _options(dest: Path | None, cookies_from_browser: str | None,
@@ -197,6 +215,10 @@ def _to_reel(
             thumbs = entry.get("thumbnails") or []
             if thumbs:
                 slide_urls.append(thumbs[-1]["url"])
+            elif entry.get("url"):
+                slide_urls.append(entry["url"])
+            elif entry.get("thumbnail"):
+                slide_urls.append(entry["thumbnail"])
     elif source_for_slides.get("thumbnails"):
         slide_urls.append(source_for_slides["thumbnails"][-1]["url"])
 
@@ -205,6 +227,16 @@ def _to_reel(
         or (raw_info.get("thumbnail") if raw_info else None)
         or (slide_urls[0] if slide_urls else None)
     )
+
+    direct_video_url = None
+    formats = (info.get("formats") if info else None) or (raw_info.get("formats") if raw_info else None) or []
+    if formats:
+        mp4_formats = [
+            f.get("url") for f in formats
+            if isinstance(f, dict) and f.get("url") and (f.get("ext") == "mp4" or "mp4" in str(f.get("format_id", "")))
+        ]
+        if mp4_formats:
+            direct_video_url = mp4_formats[-1]
 
     title = _title_from(caption) or raw_title or "an Instagram post"
     duration = info.get("duration") or (raw_info.get("duration") if raw_info else None)
@@ -217,6 +249,7 @@ def _to_reel(
         thumbnail_url=thumbnail_url,
         video_path=video,
         slide_urls=slide_urls,
+        direct_video_url=direct_video_url,
     )
 
 
@@ -239,11 +272,36 @@ def _found_file(dest: Path) -> Path | None:
 
 def _fetch_blocking(url: str, dest: Path | None, opts: dict[str, Any]) -> Reel:
     import yt_dlp
+    from yt_dlp.extractor.instagram import InstagramIE
+
+    # InstagramIE raises ExtractorError('There is no video in this post') for photo
+    # posts and image carousels because formats is empty. We temporarily hook _real_extract
+    # to provide a photo format fallback so metadata, captions, and slides extract cleanly.
+    orig_extract = getattr(InstagramIE, "_real_extract", None)
+    if orig_extract:
+        def _extract_with_photos(self, ie_url: str):
+            orig_raise = self.raise_no_formats
+            self.raise_no_formats = lambda msg, expected=True, video_id=None: None
+            try:
+                res = orig_extract(self, ie_url)
+                if res and not res.get("formats"):
+                    thumb = res.get("thumbnail") or (
+                        res["thumbnails"][-1]["url"] if res.get("thumbnails") else ""
+                    )
+                    res["formats"] = [{"format_id": "photo", "url": thumb, "ext": "jpg"}]
+                return res
+            finally:
+                self.raise_no_formats = orig_raise
+
+        InstagramIE._real_extract = _extract_with_photos
 
     raw_info: dict[str, Any] | None = None
     info: dict[str, Any] | None = None
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+    had_browser_cookies = bool(opts.get("cookiesfrombrowser"))
+
+    def _run_extract(current_opts):
+        nonlocal raw_info, info
+        with yt_dlp.YoutubeDL(current_opts) as ydl:
             try:
                 raw_info = ydl.extract_info(url, download=False, process=False)
             except Exception as exc:
@@ -253,18 +311,41 @@ def _fetch_blocking(url: str, dest: Path | None, opts: dict[str, Any]) -> Reel:
                 info = ydl.extract_info(url, download=dest is not None)
             except Exception as exc:
                 if not raw_info:
-                    raise ReelError(_describe(exc)) from exc
+                    raise exc
                 log.debug("processed download failed for %s: %s", url, exc)
+
+    try:
+        try:
+            _run_extract(opts)
+        except Exception as exc:
+            if had_browser_cookies:
+                log.info("browser cookies failed for %s (%s); retrying anonymously", url, exc)
+                anon_opts = {k: v for k, v in opts.items() if k != "cookiesfrombrowser"}
+                try:
+                    _run_extract(anon_opts)
+                except Exception as retry_exc:
+                    raise ReelError(_describe(retry_exc)) from retry_exc
+            else:
+                raise ReelError(_describe(exc)) from exc
     except ReelError:
         raise
     except Exception as exc:
         raise ReelError(_describe(exc)) from exc
+    finally:
+        if orig_extract:
+            InstagramIE._real_extract = orig_extract
 
     if not info and not raw_info:
         raise ReelError("Instagram returned nothing for this link")
 
     picked = _pick(info) if info else (raw_info or {})
-    return _to_reel(url, picked, raw_info, _found_file(dest) if dest is not None else None)
+    found_media = _found_file(dest) if dest is not None else None
+    video_path = (
+        found_media
+        if (found_media and found_media.suffix.lower() in (".mp4", ".mov", ".webm", ".mkv"))
+        else None
+    )
+    return _to_reel(url, picked, raw_info, video_path)
 
 
 async def fetch_reel(

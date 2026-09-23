@@ -822,7 +822,7 @@ _INSTAGRAM_SETTINGS = {
     "owner_ig_id": ("instagram.owner_ig_id", ""),
     "allow_senders": ("instagram.allow_senders", "[]"),
     "mentions_from": ("instagram.mentions_from", "allowlist"),
-    "keep_video": ("instagram.keep_video", False),
+    "keep_video": ("instagram.keep_video", True),
     "max_video_mb": ("instagram.max_video_mb", DEFAULT_MAX_VIDEO_MB),
     "max_duration_seconds": ("instagram.max_duration_seconds", DEFAULT_MAX_DURATION_SECONDS),
     "media_budget_mb": ("instagram.media_budget_mb", DEFAULT_MEDIA_BUDGET_MB),
@@ -855,7 +855,7 @@ class InstagramSettings:
     #: this a stranger fills someone's library.
     allow_senders: tuple[str, ...] = ()
     mentions_from: str = "allowlist"
-    keep_video: bool = False
+    keep_video: bool = True
     max_video_mb: int = DEFAULT_MAX_VIDEO_MB
     max_duration_seconds: int = DEFAULT_MAX_DURATION_SECONDS
     media_budget_mb: int = DEFAULT_MEDIA_BUDGET_MB
@@ -1082,6 +1082,8 @@ _SOCIAL_SETTINGS = {
 
 _LIBRARY_SETTINGS = {
     "auto_enrich": ("library.auto_enrich", True),
+    "enrich_provider": ("library.enrich_provider", ""),
+    "enrich_model": ("library.enrich_model", ""),
 }
 
 
@@ -1097,9 +1099,45 @@ class LibrarySettings:
     """
 
     auto_enrich: bool = True
+    enrich_provider: str | None = None
+    enrich_model: str | None = None
 
     def as_dict(self) -> dict:
-        return {"auto_enrich": self.auto_enrich}
+        return {
+            "auto_enrich": self.auto_enrich,
+            "enrich_provider": self.enrich_provider or None,
+            "enrich_model": self.enrich_model or None,
+        }
+
+
+def get_default_library_model() -> tuple[str, str]:
+    """Find the default high-tier provider & model for the library section.
+
+    Strictly defaults to a high-capability model (e.g. Groq LLaMA 3.3 70B,
+    OpenCode Zen MiMo, Google Gemini 2.5 Flash, or Nvidia Nemotron)
+    rather than Ministral 8B.
+    """
+    try:
+        from backend.config import configured_providers
+        cfgs = configured_providers()
+        if "groq" in cfgs:
+            return "groq", "llama-3.3-70b-versatile"
+        if "opencode-zen" in cfgs:
+            return "opencode-zen", "mimo-v2.6-flash-free"
+        if "google" in cfgs:
+            return "google", "gemini-2.5-flash"
+        if "nvidia" in cfgs:
+            return "nvidia", "nvidia/nemotron-3-super-120b-a12b"
+        from backend.config import load_tiers
+        tiers = load_tiers()
+        if "default" in tiers and tiers["default"].provider != "mistral":
+            return tiers["default"].provider, tiers["default"].model
+        for p, cfg in cfgs.items():
+            if p != "mistral" and cfg.model:
+                return p, cfg.model
+    except Exception:
+        pass
+    return "groq", "llama-3.3-70b-versatile"
 
 
 def load_library() -> LibrarySettings:
@@ -1116,8 +1154,19 @@ def load_library() -> LibrarySettings:
     except Exception:
         return LibrarySettings()
 
-    raw = stored.get("library.auto_enrich")
-    return LibrarySettings(auto_enrich=(raw != "0") if raw is not None else True)
+    raw_auto = stored.get("library.auto_enrich")
+    raw_provider = stored.get("library.enrich_provider")
+    raw_model = stored.get("library.enrich_model")
+
+    def_prov, def_model = get_default_library_model()
+    provider = str(raw_provider).strip() if (raw_provider and str(raw_provider).strip()) else def_prov
+    model = str(raw_model).strip() if (raw_model and str(raw_model).strip()) else def_model
+
+    return LibrarySettings(
+        auto_enrich=(raw_auto != "0") if raw_auto is not None else True,
+        enrich_provider=provider,
+        enrich_model=model,
+    )
 
 
 def save_library(patch: dict) -> LibrarySettings:
@@ -1132,7 +1181,23 @@ def save_library(patch: dict) -> LibrarySettings:
             " updated_at = datetime('now')",
             ("library.auto_enrich", "1" if patch["auto_enrich"] else "0"),
         )
-        conn.commit()
+    if "enrich_provider" in patch:
+        prov = str(patch["enrich_provider"] or "").strip()
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            ("library.enrich_provider", prov),
+        )
+    if "enrich_model" in patch:
+        mod = str(patch["enrich_model"] or "").strip()
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+            " updated_at = datetime('now')",
+            ("library.enrich_model", mod),
+        )
+    conn.commit()
     return load_library()
 
 
