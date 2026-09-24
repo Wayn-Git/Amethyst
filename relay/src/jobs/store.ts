@@ -236,13 +236,17 @@ export class JobStore {
 		const collectableStates = [...COLLECTABLE].map((s) => `'${s}'`).join(',');
 		const { results } = await this.db
 			.prepare(
-				`SELECT *, 0 AS _tag FROM jobs
-				WHERE state IN (${collectableStates}) AND synced_at IS NULL
-				ORDER BY created_at, rowid LIMIT ?
+				`SELECT * FROM (
+					SELECT *, 0 AS _tag FROM jobs
+					WHERE state IN (${collectableStates}) AND synced_at IS NULL
+					ORDER BY created_at, rowid LIMIT ?
+				)
 				UNION ALL
-				SELECT *, 1 AS _tag FROM jobs
-				WHERE state IN ('queued','running','waiting')
-				ORDER BY created_at, rowid LIMIT ?`,
+				SELECT * FROM (
+					SELECT *, 1 AS _tag FROM jobs
+					WHERE state IN ('queued','running','waiting')
+					ORDER BY created_at, rowid LIMIT ?
+				)`,
 			)
 			.bind(limit, limit)
 			.all<Row & { _tag: number }>();

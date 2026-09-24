@@ -19,6 +19,7 @@ to say which one it came from:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -228,6 +229,16 @@ class IngestService:
             or ""
         )
 
+        note = " · ".join(n for n in notes if n) or None
+        if note:
+            self.library.store.update(item_id, capture_note=note)
+
+        # Reply immediately after capture + transcript, before enrichment. The
+        # user sees "Saved: …" as soon as the item exists and has its text,
+        # rather than waiting for a model call that may take 30–90 seconds or
+        # fail entirely. Enrichment is best-effort background work.
+        await step("reply:saved", lambda: self._maybe_reply(sender, title))
+
         if self.settings.enrich:
             async def _enrich():
                 try:
@@ -238,14 +249,6 @@ class IngestService:
 
             await step("enrich", _enrich)
 
-        note = " · ".join(n for n in notes if n) or None
-        if note:
-            self.library.store.update(item_id, capture_note=note)
-
-        # Last, and exactly once. This is the operation the whole ledger exists
-        # for: it is visible to somebody else, and Instagram offers no
-        # idempotency key of its own to lean on.
-        await step("reply:saved", lambda: self._maybe_reply(sender, title))
         self.store.finish(event["id"], status="done", library_item_id=item_id)
         return "done"
 
@@ -340,11 +343,14 @@ class IngestService:
         return ""
 
     async def _add_transcript(self, item_id: int, media_url: str | None) -> str:
-        """Download, extract audio, transcribe, and put the words on the item.
+        """Download, extract audio, transcribe, and extract visual text — in parallel.
 
-        Every gate is checked before the step it protects: no transcriber means
-        the video is never downloaded at all, because there would be nothing to
-        do with it.
+        Transcription and vision extraction run concurrently: the system gets
+        the spoken words AND on-screen text simultaneously instead of waiting
+        for one to fail before trying the other. If every transcription
+        provider is down, the item still gets visual text. If vision fails,
+        the transcript alone is enough. Both failing is the only path to no
+        text at all.
         """
         if not media_url:
             return ""
@@ -353,8 +359,6 @@ class IngestService:
         missing = ffmpeg_missing()
         if missing:
             return missing
-        if not self._can_transcribe():
-            return unavailable_reason()
 
         video = media_path(item_id, ".mp4")
         try:
@@ -369,6 +373,10 @@ class IngestService:
 
         audio: Path | None = None
         duration: float | None = None
+        transcript_text: str = ""
+        visual_text: str | None = None
+        transcript_note: str = ""
+
         try:
             duration = await self._probe(video)
             if duration and duration > settings.max_duration_seconds:
@@ -376,38 +384,56 @@ class IngestService:
                     f"this is {int(duration // 60)} minutes long, past the"
                     f" {settings.max_duration_seconds // 60}-minute limit for transcription"
                 )
-            audio = await self._extract_audio(video, media_path(item_id, ".audio"))
-            result = await self._transcribe(audio)
-            
-            visual_text = None
-            if not result.text:
+
+            # Prepare both tasks: audio transcription and visual frame extraction.
+            # They share the downloaded video but do independent work.
+
+            async def _do_transcribe() -> str:
+                """Extract audio and transcribe. Returns text or empty string."""
+                nonlocal audio
+                if not self._can_transcribe():
+                    return ""
+                try:
+                    audio = await self._extract_audio(video, media_path(item_id, ".audio"))
+                    result = await self._transcribe(audio)
+                    return result.text
+                except (MediaError, TranscriptionUnavailable) as exc:
+                    log.info("transcription unavailable for item %s: %s", item_id, exc)
+                    return ""
+                except Exception as exc:
+                    log.warning("transcription failed for item %s: %s", item_id, exc)
+                    return ""
+
+            async def _do_vision() -> str | None:
+                """Extract frames and read visual text. Returns text or None."""
                 import shutil
                 import tempfile
 
                 from backend.media.vision import extract_frames
                 from backend.runtime.vision import extract_visual_text
-                
+
                 frames_dir = Path(tempfile.mkdtemp(prefix="amethyst-vision-"))
                 try:
                     frames = await extract_frames(video, frames_dir)
                     frame_bytes = [f.read_bytes() for f in frames]
-                    visual_text = await extract_visual_text(frame_bytes)
+                    return await extract_visual_text(frame_bytes)
                 except Exception as exc:
-                    log.warning("visual extraction failed for library item %s: %s", item_id, exc)
+                    log.warning("visual extraction failed for item %s: %s", item_id, exc)
+                    return None
                 finally:
                     shutil.rmtree(frames_dir, ignore_errors=True)
-                    
+
+            # Run both in parallel. Neither raises — errors are caught inside.
+            transcript_text, visual_text = await asyncio.gather(
+                _do_transcribe(), _do_vision()
+            )
+
         except MediaError as exc:
-            return str(exc)
-        except TranscriptionUnavailable as exc:
-            return str(exc)
+            transcript_note = str(exc)
         except Exception as exc:
-            log.warning("transcription failed for library item %s: %s", item_id, exc)
-            return f"the transcription did not finish: {exc}"
+            log.warning("media processing failed for item %s: %s", item_id, exc)
+            transcript_note = f"media processing did not finish: {exc}"
         finally:
-            # The audio is scratch either way; the video is kept only if asked
-            # for. Twenty reels a day at fifteen megabytes is nine gigabytes a
-            # year, and the transcript is the part that was worth having.
             if audio is not None:
                 audio.unlink(missing_ok=True)
             if settings.keep_video:
@@ -417,12 +443,17 @@ class IngestService:
             if duration is not None:
                 self.library.store.update(item_id, duration_seconds=int(duration))
 
-        if not result.text and not visual_text:
+        # Merge results: prefer both, accept either, note if neither.
+        if not transcript_text and not visual_text:
+            if transcript_note:
+                return transcript_note
+            if not self._can_transcribe():
+                return unavailable_reason()
             return (
                 "the audio carried no speech and visual extraction found no text,"
                 " so there is no transcript"
             )
-            
+
         existing = self.library.store.get(item_id)
         existing_text = ""
         has_caption = False
@@ -431,13 +462,24 @@ class IngestService:
             existing_text, _ = body_of(Path(existing["text_path"]).read_text(encoding="utf-8"))
             has_caption = existing["text_source"] == "caption"
 
-        final_extracted_text = result.text or visual_text
-        if has_caption and existing_text:
-            new_text = f"{existing_text}\n\n{final_extracted_text}"
-            source = "caption and transcript"
+        # Build the final text from whatever succeeded.
+        if transcript_text and visual_text:
+            extracted = f"{transcript_text}\n\n---\n\n{visual_text}"
+            source_type = "transcript and visual content"
+        elif transcript_text:
+            extracted = transcript_text
+            source_type = "transcript"
         else:
-            new_text = final_extracted_text
-            source = "transcript"
+            extracted = visual_text
+            source_type = "visual content"
+
+        if has_caption and existing_text:
+            new_text = f"{existing_text}\n\n{extracted}"
+            source = f"caption and {source_type}"
+        else:
+            new_text = extracted
+            source = source_type
+
         await self.library.replace_text(item_id, new_text, text_source=source)
         return ""
 

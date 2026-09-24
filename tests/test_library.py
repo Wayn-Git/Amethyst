@@ -858,6 +858,55 @@ async def test_reel_music_intent_vs_standard():
     assert kwargs["category"] == "music"
 
 
+def test_recover_stale_items():
+    from datetime import datetime, timedelta
+    store = LibraryStore()
+    conn = get_connection()
+
+    fresh_id = store.create(kind="article", title="Fresh enriching item", url="https://example.com/fresh-enrich")
+    store.update(fresh_id, status="enriching")
+
+    stale_id = store.create(kind="article", title="Stale enriching item", url="https://example.com/stale-enrich")
+    old_time = (datetime.now() - timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("UPDATE library_items SET status = 'enriching', updated_at = ? WHERE id = ?", (old_time, stale_id))
+    conn.commit()
+
+    recovered = store.recover_stale_items(max_age_seconds=180)
+    assert stale_id in recovered
+    assert fresh_id not in recovered
+
+    fresh_row = store.get(fresh_id)
+    assert fresh_row["status"] == "enriching"
+
+    stale_row = store.get(stale_id)
+    assert stale_row["status"] == "ready"
+    assert "timed out" in stale_row["enrichment_note"].lower()
+
+
+@pytest.mark.asyncio
+async def test_enrich_resets_status_on_failure(monkeypatch, db, offline, amethyst_home):
+    from backend.library import enrich as enrichment
+
+    async def fake_fetch(u):
+        return page(title="To fail")
+
+    svc = service(fetcher=fake_fetch)
+    item = await svc.capture_url("https://example.com/fail-enrich", title="To fail")
+    item_id = item.item["id"]
+
+    async def mock_enrich_text(*args, **kwargs):
+        raise RuntimeError("LLM exploded")
+
+    monkeypatch.setattr(enrichment, "enrich_text", mock_enrich_text)
+
+    with pytest.raises(RuntimeError):
+        await svc.enrich(item_id)
+
+    row = svc.store.get(item_id)
+    assert row["status"] == "ready"
+    assert "LLM exploded" in (row["enrichment_note"] or "")
+
+
 
 
 

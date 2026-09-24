@@ -17,7 +17,7 @@ The project brief sketched a layer diagram as a starting point and explicitly in
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │  INTERFACE LAYER                                                      │
-│  CLI · HTTP + SSE API · (later) React SPA                            │
+│  CLI · HTTP + SSE API · React SPA                                    │
 │  Knows nothing below except the API contract                          │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │
@@ -114,7 +114,7 @@ Every arrow in that walkthrough is a component boundary that exists in the diagr
 
 As a local-first application, the system runs everything in a single process to minimize overhead, which necessitates strict reliability constraints:
 
-- **Concurrency isolation:** Background workers and the web server share the same process footprint. A file-based locking mechanism (`.amethyst.lock`) ensures multiple instances of `amethyst serve` cannot clobber ports or corrupt logs.
+- **Concurrency isolation:** Background workers and the web server share the same process footprint, so one instance is the whole answer. `amethyst serve` probes the port first — one loopback round trip that asks *who* is listening — and if it is already AMETHYST it says so, names the URL, points at `amethyst-show`, and exits rather than starting a second server against the same SQLite file. If it is something else entirely, it says that instead. There is no lock file: binding the port is already an atomic lock on exactly the thing that must not happen twice, held by the kernel and released on crash, whereas a lock file outliving its holder is a service that will not start.
 - **Resource lifecycle:** The terminal manager strictly reaps spawned background process groups (like PTY instances) on shutdown to prevent zombie processes.
 - **Connection resilience:** Server-Sent Events (SSE) rely on FastAPI's `BackgroundTasks` for deterministic cleanup, preventing memory leaks when clients disconnect ungracefully.
 - **Untrusted extensions:** Skills are loaded dynamically, but are subjected to strict dependency isolation and YAML shape validation to prevent malformed extensions from crashing the agent loop.
@@ -132,6 +132,7 @@ As a local-first application, the system runs everything in a single process to 
 | Scheduling engine | Date resolution, conflict detection, free-slot search | Deciding what the user wants |
 | Durable jobs | Unattended work that must survive a crash: its states, its retries, and the ledger that stops a retry repeating an outward call | Interactive turns, which stay on the agent loop |
 | Retrieval | Chunking, embedding, hybrid search, context budgeting | Where documents come from |
+| Library | Capture: the eight doors a link, file, note or share comes in through, the markdown it becomes, its thumbnail and media, and the enrichment that runs on it | The search index itself (retrieval); what any file inside it says |
 | Data layer | Persistence, migrations, transactional integrity | Business rules |
 
 ## Reading order
@@ -147,5 +148,7 @@ As a local-first application, the system runs everything in a single process to 
 - [data-model.md](data-model.md) — what is stored where, and why three mechanisms
 - [security.md](security.md) — the permission model, sandboxing, and credential isolation
 - [skills.md](skills.md), [mcp.md](mcp.md), [mcp-oauth.md](mcp-oauth.md), [scheduling.md](scheduling.md) — subsystem detail
+- [library.md](library.md) — the Library: every path a capture takes in, what it becomes on disk, enrichment, and search
 - [decisions/](decisions/) — ADRs recording the significant choices and their alternatives
-- [../roadmap/implementation-plan.md](../roadmap/implementation-plan.md) — the build order from an empty repository
+- [../archive/roadmap/implementation-plan.md](../archive/roadmap/implementation-plan.md) — the build order from an empty repository, kept as a record
+- [../roadmap/ideas.md](../roadmap/ideas.md) — pipeline ideas, split into what shipped and what has not

@@ -136,8 +136,16 @@ export async function runJob<E extends JobEnv>(
 
 		let value: unknown;
 		try {
-			value = await step.do(definition.key, definition.retries ?? type.retries ?? DEFAULT_RETRIES,
-			                      callback);
+			const retries = definition.retries ?? type.retries ?? DEFAULT_RETRIES;
+			const stepConfig = {
+				retries: {
+					limit: retries.limit,
+					delay: retries.delay,
+					backoff: retries.backoff,
+				},
+				...(definition.timeout ? { timeout: definition.timeout } : {}),
+			};
+			value = await step.do(definition.key, stepConfig, callback);
 		} catch (err) {
 			// Workflows has spent this step's retries. The job goes to `waiting`
 			// with a backoff and the sweep dispatches it again -- with the ledger

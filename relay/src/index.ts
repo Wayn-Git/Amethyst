@@ -670,19 +670,19 @@ async function sync(request: Request, env: Env): Promise<Response> {
 	} catch { /* stale list is fine */ }
 
 	let outboundSummaryResult: Record<string, number> = {};
-	try { outboundSummaryResult = await outboundSummary(env); } catch { /* ok */ }
+	try { outboundSummaryResult = await outboundSummary(env); } catch (err) { console.error('outboundSummary error:', err); }
 
 	let jobsResult: Record<string, unknown> = { ready: [], pending: [], counts: {} };
-	try { jobsResult = await jobsForSync(env, Math.min(limit, SYNC_BATCH)); } catch { /* ok */ }
+	try { jobsResult = await jobsForSync(env, Math.min(limit, SYNC_BATCH)); } catch (err) { console.error('jobsForSync error:', err); }
 
 	let workersResult: unknown[] = [];
-	try { workersResult = (await reportsForSync(env, Math.min(limit, SYNC_BATCH))) ?? []; } catch { /* ok */ }
+	try { workersResult = (await reportsForSync(env, Math.min(limit, SYNC_BATCH))) ?? []; } catch (err) { console.error('reportsForSync error:', err); }
 
 	let opsResult: unknown[] = [];
-	try { opsResult = await opsForSync(env, self); } catch { /* ok */ }
+	try { opsResult = await opsForSync(env, self); } catch (err) { console.error('opsForSync error:', err); }
 
 	let pairingsResult: unknown[] = [];
-	try { pairingsResult = await pairingsForSync(env); } catch { /* ok */ }
+	try { pairingsResult = await pairingsForSync(env); } catch (err) { console.error('pairingsForSync error:', err); }
 
 	return json({
 		deliveries,

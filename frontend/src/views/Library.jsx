@@ -20,6 +20,7 @@ import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
 import { getDomain } from './library/LibraryCard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import { safeStorage } from '../lib/storage.js'
+import { IS_MAC } from '../keys.js'
 
 export default function Library() {
   const rootRef = useRef(null)
@@ -27,6 +28,11 @@ export default function Library() {
   const captureInputRef = useRef(null)
   const { toast } = useApp()
   const [params, setParams] = useSearchParams()
+
+  // Where the bookmarklet sends a link: /library?url=…. Read on the first
+  // render rather than in an effect, because the filter-sync effect below
+  // rewrites the query string on mount and would have dropped it first.
+  const incomingUrl = useRef(params.get('url') || null)
 
   // Data state
   const [items, setItems] = useState([])
@@ -96,20 +102,26 @@ export default function Library() {
         const incomingIds = new Set(data.items.map((it) => it.id))
         const remainingOptimistic = optimistic.filter((it) => !incomingIds.has(it.id))
 
+        let hasNewProcessing = false
         const merged = data.items.map((it) => {
           const isProcessing =
             it.status === 'received' ||
             it.status === 'processing' ||
-            it.status === 'enriching' ||
-            (!it.enriched_at &&
-              !it.enrichment_note &&
-              (it.kind === 'video' || it.text_source !== 'none') &&
-              activeProcessingIds.current.has(it.id))
+            it.status === 'enriching'
           if (isProcessing) {
-            activeProcessingIds.current.add(it.id)
+            if (!activeProcessingIds.current.has(it.id)) {
+              activeProcessingIds.current.add(it.id)
+              hasNewProcessing = true
+            }
+          } else {
+            activeProcessingIds.current.delete(it.id)
           }
-          return isProcessing ? { ...it, isProcessing: true } : it
+          return isProcessing ? { ...it, isProcessing: true } : { ...it, isProcessing: false }
         })
+
+        if (hasNewProcessing) {
+          setProcessingTrigger((t) => t + 1)
+        }
 
         return [...remainingOptimistic, ...merged]
       })
@@ -178,9 +190,15 @@ export default function Library() {
   useEffect(() => {
     if (activeProcessingIds.current.size === 0) return
 
+    let cancelled = false
     const interval = setInterval(async () => {
       const ids = Array.from(activeProcessingIds.current)
+      if (ids.length === 0) {
+        clearInterval(interval)
+        return
+      }
       for (const id of ids) {
+        if (cancelled) break
         try {
           const updated = await api.libraryItem(id)
           const isDone =
@@ -209,7 +227,10 @@ export default function Library() {
       }
     }, 1800)
 
-    return () => clearInterval(interval)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [processingTrigger, toast])
 
   // General background sync poll (every 10s)
@@ -269,20 +290,23 @@ export default function Library() {
 
       try {
         const saved = await api.addLibraryItem(body)
-        const isStillEnriching = !saved.enriched_at && !saved.enrichment_note
+        const isStillProcessing =
+          saved.status === 'enriching' ||
+          saved.status === 'processing' ||
+          saved.status === 'received'
 
-        if (isStillEnriching) {
+        if (isStillProcessing) {
           activeProcessingIds.current.add(saved.id)
           setProcessingTrigger((t) => t + 1)
         }
 
         setItems((prev) =>
           prev.map((it) =>
-            it.id === tempId ? { ...saved, isProcessing: isStillEnriching } : it
+            it.id === tempId ? { ...saved, isProcessing: isStillProcessing } : it
           )
         )
 
-        toast(isStillEnriching ? 'Saved! AI analysis in background...' : 'Saved to library', 'ok')
+        toast(isStillProcessing ? 'Saved! AI analysis in background...' : 'Saved to library', 'ok')
 
         // Refresh counts
         const meta = await api.library()
@@ -312,12 +336,24 @@ export default function Library() {
     setQuickCaptureText('')
   }
 
+  // Capture what the bookmarklet brought, once. The bar keeps no memory of it,
+  // so reloading the page does not log the same link twice.
+  useEffect(() => {
+    if (!incomingUrl.current) return
+    const url = incomingUrl.current
+    incomingUrl.current = null
+    handleAddResource({ url })
+  }, [handleAddResource])
+
   const handleEnrich = useCallback(
     async (item) => {
       setBusyId(item.id)
       try {
         const updated = await api.enrichLibraryItem(item.id)
-        setItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)))
+        activeProcessingIds.current.delete(item.id)
+        setItems((prev) =>
+          prev.map((it) => (it.id === item.id ? { ...updated, isProcessing: false } : it))
+        )
         toast('Enriched with AI', 'ok')
       } catch (err) {
         toast(err.message, 'bad')
@@ -349,6 +385,7 @@ export default function Library() {
       setBusyId(item.id)
       try {
         await api.deleteLibraryItem(item.id)
+        activeProcessingIds.current.delete(item.id)
         setItems((prev) => prev.filter((it) => it.id !== item.id))
         toast('Removed from library', 'ok')
         const meta = await api.library()
@@ -365,8 +402,13 @@ export default function Library() {
   )
 
   const handleItemUpdate = useCallback((updated) => {
-    setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
-    setActiveModalItem((curr) => (curr?.id === updated.id ? updated : curr))
+    activeProcessingIds.current.delete(updated.id)
+    setItems((prev) =>
+      prev.map((it) => (it.id === updated.id ? { ...updated, isProcessing: false } : it))
+    )
+    setActiveModalItem((curr) =>
+      curr?.id === updated.id ? { ...updated, isProcessing: false } : curr
+    )
   }, [])
 
   const handleClearFilters = useCallback(() => {
@@ -463,16 +505,16 @@ export default function Library() {
   return (
     <div className="view lib-view" ref={rootRef}>
       <div className="lib-view-inner">
-        {/* Modern Minimalist Page Header */}
+        {/* Modern Minimalist Page Header with Unified Action Center */}
         <header className="lib-header" data-enter>
           <div className="lib-header-left">
             <div className="lib-header-title-row">
               <h1 className="lib-header-title">Library</h1>
-              <div className="lib-header-badge">
+              <div className="lib-header-badge" role="status" aria-live="polite">
                 {isProcessingCount > 0 ? (
                   <>
                     <span className="lib-header-live-dot" />
-                    <span>Syncing {isProcessingCount} items</span>
+                    <span>Syncing {isProcessingCount} item{isProcessingCount > 1 ? 's' : ''}</span>
                   </>
                 ) : (
                   <span>{total} indexed artifacts</span>
@@ -480,153 +522,98 @@ export default function Library() {
               </div>
             </div>
             <p className="lib-header-subtitle">
-              High-recall knowledge base with automatic AI transcriptions, key entity extraction, and semantic search across all your saved resources.
+              High-recall knowledge base with automatic AI transcriptions, key entity extraction, and semantic search.
             </p>
+          </div>
+
+          <div className="lib-header-actions">
+            {/* External Capture & Integrations */}
+            <button
+              type="button"
+              className={`lib-header-action-btn ${showShare ? 'lib-header-action-btn--active' : ''}`}
+              onClick={() => setShowShare((prev) => !prev)}
+              title="External capture & integrations (browser, phone, relay)"
+              aria-expanded={showShare}
+            >
+              <Icon name="link" size={14} />
+              <span>Sync & Capture</span>
+            </button>
+
+            {/* Export to Spotify Playlist */}
+            {hasMusic && (
+              <button
+                type="button"
+                className="lib-header-action-btn"
+                onClick={handleOpenExport}
+                title="Export discovered audio to Spotify playlist"
+              >
+                <Icon name="music" size={14} />
+                <span>Playlist</span>
+              </button>
+            )}
+
+            {/* Segmented Layout Toggle: Grid vs List */}
+            <div className="lib-segmented-control" role="group" aria-label="View display">
+              <button
+                type="button"
+                className={`lib-segmented-btn ${layout === 'grid' ? 'lib-segmented-btn--active' : ''}`}
+                onClick={() => handleLayoutChange('grid')}
+                title="Bento Grid view"
+                aria-label="Bento Grid view"
+                aria-pressed={layout === 'grid'}
+              >
+                <Icon name="grid" size={14} />
+              </button>
+              <button
+                type="button"
+                className={`lib-segmented-btn ${layout === 'list' ? 'lib-segmented-btn--active' : ''}`}
+                onClick={() => handleLayoutChange('list')}
+                title="Dense Stream view"
+                aria-label="Dense Stream view"
+                aria-pressed={layout === 'list'}
+              >
+                <Icon name="list" size={14} />
+              </button>
+            </div>
+
+            {/* Primary Add Resource */}
+            <button
+              type="button"
+              className="lib-btn lib-btn--primary"
+              onClick={() => {
+                setAddModalMode('url')
+                setShowAddModal(true)
+              }}
+              title={`Add resource (${IS_MAC ? '⌘K' : 'Ctrl+K'})`}
+            >
+              <Icon name="plus" size={14} />
+              <span>Add Resource</span>
+              <kbd className="lib-kbd lib-kbd--primary">
+                {IS_MAC ? '⌘K' : 'Ctrl+K'}
+              </kbd>
+            </button>
           </div>
         </header>
 
-        {/* Inline Command Capture Omnibar (.lib-capture & .lib-capture-row for smoke tests & instant entry) */}
-        <div className="lib-capture" data-enter>
-          <form className="lib-capture-row" onSubmit={handleQuickCaptureSubmit}>
-            <div className="lib-capture-leading-icon">
-              <Icon name="plus" size={16} />
-            </div>
-            <input
-              ref={captureInputRef}
-              type="text"
-              className="lib-capture-input"
-              placeholder="Paste any link, video, podcast, or note to capture instantly (or press ⌘K)..."
-              value={quickCaptureText}
-              onChange={(e) => setQuickCaptureText(e.target.value)}
-              aria-label="Capture URL or note"
-            />
-            <div className="lib-capture-actions">
-              {quickCaptureText ? (
-                <button type="submit" className="lib-capture-pill-btn">
-                  <span>Save</span>
-                  <Icon name="arrow-right" size={12} />
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="lib-capture-more-btn"
-                title="Open full capture options (Upload, Note, Wiki)"
-                onClick={() => {
-                  setAddModalMode('url')
-                  setShowAddModal(true)
-                }}
-              >
-                <Icon name="more" size={16} />
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Modern Command Toolbar */}
+        {/* Smart Command & Search Omnibar */}
         <LibraryToolbar
           query={query}
           onQueryChange={setQuery}
           searchRef={searchInputRef}
+          quickCaptureText={quickCaptureText}
+          onQuickCaptureChange={setQuickCaptureText}
+          onQuickCaptureSubmit={handleQuickCaptureSubmit}
+          captureRef={captureInputRef}
           order={order}
           onOrderChange={setOrder}
-          layout={layout}
-          onLayoutChange={handleLayoutChange}
-          railOpen={railOpen}
-          onToggleRail={handleToggleRail}
-          onOpenAdd={() => {
-            setAddModalMode('url')
+          onOpenAddModal={(mode) => {
+            setAddModalMode(mode || 'url')
             setShowAddModal(true)
           }}
-          onToggleShare={() => setShowShare((prev) => !prev)}
-          showShare={showShare}
-          onOpenExportPlaylist={handleOpenExport}
-          hasMusic={hasMusic}
-          activeFilterCount={activeFilterCount}
         />
 
-        {/* Active Filter Strip (if any active filters) */}
-        {activeFilterCount > 0 && (
-          <div className="lib-active-filter-strip" data-enter>
-            <span>Active filters:</span>
-            {selectedKind && (
-              <span className="lib-active-filter-chip">
-                <span>Format: {selectedKind}</span>
-                <button
-                  type="button"
-                  className="lib-active-filter-remove"
-                  onClick={() => setSelectedKind('')}
-                >
-                  <Icon name="x" size={10} />
-                </button>
-              </span>
-            )}
-            {selectedRating && (
-              <span className="lib-active-filter-chip">
-                <Icon name="star" size={10} filled />
-                <span>
-                  {selectedRating === '5'
-                    ? '5★ Essential'
-                    : selectedRating === '4+'
-                    ? '4★+ High Impact'
-                    : 'Any Rated'}
-                </span>
-                <button
-                  type="button"
-                  className="lib-active-filter-remove"
-                  onClick={() => setSelectedRating('')}
-                >
-                  <Icon name="x" size={10} />
-                </button>
-              </span>
-            )}
-            {selectedCategory && (
-              <span className="lib-active-filter-chip">
-                <span>Category: {selectedCategory}</span>
-                <button
-                  type="button"
-                  className="lib-active-filter-remove"
-                  onClick={() => setSelectedCategory('')}
-                >
-                  <Icon name="x" size={10} />
-                </button>
-              </span>
-            )}
-            {selectedTag && (
-              <span className="lib-active-filter-chip">
-                <span>#{selectedTag}</span>
-                <button
-                  type="button"
-                  className="lib-active-filter-remove"
-                  onClick={() => setSelectedTag('')}
-                >
-                  <Icon name="x" size={10} />
-                </button>
-              </span>
-            )}
-            {query && (
-              <span className="lib-active-filter-chip">
-                <span>"{query}"</span>
-                <button
-                  type="button"
-                  className="lib-active-filter-remove"
-                  onClick={() => setQuery('')}
-                >
-                  <Icon name="x" size={10} />
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              className="lib-active-filter-clear-all"
-              onClick={handleClearFilters}
-            >
-              Clear all filters
-            </button>
-          </div>
-        )}
-
-        {/* Layout Area: Top Filter Hub + Full-Width Content Canvas */}
-        <div className="lib-layout w-full flex flex-col gap-4">
+        {/* Layout Area: Modern Segmented Filter Hub + Full-Width Content Canvas */}
+        <div className="lib-layout w-full flex flex-col gap-3">
           <LibraryFilterBar
             total={total}
             counts={counts}
@@ -638,10 +625,12 @@ export default function Library() {
             selectedCategory={selectedCategory}
             selectedTag={selectedTag}
             selectedRating={selectedRating}
+            query={query}
             onSelectKind={setSelectedKind}
             onSelectCategory={setSelectedCategory}
             onSelectTag={setSelectedTag}
             onSelectRating={setSelectedRating}
+            onClearQuery={() => setQuery('')}
             onClearFilters={handleClearFilters}
             isOpen={railOpen}
           />

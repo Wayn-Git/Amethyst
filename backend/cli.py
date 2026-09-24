@@ -1677,8 +1677,8 @@ def _relay(args: argparse.Namespace, asyncio) -> int:
         if not result.get("synced"):
             print(result.get("error") or result.get("note") or "the relay was not asked")
             return 1
-        print(f"took {result['pulled']}, acknowledged {result['acked']},"
-              f" {result['queued']} still waiting there")
+        print(f"deliveries: took {result['pulled']}, jobs: {result.get('jobs', 0)},"
+              f" acknowledged {result['acked']}, {result['queued']} still waiting there")
         return 0
 
     print(f"url:     {settings.relay_url or 'not set'}")

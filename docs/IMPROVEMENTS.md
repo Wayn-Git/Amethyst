@@ -52,6 +52,8 @@ dispatch_parallel_jobs([
 | `briefing` | Calendar/tasks/mail | `{period: "day"}` |
 | `todo` | Task management | `{action: "list"}` |
 | `rss` | RSS feeds | `{feeds: ["feed1"]}` |
+| `monitor` | Check watched pages for changes (hash of their readable text) | `{urls: ["https://…"]}` |
+| `subagent` | Run a subagent for autonomous work — local only, may reason | `{session_id, agent_type, prompt}` |
 
 ### Task Name Auto-Correction
 

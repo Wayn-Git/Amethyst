@@ -123,6 +123,7 @@ export function publicView(job: Job): Record<string, unknown> {
 export function desktopView(job: Job): Record<string, unknown> {
 	return {
 		...publicView(job),
+		params: job.params,
 		key: job.idempotencyKey,
 		origin: job.origin,
 		result: job.result,

@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 #: not something to be summarised.
 MIN_ENRICHABLE_CHARS = 15
 MAX_ENRICH_CHARS = 24_000
-ENRICH_TIMEOUT = 90.0
+ENRICH_TIMEOUT = 30.0
 #: Nobody is waiting on this, so it walks further than a turn would. The journal's
 #: reasoning, unchanged.
 BACKGROUND_FALLBACK_LINKS = 4
@@ -256,6 +256,8 @@ REAL_TEXT_SOURCES = (
     "caption and transcript",
     "visual content",
     "caption and visual content",
+    "transcript and visual content",
+    "caption and transcript and visual content",
     "slide analysis",
     "caption and slide analysis",
     "page",
@@ -713,7 +715,8 @@ async def _ask(
             )
         return Enrichment(note=f"{provider or 'the model'} could not be reached: {exc}")
 
-    parsed = parse_enrichment(response.text or "", source_text=source_text)
+    raw_text = getattr(response, "text", "") or ""
+    parsed = parse_enrichment(raw_text, source_text=source_text)
     if parsed is None:
         return Enrichment(
             note="the model did not answer in the expected format", provider=provider, model=model

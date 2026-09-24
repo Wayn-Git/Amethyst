@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 
 #: Where a person fixes any of this. One string, because an instruction that
 #: names the wrong screen is worse than one that names none.
-CONNECTORS_SCREEN = "Skills & connectors (Cmd/Ctrl+3), Connectors tab"
+CONNECTORS_SCREEN = "Skills & connectors (Cmd/Ctrl+4), Connectors tab"
 
 #: `is_signed_in` globs a credentials directory and parses JSON, and dispatch
 #: asks once per tool call. Short enough that pressing Connect is noticed within

@@ -23,7 +23,7 @@ like HTML arriving where JSON was expected.
 While working on the interface itself:
 
 ```bash
-amethyst serve                 # or: uvicorn amethyst.api.main:app --reload
+amethyst serve                 # or: uvicorn backend.api.main:app --reload
 cd frontend && npm run dev # http://localhost:5173, proxying /api to :8000
 ```
 
@@ -83,14 +83,23 @@ message box and the controls that act on the message, and nothing else.
 main.jsx
 └── AppProvider ............ store.jsx: view, health, conversations, capabilities
     └── App ................ one global keydown listener, the only one in the app
-        ├── Sidebar ........ places, every conversation, and what the machine has
+        ├── Sidebar ........ the rail: every place, and every conversation
+        ├── WorkbenchBar ... the top bar of the open place
         ├── Chat ........... transcript, pins, composer, + menu, permission prompts
-        ├── Capabilities ... Skills | Connectors — what is added and what could be
-        ├── Automations .... beta: a prompt, an interval, and what happened
-        ├── Tasks · Memory · Logs · Dashboard
+        │                    (stays mounted outside <Routes> — unmounting it
+        │                     mid-turn would drop the stream)
+        ├── Routes ......... every place but chat, one lazy chunk each —
+        │                    Today · Tasks · Mail · Skills & connectors ·
+        │                    Automations · Memory · Library · Activity ·
+        │                    Status · Remote. Settings is in the same list but
+        │                    imported eagerly. Each chunk warms on hover or on
+        │                    the keyboard shortcut reaching it.
+        ├── MobileNav ...... the phone's bottom bar
+        ├── wb-panel ....... a slot any view fills through a portal — collapses
+        │                    when nothing has anything to put there
         ├── CommandPalette . every action in one searchable list
-        ├── Settings ....... general, models, permissions — and links to the pages
-        └── Shortcuts ...... the keyboard reference
+        ├── Shortcuts ...... the keyboard reference
+        ├── OnboardingWizard / ConfirmDialogHost / Toasts
 ```
 
 The rail holds the conversations because that is what a person switches between
@@ -119,7 +128,7 @@ three surfaces: a Skills view, a Connectors view, and a Directory overlay that
 browsed both. So a connector had a page where it was managed and a different
 card where it was added, and a skill could appear twice with different controls
 in each place. **Adding is now done where managing is done**, on one page
-(`⌘3`) with a tab each.
+(`⌘4`) with a tab each.
 
 **Skills.** Installed and installable in one list, installed first, because a
 skill that exists in both places is one skill. The catalogue is read from its
@@ -255,7 +264,7 @@ feel broken.
 
 ## Automations — beta
 
-`⌘4`, and marked beta in the rail, on the page and in the API payload. A prompt
+`⌘5`, and marked beta in the rail, on the page and in the API payload. A prompt
 and an interval, run as an ordinary turn in a conversation of its own.
 
 The page states the two beta positions rather than burying them, because both
@@ -267,6 +276,29 @@ approving those deliberately rather than exempting scheduled work from the gate.
 
 Both decisions, and what is deliberately absent, are argued in
 [architecture/automation.md](architecture/automation.md).
+
+## Library
+
+`⌘9`, and the one page whose primary control is a box that does two things:
+type a URL and press Enter and it captures; type anything else and it searches.
+The hint text says which is about to happen, and the Save button only appears
+when a URL is under the cursor.
+
+Beside it: sort order, and **More capture options** — upload a file, write a
+note, or look up a Wikipedia topic. The header's **Sync & Capture** button opens
+the three ways content arrives from outside: the bookmarklet, the phone, and the
+Instagram relay. (Its tooltip also promises "browser", but there is no client
+for the bookmark-sync routes in the interface yet — that path is
+`amethyst bookmarks` in a terminal.)
+
+Below the box, the store itself: a grid or list toggle, filters over kind,
+category and tag with counts the API already tallied, a tag rail, and a detail
+modal for one item — read it, edit it, re-run enrichment, reindex it, or delete
+it (which also removes its markdown, thumbnail and media).
+
+The capture box and the search box are one input on purpose. Two fields where
+one will do means deciding which one you are about to use, on a page whose
+entire job is "find it or keep it".
 
 ## The permission prompt
 
@@ -305,13 +337,20 @@ is not on screen is not a decision anyone can make well.
 | `Ctrl/⌘ ,` | Settings |
 | `Ctrl/⌘ M` | Memory on or off |
 | `Ctrl/⌘ B` | Show or hide the rail |
-| `Ctrl/⌘ 1…6` | Chat, Tasks, Skills, Connectors, Memory, Activity |
+| `Ctrl/⌘ 1…9` | 1 Chat · 2 Tasks · 3 Mail (beta) · 4 Skills & connectors · 5 Automations (beta) · 6 Memory · 7 Activity · 8 Today · 9 Library |
 | `Ctrl/⌘ ↑ / ↓` | Previous / next conversation |
 | `F2` | Rename the open conversation |
 | `?` | The shortcut list |
 | `Escape` | Close what is open, or stop the running turn |
 | `Enter` / `⇧ Enter` | Send / new line |
 | `/name` | Engage a skill; `↑` in an empty composer recalls the last message |
+
+Digits are bound to a place, not to its position in the rail — Today sits second
+and carries `8`, because renumbering seven digits people already have in their
+fingers is a worse trade than one entry whose position and digit disagree. Mail
+(`3`) and Automations (`5`) are beta: switched off, they are gone from the rail
+*and* from the digit, so those two keys answer nothing until Settings → Beta
+pages turns them on.
 
 Stopping is a request, not an abort: `Escape` asks the server to end the turn,
 which cancels the tool call in flight and closes the stream with a `guard`
