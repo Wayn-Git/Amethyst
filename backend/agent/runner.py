@@ -201,33 +201,46 @@ class SubagentRunner:
                 # Build the wire messages
                 wire = [{"role": "system", "content": system_prompt}, *history]
 
-                # Call the model
+                # Call the model with retries for transient stream interruptions
                 response = None
-                try:
-                    if self.stream and hasattr(model.client, "stream"):
-                        streamed_text: list[str] = []
-                        async for chunk in model.client.stream(
-                            wire, tools=tool_schemas_this, params=ModelParameters()
-                        ):
-                            if chunk.type == "text" and chunk.text:
-                                streamed_text.append(chunk.text)
-                                said.append(chunk.text)
-                                yield {"type": "delta", "text": chunk.text}
-                            elif chunk.type == "done":
-                                response = chunk.response
-                        if response is None and streamed_text:
-                            response = ModelResponse(
-                                text="".join(streamed_text),
-                                stop_reason="stop",
+                max_subagent_attempts = 3
+                for subagent_attempt in range(max_subagent_attempts):
+                    try:
+                        if self.stream and hasattr(model.client, "stream"):
+                            streamed_text: list[str] = []
+                            async for chunk in model.client.stream(
+                                wire, tools=tool_schemas_this, params=ModelParameters()
+                            ):
+                                if chunk.type == "text" and chunk.text:
+                                    streamed_text.append(chunk.text)
+                                    said.append(chunk.text)
+                                    yield {"type": "delta", "text": chunk.text}
+                                elif chunk.type == "done":
+                                    response = chunk.response
+                            if response is None and streamed_text:
+                                response = ModelResponse(
+                                    text="".join(streamed_text),
+                                    stop_reason="stop",
+                                )
+                        else:
+                            response = await model.client.complete(
+                                wire, tools=tool_schemas_this, params=ModelParameters()
                             )
-                    else:
-                        response = await model.client.complete(
-                            wire, tools=tool_schemas_this, params=ModelParameters()
-                        )
-                except Exception as exc:
-                    log.warning("Subagent model call failed: %s", exc)
-                    yield {"type": "error", "message": f"Model call failed: {exc}"}
-                    return
+                        break
+                    except Exception as exc:
+                        if subagent_attempt < max_subagent_attempts - 1:
+                            log.warning(
+                                "Subagent model call failed (%s); retrying (%d/%d)",
+                                exc,
+                                subagent_attempt + 1,
+                                max_subagent_attempts,
+                            )
+                            await asyncio.sleep(min(1.5 ** subagent_attempt, 3.0))
+                            continue
+                        log.warning("Subagent model call failed after retries: %s", exc)
+                        clean_msg = "Model stream interrupted" if "input stream" in str(exc).lower() else str(exc)
+                        yield {"type": "error", "message": f"Model call failed: {clean_msg}"}
+                        return
 
                 if response is None:
                     yield {"type": "error", "message": "No response from model"}

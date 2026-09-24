@@ -52,6 +52,9 @@ const VENDOR_PRESETS = [
   { slug: 'google', name: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', default_model: 'gemini-1.5-flash-latest', hint: 'Direct Gemini OpenAI compatibility' },
   { slug: 'groq', name: 'Groq', base_url: 'https://api.groq.com/openai/v1', default_model: 'llama-3.3-70b-versatile', hint: 'Ultra-low latency Llama & Mixtral' },
   { slug: 'mistral', name: 'Mistral AI', base_url: 'https://api.mistral.ai/v1', default_model: 'mistral-large-latest', hint: 'European enterprise frontier models' },
+  { slug: 'nvidia', name: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', default_model: 'nvidia/llama-3.1-nemotron-70b-instruct', hint: 'Enterprise inference microservices' },
+  { slug: 'kilocode', name: 'Kilo Code', base_url: 'https://api.kilo.ai/api/gateway', default_model: 'stepfun/step-3.7-flash:free', hint: 'Fast multi-model gateway' },
+  { slug: 'opencode-zen', name: 'OpenCode Zen', base_url: '', default_model: '', hint: 'OpenCode inference gateway' },
   { slug: 'ollama', name: 'Ollama (Local)', base_url: 'http://localhost:11434/v1', default_model: 'llama3:8b', hint: 'Run local open-source models completely offline' },
   { slug: 'openrouter', name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', default_model: 'meta-llama/llama-3.3-70b-instruct:free', hint: 'Unified access to all model endpoints' },
   { slug: 'together', name: 'Together AI', base_url: 'https://api.together.xyz/v1', default_model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', hint: 'Open-weights serverless inference' },
@@ -1021,7 +1024,7 @@ function Models() {
   const loadProviders = useCallback(async () => {
     try {
       const data = await api.providers()
-      setProviders(data.providers || [])
+      setProviders(data.configured || [])
     } catch (err) {
       toast(err.message, 'bad')
     }
@@ -1046,7 +1049,7 @@ function Models() {
         }
       }
       setLatencies(newLatencies)
-      toast('Provider ping complete', 'ok')
+      toast('Latency check complete', 'ok')
     } catch {
       toast('Failed to ping providers', 'amber')
     } finally {
@@ -1059,6 +1062,16 @@ function Models() {
     loadRouting()
     pingAll()
   }, [loadProviders, loadRouting, pingAll])
+
+  const handleSetPrimary = async (pName) => {
+    try {
+      await api.setPrimaryProvider(pName)
+      toast(`Primary route set to ${pName}`, 'ok')
+      await Promise.all([loadProviders(), loadRouting()])
+    } catch (err) {
+      toast(err.message || 'Failed to set primary route', 'bad')
+    }
+  }
 
   const handleToggleAccordion = async (pName) => {
     if (expandedProvider === pName) {
@@ -1093,7 +1106,7 @@ function Models() {
     }
   }
 
-  const handleMoveLadder = (index, dir) => {
+  const handleMoveLadder = async (index, dir) => {
     const next = [...routingLadder]
     const target = index + dir
     if (target < 0 || target >= next.length) return
@@ -1101,6 +1114,13 @@ function Models() {
     next[index] = next[target]
     next[target] = temp
     setRoutingLadder(next)
+    try {
+      await api.reorderProviders(next)
+      await loadProviders()
+      toast('Routing priority ladder updated', 'ok')
+    } catch (err) {
+      toast(err.message || 'Failed to update priority ladder', 'bad')
+    }
   }
 
   const activeProvider = providers.find((p) => p.enabled) || providers[0]
@@ -1109,20 +1129,39 @@ function Models() {
     <div className="set-panel">
       {/* Active Model Status Hero Banner */}
       {activeProvider && (
-        <div className="set-box" style={{ marginBottom: 24, padding: '16px 20px', background: 'color-mix(in srgb, var(--accent) 5%, var(--raised))', border: '1px solid color-mix(in srgb, var(--accent) 25%, var(--hairline))' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div
+          className="set-box"
+          style={{
+            marginBottom: 24,
+            padding: '16px 20px',
+            background: 'var(--raised)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '10px', background: 'var(--raised)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--hairline)' }}>
-                <AiProviderIcon provider={activeProvider.name} size={20} />
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '10px',
+                  background: 'var(--surface-2, var(--surface))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid var(--hairline)',
+                  flexShrink: 0,
+                }}
+              >
+                <AiProviderIcon provider={activeProvider.name} size={22} />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: '14.5px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
                     {activeProvider.name}
                   </span>
-                  <Badge tone="live">
-                    Primary Route
-                  </Badge>
+                  <Badge tone="live">Primary Route</Badge>
+                  {activeProvider.core && <Badge tone="neutral">Core Gateway</Badge>}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
                   {activeProvider.default_model || activeProvider.model || 'Auto Adaptive Fallback'}
@@ -1130,12 +1169,35 @@ function Models() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               {latencies[activeProvider.name] !== undefined && (
                 <span className={`latency-pill ${latencies[activeProvider.name] === 'off' ? 'latency-pill--bad' : 'latency-pill--ok'}`}>
-                  {latencies[activeProvider.name] === 'off' ? 'Offline' : `${latencies[activeProvider.name]}ms round-trip`}
+                  {latencies[activeProvider.name] === 'off' ? 'Offline' : `${latencies[activeProvider.name]}ms`}
                 </span>
               )}
+
+              {/* Primary Route Picker */}
+              {providers.length > 1 && (
+                <div style={{ minWidth: 160 }}>
+                  <AnimatedSelect
+                    value={activeProvider.name}
+                    onChange={handleSetPrimary}
+                    options={providers.filter((p) => p.enabled).map((p) => ({
+                      value: p.name,
+                      label: p.name.charAt(0).toUpperCase() + p.name.slice(1),
+                    }))}
+                    renderIcon={(opt) => (
+                      <div style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <AiProviderIcon provider={opt.value} size={14} />
+                      </div>
+                    )}
+                    placeholder="Switch Primary…"
+                    minWidth={170}
+                    align="right"
+                  />
+                </div>
+              )}
+
               <button
                 type="button"
                 className="set-btn-sm"
@@ -1144,7 +1206,7 @@ function Models() {
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
                 <Icon name="refresh" size={12} className={pinging ? 'spin' : ''} />
-                <span>Test Latency</span>
+                <span>{pinging ? 'Pinging…' : 'Ping All'}</span>
               </button>
             </div>
           </div>
@@ -1152,29 +1214,28 @@ function Models() {
       )}
 
       {/* Category: Configured Providers */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 10px' }}>
         <div>
           <span className="set-section-label" style={{ margin: 0 }}>Configured Providers ({providers.length})</span>
           <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-dim)', marginTop: 2 }}>
-            Click any provider row to explore its available models and capabilities.
+            Manage endpoints, default models, and priority fallback routing.
           </span>
         </div>
         <button
           type="button"
-          className="set-btn-sm"
-          onClick={pingAll}
-          disabled={pinging}
+          className="set-btn-sm is-primary"
+          onClick={() => setShowAddModal(true)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          <Icon name="refresh" size={13} className={pinging ? 'spin' : ''} />
-          <span>{pinging ? 'Pinging…' : 'Ping All'}</span>
+          <Icon name="plus" size={12} />
+          <span>Add Provider</span>
         </button>
       </div>
 
       <div className="set-box" style={{ marginBottom: 24 }}>
         {providers.length === 0 ? (
-          <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>
-            No providers configured. Click &ldquo;Add Provider&rdquo; below to connect an endpoint.
+          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>
+            No providers configured. Click &ldquo;Add Provider&rdquo; above to connect an endpoint.
           </div>
         ) : (
           providers.map((p, idx) => {
@@ -1182,6 +1243,7 @@ function Models() {
             const isExpanded = expandedProvider === p.name
             const modelsList = providerModelsMap[p.name] || []
             const isLoading = loadingModels[p.name]
+            const isPrimary = activeProvider && p.name === activeProvider.name
 
             return (
               <div key={p.name} style={{ borderBottom: idx < providers.length - 1 ? '1px solid var(--hairline)' : 'none' }}>
@@ -1191,15 +1253,20 @@ function Models() {
                   style={{ cursor: 'pointer', userSelect: 'none', borderBottom: 'none' }}
                 >
                   <div className="set-row-left">
-                    <div className="set-row-icon-box" style={{ width: 32, height: 32 }}>
+                    <div className="set-row-icon-box">
                       <AiProviderIcon provider={p.name} size={16} />
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className="set-row-title" style={{ textTransform: 'capitalize', fontSize: '13px' }}>
+                        <span className="set-row-title" style={{ textTransform: 'capitalize', fontSize: '13.5px' }}>
                           {p.name}
                         </span>
-                        {p.core && <Badge tone="neutral" style={{ fontSize: '9.5px', padding: '1px 5px' }}>Core</Badge>}
+                        {isPrimary && (
+                          <Badge tone="live" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                            Primary
+                          </Badge>
+                        )}
+                        {p.core && <Badge tone="neutral" style={{ fontSize: '10px', padding: '1px 6px' }}>Core</Badge>}
                       </div>
                       <span className="set-row-desc" style={{ fontFamily: 'var(--font-mono)', fontSize: '11.5px' }}>
                         {p.default_model || p.model || 'OpenAI Compatible Gateway'}
@@ -1207,7 +1274,7 @@ function Models() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {lat !== undefined && (
                       <span
                         className={`latency-pill ${lat === 'off' ? 'latency-pill--bad' : 'latency-pill--ok'}`}
@@ -1215,6 +1282,23 @@ function Models() {
                         {lat === 'off' ? 'Offline' : `${lat}ms`}
                       </span>
                     )}
+
+                    {!isPrimary && (
+                      <button
+                        type="button"
+                        className="set-btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleSetPrimary(p.name)
+                        }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        title="Set this provider as the primary route"
+                      >
+                        <Icon name="star" size={11} />
+                        <span>Make Primary</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="set-btn-sm"
@@ -1255,26 +1339,26 @@ function Models() {
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      style={{ overflow: 'hidden', background: 'color-mix(in srgb, var(--surface) 60%, transparent)', borderTop: '1px solid var(--hairline)' }}
+                      style={{ overflow: 'hidden', background: 'var(--surface-2, var(--canvas-deep))', borderTop: '1px solid var(--hairline)' }}
                     >
-                      <div style={{ padding: '14px 20px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ padding: '14px 18px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Icon name="cpu" size={12} />
                           <span>Available Models Catalog ({modelsList.length})</span>
                         </div>
 
                         {isLoading ? (
-                          <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '12px' }}>
+                          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '12px' }}>
                             <Icon name="refresh" size={14} className="spin" style={{ marginRight: 6 }} />
                             Fetching endpoints from {p.name}…
                           </div>
                         ) : modelsList.length === 0 ? (
-                          <div style={{ padding: '14px 0', color: 'var(--text-dim)', fontSize: '12px' }}>
+                          <div style={{ padding: '12px 0', color: 'var(--text-dim)', fontSize: '12px' }}>
                             No model list returned by provider API. You can specify any model ID in Cognitive Tiers below.
                           </div>
                         ) : (
-                          <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {modelsList.slice(0, 30).map((m) => {
+                          <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            {modelsList.slice(0, 40).map((m) => {
                               const isDefault = (p.default_model || p.model) === m.id
                               return (
                                 <div
@@ -1283,19 +1367,19 @@ function Models() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'space-between',
-                                    padding: '7px 12px',
-                                    borderRadius: '8px',
-                                    background: isDefault ? 'var(--accent-soft)' : 'color-mix(in srgb, var(--text) 2%, transparent)',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    background: isDefault ? 'var(--accent-soft)' : 'var(--raised)',
                                     border: isDefault ? '1px solid var(--accent)' : '1px solid var(--hairline)',
                                   }}
                                 >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {m.id}
                                     </span>
-                                    {isDefault && <Badge tone="ok">Current Default</Badge>}
+                                    {isDefault && <Badge tone="ok" style={{ fontSize: '9.5px', padding: '1px 5px' }}>Current Default</Badge>}
                                   </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                     {m.context_length && (
                                       <span style={{ fontSize: '10.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
                                         {Math.round(m.context_length / 1000)}k ctx
@@ -1315,17 +1399,6 @@ function Models() {
             )
           })
         )}
-        <div style={{ padding: '12px 18px', background: 'color-mix(in srgb, var(--text) 1.5%, transparent)', borderTop: '1px solid var(--hairline)' }}>
-          <button
-            type="button"
-            className="set-btn-sm is-primary"
-            onClick={() => setShowAddModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <Icon name="plus" size={13} />
-            <span>Add Provider</span>
-          </button>
-        </div>
       </div>
 
       {/* Category: Cognitive Tiers */}
@@ -1340,26 +1413,39 @@ function Models() {
           <div className="set-section-label">Routing Priority Ladder</div>
           <div className="set-box">
             <div style={{ padding: '10px 18px', fontSize: '12px', color: 'var(--text-dim)', borderBottom: '1px solid var(--hairline)' }}>
-              Order candidates are evaluated in during automated fallback. Top is primary candidate.
+              Order candidates are evaluated in during automated fallback. Top (#1) candidate is the primary route.
             </div>
             {routingLadder.map((cand, idx) => (
               <div key={cand} className="set-box-row">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--accent)', width: 20 }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: idx === 0 ? 'var(--live)' : 'var(--text-dim)', width: 24, fontWeight: idx === 0 ? 600 : 400 }}>
                     #{idx + 1}
                   </span>
                   <AiProviderIcon provider={cand} size={15} />
                   <span style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--text)', textTransform: 'capitalize' }}>
                     {cand}
                   </span>
+                  {idx === 0 && <Badge tone="live" style={{ fontSize: '9.5px', padding: '1px 5px' }}>Primary</Badge>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {idx !== 0 && (
+                    <button
+                      type="button"
+                      className="set-btn-sm"
+                      onClick={() => handleSetPrimary(cand)}
+                      style={{ padding: '3px 8px', fontSize: '11px' }}
+                      title="Move directly to primary"
+                    >
+                      Make Top
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="set-btn-sm"
                     disabled={idx === 0}
                     onClick={() => handleMoveLadder(idx, -1)}
                     style={{ padding: '4px 8px' }}
+                    title="Move up"
                   >
                     ↑
                   </button>
@@ -1369,6 +1455,7 @@ function Models() {
                     disabled={idx === routingLadder.length - 1}
                     onClick={() => handleMoveLadder(idx, 1)}
                     style={{ padding: '4px 8px' }}
+                    title="Move down"
                   >
                     ↓
                   </button>
@@ -1392,7 +1479,7 @@ function Models() {
         />
       )}
 
-      {/* Add Provider Modal with Smooth Spring Animations */}
+      {/* Add Provider Modal */}
       <AnimatePresence>
         {showAddModal && (
           <AddProviderModal
@@ -1400,6 +1487,7 @@ function Models() {
             onAdded={() => {
               setShowAddModal(false)
               loadProviders()
+              loadRouting()
               pingAll()
             }}
           />
@@ -1409,7 +1497,6 @@ function Models() {
   )
 }
 
-/* Edit Provider Modal Component */
 function EditKeyModal({ provider, onClose, onSaved }) {
   const { toast } = useApp()
   const [key, setKey] = useState('')
@@ -1422,6 +1509,7 @@ function EditKeyModal({ provider, onClose, onSaved }) {
     try {
       await api.addProvider({
         name: provider.name,
+        api_key: key.trim(),
         key: key.trim(),
         base_url: url.trim() || undefined,
         default_model: provider.default_model || provider.model,
@@ -1545,6 +1633,7 @@ function AddProviderModal({ onClose, onAdded }) {
     try {
       await api.addProvider({
         name: name.trim().toLowerCase(),
+        api_key: key.trim(),
         key: key.trim(),
         base_url: url.trim() || undefined,
         default_model: model.trim() || undefined,
@@ -1775,8 +1864,7 @@ function RolesEditor({ providers = [] }) {
   const [tiers, setTiers] = useState({})
   const [busy, setBusy] = useState('')
   const [allProviders, setAllProviders] = useState(() => {
-    const list = providers.length > 0 ? providers : ['kilocode', 'mistral', 'google', 'openai', 'anthropic', 'groq', 'deepseek', 'ollama', 'nvidia']
-    return list
+    return providers.length > 0 ? providers : ['kilocode', 'mistral', 'google', 'openai', 'anthropic', 'groq', 'deepseek', 'ollama', 'nvidia']
   })
 
   const load = useCallback(async () => {
@@ -1786,7 +1874,7 @@ function RolesEditor({ providers = [] }) {
     } catch {}
     try {
       const p = await api.providers()
-      const configured = (p?.providers || []).map((x) => x.name)
+      const configured = (p?.configured || []).map((x) => x.name)
       const catalogue = (p?.catalogue || []).map((x) => x.slug)
       const merged = Array.from(new Set([...configured, ...providers, ...catalogue, ...KNOWN_PROVIDER_CATALOG.map((k) => k.value)]))
       setAllProviders(merged)
@@ -1830,6 +1918,7 @@ function RolesEditor({ providers = [] }) {
           role={r}
           current={tiers[r.id]}
           providers={allProviders}
+          configuredProviders={providers}
           busy={busy === r.id}
           onSave={handleSave}
           onClear={handleClear}
@@ -1839,20 +1928,26 @@ function RolesEditor({ providers = [] }) {
   )
 }
 
-function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
-  const [provider, setProvider] = useState(() => current?.provider || providers[0] || 'mistral')
-  const [model, setModel] = useState(() => current?.model || '')
+function RoleRow({ role, current, providers = [], configuredProviders = [], busy, onSave, onClear }) {
+  const currentProvider = current?.provider || ''
+  const currentModel = current?.model || ''
+
+  const [provider, setProvider] = useState(() => currentProvider || providers[0] || 'mistral')
+  const [model, setModel] = useState(() => currentModel || '')
   const [models, setModels] = useState([])
   const [loadingModels, setLoadingModels] = useState(false)
 
+  // CRITICAL FIX: Only sync when current tier props change from outside,
+  // NEVER include local `provider` in dependencies so selecting a provider is never reset!
   useEffect(() => {
-    if (current?.provider) {
-      setProvider(current.provider)
-      setModel(current.model || '')
+    if (currentProvider) {
+      setProvider(currentProvider)
+      setModel(currentModel)
     } else if (providers.length > 0 && !provider) {
       setProvider(providers[0])
+      setModel('')
     }
-  }, [current, providers, provider])
+  }, [currentProvider, currentModel])
 
   useEffect(() => {
     if (!provider) return
@@ -1880,6 +1975,11 @@ function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
           }
         }
         setModels(merged)
+        // If current model is empty, auto-pick first recommended option
+        setModel((prev) => {
+          if (prev && merged.some((m) => m.value === prev)) return prev
+          return merged[0]?.value || prev || ''
+        })
       })
       .catch(() => {
         if (!active) return
@@ -1889,6 +1989,10 @@ function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
           hint: p.label !== p.id ? p.label : undefined,
         }))
         setModels(presets)
+        setModel((prev) => {
+          if (prev && presets.some((p) => p.value === prev)) return prev
+          return presets[0]?.value || prev || ''
+        })
       })
       .finally(() => {
         if (active) setLoadingModels(false)
@@ -1896,17 +2000,27 @@ function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
     return () => { active = false }
   }, [provider])
 
+  const handleProviderSelect = (newP) => {
+    setProvider(newP)
+    const presets = POPULAR_PROVIDER_MODELS[newP.toLowerCase()] || []
+    if (presets.length > 0) {
+      setModel(presets[0].id)
+    }
+  }
+
   const dirty = provider !== (current?.provider || '') || model !== (current?.model || '')
 
   const providerOptions = useMemo(() => {
     return providers.map((p) => {
       const known = KNOWN_PROVIDER_CATALOG.find((k) => k.value === p)
+      const isConfigured = configuredProviders.includes(p)
       return {
         value: p,
         label: known ? known.label : p.charAt(0).toUpperCase() + p.slice(1),
+        hint: isConfigured ? 'Configured' : undefined,
       }
     })
-  }, [providers])
+  }, [providers, configuredProviders])
 
   return (
     <div className="set-box-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 12, padding: '16px 18px' }}>
@@ -1931,14 +2045,11 @@ function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', flexWrap: 'wrap' }}>
-        {/* Provider Searchable Dropdown with Brand SVG Icons */}
-        <div style={{ minWidth: 160 }}>
+        {/* Provider Searchable Dropdown */}
+        <div style={{ minWidth: 170 }}>
           <AnimatedSelect
             value={provider}
-            onChange={(val) => {
-              setProvider(val)
-              setModel('')
-            }}
+            onChange={handleProviderSelect}
             options={providerOptions}
             placeholder="Select provider…"
             searchable={true}
@@ -1953,7 +2064,7 @@ function RoleRow({ role, current, providers = [], busy, onSave, onClear }) {
           />
         </div>
 
-        {/* Model Searchable Dropdown with Brand SVG Icons & Custom Input Support */}
+        {/* Model Searchable Dropdown */}
         <div style={{ flex: 1, minWidth: 220 }}>
           <AnimatedSelect
             value={model}
@@ -2314,31 +2425,7 @@ function Usage() {
       const res = await api.usageWindows()
       setData(res)
     } catch {
-      // Fallback to direct routing if usage windows endpoint unavailable
-      try {
-        const routeRes = await api.routing()
-        if (routeRes?.providers) {
-          const defaultFams = ['DEEPSEEK', 'GLM', 'KIMI', 'LUNA', 'MINIMAX', 'MISTRAL', 'QWEN']
-          setData({
-            plan_title: 'FREE LAUNCH',
-            plan_subtitle: `${defaultFams.length} FAMILIES · NO CARD REQUIRED`,
-            access_ends: '4D 19H',
-            next_reset: '4D 19H',
-            windows_at_zero: 0,
-            families_count: defaultFams.length,
-            families: defaultFams.map((name) => ({
-              name,
-              runs_5h: 0,
-              runs_7d: 0,
-              left_5h_pct: 100,
-              left_7d_pct: 100,
-              ticks_5h_filled: 18,
-              ticks_7d_filled: 18,
-              resets_in: '4h 19m',
-            })),
-          })
-        }
-      } catch {}
+      // Usage endpoint unavailable — show empty state
     } finally {
       setLoading(false)
     }
@@ -2346,15 +2433,7 @@ function Usage() {
 
   useEffect(() => { load() }, [load])
 
-  const families = data?.families || [
-    { name: 'KILOCODE', provider: 'kilocode', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'MISTRAL', provider: 'mistral', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'GOOGLE', provider: 'google', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'NVIDIA', provider: 'nvidia', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'NOUS', provider: 'nous', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'OPENCODE', provider: 'opencode.ai', left_5h_pct: 100, left_7d_pct: 100, ticks_5h_filled: 18, ticks_7d_filled: 18, resets_in: '4h 15m' },
-    { name: 'CLOUDFLARE', provider: 'cloudflare', left_5h_pct: 0, left_7d_pct: 0, ticks_5h_filled: 0, ticks_7d_filled: 0, resets_in: '4h 15m' },
-  ]
+  const families = data?.families || []
 
   const activeHover = hoveredFamily ? families.find((f) => f.name === hoveredFamily) : null
 

@@ -9,6 +9,7 @@ import { EmptyState } from '../components/application/empty-state/empty-state.ts
 import ErrorState from '../components/ui/ErrorState.jsx'
 
 import LibraryToolbar from './library/LibraryToolbar.jsx'
+import LibraryFilterBar from './library/LibraryFilterBar.jsx'
 import LibraryTagRail from './library/LibraryTagRail.jsx'
 import LibraryGrid from './library/LibraryGrid.jsx'
 import LibraryListView from './library/LibraryListView.jsx'
@@ -43,6 +44,7 @@ export default function Library() {
   const [selectedKind, setSelectedKind] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
+  const [selectedRating, setSelectedRating] = useState('')
   const [order, setOrder] = useState('desc')
   const [layout, setLayout] = useState(() => safeStorage.getItem('amethyst_lib_layout', 'grid'))
   const [railOpen, setRailOpen] = useState(() => safeStorage.getItem('amethyst_lib_rail') !== 'false')
@@ -116,41 +118,54 @@ export default function Library() {
       setCategoryCounts(data.category_counts || {})
       setTagCounts(data.tag_counts || {})
       setError(null)
+      setLoaded(true)
     } catch (err) {
-      if (loadToken.current === token) setError(err.message)
-    } finally {
+      if (loadToken.current !== token) return
+      setError(err.message)
       setLoaded(true)
     }
   }, [query, selectedKind, selectedCategory, selectedTag, order])
 
-  // Debounced search
+  // Sync params with URL state
   useEffect(() => {
-    if (!query) {
-      load()
-      return
-    }
-    const timer = setTimeout(load, 250)
-    return () => clearTimeout(timer)
-  }, [load, query])
+    const q = params.get('q') || ''
+    const kind = params.get('kind') || ''
+    const cat = params.get('category') || ''
+    const tag = params.get('tag') || ''
+    const ratingParam = params.get('rating') || ''
+    if (q !== query) setQuery(q)
+    if (kind !== selectedKind) setSelectedKind(kind)
+    if (cat !== selectedCategory) setSelectedCategory(cat)
+    if (tag !== selectedTag) setSelectedTag(tag)
+    if (ratingParam !== selectedRating) setSelectedRating(ratingParam)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Bookmarklet prefill handler (smoke test requirement)
+  // Update URL params when filters change
   useEffect(() => {
-    const incoming = params.get('url')
-    if (!incoming) return
-    setQuickCaptureText(incoming)
-    params.delete('url')
-    setParams(params, { replace: true })
-    setTimeout(() => captureInputRef.current?.focus(), 100)
-  }, [params, setParams])
+    const next = new URLSearchParams()
+    if (query) next.set('q', query)
+    if (selectedKind) next.set('kind', selectedKind)
+    if (selectedCategory) next.set('category', selectedCategory)
+    if (selectedTag) next.set('tag', selectedTag)
+    if (selectedRating) next.set('rating', selectedRating)
+    setParams(next, { replace: true })
+  }, [query, selectedKind, selectedCategory, selectedTag, selectedRating, setParams])
 
-  // Keyboard shortcuts (Ctrl+K to Add, Ctrl+/ to Search)
+  // Trigger data load
+  useEffect(() => {
+    load()
+  }, [load])
+
+  // Global keyboard shortcuts (Cmd+K / Ctrl+K to open add modal, Cmd+/ for search)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        captureInputRef.current?.focus() || setShowAddModal(true)
+        setAddModalMode('url')
+        setShowAddModal(true)
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault()
         searchInputRef.current?.focus()
       }
@@ -159,17 +174,12 @@ export default function Library() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Background poller for enriching items
+  // Poll active processing items
   useEffect(() => {
     if (activeProcessingIds.current.size === 0) return
 
     const interval = setInterval(async () => {
       const ids = Array.from(activeProcessingIds.current)
-      if (ids.length === 0) {
-        clearInterval(interval)
-        return
-      }
-
       for (const id of ids) {
         try {
           const updated = await api.libraryItem(id)
@@ -272,20 +282,10 @@ export default function Library() {
           )
         )
 
-        toast(
-          saved.already_logged
-            ? `Already in library: ${saved.title}`
-            : `Added: ${saved.title}`,
-          'ok'
-        )
+        toast(isStillEnriching ? 'Saved! AI analysis in background...' : 'Saved to library', 'ok')
 
-        const meta = await api.library({
-          q: query,
-          kind: selectedKind,
-          category: selectedCategory,
-          tag: selectedTag,
-          order,
-        })
+        // Refresh counts
+        const meta = await api.library()
         setCounts(meta.counts || {})
         setCategoryCounts(meta.category_counts || {})
         setTagCounts(meta.tag_counts || {})
@@ -294,35 +294,31 @@ export default function Library() {
         toast(err.message, 'bad')
       }
     },
-    [query, selectedKind, selectedCategory, selectedTag, order, toast]
+    [toast]
   )
 
-  // Omnibar submit
-  const handleQuickCaptureSubmit = async (e) => {
-    e?.preventDefault()
+  // Omnibar submit handler
+  const handleQuickCaptureSubmit = (e) => {
+    e.preventDefault()
     const text = quickCaptureText.trim()
     if (!text) return
 
-    setQuickCaptureText('')
-    if (/^https?:\/\//i.test(text) || (text.includes('.') && !text.includes(' '))) {
-      await handleAddResource({ url: text.startsWith('http') ? text : `https://${text}` })
+    const isUrl = /^https?:\/\//i.test(text)
+    if (isUrl) {
+      handleAddResource({ url: text })
     } else {
-      await handleAddResource({
-        title: text.length > 50 ? `${text.slice(0, 48)}...` : text,
-        kind: 'note',
-        notes: text,
-      })
+      handleAddResource({ notes: text, title: text.slice(0, 48) })
     }
+    setQuickCaptureText('')
   }
 
-  // Reindex, Enrich, Delete
-  const handleReindex = useCallback(
+  const handleEnrich = useCallback(
     async (item) => {
       setBusyId(item.id)
       try {
-        const updated = await api.reindexLibraryItem(item.id)
+        const updated = await api.enrichLibraryItem(item.id)
         setItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)))
-        toast('Indexed again for search', 'ok')
+        toast('Enriched with AI', 'ok')
       } catch (err) {
         toast(err.message, 'bad')
       } finally {
@@ -332,16 +328,13 @@ export default function Library() {
     [toast]
   )
 
-  const handleEnrich = useCallback(
+  const handleReindex = useCallback(
     async (item) => {
       setBusyId(item.id)
       try {
-        const updated = await api.enrichLibraryItem(item.id)
+        const updated = await api.reindexLibraryItem(item.id)
         setItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)))
-        toast('Synthesized with AI', 'ok')
-        const meta = await api.library()
-        setTagCounts(meta.tag_counts || {})
-        setCategoryCounts(meta.category_counts || {})
+        toast('Re-indexed embeddings', 'ok')
       } catch (err) {
         toast(err.message, 'bad')
       } finally {
@@ -380,6 +373,7 @@ export default function Library() {
     setSelectedKind('')
     setSelectedCategory('')
     setSelectedTag('')
+    setSelectedRating('')
     setQuery('')
   }, [])
 
@@ -387,6 +381,29 @@ export default function Library() {
     () => Object.values(counts).reduce((sum, n) => sum + n, 0),
     [counts]
   )
+
+  // Compute live rating statistics from items
+  const ratingCounts = useMemo(() => {
+    let count5 = 0
+    let count4plus = 0
+    let countRated = 0
+    for (const it of items) {
+      const r = it.rating || 0
+      if (r === 5) count5++
+      if (r >= 4) count4plus++
+      if (r > 0) countRated++
+    }
+    return { '5': count5, '4+': count4plus, 'rated': countRated }
+  }, [items])
+
+  // Filter items reactively by selectedRating
+  const displayedItems = useMemo(() => {
+    if (!selectedRating) return items
+    if (selectedRating === '5') return items.filter((it) => it.rating === 5)
+    if (selectedRating === '4+') return items.filter((it) => (it.rating || 0) >= 4)
+    if (selectedRating === 'rated') return items.filter((it) => (it.rating || 0) > 0)
+    return items
+  }, [items, selectedRating])
 
   const appCounts = useMemo(() => {
     const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify']
@@ -406,6 +423,7 @@ export default function Library() {
     (selectedKind ? 1 : 0) +
     (selectedCategory ? 1 : 0) +
     (selectedTag ? 1 : 0) +
+    (selectedRating ? 1 : 0) +
     (query ? 1 : 0)
 
   const hasMusic = Boolean(
@@ -542,6 +560,25 @@ export default function Library() {
                 </button>
               </span>
             )}
+            {selectedRating && (
+              <span className="lib-active-filter-chip">
+                <Icon name="star" size={10} filled />
+                <span>
+                  {selectedRating === '5'
+                    ? '5★ Essential'
+                    : selectedRating === '4+'
+                    ? '4★+ High Impact'
+                    : 'Any Rated'}
+                </span>
+                <button
+                  type="button"
+                  className="lib-active-filter-remove"
+                  onClick={() => setSelectedRating('')}
+                >
+                  <Icon name="x" size={10} />
+                </button>
+              </span>
+            )}
             {selectedCategory && (
               <span className="lib-active-filter-chip">
                 <span>Category: {selectedCategory}</span>
@@ -588,43 +625,35 @@ export default function Library() {
           </div>
         )}
 
-        {/* Layout Area: Taxonomy Rail + Content Canvas */}
-        <div className="lib-layout">
-          {railOpen && (
-            <motion.div
-              className="lib-rail-wrapper"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 260, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <LibraryTagRail
-                total={total}
-                counts={counts}
-                categoryCounts={categoryCounts}
-                tagCounts={tagCounts}
-                appCounts={appCounts}
-                selectedKind={selectedKind}
-                selectedCategory={selectedCategory}
-                selectedTag={selectedTag}
-                onSelectKind={setSelectedKind}
-                onSelectCategory={setSelectedCategory}
-                onSelectTag={setSelectedTag}
-                onClearFilters={handleClearFilters}
-                isOpen={railOpen}
-                onClose={() => setRailOpen(false)}
-              />
-            </motion.div>
-          )}
+        {/* Layout Area: Top Filter Hub + Full-Width Content Canvas */}
+        <div className="lib-layout w-full flex flex-col gap-4">
+          <LibraryFilterBar
+            total={total}
+            counts={counts}
+            categoryCounts={categoryCounts}
+            tagCounts={tagCounts}
+            appCounts={appCounts}
+            ratingCounts={ratingCounts}
+            selectedKind={selectedKind}
+            selectedCategory={selectedCategory}
+            selectedTag={selectedTag}
+            selectedRating={selectedRating}
+            onSelectKind={setSelectedKind}
+            onSelectCategory={setSelectedCategory}
+            onSelectTag={setSelectedTag}
+            onSelectRating={setSelectedRating}
+            onClearFilters={handleClearFilters}
+            isOpen={railOpen}
+          />
 
-          <main className="lib-content-main">
+          <main className="lib-content-main w-full">
             {!loaded && items.length === 0 ? (
               <SkeletonLibraryGrid cards={8} />
             ) : error ? (
               <ErrorState message={error} onRetry={load} />
-            ) : items.length === 0 ? (
+            ) : displayedItems.length === 0 ? (
               <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-                <EmptyState.Root size="md">
+                <EmptyState size="md">
                   <EmptyState.Header>
                     <EmptyState.Title>
                       {activeFilterCount > 0 ? 'No matching knowledge found' : 'Your library is empty'}
@@ -658,11 +687,11 @@ export default function Library() {
                       </button>
                     )}
                   </EmptyState.Footer>
-                </EmptyState.Root>
+                </EmptyState>
               </div>
             ) : layout === 'grid' ? (
               <LibraryGrid
-                items={items}
+                items={displayedItems}
                 busyId={busyId}
                 onSelect={(item) => setActiveModalItem(item)}
                 onReindex={handleReindex}
@@ -672,7 +701,7 @@ export default function Library() {
               />
             ) : (
               <LibraryListView
-                items={items}
+                items={displayedItems}
                 busyId={busyId}
                 onSelect={(item) => setActiveModalItem(item)}
                 onReindex={handleReindex}

@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../Icon.jsx'
 
@@ -147,32 +146,30 @@ export default function AnimatedSelect({
         </div>
       </button>
 
-      {typeof document !== 'undefined' &&
-        createPortal(
-          <AnimatePresence>
-            {open && (
-              <motion.div
-                ref={popoverRef}
-                className="anim-select-popover"
-                style={{
-                  position: 'fixed',
-                  top: coords.showAbove ? 'auto' : coords.top,
-                  bottom: coords.showAbove ? coords.bottom : 'auto',
-                  left: align === 'left' ? coords.left : 'auto',
-                  right: align === 'right' ? coords.right : 'auto',
-                  minWidth: Math.max(minWidth, coords.width),
-                  maxHeight: 320,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  zIndex: 99999,
-                  overflow: 'hidden',
-                }}
-                initial={{ opacity: 0, scale: 0.96, y: coords.showAbove ? 4 : -4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: coords.showAbove ? 4 : -4 }}
-                transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-                role="listbox"
-              >
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            ref={popoverRef}
+            className="anim-select-popover"
+            style={{
+              position: 'absolute',
+              top: coords.showAbove ? 'auto' : 'calc(100% + 4px)',
+              bottom: coords.showAbove ? 'calc(100% + 4px)' : 'auto',
+              left: align === 'left' ? 0 : 'auto',
+              right: align === 'right' ? 0 : 'auto',
+              minWidth: Math.max(minWidth, 160),
+              maxHeight: 280,
+              display: 'flex',
+              flexDirection: 'column',
+              zIndex: 99999,
+              overflow: 'hidden',
+            }}
+            initial={{ opacity: 0, scale: 0.96, y: coords.showAbove ? 4 : -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: coords.showAbove ? 4 : -4 }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            role="listbox"
+          >
                 {searchable && (
                   <div
                     style={{
@@ -301,9 +298,7 @@ export default function AnimatedSelect({
                 </div>
               </motion.div>
             )}
-          </AnimatePresence>,
-          document.body
-        )}
+      </AnimatePresence>
     </div>
   )
 }

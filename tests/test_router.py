@@ -627,3 +627,27 @@ def test_a_native_adapter_still_needs_no_base_url(client, amethyst_home):
     for name in ("anthropic", "google"):
         added = client.post("/api/providers", json={"name": name, "api_key": "k-x"})
         assert added.status_code == 200, name
+
+
+def test_set_primary_provider_moves_to_top_and_aligns_default_tier(client, amethyst_home):
+    client.post("/api/providers", json={"name": "google", "api_key": "k-1"})
+    client.post("/api/providers", json={"name": "groq", "api_key": "k-2"})
+    
+    # Set groq as primary
+    res = client.post("/api/providers/groq/primary")
+    assert res.status_code == 200
+    assert res.json()["primary"] == "groq"
+
+    # Check providers list order
+    p_res = client.get("/api/providers")
+    names = [p["name"] for p in p_res.json()["configured"]]
+    assert names[0] == "groq"
+
+
+def test_reorder_providers_endpoint(client, amethyst_home):
+    client.post("/api/providers", json={"name": "google", "api_key": "k-1"})
+    client.post("/api/providers", json={"name": "groq", "api_key": "k-2"})
+    
+    res = client.post("/api/providers/reorder", json={"order": ["groq", "google"]})
+    assert res.status_code == 200
+    assert res.json()["order"][:2] == ["groq", "google"]

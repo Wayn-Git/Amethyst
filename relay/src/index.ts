@@ -165,14 +165,28 @@ const now = () => Math.floor(Date.now() / 1000);
 
 // -------------------------------------------------------------------- state
 
+const _stateCache = new Map<string, string>();
+let _lastWrittenPullAt = 0;
+
 export async function getState(env: Env, key: string): Promise<string | null> {
+	if (_stateCache.has(key)) {
+		return _stateCache.get(key)!;
+	}
 	const row = await env.DB.prepare('SELECT value FROM state WHERE key = ?')
 		.bind(key)
 		.first<{ value: string }>();
-	return row?.value ?? null;
+	if (row?.value !== undefined && row?.value !== null) {
+		_stateCache.set(key, row.value);
+		return row.value;
+	}
+	return null;
 }
 
 async function setState(env: Env, key: string, value: string): Promise<void> {
+	if (_stateCache.get(key) === value) {
+		return;
+	}
+	_stateCache.set(key, value);
 	await env.DB.prepare(
 		'INSERT INTO state (key, value, updated_at) VALUES (?, ?, ?)' +
 			' ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
@@ -599,7 +613,17 @@ async function sync(request: Request, env: Env): Promise<Response> {
 	for (const [key, value] of mirror) {
 		if (value !== null) await setState(env, key, value);
 	}
-	await setState(env, 'last_pull_at', String(now()));
+	const currentTime = now();
+	_stateCache.set('last_pull_at', String(currentTime));
+	if (currentTime - _lastWrittenPullAt >= 60) {
+		_lastWrittenPullAt = currentTime;
+		await env.DB.prepare(
+			'INSERT INTO state (key, value, updated_at) VALUES (?, ?, ?)' +
+				' ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+		)
+			.bind('last_pull_at', String(currentTime), currentTime)
+			.run();
+	}
 
 	// Before the read below, so a job whose bytes the machine has just confirmed
 	// is gone from this answer rather than offered again.

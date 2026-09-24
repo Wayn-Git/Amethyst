@@ -95,6 +95,7 @@ import {
   Mouse,
   Power,
   WifiHigh,
+  Quotes,
 } from '@phosphor-icons/react'
 
 /* One icon set, one stroke weight, one grid.
@@ -126,7 +127,9 @@ const MARKS = {
   pause: Pause,
   'check-circle': CheckCircle,
   'arrow-up': ArrowUp,
+  'arrow-right': CaretRight,
   up: ArrowUp,
+  file: FileText,
   square: Square,
   /* Four marks were being asked for by name and had no entry, so `Icon`
      returned null and the button around them rendered as a label with a hole
@@ -146,6 +149,8 @@ const MARKS = {
   'caret-up': CaretUp,
   'caret-right': CaretRight,
   'chevron-right': CaretRight,
+  quote: Quotes,
+  quotes: Quotes,
   chat: ChatCenteredText,
   'chat-bubble': ChatCenteredText,
   'chat-dots': ChatCircleDots,

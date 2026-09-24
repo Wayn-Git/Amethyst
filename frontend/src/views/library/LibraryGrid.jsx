@@ -1,122 +1,90 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import gsap from 'gsap'
+import React, { useMemo } from 'react'
+import { motion } from 'framer-motion'
 import LibraryCard from './LibraryCard.jsx'
 import { groupItemsByDate } from './dateUtils.js'
 
-const REDUCED = typeof window !== 'undefined'
-  && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-export function estimateCardHeight(item) {
+export function getBentoItemConfig(item, index, totalInGroup) {
   const url = (item.url || '').toLowerCase()
   const app = item.app || (
-    url.includes('instagram.') ? 'instagram' :
+    url.includes('instagram.') || url.includes('instagr.am') ? 'instagram' :
     url.includes('pinterest.') || url.includes('pin.it') ? 'pinterest' :
     url.includes('youtube.') || url.includes('youtu.be') ? 'youtube' :
     url.includes('tiktok.') ? 'tiktok' : null
   )
   const hasThumb = Boolean(item.thumbnail_path)
-  
-  if (!hasThumb) {
-    return app || item.kind === 'video' ? 220 : 180
+  const isVideo = item.kind === 'video' || app === 'youtube' || app === 'instagram' || app === 'tiktok'
+  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
+  const isNote = item.kind === 'note' || (!hasThumb && !item.url)
+  const isEssential = item.rating === 5
+
+  // Small groups (1 or 2 items): clean single or pair cards
+  if (totalInGroup <= 2) {
+    return {
+      spanClass: 'col-span-1',
+      variant: isNote ? 'note' : isVertical ? 'portrait' : isVideo ? 'landscape' : 'standard',
+    }
   }
-  
-  let mediaH = 220
-  if (app === 'instagram' || app === 'tiktok') {
-    mediaH = 360
-  } else if (app === 'pinterest') {
-    mediaH = 300
-  } else if (app === 'youtube' || item.kind === 'video') {
-    mediaH = 200
+
+  // True Bento Grid layout for 3+ items:
+  // 1) Vertical media (Instagram Reels, TikTok, Pinterest): Tall Bento Card with BIG, full thumbnail
+  if (isVertical && hasThumb) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-2',
+      variant: 'portrait',
+    }
   }
-  
-  const bodyH = (item.summary ? 80 : 30) + (item.resources?.length ? 44 : 0) + 100
-  return mediaH + bodyH
+
+  // 2) Hero / Featured first item (if horizontal, article, or 5-star essential): Spans 2 columns
+  if (index === 0 && totalInGroup >= 4 && (hasThumb || isEssential) && !isVertical) {
+    return {
+      spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
+      variant: 'wide',
+    }
+  }
+
+  // 3) Rhythmic Wide Card for horizontal items
+  if (index > 0 && index % 5 === 0 && hasThumb && !isVertical) {
+    return {
+      spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
+      variant: 'wide',
+    }
+  }
+
+  // 4) Note cards: Editorial typography bento block
+  if (isNote) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-1',
+      variant: 'note',
+    }
+  }
+
+  // 5) Default standard bento cell
+  return {
+    spanClass: 'col-span-1 sm:row-span-1',
+    variant: isVideo ? 'landscape' : 'standard',
+  }
 }
 
 export default function LibraryGrid({
-  items,
+  items = [],
   busyId,
   onSelect,
   onReindex,
   onEnrich,
   onDelete,
   onTagClick,
+  columns,
+  className,
 }) {
-  const containerRef = useRef(null)
-  const animatedIdsRef = useRef(new Set())
   const groups = useMemo(() => groupItemsByDate(items), [items])
 
-  // Track responsive column count based on available container width
-  // Cards breathe with minimum ~340px-380px width so they feel filling and substantial
-  const [columnCount, setColumnCount] = useState(3)
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-
-    const updateCols = () => {
-      const width = el.offsetWidth
-      if (width < 680) {
-        setColumnCount(1)
-      } else if (width < 1140) {
-        setColumnCount(2)
-      } else if (width < 1680) {
-        setColumnCount(3)
-      } else {
-        setColumnCount(4)
-      }
-    }
-
-    updateCols()
-    const ro = new ResizeObserver(updateCols)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (!containerRef.current || REDUCED) return
-    const cards = Array.from(containerRef.current.querySelectorAll('.lib-card'))
-    const newCards = cards.filter((c) => {
-      const id = c.getAttribute('data-item-id')
-      if (!id || animatedIdsRef.current.has(id)) return false
-      animatedIdsRef.current.add(id)
-      return true
-    })
-    if (!newCards.length) return
-
-    gsap.fromTo(
-      newCards,
-      { autoAlpha: 0, y: 14, scale: 0.98 },
-      {
-        autoAlpha: 1,
-        y: 0,
-        scale: 1,
-        duration: 0.28,
-        stagger: { each: 0.03, from: 'start', max: 0.15 },
-        ease: 'power2.out',
-        clearProps: 'transform,visibility,opacity',
-      }
-    )
-  }, [items])
+  if (!items || items.length === 0) {
+    return null
+  }
 
   return (
-    <div className="lib-grid-view" ref={containerRef}>
+    <div className={`lib-grid-view w-full flex flex-col gap-10 ${className || ''}`}>
       {groups.map((group) => {
-        const effectiveCols = Math.min(columnCount, group.items.length)
-        const columns = Array.from({ length: effectiveCols }, () => [])
-        const colHeights = new Array(effectiveCols).fill(0)
-
-        group.items.forEach((item) => {
-          let minCol = 0
-          for (let c = 1; c < effectiveCols; c++) {
-            if (colHeights[c] < colHeights[minCol]) {
-              minCol = c
-            }
-          }
-          columns[minCol].push(item)
-          colHeights[minCol] += estimateCardHeight(item)
-        })
-
         return (
           <section key={group.dateKey} className="lib-date-group">
             <header className="lib-date-header">
@@ -126,23 +94,48 @@ export default function LibraryGrid({
               </span>
             </header>
 
-            <div className="lib-masonry-grid">
-              {columns.map((colItems, colIdx) => (
-                <div key={colIdx} className="lib-masonry-col">
-                  {colItems.map((item) => (
+            <div
+              style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
+              className={`lib-bento-grid ${
+                group.items.length === 1
+                  ? 'lib-bento-grid--single'
+                  : group.items.length === 2
+                  ? 'lib-bento-grid--pair'
+                  : ''
+              } w-full`}
+            >
+              {group.items.map((item, index) => {
+                const { spanClass, variant } = getBentoItemConfig(item, index, group.items.length)
+                return (
+                  <motion.div
+                    key={item.id || index}
+                    className={`h-full ${spanClass}`}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      transition: {
+                        duration: 0.32,
+                        delay: Math.min((index % 8) * 0.035, 0.22),
+                        ease: [0.16, 1, 0.3, 1],
+                      },
+                    }}
+                    whileHover={{ y: -3 }}
+                  >
                     <LibraryCard
-                      key={item.id}
                       item={item}
+                      variant={variant}
+                      isFeatured={variant === 'wide'}
                       busy={busyId === item.id}
                       onSelect={onSelect}
-                      onReindex={() => onReindex(item)}
-                      onEnrich={() => onEnrich(item)}
-                      onDelete={() => onDelete(item)}
+                      onReindex={() => onReindex?.(item)}
+                      onEnrich={() => onEnrich?.(item)}
+                      onDelete={() => onDelete?.(item)}
                       onTagClick={onTagClick}
                     />
-                  ))}
-                </div>
-              ))}
+                  </motion.div>
+                )
+              })}
             </div>
           </section>
         )

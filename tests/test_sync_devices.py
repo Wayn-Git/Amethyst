@@ -305,3 +305,38 @@ def test_a_code_on_screen_is_reported_as_open():
     assert devices.pairing_open() is True
     devices._open_pairing.opened_at -= devices.PAIRING_TTL_SECONDS + 1
     assert devices.pairing_open() is False
+
+
+def test_stale_devices_are_pruned(conn):
+    dev1, _ = devices.register(conn, "old-never-seen")
+    dev2, _ = devices.register(conn, "new-never-seen")
+    dev3, _ = devices.register(conn, "active-recently")
+    dev4, _ = devices.register(conn, "active-long-ago")
+
+    # Set timestamps
+    conn.execute(
+        "UPDATE devices SET created_at = datetime('now', '-20 days') WHERE id = ?",
+        (dev1.id,)
+    )
+    conn.execute(
+        "UPDATE devices SET created_at = datetime('now', '-2 days') WHERE id = ?",
+        (dev2.id,)
+    )
+    conn.execute(
+        "UPDATE devices SET last_seen_at = datetime('now', '-3 days') WHERE id = ?",
+        (dev3.id,)
+    )
+    conn.execute(
+        "UPDATE devices SET last_seen_at = datetime('now', '-40 days') WHERE id = ?",
+        (dev4.id,)
+    )
+    conn.commit()
+
+    pruned = devices.prune_stale_devices(conn, max_unseen_days=14)
+    assert pruned == 2
+
+    live_ids = {d.id for d in devices.live(conn)}
+    assert dev1.id not in live_ids
+    assert dev4.id not in live_ids
+    assert dev2.id in live_ids
+    assert dev3.id in live_ids

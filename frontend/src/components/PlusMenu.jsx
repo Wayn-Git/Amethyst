@@ -38,8 +38,25 @@ export default function PlusMenu({
   const [tools, setTools] = useState([])
   const [draftWorkspace, setDraftWorkspace] = useState(workspace || '')
   const [busy, setBusy] = useState('')
+  const [effectivePlacement, setEffectivePlacement] = useState(placement)
   const ref = useRef(null)
   const fileRef = useRef(null)
+
+  useEffect(() => {
+    setEffectivePlacement(placement)
+  }, [placement])
+
+  useEffect(() => {
+    if (!ref.current) return
+    const rect = ref.current.parentElement?.getBoundingClientRect() || ref.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - (ref.current.parentElement ? rect.bottom : rect.top)
+    const spaceAbove = ref.current.parentElement ? rect.top : rect.bottom
+    if (spaceBelow < 460 && spaceAbove > spaceBelow) {
+      setEffectivePlacement('up')
+    } else if (spaceAbove < 460 && spaceBelow > spaceAbove) {
+      setEffectivePlacement('down')
+    }
+  }, [])
 
   const scope = conversationId || null
 
@@ -280,7 +297,7 @@ export default function PlusMenu({
 
   return (
     <div
-      className={`pm-menu-container menu${placement === 'down' ? ' menu--down' : ''}`}
+      className={`pm-menu-container menu${effectivePlacement === 'down' ? ' menu--down' : ''}`}
       ref={ref}
       role="menu"
     >

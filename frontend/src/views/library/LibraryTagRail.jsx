@@ -22,12 +22,15 @@ export default function LibraryTagRail({
   categoryCounts = {},
   tagCounts = {},
   appCounts = {},
+  ratingCounts = {},
   selectedKind = '',
   selectedCategory = '',
   selectedTag = '',
+  selectedRating = '',
   onSelectKind,
   onSelectCategory,
   onSelectTag,
+  onSelectRating,
   onClearFilters,
   isOpen = true,
   onClose,
@@ -61,7 +64,7 @@ export default function LibraryTagRail({
     return allTagEntries.filter(([tag]) => tag.toLowerCase().includes(q))
   }, [allTagEntries, tagQuery, showAllTags])
 
-  const hasFilter = Boolean(selectedKind || selectedCategory || selectedTag)
+  const hasFilter = Boolean(selectedKind || selectedCategory || selectedTag || selectedRating)
   const activeKinds = useMemo(() => {
     return Object.entries(counts).filter(([, count]) => count > 0)
   }, [counts])
@@ -99,6 +102,44 @@ export default function LibraryTagRail({
           <span className="lib-rail-item-badge">{total}</span>
         </button>
       </div>
+
+      {/* Curated Significance (Rating) */}
+      {(ratingCounts['5'] > 0 || ratingCounts['4+'] > 0) && (
+        <div className="lib-rail-group">
+          <div className="lib-rail-heading" style={{ padding: '6px 4px 4px' }}>Significance</div>
+          {ratingCounts['5'] > 0 && (
+            <button
+              type="button"
+              className={`lib-rail-item ${selectedRating === '5' ? 'lib-rail-item--active' : ''}`}
+              onClick={() => onSelectRating?.(selectedRating === '5' ? '' : '5')}
+            >
+              <div className="lib-rail-item-left">
+                <span className="lib-rail-item-icon" style={{ color: '#f59e0b' }}>
+                  <Icon name="star" size={13} filled />
+                </span>
+                <span>Essential (5★)</span>
+              </div>
+              <span className="lib-rail-item-badge">{ratingCounts['5']}</span>
+            </button>
+          )}
+
+          {ratingCounts['4+'] > 0 && (
+            <button
+              type="button"
+              className={`lib-rail-item ${selectedRating === '4+' ? 'lib-rail-item--active' : ''}`}
+              onClick={() => onSelectRating?.(selectedRating === '4+' ? '' : '4+')}
+            >
+              <div className="lib-rail-item-left">
+                <span className="lib-rail-item-icon" style={{ color: '#fbbf24' }}>
+                  <Icon name="star" size={13} filled />
+                </span>
+                <span>High Impact (4★+)</span>
+              </div>
+              <span className="lib-rail-item-badge">{ratingCounts['4+']}</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Formats / Kinds */}
       {activeKinds.length > 0 && (
@@ -187,7 +228,7 @@ export default function LibraryTagRail({
                   key={tag}
                   className={`lib-tag-pill ${isActive ? 'lib-tag-pill--active' : ''}`}
                   onClick={() => onSelectTag?.(isActive ? '' : tag)}
-                  title={`${tag} (${count})`}
+                  title={`Filter #${tag} (${count})`}
                 >
                   <span className="lib-tag-pill-name">#{tag}</span>
                   <span className="lib-tag-pill-count">{count}</span>
@@ -202,7 +243,7 @@ export default function LibraryTagRail({
               className="lib-rail-more-tags"
               onClick={() => setShowAllTags((prev) => !prev)}
             >
-              {showAllTags ? 'Show fewer topics' : `+${allTagEntries.length - DEFAULT_VISIBLE_TAGS} more`}
+              <span>{showAllTags ? 'Show fewer topics' : `+${allTagEntries.length - DEFAULT_VISIBLE_TAGS} more topics`}</span>
             </button>
           )}
         </div>

@@ -1,9 +1,11 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, fmtDate } from '../../api.js'
+import { api } from '../../api.js'
 import { useModalDismiss, onOverlayMouseDown } from '../../hooks/useModalDismiss.js'
 import { formatDuration, getDomain, getFaviconUrl, KIND_ICON } from './LibraryCard.jsx'
+import { RATING_TIERS, getRatingTier } from './ratingUtils.js'
+import { formatDisplayDate, formatFullDateTime, formatRelativeDate } from './dateUtils.js'
 
 export default function LibraryDetailModal({
   item,
@@ -20,8 +22,10 @@ export default function LibraryDetailModal({
   const [isAddingTag, setIsAddingTag] = useState(false)
   const [tags, setTags] = useState(item?.tags || [])
   const [rating, setRating] = useState(item?.rating || null)
+  const [hoveredStar, setHoveredStar] = useState(null)
   const [savingNotes, setSavingNotes] = useState(false)
   const [busyAction, setBusyAction] = useState('')
+  const [showLightbox, setShowLightbox] = useState(false)
 
   // Sync state if item changes
   useEffect(() => {
@@ -32,20 +36,41 @@ export default function LibraryDetailModal({
     }
   }, [item])
 
+  const activeRatingTier = useMemo(() => getRatingTier(rating), [rating])
+  const previewRatingTier = useMemo(() => getRatingTier(hoveredStar), [hoveredStar])
+  const displayedTier = previewRatingTier || activeRatingTier
+
+  const rawDate = item?.consumed_on || item?.created_at
+  const dateFull = useMemo(() => formatDisplayDate(rawDate, true), [rawDate])
+  const dateFullWithTime = useMemo(() => formatFullDateTime(rawDate), [rawDate])
+  const dateRelative = useMemo(() => formatRelativeDate(rawDate), [rawDate])
+
   if (!item) return null
 
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)
   const hasThumbnail = Boolean(item.thumbnail_path)
+  const app = item.app || (
+    (item.url || '').includes('instagram.') || (item.url || '').includes('instagr.am') ? 'instagram' :
+    (item.url || '').includes('pinterest.') || (item.url || '').includes('pin.it') ? 'pinterest' :
+    (item.url || '').includes('youtube.') || (item.url || '').includes('youtu.be') ? 'youtube' :
+    (item.url || '').includes('tiktok.') ? 'tiktok' : null
+  )
+  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
 
   const handleRating = async (stars) => {
     const newRating = rating === stars ? null : stars
     setRating(newRating)
+    const tier = getRatingTier(newRating)
     try {
       const updated = await api.updateLibraryItem(item.id, { rating: newRating })
       onUpdate?.(updated)
-      toast(newRating ? `Rated ${newRating} star${newRating !== 1 ? 's' : ''}` : 'Rating cleared', 'ok')
+      if (tier) {
+        toast(`Curated as ${tier.label} (${tier.stars}★)`, 'ok')
+      } else {
+        toast('Rating cleared', 'ok')
+      }
     } catch (err) {
       toast(err.message, 'bad')
     }
@@ -124,298 +149,444 @@ export default function LibraryDetailModal({
   }
 
   return (
-    <div
-      className="lib-modal-overlay"
-      onMouseDown={(e) => onOverlayMouseDown(e, panelRef, onClose)}
-    >
-      <motion.div
-        ref={panelRef}
-        className="lib-modal-dialog lib-modal-dialog--wide"
-        role="dialog"
-        aria-modal="true"
-        aria-label={item.title || 'Resource details'}
-        initial={{ opacity: 0, scale: 0.96, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+    <>
+      <div
+        className="lib-modal-overlay"
+        onMouseDown={(e) => onOverlayMouseDown(e, panelRef, onClose)}
       >
-        {/* Header */}
-        <div className="lib-modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-            <span className="lib-card-kind-badge">
-              <Icon name={KIND_ICON[item.kind] || 'link'} size={12} />
-              <span>{item.app || item.kind || 'resource'}</span>
-            </span>
-            <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>·</span>
-            <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)' }}>
-              {domain || item.author || 'LOCAL'}
-            </span>
-          </div>
+        <motion.div
+          ref={panelRef}
+          className="lib-modal-dialog lib-modal-dialog--card"
+          role="dialog"
+          aria-modal="true"
+          aria-label={item.title || 'Resource details'}
+          initial={{ opacity: 0, scale: 0.96, y: 14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 14 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {/* ========================================================
+              TOP NAVIGATION & UN-HIDEABLE DATE BAR
+              ======================================================== */}
+          <div className="lib-modal-header">
+            <div className="lib-modal-header-meta">
+              <span className="lib-card-kind-badge">
+                <Icon name={KIND_ICON[item.kind] || 'link'} size={12} />
+                <span>{item.app || item.kind || 'resource'}</span>
+              </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {item.url && (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="lib-dock-btn"
-                title="Open original website"
+              {favicon && (
+                <img
+                  src={favicon}
+                  alt=""
+                  style={{ width: 14, height: 14, borderRadius: 3, flexShrink: 0 }}
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
+              )}
+              <span className="lib-modal-domain">
+                {domain || item.author || (item.kind === 'note' ? 'PERSONAL NOTE' : 'LOCAL')}
+              </span>
+
+              {/* Prominent, Un-hideable Date in Modal Header */}
+              <div className="lib-modal-date-chip" title={`Captured on ${dateFullWithTime || dateFull}`}>
+                <Icon name="calendar" size={12} />
+                <span>{dateFull || 'Undated'}</span>
+                {dateRelative && <span className="lib-modal-date-rel">({dateRelative})</span>}
+                {duration && <span className="opacity-70">· {duration}</span>}
+              </div>
+            </div>
+
+            <div className="lib-modal-header-actions">
+              {item.url && (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="lib-dock-btn"
+                  title="Open original link"
+                >
+                  <Icon name="link" size={14} />
+                </a>
+              )}
+              <button
+                type="button"
+                className="lib-modal-close"
+                onClick={onClose}
+                aria-label="Close modal"
               >
-                <Icon name="link" size={14} />
-              </a>
-            )}
-            <button
-              type="button"
-              className="lib-modal-close"
-              onClick={onClose}
-              aria-label="Close modal"
-            >
-              <Icon name="x" size={14} />
-            </button>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Body */}
-        <div className="lib-modal-body">
-          {/* Main Title & Metadata */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3, margin: 0, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+          {/* ========================================================
+              SCROLLABLE CARD BODY
+              ======================================================== */}
+          <div className="lib-modal-body">
+            {/* 1. Clean Natural Media Container (No artificial ambient blur or letterbox voids) */}
+            {hasThumbnail && (
+              <div className={`lib-modal-media-frame ${isVertical ? 'lib-modal-media-frame--portrait' : 'lib-modal-media-frame--landscape'}`}>
+                <img
+                  src={api.thumbnailUrl(item.id)}
+                  alt={item.title || 'Resource media cover'}
+                  className={`lib-modal-media-img ${isVertical ? 'lib-modal-media-img--portrait' : 'lib-modal-media-img--landscape'}`}
+                  onClick={() => setShowLightbox(true)}
+                  title="Click to view full resolution"
+                />
+
+                {/* Floating Media Controls Pill */}
+                <div className="lib-modal-media-dock">
+                  <button
+                    type="button"
+                    className="lib-modal-dock-btn"
+                    onClick={() => setShowLightbox(true)}
+                    title="Inspect in full resolution lightbox"
+                  >
+                    <Icon name="maximize" size={12} />
+                    <span>Full View</span>
+                  </button>
+                  {duration && (
+                    <span className="lib-modal-dock-duration">
+                      <Icon name="play" size={10} />
+                      <span>{duration}</span>
+                    </span>
+                  )}
+                  {item.url && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="lib-modal-dock-btn"
+                      title="Open original website"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Icon name="link" size={12} />
+                      <span>Source</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 2. Main Title */}
+            <h1 className="lib-modal-heading">
               {item.title || 'Untitled Resource'}
             </h1>
 
-            <div className="lib-detail-meta-strip">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {favicon && (
-                  <img
-                    src={favicon}
-                    alt=""
-                    style={{ width: 14, height: 14, borderRadius: 3 }}
-                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                  />
-                )}
-                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                  Captured on {fmtDate(item.consumed_on || item.created_at)}
-                  {duration ? ` · ${duration}` : ''}
-                </span>
+            {/* 3. Secondary Metadata Strip with Explicit Date */}
+            <div className="lib-modal-meta-strip">
+              <div className="lib-modal-meta-item" title="Exact capture timestamp">
+                <Icon name="calendar" size={13} />
+                <span>Captured on {dateFullWithTime || dateFull || 'Undated'}</span>
               </div>
-
-              {/* Rating Picker */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      color: star <= (rating || 0) ? '#eab308' : 'var(--text-faint)',
-                      padding: '2px',
-                    }}
-                    onClick={() => handleRating(star)}
-                    title={`Rate ${star} star${star !== 1 ? 's' : ''}`}
-                  >
-                    <Icon name="star" size={14} filled={star <= (rating || 0)} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Media thumbnail if present */}
-          {hasThumbnail && (
-            <div style={{ borderRadius: 10, overflow: 'hidden', maxHeight: 280, background: 'var(--surface-2)' }}>
-              <img
-                src={api.thumbnailUrl(item.id)}
-                alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            </div>
-          )}
-
-          {/* AI Key Insights / Summary */}
-          {item.summary ? (
-            <div className="lib-detail-summary-card">
-              <div className="lib-detail-summary-header">
-                <Icon name="brain" size={14} />
-                <span>AI Synthesis & Key Takeaways</span>
-              </div>
-              <p className="lib-detail-summary-text">{item.summary}</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--hairline)' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                This resource hasn't been synthesized by AI yet.
-              </div>
-              <button
-                type="button"
-                className="lib-btn"
-                style={{ height: 32, fontSize: 12 }}
-                disabled={Boolean(busyAction)}
-                onClick={handleEnrich}
-              >
-                <Icon name="brain" size={13} />
-                <span>Summarize with AI</span>
-              </button>
-            </div>
-          )}
-
-          {/* Extracted Entities / Links */}
-          {item.resources?.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div className="lib-form-label">Mentioned Resources & Entities</div>
-              <div className="lib-detail-resources-grid">
-                {item.resources.map((res, i) => (
-                  <div key={i} className="lib-detail-resource-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span className="lib-card-kind-badge">{res.type || 'link'}</span>
-                      <span style={{ fontWeight: 500, color: 'var(--text)' }}>{res.name}</span>
-                      {res.detail && (
-                        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>— {res.detail}</span>
-                      )}
-                    </div>
-                    {res.url && (
-                      <a
-                        href={res.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="lib-dock-btn"
-                        title={res.url}
-                      >
-                        <Icon name="link" size={12} />
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Tags */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div className="lib-form-label">Topics & Tags</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-              {tags.map((tag) => (
-                <span key={tag} className="lib-tag-pill" style={{ padding: '4px 10px' }}>
-                  <span>#{tag}</span>
-                  <button
-                    type="button"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', marginLeft: 4 }}
-                    onClick={() => handleRemoveTag(tag)}
-                    title={`Remove #${tag}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-
-              {isAddingTag ? (
-                <form onSubmit={handleAddTag} style={{ display: 'inline-flex', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    autoFocus
-                    placeholder="New tag..."
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onBlur={() => {
-                      if (!tagInput.trim()) setIsAddingTag(false)
-                    }}
-                    style={{
-                      height: 26,
-                      fontSize: 11,
-                      padding: '2px 8px',
-                      borderRadius: 9999,
-                      background: 'var(--surface-2)',
-                      border: '1px solid var(--accent)',
-                      outline: 'none',
-                      color: 'var(--text)',
-                    }}
-                  />
-                </form>
-              ) : (
-                <button
-                  type="button"
-                  className="lib-tag-pill"
-                  onClick={() => setIsAddingTag(true)}
-                  style={{ borderStyle: 'dashed' }}
-                >
-                  <Icon name="plus" size={10} />
-                  <span>Add tag</span>
-                </button>
+              {item.author && (
+                <div className="lib-modal-meta-item">
+                  <Icon name="user" size={13} />
+                  <span>By {item.author}</span>
+                </div>
               )}
+              {duration && (
+                <div className="lib-modal-meta-item">
+                  <Icon name="clock" size={13} />
+                  <span>{duration} duration</span>
+                </div>
+              )}
+              <div className="lib-modal-meta-item" style={{ marginLeft: 'auto' }}>
+                <span className="lib-card-live-dot" />
+                <span style={{ color: 'var(--text-faint)' }}>Semantic Vector Indexed</span>
+              </div>
             </div>
-          </div>
 
-          {/* Personal Notes */}
-          <div className="lib-form-group">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <label className="lib-form-label" htmlFor="lib-detail-notes">Personal Notes</label>
-              {notes !== (item.notes || '') && (
+            {/* 4. Curator Significance Rating Widget */}
+            <div className="lib-detail-rating-card">
+              <div className="lib-detail-rating-top">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Icon name="star" size={15} filled={Boolean(rating)} style={{ color: displayedTier?.color || 'var(--text-faint)' }} />
+                  <span className="lib-detail-rating-title">Curator Significance</span>
+                </div>
+
+                {displayedTier ? (
+                  <span
+                    className={`lib-detail-rating-pill ${displayedTier.badgeClass}`}
+                    style={{ borderColor: displayedTier.color }}
+                  >
+                    ★ {displayedTier.stars} · {displayedTier.label}
+                  </span>
+                ) : (
+                  <span className="lib-detail-rating-pill lib-detail-rating-pill--unrated">
+                    Unrated
+                  </span>
+                )}
+              </div>
+
+              {/* 5-Star interactive button picker */}
+              <div className="lib-detail-stars-row">
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const isFilled = (hoveredStar ?? rating ?? 0) >= star
+                  return (
+                    <button
+                      key={star}
+                      type="button"
+                      className="lib-detail-star-btn"
+                      onMouseEnter={() => setHoveredStar(star)}
+                      onMouseLeave={() => setHoveredStar(null)}
+                      onClick={() => handleRating(star)}
+                      title={`Assign ${star} Star (${RATING_TIERS[star].label}): ${RATING_TIERS[star].description}`}
+                    >
+                      <Icon
+                        name="star"
+                        size={22}
+                        filled={isFilled}
+                        style={{
+                          color: isFilled ? (RATING_TIERS[star]?.color || '#eab308') : 'var(--hairline-strong)',
+                          transform: hoveredStar === star ? 'scale(1.22)' : 'scale(1)',
+                          transition: 'transform 140ms ease, color 140ms ease',
+                        }}
+                      />
+                    </button>
+                  )
+                })}
+
+                {rating && (
+                  <button
+                    type="button"
+                    className="lib-detail-clear-rating"
+                    onClick={() => handleRating(rating)}
+                    title="Clear rating"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Semantic tier explanation */}
+              <p className="lib-detail-rating-desc">
+                {displayedTier
+                  ? displayedTier.description
+                  : 'Assign significance to boost retrieval priority in AI searches and curate your personal high-impact collection.'}
+              </p>
+            </div>
+
+            {/* 5. AI Key Insights / Summary */}
+            {item.summary ? (
+              <div className="lib-detail-summary-card">
+                <div className="lib-detail-summary-header">
+                  <Icon name="brain" size={15} />
+                  <span>AI Synthesis & Key Insights</span>
+                </div>
+                <p className="lib-detail-summary-text">{item.summary}</p>
+              </div>
+            ) : (
+              <div className="lib-detail-empty-summary">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Icon name="brain" size={16} className="opacity-60" />
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    No AI synthesis yet. Run deep analysis to extract structured concepts.
+                  </span>
+                </div>
                 <button
                   type="button"
                   className="lib-btn lib-btn--primary"
-                  style={{ height: 28, fontSize: 11, padding: '0 10px' }}
-                  disabled={savingNotes}
-                  onClick={handleSaveNotes}
+                  style={{ height: 30, fontSize: 12 }}
+                  disabled={Boolean(busyAction)}
+                  onClick={handleEnrich}
                 >
-                  {savingNotes ? 'Saving...' : 'Save Notes'}
+                  <Icon name="spark" size={13} />
+                  <span>Summarize with AI</span>
                 </button>
-              )}
+              </div>
+            )}
+
+            {/* 6. Extracted Entities / Links */}
+            {item.resources?.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="lib-form-label">Mentioned Resources & Entities</div>
+                <div className="lib-detail-resources-grid">
+                  {item.resources.map((res, i) => (
+                    <div key={i} className="lib-detail-resource-row">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="lib-card-kind-badge">{res.type || 'link'}</span>
+                        <span style={{ fontWeight: 500, color: 'var(--text)', fontSize: 13 }}>{res.name}</span>
+                        {res.detail && (
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>— {res.detail}</span>
+                        )}
+                      </div>
+                      {res.url && (
+                        <a
+                          href={res.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="lib-dock-btn"
+                          title={res.url}
+                        >
+                          <Icon name="link" size={12} />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 7. Topics & Tags */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="lib-form-label">Topics & Taxonomy Tags</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                {tags.map((tag) => (
+                  <span key={tag} className="lib-tag-pill" style={{ padding: '5px 10px', fontSize: 12 }}>
+                    <span>#{tag}</span>
+                    <button
+                      type="button"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', marginLeft: 6 }}
+                      onClick={() => handleRemoveTag(tag)}
+                      title={`Remove #${tag}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+
+                {isAddingTag ? (
+                  <form onSubmit={handleAddTag} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="New tag..."
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onBlur={() => {
+                        if (!tagInput.trim()) setIsAddingTag(false)
+                      }}
+                      style={{
+                        height: 28,
+                        fontSize: 12,
+                        padding: '3px 10px',
+                        borderRadius: 9999,
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--accent)',
+                        outline: 'none',
+                        color: 'var(--text)',
+                      }}
+                    />
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="lib-tag-pill"
+                    onClick={() => setIsAddingTag(true)}
+                    style={{ borderStyle: 'dashed' }}
+                  >
+                    <Icon name="plus" size={11} />
+                    <span>Add tag</span>
+                  </button>
+                )}
+              </div>
             </div>
-            <textarea
-              id="lib-detail-notes"
-              className="lib-form-textarea"
-              placeholder="Record your thoughts, highlights, or quotes..."
-              rows={4}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-        </div>
 
-        {/* Footer Actions */}
-        <div className="lib-modal-footer">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 'auto' }}>
+            {/* 8. Personal Notes */}
+            <div className="lib-form-group">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="lib-form-label" htmlFor="lib-detail-notes">Personal Notes & Synthesis</label>
+                {notes !== (item.notes || '') && (
+                  <button
+                    type="button"
+                    className="lib-btn lib-btn--primary"
+                    style={{ height: 28, fontSize: 11, padding: '0 10px' }}
+                    disabled={savingNotes}
+                    onClick={handleSaveNotes}
+                  >
+                    {savingNotes ? 'Saving...' : 'Save Notes'}
+                  </button>
+                )}
+              </div>
+              <textarea
+                id="lib-detail-notes"
+                className="lib-form-textarea"
+                placeholder="Record your personal notes, key synthesis, or quotes..."
+                rows={4}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* ========================================================
+              FOOTER ACTIONS
+              ======================================================== */}
+          <div className="lib-modal-footer">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 'auto' }}>
+              <button
+                type="button"
+                className="lib-btn"
+                disabled={Boolean(busyAction)}
+                onClick={handleReindex}
+                title="Re-run vector embeddings indexer"
+              >
+                <Icon name="refresh" size={13} />
+                <span>Re-index</span>
+              </button>
+              <button
+                type="button"
+                className="lib-btn"
+                disabled={Boolean(busyAction)}
+                onClick={handleEnrich}
+                title="Re-read with AI"
+              >
+                <Icon name="brain" size={13} />
+                <span>Re-analyze</span>
+              </button>
+            </div>
+
             <button
               type="button"
               className="lib-btn"
-              disabled={Boolean(busyAction)}
-              onClick={handleReindex}
-              title="Re-run vector embeddings indexer"
+              style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+              onClick={() => {
+                if (window.confirm(`Delete "${item.title}" from library?`)) {
+                  onDelete?.(item)
+                  onClose()
+                }
+              }}
             >
-              <Icon name="refresh" size={13} />
-              <span>Re-index</span>
-            </button>
-            <button
-              type="button"
-              className="lib-btn"
-              disabled={Boolean(busyAction)}
-              onClick={handleEnrich}
-              title="Re-read with AI"
-            >
-              <Icon name="brain" size={13} />
-              <span>Re-analyze</span>
+              <Icon name="trash" size={13} />
+              <span>Delete</span>
             </button>
           </div>
+        </motion.div>
+      </div>
 
-          <button
-            type="button"
-            className="lib-btn"
-            style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-            onClick={() => {
-              if (window.confirm(`Delete "${item.title}" from library?`)) {
-                onDelete?.(item)
-                onClose()
-              }
-            }}
+      {/* High-Resolution Lightbox Modal */}
+      <AnimatePresence>
+        {showLightbox && hasThumbnail && (
+          <div
+            className="lib-lightbox-overlay"
+            onClick={() => setShowLightbox(false)}
           >
-            <Icon name="trash" size={13} />
-            <span>Delete</span>
-          </button>
-        </div>
-      </motion.div>
-    </div>
+            <motion.div
+              className="lib-lightbox-content"
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.94 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={api.thumbnailUrl(item.id)}
+                alt={item.title || 'Full resolution thumbnail'}
+                className="lib-lightbox-img"
+              />
+              <button
+                type="button"
+                className="lib-lightbox-close"
+                onClick={() => setShowLightbox(false)}
+                title="Close full view (Esc)"
+              >
+                <Icon name="x" size={16} />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

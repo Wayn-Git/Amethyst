@@ -16,7 +16,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from backend.config import ProviderConfig
-from backend.runtime.failures import classify_stream_error, should_retry
+from backend.runtime.failures import FailureKind, classify_stream_error, should_retry
 from backend.runtime.http import (
     MAX_RETRIES,
     ProviderHTTPError,
@@ -338,6 +338,20 @@ class OpenAICompatClient:
                     try:
                         chunk = json.loads(raw)
                     except json.JSONDecodeError:
+                        if "input stream" in raw.lower():
+                            desc = "Error in input stream"
+                            kind = FailureKind.UPSTREAM_UNHEALTHY
+                            if not text_parts and stream_attempt < self.max_retries:
+                                log.warning(
+                                    "%s bare 'Error in input stream' before text; retrying stream (%d/%d)",
+                                    self.model,
+                                    stream_attempt + 1,
+                                    self.max_retries,
+                                )
+                                await asyncio.sleep(stream_backoff(stream_attempt))
+                                retry_stream = True
+                                break
+                            raise ProviderStreamError(desc, kind=kind)
                         # Counted rather than silently dropped: a provider emitting
                         # subtly broken frames otherwise produces a blank or truncated
                         # answer with nothing anywhere to say why.
@@ -350,9 +364,12 @@ class OpenAICompatClient:
                     if error := chunk.get("error"):
                         kind = classify_stream_error(error)
                         desc = _describe_provider_error(error)
-                        if not yielded_any and should_retry(kind) and stream_attempt < self.max_retries:
+                        is_input_stream = "input stream" in desc.lower() or "input stream" in str(error).lower()
+                        # If no final text has arrived yet, retry the stream attempt seamlessly.
+                        # Do not let reasoning tokens or initial empty deltas block retry.
+                        if (not text_parts or is_input_stream and not text_parts) and should_retry(kind) and stream_attempt < self.max_retries:
                             log.warning(
-                                "%s stream reported %s before content (%s); retrying stream (%d/%d)",
+                                "%s stream reported %s before text (%s); retrying stream (%d/%d)",
                                 self.model,
                                 kind,
                                 desc,
@@ -405,7 +422,7 @@ class OpenAICompatClient:
 
                 break
             except ProviderHTTPError as exc:
-                if not yielded_any and should_retry(exc.kind) and stream_attempt < self.max_retries:
+                if not text_parts and should_retry(exc.kind) and stream_attempt < self.max_retries:
                     log.warning(
                         "%s stream connection dropped before content (%s); retrying stream (%d/%d)",
                         self.model,

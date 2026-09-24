@@ -14,7 +14,7 @@ const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(n
 const MOD_PREFIX = IS_MAC ? '⌘' : 'Ctrl+'
 
 export default function UserMenu({ children, align = 'start', side = 'bottom', sideOffset = 8 }) {
-  const { userProfile, setUserProfile, theme, setTheme, setView, setOverlay, toast } = useApp()
+  const { userProfile, setUserProfile, updateUserProfile, theme, setTheme, setView, setOverlay, toast } = useApp()
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [open, setOpen] = useState(false)
@@ -35,8 +35,12 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
       return
     }
     try {
-      await api.updateProfile({ name: trimmed })
-      setUserProfile((prev) => ({ ...(prev || {}), name: trimmed }))
+      if (typeof updateUserProfile === 'function') {
+        await updateUserProfile({ name: trimmed })
+      } else {
+        await (api.updateUserProfile || api.updateProfile)({ name: trimmed })
+        setUserProfile((prev) => ({ ...(prev || {}), name: trimmed, full_name: trimmed }))
+      }
       toast('Username updated', 'ok')
       setEditingName(false)
     } catch (err) {
@@ -92,6 +96,7 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onKeyDown={(e) => {
+                  e.stopPropagation()
                   if (e.key === 'Enter') handleSaveName(e)
                   if (e.key === 'Escape') setEditingName(false)
                 }}

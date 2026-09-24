@@ -1,6 +1,8 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useRef, useState, useCallback } from 'react'
 import Icon from '../../components/Icon.jsx'
-import { api, fmtDate } from '../../api.js'
+import { api } from '../../api.js'
+import { getRatingTier } from './ratingUtils.js'
+import { formatDisplayDate } from './dateUtils.js'
 
 export const KIND_ICON = {
   article: 'book',
@@ -49,6 +51,7 @@ export function getAppFromItem(item) {
   if (url.includes('pinterest.') || url.includes('pin.it')) return 'pinterest'
   if (url.includes('youtube.') || url.includes('youtu.be')) return 'youtube'
   if (url.includes('instagram.') || url.includes('instagr.am')) return 'instagram'
+  if (url.includes('tiktok.')) return 'tiktok'
   if (url.includes('x.com') || url.includes('twitter.')) return 'x'
   if (url.includes('github.')) return 'github'
   if (url.includes('reddit.')) return 'reddit'
@@ -58,6 +61,8 @@ export function getAppFromItem(item) {
 
 function LibraryCardComponent({
   item,
+  variant,
+  isFeatured = false,
   busy,
   onSelect,
   onReindex,
@@ -65,6 +70,7 @@ function LibraryCardComponent({
   onDelete,
   onTagClick,
 }) {
+  const cardRef = useRef(null)
   const status = item.status || 'ready'
   const isOptimistic = Boolean(item.isOptimistic)
   const isReceived = status === 'received'
@@ -79,12 +85,31 @@ function LibraryCardComponent({
   const favicon = getFaviconUrl(item.url)
   const app = getAppFromItem(item)
 
-  const mediaAspect = useMemo(() => {
-    if (app === 'instagram' || app === 'tiktok') return '9 / 13'
-    if (app === 'pinterest') return '2 / 3'
-    if (app === 'youtube' || item.kind === 'video') return '16 / 9'
-    return '16 / 9'
-  }, [app, item.kind])
+  const isVideo = item.kind === 'video' || app === 'youtube' || app === 'instagram' || app === 'tiktok'
+  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
+  const isNote = item.kind === 'note' || (!hasThumbnail && !item.url)
+
+  const cardVariant = variant || (
+    isFeatured ? 'wide' :
+    isNote ? 'note' :
+    isVertical ? 'portrait' :
+    isVideo ? 'landscape' : 'standard'
+  )
+
+  // Explicit, reliable dates that are NEVER hidden
+  const rawDate = item.consumed_on || item.created_at
+  const dateShort = useMemo(() => formatDisplayDate(rawDate, false), [rawDate])
+  const dateFull = useMemo(() => formatDisplayDate(rawDate, true), [rawDate])
+
+  // Spotlight mouse tracking (MagicUI / Apple spotlight effect)
+  const handleMouseMove = useCallback((e) => {
+    if (!cardRef.current) return
+    const rect = cardRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    cardRef.current.style.setProperty('--mouse-x', `${x}px`)
+    cardRef.current.style.setProperty('--mouse-y', `${y}px`)
+  }, [])
 
   // Extract detected song / music track
   const musicResource = useMemo(() => {
@@ -99,12 +124,11 @@ function LibraryCardComponent({
     if (!item.resources || !Array.isArray(item.resources)) return []
     return item.resources
       .filter((r) => r && typeof r === 'object' && Boolean(r.url) && r.type !== 'music')
-      .slice(0, 3)
   }, [item.resources])
 
-  // Deduplicate and filter tags
-  const visibleTags = useMemo(() => {
-    if (!item.tags || !Array.isArray(item.tags)) return []
+  // Deduplicate and filter tags (max 3 displayed to prevent cutoff, with +N counter)
+  const { visibleTags, extraTagsCount } = useMemo(() => {
+    if (!item.tags || !Array.isArray(item.tags)) return { visibleTags: [], extraTagsCount: 0 }
     const appLower = (app || '').toLowerCase()
     const catLower = (item.category || '').toLowerCase()
     const deduped = []
@@ -117,11 +141,15 @@ function LibraryCardComponent({
         deduped.push(clean)
       }
     }
-    return deduped.slice(0, 4)
-  }, [item.tags, app, item.category])
+    const maxVisible = cardVariant === 'wide' ? 4 : 3
+    return {
+      visibleTags: deduped.slice(0, maxVisible),
+      extraTagsCount: Math.max(0, deduped.length - maxVisible),
+    }
+  }, [item.tags, app, item.category, cardVariant])
 
   const handleCardClick = (e) => {
-    if (e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn, .lib-card-link-chip')) return
+    if (e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn, .lib-card-link-chip, .lib-card-tag-badge')) return
     onSelect?.(item)
   }
 
@@ -134,23 +162,31 @@ function LibraryCardComponent({
     return null
   }, [item.word_count])
 
+  // Semantic rating tier
+  const ratingTier = useMemo(() => getRatingTier(item.rating), [item.rating])
+
   return (
     <article
+      ref={cardRef}
       data-item-id={item.id}
-      className={`lib-card ${isLiveProcessing ? 'lib-card--processing' : ''}`}
+      className={`lib-card lib-card--${cardVariant} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
       onClick={handleCardClick}
+      onMouseMove={handleMouseMove}
       tabIndex={0}
       role="button"
       aria-label={`Inspect ${item.title || 'knowledge resource'}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          if (!e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn')) {
+          if (!e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn, .lib-card-link-chip, .lib-card-tag-badge')) {
             e.preventDefault()
             onSelect?.(item)
           }
         }
       }}
     >
+      {/* Spotlight glow layer */}
+      <div className="lib-card-spotlight" aria-hidden="true" />
+
       {/* Floating Action Dock */}
       {!isOptimistic && (
         <div className="lib-card-action-dock" role="toolbar" aria-label="Card quick actions">
@@ -209,34 +245,88 @@ function LibraryCardComponent({
         </div>
       )}
 
-      {/* Media Box or Ambient Header */}
+      {/* Modern Edge-To-Edge Bento Media or Header */}
       {hasThumbnail ? (
-        <div className="lib-card-media" style={{ aspectRatio: mediaAspect }}>
-          <img
-            className="lib-card-media-img"
-            src={api.thumbnailUrl(item.id)}
-            alt=""
-            loading="lazy"
-            onError={() => setThumbFailed(true)}
-          />
-          <div className="lib-card-media-overlay">
-            {duration && <span className="lib-card-duration-badge">{duration}</span>}
+        <div className="lib-card-media-wrap lib-card-media-framed">
+          <div className="lib-card-media">
+            <img
+              className="lib-card-media-img"
+              src={api.thumbnailUrl(item.id)}
+              alt=""
+              loading="lazy"
+              onError={() => setThumbFailed(true)}
+            />
+            {/* Ambient Dark Gradient Scrim */}
+            <div className="lib-card-media-scrim" aria-hidden="true" />
+
+            {/* Top-Left Platform Glass Badge */}
+            {(app || item.kind) && (
+              <div className="lib-card-platform-pill">
+                <Icon
+                  name={
+                    app === 'pinterest' ? 'pin' :
+                    app === 'youtube' ? 'play' :
+                    app === 'instagram' ? 'spark' :
+                    app === 'tiktok' ? 'play' :
+                    app === 'spotify' ? 'music' :
+                    app === 'github' ? 'code' :
+                    app === 'x' ? 'chat' :
+                    KIND_ICON[item.kind] || 'link'
+                  }
+                  size={10}
+                />
+                <span>{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
+              </div>
+            )}
+
+            {/* Center Frosted Play Button for Videos / Reels */}
+            {(isVideo || duration) && (
+              <div className="lib-card-play-btn" aria-hidden="true">
+                <Icon name="play" size={14} />
+              </div>
+            )}
+
+            {/* Bottom-Right Duration Badge */}
+            {duration && (
+              <div className="lib-card-media-overlay">
+                <span className="lib-card-duration-badge">{duration}</span>
+              </div>
+            )}
           </div>
         </div>
-      ) : (app || item.kind === 'video' || item.kind === 'podcast' || item.kind === 'music') ? (
+      ) : isNote ? (
+        <div className="lib-card-note-header">
+          <div className="lib-card-note-badge">
+            <Icon name="file-text" size={11} />
+            <span>NOTE</span>
+          </div>
+          {dateShort && (
+            <span className="lib-card-note-date" title={`Captured on ${dateFull}`}>
+              <Icon name="calendar" size={10} />
+              <span>{dateShort}</span>
+            </span>
+          )}
+        </div>
+      ) : (app || isVideo || item.kind === 'podcast' || item.kind === 'music') ? (
         <div className="lib-card-ambient-banner">
           <div className="lib-card-ambient-icon">
-            <Icon name={app === 'pinterest' ? 'pin' : app === 'youtube' ? 'play' : KIND_ICON[item.kind] || 'link'} size={22} />
+            <Icon name={app === 'pinterest' ? 'pin' : app === 'youtube' ? 'play' : KIND_ICON[item.kind] || 'link'} size={18} />
           </div>
           <span className="lib-card-ambient-brand">{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
+          {dateShort && (
+            <span className="lib-card-top-date" style={{ marginLeft: 6 }}>
+              · {dateShort}
+            </span>
+          )}
           {duration && <span className="lib-card-duration-badge" style={{ marginLeft: 'auto' }}>{duration}</span>}
         </div>
       ) : null}
 
       {/* Card Content Core */}
       <div className="lib-card-body">
-        {/* Source metadata strip */}
-        <div className="lib-card-source-row">
+        {/* Source & Date metadata strip (hidden on notes since note header has it) */}
+        {!isNote && (
+          <div className="lib-card-source-row">
           <div className="lib-card-source-left">
             {favicon ? (
               <img
@@ -251,18 +341,28 @@ function LibraryCardComponent({
             <span className="lib-card-domain">
               {domain || item.site || (item.kind === 'note' ? 'NOTE' : 'LOCAL')}
             </span>
+
             {item.author && (
-              <>
-                <span className="lib-card-dot">·</span>
-                <span className="lib-card-author">{item.author}</span>
-              </>
+              <span className="lib-card-author" title={item.author}>
+                · {item.author}
+              </span>
             )}
           </div>
-          <span className="lib-card-kind-badge">
-            <Icon name={KIND_ICON[item.kind] || 'link'} size={11} />
-            <span>{app || item.kind || 'article'}</span>
-          </span>
+
+          <div className="lib-card-source-right">
+            {dateShort && (
+              <span className="lib-card-top-date" title={`Captured on ${dateFull}`}>
+                <Icon name="calendar" size={10} />
+                <span>{dateShort}</span>
+              </span>
+            )}
+            <span className="lib-card-kind-badge">
+              <Icon name={KIND_ICON[item.kind] || 'link'} size={11} />
+              <span>{app || item.kind || 'article'}</span>
+            </span>
+          </div>
         </div>
+        )}
 
         {/* Title */}
         <h3 className="lib-card-title">
@@ -287,7 +387,7 @@ function LibraryCardComponent({
             title={`Detected Audio: ${musicResource.name}${musicResource.detail ? ` by ${musicResource.detail}` : ''}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <Icon name="music" size={12} />
+            <Icon name="music" size={11} />
             <span className="lib-card-music-name">{musicResource.name}</span>
             {musicResource.detail && (
               <span className="lib-card-music-artist">· {musicResource.detail}</span>
@@ -311,8 +411,8 @@ function LibraryCardComponent({
               </span>
             </div>
             <div className="lib-card-skel-lines">
-              <span className="lib-skel" style={{ width: '90%', height: 9 }} />
-              <span className="lib-skel" style={{ width: '65%', height: 9 }} />
+              <span className="lib-skel" style={{ width: '90%', height: 8 }} />
+              <span className="lib-skel" style={{ width: '65%', height: 8 }} />
             </div>
           </div>
         ) : item.summary ? (
@@ -327,32 +427,33 @@ function LibraryCardComponent({
           </p>
         ) : null}
 
-        {/* Discovered External Links */}
+        {/* Discovered External Links (compact) */}
         {linkResources.length > 0 && (
           <div className="lib-card-link-resources" onClick={(e) => e.stopPropagation()}>
-            {linkResources.map((res, i) => {
-              const resDomain = getDomain(res.url)
-              return (
-                <a
-                  key={i}
-                  href={res.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="lib-card-link-chip"
-                  title={`${res.name}: ${res.url}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Icon name="link" size={11} />
-                  <span className="lib-card-link-name">{res.name}</span>
-                  {resDomain && <span className="lib-card-link-domain">{resDomain}</span>}
-                  <span className="lib-card-link-arrow">↗</span>
-                </a>
-              )
-            })}
+            <a
+              href={linkResources[0].url}
+              target="_blank"
+              rel="noreferrer"
+              className="lib-card-link-chip"
+              title={`${linkResources[0].name}: ${linkResources[0].url}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Icon name="link" size={10} />
+              <span className="lib-card-link-name">{linkResources[0].name}</span>
+              <span className="lib-card-link-arrow">↗</span>
+            </a>
+            {linkResources.length > 1 && (
+              <span
+                className="lib-card-extra-links-chip"
+                title={linkResources.slice(1).map((r) => r.name || r.url).join(', ')}
+              >
+                +{linkResources.length - 1}
+              </span>
+            )}
           </div>
         )}
 
-        {/* Beautiful Modern Tags Pill Row Under Cards */}
+        {/* Tags Row with +N anti-clipping protection */}
         {visibleTags.length > 0 && (
           <div className="lib-card-tags-row">
             {visibleTags.map((tag) => (
@@ -370,14 +471,23 @@ function LibraryCardComponent({
                 <span>{tag}</span>
               </button>
             ))}
+            {extraTagsCount > 0 && (
+              <span
+                className="lib-card-extra-tags-badge"
+                title={`${extraTagsCount} more tags`}
+              >
+                +{extraTagsCount}
+              </span>
+            )}
           </div>
         )}
 
-        {/* Card Footer: Date, Reading time, Rating */}
+        {/* Pinned Card Footer: Date, Reading time, and Meaningful Rating Badge */}
         <div className="lib-card-footer">
           <div className="lib-card-footer-left">
+            <Icon name="calendar" size={11} className="opacity-75" />
             <span className="lib-card-date">
-              {fmtDate(item.consumed_on || item.created_at)}
+              {dateFull || 'Undated'}
             </span>
             {readTimeMeta && (
               <>
@@ -387,13 +497,16 @@ function LibraryCardComponent({
             )}
           </div>
 
-          {item.rating ? (
-            <div className="lib-card-rating-stars" title={`Rated ${item.rating} star${item.rating !== 1 ? 's' : ''}`}>
-              {Array.from({ length: item.rating }).map((_, i) => (
-                <Icon key={i} name="star" size={11} filled />
-              ))}
+          {/* Meaningful Semantic Rating Indicator */}
+          {ratingTier && (
+            <div
+              className={`lib-card-rating-badge ${ratingTier.badgeClass}`}
+              title={`Curator Tier: ${ratingTier.label} (${ratingTier.stars}/5) — ${ratingTier.description}`}
+            >
+              <Icon name="star" size={11} filled />
+              <span>{ratingTier.shortLabel}</span>
             </div>
-          ) : null}
+          )}
         </div>
       </div>
     </article>
