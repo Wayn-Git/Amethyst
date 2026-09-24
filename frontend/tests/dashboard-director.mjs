@@ -31,5 +31,10 @@ try {
   await page.getByRole('button', { name: 'Stop', exact: true }).click()
   await page.waitForFunction(() => window.refreshed)
   assert.equal(calls.at(-1).path, '/api/conversations/test%2Fid/turn/stop')
+  await page.evaluate(() => window.mount('need.approvals', [{ id: 'test', title: 'Test write', detail: 'high · Test reason', arguments: '{"path":"/test"}' }]))
+  await page.getByRole('button', { name: 'Approve', exact: true }).click()
+  await page.getByRole('button', { name: 'Deny', exact: true }).click()
+  assert.deepEqual(calls.slice(-2).map(call => call.body), [{ allow: true }, { allow: false }])
+  assert.equal(calls.at(-1).path, '/api/confirmations/test')
   console.log('Director component tests passed')
 } finally { await browser.close() }

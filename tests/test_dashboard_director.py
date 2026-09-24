@@ -50,3 +50,28 @@ async def test_errors_select_failures_and_existing_trace_errors(db, monkeypatch)
     rows = (await director.provide("agent.errors"))["items"]
     assert [row["title"] for row in rows] == ["failed", "Turn error"]
     assert "Test retry failed" == rows[1]["detail"]
+
+
+async def test_approvals_reuses_live_gate_snapshot(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    prompt = SimpleNamespace(
+        id="pending-test",
+        tool_name="test_write",
+        risk="high",
+        reason="Test gate",
+        arguments={"path": "/test"},
+        conversation_id="test",
+    )
+    snapshot = AsyncMock(return_value=[prompt])
+    monkeypatch.setitem(
+        sys.modules, "backend.api.main", SimpleNamespace(list_confirmations=snapshot)
+    )
+    rows = (await director.provide("need.approvals"))["items"]
+    snapshot.assert_awaited_once_with()
+    assert rows[0]["id"] == "pending-test"
+    assert "/test" in rows[0]["arguments"]
+    snapshot.return_value = []
+    assert await director.provide("need.approvals") == {"items": []}

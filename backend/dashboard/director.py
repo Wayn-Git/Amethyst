@@ -1,10 +1,28 @@
 """Read the Director's existing diagnostics; never execute tools here."""
 
+import json
+
 from backend.agent.trace import get_recent_traces
 from backend.db.repositories import AgentRunRepository, ExecutionLogRepository
+from backend.secrets import redact
 
 
 async def provide(widget_id):
+    if widget_id == "need.approvals":
+        from backend.api.main import list_confirmations
+
+        return {
+            "items": [
+                {
+                    "id": prompt.id,
+                    "title": prompt.tool_name,
+                    "detail": f"{prompt.risk} · {prompt.reason}",
+                    "arguments": json.dumps(redact(prompt.arguments), ensure_ascii=False),
+                    "conversation_id": prompt.conversation_id,
+                }
+                for prompt in await list_confirmations()
+            ]
+        }
     if widget_id == "agent.errors":
         rows = (
             ExecutionLogRepository()

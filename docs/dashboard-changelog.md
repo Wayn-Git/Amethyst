@@ -42,3 +42,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-24 agent.audit: Displays the newest 50 persisted execution-log records including permission decisions; no new logging path.
 
 - 2026-10-24 agent.errors: Reads recorded tool failures and Director trace errors; repeated attempts remain separate records; no automatic retry action.
+
+- 2026-10-24 need.approvals: Uses existing live confirmation snapshot (including zombie filtering) and existing approve/deny endpoint; gate and audit remain Director-owned.
