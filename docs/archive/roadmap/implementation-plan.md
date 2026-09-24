@@ -24,7 +24,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Goal.** Every later phase has somewhere to persist state.
 
-**Components.** `backend/db/schema.sql` (all tables from [data-model.md](../architecture/data-model.md)), `backend/db/connection.py` (WAL, foreign keys, busy timeout, short-transaction helper), `backend/db/repositories.py` split by domain, `backend/secrets.py` (keychain wrapper plus audit redaction), `backend/config.py` (paths, `providers.yaml`).
+**Components.** `backend/db/schema.sql` (all tables from [data-model.md](../../architecture/data-model.md)), `backend/db/connection.py` (WAL, foreign keys, busy timeout, short-transaction helper), `backend/db/repositories.py` split by domain, `backend/secrets.py` (keychain wrapper plus audit redaction), `backend/config.py` (paths, `providers.yaml`).
 
 **Dependencies.** Phase 0.
 
@@ -140,7 +140,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Components.** Filesystem walker and watcher; chunking with heading prefixes; content-hash incremental indexing; embeddings via the Phase 2 adapters (local by default); `sqlite-vec` population; FTS5 keyword index; reciprocal-rank fusion; a `search_documents` tool; retrieval injection into prompt assembly.
 
-**Dependencies.** Phases 1–3. Tool-driven file edits must invalidate the index (see [data-model.md](../architecture/data-model.md#filesystem-and-index-consistency)), so this depends on Phase 4 too.
+**Dependencies.** Phases 1–3. Tool-driven file edits must invalidate the index (see [data-model.md](../../architecture/data-model.md#filesystem-and-index-consistency)), so this depends on Phase 4 too.
 
 **Tests.** Chunk boundaries and heading paths; editing one file re-embeds only its changed chunks; hybrid search beats vector-only on an exact-term query; budgeted context assembly stays within the model's window.
 
@@ -164,7 +164,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Where extraction sits in the turn.** After the `done` event, not before it. Extraction is a second model call, and blocking the terminal event on it would keep an interface's composer disabled for the length of one. When it changes something, a `memory` event follows with the facts created and retired.
 
-**The extraction model.** `memory:` in `providers.yaml` names a small, cheap, local model for the role ([ADR-0013](../architecture/decisions/0013-local-first-ai-default-posture.md)); with none configured it falls back to the conversation's own model, so memory works on a machine with one provider rather than silently doing nothing.
+**The extraction model.** `memory:` in `providers.yaml` names a small, cheap, local model for the role ([ADR-0013](../../architecture/decisions/0013-local-first-ai-default-posture.md)); with none configured it falls back to the conversation's own model, so memory works on a machine with one provider rather than silently doing nothing.
 
 **Built beyond the original plan.** Exact duplicates are refused at the store rather than only discouraged in the prompt — restating a held fact is the extractor's documented main failure mode, and a prompt is the wrong place to enforce it alone.
 
@@ -182,7 +182,7 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 **Acceptance.** A real third-party MCP server's tools appear alongside builtins, correctly namespaced and normalized. Verified.
 
-**Built beyond the original plan.** OAuth 2.1 with PKCE for servers that require their own login, a curated server catalogue behind `amethyst mcp add`, and per-conversation connector toggles. See [mcp-oauth.md](../architecture/mcp-oauth.md).
+**Built beyond the original plan.** OAuth 2.1 with PKCE for servers that require their own login, a curated server catalogue behind `amethyst mcp add`, and per-conversation connector toggles. See [mcp-oauth.md](../../architecture/mcp-oauth.md).
 
 ---
 
@@ -216,4 +216,4 @@ Stack: Python 3.11+ with FastAPI on the backend, React with Vite on the frontend
 
 ## ◻ Phase 13 — Stretch
 
-Not designed in detail; each needs its own decision when reached. Desktop wrapper (Tauri or Electron); full GUI automation under [ADR-0015](../architecture/decisions/0015-desktop-gui-automation-scope.md)'s separate risk gate; cross-encoder reranking; constraint-solver auto-scheduling; WhatsApp and Instagram; sub-agent delegation; remote or multi-device access (which reopens [ADR-0011](../architecture/decisions/0011-authentication.md)).
+Not designed in detail; each needs its own decision when reached. Desktop wrapper (Tauri or Electron); full GUI automation under [ADR-0015](../../architecture/decisions/0015-desktop-gui-automation-scope.md)'s separate risk gate; cross-encoder reranking; constraint-solver auto-scheduling; WhatsApp and Instagram; sub-agent delegation; remote or multi-device access (which reopens [ADR-0011](../../architecture/decisions/0011-authentication.md)).

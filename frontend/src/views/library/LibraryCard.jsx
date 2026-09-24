@@ -421,9 +421,9 @@ function LibraryCardComponent({
           <p className="lib-card-summary">{item.excerpt}</p>
         ) : item.notes ? (
           <p className="lib-card-summary lib-card-summary--notes">{item.notes}</p>
-        ) : item.capture_note ? (
+        ) : (item.capture_note || item.enrichment_note) ? (
           <p className="lib-card-summary" style={{ color: 'var(--text-faint)' }}>
-            <Icon name="info" size={11} /> {item.capture_note}
+            <Icon name="info" size={11} /> {item.capture_note || item.enrichment_note}
           </p>
         ) : null}
 

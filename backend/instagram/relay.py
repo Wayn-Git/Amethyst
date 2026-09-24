@@ -470,6 +470,8 @@ class RelayPoller:
             # or login wall), the user still intentionally shared this link. Capture it on desktop!
             params = job.get("params") or {}
             fallback_url = (params.get("url") or "").strip() if isinstance(params.get("url"), str) else ""
+            if not fallback_url and (job.get("key") or "").startswith("url_ingest:"):
+                fallback_url = job["key"].split("url_ingest:", 1)[1].strip()
             if kind == "url_ingest" and fallback_url:
                 log.info(
                     "relay gave up on %s (%s); attempting direct capture on desktop",

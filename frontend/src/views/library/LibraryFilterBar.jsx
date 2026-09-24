@@ -24,20 +24,24 @@ export default function LibraryFilterBar({
   selectedCategory = '',
   selectedTag = '',
   selectedRating = '',
+  query = '',
   onSelectKind,
   onSelectCategory,
   onSelectTag,
   onSelectRating,
+  onClearQuery,
   onClearFilters,
   isOpen = true,
 }) {
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const [tagMenuOpen, setTagMenuOpen] = useState(false)
+  const [platformMenuOpen, setPlatformMenuOpen] = useState(false)
   const [ratingMenuOpen, setRatingMenuOpen] = useState(false)
   const [tagQuery, setTagQuery] = useState('')
 
   const categoryRef = useRef(null)
   const tagRef = useRef(null)
+  const platformRef = useRef(null)
   const ratingRef = useRef(null)
 
   useDismiss(categoryRef, categoryMenuOpen, {
@@ -50,12 +54,17 @@ export default function LibraryFilterBar({
     onEscape: () => setTagMenuOpen(false),
   })
 
+  useDismiss(platformRef, platformMenuOpen, {
+    onAway: () => setPlatformMenuOpen(false),
+    onEscape: () => setPlatformMenuOpen(false),
+  })
+
   useDismiss(ratingRef, ratingMenuOpen, {
     onAway: () => setRatingMenuOpen(false),
     onEscape: () => setRatingMenuOpen(false),
   })
 
-  // Format kinds list
+  // Format kinds list (filter out zero counts, sorted by frequency)
   const activeKinds = useMemo(() => {
     return Object.entries(counts)
       .filter(([kind, count]) => count > 0 && kind !== 'total')
@@ -83,7 +92,9 @@ export default function LibraryFilterBar({
 
   // Filtered tags for tag popover
   const allTagEntries = useMemo(() => {
-    return Object.entries(tagCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    return Object.entries(tagCounts)
+      .filter(([tag]) => !PLATFORMS_META.some((p) => p.id === tag))
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   }, [tagCounts])
 
   const filteredTags = useMemo(() => {
@@ -92,177 +103,159 @@ export default function LibraryFilterBar({
     return allTagEntries.filter(([tag]) => tag.toLowerCase().includes(q)).slice(0, 30)
   }, [allTagEntries, tagQuery])
 
-  const hasFilter = Boolean(selectedKind || selectedCategory || selectedTag || selectedRating)
+  // Check which platform is currently active (if any)
+  const activePlatform = useMemo(() => {
+    return PLATFORMS_META.find((p) => p.id === selectedTag)
+  }, [selectedTag])
+
+  const hasFilter = Boolean(
+    selectedKind || selectedCategory || selectedTag || selectedRating || query
+  )
 
   if (!isOpen) return null
 
   return (
-    <div className="lib-top-filter-hub w-full flex flex-col gap-2.5 pb-2">
-      <div className="lib-filter-scroll-row flex items-center justify-between gap-3 w-full">
-        {/* Horizontal Quick-Filter Pills */}
-        <div className="lib-filter-pills-wrap flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none flex-1 min-w-0">
-          {/* All button */}
+    <div className="lib-filter-nav w-full flex flex-col gap-2 pb-1" data-enter>
+      {/* Tier 1: Primary Segmented Type Tabs & Secondary Dimension Menus */}
+      <div className="lib-filter-controls-row flex items-center justify-between gap-3 w-full flex-wrap">
+        {/* Left: Segmented Format Tabs (Linear-style) */}
+        <div className="lib-segmented-tabs" role="tablist" aria-label="Media format filters">
+          {/* All tab */}
           <button
             type="button"
-            className={`lib-filter-pill ${!hasFilter ? 'lib-filter-pill--active' : ''}`}
-            onClick={onClearFilters}
+            className={`lib-tab-btn ${!selectedKind ? 'lib-tab-btn--active' : ''}`}
+            onClick={() => onSelectKind?.('')}
+            role="tab"
+            aria-selected={!selectedKind}
           >
             <Icon name="grid" size={13} />
             <span>All</span>
-            <span className="lib-filter-pill-count">{total}</span>
+            <span className="lib-tab-count">{total}</span>
           </button>
 
-          {/* Curated Significance Filters */}
-          {(ratingCounts['5'] > 0 || selectedRating === '5') && (
-            <button
-              type="button"
-              className={`lib-filter-pill lib-filter-pill--curated ${selectedRating === '5' ? 'lib-filter-pill--active' : ''}`}
-              onClick={() => onSelectRating?.(selectedRating === '5' ? '' : '5')}
-              title="Filter by Essential (5-star) knowledge"
-            >
-              <Icon name="star" size={12} filled={selectedRating === '5'} />
-              <span>Essential</span>
-              <span className="lib-filter-pill-count">{ratingCounts['5'] || 0}</span>
-            </button>
-          )}
-
-          {(ratingCounts['4+'] > 0 || selectedRating === '4+') && (
-            <button
-              type="button"
-              className={`lib-filter-pill lib-filter-pill--curated ${selectedRating === '4+' ? 'lib-filter-pill--active' : ''}`}
-              onClick={() => onSelectRating?.(selectedRating === '4+' ? '' : '4+')}
-              title="Filter by High Impact (4+ stars) resources"
-            >
-              <Icon name="star" size={12} filled={selectedRating === '4+'} />
-              <span>High Impact (4★+)</span>
-              <span className="lib-filter-pill-count">{ratingCounts['4+'] || 0}</span>
-            </button>
-          )}
-
-          {/* Divider if curated ratings present */}
-          {(ratingCounts['5'] > 0 || ratingCounts['4+'] > 0) && <span className="lib-filter-pill-divider" />}
-
-          {/* Formats (Videos, Articles, etc.) */}
+          {/* Individual Kind Tabs (Articles, Videos, Notes, etc.) */}
           {activeKinds.map(([kind, count]) => {
             const isActive = selectedKind === kind
+            const label =
+              kind === 'article'
+                ? 'Articles'
+                : kind === 'video'
+                ? 'Videos'
+                : kind === 'note'
+                ? 'Notes'
+                : `${kind}s`
+
             return (
               <button
                 key={kind}
                 type="button"
-                className={`lib-filter-pill ${isActive ? 'lib-filter-pill--active' : ''}`}
+                className={`lib-tab-btn ${isActive ? 'lib-tab-btn--active' : ''}`}
                 onClick={() => onSelectKind?.(isActive ? '' : kind)}
+                role="tab"
+                aria-selected={isActive}
               >
                 <Icon name={KIND_ICON[kind] || 'link'} size={13} />
-                <span className="capitalize">{kind}s</span>
-                <span className="lib-filter-pill-count">{count}</span>
-              </button>
-            )
-          })}
-
-          {/* Platform separators */}
-          {activeApps.length > 0 && <span className="lib-filter-pill-divider" />}
-
-          {/* Platforms (Instagram, YouTube, Spotify, etc.) */}
-          {activeApps.map((app) => {
-            const isActive = selectedTag === app.id
-            return (
-              <button
-                key={app.id}
-                type="button"
-                className={`lib-filter-pill ${isActive ? 'lib-filter-pill--active' : ''}`}
-                onClick={() => onSelectTag?.(isActive ? '' : app.id)}
-              >
-                <Icon name={app.icon} size={13} />
-                <span>{app.label}</span>
-                <span className="lib-filter-pill-count">{app.count}</span>
+                <span className="capitalize">{label}</span>
+                <span className="lib-tab-count">{count}</span>
               </button>
             )
           })}
         </div>
 
-        {/* Taxonomy Dropdowns on Right (Category, Tags, Rating) */}
-        <div className="lib-filter-dropdowns flex items-center gap-2 flex-shrink-0">
-          {/* Significance Rating Dropdown */}
-          <div className="relative" ref={ratingRef}>
+        {/* Right: Secondary Dimension Popovers & Curated Ratings */}
+        <div className="lib-filter-secondary-group flex items-center gap-1.5 flex-wrap">
+          {/* Curated Significance Pills */}
+          {ratingCounts['5'] > 0 && (
             <button
               type="button"
-              className={`lib-filter-menu-btn ${selectedRating ? 'lib-filter-menu-btn--active' : ''}`}
-              onClick={() => {
-                setRatingMenuOpen((prev) => !prev)
-                setCategoryMenuOpen(false)
-                setTagMenuOpen(false)
-              }}
-              aria-expanded={ratingMenuOpen}
-              aria-label="Filter by curator rating"
+              className={`lib-filter-curated-pill ${selectedRating === '5' ? 'lib-filter-curated-pill--active' : ''}`}
+              onClick={() => onSelectRating?.(selectedRating === '5' ? '' : '5')}
+              title="Curator Tier: 5★ Essential Reference"
             >
-              <Icon name="star" size={12} filled={Boolean(selectedRating)} />
-              <span>
-                {selectedRating === '5'
-                  ? 'Rating: 5★ Essential'
-                  : selectedRating === '4+'
-                  ? 'Rating: 4★+ High Impact'
-                  : selectedRating === 'rated'
-                  ? 'Rating: Any Rated'
-                  : 'Rating'}
-              </span>
-              <Icon name="down" size={11} className="opacity-60" />
+              <Icon name="star" size={12} filled={selectedRating === '5'} className="text-amber-400" />
+              <span>Essential</span>
+              <span className="lib-pill-count">{ratingCounts['5'] || 0}</span>
             </button>
+          )}
 
-            {ratingMenuOpen && (
-              <div className="lib-dropdown-menu">
-                <div className="lib-dropdown-header">
-                  <span>Curator Significance</span>
-                  {selectedRating && (
-                    <button
-                      type="button"
-                      className="lib-dropdown-clear"
-                      onClick={() => {
-                        onSelectRating?.('')
-                        setRatingMenuOpen(false)
-                      }}
-                    >
-                      Clear
-                    </button>
-                  )}
+          {ratingCounts['4+'] > 0 && (
+            <button
+              type="button"
+              className={`lib-filter-curated-pill ${selectedRating === '4+' ? 'lib-filter-curated-pill--active' : ''}`}
+              onClick={() => onSelectRating?.(selectedRating === '4+' ? '' : '4+')}
+              title="Curator Tier: 4★+ High Impact Knowledge"
+            >
+              <Icon name="star" size={12} filled={selectedRating === '4+'} className="text-amber-400" />
+              <span>High Impact</span>
+              <span className="lib-pill-count">{ratingCounts['4+'] || 0}</span>
+            </button>
+          )}
+
+          {/* Divider between curated ratings and dropdowns */}
+          {(ratingCounts['5'] > 0 || ratingCounts['4+'] > 0) && (
+            <span className="lib-filter-divider" aria-hidden="true" />
+          )}
+
+          {/* Platform / Source Dropdown */}
+          {activeApps.length > 0 && (
+            <div className="relative" ref={platformRef}>
+              <button
+                type="button"
+                className={`lib-filter-menu-btn ${activePlatform ? 'lib-filter-menu-btn--active' : ''}`}
+                onClick={() => {
+                  setPlatformMenuOpen((prev) => !prev)
+                  setCategoryMenuOpen(false)
+                  setTagMenuOpen(false)
+                  setRatingMenuOpen(false)
+                }}
+                aria-expanded={platformMenuOpen}
+                aria-label="Filter by source platform"
+              >
+                <Icon name={activePlatform ? activePlatform.icon : 'globe'} size={12} />
+                <span>{activePlatform ? activePlatform.label : 'Sources'}</span>
+                <Icon name="down" size={11} className="opacity-60" />
+              </button>
+
+              {platformMenuOpen && (
+                <div className="lib-dropdown-menu">
+                  <div className="lib-dropdown-header">
+                    <span>Source Platforms</span>
+                    {activePlatform && (
+                      <button
+                        type="button"
+                        className="lib-dropdown-clear"
+                        onClick={() => {
+                          onSelectTag?.('')
+                          setPlatformMenuOpen(false)
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="lib-dropdown-list">
+                    {activeApps.map((app) => (
+                      <button
+                        key={app.id}
+                        type="button"
+                        className={`lib-dropdown-item ${selectedTag === app.id ? 'is-active' : ''}`}
+                        onClick={() => {
+                          onSelectTag?.(selectedTag === app.id ? '' : app.id)
+                          setPlatformMenuOpen(false)
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon name={app.icon} size={13} />
+                          <span>{app.label}</span>
+                        </div>
+                        <span className="lib-dropdown-count">{app.count}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="lib-dropdown-list">
-                  <button
-                    type="button"
-                    className={`lib-dropdown-item ${selectedRating === '5' ? 'is-active' : ''}`}
-                    onClick={() => {
-                      onSelectRating?.(selectedRating === '5' ? '' : '5')
-                      setRatingMenuOpen(false)
-                    }}
-                  >
-                    <span>★ 5 — Essential Reference</span>
-                    <span className="lib-dropdown-count">{ratingCounts['5'] || 0}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`lib-dropdown-item ${selectedRating === '4+' ? 'is-active' : ''}`}
-                    onClick={() => {
-                      onSelectRating?.(selectedRating === '4+' ? '' : '4+')
-                      setRatingMenuOpen(false)
-                    }}
-                  >
-                    <span>★ 4+ — High Impact</span>
-                    <span className="lib-dropdown-count">{ratingCounts['4+'] || 0}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`lib-dropdown-item ${selectedRating === 'rated' ? 'is-active' : ''}`}
-                    onClick={() => {
-                      onSelectRating?.(selectedRating === 'rated' ? '' : 'rated')
-                      setRatingMenuOpen(false)
-                    }}
-                  >
-                    <span>★ Any Rated Knowledge</span>
-                    <span className="lib-dropdown-count">{ratingCounts['rated'] || 0}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Category Dropdown */}
           {categoriesList.length > 0 && (
@@ -274,6 +267,7 @@ export default function LibraryFilterBar({
                   setCategoryMenuOpen((prev) => !prev)
                   setTagMenuOpen(false)
                   setRatingMenuOpen(false)
+                  setPlatformMenuOpen(false)
                 }}
                 aria-expanded={categoryMenuOpen}
                 aria-label="Filter by category"
@@ -286,7 +280,7 @@ export default function LibraryFilterBar({
               {categoryMenuOpen && (
                 <div className="lib-dropdown-menu">
                   <div className="lib-dropdown-header">
-                    <span>Filter by Category</span>
+                    <span>Categories</span>
                     {selectedCategory && (
                       <button
                         type="button"
@@ -326,17 +320,18 @@ export default function LibraryFilterBar({
             <div className="relative" ref={tagRef}>
               <button
                 type="button"
-                className={`lib-filter-menu-btn ${selectedTag && !PLATFORMS_META.some((p) => p.id === selectedTag) ? 'lib-filter-menu-btn--active' : ''}`}
+                className={`lib-filter-menu-btn ${selectedTag && !activePlatform ? 'lib-filter-menu-btn--active' : ''}`}
                 onClick={() => {
                   setTagMenuOpen((prev) => !prev)
                   setCategoryMenuOpen(false)
                   setRatingMenuOpen(false)
+                  setPlatformMenuOpen(false)
                 }}
                 aria-expanded={tagMenuOpen}
                 aria-label="Filter by tag"
               >
                 <span className="font-mono text-xs opacity-70">#</span>
-                <span>{selectedTag && !PLATFORMS_META.some((p) => p.id === selectedTag) ? selectedTag : 'Tags'}</span>
+                <span>{selectedTag && !activePlatform ? selectedTag : 'Tags'}</span>
                 <Icon name="down" size={11} className="opacity-60" />
               </button>
 
@@ -374,20 +369,117 @@ export default function LibraryFilterBar({
             </div>
           )}
 
-          {/* Clear all active filters */}
+          {/* Reset all active filters */}
           {hasFilter && (
             <button
               type="button"
               className="lib-filter-clear-btn"
               onClick={onClearFilters}
-              title="Clear all active filters"
+              title="Reset all active filters"
             >
               <Icon name="x" size={12} />
-              <span>Clear</span>
+              <span>Reset</span>
             </button>
           )}
         </div>
       </div>
+
+      {/* Tier 2: Active Filter Chips Strip (Only appears when filters are active) */}
+      {hasFilter && (
+        <div className="lib-active-filter-strip" data-enter>
+          <span className="lib-active-filter-title">Active:</span>
+
+          {selectedKind && (
+            <span className="lib-active-filter-chip">
+              <span>Format: {selectedKind}</span>
+              <button
+                type="button"
+                className="lib-active-filter-remove"
+                onClick={() => onSelectKind?.('')}
+                title="Remove format filter"
+                aria-label="Remove format filter"
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </span>
+          )}
+
+          {selectedRating && (
+            <span className="lib-active-filter-chip">
+              <Icon name="star" size={10} filled className="text-amber-400" />
+              <span>
+                {selectedRating === '5'
+                  ? '5★ Essential'
+                  : selectedRating === '4+'
+                  ? '4★+ High Impact'
+                  : 'Any Rated'}
+              </span>
+              <button
+                type="button"
+                className="lib-active-filter-remove"
+                onClick={() => onSelectRating?.('')}
+                title="Remove rating filter"
+                aria-label="Remove rating filter"
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </span>
+          )}
+
+          {selectedCategory && (
+            <span className="lib-active-filter-chip">
+              <span>Category: {selectedCategory}</span>
+              <button
+                type="button"
+                className="lib-active-filter-remove"
+                onClick={() => onSelectCategory?.('')}
+                title="Remove category filter"
+                aria-label="Remove category filter"
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </span>
+          )}
+
+          {selectedTag && (
+            <span className="lib-active-filter-chip">
+              <span>{activePlatform ? `Source: ${activePlatform.label}` : `#${selectedTag}`}</span>
+              <button
+                type="button"
+                className="lib-active-filter-remove"
+                onClick={() => onSelectTag?.('')}
+                title="Remove tag filter"
+                aria-label="Remove tag filter"
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </span>
+          )}
+
+          {query && (
+            <span className="lib-active-filter-chip">
+              <span>Search: "{query}"</span>
+              <button
+                type="button"
+                className="lib-active-filter-remove"
+                onClick={() => onClearQuery?.()}
+                title="Clear search query"
+                aria-label="Clear search query"
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </span>
+          )}
+
+          <button
+            type="button"
+            className="lib-active-filter-clear-all"
+            onClick={onClearFilters}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
     </div>
   )
 }

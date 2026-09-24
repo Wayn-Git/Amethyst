@@ -6,6 +6,8 @@ is that the expensive thing does not happen -- not that it happens and fails.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from backend.config import add_provider, save_transcription
@@ -14,6 +16,7 @@ from backend.runtime.transcribe import (
     MAX_UPLOAD_BYTES,
     TranscriptionUnavailable,
     resolve_transcriber,
+    resolve_transcription_chain,
     transcribe,
     unavailable_reason,
 )
@@ -41,6 +44,23 @@ def audio(tmp_path):
     path = tmp_path / "clip.ogg"
     path.write_bytes(b"not really audio, but the right size")
     return path
+
+
+@pytest.fixture
+def openai_provider(db, amethyst_home):
+    """A second provider so the chain has somewhere to fall back to."""
+    from backend.secrets import set_secret
+
+    set_secret("amethyst/openai", "sk-" + "x" * 40)
+    add_provider(
+        {
+            "name": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "default_model": "gpt-4o",
+            "api_key_ref": "amethyst/openai",
+        }
+    )
+    return "openai"
 
 
 def test_with_no_provider_the_reason_is_stated_not_guessed(db, audio):
@@ -156,3 +176,84 @@ def _patch_response(monkeypatch, *, status: int, body: str):
             return Response()
 
     monkeypatch.setattr("backend.runtime.transcribe._client", lambda timeout: Client())
+
+
+# -- fallback chain tests ---------------------------------------------------
+
+def test_chain_lists_all_configured_whisper_providers(groq, openai_provider):
+    """Both Groq and OpenAI should appear in the chain."""
+    chain = resolve_transcription_chain()
+    names = [c.name for c, _ in chain]
+    assert "groq" in names
+    assert "openai" in names
+    # Groq should be first (appears first in KNOWN_MODELS iteration)
+    assert names.index("groq") < names.index("openai")
+
+
+def test_explicit_transcription_config_is_first_in_chain(groq, openai_provider):
+    """An explicit transcription: block in providers.yaml wins the head."""
+    save_transcription("openai", "whisper-1")
+    chain = resolve_transcription_chain()
+    assert chain[0][0].name == "openai"
+    assert chain[0][1] == "whisper-1"
+    # Groq is still in the chain as a fallback
+    assert any(c.name == "groq" for c, _ in chain)
+
+
+async def test_rate_limit_falls_through_to_next_provider(groq, openai_provider, audio, monkeypatch):
+    """A 429 from Groq should retry with backoff, then fall through to OpenAI."""
+    call_count = 0
+
+    class RateLimitedResponse:
+        status_code = 429
+        text = "rate limit exceeded"
+        def json(self): raise ValueError
+
+    class SuccessResponse:
+        status_code = 200
+        text = "so the thing about pour over is that grind size matters more than ratio"
+        def json(self): raise ValueError
+
+    class FallbackClient:
+        async def post(self, url, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if "groq" in url:
+                return RateLimitedResponse()
+            return SuccessResponse()
+
+    monkeypatch.setattr("backend.runtime.transcribe._client", lambda timeout: FallbackClient())
+    # Skip real backoff delays in tests.
+    async def _instant(_seconds): pass
+    monkeypatch.setattr("backend.runtime.transcribe.asyncio.sleep", _instant)
+    availability.forget()
+
+    result = await transcribe(audio)
+    assert result.text.startswith("so the thing")
+    assert result.provider == "openai"
+    # Groq: 1 initial + 2 retries = 3, then OpenAI: 1 = 4 total
+    assert call_count == 4
+
+
+async def test_non_retryable_error_does_not_fall_through(groq, openai_provider, audio, monkeypatch):
+    """A 401 (bad key) should raise immediately, not try the next provider."""
+    call_count = 0
+
+    class UnauthorizedResponse:
+        status_code = 401
+        text = "invalid api key"
+        def json(self): raise ValueError
+
+    class CountingClient:
+        async def post(self, url, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return UnauthorizedResponse()
+
+    monkeypatch.setattr("backend.runtime.transcribe._client", lambda timeout: CountingClient())
+    availability.forget()
+
+    with pytest.raises(TranscriptionUnavailable, match="HTTP 401"):
+        await transcribe(audio)
+    # Only one provider attempted — the 401 stopped the chain.
+    assert call_count == 1

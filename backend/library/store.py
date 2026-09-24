@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from backend.config import paths
@@ -208,6 +208,38 @@ class LibraryStore:
             self.conn.commit()
         except Exception:
             pass
+
+        self.recover_stale_items()
+
+    def recover_stale_items(self, max_age_seconds: int = 180) -> list[int]:
+        """Reset items left in 'enriching' or 'processing' by a killed or interrupted process."""
+        try:
+            cutoff = (datetime.now() - timedelta(seconds=max_age_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+            rows = self.conn.execute(
+                """
+                SELECT id FROM library_items
+                WHERE status IN ('enriching', 'processing')
+                  AND (updated_at IS NULL OR updated_at < ?)
+                """,
+                (cutoff,),
+            ).fetchall()
+            if rows:
+                ids = [r["id"] for r in rows]
+                placeholders = ",".join("?" for _ in ids)
+                self.conn.execute(
+                    f"""
+                    UPDATE library_items
+                    SET status = 'ready',
+                        enrichment_note = coalesce(enrichment_note, 'Enrichment timed out or was interrupted')
+                    WHERE id IN ({placeholders})
+                    """,
+                    ids,
+                )
+                self.conn.commit()
+                return ids
+        except Exception:
+            pass
+        return []
 
     def create(
         self,

@@ -488,7 +488,13 @@ class LibraryService:
         )
 
         note = await self._store_text(item_id, title or url, text, capture_note)
-        initial_status = "enriching" if (is_youtube(url) or (text and len(text.strip()) >= 15)) else "ready"
+        can_enrich = False
+        try:
+            from backend.config import load_library
+            can_enrich = bool(load_library().auto_enrich)
+        except Exception:
+            can_enrich = False
+        initial_status = "enriching" if (can_enrich and (is_youtube(url) or (text and len(text.strip()) >= 15))) else "ready"
         updates = {"capture_note": note or None, "status": initial_status}
         if text_source != "none":
             updates["text_source"] = text_source
@@ -506,7 +512,8 @@ class LibraryService:
         if thumb_url:
             await self._save_thumb(item_id, thumb_url)
 
-        self._enrich_later(item_id)
+        if initial_status == "enriching":
+            self._enrich_later(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
     def _enrich_later(self, item_id: int) -> None:
@@ -531,8 +538,10 @@ class LibraryService:
             from backend.config import load_library
 
             if not load_library().auto_enrich:
+                self.store.update(item_id, status="ready")
                 return
         except Exception:
+            self.store.update(item_id, status="ready")
             return
 
         async def run() -> None:
@@ -541,7 +550,13 @@ class LibraryService:
             except Exception as exc:  # the item is captured and searchable already
                 log.info("auto-enrichment failed for library item %s: %s", item_id, exc)
                 try:
-                    self.store.update(item_id, status="ready", enrichment_note=f"Enrichment note: {exc}")
+                    from backend.library import enrich as enrichment
+                    self.store.update(
+                        item_id,
+                        status="ready",
+                        enrichment_note=f"Enrichment note: {exc}",
+                        enriched_at=enrichment.stamp(),
+                    )
                 except Exception:
                     pass
 
@@ -549,6 +564,7 @@ class LibraryService:
             task = asyncio.get_running_loop().create_task(run())
         except RuntimeError:  # no loop: a sync caller gets no enrichment
             log.debug("no loop to enrich library item %s on", item_id)
+            self.store.update(item_id, status="ready")
             return
         _BACKGROUND_TASKS.add(task)
         task.add_done_callback(_BACKGROUND_TASKS.discard)
@@ -855,53 +871,66 @@ class LibraryService:
             heading = "Description"
 
         self.store.update(item_id, status="enriching")
-
-        result = await enrichment.enrich_text(
-            body, title=row["title"], kind=row["kind"], text_source=text_source, client=client
-        )
-
-        existing_tags = _json_list(row["tags"])
-        app_tag = app_tag_for_url(row["url"])
-        raw_tags = list(result.tags or [])
-        if not raw_tags and existing_tags:
-            raw_tags = existing_tags
-        canon = enrichment.canonicalize_tags(raw_tags)
-        if not canon and raw_tags:
-            clean_tags = [t.strip().lower() for t in raw_tags if isinstance(t, str) and t.strip()]
-            canon = clean_tags[:enrichment.MAX_TAGS]
-        combined_tags = []
-        for t in canon:
-            if t != app_tag and t not in combined_tags:
-                combined_tags.append(t)
-        if app_tag and app_tag not in combined_tags:
-            combined_tags.append(app_tag)
-        combined_tags = combined_tags[:enrichment.MAX_TAGS + 1]
-
-        self.store.update(
-            item_id,
-            status="ready",
-            category=result.category,
-            summary=result.summary,
-            tags=json.dumps(combined_tags) if combined_tags else None,
-            resources=json.dumps(list(result.resources)) if result.resources else None,
-            enrichment_note=result.note,
-            enrichment_model=(
-                f"{result.provider}:{result.model}" if result.provider and result.model else None
-            ),
-            enriched_at=enrichment.stamp(),
-        )
-
-        if body.strip():
-            rendered = enrichment.render_markdown(
-                title=row["title"],
-                body=body,
-                body_heading=heading,
-                enrichment=result,
-                capture_note=row["capture_note"],
+        try:
+            result = await enrichment.enrich_text(
+                body, title=row["title"], kind=row["kind"], text_source=text_source, client=client
             )
-            await self.replace_text(
-                item_id, rendered, note=row["capture_note"] or "", rendered=True
+
+            existing_tags = _json_list(row["tags"])
+            app_tag = app_tag_for_url(row["url"])
+            raw_tags = list(result.tags or [])
+            if not raw_tags and existing_tags:
+                raw_tags = existing_tags
+            canon = enrichment.canonicalize_tags(raw_tags)
+            if not canon and raw_tags:
+                clean_tags = [t.strip().lower() for t in raw_tags if isinstance(t, str) and t.strip()]
+                canon = clean_tags[:enrichment.MAX_TAGS]
+            combined_tags = []
+            for t in canon:
+                if t != app_tag and t not in combined_tags:
+                    combined_tags.append(t)
+            if app_tag and app_tag not in combined_tags:
+                combined_tags.append(app_tag)
+            combined_tags = combined_tags[:enrichment.MAX_TAGS + 1]
+
+            self.store.update(
+                item_id,
+                status="ready",
+                category=result.category,
+                summary=result.summary,
+                tags=json.dumps(combined_tags) if combined_tags else None,
+                resources=json.dumps(list(result.resources)) if result.resources else None,
+                enrichment_note=result.note,
+                enrichment_model=(
+                    f"{result.provider}:{result.model}" if result.provider and result.model else None
+                ),
+                enriched_at=enrichment.stamp(),
             )
+
+            if body.strip():
+                rendered = enrichment.render_markdown(
+                    title=row["title"],
+                    body=body,
+                    body_heading=heading,
+                    enrichment=result,
+                    capture_note=row["capture_note"],
+                )
+                await self.replace_text(
+                    item_id, rendered, note=row["capture_note"] or "", rendered=True
+                )
+        except Exception as exc:
+            log.warning("enrichment failed for library item %s: %s", item_id, exc)
+            self.store.update(
+                item_id,
+                status="ready",
+                enrichment_note=f"Enrichment note: {exc}",
+                enriched_at=enrichment.stamp(),
+            )
+            raise
+        finally:
+            curr = self.store.get(item_id)
+            if curr and curr["status"] == "enriching":
+                self.store.update(item_id, status="ready", enriched_at=enrichment.stamp())
 
         return as_dict(self.store.get(item_id))
 

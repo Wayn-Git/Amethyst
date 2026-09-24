@@ -6008,6 +6008,8 @@ async def enrich_library_item(item_id: int) -> dict[str, Any]:
         return await LibraryService().enrich(item_id)
     except LibraryError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"Enrichment failed: {exc}") from exc
 
 
 @app.get("/api/library/{item_id}/thumbnail")

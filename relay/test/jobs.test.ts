@@ -276,3 +276,19 @@ test('a waiting job is promoted only once its backoff has run out', async () => 
 	assert.equal(due.length, 1);
 	assert.equal(due[0].state, 'queued');
 });
+
+test('jobsForSync returns ready and pending jobs via syncBundle without SQL error', async () => {
+	const env = freshEnv();
+	const { job: job1 } = await newJob(env, 'counted', { name: 'done-job' });
+	await runJob(env, job1.id, new FakeStep());
+	const { job: job2 } = await newJob(env, 'counted', { name: 'pending-job' });
+
+	const result = await jobsForSync(env as any, 25);
+	assert.equal(Array.isArray(result.ready), true);
+	assert.equal(Array.isArray(result.pending), true);
+	assert.equal((result.ready as any[]).length, 1);
+	assert.equal((result.pending as any[]).length, 1);
+	assert.equal((result.ready as any[])[0].id, job1.id);
+	assert.equal((result.pending as any[])[0].id, job2.id);
+});
+

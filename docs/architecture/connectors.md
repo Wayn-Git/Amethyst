@@ -54,7 +54,7 @@ the button, and says **not to retry**:
 > `'google-gmail' is running but no account is signed in to it, so none of its
 > tools can work yet. This is not an outage and not a bug: it is a setup step
 > only the user can complete. Tell them to open Skills & connectors
-> (Cmd/Ctrl+3), Connectors tab, open the 'google-gmail' row and press Connect.
+> (Cmd/Ctrl+4), Connectors tab, open the 'google-gmail' row and press Connect.
 > Do not retry this tool. Finish everything else the request needs and say
 > plainly which part is waiting on that sign-in.`
 

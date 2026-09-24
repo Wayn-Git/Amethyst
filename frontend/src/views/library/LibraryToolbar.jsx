@@ -1,149 +1,163 @@
+import { useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
 
 export default function LibraryToolbar({
-  query,
+  query = '',
   onQueryChange,
   searchRef,
-  order,
+  quickCaptureText = '',
+  onQuickCaptureChange,
+  onQuickCaptureSubmit,
+  captureRef,
+  order = 'desc',
   onOrderChange,
-  layout,
-  onLayoutChange,
-  railOpen,
-  onToggleRail,
-  onOpenAdd,
-  onToggleShare,
-  showShare,
-  onOpenExportPlaylist,
-  hasMusic = false,
-  activeFilterCount = 0,
+  onOpenAddModal,
 }) {
   const isMac =
     typeof navigator !== 'undefined' &&
     /Mac|iPod|iPhone|iPad/.test(navigator.platform || '')
 
-  return (
-    <nav className="lib-toolbar" aria-label="Library commands and filters">
-      <div className="lib-toolbar-left">
-        {/* Toggle Taxonomy Sidebar */}
-        <button
-          type="button"
-          className={`lib-rail-toggle-btn ${railOpen ? 'lib-rail-toggle-btn--active' : ''}`}
-          onClick={onToggleRail}
-          title={railOpen ? 'Collapse knowledge index' : 'Expand knowledge index'}
-          aria-label={railOpen ? 'Collapse knowledge index' : 'Expand knowledge index'}
-          aria-pressed={railOpen}
-        >
-          <Icon name="sidebar" size={15} />
-          <span>Filters</span>
-          {activeFilterCount > 0 && (
-            <span className="lib-filter-count-badge">{activeFilterCount}</span>
-          )}
-        </button>
+  const rawVal = quickCaptureText !== '' ? quickCaptureText : query
+  const trimmed = rawVal.trim()
 
-        {/* Global Instant Search */}
-        <div className="lib-search-box">
-          <Icon name="search" size={14} />
+  // Detect if current input text is a URL
+  const isUrl = useMemo(() => {
+    if (!trimmed) return false
+    return (
+      /^https?:\/\//i.test(trimmed) ||
+      (trimmed.includes('.') && !trimmed.includes(' ') && trimmed.length > 3)
+    )
+  }, [trimmed])
+
+  const handleInputChange = (e) => {
+    const val = e.target.value
+    const looksUrl =
+      /^https?:\/\//i.test(val) ||
+      (val.includes('.') && !val.includes(' ') && val.length > 3)
+
+    if (looksUrl) {
+      onQuickCaptureChange?.(val)
+      onQueryChange?.('')
+    } else {
+      onQuickCaptureChange?.('')
+      onQueryChange?.(val)
+    }
+  }
+
+  const handleClear = () => {
+    onQuickCaptureChange?.('')
+    onQueryChange?.('')
+    if (searchRef?.current) searchRef.current.value = ''
+    if (captureRef?.current) captureRef.current.value = ''
+  }
+
+  const handleSubmit = (e) => {
+    e?.preventDefault()
+    if (!trimmed) return
+
+    if (isUrl) {
+      onQuickCaptureSubmit?.(e)
+    } else {
+      searchRef?.current?.blur()
+    }
+  }
+
+  return (
+    <div className="lib-command-bar-wrapper" data-enter>
+      <form
+        className={`lib-command-bar lib-capture ${isUrl ? 'lib-command-bar--capturing' : ''}`}
+        onSubmit={handleSubmit}
+        role="search"
+      >
+        <div className="lib-capture-row">
+          <div className="lib-command-icon" aria-hidden="true">
+            {isUrl ? (
+              <Icon name="link" size={15} className="lib-icon-accent" />
+            ) : (
+              <Icon name="search" size={15} />
+            )}
+          </div>
+
           <input
-            ref={searchRef}
-            type="search"
-            placeholder="Search knowledge by title, topic, domain..."
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            aria-label="Search library"
+            ref={(node) => {
+              if (searchRef) searchRef.current = node
+              if (captureRef) captureRef.current = node
+            }}
+            type="text"
+            className="lib-capture-input lib-command-input"
+            placeholder={
+              isUrl
+                ? 'Press Enter or click Save to capture into library...'
+                : `Search knowledge by title, topic, domain... or paste URL to capture instantly (${isMac ? '⌘/' : 'Ctrl+/'})`
+            }
+            value={rawVal}
+            onChange={handleInputChange}
+            aria-label="Search knowledge or paste URL to capture"
           />
-          {query ? (
+
+          <div className="lib-command-actions">
+            {/* If URL detected, show primary Save button */}
+            {isUrl && (
+              <button
+                type="submit"
+                className="lib-capture-pill-btn"
+                title="Save directly to library (Enter)"
+              >
+                <Icon name="plus" size={12} />
+                <span>Save</span>
+                <kbd className="lib-kbd-inline">↵</kbd>
+              </button>
+            )}
+
+            {/* Clear button when search text entered */}
+            {rawVal && !isUrl && (
+              <button
+                type="button"
+                className="lib-command-clear"
+                onClick={handleClear}
+                title="Clear input"
+                aria-label="Clear input"
+              >
+                <Icon name="x" size={13} />
+              </button>
+            )}
+
+            {/* Keyboard shortcut hint when empty */}
+            {!rawVal && (
+              <kbd className="lib-kbd" title="Search shortcut">
+                {isMac ? '⌘/' : 'Ctrl+/'}
+              </kbd>
+            )}
+
+            <div className="lib-command-divider" aria-hidden="true" />
+
+            {/* Compact Integrated Sort Selector */}
+            <div className="lib-select-container lib-select-container--compact" title="Change sort order">
+              <Icon name="down" size={11} className="lib-select-icon" />
+              <span>{order === 'asc' ? 'Oldest first' : 'Newest first'}</span>
+              <select
+                value={order}
+                onChange={(e) => onOrderChange?.(e.target.value)}
+                aria-label="Sort order"
+              >
+                <option value="desc">Newest first</option>
+                <option value="asc">Oldest first</option>
+              </select>
+            </div>
+
+            {/* Quick Capture More Modal Trigger */}
             <button
               type="button"
-              className="lib-search-clear"
-              onClick={() => onQueryChange('')}
-              aria-label="Clear search"
+              className="lib-command-more-btn"
+              title="More capture options (Upload File, Note, Wikipedia)"
+              onClick={() => onOpenAddModal?.('url')}
+              aria-label="More capture options"
             >
-              <Icon name="x" size={12} />
+              <Icon name="more" size={15} />
             </button>
-          ) : (
-            <kbd className="lib-kbd">{isMac ? '⌘/' : 'Ctrl+/'}</kbd>
-          )}
+          </div>
         </div>
-      </div>
-
-      <div className="lib-toolbar-right">
-        {/* Sort Chronology */}
-        <div className="lib-select-container">
-          <span>{order === 'asc' ? 'Oldest first' : 'Newest first'}</span>
-          <Icon name="down" size={12} className="lib-select-icon" />
-          <select
-            value={order}
-            onChange={(e) => onOrderChange(e.target.value)}
-            aria-label="Sort order"
-          >
-            <option value="desc">Newest first</option>
-            <option value="asc">Oldest first</option>
-          </select>
-        </div>
-
-        {/* Segmented Layout Toggle: Grid vs List */}
-        <div className="lib-segmented-control" role="group" aria-label="View display">
-          <button
-            type="button"
-            className={`lib-segmented-btn ${layout === 'grid' ? 'lib-segmented-btn--active' : ''}`}
-            onClick={() => onLayoutChange('grid')}
-            title="Bento Grid view"
-            aria-label="Bento Grid view"
-            aria-pressed={layout === 'grid'}
-          >
-            <Icon name="grid" size={14} />
-          </button>
-          <button
-            type="button"
-            className={`lib-segmented-btn ${layout === 'list' ? 'lib-segmented-btn--active' : ''}`}
-            onClick={() => onLayoutChange('list')}
-            title="Dense Stream view"
-            aria-label="Dense Stream view"
-            aria-pressed={layout === 'list'}
-          >
-            <Icon name="list" size={14} />
-          </button>
-        </div>
-
-        {/* External Capture & Integrations */}
-        <button
-          type="button"
-          className={`lib-btn ${showShare ? 'lib-btn--active' : ''}`}
-          onClick={onToggleShare}
-          title="External capture & integrations (browser, phone, relay)"
-          aria-expanded={showShare}
-        >
-          <Icon name="link" size={14} />
-          <span>Sync & Capture</span>
-        </button>
-
-        {/* Export to Spotify Playlist */}
-        {hasMusic && onOpenExportPlaylist && (
-          <button
-            type="button"
-            className="lib-btn"
-            onClick={onOpenExportPlaylist}
-            title="Export discovered audio to Spotify playlist"
-          >
-            <Icon name="music" size={14} />
-            <span>Playlist</span>
-          </button>
-        )}
-
-        {/* Primary Add Resource */}
-        <button
-          type="button"
-          className="lib-btn lib-btn--primary"
-          onClick={onOpenAdd}
-          title={`Add resource (${isMac ? '⌘K' : 'Ctrl+K'})`}
-        >
-          <Icon name="plus" size={14} />
-          <span>Add</span>
-          <kbd className="lib-kbd" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderColor: 'transparent' }}>
-            {isMac ? '⌘K' : 'Ctrl+K'}
-          </kbd>
-        </button>
-      </div>
-    </nav>
+      </form>
+    </div>
   )
 }

@@ -14,8 +14,8 @@ AMETHYST includes automated startup scripts:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/amethyst.git
-cd amethyst
+git clone https://github.com/Wayn-Git/Amethyst.git
+cd Amethyst
 
 # 2. Run the startup script (macOS/Linux/WSL)
 ./run.sh
@@ -112,8 +112,9 @@ prints which optional pieces are configured and which are not, so a phone that
 will not pair tells you the relay is missing rather than leaving you guessing.
 
 Useful variations: `--no-build` skips the interface build, `--rebuild` forces
-one, `--port 8001` moves it, and `--dev` runs the API with reload alongside the
-Vite dev server.
+one, `--port 8001` moves it, `--reload` restarts it on source changes, and
+`--host 127.0.0.1` keeps it off the LAN. For the Vite dev server alongside the
+API, use `./run.sh --dev`.
 
 ---
 
@@ -159,10 +160,10 @@ amethyst secrets set amethyst/groq
 | `./run.sh --doctor` / `run.bat --doctor` | Runs system diagnostics (checks models, DB, tools, connectors) |
 | `./run.sh --build` | Rebuilds the frontend bundle |
 | `amethyst serve` | Starts everything: database, interface, and every background service |
-| `amethyst serve --dev` | The same, with reload and the Vite dev server |
+| `amethyst serve --reload` | The same, restarting on source changes |
 | `amethyst doctor` | Checks what is working and what is missing |
 | `amethyst chat "Hello"` | Run a chat turn directly from your terminal |
-| `amethyst device --pair` | Shows a scannable QR code to pair a phone |
+| `amethyst device --pair` | Prints a pairing secret for another machine; **Settings → Devices** shows it as a QR code |
 | `amethyst device` | Lists paired devices |
 | `amethyst device --revoke <id>` | Disconnects one |
 
@@ -260,7 +261,7 @@ A permission prompt suspends the turn until answered; check for an amber prompt 
 ### Enterprise-Grade Reliability
 
 Amethyst's backend is fortified against edge cases, resource leaks, and concurrency issues:
-- **Bulletproof concurrency** — A global `.amethyst.lock` file prevents multiple background instances from clobbering each other's ports and logs.
+- **One instance, guaranteed** — `amethyst serve` asks the port before it binds and hands you the URL of the server that is already running instead of starting a second one against the same SQLite file.
 - **Leak-free streaming** — FastAPI's `BackgroundTasks` guarantee cleanup of SSE (Server-Sent Events) connections, preventing memory leaks when clients disconnect ungracefully.
 - **Orphan process prevention** — Explicit process group reaping ensures that background PTY processes spawned by the terminal manager are killed instantly on shutdown.
 - **Strict dependency isolation** — Dynamic skill loading employs robust directory existence validation and YAML mapping verification, preventing malformed skills from crashing the system.

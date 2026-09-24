@@ -62,17 +62,35 @@ class Transcript:
 
 def resolve_transcriber() -> tuple[ProviderConfig, str] | None:
     """Which provider and model, or None because none of them can."""
+    chain = resolve_transcription_chain()
+    return chain[0] if chain else None
+
+
+def resolve_transcription_chain() -> list[tuple[ProviderConfig, str]]:
+    """All providers that can transcribe, ordered by preference.
+
+    The explicit `transcription:` block in providers.yaml is first. After that,
+    every configured provider on the KNOWN_MODELS allowlist, in file order. The
+    result is a list rather than a single answer so that `transcribe` can fall
+    through a rate-limited or unreachable provider to the next one.
+    """
     configured = configured_providers()
+    chain: list[tuple[ProviderConfig, str]] = []
+    seen: set[str] = set()
 
     chosen = load_transcription()
     if chosen is not None and chosen.provider in configured:
-        return configured[chosen.provider], chosen.model
+        chain.append((configured[chosen.provider], chosen.model))
+        seen.add(chosen.provider)
 
     for name, config in configured.items():
+        if name in seen:
+            continue
         model = KNOWN_MODELS.get(name)
         if model:
-            return config, model
-    return None
+            chain.append((config, model))
+            seen.add(name)
+    return chain
 
 
 def unavailable_reason() -> str:
@@ -83,68 +101,150 @@ def unavailable_reason() -> str:
     )
 
 
+#: HTTP status codes where the *request* is wrong and a different provider would
+#: get the same answer. A 401 is a bad key, a 413 is a too-large file. Retrying
+#: those elsewhere wastes bandwidth and might succeed for the wrong reason.
+_NON_RETRYABLE_STATUSES = frozenset({400, 401, 403, 413})
+
+#: Rate limits often clear in seconds. A short retry before hopping providers
+#: avoids paying the latency cost of uploading 24MB to a second endpoint.
+RATE_LIMIT_RETRIES = 2
+RATE_LIMIT_BACKOFF = 3.0  # seconds, doubled on each retry
+
+
 async def transcribe(
     path: Path, *, language: str | None = None, timeout: float = DEFAULT_TIMEOUT
 ) -> Transcript:
-    """What was actually said. Raises rather than guessing."""
-    resolved = resolve_transcriber()
-    if resolved is None:
+    """What was actually said. Tries every configured Whisper provider in order.
+
+    Rate limits (429), server errors (5xx), and network failures on one provider
+    fall through to the next. Non-retryable errors (bad key, file too large)
+    raise immediately — a different provider would get the same answer.
+    """
+    chain = resolve_transcription_chain()
+    if not chain:
         raise TranscriptionUnavailable(unavailable_reason())
-    config, model = resolved
 
     if not path.exists():
         raise TranscriptionUnavailable(f"there is no audio at {path}")
     size = path.stat().st_size
     if size > MAX_UPLOAD_BYTES:
-        # Splitting with overlap is a real feature and is not this one. Saying so
-        # is better than silently transcribing the first four minutes.
         raise TranscriptionUnavailable(
             f"the audio is {size // (1024 * 1024)}MB, over the"
             f" {MAX_UPLOAD_BYTES // (1024 * 1024)}MB a transcription request accepts."
             " Long recordings are not split up yet."
         )
 
+    # Read once, reuse across providers. The file is the same for all of them.
+    payload = await asyncio.to_thread(path.read_bytes)
+
+    last_exc: TranscriptionUnavailable | None = None
+    for config, model in chain:
+        try:
+            result = await _try_provider(
+                config, model, path.name, payload,
+                language=language, timeout=timeout,
+            )
+            return result
+        except TranscriptionUnavailable as exc:
+            last_exc = exc
+            # Non-retryable: the request itself is wrong, not the provider.
+            if _is_non_retryable(exc):
+                raise
+            # Retryable: log and try the next provider in the chain.
+            remaining = len(chain) - chain.index((config, model)) - 1
+            if remaining > 0:
+                log.info(
+                    "%s failed to transcribe, falling back (%d provider(s) left): %s",
+                    config.name, remaining, exc,
+                )
+            continue
+
+    # Every provider in the chain failed with a retryable error.
+    raise last_exc or TranscriptionUnavailable(unavailable_reason())
+
+
+def _is_non_retryable(exc: TranscriptionUnavailable) -> bool:
+    """Whether the exception text indicates a non-retryable HTTP status."""
+    msg = str(exc)
+    return any(f"HTTP {code}" in msg for code in _NON_RETRYABLE_STATUSES)
+
+
+async def _try_provider(
+    config: ProviderConfig,
+    model: str,
+    filename: str,
+    payload: bytes,
+    *,
+    language: str | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+) -> Transcript:
+    """One attempt against one provider, with retry on rate limits.
+
+    A 429 is retried up to RATE_LIMIT_RETRIES times with exponential backoff
+    before raising. Rate limit windows are typically seconds, and retrying here
+    is far cheaper than re-uploading 24MB to a different provider.
+    """
     key = resolve_api_key(ref=config.api_key_ref, env=config.api_key_env)
     headers = {"Authorization": f"Bearer {key}"} if key else {}
     data = {"model": model, "response_format": "text"}
     if language:
         data["language"] = language
 
-    try:
-        # Bytes read on a worker thread: a sync file handle inside the async
-        # post made the event loop drive every chunk read of a 24MB upload.
-        payload = await asyncio.to_thread(path.read_bytes)
-        response = await _client(timeout).post(
-            f"{config.base_url.rstrip('/')}/audio/transcriptions",
-            headers=headers,
-            data=data,
-            files={"file": (path.name, payload, "application/octet-stream")},
-            timeout=timeout,
-        )
-    except httpx.HTTPError as exc:
-        # Unreachable is about the provider, so the chat chain should know.
-        availability.record_failure(config.name, FailureKind.UNREACHABLE, str(exc))
-        raise TranscriptionUnavailable(
-            f"{config.name} could not be reached to transcribe: {exc}"
-        ) from exc
+    attempts = 1 + RATE_LIMIT_RETRIES  # initial + retries
+    backoff = RATE_LIMIT_BACKOFF
 
-    if response.status_code >= 400:
-        body = response.text[:300]
-        # Deliberately not recorded against the provider. A 413 means *this file*
-        # was too big and a 401 means the key is wrong -- neither is "this
-        # provider is unwell", and `availability.record_failure` ignores both
-        # kinds anyway, for its own stated reasons. Marking Groq unavailable
-        # because somebody saved a long video would make the chat fallback chain
-        # skip a provider that is working perfectly.
-        raise TranscriptionUnavailable(
-            f"{config.name} refused the transcription (HTTP {response.status_code}): {body}"
-        )
+    for attempt in range(attempts):
+        try:
+            response = await _client(timeout).post(
+                f"{config.base_url.rstrip('/')}/audio/transcriptions",
+                headers=headers,
+                data=data,
+                files={"file": (filename, payload, "application/octet-stream")},
+                timeout=timeout,
+            )
+        except httpx.HTTPError as exc:
+            availability.record_failure(config.name, FailureKind.UNREACHABLE, str(exc))
+            raise TranscriptionUnavailable(
+                f"{config.name} could not be reached to transcribe: {exc}"
+            ) from exc
 
-    availability.record_success(config.name)
-    text = _text_of(response)
-    if len(text.strip()) < MIN_USEFUL_CHARS:
-        return Transcript("", config.name, model)
-    return Transcript(text.strip(), config.name, model)
+        if response.status_code == 429 and attempt < attempts - 1:
+            # Retry after a short backoff — rate limits usually clear quickly.
+            log.info(
+                "%s rate-limited on transcription, retrying in %.0fs (attempt %d/%d)",
+                config.name, backoff, attempt + 1, attempts,
+            )
+            await asyncio.sleep(backoff)
+            backoff *= 2
+            continue
+
+        if response.status_code >= 400:
+            body = response.text[:300]
+            if response.status_code == 429:
+                availability.record_failure(
+                    config.name, FailureKind.RATE_LIMITED,
+                    f"transcription rate-limited (HTTP 429): {body}",
+                )
+            elif response.status_code >= 500:
+                availability.record_failure(
+                    config.name, FailureKind.UPSTREAM_UNHEALTHY,
+                    f"transcription server error (HTTP {response.status_code}): {body}",
+                )
+            # 401/413 are deliberately NOT recorded against the provider — see the
+            # original comment about cross-contamination.
+            raise TranscriptionUnavailable(
+                f"{config.name} refused the transcription (HTTP {response.status_code}): {body}"
+            )
+
+        availability.record_success(config.name)
+        text = _text_of(response)
+        if len(text.strip()) < MIN_USEFUL_CHARS:
+            return Transcript("", config.name, model)
+        return Transcript(text.strip(), config.name, model)
+
+    # Should not be reached, but satisfies the type checker.
+    raise TranscriptionUnavailable(f"{config.name} exhausted all retry attempts")
 
 
 def _text_of(response: httpx.Response) -> str:
