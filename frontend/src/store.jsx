@@ -968,7 +968,7 @@ export function AppProvider({ children }) {
       if (res && res.ok) {
         const data = await res.json()
         const latestTag = data.tag_name ? data.tag_name.replace(/^v/, '') : null
-        const currentVersion = '0.1.2'
+        const currentVersion = '0.1.3-beta'
         if (latestTag && latestTag !== currentVersion) {
           setUpdateInfo((prev) => ({
             ...prev,
