@@ -5,7 +5,8 @@
 
 .today-view {
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   width: 100%;
 }
 
@@ -216,7 +217,8 @@
   width: 9px;
   height: 9px;
   border-radius: 2px;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  box-sizing: border-box;
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
   cursor: pointer;
 }
 
@@ -226,7 +228,13 @@
 }
 
 .today-contrib-cell[data-level="0"] {
-  background: color-mix(in srgb, var(--tint) 8%, transparent);
+  background: #121316;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.today-contrib-cell[data-level="0"]:hover {
+  background: #1c1d22;
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .today-contrib-cell[data-level="1"] {
@@ -239,6 +247,22 @@
 
 .today-contrib-cell[data-level="3"] {
   background: var(--accent);
+}
+
+:root[data-theme='paper'] .today-contrib-cell[data-level="0"],
+:root[data-theme='light'] .today-contrib-cell[data-level="0"],
+:root[data-theme='sand'] .today-contrib-cell[data-level="0"],
+:root[data-theme='apple'] .today-contrib-cell[data-level="0"] {
+  background: #ebedf0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='paper'] .today-contrib-cell[data-level="0"]:hover,
+:root[data-theme='light'] .today-contrib-cell[data-level="0"]:hover,
+:root[data-theme='sand'] .today-contrib-cell[data-level="0"]:hover,
+:root[data-theme='apple'] .today-contrib-cell[data-level="0"]:hover {
+  background: #dfe1e4;
+  border-color: rgba(0, 0, 0, 0.14);
 }
 
 /* Task Row */
