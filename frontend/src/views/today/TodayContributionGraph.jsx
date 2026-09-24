@@ -64,7 +64,11 @@ export default function TodayContributionGraph({ completedTasks = [] }) {
                 key={`${wIdx}-${dIdx}`}
                 className="today-contrib-cell"
                 data-level={day.level}
-                title={`${day.formatted}: ${day.count} ${day.count === 1 ? 'task' : 'tasks'} completed`}
+                title={
+                  day.count === 0
+                    ? `No tasks completed on ${day.formatted}`
+                    : `${day.count} ${day.count === 1 ? 'task' : 'tasks'} completed on ${day.formatted}`
+                }
               />
             )),
           )}
