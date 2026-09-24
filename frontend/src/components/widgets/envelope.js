@@ -22,6 +22,8 @@ export const WIDGET_TYPES = [
   'translation',
   'chart',
   'options',
+  'image_gallery',
+  'data_table',
 ]
 
 /** The widget in `text`, or null if it does not hold one.
@@ -47,5 +49,83 @@ export function parseWidgetEnvelope(text) {
   if (!WIDGET_TYPES.includes(payload.type)) return null
   if (!payload.data || typeof payload.data !== 'object') return null
 
-  return { type: payload.type, data: payload.data }
+  return { type: payload.type, data: payload.data, media: Array.isArray(payload.media) ? payload.media : [] }
 }
+
+/** Parses message text that may contain one or more embedded widget envelopes
+ * interspersed with markdown prose.
+ *
+ * Returns an array of blocks:
+ *   [{ type: 'text', content: string }] or
+ *   [{ type: 'widget', widget: { type: string, data: object, media: array } }]
+ */
+export function parseContentBlocks(text) {
+  if (!text) return []
+  const openingFence = '```' + FENCE
+  if (!text.includes(openingFence)) {
+    return [{ type: 'text', content: text }]
+  }
+
+  const blocks = []
+  let cursor = 0
+
+  while (cursor < text.length) {
+    const startIndex = text.indexOf(openingFence, cursor)
+    if (startIndex === -1) {
+      const remaining = text.slice(cursor)
+      if (remaining.trim()) {
+        blocks.push({ type: 'text', content: remaining })
+      }
+      break
+    }
+
+    if (startIndex > cursor) {
+      const prefix = text.slice(cursor, startIndex)
+      if (prefix.trim()) {
+        blocks.push({ type: 'text', content: prefix })
+      }
+    }
+
+    const bodyStart = startIndex + openingFence.length
+    const endIndex = text.indexOf('```', bodyStart)
+    if (endIndex === -1) {
+      const remaining = text.slice(startIndex)
+      if (remaining.trim()) {
+        blocks.push({ type: 'text', content: remaining })
+      }
+      break
+    }
+
+    const body = text.slice(bodyStart, endIndex).trim()
+    cursor = endIndex + 3
+
+    let parsed = null
+    try {
+      const payload = JSON.parse(body)
+      if (
+        payload &&
+        typeof payload === 'object' &&
+        WIDGET_TYPES.includes(payload.type) &&
+        payload.data &&
+        typeof payload.data === 'object'
+      ) {
+        parsed = {
+          type: payload.type,
+          data: payload.data,
+          media: Array.isArray(payload.media) ? payload.media : [],
+        }
+      }
+    } catch {
+      parsed = null
+    }
+
+    if (parsed) {
+      blocks.push({ type: 'widget', widget: parsed })
+    } else {
+      blocks.push({ type: 'text', content: text.slice(startIndex, cursor) })
+    }
+  }
+
+  return blocks.length > 0 ? blocks : [{ type: 'text', content: text }]
+}
+
