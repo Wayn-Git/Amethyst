@@ -225,6 +225,13 @@ MANIFESTS = [
     mail_manifest("need.inbox", "Priority inbox"),
     mail_manifest("need.drafts", "Mail drafts to approve"),
     mail_manifest("need.waiting", "Waiting on replies"),
+    {
+        **manifest('need.lor-slack', 'Unreplied Slack DMs', ["m", "l"]),
+        "group": 'needs-you', "tier": "v2",
+        "source": [{'type': 'composio', 'toolkit': 'slack'}],
+        "refresh": {"mode": "poll", "interval_s": 900},
+        "requires": [], "empty": "No matching items.",
+    },
     mail_manifest("comm.unread", "Unread by person"),
     mail_manifest("comm.tone", "Reply tone picker"),
     mail_manifest("comm.templates", "Draft templates"),

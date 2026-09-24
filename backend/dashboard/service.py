@@ -55,6 +55,10 @@ async def local_provider(widget_id):
         from backend.dashboard.weather import provide
 
         return await provide(widget_id)
+    if widget_id == "need.lor-slack":
+        from backend.dashboard.communication import provide
+
+        return await provide(widget_id)
     if widget_id == "need.mentions":
         from backend.dashboard.mentions import provide
 

@@ -200,7 +200,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | need.decisions | Decisions the agent is waiting on | dir | MVP | [x] |
 | need.snoozed | Snoozed items returning today | local | MVP | [x] |
 | need.approvals | Permission-gate approval queue | dir | MVP | [x] |
-| need.lor-slack | Left on read: unreplied Slack DMs | cmp:slack | v2 | [ ] |
+| need.lor-slack | Left on read: unreplied Slack DMs | cmp:slack | v2 | [x] |
 | need.lor-social | Left on read: WhatsApp and Instagram | blocked: no official personal-account API | Later | [ ] |
 
 ### 6.4 Communication

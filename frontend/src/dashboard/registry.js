@@ -10,6 +10,7 @@ export const WIDGETS = {
   'glance.air': lazy(() => import('./widgets/Weather.jsx')),
   'glance.sun': lazy(() => import('./widgets/Weather.jsx')),
   'glance.weather': lazy(() => import('./widgets/Weather.jsx')),
+  'need.lor-slack': lazy(() => import('./widgets/Communication.jsx')),
   'comm.templates': lazy(() => import('./widgets/Templates.jsx')),
   'comm.tone': lazy(() => import('./widgets/Tone.jsx')),
   'comm.unread': lazy(() => import('./widgets/Mail.jsx')),
