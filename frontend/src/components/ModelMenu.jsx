@@ -5,6 +5,7 @@ import AiProviderIcon from './AiProviderIcon.jsx'
 import { useApp } from '../store.jsx'
 import { api } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
+import { useMenuFit } from '../hooks/useMenuFit.js'
 import { FadeScrollArea, SmoothInput } from './ui/skiper/index.js'
 
 /* Fallback model definitions for providers that don't serve a live GET /models endpoint */
@@ -85,6 +86,7 @@ export default function ModelMenu({
   const canRoute = health?.routing ?? false
 
   useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
+  useMenuFit(ref, [providers.length, selectedProvider, query, loading])
 
   // Concurrently fetch models for all configured providers
   useEffect(() => {

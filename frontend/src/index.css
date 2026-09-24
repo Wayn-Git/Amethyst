@@ -5022,10 +5022,12 @@ html:has(.palette--bar) body {
 @keyframes damon-spring-in {
   0% {
     opacity: 0;
-    transform: scale(0.95) translateY(-10px);
+    filter: blur(16px);
+    transform: scale(0.96) translateY(-10px);
   }
   100% {
     opacity: 1;
+    filter: blur(0px);
     transform: scale(1) translateY(0);
   }
 }
@@ -5042,7 +5044,7 @@ html:has(.palette--bar) body {
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   box-shadow: var(--lift);
   overflow: hidden;
-  animation: damon-spring-in 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: damon-spring-in 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform-origin: top center;
 }
 
@@ -5056,12 +5058,21 @@ html:has(.palette--bar) body {
    animation is pure cost between the keystroke and the cursor: long enough to
    read as motion rather than a jump, short enough not to be waited on. */
 .palette[data-closing] {
-  animation: damon-fade-out 80ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: damon-fade-out 100ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
   pointer-events: none;
 }
 
 @keyframes damon-fade-out {
-  to { opacity: 0; }
+  0% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(12px);
+    transform: scale(0.98) translateY(6px);
+  }
 }
 
 .palette-input {
@@ -7275,6 +7286,10 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   padding: 8px !important;
   user-select: none;
+  max-height: calc(100vh - 100px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
 [data-theme="light"] .pm-menu-container {
@@ -7284,7 +7299,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 }
 
 .pm-scroll-body {
-  max-height: min(65vh, 520px) !important;
+  max-height: min(65vh, 520px);
   padding: 2px !important;
   display: flex;
   flex-direction: column;
@@ -12113,29 +12128,37 @@ a.text-reveal-wrap {
    grid, so the swap from loading to loaded is a shimmer ending, not a layout
    jump. */
 .skel-lib-grid {
-  column-count: 3;
-  column-gap: var(--space-md);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
 }
 
 .skel-lib-card {
-  break-inside: avoid;
-  margin-bottom: var(--space-md);
   border: 1px solid var(--hairline);
-  border-radius: 22px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--raised) 92%, var(--canvas));
   overflow: hidden;
+  padding: 10px 10px 0 10px;
 }
 
-.skel-lib-media { aspect-ratio: 16 / 9; background: var(--canvas-deep); border-bottom: 1px solid var(--hairline); }
+.skel-lib-media {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  background: var(--canvas-deep);
+  border: 1px solid var(--hairline);
+}
 
-.skel-lib-body { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 10px; }
+.skel-lib-body { display: flex; flex-direction: column; gap: 8px; padding: 13px 14px; }
 
 .skel-lib-source { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
 
-.skel-lib-foot { display: flex; align-items: center; padding: 0 16px 12px; }
+.skel-lib-foot { display: flex; align-items: center; padding: 0 14px 10px; }
 
-@media (max-width: 1024px) { .skel-lib-grid { column-count: 2; } }
-@media (max-width: 640px) { .skel-lib-grid { column-count: 1; } }
+@media (min-width: 1440px) { .skel-lib-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; } }
+@media (min-width: 1024px) and (max-width: 1439px) { .skel-lib-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 640px) and (max-width: 1023px) { .skel-lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .skel-lib-grid { grid-template-columns: 1fr; } }
 
 .skel-rail {
   display: flex;
@@ -14457,6 +14480,7 @@ a.text-reveal-wrap {
 /* Nothing to show and nothing to reserve. The column is `auto`, so a hidden
    panel takes the working column's width with it. */
 .wb-panel:empty { display: none; }
+.wb-panel:not(:has(.wb-panel-inner)) { display: none !important; }
 .wb--panel-hidden .wb-panel { display: none; }
 
 /* Filling the window. The panel leaves the grid and covers the working area
@@ -18230,8 +18254,8 @@ a.text-reveal-wrap {
   position: absolute;
   bottom: calc(100% + 10px);
   right: 0;
-  width: 360px;
-  height: 420px;
+  width: min(360px, calc(100vw - 24px));
+  height: min(420px, calc(100vh - 120px));
   max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
@@ -26406,10 +26430,12 @@ html:has(.palette--bar) body {
 @keyframes damon-spring-in {
   0% {
     opacity: 0;
-    transform: scale(0.95) translateY(-10px);
+    filter: blur(16px);
+    transform: scale(0.96) translateY(-10px);
   }
   100% {
     opacity: 1;
+    filter: blur(0px);
     transform: scale(1) translateY(0);
   }
 }
@@ -26426,7 +26452,7 @@ html:has(.palette--bar) body {
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   box-shadow: var(--lift);
   overflow: hidden;
-  animation: damon-spring-in 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: damon-spring-in 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform-origin: top center;
 }
 
@@ -26440,12 +26466,21 @@ html:has(.palette--bar) body {
    animation is pure cost between the keystroke and the cursor: long enough to
    read as motion rather than a jump, short enough not to be waited on. */
 .palette[data-closing] {
-  animation: damon-fade-out 80ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: damon-fade-out 100ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
   pointer-events: none;
 }
 
 @keyframes damon-fade-out {
-  to { opacity: 0; }
+  0% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(12px);
+    transform: scale(0.98) translateY(6px);
+  }
 }
 
 .palette-input {
@@ -28598,6 +28633,10 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   padding: 8px !important;
   user-select: none;
+  max-height: calc(100vh - 100px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
 [data-theme="light"] .pm-menu-container {
@@ -28607,7 +28646,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 }
 
 .pm-scroll-body {
-  max-height: min(65vh, 520px) !important;
+  max-height: min(65vh, 520px);
   padding: 2px !important;
   display: flex;
   flex-direction: column;
@@ -34350,29 +34389,37 @@ a.text-reveal-wrap {
    grid, so the swap from loading to loaded is a shimmer ending, not a layout
    jump. */
 .skel-lib-grid {
-  column-count: 3;
-  column-gap: var(--space-md);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
 }
 
 .skel-lib-card {
-  break-inside: avoid;
-  margin-bottom: var(--space-md);
   border: 1px solid var(--hairline);
-  border-radius: 22px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--raised) 92%, var(--canvas));
   overflow: hidden;
+  padding: 10px 10px 0 10px;
 }
 
-.skel-lib-media { aspect-ratio: 16 / 9; background: var(--canvas-deep); border-bottom: 1px solid var(--hairline); }
+.skel-lib-media {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  background: var(--canvas-deep);
+  border: 1px solid var(--hairline);
+}
 
-.skel-lib-body { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 10px; }
+.skel-lib-body { display: flex; flex-direction: column; gap: 8px; padding: 13px 14px; }
 
 .skel-lib-source { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
 
-.skel-lib-foot { display: flex; align-items: center; padding: 0 16px 12px; }
+.skel-lib-foot { display: flex; align-items: center; padding: 0 14px 10px; }
 
-@media (max-width: 1024px) { .skel-lib-grid { column-count: 2; } }
-@media (max-width: 640px) { .skel-lib-grid { column-count: 1; } }
+@media (min-width: 1440px) { .skel-lib-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; } }
+@media (min-width: 1024px) and (max-width: 1439px) { .skel-lib-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 640px) and (max-width: 1023px) { .skel-lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .skel-lib-grid { grid-template-columns: 1fr; } }
 
 .skel-rail {
   display: flex;
@@ -36694,6 +36741,7 @@ a.text-reveal-wrap {
 /* Nothing to show and nothing to reserve. The column is `auto`, so a hidden
    panel takes the working column's width with it. */
 .wb-panel:empty { display: none; }
+.wb-panel:not(:has(.wb-panel-inner)) { display: none !important; }
 .wb--panel-hidden .wb-panel { display: none; }
 
 /* Filling the window. The panel leaves the grid and covers the working area
@@ -40467,8 +40515,8 @@ a.text-reveal-wrap {
   position: absolute;
   bottom: calc(100% + 10px);
   right: 0;
-  width: 360px;
-  height: 420px;
+  width: min(360px, calc(100vw - 24px));
+  height: min(420px, calc(100vh - 120px));
   max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
@@ -46230,6 +46278,94 @@ a.text-reveal-wrap {
 
 .bubble-ask-btn {
   font-weight: 500;
+}
+
+.bubble-refer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.bubble-refer-btn:hover {
+  background: color-mix(in srgb, var(--accent, #873FFF) 24%, transparent);
+}
+
+/* Quoted / Referenced text banner in composer */
+.composer-quote-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--accent, #873FFF) 8%, var(--raised));
+  border: 1px solid color-mix(in srgb, var(--accent, #873FFF) 28%, var(--hairline));
+  border-left: 3px solid var(--accent, #873FFF);
+  border-radius: 10px;
+  margin-bottom: 2px;
+  animation: quoteBannerIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes quoteBannerIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.composer-quote-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.composer-quote-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent, #873FFF);
+}
+
+.composer-quote-icon {
+  opacity: 0.9;
+}
+
+.composer-quote-snippet {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.composer-quote-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+}
+
+.composer-quote-remove:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
 }
 
 .bubble-shortcut-tag {

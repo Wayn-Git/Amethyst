@@ -27,7 +27,7 @@ export const MAX_OP_BYTES = 64 * 1024;
 export const MAX_OPEN_OPS = 5_000;
 
 /** What an op that nobody collected is kept for, matching the delivery prune. */
-export const KEEP_SECONDS = 8 * 24 * 60 * 60;
+export const KEEP_SECONDS = 24 * 60 * 60;
 
 const now = () => Math.floor(Date.now() / 1000);
 

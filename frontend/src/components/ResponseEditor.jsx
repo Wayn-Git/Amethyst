@@ -956,7 +956,7 @@ export default function ResponseEditor({
         <SelectionActionMenu
           containerRef={editorPaneRef}
           onFormat={handleFormat}
-          onApplyChanges={handleApplyAiChanges}
+          allowFormatting={true}
         />
 
         {(viewMode === 'edit' || viewMode === 'split') && (

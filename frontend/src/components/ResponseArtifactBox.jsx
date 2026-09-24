@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Icon from './Icon.jsx'
 import Markdown from './markdown/Markdown.jsx'
 import ResponseEditor from './ResponseEditor.jsx'
-import SelectionActionMenu from './SelectionActionMenu.jsx'
 import { replaceSelectedInMarkdown } from './markdown/parse.js'
 import { api, copyText } from '../api.js'
 
@@ -267,13 +266,6 @@ export default function ResponseArtifactBox({
             </button>
           </div>
         </div>
-
-        {/* Floating selection bubble menu matching Image 4 & 5 */}
-        <SelectionActionMenu
-          containerRef={docRef}
-          onFormat={handleFormat}
-          onApplyChanges={handleApplyAiChanges}
-        />
 
         {/* Document Body */}
         <div className="artifact-card-body" ref={docRef}>

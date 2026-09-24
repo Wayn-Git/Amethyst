@@ -261,6 +261,10 @@ export const api = {
   // state DELETE cannot express.
   setProviderEnabled: (name, enabled) =>
     j(`/providers/${encodeURIComponent(name)}`, json('PATCH', { enabled })),
+  setPrimaryProvider: (name) =>
+    j(`/providers/${encodeURIComponent(name)}/primary`, json('POST')),
+  reorderProviders: (order) =>
+    j('/providers/reorder', json('POST', { order })),
   // Why the router would pick what it picks: each provider's health, how much
   // of its declared minute is left, and the ranked decision with its reasons.
   routing: () => j('/routing'),
@@ -554,6 +558,8 @@ export const api = {
 
   memory: (conversationId) =>
     j(`/memory${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
+  addMemory: (fact, conversationId) =>
+    j('/memory', json('POST', { fact, conversation_id: conversationId || null })),
   toggleMemory: (enabled, conversationId) =>
     j('/memory/toggle', json('POST', { enabled, conversation_id: conversationId || null })),
   forgetMemory: (id) => j(`/memory/${id}`, json('DELETE')),
@@ -582,6 +588,7 @@ export const api = {
   // connector answers in prose written for a model, see backend/mail/gmail.py.
   userProfile: () => j('/user/profile'),
   updateUserProfile: (profile) => j('/user/profile', json('POST', profile)),
+  updateProfile: (profile) => j('/user/profile', json('POST', profile)),
   mailAccount: () => j('/mail/account'),
   mailThreads: ({ q = 'in:inbox', limit = 25 } = {}) =>
     j(`/mail/threads?q=${encodeURIComponent(q)}&limit=${limit}`),

@@ -71,6 +71,7 @@ class InstagramRunner:
         # the free plan it talks to counts requests per day.
         self._relay = RelayPoller()
         self._next_relay = 0.0
+        self._relay_interval = RELAY_POLL_SECONDS
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -95,6 +96,7 @@ class InstagramRunner:
         and the next start drains it.
         """
         self._next_relay = 0.0
+        self._relay_interval = RELAY_POLL_SECONDS
         if self._wake is not None:
             self._wake.set()
 
@@ -209,6 +211,7 @@ class InstagramRunner:
     async def sync_relay(self) -> dict:
         """Ask the relay now. The button, and the first thing after a boot."""
         self._next_relay = 0.0
+        self._relay_interval = RELAY_POLL_SECONDS
         return await self._relay.sync()
 
     async def _maybe_sync_relay(self, store: InstagramEventStore) -> None:
@@ -230,18 +233,38 @@ class InstagramRunner:
         # it is already single-use and already produced.
         if loop_now < self._next_relay and not self._relay.owes_pair_answer:
             return
-        self._next_relay = loop_now + (
-            PAIRING_RELAY_SECONDS if pairing_active else RELAY_POLL_SECONDS
-        )
         # Never raises; a relay that is down is a warning and a retry, never a
         # tick that fails and takes the drain with it.
-        await self._relay.sync(store=store)
+        outcome = await self._relay.sync(store=store)
+
+        if pairing_active or self._relay.owes_pair_answer:
+            self._relay_interval = PAIRING_RELAY_SECONDS
+        elif isinstance(outcome, dict) and (
+            outcome.get("pulled", 0) > 0
+            or outcome.get("queued", 0) > 0
+            or outcome.get("jobs", 0) > 0
+            or outcome.get("workers", 0) > 0
+            or outcome.get("ops", 0) > 0
+            or outcome.get("acked", 0) > 0
+        ):
+            # Active work in progress: restore regular poll cadence
+            self._relay_interval = RELAY_POLL_SECONDS
+        else:
+            # Idle: progressively back off to prevent exhausting D1 read quotas (up to 5m)
+            self._relay_interval = min(300.0, max(self._relay_interval, RELAY_POLL_SECONDS) * 1.5)
+
+        self._next_relay = loop_now + self._relay_interval
 
     async def _housekeeping(self, store: InstagramEventStore) -> None:
         now = asyncio.get_running_loop().time()
         if now >= self._next_prune:
             self._next_prune = now + PRUNE_EVERY_SECONDS
             store.prune()
+            with contextlib.suppress(Exception):
+                from backend.db.connection import get_connection
+                from backend.sync import devices as sync_devices
+
+                sync_devices.prune_stale_devices(get_connection())
         await self._maybe_refresh_token()
 
     async def _maybe_refresh_token(self) -> None:

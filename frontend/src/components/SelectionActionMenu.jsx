@@ -1,65 +1,31 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from './Icon.jsx'
-import { api } from '../api.js'
-
-const BLOCK_FORMATS = [
-  { id: 'p', label: 'Text', shortcut: 'Ctrl + Alt + 0' },
-  { id: 'h1', label: 'Heading 1', shortcut: 'Ctrl + Alt + 1' },
-  { id: 'h2', label: 'Heading 2', shortcut: 'Ctrl + Alt + 2' },
-  { id: 'h3', label: 'Heading 3', shortcut: 'Ctrl + Alt + 3' },
-  { id: 'ol', label: 'Numbered list', shortcut: 'Ctrl + Alt + 4' },
-  { id: 'ul', label: 'Bulleted list', shortcut: 'Ctrl + Alt + 5' },
-  { id: 'check', label: 'Checklist', shortcut: 'Ctrl + Alt + 6' },
-]
+import { copyText } from '../api.js'
+import { MOD_LABEL } from '../keys.js'
 
 export default function SelectionActionMenu({
   containerRef,
-  onFormat,
-  onApplyChanges,
-  onTransform,
+  onRefer,
   onAskQuote,
+  onFormat,
+  allowFormatting = false,
 }) {
   const [coords, setCoords] = useState(null)
   const [selectedText, setSelectedText] = useState('')
-  const [mode, setMode] = useState('toolbar') // 'toolbar' | 'ask'
-  const [prompt, setPrompt] = useState('')
-  const [isTransforming, setIsTransforming] = useState(false)
-  const [blockMenuOpen, setBlockMenuOpen] = useState(false)
-  const [activeFormat, setActiveFormat] = useState('Heading 1')
+  const [copied, setCopied] = useState(false)
 
   const menuRef = useRef(null)
-  const inputRef = useRef(null)
-  const blockMenuRef = useRef(null)
   const savedRangeRef = useRef(null)
   const selectedTextRef = useRef('')
 
   const updatePosition = useCallback(() => {
-    // If in ask mode and input is active, keep position pinned
-    if (mode === 'ask' && inputRef.current && document.activeElement === inputRef.current) {
-      if (savedRangeRef.current) {
-        const r = savedRangeRef.current.getBoundingClientRect()
-        if (r && (r.width > 0 || r.height > 0)) {
-          const menuWidth = 380
-          const menuHeight = 40
-          let left = r.left + (r.width / 2) - (menuWidth / 2)
-          left = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, left))
-          let top = r.top - menuHeight - 10
-          if (top < 10) top = r.bottom + 10
-          setCoords({ top, left })
-        }
-      }
-      return
-    }
-
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed || !sel.rangeCount) {
       setCoords(null)
       setSelectedText('')
       selectedTextRef.current = ''
       savedRangeRef.current = null
-      setMode('toolbar')
-      setBlockMenuOpen(false)
       return
     }
 
@@ -73,7 +39,17 @@ export default function SelectionActionMenu({
       setSelectedText('')
       selectedTextRef.current = ''
       savedRangeRef.current = null
-      setMode('toolbar')
+      return
+    }
+
+    // Do not show bubble if selection is inside an input, textarea, or composer
+    const node = range.commonAncestorContainer
+    const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement
+    if (el?.closest('input, textarea, .composer-card, [contenteditable="true"]')) {
+      setCoords(null)
+      setSelectedText('')
+      selectedTextRef.current = ''
+      savedRangeRef.current = null
       return
     }
 
@@ -83,7 +59,6 @@ export default function SelectionActionMenu({
       setSelectedText('')
       selectedTextRef.current = ''
       savedRangeRef.current = null
-      setMode('toolbar')
       return
     }
 
@@ -103,7 +78,7 @@ export default function SelectionActionMenu({
     selectedTextRef.current = text
     setSelectedText(text)
 
-    const menuWidth = menuRef.current?.offsetWidth || (mode === 'ask' ? 380 : 340)
+    const menuWidth = menuRef.current?.offsetWidth || 180
     const menuHeight = menuRef.current?.offsetHeight || 38
 
     // Center horizontally over the selection bounding box
@@ -117,14 +92,11 @@ export default function SelectionActionMenu({
     }
 
     setCoords({ top, left })
-  }, [containerRef, mode])
+  }, [containerRef])
 
   useEffect(() => {
     const handleMouseUp = () => requestAnimationFrame(updatePosition)
-    const handleSelectionChange = () => {
-      if (mode === 'ask' && inputRef.current && document.activeElement === inputRef.current) return
-      requestAnimationFrame(updatePosition)
-    }
+    const handleSelectionChange = () => requestAnimationFrame(updatePosition)
 
     document.addEventListener('mouseup', handleMouseUp)
     document.addEventListener('selectionchange', handleSelectionChange)
@@ -132,7 +104,7 @@ export default function SelectionActionMenu({
       document.removeEventListener('mouseup', handleMouseUp)
       document.removeEventListener('selectionchange', handleSelectionChange)
     }
-  }, [updatePosition, mode])
+  }, [updatePosition])
 
   // Scroll & resize tracking using capture phase so parent scroll containers update coordinates
   useEffect(() => {
@@ -146,148 +118,78 @@ export default function SelectionActionMenu({
     }
   }, [coords, updatePosition])
 
-  // Click outside block dropdown
-  useEffect(() => {
-    if (!blockMenuOpen) return
-    const handleDown = (e) => {
-      if (blockMenuRef.current && !blockMenuRef.current.contains(e.target)) {
-        setBlockMenuOpen(false)
-      }
+  const handleRefer = useCallback((e) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    const text = selectedTextRef.current || selectedText
+    if (!text) return
+
+    if (onRefer) {
+      onRefer(text)
+    } else if (onAskQuote) {
+      onAskQuote(text)
     }
-    document.addEventListener('mousedown', handleDown)
-    return () => document.removeEventListener('mousedown', handleDown)
-  }, [blockMenuOpen])
+    // Also dispatch global event in case listener is in parent/sibling view
+    window.dispatchEvent(new CustomEvent('amethyst-refer-quote', { detail: { text } }))
+
+    setCoords(null)
+    setSelectedText('')
+    selectedTextRef.current = ''
+    window.getSelection()?.removeAllRanges()
+  }, [onRefer, onAskQuote, selectedText])
+
+  const handleCopy = useCallback(async (e) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    const text = selectedTextRef.current || selectedText
+    if (!text) return
+    try {
+      await copyText(text)
+      setCopied(true)
+      setTimeout(() => {
+        setCopied(false)
+        setCoords(null)
+        window.getSelection()?.removeAllRanges()
+      }, 900)
+    } catch (err) {
+      console.error('Failed to copy text:', err)
+    }
+  }, [selectedText])
 
   // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (e) => {
       const text = selectedTextRef.current || selectedText
-      if (!text) return
+      if (!text || !coords) return
 
-      // Don't intercept formatting shortcuts while typing instructions in the input
-      if (document.activeElement === inputRef.current) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          setMode('toolbar')
-        }
-        return
-      }
-
-      // Ctrl+K / Cmd+K: Open inline "Ask for changes" (Image 4 & 5)
+      // Ctrl+K / Cmd+K: Refer to this in chat
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        setMode('ask')
-        setTimeout(() => inputRef.current?.focus(), 40)
+        e.stopPropagation()
+        handleRefer(e)
         return
       }
 
-      // Escape: exit ask mode or dismiss
+      // Escape: dismiss
       if (e.key === 'Escape') {
-        if (mode === 'ask') {
-          setMode('toolbar')
-        } else if (blockMenuOpen) {
-          setBlockMenuOpen(false)
-        } else {
-          setCoords(null)
-        }
-        return
-      }
-
-      // Block formatting: Ctrl + Alt + 0..6
-      if ((e.ctrlKey || e.metaKey) && e.altKey) {
-        const key = e.key
-        const formatItem = BLOCK_FORMATS.find((f) => f.shortcut.endsWith(key))
-        if (formatItem) {
-          e.preventDefault()
-          handleSelectFormat(formatItem)
-          return
-        }
-      }
-
-      // Ctrl + B: Bold
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
         e.preventDefault()
-        handleFormatInline('bold')
-        return
-      }
-
-      // Ctrl + I: Italic
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
-        e.preventDefault()
-        handleFormatInline('italic')
+        setCoords(null)
+        setSelectedText('')
+        selectedTextRef.current = ''
         return
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedText, mode, blockMenuOpen])
+  }, [coords, selectedText, handleRefer])
 
   if (!coords || (!selectedText && !selectedTextRef.current)) return null
-
-  const handleOpenAsk = (e) => {
-    e?.preventDefault()
-    e?.stopPropagation()
-    setMode('ask')
-    setTimeout(() => {
-      inputRef.current?.focus()
-    }, 40)
-  }
-
-  const handleAskSubmit = async (e) => {
-    e?.preventDefault()
-    const promptText = prompt.trim()
-    const targetText = selectedTextRef.current || selectedText
-    if (!promptText || !targetText || isTransforming) return
-
-    setIsTransforming(true)
-    try {
-      if (onApplyChanges) {
-        await onApplyChanges(targetText, promptText)
-      } else if (onTransform) {
-        await onTransform(targetText, 'rewrite', promptText)
-      } else {
-        const res = await api.aiTransform({
-          text: targetText,
-          instruction: promptText,
-          action: 'rewrite',
-        })
-        const transformed = res.result || res.transformed
-        if (transformed && onFormat) {
-          onFormat('replace', transformed, targetText)
-        }
-      }
-      setPrompt('')
-      setMode('toolbar')
-      setCoords(null)
-      window.getSelection()?.removeAllRanges()
-    } catch (err) {
-      console.error('AI transform failed:', err)
-    } finally {
-      setIsTransforming(false)
-    }
-  }
-
-  const handleSelectFormat = (formatItem) => {
-    setActiveFormat(formatItem.label)
-    setBlockMenuOpen(false)
-    const targetText = selectedTextRef.current || selectedText
-    if (onFormat && targetText) {
-      onFormat(formatItem.id, targetText)
-    }
-  }
-
-  const handleFormatInline = (type) => {
-    const targetText = selectedTextRef.current || selectedText
-    if (onFormat && targetText) {
-      onFormat(type, targetText)
-    }
-  }
 
   const menu = (
     <div
       ref={menuRef}
-      className={`floating-selection-bubble ${mode === 'ask' ? 'is-ask-mode' : 'is-toolbar-mode'} ${isTransforming ? 'is-transforming' : ''}`}
+      className="floating-selection-bubble is-toolbar-mode"
       style={{
         position: 'fixed',
         top: `${coords.top}px`,
@@ -295,118 +197,61 @@ export default function SelectionActionMenu({
         zIndex: 999999,
       }}
       role="toolbar"
-      aria-label="Selection format and editing"
+      aria-label="Selection reference and actions"
       onMouseDown={(e) => {
-        // Prevent clearing the document text selection when clicking toolbar buttons
-        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-          e.preventDefault()
-        }
+        e.preventDefault()
         e.stopPropagation()
       }}
     >
-      {mode === 'ask' ? (
-        /* Image 5: Inline "Describe changes" form with circular submit button */
-        <form className="inline-describe-form" onSubmit={handleAskSubmit}>
-          <input
-            ref={inputRef}
-            type="text"
-            className="inline-describe-input"
-            placeholder="Describe changes"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            disabled={isTransforming}
-            autoFocus
-          />
-          <button
-            type="submit"
-            className={`inline-describe-submit ${prompt.trim() ? 'is-ready' : ''}`}
-            disabled={!prompt.trim() || isTransforming}
-            title="Apply changes (Enter)"
-          >
-            {isTransforming ? (
-              <span className="inline-spinner" />
-            ) : (
-              <span className="circle-action-dot" />
-            )}
-          </button>
-        </form>
-      ) : (
-        /* Image 4: Floating toolbar: [Ask for changes Ctrl + K] | [link] [B] [I] [Heading 1 v] */
-        <div className="selection-toolbar-inner">
-          <button
-            type="button"
-            className="bubble-btn bubble-ask-btn"
-            title="Ask AI for changes (Ctrl + K)"
-            onClick={handleOpenAsk}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <span className="bubble-btn-text">Ask for changes</span>
-            <span className="bubble-shortcut-tag">Ctrl + K</span>
-          </button>
+      <div className="selection-toolbar-inner">
+        <button
+          type="button"
+          className="bubble-btn bubble-ask-btn bubble-refer-btn"
+          title={`Refer to this in chat (${MOD_LABEL}+K)`}
+          onClick={handleRefer}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <Icon name="quote" size={13} />
+          <span className="bubble-btn-text">Refer to this</span>
+          <span className="bubble-shortcut-tag">{MOD_LABEL}+K</span>
+        </button>
 
-          <div className="bubble-divider" />
+        <div className="bubble-divider" />
 
-          <button
-            type="button"
-            className="bubble-btn bubble-icon-btn"
-            title="Insert link"
-            onClick={() => handleFormatInline('link')}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <Icon name="link" size={13} />
-          </button>
+        <button
+          type="button"
+          className="bubble-btn bubble-icon-btn"
+          title={copied ? "Copied!" : "Copy selection"}
+          onClick={handleCopy}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <Icon name={copied ? "check" : "copy"} size={13} />
+        </button>
 
-          <button
-            type="button"
-            className="bubble-btn bubble-icon-btn"
-            title="Bold (Ctrl + B)"
-            onClick={() => handleFormatInline('bold')}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <strong className="bubble-typography-symbol">B</strong>
-          </button>
-
-          <button
-            type="button"
-            className="bubble-btn bubble-icon-btn"
-            title="Italic (Ctrl + I)"
-            onClick={() => handleFormatInline('italic')}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <em className="bubble-typography-symbol">I</em>
-          </button>
-
-          {/* Block type dropdown (Image 4) */}
-          <div className="bubble-dropdown-anchor" ref={blockMenuRef}>
+        {allowFormatting && onFormat && (
+          <>
+            <div className="bubble-divider" />
             <button
               type="button"
-              className={`bubble-btn bubble-select-btn ${blockMenuOpen ? 'is-active' : ''}`}
-              onClick={() => setBlockMenuOpen((o) => !o)}
+              className="bubble-btn bubble-icon-btn"
+              title="Bold"
+              onClick={() => onFormat('bold', selectedTextRef.current || selectedText)}
               onMouseDown={(e) => e.preventDefault()}
             >
-              <span>{activeFormat}</span>
-              <Icon name="chevron-down" size={11} />
+              <strong className="bubble-typography-symbol">B</strong>
             </button>
-
-            {blockMenuOpen && (
-              <div className="bubble-dropdown-menu">
-                {BLOCK_FORMATS.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    className={`bubble-dropdown-item ${activeFormat === f.label ? 'is-selected' : ''}`}
-                    onClick={() => handleSelectFormat(f)}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <span className="dropdown-item-label">{f.label}</span>
-                    <span className="dropdown-item-shortcut">{f.shortcut}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+            <button
+              type="button"
+              className="bubble-btn bubble-icon-btn"
+              title="Italic"
+              onClick={() => onFormat('italic', selectedTextRef.current || selectedText)}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <em className="bubble-typography-symbol">I</em>
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 

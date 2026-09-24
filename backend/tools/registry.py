@@ -453,6 +453,7 @@ def build_default_registry(
         filesystem,
         library,
         mail,
+        memory,
         sharing,
         shell,
         social,
@@ -468,6 +469,7 @@ def build_default_registry(
     registry.register_all(desktop.tools())
     registry.register_all(tasks.tools())
     registry.register_all(mail.tools())
+    registry.register_all(memory.tools())
     registry.register_all(documents.tools())
     registry.register_all(library.tools())
     registry.register_all(web.tools())

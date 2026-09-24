@@ -1,7 +1,9 @@
-import { memo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
-import { api, fmtDate } from '../../api.js'
+import { api } from '../../api.js'
 import { KIND_ICON, getDomain, getFaviconUrl } from './LibraryCard.jsx'
+import { getRatingTier } from './ratingUtils.js'
+import { formatDisplayDate, formatRelativeDate } from './dateUtils.js'
 
 function LibraryRowComponent({
   item,
@@ -19,8 +21,12 @@ function LibraryRowComponent({
   const domain = getDomain(item.url, item.site)
   const favicon = getFaviconUrl(item.url)
 
+  const rawDate = item.consumed_on || item.created_at
+  const dateFull = useMemo(() => formatDisplayDate(rawDate, true), [rawDate])
+  const ratingTier = useMemo(() => getRatingTier(item.rating), [item.rating])
+
   const handleRowClick = (e) => {
-    if (e.target.closest('a, button, .lib-tag-pill')) return
+    if (e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn')) return
     onSelect?.(item)
   }
 
@@ -34,7 +40,7 @@ function LibraryRowComponent({
       aria-label={`Inspect ${item.title || 'knowledge resource'}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          if (!e.target.closest('a, button, .lib-tag-pill')) {
+          if (!e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn')) {
             e.preventDefault()
             onSelect?.(item)
           }
@@ -90,8 +96,8 @@ function LibraryRowComponent({
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
           )}
-          <span style={{ fontFamily: 'var(--font-mono)' }}>
-            {[domain || item.author, fmtDate(item.consumed_on || item.created_at)].filter(Boolean).join(' · ')}
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+            {domain || item.author || 'LOCAL'}
           </span>
           {item.summary && (
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
@@ -100,6 +106,23 @@ function LibraryRowComponent({
           )}
         </div>
       </div>
+
+      {/* Dedicated Date Badge — Never Hidden */}
+      <div className="lib-row-date-col" title={`Captured on ${dateFull}`}>
+        <Icon name="calendar" size={11} className="opacity-60" />
+        <span>{dateFull || 'Undated'}</span>
+      </div>
+
+      {/* Curator Significance Tier (if rated) */}
+      {ratingTier && (
+        <span
+          className={`lib-card-rating-badge ${ratingTier.badgeClass}`}
+          title={`Curator Tier: ${ratingTier.label}`}
+        >
+          <Icon name="star" size={10} filled />
+          <span>{ratingTier.shortLabel}</span>
+        </span>
+      )}
 
       {/* Tags */}
       {item.tags?.length > 0 && (
@@ -141,7 +164,7 @@ function LibraryRowComponent({
             title="Summarise with AI"
             onClick={(e) => {
               e.stopPropagation()
-              onEnrich?.()
+              onEnrich?.(item)
             }}
           >
             <Icon name="brain" size={13} />
@@ -155,7 +178,7 @@ function LibraryRowComponent({
             title="Re-index resource"
             onClick={(e) => {
               e.stopPropagation()
-              onReindex?.()
+              onReindex?.(item)
             }}
           >
             <Icon name="refresh" size={13} />
@@ -168,7 +191,7 @@ function LibraryRowComponent({
           title="Delete resource"
           onClick={(e) => {
             e.stopPropagation()
-            onDelete?.()
+            onDelete?.(item)
           }}
         >
           <Icon name="trash" size={13} />

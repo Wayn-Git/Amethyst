@@ -1,28 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api, fmtDate } from '../api.js'
-import Skeleton, { SkeletonText } from '../components/Skeleton.jsx'
-import EmptyState from '../components/ui/EmptyState.jsx'
+import Skeleton from '../components/Skeleton.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
-import { KIND_ICON } from './library/LibraryCard.jsx'
 
-/* The day, on one page.
- *
- * Every number here was measured. `/api/today` gathers the signals in Python
- * and hands back `degraded` naming anything it could not read, so a section
- * that says nothing says *why* rather than showing a confident zero — the whole
- * point of a morning page is that you can act on it without checking it.
- *
- * The briefing is prose over those same figures. When no model is configured
- * the figures are still here and the card says so; it never fills the gap. */
+// Four Today Dashboard Cards
+import TodayTasksCard from './today/TodayTasksCard.jsx'
+import TodayMailsCard from './today/TodayMailsCard.jsx'
+import TodayMemoryCard from './today/TodayMemoryCard.jsx'
+import TodayLibraryCard from './today/TodayLibraryCard.jsx'
+import './today/today.css'
 
 const WEEKDAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-/* The small hours belong to the evening that has not ended yet. Reading
-   "Good morning" at half past one is the page telling you it is not paying
-   attention, on the one screen whose whole job is to be right about today. */
 function greeting(hour) {
   if (hour < 5) return 'Still up'
   if (hour < 12) return 'Good morning'
@@ -30,128 +22,75 @@ function greeting(hour) {
   return 'Good evening'
 }
 
-/** `2026-09-04T09:00:00` → `09:00`. Calendar rows are local naive already. */
-function clock(value) {
-  if (!value) return ''
-  const time = String(value).replace(' ', 'T').slice(11, 16)
-  return time || ''
-}
-
-function Panel({ title, action, wide, children }) {
-  return (
-    <section
-      className={`card card-pad today-panel${wide ? ' today-panel--wide' : ''}`}
-      data-enter
-    >
-      <div className="today-panel-head">
-        <span className="card-title">{title}</span>
-        {action}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-/** Says what is missing and why, instead of letting a zero stand for it. */
-function Unavailable({ reason }) {
-  return (
-    <p className="today-empty today-empty--why">
-      <Icon name="info" size={14} /> {reason}
-    </p>
-  )
-}
-
+/**
+ * Today Section - Reworked into four interactive, fixed-size, theme-aware cards:
+ * 1. Tasks Card (all tasks, visual progress fill, detail popup, contribution graph, add task)
+ * 2. Recent Mails Card (recent emails, in-card reader, dismiss action)
+ * 3. Recent Memory Card (prompt-framed "Do you remember...", exactly 2 memories, accent gradient)
+ * 4. Library Card (today's saves only, short title + thumbnail, resets daily)
+ */
 export default function Today() {
   const rootRef = useRef(null)
-  const { toast, setView, health, betaPages } = useApp()
-  const [data, setData] = useState(null)
+  const { toast, setView } = useApp()
+  const [tasks, setTasks] = useState([])
+  const [completedTasks, setCompletedTasks] = useState([])
+  const [todaySignals, setTodaySignals] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [busy, setBusy] = useState('')
-  const [answers, setAnswers] = useState({})
   const loadToken = useRef(0)
-  useViewEntrance(rootRef, [data === null])
 
-  const load = useCallback(async () => {
+  useViewEntrance(rootRef, [loading])
+
+  const loadData = useCallback(async () => {
     const token = ++loadToken.current
     try {
-      const next = await api.today()
+      const [allTasksRes, completedTasksRes, todayRes] = await Promise.all([
+        api.tasks({ bucket: 'all', limit: 100 }).catch(() => []),
+        api.tasks({ bucket: 'completed', limit: 100 }).catch(() => []),
+        api.today().catch(() => null),
+      ])
+
       if (loadToken.current !== token) return
-      setData(next)
+      setTasks(Array.isArray(allTasksRes) ? allTasksRes : [])
+      setCompletedTasks(Array.isArray(completedTasksRes) ? completedTasksRes : [])
+      setTodaySignals(todayRes?.signals || null)
       setError(null)
     } catch (err) {
       if (loadToken.current !== token) return
-      // Clearing the data too: a stale day under an error card reads as
-      // half-loaded, which is worse than plainly saying it failed.
-      setData(null)
       setError(err.message)
+    } finally {
+      if (loadToken.current === token) {
+        setLoading(false)
+      }
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const now = new Date()
-  const signals = data?.signals
-  const degraded = data?.degraded ?? {}
-
-  const generate = useCallback(async (kind) => {
-    setBusy(kind)
-    try {
-      await api.generateJournal(kind, { force: true })
-      await load()
-      toast(kind === 'briefing' ? 'Briefing written' : 'Review written', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy('')
-    }
-  }, [load, toast])
-
-  const submitReview = useCallback(async (entryId) => {
-    const questions = data?.questions ?? []
-    const written = questions
-      .map((q, i) => [q, (answers[i] || '').trim()])
-      .filter(([, a]) => a)
-      .map(([q, a]) => `${q}\n${a}`)
-      .join('\n\n')
-    if (!written) {
-      toast('Answer at least one question first', 'bad')
-      return
-    }
-    setBusy('review')
-    try {
-      await api.answerJournal(entryId, written)
-      await load()
-      toast('Saved, and written up', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy('')
-    }
-  }, [answers, data, load, toast])
-
-  const connectors = useMemo(() => ({
-    awaiting: health?.connectors_awaiting_sign_in ?? [],
-    broken: Object.keys(health?.connector_errors ?? {}),
-    tools: health?.mcp_tools ?? 0,
-  }), [health])
 
   if (error) {
     return (
       <div className="view" ref={rootRef}>
         <div className="view-inner view-inner--wide">
           <header className="vheader" data-enter>
-            <div><h1>Today</h1></div>
+            <div>
+              <h1>Today</h1>
+            </div>
           </header>
-          <ErrorState message={error} onRetry={load} />
+          <ErrorState message={error} onRetry={loadData} />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="view" ref={rootRef} style={{ position: 'relative', overflow: 'hidden' }}>
-      <div className="view-inner view-inner--wide" style={{ position: 'relative', zIndex: 1 }}>
-        <header className="vheader" data-enter>
+    <div className="view today-view" ref={rootRef}>
+      <div className="view-inner view-inner--wide">
+        {/* Top Header matching reference visual foundation */}
+        <header className="vheader" data-enter style={{ marginBottom: 8 }}>
           <div>
             <h1>{greeting(now.getHours())}</h1>
             <div className="vheader-sub">
@@ -159,371 +98,59 @@ export default function Today() {
             </div>
           </div>
           <div className="vheader-actions">
-            <button type="button" className="btn btn--ghost" onClick={load}>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ borderRadius: 9999 }}
+              onClick={loadData}
+              title="Refresh dashboard"
+            >
               <Icon name="refresh" size={15} /> Refresh
             </button>
           </div>
         </header>
 
-        {!data ? (
-          /* The outline of what is coming, not one grey rectangle: a briefing
-             card, then the 2x2 panel grid, so the arrival of the real thing is
-             a fade and not a layout jump. */
-          <div aria-hidden="true">
-            <div className="card card-pad today-skel-briefing">
-              <Skeleton w={120} h={11} style={{ marginBottom: 12 }} />
-              <SkeletonText lines={3} />
-            </div>
-            <div className="today-grid">
-              {Array.from({ length: 5 }, (_, i) => (
-                <div
-                  className={`card card-pad today-panel${i === 4 ? ' today-panel--wide' : ''}`}
-                  key={i}
-                >
-                  <Skeleton w={100} h={11} style={{ marginBottom: 14 }} />
-                  {Array.from({ length: 3 - (i % 2) }, (_, r) => (
-                    <Skeleton
-                      key={r}
-                      w={`${72 + ((r * 13 + i * 7) % 20)}%`}
-                      h={12}
-                      style={{ marginBottom: 10 }}
-                    />
-                  ))}
+        {loading ? (
+          /* Skeleton loading state with matching 4-card fixed grid */
+          <div className="today-dashboard-grid" aria-hidden="true">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="today-card" style={{ gap: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Skeleton w={110} h={18} />
+                  <Skeleton w={50} h={18} rounded />
                 </div>
-              ))}
-            </div>
+                <Skeleton w="100%" h={65} style={{ borderRadius: 12 }} />
+                <Skeleton w="100%" h={52} style={{ borderRadius: 12 }} />
+                <Skeleton w="100%" h={52} style={{ borderRadius: 12 }} />
+                <Skeleton w="80%" h={40} style={{ borderRadius: 12 }} />
+              </div>
+            ))}
           </div>
         ) : (
-          <>
-            <Briefing
-              entry={data.briefing}
-              busy={busy === 'briefing'}
-              onGenerate={() => generate('briefing')}
+          /* 4-Card Bento Grid System */
+          <div className="today-dashboard-grid" data-enter>
+            {/* 1. Tasks Card */}
+            <TodayTasksCard
+              tasks={tasks}
+              completedTasks={completedTasks}
+              onTasksChange={loadData}
+              toast={toast}
             />
 
-            <div className="today-grid">
-              <Panel
-                title="today's schedule"
-                action={
-                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setView('chat')}>
-                    Add
-                  </button>
-                }
-              >
-                {signals.calendar.total === 0 ? (
-                  /* An empty calendar is a fact about the day, not a fault in
-                     the page: green state, the one thing worth doing with a
-                     free morning, and a way to do it. */
-                  <div className="today-free">
-                    <Icon name="check" size={15} />
-                    <div>
-                      <div className="today-free-title">The day is clear</div>
-                      <div className="today-free-sub">Nothing on the calendar</div>
-                    </div>
-                  </div>
-                ) : (
-                  <ul className="today-list today-list--capped">
-                    {signals.calendar.items.slice(0, 6).map((event, i) => (
-                      <li className="today-row" key={i}>
-                        <span className="today-when mono">{clock(event.starts_at)}</span>
-                        <span className="today-what">
-                          {event.title}
-                          {event.location ? <span className="today-sub">{event.location}</span> : null}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Panel>
+            {/* 2. Recent Mails Card */}
+            <TodayMailsCard toast={toast} />
 
-              <Panel
-                title="what is owed"
-                action={
-                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setView('tasks')}>
-                    Tasks
-                  </button>
-                }
-              >
-                <div className="today-counts">
-                  <span><b>{signals.tasks.my_day_count}</b> in My Day</span>
-                  <span className={signals.tasks.overdue_count ? 'is-late' : ''}>
-                    <b>{signals.tasks.overdue_count}</b> overdue
-                  </span>
-                  <span><b>{signals.tasks.completed_count}</b> done today</span>
-                </div>
-                {signals.tasks.overdue.length > 0 ? (
-                  <ul className="today-list today-list--capped">
-                    {signals.tasks.overdue.slice(0, 6).map((task, i) => (
-                      /* A due date that has passed is the one date on this
-                         page that means attention: it wears the confirming
-                         colour rather than the quiet one the schedule uses. */
-                      <li className="today-row today-row--late" key={i}>
-                        <span className="today-when mono">{String(task.due_at || '').slice(5, 10)}</span>
-                        <span className="today-what">{task.title}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : signals.tasks.completed.length > 0 ? (
-                  /* No debt is worth celebrating only with the things already
-                     finished today — real rows, not a second empty state. */
-                  <>
-                    <ul className="today-list today-list--capped">
-                      {signals.tasks.completed.slice(0, 4).map((task, i) => (
-                        <li className="today-row today-row--done" key={i}>
-                          <span className="today-when">
-                            <Icon name="check" size={12} />
-                          </span>
-                          <span className="today-what">{task.title}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {signals.tasks.completed_count > 4 && (
-                      <p className="today-more">
-                        +{signals.tasks.completed_count - 4} more finished
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <div className="today-free today-free--flat">
-                    <Icon name="check" size={15} />
-                    <div>
-                      <div className="today-free-title">Nothing owed</div>
-                      <div className="today-free-sub">No overdue, none finished yet</div>
-                    </div>
-                  </div>
-                )}
-              </Panel>
+            {/* 3. Recent Memory Card */}
+            <TodayMemoryCard setView={setView} />
 
-              <Panel
-                title="inbox"
-                action={
-                  /* Only when Mail is switched on. With the beta pages off its
-                     route is not registered, so this button navigated to a page
-                     that immediately bounced back to Chat. */
-                  betaPages ? (
-                    <button type="button" className="btn btn--ghost btn--small" onClick={() => setView('mail')}>
-                      Open
-                    </button>
-                  ) : null
-                }
-              >
-                {degraded.mail ? (
-                  <Unavailable reason={degraded.mail} />
-                ) : (
-                  <div className="today-counts">
-                    <span><b>{signals.mail.unread ?? 0}</b> unread</span>
-                    <span><b>{signals.mail.threads ?? 0}</b> threads</span>
-                  </div>
-                )}
-              </Panel>
-
-              {/* Connected tools, read from the health the store already polls —
-                  asking /api/today for them would put a probe of every provider
-                  on the page most likely to be opened first. It sits beside the
-                  inbox because both are a row of figures with a Manage/Open at
-                  the head: two stat panels, one shape. */}
-              <section className="card card-pad today-panel" data-enter>
-                <div className="today-panel-head">
-                  <span className="card-title">connected tools</span>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--small"
-                    onClick={() => setView('capabilities')}
-                  >
-                    Manage
-                  </button>
-                </div>
-                {!health ? (
-                  <p className="today-empty">Checking…</p>
-                ) : (
-                  <div className="today-counts">
-                    <span><b>{connectors.tools}</b> connector tools live</span>
-                    {connectors.awaiting.length > 0 && (
-                      <span className="is-late">{connectors.awaiting.join(', ')} — not signed in</span>
-                    )}
-                    {connectors.broken.length > 0 && (
-                      <span className="is-late">{connectors.broken.join(', ')} — not answering</span>
-                    )}
-                  </div>
-                )}
-              </section>
-
-              {/* Logged today spans the full grid width and splits its rows into
-                  two columns: a day's reading grows sideways with the page
-                  instead of stretching it, and six rows become three lines of
-                  height on a desktop screen. */}
-              <Panel
-                title="logged today"
-                wide
-                action={
-                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setView('library')}>
-                    Library
-                  </button>
-                }
-              >
-                {signals.library.total === 0 ? (
-                  <div className="today-free today-free--flat">
-                    <Icon name="book" size={15} />
-                    <div>
-                      <div className="today-free-title">Nothing logged yet</div>
-                      <div className="today-free-sub">Read anything and it lands here</div>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <ul className="today-list today-list--capped today-list--split">
-                      {signals.library.items.slice(0, 6).map((item, i) => (
-                        /* No time column here: what a library row wants said is
-                           what it was, and `article` truncated to fit a clock
-                           reads as a typo. The mark says the kind so the sub
-                           line is free to name the author alone. */
-                        <li className="today-row today-row--flat" key={i}>
-                          <Icon className="today-kind" name={KIND_ICON[item.kind] || 'link'} size={15} />
-                          <span className="today-what">
-                            {item.title}
-                            {item.author ? <span className="today-sub">{item.author}</span> : null}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    {signals.library.total > 6 && (
-                      <p className="today-more">
-                        +{signals.library.total - 6} more in the{' '}
-                        <button
-                          type="button"
-                          className="today-more-link"
-                          onClick={() => setView('library')}
-                        >
-                          Library
-                        </button>
-                      </p>
-                    )}
-                  </>
-                )}
-              </Panel>
-            </div>
-
-            <Review
-              entry={data.review}
-              questions={data.questions}
-              answers={answers}
-              setAnswers={setAnswers}
-              busy={busy === 'review'}
-              generating={busy === 'daily'}
-              onGenerate={() => generate('daily')}
-              onSubmit={submitReview}
+            {/* 4. Library Card */}
+            <TodayLibraryCard
+              setView={setView}
+              todayItems={todaySignals?.library?.items}
             />
-          </>
+          </div>
         )}
       </div>
     </div>
-  )
-}
-
-function Briefing({ entry, busy, onGenerate }) {
-  if (!entry) {
-    return (
-      <EmptyState
-        icon="sun"
-        message="No briefing has been written for today yet. It is filed automatically at the hour set in Settings."
-        action={
-          <button type="button" className="btn btn--small btn--primary" disabled={busy} onClick={onGenerate}>
-            {busy ? 'Writing…' : 'Write it now'}
-          </button>
-        }
-      />
-    )
-  }
-  return (
-    <section className="card card-pad brief" data-enter>
-      <div className="today-panel-head">
-        <span className="card-title">briefing</span>
-        <button type="button" className="btn btn--ghost btn--small" disabled={busy} onClick={onGenerate}>
-          <Icon name="refresh" size={13} /> {busy ? 'Writing…' : 'Regenerate'}
-        </button>
-      </div>
-      {entry.summary ? (
-        <div className="brief-body">
-          {entry.summary.split('\n').filter(Boolean).map((line, i) => <p key={i}>{line}</p>)}
-        </div>
-      ) : (
-        /* No prose, and the reason it is missing. The figures above are the
-           briefing in that case; inventing a paragraph would make the page
-           less true, not more useful. */
-        <p className="today-empty today-empty--why">
-          <Icon name="info" size={14} /> {entry.model_error || 'This entry has no summary yet.'}
-        </p>
-      )}
-      {entry.model_name ? (
-        <div className="brief-by mono">{entry.model_provider} · {entry.model_name}</div>
-      ) : null}
-    </section>
-  )
-}
-
-function Review({ entry, questions, answers, setAnswers, busy, generating, onGenerate, onSubmit }) {
-  if (!entry) {
-    return (
-      <EmptyState
-        icon="edit"
-        message="Tonight's check-in has not been filed yet. It appears at the review hour, or you can open it now."
-        action={
-          <button type="button" className="btn btn--small" disabled={generating} onClick={onGenerate}>
-            {generating ? 'Opening…' : 'Open the check-in'}
-          </button>
-        }
-      />
-    )
-  }
-
-  if (entry.summary) {
-    return (
-      <section className="card card-pad review-card" data-enter>
-        <div className="today-panel-head">
-          <span className="card-title">tonight's review</span>
-        </div>
-        <div className="brief-body">
-          {entry.summary.split('\n').filter(Boolean).map((line, i) => <p key={i}>{line}</p>)}
-        </div>
-      </section>
-    )
-  }
-
-  return (
-    <section className="card card-pad review-card" data-enter>
-      <div className="today-panel-head">
-        <span className="card-title">how did today go?</span>
-      </div>
-      {/* Filed with the day's real figures and no prose, on purpose: a review
-          written before you have said anything can only reword the task list. */}
-      <p className="set-note" style={{ marginTop: 0 }}>
-        Answer what you want to. What you write is saved before anything is
-        generated from it.
-      </p>
-      <div className="review-questions">
-        {(questions ?? []).map((question, i) => (
-          <label className="review-q" key={i}>
-            <span>{question}</span>
-            <textarea
-              rows={2}
-              value={answers[i] || ''}
-              placeholder="…"
-              onChange={(e) => setAnswers({ ...answers, [i]: e.target.value })}
-            />
-          </label>
-        ))}
-      </div>
-      <div className="review-actions">
-        <button
-          type="button"
-          className="btn btn--primary btn--small"
-          disabled={busy}
-          onClick={() => onSubmit(entry.id)}
-        >
-          {busy ? 'Saving…' : 'Save the day'}
-        </button>
-        {entry.model_error ? <span className="today-sub">{entry.model_error}</span> : null}
-      </div>
-    </section>
   )
 }

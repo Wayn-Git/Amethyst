@@ -9,6 +9,7 @@ being recalled, unprompted, in a different one.
 from __future__ import annotations
 
 import hashlib
+import json
 
 import pytest
 
@@ -103,6 +104,24 @@ def test_a_plain_diff_is_read():
 def test_a_fenced_diff_is_read():
     diff = parse_diff('```json\n{"create": ["a"], "supersede": []}\n```')
     assert diff.create == ["a"]
+
+
+def test_diff_with_dict_objects_is_read():
+    payload = json.dumps({
+        "create": [
+            {"id": "user_preferred_language", "value": "Rust"},
+            {"id": "location", "value": "Seattle"},
+            {"fact": "owns a cat named Luna"},
+        ],
+        "supersede": [{"id": 3}],
+    })
+    diff = parse_diff(payload, known_ids={3})
+    assert diff.create == [
+        "user preferred language: Rust",
+        "location: Seattle",
+        "owns a cat named Luna",
+    ]
+    assert diff.supersede == [3]
 
 
 def test_unparseable_output_costs_only_that_turn():
@@ -400,3 +419,68 @@ async def test_a_duplicate_is_not_reported_to_the_interface(db, scripted):
     assert model.extraction_calls == 2
     assert [e for e in events if e.type == "memory"] == [], "nothing changed, so nothing is said"
     assert len(MemoryStore().live()) == 1
+
+
+def test_parse_diff_with_array_and_alt_keys():
+    # Top-level array format
+    diff_arr = parse_diff('[{"fact": "plays piano"}, "loves jazz"]')
+    assert diff_arr.create == ["plays piano", "loves jazz"]
+
+    # Alternative dictionary keys
+    diff_alt = parse_diff(
+        json.dumps({"memories": ["works remotely"], "retire": [42]}),
+        known_ids={42},
+    )
+    assert diff_alt.create == ["works remotely"]
+    assert diff_alt.supersede == [42]
+
+
+async def test_memory_builtin_tools(db):
+    from backend.tools.builtin.memory import forget_memory, recall_memories, remember
+    from backend.tools.base import ToolContext
+
+    ctx = ToolContext(conversation_id="conv-1", workspace_root=None)
+
+    # 1. remember tool
+    res = await remember({"fact": "Prefers TypeScript"}, ctx)
+    assert not res.is_error
+    assert "Remembered" in res.content
+
+    # Duplicate check
+    res_dup = await remember({"fact": "Prefers TypeScript"}, ctx)
+    assert not res_dup.is_error
+    assert "Already remembered" in res_dup.content
+
+    # 2. recall_memories tool
+    recalled = await recall_memories({"query": "TypeScript"}, ctx)
+    assert not recalled.is_error
+    assert "Prefers TypeScript" in recalled.content
+
+    # 3. forget_memory tool
+    store = MemoryStore()
+    live = store.live()
+    assert len(live) == 1
+    mem_id = live[0].id
+
+    forgot = await forget_memory({"memory_id": mem_id}, ctx)
+    assert not forgot.is_error
+    assert "retired/forgotten" in forgot.content
+    assert len(store.live()) == 0
+
+
+async def test_post_api_memory_endpoint(db):
+    from starlette.testclient import TestClient
+    from backend.api.main import app
+
+    client = TestClient(app)
+    resp = client.post("/api/memory", json={"fact": "Lives in Kyoto"})
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["fact"] == "Lives in Kyoto"
+    assert "id" in data
+
+    # Verify listing shows it
+    get_resp = client.get("/api/memory")
+    assert get_resp.status_code == 200
+    facts = [f["fact"] for f in get_resp.json()["facts"]]
+    assert "Lives in Kyoto" in facts

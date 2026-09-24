@@ -807,7 +807,13 @@ const Msg = memo(function Msg({
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
       <div className="msg-user-row">
         <div className="msg-user-content">
-          <div className="msg-body msg-body--plain">{item.text}</div>
+          <div className="msg-body msg-body--plain">
+            {item.text?.startsWith('>') ? (
+              <Markdown text={item.text} />
+            ) : (
+              item.text
+            )}
+          </div>
           <div className="msg-user-meta">
             {timeStr && <span className="msg-time">{timeStr}</span>}
             <CopyButton text={item.text} label="Copy" />
@@ -1019,6 +1025,25 @@ export default function Chat() {
   const [fullScreenMessage, setFullScreenMessage] = useState(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [inspectOpen, setInspectOpen] = useState(false)
+  const [referencedQuote, setReferencedQuote] = useState(null)
+
+  const handleReferQuote = useCallback((quoteText) => {
+    if (!quoteText || !quoteText.trim()) return
+    setReferencedQuote(quoteText.trim())
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 40)
+  }, [])
+
+  useEffect(() => {
+    const onRefer = (e) => {
+      if (e.detail?.text) {
+        handleReferQuote(e.detail.text)
+      }
+    }
+    window.addEventListener('amethyst-refer-quote', onRefer)
+    return () => window.removeEventListener('amethyst-refer-quote', onRefer)
+  }, [handleReferQuote])
   const inspectCardRef = useRef(null)
   const thoughtsStreamRef = useRef(null)
 
@@ -1238,12 +1263,14 @@ export default function Chat() {
   const selectConversation = useCallback((cid) => {
     if (cid === activeId) return
     leaveTurn()
+    setReferencedQuote(null)
     setActiveId(cid)
   }, [activeId, leaveTurn, setActiveId])
 
   const startFresh = useCallback(() => {
     leaveTurn()
     setActiveId(null)
+    setReferencedQuote(null)
     setItems([])
     setInput('')
     setTimeout(() => textareaRef.current?.focus(), 0)
@@ -1549,6 +1576,14 @@ export default function Chat() {
         setStreamingArtifact((id) => (id === evt.id ? null : id))
         break
 
+      case 'memory': {
+        const created = evt.created || []
+        if (created.length > 0) {
+          toast(created.length === 1 ? `Remembered: "${created[0]}"` : `Remembered ${created.length} new facts`, 'ok')
+        }
+        break
+      }
+
       default:
         /* A frame added on the server used to vanish here without trace, which
            is how you spend an afternoon wondering why the backend's new event
@@ -1738,6 +1773,17 @@ export default function Chat() {
     if (activeTag && activeTag.name && !typed.toLowerCase().includes(`@${activeTag.name.toLowerCase()}`)) {
       typed = `@${activeTag.name} ${typed}`.trim()
     }
+    const quoteToAttach = overrideText === undefined ? referencedQuote : null
+    if (quoteToAttach) {
+      const quoteBlock = quoteToAttach.trim().split('\n').map((l) => `> ${l}`).join('\n')
+      if (typed) {
+        typed = `${quoteBlock}\n\n${typed}`
+      } else {
+        typed = `${quoteBlock}\n\nCan you explain or elaborate on this?`
+      }
+      setReferencedQuote(null)
+    }
+
     const sending = overrideFiles !== undefined ? overrideFiles : attachments
     if ((!typed && sending.length === 0) || turnState !== 'idle') return
     // A new turn: whatever the last one wrote is no longer new.
@@ -1810,7 +1856,7 @@ export default function Chat() {
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag,
+    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag, referencedQuote,
   ])
 
   const handleSaveMessageEdit = useCallback(async (msgItem, newText) => {
@@ -1920,11 +1966,13 @@ export default function Chat() {
     
     if (!activeId) { setDraft((d) => ({ ...d, ...db_patch })) }
     else {
-      api.updateConversation(activeId, db_patch).catch((err) => {
+      api.updateConversation(activeId, db_patch).then(() => {
+        refreshConvs()
+      }).catch((err) => {
         toast(err.message, 'bad')
       })
     }
-  }, [activeId, toast])
+  }, [activeId, toast, refreshConvs])
 
   /* Ask something without typing it here.
 
@@ -2311,7 +2359,7 @@ export default function Chat() {
     <div className={`composer-wrap${isEmpty ? ' composer-wrap--hero' : ''}`}>
       {plusOpen && (
         <PlusMenu
-          placement={isEmpty ? 'down' : 'up'}
+          placement={isEmpty ? 'up' : 'up'}
           conversationId={activeId}
           workspace={workspace}
           onWorkspace={setWorkspace}
@@ -2476,6 +2524,29 @@ export default function Chat() {
           onRemove={(file) => setAttachments((list) => list.filter((f) => f.path !== file.path))}
         />
 
+        {referencedQuote && (
+          <div className="composer-quote-banner" role="region" aria-label="Referenced text">
+            <div className="composer-quote-main">
+              <div className="composer-quote-header">
+                <Icon name="quote" size={12} className="composer-quote-icon" />
+                <span>Referenced text</span>
+              </div>
+              <div className="composer-quote-snippet">
+                {referencedQuote}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="composer-quote-remove"
+              onClick={() => setReferencedQuote(null)}
+              title="Remove reference"
+              aria-label="Remove reference"
+            >
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+        )}
+
         {/* Top Input Row */}
         <div className="composer-card-input-wrap">
           {activeTag && (
@@ -2503,7 +2574,7 @@ export default function Chat() {
             placeholder={
               turnState === 'running'
                 ? 'Add context while this runs'
-                : (isEmpty ? 'How can I help you today?' : 'Ask for follow-up changes')
+                : (referencedQuote ? 'Ask about this referenced text...' : (isEmpty ? 'How can I help you today?' : 'Ask for follow-up changes'))
             }
             aria-label="Message"
             onChange={(e) => {
@@ -2557,7 +2628,7 @@ export default function Chat() {
               type="button"
               className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+              onClick={(e) => { e.stopPropagation(); setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
               title={`Files, skills, connectors — ${MOD_LABEL}+/`}
               aria-label="Add attachments or context"
             >
@@ -2605,7 +2676,15 @@ export default function Chat() {
               <button
                 type="button"
                 className="composer-model-pill"
-                onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setModelOpen((o) => !o)
+                  setPlusOpen(false)
+                  setGuardOpen(false)
+                  setEffortOpen(false)
+                  setContextOpen(false)
+                }}
                 title="Provider and model"
               >
                 <AiProviderIcon
@@ -3015,6 +3094,10 @@ export default function Chat() {
             {/* The transcript fades at whichever edge it actually runs past,
                 so a reply that continues above the fold says so without a rule
                 across the page. */}
+            <SelectionActionMenu
+              containerRef={scrollRef}
+              onRefer={handleReferQuote}
+            />
             <FadeScrollArea className="chat-scroll" scrollRef={scrollRef} onScroll={onScroll} fadeHeight={28}>
               <div className={`chat-stream${settledStream ? ' is-settled' : ''}`}>
                 {loadError && (
@@ -3116,23 +3199,27 @@ export default function Chat() {
 
       {panel && !compact && view === 'chat' && (
         panelMode === 'sources' ? (
-          <SourcesSidePanel
-            sources={activeSources}
-            activeUrl={activeSourceUrl}
-            duration="3s"
-            onClose={() => { setPanel(false); setPanelMode('artifacts') }}
-          />
+          activeSources?.length > 0 ? (
+            <SourcesSidePanel
+              sources={activeSources}
+              activeUrl={activeSourceUrl}
+              duration="3s"
+              onClose={() => { setPanel(false); setPanelMode('artifacts') }}
+            />
+          ) : null
         ) : (
-          <ArtifactSide
-            artifacts={artifacts}
-            activeArtifact={activeArtifact}
-            onSelectArtifact={setActiveArtifact}
-            streamingArtifact={streamingArtifact}
-            freshArtifact={freshArtifact}
-            expanded={panelExpanded}
-            onToggleExpand={togglePanelExpanded}
-            onClose={() => { setPanelExpanded(false); setPanel(false) }}
-          />
+          (!isEmpty && artifacts.length > 0) ? (
+            <ArtifactSide
+              artifacts={artifacts}
+              activeArtifact={activeArtifact}
+              onSelectArtifact={setActiveArtifact}
+              streamingArtifact={streamingArtifact}
+              freshArtifact={freshArtifact}
+              expanded={panelExpanded}
+              onToggleExpand={togglePanelExpanded}
+              onClose={() => { setPanelExpanded(false); setPanel(false) }}
+            />
+          ) : null
         )
       )}
 

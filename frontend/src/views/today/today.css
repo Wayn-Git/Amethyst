@@ -1,0 +1,855 @@
+/* Today Dashboard - Modern 4-Card Bento Grid System
+   Matching the reference visual foundation: rounded geometry (24px),
+   fixed permanent card sizes, internal scrolling, theme & accent awareness,
+   and fluid micro-animations. */
+
+.today-view {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.today-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .today-dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* Base Card: Fixed, Permanent Size */
+.today-card {
+  position: relative;
+  height: 440px;
+  min-height: 440px;
+  max-height: 440px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 24px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+  padding: 22px;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.2s ease,
+              border-color 0.2s ease;
+}
+
+.today-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--hairline));
+  box-shadow: 0 8px 26px -4px rgba(0, 0, 0, 0.08);
+}
+
+/* Card Header */
+.today-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex: none;
+}
+
+.today-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.today-card-icon-pill {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+
+.today-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.today-card-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.today-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Internal Scroll Area - Never stretches the card */
+.today-card-scroll {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 28%, transparent) transparent;
+}
+
+.today-card-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.today-card-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.today-card-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 4px;
+}
+
+.today-card-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Empty States */
+.today-card-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--text-dim);
+}
+
+.today-empty-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  margin-bottom: 12px;
+}
+
+.today-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.today-empty-desc {
+  font-size: 13px;
+  color: var(--text-faint);
+  max-width: 240px;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   CARD 1: TASKS & CONTRIBUTION GRAPH
+   ========================================================================== */
+
+.today-tasks-graph-section {
+  flex: none;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.today-tasks-graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.today-contrib-grid-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.today-contrib-grid-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.today-contrib-grid {
+  display: grid;
+  grid-template-rows: repeat(7, 9px);
+  grid-auto-flow: column;
+  grid-auto-columns: 9px;
+  gap: 3px;
+}
+
+.today-contrib-cell {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  box-sizing: border-box;
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+
+.today-contrib-cell:hover {
+  transform: scale(1.35);
+  z-index: 2;
+}
+
+.today-contrib-cell[data-level="0"] {
+  background: #121316;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.today-contrib-cell[data-level="0"]:hover {
+  background: #1c1d22;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.today-contrib-cell[data-level="1"] {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.today-contrib-cell[data-level="2"] {
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.today-contrib-cell[data-level="3"] {
+  background: var(--accent);
+}
+
+:root[data-theme='paper'] .today-contrib-cell[data-level="0"],
+:root[data-theme='light'] .today-contrib-cell[data-level="0"],
+:root[data-theme='sand'] .today-contrib-cell[data-level="0"],
+:root[data-theme='apple'] .today-contrib-cell[data-level="0"] {
+  background: #ebedf0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='paper'] .today-contrib-cell[data-level="0"]:hover,
+:root[data-theme='light'] .today-contrib-cell[data-level="0"]:hover,
+:root[data-theme='sand'] .today-contrib-cell[data-level="0"]:hover,
+:root[data-theme='apple'] .today-contrib-cell[data-level="0"]:hover {
+  background: #dfe1e4;
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+/* Task Row */
+.today-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.today-task-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.today-task-row:hover {
+  transform: translateY(-1.5px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--hairline));
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+.today-task-check-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--hairline-strong);
+  color: transparent;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  background: var(--canvas);
+}
+
+.today-task-row:hover .today-task-check-circle {
+  border-color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.today-task-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.today-task-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.today-task-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-task-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.today-task-bar-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--tint) 8%, transparent);
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.today-task-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--accent);
+  transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Quick Add Task Input */
+.today-task-add-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px dashed var(--hairline-strong);
+  margin-bottom: 10px;
+}
+
+.today-task-add-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+
+.today-task-add-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* Task Detail Popup Modal */
+.task-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.task-popup-card {
+  width: 100%;
+  max-width: 440px;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.35);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--hairline));
+  /* Popup background uses gradient built from accent color */
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 22%, var(--canvas)) 0%,
+    color-mix(in srgb, var(--accent) 8%, var(--canvas-deep)) 100%
+  );
+  color: var(--text);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.task-popup-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.task-popup-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.task-popup-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.task-popup-close:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.task-popup-progress-box {
+  background: color-mix(in srgb, var(--canvas) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hairline) 70%, transparent);
+  border-radius: 16px;
+  padding: 16px;
+  margin: 16px 0;
+  backdrop-filter: blur(8px);
+}
+
+.task-popup-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.task-popup-progress-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.task-popup-progress-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.task-popup-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: color-mix(in srgb, var(--tint) 14%, transparent);
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+  margin: 8px 0 14px 0;
+}
+
+.task-popup-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.task-popup-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.task-popup-steppers {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.task-popup-step-btn {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.task-popup-step-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface);
+}
+
+.task-popup-step-btn.is-100 {
+  background: var(--accent);
+  color: var(--on-accent, #ffffff);
+  border-color: var(--accent);
+}
+
+/* ==========================================================================
+   CARD 2: RECENT MAILS
+   ========================================================================== */
+
+.today-mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.today-mail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+}
+
+.today-mail-row:hover {
+  transform: translateY(-1.5px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--hairline));
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+.today-mail-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.today-mail-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.today-mail-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.today-mail-sender {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-mail-date {
+  font-size: 11px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.today-mail-subject {
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.today-mail-snippet {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.today-mail-dismiss-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.today-mail-row:hover .today-mail-dismiss-btn {
+  opacity: 1;
+}
+
+.today-mail-dismiss-btn:hover {
+  background: color-mix(in srgb, var(--stop, #ef4444) 15%, transparent);
+  color: var(--stop, #ef4444);
+}
+
+/* In-Card Mail Reader */
+.today-mail-reader {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.today-mail-reader-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex: none;
+}
+
+.today-mail-reader-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.today-mail-reader-back:hover {
+  text-decoration: underline;
+}
+
+.today-mail-reader-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ==========================================================================
+   CARD 3: RECENT MEMORY
+   ========================================================================== */
+
+/* Background: gradient built from the accent color */
+/* Text color: follows the active theme's text color (not the accent color) */
+.today-card--accent-grad {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 30%, var(--canvas)) 0%,
+    color-mix(in srgb, var(--accent) 10%, var(--canvas-deep)) 100%
+  ) !important;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--hairline)) !important;
+  color: var(--text) !important;
+}
+
+.today-memory-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  justify-content: center;
+}
+
+.today-memory-tile {
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--canvas) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hairline) 60%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.today-memory-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -3px rgba(0, 0, 0, 0.07);
+}
+
+.today-memory-prompt-lead {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.today-memory-text {
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text);
+  margin: 0 0 8px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.today-memory-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   CARD 4: LIBRARY
+   ========================================================================== */
+
+.today-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.today-library-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  text-decoration: none;
+}
+
+.today-library-row:hover {
+  transform: translateY(-1.5px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--hairline));
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+.today-library-thumb-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--surface-3, var(--hairline));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hairline);
+}
+
+.today-library-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.today-library-fallback-icon {
+  color: var(--text-dim);
+}
+
+.today-library-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.today-library-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.today-library-sub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-library-kind-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}

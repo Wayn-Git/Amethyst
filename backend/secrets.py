@@ -68,7 +68,7 @@ class _FileStore:
 
     def _read(self) -> dict[str, str]:
         try:
-            loaded = json.loads(self.path.read_text())
+            loaded = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return {}
         return loaded if isinstance(loaded, dict) else {}
@@ -79,7 +79,7 @@ class _FileStore:
         # store behind -- that would read as "every key was deleted".
         scratch = self.path.with_name(f"{self.path.name}.tmp")
         handle = os.open(scratch, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(handle, "w") as out:
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
             json.dump(data, out)
         os.replace(scratch, self.path)
 

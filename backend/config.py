@@ -28,7 +28,7 @@ def write_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, scratch = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        with os.fdopen(handle, "w") as out:
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
             out.write(text)
         os.replace(scratch, path)
     except BaseException:
@@ -302,7 +302,7 @@ def load_tiers(path: Path | None = None) -> dict[str, Tier]:
     p = path or paths().providers_yaml
     if not p.exists():
         return {}
-    raw = yaml.safe_load(p.read_text()) or {}
+    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     block = raw.get("tiers") or {}
     if not isinstance(block, dict):
         log.warning("providers.yaml: 'tiers' is not a mapping; ignoring it")
@@ -339,7 +339,7 @@ def load_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
     if not p.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
         write_atomic(p, _default_providers())
-    raw = yaml.safe_load(p.read_text()) or {}
+    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     out: dict[str, ProviderConfig] = {}
     for entry in raw.get("providers") or []:
         known = {
@@ -397,7 +397,7 @@ def load_memory_model(path: Path | None = None) -> tuple[str, str] | None:
     p = path or paths().providers_yaml
     if not p.exists():
         return None
-    raw = yaml.safe_load(p.read_text()) or {}
+    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     entry = raw.get("memory") or {}
     provider, model = entry.get("provider"), entry.get("model")
     if not provider or not model:
@@ -447,7 +447,7 @@ def provider_entries(path: Path | None = None) -> list[dict[str, Any]]:
     p = path or paths().providers_yaml
     if not p.exists():
         return []
-    raw = yaml.safe_load(p.read_text()) or {}
+    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     return list(raw.get("providers") or [])
 
 
@@ -621,6 +621,48 @@ def remove_provider(name: str, path: Path | None = None) -> bool:
         return False
     save_providers(kept, path)
     return True
+
+
+def set_primary_provider(name: str, path: Path | None = None) -> bool:
+    """Make this provider the primary route by moving it to the top of providers.yaml.
+    
+    Also updates the default cognitive tier if the provider has a model specified.
+    """
+    entries = provider_entries(path)
+    target = None
+    rest = []
+    for entry in entries:
+        if entry.get("name") == name:
+            target = entry
+        else:
+            rest.append(entry)
+    if not target:
+        return False
+    # Ensure primary provider is enabled
+    target.pop("enabled", None)
+    save_providers([target] + rest, path)
+
+    model = target.get("default_model") or target.get("model")
+    if model:
+        try:
+            set_tier("default", name, model, path)
+        except Exception as e:
+            log.warning("failed to align default tier with primary provider: %s", e)
+
+    return True
+
+
+def reorder_providers(order: list[str], path: Path | None = None) -> list[str]:
+    """Reorder provider entries in providers.yaml according to the given name order."""
+    entries = provider_entries(path)
+    by_name = {e.get("name"): e for e in entries if e.get("name")}
+    reordered = []
+    for name in order:
+        if name in by_name:
+            reordered.append(by_name.pop(name))
+    reordered.extend(by_name.values())
+    save_providers(reordered, path)
+    return [e.get("name") for e in reordered if e.get("name")]
 
 
 #: When the day's briefing and review are filed. Local hours on the machine's
@@ -1207,7 +1249,7 @@ def load_embeddings(path: Path | None = None) -> tuple[str, str] | None:
     if not p.exists():
         return None
     try:
-        raw = yaml.safe_load(p.read_text()) or {}
+        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError:
         return None
     entry = raw.get("embeddings") or {}
@@ -1236,7 +1278,7 @@ def save_embeddings(provider: str, model: str, path: Path | None = None) -> None
     raw = {}
     if p.exists():
         try:
-            raw = yaml.safe_load(p.read_text()) or {}
+            raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
             raw = {}
     raw["embeddings"] = {"provider": provider, "model": model}
@@ -1250,7 +1292,7 @@ def clear_embeddings(path: Path | None = None) -> None:
     if not p.exists():
         return
     try:
-        raw = yaml.safe_load(p.read_text()) or {}
+        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError:
         return
     if raw.pop("embeddings", None) is not None:
@@ -1266,7 +1308,7 @@ def load_transcription(path: Path | None = None) -> Tier | None:
     if not p.exists():
         return None
     try:
-        raw = yaml.safe_load(p.read_text()) or {}
+        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError:
         return None
     block = raw.get("transcription")
