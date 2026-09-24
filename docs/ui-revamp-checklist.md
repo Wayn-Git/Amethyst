@@ -1,0 +1,161 @@
+# Home revamp checklist
+
+## Shell and controls
+
+- [x] Existing app navigation retained; no second navigation.
+- [x] Theme aliases for all nine modes (system plus eight palettes).
+- [x] Header: date, greeting, capture, Edit layout, Add widget, Home settings.
+- [x] Glance strip container; existing Morning layout reused.
+- [x] Dense twelve-column grid, shared gutter, responsive spans, centered maximum width.
+- [x] Outer edit controls: drag/live reflow, keyboard movement and resize, mobile up/down.
+- [x] Serialized instant layout persistence and undo toast; save-status live region.
+- [x] Outer collapse/expand preserving mounted content.
+- [x] Home settings drawer: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
+- [x] Add widget drawer: search, category groups, descriptions, Added state.
+- [x] Widget detail/Show all drawer retains existing content and focus management.
+- [x] Command palette surface and shared button adoption; existing search retained.
+- [x] Existing confirmation dialogs, menus, tooltips, toasts receive shared panel tokens.
+- [x] Button variants/sizes/icon/loading; Input; Select; Checkbox; Switch; Tabs; Menu; Drawer; Dialog; Tooltip; Toast; Kbd.
+- [x] Warning lint rule for raw button/input/select/textarea outside primitives.
+- [ ] Hardware frame-time profiling for sustained 60 fps.
+- [ ] Widget session: per-widget min/max heights, no loading/refresh shift, no nested scroll, inner container-query adaptations and narrow action menus.
+- [ ] Widget session: remove existing decorative widget gradients, hard-coded colors, and inner content styling conflicting with brief.
+
+## Widget ownership
+
+No widget completed or redesigned in this session; all IDs below are owned by the widgets session.
+
+- [ ] `agent.audit` — owned by the widgets session.
+- [ ] `agent.brief` — owned by the widgets session.
+- [ ] `agent.delegated` — owned by the widgets session.
+- [ ] `agent.errors` — owned by the widgets session.
+- [ ] `agent.feed` — owned by the widgets session.
+- [ ] `agent.jobs` — owned by the widgets session.
+- [ ] `agent.knows` — owned by the widgets session.
+- [ ] `agent.next` — owned by the widgets session.
+- [ ] `agent.prompts` — owned by the widgets session.
+- [ ] `agent.research` — owned by the widgets session.
+- [ ] `agent.rules` — owned by the widgets session.
+- [ ] `agent.running` — owned by the widgets session.
+- [ ] `agent.skills` — owned by the widgets session.
+- [ ] `agent.suggest` — owned by the widgets session.
+- [ ] `agent.usage` — owned by the widgets session.
+- [ ] `agent.watchers` — owned by the widgets session.
+- [ ] `agent.weekly` — owned by the widgets session.
+- [ ] `comm.contacts` — owned by the widgets session.
+- [ ] `comm.meeting` — owned by the widgets session.
+- [ ] `comm.newsletters` — owned by the widgets session.
+- [ ] `comm.reachout` — owned by the widgets session.
+- [ ] `comm.schedule-send` — owned by the widgets session.
+- [ ] `comm.templates` — owned by the widgets session.
+- [ ] `comm.thread-summary` — owned by the widgets session.
+- [ ] `comm.tone` — owned by the widgets session.
+- [ ] `comm.unread` — owned by the widgets session.
+- [ ] `dash.gallery` — owned by the widgets session.
+- [ ] `dash.modes` — owned by the widgets session.
+- [ ] `dash.palette` — owned by the widgets session.
+- [ ] `dash.phone` — owned by the widgets session.
+- [ ] `dash.pin` — owned by the widgets session.
+- [ ] `dash.quiet` — owned by the widgets session.
+- [ ] `dash.shortcuts` — owned by the widgets session.
+- [ ] `dash.skill-widgets` — owned by the widgets session.
+- [ ] `dash.sync` — owned by the widgets session.
+- [ ] `dash.theme-mode` — owned by the widgets session.
+- [ ] `dev.appeal` — owned by the widgets session.
+- [ ] `dev.backup` — owned by the widgets session.
+- [ ] `dev.ci` — owned by the widgets session.
+- [ ] `dev.issues` — owned by the widgets session.
+- [ ] `dev.prs` — owned by the widgets session.
+- [ ] `dev.recovery` — owned by the widgets session.
+- [ ] `dev.release` — owned by the widgets session.
+- [ ] `dev.security` — owned by the widgets session.
+- [ ] `dev.services` — owned by the widgets session.
+- [ ] `dev.streak` — owned by the widgets session.
+- [ ] `dev.team` — owned by the widgets session.
+- [ ] `dev.unpushed` — owned by the widgets session.
+- [ ] `feed.arxiv` — owned by the widgets session.
+- [ ] `feed.events` — owned by the widgets session.
+- [ ] `feed.markets` — owned by the widgets session.
+- [ ] `feed.news` — owned by the widgets session.
+- [ ] `feed.podcasts` — owned by the widgets session.
+- [ ] `feed.releases` — owned by the widgets session.
+- [ ] `feed.rss` — owned by the widgets session.
+- [ ] `feed.social` — owned by the widgets session.
+- [ ] `feed.sports` — owned by the widgets session.
+- [ ] `feed.watchlater` — owned by the widgets session.
+- [ ] `glance.air` — owned by the widgets session.
+- [ ] `glance.clock` — owned by the widgets session.
+- [ ] `glance.listen-stats` — owned by the widgets session.
+- [ ] `glance.music` — owned by the widgets session.
+- [ ] `glance.next-event` — owned by the widgets session.
+- [ ] `glance.sun` — owned by the widgets session.
+- [ ] `glance.travel` — owned by the widgets session.
+- [ ] `glance.weather` — owned by the widgets session.
+- [ ] `lib.ask` — owned by the widgets session.
+- [ ] `lib.capture` — owned by the widgets session.
+- [ ] `lib.collections` — owned by the widgets session.
+- [ ] `lib.daily` — owned by the widgets session.
+- [ ] `lib.dupes` — owned by the widgets session.
+- [ ] `lib.flashcards` — owned by the widgets session.
+- [ ] `lib.graph` — owned by the widgets session.
+- [ ] `lib.highlights` — owned by the widgets session.
+- [ ] `lib.inbox` — owned by the widgets session.
+- [ ] `lib.readlater` — owned by the widgets session.
+- [ ] `lib.recent` — owned by the widgets session.
+- [ ] `lib.resurface` — owned by the widgets session.
+- [ ] `lib.search` — owned by the widgets session.
+- [ ] `life.bills` — owned by the widgets session.
+- [ ] `life.expenses` — owned by the widgets session.
+- [ ] `life.health` — owned by the widgets session.
+- [ ] `life.meals` — owned by the widgets session.
+- [ ] `life.mood` — owned by the widgets session.
+- [ ] `life.packages` — owned by the widgets session.
+- [ ] `life.screen` — owned by the widgets session.
+- [ ] `life.shopping` — owned by the widgets session.
+- [ ] `life.trips` — owned by the widgets session.
+- [ ] `need.approvals` — owned by the widgets session.
+- [ ] `need.decisions` — owned by the widgets session.
+- [ ] `need.drafts` — owned by the widgets session.
+- [ ] `need.inbox` — owned by the widgets session.
+- [ ] `need.lor-slack` — owned by the widgets session.
+- [ ] `need.lor-social` — owned by the widgets session.
+- [ ] `need.mentions` — owned by the widgets session.
+- [ ] `need.overdue` — owned by the widgets session.
+- [ ] `need.snoozed` — owned by the widgets session.
+- [ ] `need.waiting` — owned by the widgets session.
+- [ ] `pro.anomaly` — owned by the widgets session.
+- [ ] `pro.away` — owned by the widgets session.
+- [ ] `pro.context` — owned by the widgets session.
+- [ ] `pro.nudges` — owned by the widgets session.
+- [ ] `pro.standing` — owned by the widgets session.
+- [ ] `pro.triage` — owned by the widgets session.
+- [ ] `stu.assignments` — owned by the widgets session.
+- [ ] `stu.exams` — owned by the widgets session.
+- [ ] `stu.papers` — owned by the widgets session.
+- [ ] `stu.planner` — owned by the widgets session.
+- [ ] `stu.syllabus` — owned by the widgets session.
+- [ ] `stu.timetable` — owned by the widgets session.
+- [ ] `sys.backups` — owned by the widgets session.
+- [ ] `sys.connectors` — owned by the widgets session.
+- [ ] `sys.logs` — owned by the widgets session.
+- [ ] `sys.model` — owned by the widgets session.
+- [ ] `sys.notify` — owned by the widgets session.
+- [ ] `sys.phones` — owned by the widgets session.
+- [ ] `sys.privacy` — owned by the widgets session.
+- [ ] `sys.resources` — owned by the widgets session.
+- [ ] `sys.sync` — owned by the widgets session.
+- [ ] `sys.updates` — owned by the widgets session.
+- [ ] `sys.vault` — owned by the widgets session.
+- [ ] `task.agenda` — owned by the widgets session.
+- [ ] `task.backlog` — owned by the widgets session.
+- [ ] `task.conflicts` — owned by the widgets session.
+- [ ] `task.deadlines` — owned by the widgets session.
+- [ ] `task.focus` — owned by the widgets session.
+- [ ] `task.free` — owned by the widgets session.
+- [ ] `task.goals` — owned by the widgets session.
+- [ ] `task.habits` — owned by the widgets session.
+- [ ] `task.kanban` — owned by the widgets session.
+- [ ] `task.plan` — owned by the widgets session.
+- [ ] `task.reminders` — owned by the widgets session.
+- [ ] `task.risk` — owned by the widgets session.
+- [ ] `task.today` — owned by the widgets session.

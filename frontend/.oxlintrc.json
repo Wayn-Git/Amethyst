@@ -25,7 +25,8 @@
       "files": [
         "src/components/ui/**",
         "src/components/base/**",
-        "src/components/application/**",
+        "src/components/application/modals/**",
+        "src/components/application/notifications/**",
         "src/dashboard/primitives.jsx"
       ],
       "rules": {
