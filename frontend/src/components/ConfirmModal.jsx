@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Icon from './Icon.jsx'
 import { api, prettyJSON } from '../api.js'
 import { useFocusTrap } from '../hooks/useFocusTrap.js'
+import { JsonViewer } from './arc/json-viewer/json-viewer'
+import { CodeBlock } from './arc/code-block/code-block'
 import './confirm-modal.css'
 
 /* Modern Tool Execution Confirmation Modal.
@@ -239,7 +241,9 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                 </div>
 
                 {viewMode === 'raw' ? (
-                  <pre className="confirm-raw-json">{prettyJSON(args)}</pre>
+                  <div className="confirm-raw-json-viewer" style={{ padding: '6px 12px 12px 12px' }}>
+                    <JsonViewer data={args || {}} rootName="parameters" maxHeight={240} defaultExpandDepth={2} />
+                  </div>
                 ) : (
                   <>
                     {/* Command view */}
@@ -269,10 +273,13 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                           <span>{filePath}</span>
                         </div>
                         {contentPreview && (
-                          <div className="confirm-file-snippet">
-                            {contentPreview.length > 500
-                              ? `${contentPreview.slice(0, 500)}\n… (${contentPreview.length.toLocaleString()} bytes total)`
-                              : contentPreview}
+                          <div style={{ marginTop: 8 }}>
+                            <CodeBlock
+                              code={contentPreview}
+                              language={filePath.split('.').pop() || 'text'}
+                              filename={filePath.split('/').pop() || 'file'}
+                              maxLines={10}
+                            />
                           </div>
                         )}
                       </div>

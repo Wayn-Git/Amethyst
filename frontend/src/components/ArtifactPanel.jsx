@@ -5,6 +5,8 @@ import Icon from './Icon.jsx'
 import Markdown from './markdown/Markdown.jsx'
 import ArtifactEmptyState from './ArtifactEmptyState.jsx'
 import { FadeScrollArea } from './ui/skiper/index.js'
+import { CodeBlock } from './arc/code-block/code-block'
+import { TreeView } from './arc/tree-view/tree-view'
 
 /* What the agent wrote, while it is writing it.
 
@@ -162,22 +164,44 @@ export function previewKind(artifact) {
   return null
 }
 
-function LineNumbers({ text, writing }) {
-  // One span per line rather than a counter on `pre`: the gutter has to line up
-  // with wrapped content, and a CSS counter cannot see a soft wrap.
-  const lines = useMemo(() => text.split('\n'), [text])
+function artifactsToTree(artifacts) {
+  const root = { id: 'root', label: 'Artifacts', children: [] }
+  for (const a of artifacts) {
+    const parts = (a.path || a.title || 'document').replace(/^\//, '').split('/')
+    let curr = root
+    let fullPath = ''
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      fullPath = fullPath ? `${fullPath}/${part}` : part
+      const isFile = i === parts.length - 1
+      if (isFile) {
+        curr.children.push({
+          id: a.id,
+          label: a.title || part,
+          children: undefined,
+        })
+      } else {
+        let folder = curr.children.find((c) => c.label === part && c.children)
+        if (!folder) {
+          folder = { id: `folder-${fullPath}`, label: part, children: [] }
+          curr.children.push(folder)
+        }
+        curr = folder
+      }
+    }
+  }
+  return root.children.length > 0 ? root.children : [{ id: 'none', label: 'No files' }]
+}
+
+function LineNumbers({ artifact, text, writing }) {
+  const ext = String(artifact?.path || '').split('.').pop() || 'text'
   return (
-    <div className="artifact-code" role="region" tabIndex={0} aria-label="Artifact source">
-      <pre className="artifact-code-gutter" aria-hidden="true">
-        {lines.map((_, i) => `${i + 1}\n`).join('')}
-      </pre>
-      <pre className="artifact-code-text">
-        {text}
-        {/* The caret is the whole effect. A document arriving with a cursor at
-            the end of it reads as being written; the same text arriving without
-            one reads as having been pasted. */}
-        {writing && <span className="artifact-caret" aria-hidden="true" />}
-      </pre>
+    <div className="artifact-code-wrap" style={{ width: '100%', padding: '0 4px' }}>
+      <CodeBlock
+        code={text}
+        filename={artifact?.title || tailPath(artifact?.path || '')}
+        language={artifact?.language || ext}
+      />
     </div>
   )
 }
@@ -373,24 +397,21 @@ export default function ArtifactPanel({
         {listOpen && (
         <motion.div
           className="artifact-list"
+          style={{ padding: '8px 10px', background: 'var(--surface-raised)' }}
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
         >
-          {artifacts.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              className={`artifact-list-row${a.id === active.id ? ' is-active' : ''}`}
-              onClick={() => { onSelect(a.id); setListOpen(false) }}
-              title={a.path}
-            >
-              <Icon name="page" size={13} />
-              <span className="artifact-list-name">{a.title || a.path}</span>
-              {a.version > 1 && <span className="artifact-version">v{a.version}</span>}
-            </button>
-          ))}
+          <TreeView
+            nodes={artifactsToTree(artifacts)}
+            onSelect={(node) => {
+              if (artifacts.some((a) => a.id === node.id)) {
+                onSelect(node.id)
+                setListOpen(false)
+              }
+            }}
+          />
         </motion.div>
         )}
       </AnimatePresence>
@@ -436,7 +457,7 @@ export default function ArtifactPanel({
           >
             {showing === 'preview' && kind
               ? <Preview artifact={active} text={text} />
-              : <LineNumbers text={text} writing={writing} />}
+              : <LineNumbers artifact={active} text={text} writing={writing} />}
           </motion.div>
         </AnimatePresence>
       </FadeScrollArea>

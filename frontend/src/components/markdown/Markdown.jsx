@@ -1,8 +1,12 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icon.jsx'
 import { copyText } from '../../api.js'
 import { parseBlocks, parseInline, SAFE_PROTOCOL } from './parse.js'
 import { grammarFor, loadGrammar, tokenize } from './highlight.js'
+import { CodeBlock as ArcCodeBlock } from '../arc/code-block/code-block'
+import { TreeView } from '../arc/tree-view/tree-view'
+import { JsonViewer } from '../arc/json-viewer/json-viewer'
+import { isAsciiTree, parseAsciiTree } from '../arc/tree-view/tree-parser'
 
 /* Model output, rendered to React elements rather than HTML.
  *
@@ -567,84 +571,106 @@ function spans(nodes, keyBase = 't') {
   })
 }
 
-/* A fenced block, with the two controls a reader of model output reaches for.
- *
- * Highlighting waits for the closing fence. Re-tokenising a growing buffer on
- * every streamed delta is work thrown away sixty times a second, and a token
- * that is half-written highlights as the wrong thing and then changes colour
- * when the rest of it arrives — which reads worse than plain text for the
- * second it takes. */
+/* A fenced block with Arc CodeBlock, interactive TreeView for ASCII trees, and JsonViewer */
 function CodeBlock({ lang, file, text: code, open }) {
-  const [copied, setCopied] = useState(false)
-  const [wrap, setWrap] = useState(false)
-  const [tokens, setTokens] = useState(null)
-  const grammar = grammarFor(lang || file)
+  const [viewMode, setViewMode] = useState('rich') // 'rich' | 'code'
 
-  /* The `current` flag is the whole cancellation story, and deliberately so.
-     There was a second `alive` ref here guarding against a resolve after
-     unmount, and under StrictMode — which mounts, cleans up, and mounts again
-     — its cleanup set it false on the first pass and nothing ever set it back.
-     Every code block in the application stayed unhighlighted, in development
-     and in any future remount. This effect's own cleanup already runs on
-     unmount, so the ref was guarding something that was covered. */
-  useEffect(() => {
-    if (open || !grammar) { setTokens(null); return undefined }
-    let current = true
-    loadGrammar(grammar).then((refractor) => {
-      if (current) setTokens(tokenize(refractor, code, grammar))
-    })
-    return () => { current = false }
-  }, [grammar, code, open])
-
-  const copy = useCallback(async () => {
-    setCopied(await copyText(code) ? 'copied' : 'blocked')
-    setTimeout(() => setCopied(false), 1600)
+  const asciiTree = useMemo(() => {
+    if (isAsciiTree(code)) {
+      try {
+        const nodes = parseAsciiTree(code)
+        if (nodes && nodes.length > 0) return nodes
+      } catch {
+        return null
+      }
+    }
+    return null
   }, [code])
 
+  const parsedJson = useMemo(() => {
+    const l = (lang || '').toLowerCase()
+    if ((l === 'json' || l === 'jsonc' || l === 'json5' || !lang) && code && (code.trim().startsWith('{') || code.trim().startsWith('['))) {
+      try {
+        return JSON.parse(code)
+      } catch {
+        return null
+      }
+    }
+    return null
+  }, [code, lang])
+
+  // If it's an ASCII tree (e.g. project structure)
+  if (asciiTree && viewMode === 'rich') {
+    return (
+      <div className="md-tree-container">
+        <div className="md-tree-header">
+          <div className="md-tree-title">
+            <Icon name="folder" size={14} />
+            <span>{file || 'Project structure'}</span>
+          </div>
+          <div className="md-tree-actions">
+            <button
+              type="button"
+              className="md-tree-toggle-btn"
+              onClick={() => setViewMode('code')}
+              title="View raw ASCII tree"
+            >
+              <Icon name="code" size={12} />
+              <span>Raw</span>
+            </button>
+          </div>
+        </div>
+        <TreeView nodes={asciiTree} defaultExpandedIds={[asciiTree[0]?.id]} />
+      </div>
+    )
+  }
+
+  // If it's multi-line JSON, offer interactive JsonViewer
+  if (parsedJson && viewMode === 'rich' && code.split('\n').length > 4) {
+    return (
+      <div className="md-json-container">
+        <div className="md-tree-header">
+          <div className="md-tree-title">
+            <Icon name="code" size={14} />
+            <span>{file || 'JSON Data'}</span>
+          </div>
+          <div className="md-tree-actions">
+            <button
+              type="button"
+              className="md-tree-toggle-btn"
+              onClick={() => setViewMode('code')}
+              title="View formatted text"
+            >
+              <Icon name="code" size={12} />
+              <span>Raw</span>
+            </button>
+          </div>
+        </div>
+        <JsonViewer data={parsedJson} rootName={file || 'root'} defaultExpandDepth={2} maxHeight={360} />
+      </div>
+    )
+  }
+
   return (
-    <div className="md-pre-wrap">
-      <div className="md-pre-head">
-        {/* The filename when the model gave one, the language otherwise, and
-            nothing at all when it gave neither — rather than the word "text",
-            which was a label for the absence of a label. */}
-        {file && <span className="md-pre-file" title={file}>{shortPath(file)}</span>}
-        {(lang || file) && <span className="md-pre-lang">{lang || 'text'}</span>}
-        {open && (
-          <span className="md-pre-live">
-            writing<span className="ellipsis"><i /><i /><i /></span>
-          </span>
-        )}
-        <div className="md-pre-actions">
-          {/* Long lines scroll by default, because a shell command broken over
-              three lines is no longer the command. Wrapping is offered because
-              sometimes you want all of it at once. */}
+    <div className="md-arc-code-wrap">
+      {(asciiTree || (parsedJson && code.split('\n').length > 4)) && (
+        <div className="md-tree-switch-bar">
           <button
             type="button"
-            className={`md-pre-btn${wrap ? ' is-on' : ''}`}
-            onClick={() => setWrap((w) => !w)}
-            title={wrap ? 'Stop wrapping long lines' : 'Wrap long lines'}
-            aria-pressed={wrap}
-            aria-label="Wrap long lines"
+            className="md-tree-toggle-btn is-active"
+            onClick={() => setViewMode('rich')}
           >
-            <Icon name="wrap" size={13} />
-          </button>
-          <button
-            type="button"
-            className="md-pre-btn"
-            onClick={copy}
-            title="Copy this block"
-            aria-label={copied === 'copied' ? 'Copied' : 'Copy this block'}
-          >
-            <Icon
-              name={copied === 'copied' ? 'check' : copied === 'blocked' ? 'x' : 'copy'}
-              size={13}
-            />
+            <Icon name="spark" size={12} />
+            <span>Interactive {asciiTree ? 'Tree' : 'JSON'}</span>
           </button>
         </div>
-      </div>
-      <pre className={`md-pre${wrap ? ' md-pre--wrap' : ''}`}>
-        <code>{tokens ? spans(tokens) : code}</code>
-      </pre>
+      )}
+      <ArcCodeBlock
+        code={code}
+        filename={file}
+        language={lang || 'text'}
+        maxLines={28}
+      />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
@@ -7,6 +7,8 @@ import { SkeletonRows, default as Skeleton } from '../components/Skeleton.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 import Table from '../components/ui/Table.jsx'
+import { JsonViewer } from '../components/arc/json-viewer/json-viewer'
+import { CodeBlock } from '../components/arc/code-block/code-block'
 
 /* Every tool call, with the decision that allowed it.
 
@@ -90,8 +92,8 @@ function LogCard({ row, onCopy }) {
       {open && (
         <div className="log-card-args">
           <span className="tool-block-label">arguments</span>
-          <pre className="tool-json">{prettyJSON(row.arguments)}</pre>
-          <button type="button" className="btn btn--ghost btn--small" onClick={() => onCopy(row)}>
+          <JsonViewer data={row.arguments || {}} rootName="arguments" maxHeight={240} />
+          <button type="button" className="btn btn--ghost btn--small" style={{ marginTop: 8 }} onClick={() => onCopy(row)}>
             <Icon name="copy" size={12} /> Copy this row
           </button>
         </div>
@@ -108,6 +110,7 @@ export default function Logs() {
   const [filter, setFilter] = useState('')
   const [lens, setLens] = useState('all')
   const [limit, setLimit] = useState(100)
+  const [inspectedId, setInspectedId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [live, setLive] = useState(false)
   // The first response, distinct from `busy`: a reload keeps the rows on screen,
@@ -317,30 +320,63 @@ export default function Logs() {
                   <th scope="col">result / error</th>
                 </Table.Head>
                 <Table.Body>
-                  {filtered.map((l) => (
-                    <Table.Row key={l.id}>
-                      <Table.Cell className="log-when">{fmtTime(l.created_at)}</Table.Cell>
-                      <Table.Cell className="log-tool" title={l.tool_name}>{l.tool_name}</Table.Cell>
-                      <Table.Cell className="log-dim">{l.tool_source}</Table.Cell>
-                      <Table.Cell>
-                        <span className={`badge badge--${riskTone(l.risk_level)}`}>{l.risk_level}</span>
-                      </Table.Cell>
-                      <Table.Cell className="log-decision">
-                        {isRefusal(l.confirmation_decision)
-                          ? <span className="log-denied">{decisionText(l.confirmation_decision)}</span>
-                          : decisionText(l.confirmation_decision)}
-                      </Table.Cell>
-                      <Table.Cell className="log-dim">{l.duration_ms ?? '—'}</Table.Cell>
-                      <Table.Cell className="log-args" title={prettyJSON(l.arguments)}>{prettyJSON(l.arguments)}</Table.Cell>
-                      <Table.Cell>
-                        {l.error ? (
-                          <span className="log-result log-result--error" title={l.error}>{l.error}</span>
-                        ) : (
-                          <span className="log-result" title={l.result_summary}>{l.result_summary ?? '—'}</span>
+                  {filtered.map((l) => {
+                    const isInspected = inspectedId === l.id
+                    return (
+                      <Fragment key={l.id}>
+                        <Table.Row
+                          onClick={() => setInspectedId((curr) => (curr === l.id ? null : l.id))}
+                          style={{ cursor: 'pointer' }}
+                          className={isInspected ? 'is-selected' : undefined}
+                        >
+                          <Table.Cell className="log-when">{fmtTime(l.created_at)}</Table.Cell>
+                          <Table.Cell className="log-tool" title={l.tool_name}>{l.tool_name}</Table.Cell>
+                          <Table.Cell className="log-dim">{l.tool_source}</Table.Cell>
+                          <Table.Cell>
+                            <span className={`badge badge--${riskTone(l.risk_level)}`}>{l.risk_level}</span>
+                          </Table.Cell>
+                          <Table.Cell className="log-decision">
+                            {isRefusal(l.confirmation_decision)
+                              ? <span className="log-denied">{decisionText(l.confirmation_decision)}</span>
+                              : decisionText(l.confirmation_decision)}
+                          </Table.Cell>
+                          <Table.Cell className="log-dim">{l.duration_ms ?? '—'}</Table.Cell>
+                          <Table.Cell className="log-args" title={prettyJSON(l.arguments)}>{prettyJSON(l.arguments)}</Table.Cell>
+                          <Table.Cell>
+                            {l.error ? (
+                              <span className="log-result log-result--error" title={l.error}>{l.error}</span>
+                            ) : (
+                              <span className="log-result" title={l.result_summary}>{l.result_summary ?? '—'}</span>
+                            )}
+                          </Table.Cell>
+                        </Table.Row>
+                        {isInspected && (
+                          <tr>
+                            <td colSpan={8} style={{ padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>PAYLOAD ARGUMENTS</span>
+                                  <JsonViewer data={l.arguments || {}} rootName="arguments" maxHeight={240} />
+                                </div>
+                                <div>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>RESULT / OUTPUT</span>
+                                  {l.error ? (
+                                    <div style={{ color: 'var(--danger)', fontSize: 12, padding: 8 }}>{l.error}</div>
+                                  ) : typeof l.result_summary === 'string' && l.result_summary.length > 80 ? (
+                                    <CodeBlock code={l.result_summary} language="text" maxLines={10} />
+                                  ) : (
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: 12, padding: 8 }}>
+                                      {l.result_summary || 'No detailed output'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
+                      </Fragment>
+                    )
+                  })}
                 </Table.Body>
               </Table>
             </div>

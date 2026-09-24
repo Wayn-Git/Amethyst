@@ -1,0 +1,134 @@
+# Code block
+
+> Present code with legible hierarchy and copy access.
+
+- Type: Component (data)
+- Access: Free, open source
+- Page: https://uiarc.dev/components/code-block
+- Markdown: https://uiarc.dev/components/code-block/markdown
+- Registry item: https://uiarc.dev/r/code-block.json
+- Source file: `registry/components/code-block/code-block.tsx`
+- Dependencies: motion, lucide-react
+- Keywords: content, developer, react code block, syntax highlighting, code snippet component, copy code block, collapsible code, code viewer
+
+## When to use
+
+- Documentation snippets and install commands with a copy button.
+- Long files that should collapse to a few lines with Show all, via maxLines.
+
+## When not to use
+
+- Use copy-button alone for a one-line value such as an API key.
+- Use text-stream for code arriving from an AI response in progress.
+- Use a full highlighter library when you need many languages.
+
+## Installation
+
+### CLI
+
+Run one of these in a project set up with `shadcn init`:
+
+```bash
+npx shadcn@latest add @uiarc/code-block
+pnpm dlx shadcn@latest add @uiarc/code-block
+yarn dlx shadcn@latest add @uiarc/code-block
+bunx --bun shadcn@latest add @uiarc/code-block
+```
+
+The `@uiarc` name needs `"registries": { "@uiarc": "https://uiarc.dev/r/{name}.json" }` in `components.json`. Without it, use the full URL:
+
+```bash
+npx shadcn@latest add https://uiarc.dev/r/code-block.json
+```
+
+### Manual
+
+1. Install the dependencies:
+
+```bash
+npm install motion lucide-react
+```
+
+2. Copy the source into your project. Main file: `registry/components/code-block/code-block.tsx`
+
+   The source is in the registry item: https://uiarc.dev/r/code-block.json
+
+3. Arc imports use the `@/` alias for `registry/` and `lib/`. Keep the same folders or update the import paths.
+
+## Usage
+
+```tsx
+import { CodeBlock } from "@/components/arc/code-block/code-block";
+
+const snippet = `export function hello() {
+  return "world";
+}`;
+
+export function Example() {
+  return <CodeBlock code={snippet} filename="hello.ts" language="ts" maxLines={12} />;
+}
+```
+
+## API reference
+
+### CodeBlock
+
+A source viewer with filename header, light syntax highlighting, copy button, and optional collapse.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `code` (required) | `string` | – | Source shown and copied. |
+| `filename` | `string` | – | File name in the header. Defaults to "Source code". |
+| `language` | `string` | `"tsx"` | Header label and highlighter mode. |
+| `maxLines` | `number` | – | Collapses longer sources to this many lines with a Show all toggle. |
+
+## Keyboard interactions
+
+| Keys | Action |
+| --- | --- |
+| Tab | Focuses the copy button, the scrollable source, and the expand toggle. |
+| Enter / Space | Copies the code or toggles the expanded state. |
+
+## Accessibility
+
+- The block is a section labelled like "hello.ts source code"; the pre is focusable so keyboard users can scroll it.
+- The expand toggle uses aria-expanded and aria-controls pointing at the source.
+- Copy feedback comes from copy-button.
+
+## Motion
+
+- Expanding or collapsing springs the source height; new code fades up in place.
+- The toggle label rolls and its chevron rotates.
+- Reduced motion snaps height and swaps text without movement.
+
+## Responsive behavior
+
+- Long lines scroll horizontally inside the block, never the page.
+- Below 420px the padding and font shrink and the copy button becomes icon-only.
+
+## Performance
+
+- The built-in highlighter is a small regex pass with no language bundles.
+- ResizeObservers measure the source for the height spring; many blocks on one page each run their own.
+
+## Notes for AI
+
+- Use for documentation snippets and install commands. The highlighter is lightweight; use a full highlighter for many languages.
+- Set maxLines for long files so pages stay scannable.
+
+## Related
+
+- [Copy button](https://uiarc.dev/components/copy-button/markdown): Copy a value with immediate confirmation.
+- [Tree view](https://uiarc.dev/components/tree-view/markdown): Navigate nested folders and structured content.
+
+## Also in tables
+
+- [Sortable data table](https://uiarc.dev/components/sortable-data-table/markdown): Compare structured records with sortable columns.
+- [Filter toolbar](https://uiarc.dev/components/filter-toolbar/markdown): Keep collection filters close and easy to reset.
+- [JSON viewer](https://uiarc.dev/components/json-viewer/markdown): A collapsible JSON tree with search, paging for long arrays, and copy value or path.
+
+## Guidance for AI tools
+
+Code block: Present code with legible hierarchy and copy access. Follow the declared prop types and do not invent props. Keep keyboard access, reduced motion support, and both light and dark themes intact when adapting it.
+
+Full library index: https://uiarc.dev/llms.txt
