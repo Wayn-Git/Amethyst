@@ -69,6 +69,18 @@ export default function Today() {
     loadData()
   }, [loadData])
 
+  useEffect(() => {
+    const handleProgress = () => {
+      loadData()
+    }
+    window.addEventListener('storage', handleProgress)
+    window.addEventListener('amethyst-task-progress-updated', handleProgress)
+    return () => {
+      window.removeEventListener('storage', handleProgress)
+      window.removeEventListener('amethyst-task-progress-updated', handleProgress)
+    }
+  }, [loadData])
+
   const now = new Date()
 
   if (error) {

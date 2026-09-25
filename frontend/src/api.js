@@ -581,6 +581,7 @@ export const api = {
   taskLists: () => j('/task-lists'),
   createTaskList: (name) => j('/task-lists', json('POST', { name })),
   renameTaskList: (id, name) => j(`/task-lists/${id}`, json('PATCH', { name })),
+  deleteTaskList: (id) => j(`/task-lists/${id}`, json('DELETE')),
   calendar: (days = 14) => j(`/calendar?days=${days}`),
   syncTasks: () => j('/tasks/sync', json('POST')),
 
