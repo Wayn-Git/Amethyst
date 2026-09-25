@@ -17,7 +17,8 @@
    Keep expiry, single-use claims, changed-row checks, turn tracing and dependent-cache invalidation; never bypass the gate.
 6. Add `frontend/src/dashboard/widgets/YourWidget.jsx`, default-exporting a component accepting `{ data, refresh, widgetId }` as needed.
    Reuse `Items.jsx` for local CRUD or `NeedsItems.jsx` for the existing read-only item shapes; theme tokens only.
-   `frontend/src/dashboard/WidgetFrame.jsx` and `useWidget.js` supply loading, empty, not-connected, error, stale, refresh and last-synced UI.
+   Reuse `frontend/src/dashboard/primitives.jsx`: `WidgetCard`, `CardHeader`/`WidgetHeader`, `WidgetRow`, `WidgetChip`, and `StateView`/`WidgetState` (including `Skeleton`). Preserve existing tags, classes and accessibility attributes; the card accepts `as="section"` for region cards.
+   `frontend/src/dashboard/WidgetFrame.jsx` composes these primitives with `useWidget.js` for loading, empty, not-connected, error, stale, refresh and last-synced UI.
    Empty task widgets retain their add form; preserve an equivalent empty-state action if adding another editable widget group.
 7. Add the exact ID to `WIDGETS` in `frontend/src/dashboard/registry.js`:
    `'group.name': lazy(() => import('./widgets/YourWidget.jsx')),`
@@ -26,6 +27,7 @@
    Update the exact shipped-ID assertion in `tests/test_dashboard_shell.py`; test empty data, real selection rules, persistence and rejected writes.
    Extend `frontend/tests/dashboard-items.mjs` for item behavior or `frontend/tests/dashboard-shell.mjs` for shell behavior; no screenshots.
    Run `.venv/bin/pytest tests/test_dashboard_items.py tests/test_dashboard_shell.py -q` when those paths are touched; otherwise select relevant tests.
+   Shared presentation changes also run `node frontend/tests/dashboard-primitives.mjs` against Vite.
    Browser tests require Vite and an isolated FastAPI app mounting `backend.dashboard.router.router` with a disposable `AMETHYST_HOME`.
    Run `BASE=http://127.0.0.1:5177 WIDGET_BACKEND=http://127.0.0.1:8017 TEST_WIDGETS=group.name node frontend/tests/dashboard-items.mjs` after extending its assertions.
    Run targeted Ruff/Oxlint on changed Python/JS files. Test fixtures must never use the user's database or connected accounts.

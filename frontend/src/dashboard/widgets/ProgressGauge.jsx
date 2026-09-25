@@ -1,3 +1,4 @@
+import { WidgetCard, CardHeader, WidgetChip } from '../primitives.jsx'
 import { useId } from 'react'
 
 export function calculateProgress(completed, total) {
@@ -19,11 +20,11 @@ export default function ProgressGauge({ completed = 0, total = 0 }) {
     : 'In progress'
 
   return (
-    <article className="bento-gauge-card" aria-label="Today's task progress">
-      <header className="bento-card-header">
-        <span className="bento-badge">Progress</span>
+    <WidgetCard className="bento-gauge-card" aria-label="Today's task progress">
+      <CardHeader className="bento-card-header">
+        <WidgetChip className="bento-badge">Progress</WidgetChip>
         <span className="bento-card-sub">{total > 0 ? `${completed}/${total} tasks` : '0 tasks'}</span>
-      </header>
+      </CardHeader>
       <div className="bento-gauge-body">
         <div className="bento-gauge-visual" aria-hidden="true">
           <svg viewBox="0 0 100 68" className="bento-gauge-svg">
@@ -62,6 +63,6 @@ export default function ProgressGauge({ completed = 0, total = 0 }) {
           </p>
         </div>
       </div>
-    </article>
+    </WidgetCard>
   )
 }

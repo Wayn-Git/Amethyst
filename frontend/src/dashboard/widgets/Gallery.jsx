@@ -1,3 +1,4 @@
+import { WidgetChip, StateView } from '../primitives.jsx'
 import { useState, useMemo } from 'react'
 import { useDashboard } from '../context.js'
 import { SYSTEM_WIDGETS } from '../layout.js'
@@ -140,7 +141,7 @@ export default function Gallery({ compact = false }) {
                   <div>
                     <div className="gallery-stage-title-wrap">
                       <h3>{selectedManifest.title}</h3>
-                      <span className="bento-badge">{selectedManifest.group}</span>
+                      <WidgetChip className="bento-badge">{selectedManifest.group}</WidgetChip>
                     </div>
                     <p className="gallery-stage-sub">
                       {(Array.isArray(selectedManifest.source) ? selectedManifest.source : [selectedManifest.source]).map(s => s.toolkit || s.type).join(', ')} · {selectedManifest.refresh.mode === 'poll' ? `Refreshes every ${selectedManifest.refresh.interval_s < 60 ? `${selectedManifest.refresh.interval_s}s` : `${Math.round(selectedManifest.refresh.interval_s / 60)}m`}` : `${selectedManifest.refresh.mode} refresh`}
@@ -206,7 +207,7 @@ export default function Gallery({ compact = false }) {
 
       {/* Catalog Grid / Categorized List */}
       <div className="gallery-catalog-section">
-        {!matches.length && <p role="status" className="gallery-empty">No matching widgets found.</p>}
+        {!matches.length && <StateView role="status" className="gallery-empty">No matching widgets found.</StateView>}
 
         {CATEGORIES.filter(([cat]) => selectedCategory === 'all' || selectedCategory === cat).map(([category, title]) => {
           if (category === 'all') return null

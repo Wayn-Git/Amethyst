@@ -1,3 +1,4 @@
+import { WidgetRow, StateView } from '../primitives.jsx'
 import { useState } from 'react'
 import { request } from '../api'
 
@@ -10,7 +11,7 @@ export default function Director({ data, widgetId, refresh }) {
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
-  return <>{error && <p role="alert">{error}</p>}<ul className={`widget-list${widgetId === 'agent.feed' ? ' widget-timeline' : ''}`}>{(data?.items || []).map(item => <li key={item.id}>
+  return <>{error && <StateView role="alert">{error}</StateView>}<ul className={`widget-list${widgetId === 'agent.feed' ? ' widget-timeline' : ''}`}>{(data?.items || []).map(item => <WidgetRow key={item.id}>
     <div><strong>{item.title}</strong><p>{item.detail}</p>
       {widgetId === 'need.decisions' && <form onSubmit={event => {
         event.preventDefault()
@@ -32,5 +33,5 @@ export default function Director({ data, widgetId, refresh }) {
       </div>}
       {widgetId === 'agent.running' && <button disabled={busy} onClick={() => act(`/conversations/${encodeURIComponent(item.conversation_id)}/turn/stop`)}>Stop</button>}
     </div>
-  </li>)}</ul>{data?.history?.length > 0 && <><h3>Approval history</h3><ul className="widget-list">{data.history.map(item => <li key={item.id}><div><strong>{item.title}</strong><p>{item.detail}</p></div></li>)}</ul></>}</>
+  </WidgetRow>)}</ul>{data?.history?.length > 0 && <><h3>Approval history</h3><ul className="widget-list">{data.history.map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.detail}</p></div></WidgetRow>)}</ul></>}</>
 }

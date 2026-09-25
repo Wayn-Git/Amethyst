@@ -1,3 +1,4 @@
+import { WidgetCard, CardHeader, WidgetChip } from '../primitives.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 
@@ -103,11 +104,11 @@ export default function FocusTimer({ onComplete }) {
   }, [])
 
   return (
-    <article className={`bento-timer-card${isActive ? ' is-running' : ''}`} aria-label="Focus timer">
-      <header className="bento-card-header">
+    <WidgetCard className={`bento-timer-card${isActive ? ' is-running' : ''}`} aria-label="Focus timer">
+      <CardHeader className="bento-card-header">
         <div className="bento-timer-title-wrap">
           <span className="bento-pulse-dot" aria-hidden="true" />
-          <span className="bento-badge">Focus Timer</span>
+          <WidgetChip className="bento-badge">Focus Timer</WidgetChip>
         </div>
         <div className="bento-timer-presets" role="radiogroup" aria-label="Timer presets">
           {PRESETS.map(p => (
@@ -122,7 +123,7 @@ export default function FocusTimer({ onComplete }) {
             </button>
           ))}
         </div>
-      </header>
+      </CardHeader>
 
       <div className="bento-timer-body">
         <time className="bento-timer-digits" dateTime={`PT${secondsRemaining}S`}>
@@ -161,6 +162,6 @@ export default function FocusTimer({ onComplete }) {
           </button>
         </div>
       </div>
-    </article>
+    </WidgetCard>
   )
 }

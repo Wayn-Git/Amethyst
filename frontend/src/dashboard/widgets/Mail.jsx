@@ -1,3 +1,4 @@
+import { WidgetRow, StateView } from '../primitives.jsx'
 import { useState } from 'react'
 import { request } from '../api.js'
 
@@ -11,9 +12,9 @@ export default function Mail({ data, refresh, widgetId }) {
   }
   return <div><p>Gmail via Composio · up to 100 messages. Only short snippets are retained.</p>
     {widgetId === 'need.inbox' && <><button disabled={busy} onClick={() => model(!data?.model_enabled)}>{data?.model_enabled ? 'Use unread and recent' : 'Rank with model'}</button>
-    {(busy) && <p role="status">Generating…</p>}{error && <p role="alert">{error}</p>}
+    {(busy) && <StateView role="status">Generating…</StateView>}{error && <StateView role="alert">{error}</StateView>}
     {!data?.ranked && <p>Unread, then recent; model ranking is off or unavailable.</p>}
     </>}
-    {widgetId === 'comm.unread' ? <ul className="widget-list">{(data?.items || []).map(group => <li key={group.id}><div><strong>{group.from} · {group.items.length} unread</strong><ul>{group.items.map(item => <li key={item.id}><div><strong>{item.subject}</strong><p>{item.date}</p><p>{item.snippet}</p></div></li>)}</ul></div></li>)}</ul> : <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}><div><strong>{item.subject}</strong><p>{item.from} · {item.date}</p><p>{item.snippet}</p>{item.reason && <p>Why: {item.reason}</p>}</div></li>)}</ul>}
+    {widgetId === 'comm.unread' ? <ul className="widget-list">{(data?.items || []).map(group => <WidgetRow key={group.id}><div><strong>{group.from} · {group.items.length} unread</strong><ul>{group.items.map(item => <WidgetRow key={item.id}><div><strong>{item.subject}</strong><p>{item.date}</p><p>{item.snippet}</p></div></WidgetRow>)}</ul></div></WidgetRow>)}</ul> : <ul className="widget-list">{(data?.items || []).map(item => <WidgetRow key={item.id}><div><strong>{item.subject}</strong><p>{item.from} · {item.date}</p><p>{item.snippet}</p>{item.reason && <p>Why: {item.reason}</p>}</div></WidgetRow>)}</ul>}
   </div>
 }

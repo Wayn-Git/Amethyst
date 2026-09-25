@@ -1,3 +1,4 @@
+import { WidgetRow, WidgetChip, StateView } from '../primitives.jsx'
 import { useEffect, useState } from 'react'
 import { request } from '../api.js'
 import Icon from '../../components/Icon.jsx'
@@ -41,7 +42,7 @@ export default function Items({ data, widgetId }) {
   return <div>
     {widgetId === 'dev.recovery' && <p>Track mirror, local clone and export recovery steps.</p>}
     {widgetId === 'task.reminders' && <p>Due state only. Notifications are not enabled.</p>}
-    {error && <p role="alert">{error}</p>}
+    {error && <StateView role="alert">{error}</StateView>}
     {draft ? <section aria-label="Review item change">
       <p>{draft.action}: {draft.item.title || data?.items?.find(item => item.id === draft.item.id)?.title}</p>
       {['add', 'edit'].includes(draft.action) && <p>{draft.item.due_at ? `Due ${new Date(draft.item.due_at).toLocaleString()}` : 'No due date'}</p>}
@@ -55,7 +56,7 @@ export default function Items({ data, widgetId }) {
       <ul className="widget-list">{(data?.items || []).map(item => {
         const isOverdue = item.due_at && new Date(item.due_at).getTime() <= now
         const isCompleted = item.completed || item.status === 'done' || item.state === 'done'
-        return <li key={item.id} className="task-item-row">
+        return <WidgetRow key={item.id} className="task-item-row">
           <div className="task-content-wrap">
             {widgetId === 'task.today' && item.editable && (
               <button
@@ -73,9 +74,9 @@ export default function Items({ data, widgetId }) {
               <strong>{item.title}</strong>
               {widgetId === 'task.backlog' && <p>Idle {item.idle_days} {item.idle_days === 1 ? 'day' : 'days'}</p>}
               {item.due_at && (
-                <span className={`task-due-chip ${isOverdue ? 'is-overdue' : 'is-due'}`}>
+                <WidgetChip className={`task-due-chip ${isOverdue ? 'is-overdue' : 'is-due'}`}>
                   {isOverdue ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                </WidgetChip>
               )}
               {widgetId === 'task.deadlines' && <p>{countdown(item.due_at, now)}</p>}
             </div>
@@ -85,7 +86,7 @@ export default function Items({ data, widgetId }) {
             <button disabled={busy} aria-label={`Complete ${item.title}`} onClick={() => propose('complete', { id: item.id })}>Complete</button>
             <button disabled={busy} aria-label={`Delete ${item.title}`} onClick={() => propose('delete', { id: item.id })}>Delete</button>
           </div></details> : null}
-        </li>
+        </WidgetRow>
       })}</ul>
     </>}
   </div>

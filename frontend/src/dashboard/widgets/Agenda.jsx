@@ -1,3 +1,4 @@
+import { WidgetRow, StateView } from '../primitives.jsx'
 import { useEffect, useState } from 'react'
 import { request } from '../api.js'
 
@@ -25,11 +26,11 @@ export default function Agenda({ data, refresh }) {
   const items = (data?.items || []).filter(item => view === 'week' || (item.all_day ? day(item.end) > data.today : day(item.end) >= data.today))
   return <div>
     <p>Google Calendar via Composio. Primary calendar, current week. {zone}.</p>
-    {error && <p role="alert">{error}</p>}
+    {error && <StateView role="alert">{error}</StateView>}
     <button disabled={busy} onClick={() => access(!enabled)}>{enabled ? 'Stop calendar access and delete cached data' : 'Enable calendar access'}</button>
     {enabled && <><div className="widget-buttons" aria-label="Calendar view"><button aria-pressed={view === 'agenda'} onClick={() => setView('agenda')}>Agenda</button><button aria-pressed={view === 'week'} onClick={() => setView('week')}>Week</button></div>
-      {data?.limited && <p role="status">Showing up to 100 events. More events may exist.</p>}
-      {data?.items?.length > 0 && items.length === 0 && <p>No upcoming events this week.</p>}
-      <ul className="widget-list">{items.map(item => <li key={item.id}><div><strong>{item.title}</strong><p>{item.all_day ? `All day · ${day(item.start)} (end ${day(item.end)}, exclusive)` : `${time(item.start)} – ${time(item.end)}`}</p></div></li>)}</ul></>}
+      {data?.limited && <StateView role="status">Showing up to 100 events. More events may exist.</StateView>}
+      {data?.items?.length > 0 && items.length === 0 && <StateView>No upcoming events this week.</StateView>}
+      <ul className="widget-list">{items.map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.all_day ? `All day · ${day(item.start)} (end ${day(item.end)}, exclusive)` : `${time(item.start)} – ${time(item.end)}`}</p></div></WidgetRow>)}</ul></>}
   </div>
 }
