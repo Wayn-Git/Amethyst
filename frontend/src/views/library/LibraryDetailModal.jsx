@@ -168,11 +168,14 @@ export default function LibraryDetailModal({
           {/* ========================================================
               TOP NAVIGATION & UN-HIDEABLE DATE BAR
               ======================================================== */}
+          {/* ========================================================
+              TOP NAVIGATION
+              ======================================================== */}
           <div className="lib-modal-header">
             <div className="lib-modal-header-meta">
-              <span className="lib-card-kind-badge">
+              <span className="lib-modal-kind-badge">
                 <Icon name={KIND_ICON[item.kind] || 'link'} size={12} />
-                <span>{item.app || item.kind || 'resource'}</span>
+                <span>{(app || item.kind || 'resource').toUpperCase()}</span>
               </span>
 
               {favicon && (
@@ -184,16 +187,11 @@ export default function LibraryDetailModal({
                 />
               )}
               <span className="lib-modal-domain">
-                {domain || item.author || (item.kind === 'note' ? 'PERSONAL NOTE' : 'LOCAL')}
+                {domain || item.site || (item.kind === 'note' ? 'NOTE' : 'LOCAL')}
               </span>
-
-              {/* Prominent, Un-hideable Date in Modal Header */}
-              <div className="lib-modal-date-chip" title={`Captured on ${dateFullWithTime || dateFull}`}>
-                <Icon name="calendar" size={12} />
-                <span>{dateFull || 'Undated'}</span>
-                {dateRelative && <span className="lib-modal-date-rel">({dateRelative})</span>}
-                {duration && <span className="opacity-70">· {duration}</span>}
-              </div>
+              {item.author && (
+                <span className="lib-modal-author">· {item.author}</span>
+              )}
             </div>
 
             <div className="lib-modal-header-actions">
@@ -223,7 +221,7 @@ export default function LibraryDetailModal({
               SCROLLABLE CARD BODY
               ======================================================== */}
           <div className="lib-modal-body">
-            {/* 1. Clean Natural Media Container (No artificial ambient blur or letterbox voids) */}
+            {/* 1. Clean Media Container */}
             {hasThumbnail && (
               <div className={`lib-modal-media-frame ${isVertical ? 'lib-modal-media-frame--portrait' : 'lib-modal-media-frame--landscape'}`}>
                 <img
@@ -273,142 +271,129 @@ export default function LibraryDetailModal({
               {item.title || 'Untitled Resource'}
             </h1>
 
-            {/* 3. Secondary Metadata Strip with Explicit Date */}
+            {/* 3. Secondary Metadata Strip */}
             <div className="lib-modal-meta-strip">
-              <div className="lib-modal-meta-item" title="Exact capture timestamp">
-                <Icon name="calendar" size={13} />
-                <span>Captured on {dateFullWithTime || dateFull || 'Undated'}</span>
+              <div className="lib-modal-meta-item" title="Capture date">
+                <Icon name="calendar" size={12} />
+                <span>Captured {dateFull || 'Undated'}</span>
               </div>
               {item.author && (
                 <div className="lib-modal-meta-item">
-                  <Icon name="user" size={13} />
+                  <Icon name="user" size={12} />
                   <span>By {item.author}</span>
                 </div>
               )}
               {duration && (
                 <div className="lib-modal-meta-item">
-                  <Icon name="clock" size={13} />
-                  <span>{duration} duration</span>
+                  <Icon name="clock" size={12} />
+                  <span>{duration}</span>
                 </div>
               )}
               <div className="lib-modal-meta-item" style={{ marginLeft: 'auto' }}>
                 <span className="lib-card-live-dot" />
-                <span style={{ color: 'var(--text-faint)' }}>Semantic Vector Indexed</span>
+                <span style={{ color: 'var(--text-faint)' }}>{item.indexed ? 'Vector Indexed' : 'Archive'}</span>
               </div>
             </div>
 
-            {/* 4. Curator Significance Rating Widget */}
-            <div className="lib-detail-rating-card">
-              <div className="lib-detail-rating-top">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Icon name="star" size={15} filled={Boolean(rating)} style={{ color: displayedTier?.color || 'var(--text-faint)' }} />
-                  <span className="lib-detail-rating-title">Curator Significance</span>
+            {/* 4. Compact Inline Curator Significance Bar */}
+            <div className="lib-detail-curation-bar">
+              <div className="lib-detail-curation-left">
+                <span className="lib-detail-curation-label">Significance</span>
+                <div className="lib-detail-stars-compact">
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const isFilled = (hoveredStar ?? rating ?? 0) >= star
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        className="lib-detail-star-compact-btn"
+                        onMouseEnter={() => setHoveredStar(star)}
+                        onMouseLeave={() => setHoveredStar(null)}
+                        onClick={() => handleRating(star)}
+                        title={`Assign ${star} Star (${RATING_TIERS[star]?.label}): ${RATING_TIERS[star]?.description}`}
+                      >
+                        <Icon
+                          name="star"
+                          size={15}
+                          filled={isFilled}
+                          style={{
+                            color: isFilled ? (RATING_TIERS[star]?.color || '#f59e0b') : 'var(--hairline-strong)',
+                            transition: 'color 120ms ease, transform 120ms ease',
+                          }}
+                        />
+                      </button>
+                    )
+                  })}
                 </div>
-
                 {displayedTier ? (
                   <span
-                    className={`lib-detail-rating-pill ${displayedTier.badgeClass}`}
+                    className={`lib-detail-tier-tag ${displayedTier.badgeClass}`}
                     style={{ borderColor: displayedTier.color }}
                   >
                     ★ {displayedTier.stars} · {displayedTier.label}
                   </span>
                 ) : (
-                  <span className="lib-detail-rating-pill lib-detail-rating-pill--unrated">
+                  <span className="lib-detail-tier-tag lib-detail-tier-tag--unrated">
                     Unrated
                   </span>
                 )}
               </div>
 
-              {/* 5-Star interactive button picker */}
-              <div className="lib-detail-stars-row">
-                {[1, 2, 3, 4, 5].map((star) => {
-                  const isFilled = (hoveredStar ?? rating ?? 0) >= star
-                  return (
-                    <button
-                      key={star}
-                      type="button"
-                      className="lib-detail-star-btn"
-                      onMouseEnter={() => setHoveredStar(star)}
-                      onMouseLeave={() => setHoveredStar(null)}
-                      onClick={() => handleRating(star)}
-                      title={`Assign ${star} Star (${RATING_TIERS[star].label}): ${RATING_TIERS[star].description}`}
-                    >
-                      <Icon
-                        name="star"
-                        size={22}
-                        filled={isFilled}
-                        style={{
-                          color: isFilled ? (RATING_TIERS[star]?.color || '#eab308') : 'var(--hairline-strong)',
-                          transform: hoveredStar === star ? 'scale(1.22)' : 'scale(1)',
-                          transition: 'transform 140ms ease, color 140ms ease',
-                        }}
-                      />
-                    </button>
-                  )
-                })}
-
-                {rating && (
-                  <button
-                    type="button"
-                    className="lib-detail-clear-rating"
-                    onClick={() => handleRating(rating)}
-                    title="Clear rating"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Semantic tier explanation */}
-              <p className="lib-detail-rating-desc">
-                {displayedTier
-                  ? displayedTier.description
-                  : 'Assign significance to boost retrieval priority in AI searches and curate your personal high-impact collection.'}
-              </p>
+              {rating && (
+                <button
+                  type="button"
+                  className="lib-detail-clear-rating-btn"
+                  onClick={() => handleRating(rating)}
+                  title="Clear rating"
+                >
+                  Clear
+                </button>
+              )}
             </div>
 
             {/* 5. AI Key Insights / Summary */}
             {item.summary ? (
               <div className="lib-detail-summary-card">
                 <div className="lib-detail-summary-header">
-                  <Icon name="brain" size={15} />
-                  <span>AI Synthesis & Key Insights</span>
+                  <Icon name="spark" size={13} />
+                  <span>Key Insights & Synthesis</span>
+                  {busyAction === 'enrich' && <span className="lib-card-spinner" style={{ marginLeft: 6 }} />}
                 </div>
                 <p className="lib-detail-summary-text">{item.summary}</p>
               </div>
             ) : (
               <div className="lib-detail-empty-summary">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Icon name="brain" size={16} className="opacity-60" />
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                    No AI synthesis yet. Run deep analysis to extract structured concepts.
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Icon name="spark" size={14} className="opacity-60" />
+                  <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                    No AI synthesis yet.
                   </span>
                 </div>
                 <button
                   type="button"
                   className="lib-btn lib-btn--primary"
-                  style={{ height: 30, fontSize: 12 }}
+                  style={{ height: 28, fontSize: 11.5, padding: '0 10px' }}
                   disabled={Boolean(busyAction)}
                   onClick={handleEnrich}
                 >
-                  <Icon name="spark" size={13} />
-                  <span>Summarize with AI</span>
+                  <Icon name="spark" size={12} />
+                  <span>Synthesize with AI</span>
                 </button>
               </div>
             )}
 
             {/* 6. Extracted Entities / Links */}
             {item.resources?.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div className="lib-form-label">Mentioned Resources & Entities</div>
+              <div className="lib-detail-section">
+                <div className="lib-form-label">Mentioned Entities & Resources</div>
                 <div className="lib-detail-resources-grid">
                   {item.resources.map((res, i) => (
                     <div key={i} className="lib-detail-resource-row">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
                         <span className="lib-card-kind-badge">{res.type || 'link'}</span>
-                        <span style={{ fontWeight: 500, color: 'var(--text)', fontSize: 13 }}>{res.name}</span>
+                        <span className="lib-detail-resource-name">{res.name}</span>
                         {res.detail && (
-                          <span style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>— {res.detail}</span>
+                          <span className="lib-detail-resource-detail">· {res.detail}</span>
                         )}
                       </div>
                       {res.url && (
@@ -418,8 +403,9 @@ export default function LibraryDetailModal({
                           rel="noreferrer"
                           className="lib-dock-btn"
                           title={res.url}
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Icon name="link" size={12} />
+                          <Icon name="link" size={11} />
                         </a>
                       )}
                     </div>

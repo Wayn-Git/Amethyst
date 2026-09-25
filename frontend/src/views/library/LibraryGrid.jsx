@@ -25,17 +25,24 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     }
   }
 
-  // True Bento Grid layout for 3+ items:
-  // 1) Vertical media (Instagram Reels, TikTok, Pinterest): Tall Bento Card with BIG, full thumbnail
-  if (isVertical && hasThumb) {
+  // If item has no thumbnail, never give it a video/landscape media variant
+  if (!hasThumb) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-1',
+      variant: isNote ? 'note' : 'standard',
+    }
+  }
+
+  // 1) Vertical media (Instagram Reels, TikTok, Pinterest) with valid thumbnail: Tall Bento Card
+  if (isVertical) {
     return {
       spanClass: 'col-span-1 sm:row-span-2',
       variant: 'portrait',
     }
   }
 
-  // 2) Hero / Featured first item (if horizontal, article, or 5-star essential): Spans 2 columns
-  if (index === 0 && totalInGroup >= 4 && (hasThumb || isEssential) && !isVertical) {
+  // 2) Hero / Featured first item (if horizontal or 5-star essential): Spans 2 columns
+  if (index === 0 && totalInGroup >= 4 && !isVertical) {
     return {
       spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
       variant: 'wide',
@@ -43,7 +50,7 @@ export function getBentoItemConfig(item, index, totalInGroup) {
   }
 
   // 3) Rhythmic Wide Card for horizontal items
-  if (index > 0 && index % 5 === 0 && hasThumb && !isVertical) {
+  if (index > 0 && index % 5 === 0 && !isVertical) {
     return {
       spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
       variant: 'wide',

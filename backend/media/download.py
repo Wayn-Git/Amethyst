@@ -53,7 +53,8 @@ async def fetch_to(
     if not url:
         raise DownloadError("there was no address to fetch")
 
-    headers = {"User-Agent": "AMETHYST/0.1"}
+    from backend.web.reader import DEFAULT_HEADERS
+    headers = dict(DEFAULT_HEADERS)
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
