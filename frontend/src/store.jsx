@@ -413,7 +413,7 @@ export function AppProvider({ children }) {
   }, [])
 
 
-  const [onboardingDone, setOnboardingDoneRaw] = useState(prefs.onboardingDone ?? true)
+  const [onboardingDone, setOnboardingDoneRaw] = useState(prefs.onboardingDone ?? false)
   const setOnboardingDone = useCallback((value) => {
     setOnboardingDoneRaw(value)
     savePrefs({ onboardingDone: value })
@@ -421,6 +421,7 @@ export function AppProvider({ children }) {
   const openOnboarding = useCallback(() => {
     setOnboardingDone(false)
   }, [setOnboardingDone])
+  const openSetupWizard = openOnboarding
   // Which half of Skills & connectors is open. In the store because the + menu
   // and the palette both send you to one side or the other.
   const [capabilitiesTab, setCapabilitiesTabRaw] = useState(prefs.capabilitiesTab || 'skills')
@@ -847,7 +848,7 @@ export function AppProvider({ children }) {
     sendWith, setSendWith,
     archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
     shellConfirm, setShellConfirm, fileConfirm, setFileConfirm, netConfirm, setNetConfirm, resetAllPreferences,
-    onboardingDone, setOnboardingDone, openOnboarding,
+    onboardingDone, setOnboardingDone, openOnboarding, openSetupWizard,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,
@@ -875,7 +876,7 @@ export function AppProvider({ children }) {
     sendWith, setSendWith,
     archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
     shellConfirm, fileConfirm, netConfirm, resetAllPreferences,
-    onboardingDone, setOnboardingDone, openOnboarding,
+    onboardingDone, setOnboardingDone, openOnboarding, openSetupWizard,
     betaPages, setBetaPages,
     notifyOnDone, setNotifyOnDone, notify,
     capabilitiesTab, setCapabilitiesTab,

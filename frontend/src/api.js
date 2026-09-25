@@ -729,6 +729,21 @@ export const api = {
   shareStatus: () => j('/share'),
   rotateShareToken: () => j('/share/token', json('POST')),
   revokeShareToken: () => j('/share/token', json('DELETE')),
+  captureShare: (url, token, note = '') =>
+    fetch(`${getBase()}/share/capture`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ url, note }),
+    }).then(async (r) => {
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        throw new Error(data.detail || data.message || `HTTP ${r.status}`)
+      }
+      return data
+    }),
 
   // Spotlight search endpoints (Damon)
   searchWeb: (q, limit = 8, signal, offset = 0) =>

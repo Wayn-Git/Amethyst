@@ -47,16 +47,16 @@ const THEME_CHOICES = [
 ]
 
 const VENDOR_PRESETS = [
+  { slug: 'kilocode', name: 'Kilo Code', base_url: 'https://api.kilo.ai/api/gateway', default_model: 'stepfun/step-3.7-flash:free', hint: 'Generous multi-model inference gateway' },
+  { slug: 'nvidia', name: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', default_model: 'nvidia/llama-3.1-nemotron-70b-instruct', hint: 'Generous free tier enterprise microservices' },
+  { slug: 'opencode-zen', name: 'OpenCode Zen', base_url: 'https://opencode.ai/api/v1', default_model: 'opencode-zen', hint: 'OpenCode coding intelligence gateway' },
+  { slug: 'google', name: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', default_model: 'gemini-2.0-flash', hint: 'Free tier 1M context Gemini 2.0 Flash' },
+  { slug: 'groq', name: 'Groq', base_url: 'https://api.groq.com/openai/v1', default_model: 'llama-3.3-70b-versatile', hint: 'Ultra-low latency Llama 3.3 70B (free tier)' },
+  { slug: 'openrouter', name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', default_model: 'meta-llama/llama-3.3-70b-instruct:free', hint: 'Unified access including generous free models' },
   { slug: 'openai', name: 'OpenAI', base_url: 'https://api.openai.com/v1', default_model: 'gpt-4o', hint: 'Requires an OpenAI API key' },
-  { slug: 'anthropic', name: 'Anthropic', base_url: 'https://api.anthropic.com/v1', default_model: 'claude-3-5-sonnet-20241022', hint: 'Requires an Anthropic API key' },
-  { slug: 'google', name: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', default_model: 'gemini-1.5-flash-latest', hint: 'Direct Gemini OpenAI compatibility' },
-  { slug: 'groq', name: 'Groq', base_url: 'https://api.groq.com/openai/v1', default_model: 'llama-3.3-70b-versatile', hint: 'Ultra-low latency Llama & Mixtral' },
+  { slug: 'anthropic', name: 'Anthropic', base_url: 'https://api.anthropic.com/v1', default_model: 'claude-3-7-sonnet-latest', hint: 'Requires an Anthropic API key' },
   { slug: 'mistral', name: 'Mistral AI', base_url: 'https://api.mistral.ai/v1', default_model: 'mistral-large-latest', hint: 'European enterprise frontier models' },
-  { slug: 'nvidia', name: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', default_model: 'nvidia/llama-3.1-nemotron-70b-instruct', hint: 'Enterprise inference microservices' },
-  { slug: 'kilocode', name: 'Kilo Code', base_url: 'https://api.kilo.ai/api/gateway', default_model: 'stepfun/step-3.7-flash:free', hint: 'Fast multi-model gateway' },
-  { slug: 'opencode-zen', name: 'OpenCode Zen', base_url: '', default_model: '', hint: 'OpenCode inference gateway' },
-  { slug: 'ollama', name: 'Ollama (Local)', base_url: 'http://localhost:11434/v1', default_model: 'llama3:8b', hint: 'Run local open-source models completely offline' },
-  { slug: 'openrouter', name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', default_model: 'meta-llama/llama-3.3-70b-instruct:free', hint: 'Unified access to all model endpoints' },
+  { slug: 'ollama', name: 'Ollama (Local)', base_url: 'http://localhost:11434/v1', default_model: 'llama3.2', hint: 'Run local open-source models completely offline' },
   { slug: 'together', name: 'Together AI', base_url: 'https://api.together.xyz/v1', default_model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', hint: 'Open-weights serverless inference' },
   { slug: 'deepseek', name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', default_model: 'deepseek-chat', hint: 'DeepSeek V3 and R1 reasoning engines' },
   { slug: 'custom', name: 'Custom OpenAI-Compatible', base_url: '', default_model: '', hint: 'vLLM, LM Studio, TGI, or custom proxy endpoint' },
@@ -3493,7 +3493,7 @@ function DangerRow({ label, note, confirmLabel, onConfirm }) {
    ========================================================================== */
 
 function About() {
-  const { toast, health } = useApp()
+  const { toast, health, openSetupWizard } = useApp()
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -3559,6 +3559,33 @@ function About() {
               {platformStr}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Setup & Onboarding Wizard */}
+      <div className="set-section-label">Initial Setup & Verification</div>
+      <div className="set-box" style={{ marginBottom: 20 }}>
+        <div className="set-box-row">
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="sparkle" size={16} style={{ color: 'var(--accent)' }} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">Setup Wizard & Splash Screen</span>
+              <span className="set-row-desc">
+                Re-run the initial onboarding wizard to verify API keys, Cloudflare relay, mobile HTTP shortcuts, and system health.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="set-btn-sm is-primary"
+            onClick={openSetupWizard}
+            style={{ minWidth: 140, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Icon name="play" size={12} />
+            <span>Launch Wizard</span>
+          </button>
         </div>
       </div>
 
