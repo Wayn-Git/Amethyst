@@ -37,3 +37,16 @@ async def test_audit_reads_persisted_gate_decisions(db):
     rows = (await director.provide("agent.audit"))["items"]
     assert [row["title"] for row in rows] == ["test_read", "test_write"]
     assert "denied" in rows[1]["detail"]
+
+
+async def test_errors_select_failures_and_existing_trace_errors(db, monkeypatch):
+    from backend.db.repositories import ExecutionLogRepository
+
+    repo = ExecutionLogRepository()
+    repo.record(tool_name="failed", tool_source="native", error="Test failure")
+    repo.record(tool_name="succeeded", tool_source="native")
+    trace = TurnTrace(conversation_id="test", user_message="Test", errors=["Test retry failed"])
+    monkeypatch.setattr(director, "get_recent_traces", lambda: [trace])
+    rows = (await director.provide("agent.errors"))["items"]
+    assert [row["title"] for row in rows] == ["failed", "Turn error"]
+    assert "Test retry failed" == rows[1]["detail"]

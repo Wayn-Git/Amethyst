@@ -5,6 +5,30 @@ from backend.db.repositories import AgentRunRepository, ExecutionLogRepository
 
 
 async def provide(widget_id):
+    if widget_id == "agent.errors":
+        rows = (
+            ExecutionLogRepository()
+            .conn.execute(
+                "SELECT id, tool_name, error, created_at FROM execution_logs "
+                "WHERE error IS NOT NULL AND error != '' ORDER BY id DESC LIMIT 50"
+            )
+            .fetchall()
+        )
+        return {
+            "items": [
+                {
+                    "id": f"tool:{row['id']}",
+                    "title": row["tool_name"],
+                    "detail": f"{row['created_at']} · {row['error']}",
+                }
+                for row in rows
+            ]
+            + [
+                {"id": f"{trace.turn_id}:{index}", "title": "Turn error", "detail": error}
+                for trace in reversed(get_recent_traces()[-50:])
+                for index, error in enumerate(trace.errors)
+            ]
+        }
     if widget_id == "agent.audit":
         return {
             "items": [
