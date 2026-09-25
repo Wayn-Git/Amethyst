@@ -5075,6 +5075,37 @@ async def rename_task_list(list_id: int, body: RenameList) -> dict[str, Any]:
     return dict(repo.get(list_id))
 
 
+@app.delete("/api/task-lists/{list_id}")
+async def delete_task_list(list_id: int) -> dict[str, Any]:
+    from backend.db.repositories import TaskListRepository, TaskRepository
+
+    repo = TaskListRepository()
+    row = repo.get(list_id)
+    if row is None or row["retired_at"] is not None:
+        raise HTTPException(404, f"no list with id {list_id}")
+    if row["is_default"]:
+        raise HTTPException(400, "cannot delete default list")
+
+    my_day_id = TaskRepository().my_day_list_id()
+    if my_day_id is not None and int(row["id"]) == int(my_day_id):
+        raise HTTPException(400, "cannot delete My Day list")
+
+    if row["external_id"]:
+        try:
+            from backend.sync.microsoft_todo import delete_remote_list
+            await delete_remote_list(str(row["external_id"]))
+        except Exception:
+            pass
+
+    # Soft-cancel any tasks still filed in this list so they don't linger
+    task_repo = TaskRepository()
+    for task_row in task_repo.in_list(list_id):
+        task_repo.update(task_row["id"], status="cancelled")
+
+    repo.retire(list_id)
+    return {"status": "deleted", "id": list_id}
+
+
 @app.post("/api/tasks", status_code=201)
 async def create_task(body: CreateTask) -> dict[str, Any]:
     """Add a task by hand.
