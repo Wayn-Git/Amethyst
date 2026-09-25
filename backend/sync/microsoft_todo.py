@@ -344,6 +344,18 @@ async def rename_remote_list(external_id: str, name: str) -> None:
     await connection.call("update_task_list", {"listId": external_id, "displayName": name})
 
 
+async def delete_remote_list(external_id: str) -> None:
+    from backend.mcp import live
+
+    connection = live.connection(SERVER)
+    if connection is None:
+        return
+    try:
+        await connection.call("delete_task_list", {"listId": external_id})
+    except Exception:
+        pass
+
+
 def _task_arguments(
     *,
     title: str | None = None,

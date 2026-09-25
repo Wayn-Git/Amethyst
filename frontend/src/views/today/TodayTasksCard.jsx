@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
 import TodayContributionGraph from './TodayContributionGraph.jsx'
@@ -26,6 +26,7 @@ export default function TodayTasksCard({
   const [isAdding, setIsAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [addingBusy, setAddingBusy] = useState(false)
+  const updatingStatusRef = useRef({})
 
   // Local storage cache for task progress values (0-100%)
   const [progressMap, setProgressMap] = useState(() => {
@@ -37,11 +38,33 @@ export default function TodayTasksCard({
     }
   })
 
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      try {
+        const saved = localStorage.getItem('amethyst_task_progress')
+        if (saved) {
+          setProgressMap(JSON.parse(saved))
+        }
+      } catch {}
+    }
+    window.addEventListener('storage', handleStorageUpdate)
+    window.addEventListener('amethyst-task-progress-updated', handleStorageUpdate)
+    return () => {
+      window.removeEventListener('storage', handleStorageUpdate)
+      window.removeEventListener('amethyst-task-progress-updated', handleStorageUpdate)
+    }
+  }, [])
+
   const saveProgress = useCallback((taskId, pct) => {
     setProgressMap((prev) => {
       const next = { ...prev, [taskId]: pct }
       try {
         localStorage.setItem('amethyst_task_progress', JSON.stringify(next))
+        window.dispatchEvent(
+          new CustomEvent('amethyst-task-progress-updated', {
+            detail: { taskId, progress: pct },
+          }),
+        )
       } catch {
         /* storage write failure ignored */
       }
@@ -55,10 +78,29 @@ export default function TodayTasksCard({
   }, [tasks])
 
   const handleUpdateProgress = useCallback(
-    (taskId, pct) => {
+    async (taskId, pct) => {
       saveProgress(taskId, pct)
+      try {
+        const target = tasks.find((t) => t.id === taskId)
+        const currentStatus = updatingStatusRef.current[taskId] ?? target?.status
+        if (pct > 0 && pct < 100) {
+          if (currentStatus !== 'in_progress') {
+            updatingStatusRef.current[taskId] = 'in_progress'
+            await api.updateTask(taskId, { status: 'in_progress' })
+            onTasksChange?.()
+          }
+        } else if (pct === 0) {
+          if (currentStatus === 'in_progress') {
+            updatingStatusRef.current[taskId] = 'todo'
+            await api.updateTask(taskId, { status: 'todo' })
+            onTasksChange?.()
+          }
+        }
+      } catch (err) {
+        toast?.(err.message, 'bad')
+      }
     },
-    [saveProgress],
+    [saveProgress, tasks, onTasksChange, toast],
   )
 
   const handleComplete = useCallback(
@@ -87,6 +129,11 @@ export default function TodayTasksCard({
       setIsAdding(false)
       toast?.('Task created', 'ok')
       onTasksChange?.()
+      window.dispatchEvent(
+        new CustomEvent('amethyst-task-progress-updated', {
+          detail: {},
+        }),
+      )
     } catch (err) {
       toast?.(err.message, 'bad')
     } finally {
@@ -224,7 +271,10 @@ export default function TodayTasksCard({
             progressMap[selectedTask.id] ??
             (selectedTask.status === 'in_progress' ? 50 : 0)
           }
-          onClose={() => setSelectedTask(null)}
+          onClose={() => {
+            setSelectedTask(null)
+            onTasksChange?.()
+          }}
           onUpdateProgress={handleUpdateProgress}
           onComplete={handleComplete}
         />

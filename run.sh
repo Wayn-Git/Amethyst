@@ -37,7 +37,7 @@ error() {
 }
 
 # Change to repository root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$SCRIPT_DIR"
 
 show_help() {
@@ -162,14 +162,18 @@ if [ ! -d ".venv" ]; then
     success "Created virtual environment in .venv"
 fi
 
-# Activate virtual environment
-# shellcheck source=/dev/null
-source .venv/bin/activate
+VIRTUAL_ENV="$SCRIPT_DIR/.venv"
+export VIRTUAL_ENV
+PATH="$VIRTUAL_ENV/bin:$PATH"
+export PATH
+hash -r
 
 # 4. Check & Install Python Dependencies
 info "Verifying Python dependencies..."
 NEED_INSTALL=0
-if ! python -c "import fastapi, uvicorn, pydantic, mcp, yaml" >/dev/null 2>&1; then
+if ! command -v amethyst >/dev/null 2>&1; then
+    NEED_INSTALL=1
+elif ! python -c "import fastapi, uvicorn, pydantic, mcp, yaml" >/dev/null 2>&1; then
     NEED_INSTALL=1
 elif ! python -c "import backend" >/dev/null 2>&1; then
     NEED_INSTALL=1
