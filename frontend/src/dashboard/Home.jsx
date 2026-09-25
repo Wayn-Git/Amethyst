@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import WidgetFrame, { WidgetBoundary } from './WidgetFrame.jsx'
 import { DashboardContext } from './context.js'
@@ -12,9 +12,17 @@ import Sync from './widgets/Sync.jsx'
 import Shortcuts from './widgets/Shortcuts.jsx'
 import NeedsYou from './NeedsYou.jsx'
 import SourceItem from './SourceItem.jsx'
-import FocusTimer from './widgets/FocusTimer.jsx'
-import ProgressGauge from './widgets/ProgressGauge.jsx'
+import Button from '../components/ui/AppButton.jsx'
+import Kbd from '../components/ui/Kbd.jsx'
+import WidgetSlot from './WidgetSlot.jsx'
+import AddWidget from './AddWidget.jsx'
+import { toast } from 'sonner'
 import './home.css'
+import './home-shell.css'
+
+const WidgetView = memo(function WidgetView({ context, ...props }) {
+  return <DashboardContext.Provider value={context}><WidgetBoundary id={props.manifest.id} onRetry={context.refreshAll}><WidgetFrame {...props} /></WidgetBoundary></DashboardContext.Provider>
+})
 
 export default function Home() {
   const { setOverlay } = useApp()
@@ -27,6 +35,7 @@ export default function Home() {
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [error, setError] = useState('')
   const [saveState, setSaveState] = useState('')
+  const [announcement, setAnnouncement] = useState('')
   const [now, setNow] = useState(new Date())
   const [loaded, setLoaded] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -36,7 +45,7 @@ export default function Home() {
   const gesture = useRef(null)
   const grid = useRef(null)
   const mounted = useRef(false)
-  const manifests = (Array.isArray(entries) ? entries : []).filter(e => e?.enabled).map(e => e?.manifest).filter(Boolean)
+  const manifests = useMemo(() => (Array.isArray(entries) ? entries : []).filter(e => e?.enabled).map(e => e?.manifest).filter(Boolean), [entries])
   const requested = new URLSearchParams(window.location.search).get('widget')
   const currentWidgets = Array.isArray(layout?.widgets) ? layout.widgets : []
   const positions = requested && !SYSTEM_WIDGETS.includes(requested) && !NEED_WIDGETS.includes(requested) && manifests.some(m => m.id === requested)
@@ -53,7 +62,9 @@ export default function Home() {
     const timer = setInterval(() => setNow(new Date()), 1000)
     return () => { mounted.current = false; clearInterval(timer) }
   }, [])
-  function persist(next) {
+  function persist(next, undo = true) {
+    const previous = gesture.current?.original || layoutRef.current
+    if (undo) toast('Layout updated', { id: 'home-layout', action: { label: 'Undo', onClick: () => persist(previous, false) } })
     dirty.current = true; layoutRef.current = next; setLayout(next); remember('layout', next); setSaveState('Saving layout…')
     // Serialize saves so a slower earlier request cannot overwrite the last drag.
     saveQueue.current = saveQueue.current.catch(() => {}).then(() => request('/layout?mode=default', 'PUT', next)).then(() => { if (mounted.current && layoutRef.current === next) setSaveState('Layout saved') }).catch(err => { if (mounted.current) setSaveState(`Layout not saved to server: ${err.message}`) })
@@ -62,7 +73,7 @@ export default function Home() {
   useEffect(() => {
     function key(event) {
       if (event.target.closest('input,select,textarea,[contenteditable=true]')) return
-      if (event.key === 'Escape') { gesture.current = null; setDragging(false); return }
+      if (event.key === 'Escape') { if (gesture.current?.original) { setLayout(gesture.current.original); layoutRef.current = gesture.current.original }; gesture.current = null; setDragging(false); return }
       if (!event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key.toLowerCase() === 'r') { event.preventDefault(); refreshAll() }
       if (event.key.toLowerCase() === 'e') { event.preventDefault(); setEditing(value => !value) }
@@ -71,24 +82,34 @@ export default function Home() {
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
   }, [quietSettings, refreshAll, saveQuiet])
-  function move(id, step) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; const index = widgets.findIndex(w => w.id === id); if (widgets[index + step]) persist({ widgets: moveWidget(widgets, id, widgets[index + step].id) }) }
-  function resize(id, patch) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.map(w => w.id === id ? { ...w, ...patch } : w) }) }
+  function move(id, step) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; const index = widgets.findIndex(w => w.id === id); if (widgets[index + step]) { persist({ widgets: moveWidget(widgets, id, widgets[index + step].id) }); setAnnouncement(`${id} moved to position ${index + step + 1}`) } }
+  function resize(id, patch) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.map(w => w.id === id ? { ...w, ...patch } : w) }); setAnnouncement(`${id} resized to ${patch.size || 'custom height'}`) }
   function grip(kind, id) {
     return {
-      onPointerDown(event) { if (event.button !== 0) return; event.preventDefault(); gesture.current = { kind, id, x: event.clientX, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) },
-      onPointerCancel() { gesture.current = null; setDragging(false) },
-      onPointerUp(event) {
-        const start = gesture.current; gesture.current = null; setDragging(false)
+      onPointerDown(event) { if (event.button !== 0) return; event.preventDefault(); gesture.current = { kind, id, x: event.clientX, y: event.clientY, original: layoutRef.current }; event.currentTarget.setPointerCapture(event.pointerId); setDragging(id) },
+      onPointerCancel() { if (gesture.current?.original) { setLayout(gesture.current.original); layoutRef.current = gesture.current.original }; gesture.current = null; setDragging(false) },
+      onPointerMove(event) {
+        const start = gesture.current
         if (!start) return
-        const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
+        if (start.kind === 'resize') {
+          const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
+          const patch = resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, 0, grid.current.clientWidth)
+          const next = { widgets: start.original.widgets.map(w => w.id === id ? patch : w) }; layoutRef.current = next; setLayout(next); return
+        }
+        const target = document.elementsFromPoint(event.clientX, event.clientY).map(el => el.closest('[data-slot-id]')).find(Boolean)?.dataset.slotId
+        if (target && target !== id) { const next = { widgets: moveWidget(layoutRef.current.widgets, id, target) }; layoutRef.current = next; setLayout(next) }
+      },
+      onPointerUp(event) {
+        const start = gesture.current; setDragging(false)
+        if (!start) return
         if (start.kind === 'move') {
-          const target = document.elementsFromPoint(event.clientX, event.clientY).map(el => el.closest('[data-widget]')).find(Boolean)?.dataset.widget
-          if (target && target !== id) persist({ widgets: moveWidget(widgets, id, target) })
+          if (layoutRef.current !== start.original) persist(layoutRef.current)
         } else {
-          const item = widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
+          const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
           const row = 100
           resize(id, resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, event.clientY - start.y, grid.current.clientWidth, row))
         }
+        gesture.current = null
       },
     }
   }
@@ -104,19 +125,32 @@ export default function Home() {
   const openWidget = id => setDrawer(SYSTEM_WIDGETS.includes(id) ? { type: 'settings', settingsId: id } : { id })
   const selectedId = drawer?.id || (drawer === null && NEED_WIDGETS.includes(requested) ? requested : null)
   const selected = selectedId && manifests.find(m => m.id === selectedId)
+  const membership = [...new Set(currentWidgets.map(w => w.id))].sort().join('|')
+  const actions = useRef({})
+  useLayoutEffect(() => { actions.current = { removeWidget, openWidget, move, resize, grip } })
+  const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'move', 'resize', 'grip'].map(key => [key, (...args) => actions.current[key](...args)])), [])
+  const frameContext = useMemo(() => ({ now, quiet, setEditing, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, refreshAll, stable, membership])
   const renderWidget = (position, full = false, tile = false) => {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
-    return <WidgetBoundary key={manifest.id} id={manifest.id} onRetry={refreshAll}><WidgetFrame manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={editing && currentWidgets.some(w => w.id === manifest.id)} move={move} resize={resize} grip={grip} tile={tile} full={full} /></WidgetBoundary>
+    const view = <WidgetView context={frameContext} manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} tile={tile} full={full} />
+    return full ? view : <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{view}</WidgetSlot>
   }
+  const previousRects = useRef(new Map())
+  useLayoutEffect(() => {
+    const nodes = grid.current?.querySelectorAll('[data-slot-id]') || []
+    const next = new Map()
+    for (const node of nodes) next.set(node.dataset.slotId, node.getBoundingClientRect())
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) for (const node of nodes) {
+      const before = previousRects.current.get(node.dataset.slotId), after = next.get(node.dataset.slotId)
+      if (before && (before.x !== after.x || before.y !== after.y)) node.animate([{ transform: `translate(${before.x - after.x}px, ${before.y - after.y}px)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' })
+    }
+    previousRects.current = next
+  }, [layout, editing])
   const homePositions = positions.filter(w => !SYSTEM_WIDGETS.includes(w.id))
   const glance = homePositions.filter(w => GLANCE_WIDGETS.includes(w.id))
   const needs = homePositions.filter(w => NEED_WIDGETS.includes(w.id)).map(w => manifests.find(m => m.id === w.id)).filter(Boolean)
   const content = homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id) && !NEED_WIDGETS.includes(w.id))
-  const todayTasksPos = homePositions.find(w => w.id === 'task.today')
-  const agendaPos = homePositions.find(w => w.id === 'task.agenda')
-  const todayItems = records['task.today']?.payload?.items || []
-  const completedTasks = todayItems.filter(item => item.completed || item.status === 'done' || item.state === 'done').length
   const requestedSystem = SYSTEM_WIDGETS.includes(requested) && manifests.find(m => m.id === requested)
   const settingsId = drawer?.settingsId || (drawer === null && requestedSystem ? requested : null)
   useEffect(() => {
@@ -137,69 +171,25 @@ export default function Home() {
       setDrawer({ type: 'closed' })
     }
   }
-  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget }}><div className="view widget-home"><header className="home-heading"><div className="home-greeting"><div className="home-meta-bar"><span className="home-eyebrow">TODAY</span><span className="home-meta-sep">·</span><time className="home-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</time></div><h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1></div><div className="home-header-actions"><button className="home-capture" onClick={() => setOverlay('palette')} title="Capture a thought or find anything"><Icon name="search" size={13} /><span>Capture a thought or find anything</span><kbd>⌘K / Ctrl+K</kbd></button><div className="widget-buttons"><button className={editing ? 'is-editing-active' : ''} onClick={() => setEditing(!editing)}><Icon name={editing ? 'check-simple' : 'grid'} size={14} />{editing ? 'Finish editing' : 'Edit layout'}</button><button className="home-primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={14} />Add widget</button><button onClick={() => setDrawer({ type: 'settings' })}><Icon name="settings" size={14} />Home settings</button></div></div></header>
+  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget }}><div className="view widget-home home-shell"><header className="home-heading"><div className="home-greeting"><div className="home-meta-bar"><span className="home-eyebrow">TODAY</span><span className="home-meta-sep">·</span><time className="home-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</time></div><h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1></div><div className="home-header-actions"><Button className="home-capture" onClick={() => setOverlay('palette')} title="Capture a thought or find anything"><Icon name="search" size={13} /><span>Capture a thought or find anything</span><Kbd>⌘K / Ctrl+K</Kbd></Button><div className="home-toolbar"><Button className={editing ? 'is-editing-active' : ''} onClick={() => setEditing(!editing)}><Icon name={editing ? 'check-simple' : 'grid'} size={14} />{editing ? 'Finish editing' : 'Edit layout'}</Button><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={14} />Add widget</Button><Button onClick={() => setDrawer({ type: 'settings' })}><Icon name="settings" size={14} />Home settings</Button></div></div></header>
     <SourceItem />
-    {error && <p role="alert">{error} {entries.length ? 'Using saved shell data where available.' : ''}<button onClick={() => window.location.reload()}>Retry Home</button></p>}
+    {error && <p role="alert">{error} {entries.length ? 'Using saved shell data where available.' : ''}<Button onClick={() => window.location.reload()}>Retry Home</Button></p>}
+    <span className="home-announcement" role="status" aria-live="polite">{announcement}</span>
     <p role="status" className="home-save-status">{dragging ? 'Release to place. Escape cancels.' : saveState}</p>
     {entries.filter(e => !e.enabled).map(e => <p key={e.manifest.id} role="alert">{e.manifest.title}: {e.error}</p>)}
     {!loaded && !layout.widgets.length && <p role="status">Loading layout…</p>}
     <div ref={grid} className="home-bento-canvas">
       <div className="home-glance" aria-label="At a glance">{glance.map(p => renderWidget(p, false, true))}</div>
-      {editing ? (
-        <div className="home-grid is-editing">{homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p))}</div>
-      ) : (
-        <div className="home-grid home-bento-grid">
-          {needs.length > 0 && (
-            <div className="bento-span-12" key="needs-you-hero">
-              <NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} />
-            </div>
-          )}
-          {todayTasksPos && (
-            <>
-              <div className="bento-span-4" key="gauge-card">
-                <ProgressGauge completed={completedTasks} total={todayItems.length} />
-              </div>
-              <div className="bento-span-4" key="timer-card">
-                <FocusTimer />
-              </div>
-              {agendaPos ? (
-                <div className="bento-span-4" key="agenda-card">
-                  {renderWidget(agendaPos)}
-                </div>
-              ) : (
-                <div className="bento-span-4" key="calendar-sync-card">
-                  <article className="bento-gauge-card" aria-label="Daily Schedule">
-                    <header className="bento-card-header">
-                      <span className="bento-badge">Schedule</span>
-                      <span className="bento-card-sub">Calendar</span>
-                    </header>
-                    <div className="bento-gauge-body">
-                      <strong className="bento-gauge-status">Calendar Sync</strong>
-                      <p className="bento-gauge-hint">All scheduled events sync automatically with connected calendars.</p>
-                    </div>
-                  </article>
-                </div>
-              )}
-              <div className="bento-span-12" key="today-tasks-card">
-                <section aria-label="Today">
-                  {renderWidget(todayTasksPos)}
-                </section>
-              </div>
-            </>
-          )}
-          {content.filter(w => w.id !== 'task.today' && w.id !== 'task.agenda').map(p => (
-            <div key={p.id} className={`bento-span-${p.size === 'l' ? '12' : p.size === 's' ? '4' : '6'}`}>
-              <section aria-label={{ 'dev.prs': 'Dev', 'lib.resurface': 'Library', 'feed.news': 'Feed' }[p.id] || p.id}>
-                {renderWidget(p)}
-              </section>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className={`home-grid home-layout-grid${editing ? ' is-editing' : ''}`} data-dragging={dragging || undefined}>
+        {editing ? homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p)) : <>
+          {needs.length > 0 && <section className="home-needs-slot" aria-label="Needs you"><NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} /></section>}
+          {content.map(p => renderWidget(p))}
+        </>}
+      </div>
     </div>
     {loaded && !homePositions.length && <p>No widgets selected. Use Add widget to choose one.</p>}
     {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" onClose={closeDrawer}><div className="home-settings"><section id="home-dash.sync" tabIndex={-1}><h3>Refresh status</h3><Sync /></section><section id="home-dash.quiet" tabIndex={-1}><h3>Quiet hours</h3><Quiet /></section><section id="home-dash.shortcuts" tabIndex={-1}><h3>Keyboard shortcuts</h3><Shortcuts data={{ shortcuts: [['⌘K / Ctrl+K', 'Search and capture'], ['Alt+R', 'Refresh Home'], ['Alt+E', 'Edit layout'], ['Alt+Q', 'Snooze refresh for one hour'], ['Arrow keys on move handle', 'Move widget'], ['Escape', 'Close drawer or cancel drag']] }} /></section><section id="home-dash.gallery" tabIndex={-1}><h3>Widget gallery</h3><Gallery compact={true} /></section></div></Drawer>}
-    {drawer?.type === 'add' && <Drawer title="Add widget" onClose={closeDrawer} className="add-widget-sheet"><Gallery /></Drawer>}
+    {drawer?.type === 'add' && <Drawer title="Add widget" onClose={closeDrawer} className="add-widget-sheet"><AddWidget /></Drawer>}
     {selected && <Drawer title={selected.title} onClose={closeDrawer}>{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</Drawer>}
   </div></DashboardContext.Provider>
 }

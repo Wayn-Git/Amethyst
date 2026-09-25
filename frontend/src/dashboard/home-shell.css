@@ -1,0 +1,95 @@
+/* Shell ownership: widget bodies and card primitives remain in home.css. */
+html:root .widget-home.home-shell {
+  --canvas: var(--ui-panel) !important; --canvas-deep: var(--ui-bg) !important;
+  --text: var(--ui-text) !important; --text-dim: var(--ui-muted) !important;
+  --hairline: var(--ui-border) !important; --hairline-strong: var(--ui-border-strong) !important;
+  --surface: var(--ui-raised) !important; --surface-2: var(--ui-surface-2) !important; --surface-3: var(--ui-surface-3) !important; --text-faint: var(--ui-faint) !important;
+  --home-card: var(--ui-panel); --home-canvas: var(--ui-bg);
+  --home-ink: var(--ui-text); --home-muted: var(--ui-muted); --home-action: var(--ui-accent);
+  width: 100%; max-width: var(--ui-max-width); min-width: 0; margin-inline: auto;
+  padding: var(--ui-space-8); background: var(--ui-bg) !important; color: var(--ui-text);
+  font-family: var(--ui-font); overflow-x: clip;
+}
+.home-shell .home-heading { align-items: center; gap: var(--ui-space-6); margin-bottom: var(--ui-space-6); padding: 0; border: 0; }
+.home-shell .home-greeting { display: grid; gap: var(--ui-space-2); }
+.home-shell .home-meta-bar { padding: 0; border: 0; background: none; font: 400 11px/16px var(--ui-mono); }
+.home-shell h1 { font: 600 28px/36px var(--ui-display); letter-spacing: -.03em; }
+.home-shell .home-header-actions { flex: 1; justify-content: flex-end; gap: var(--ui-space-3); }
+.home-shell .home-toolbar { display: flex; flex-wrap: wrap; gap: var(--ui-space-2); }
+.home-shell .home-capture { flex: 1; max-width: 360px; min-width: 0; }
+.home-shell .home-capture span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-shell .home-save-status { min-height: var(--ui-space-6); margin: 0; font: 400 11px/16px var(--ui-mono); }
+.home-shell .home-bento-canvas { display: grid; gap: var(--ui-gutter); min-width: 0; }
+.home-shell .home-glance { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ui-gutter); margin: 0; }
+.home-shell .home-layout-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-flow: row dense; align-items: stretch; gap: var(--ui-gutter); }
+.home-shell .home-slot { grid-column: span 6; min-width: 0; position: relative; container: widget / inline-size; align-self: stretch; }
+.home-shell .home-layout-grid > [data-size='s'] { grid-column: span 3; }
+.home-shell .home-layout-grid > [data-size='m'] { grid-column: span 6; }
+.home-shell .home-layout-grid > [data-size='l'] { grid-column: span 12; }
+.home-shell .home-needs-slot { grid-column: span 6; min-width: 0; }
+.home-shell .home-glance > .home-slot { grid-column: auto; }
+.home-slot-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--ui-space-1); min-height: 28px; }
+.home-slot-controls > :first-child { margin-right: auto; }
+.home-shell .home-slot:not(:hover):not(:focus-within):not([data-collapsed]) .home-slot-controls > :only-child { visibility: hidden; }
+.home-shell .home-slot-controls .ui-select { width: auto; min-height: 28px; padding: 3px 8px; }
+.home-shell .home-drag, .home-shell .home-resize { touch-action: none; }
+.home-shell .home-mobile-move { display: none; }
+.home-shell .home-slot[data-collapsed] { align-self: start; border: 1px solid var(--ui-border); border-radius: var(--ui-panel-radius); padding: var(--ui-space-2); }
+.home-shell .home-layout-grid[data-dragging] .home-slot:has(.home-drag:active) { outline: 2px dashed var(--ui-accent); outline-offset: 2px; }
+.home-shell .home-settings { display: grid; gap: var(--ui-space-6); }
+.home-shell .home-settings > section { min-width: 0; padding-bottom: var(--ui-space-6); border-bottom: 1px solid var(--ui-border); }
+.home-shell .home-settings h3, .home-catalog h3 { font: 600 14px/20px var(--ui-display); margin: var(--ui-space-4) 0; text-transform: capitalize; }
+:root .home-shell.home-drawer, :root .home-shell.home-drawer.add-widget-sheet {
+  position: fixed; inset: 0 0 0 auto; margin: 0; width: min(520px, 100vw) !important; max-width: 100vw;
+  height: 100dvh !important; max-height: 100dvh; padding: var(--ui-space-6); border: 0; border-left: 1px solid var(--ui-border);
+  border-radius: 0 !important; overflow-y: auto; box-shadow: none; transform: none;
+}
+.home-shell.home-drawer::backdrop { background: var(--scrim); backdrop-filter: none; }
+.home-shell.home-drawer[open], .home-shell.home-drawer.add-widget-sheet[open] { display: block; animation: home-sheet-in var(--ui-layout) var(--ui-ease); }
+.home-shell .drawer-heading { display: flex; justify-content: space-between; position: sticky; top: 0; z-index: 2; background: var(--ui-bg); padding-bottom: var(--ui-space-4); }
+.home-catalog { display: grid; gap: var(--ui-space-4); }
+.home-catalog-row { display: flex; align-items: center; gap: var(--ui-space-4); padding-block: var(--ui-space-3); border-bottom: 1px solid var(--ui-border); }
+.home-catalog-row > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.home-catalog-row strong { font-size: 13px; }
+.home-catalog-row p { color: var(--ui-muted); font-size: 12px; }
+/* Shell controls override legacy Home button rules, without selecting card controls. */
+.home-shell .home-toolbar .ui-button, .home-shell .home-slot-controls .ui-button, .home-shell .home-catalog .ui-button, .home-shell .drawer-heading .ui-button, .home-shell .home-capture.ui-button {
+  height: auto; border-radius: var(--ui-radius); border: 1px solid var(--ui-border); background: var(--ui-raised); color: var(--ui-text); font: 500 13px/20px var(--ui-font); padding: 7px 12px; box-shadow: none;
+}
+.home-shell .ui-button[data-variant='primary'] { background: var(--ui-accent); color: var(--ui-on-accent); }
+.home-shell .ui-button:hover:not(:disabled) { border-color: var(--ui-accent); }
+.home-shell .ui-button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; box-shadow: none; }
+.home-shell .ui-button:disabled { opacity: .45; cursor: not-allowed; }
+.home-shell .home-slot-controls .ui-button { padding: 3px 8px; min-height: 28px; }
+@keyframes home-sheet-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@media (max-width: 1439px) { .home-shell .home-layout-grid > [data-size='s'] { grid-column: span 4; } }
+@media (max-width: 1023px) {
+  html:root .widget-home.home-shell { padding: var(--ui-space-6); }
+  .home-shell .home-heading { align-items: stretch; flex-direction: column; }
+  .home-shell .home-header-actions { justify-content: flex-start; }
+  .home-shell .home-glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-shell .home-layout-grid > [data-size='s'] { grid-column: span 6; }
+  .home-shell .home-layout-grid > [data-size='m'], .home-shell .home-needs-slot { grid-column: span 12; }
+}
+@media (max-width: 767px) {
+  html:root .widget-home.home-shell { padding: var(--ui-space-4); }
+  .home-shell .home-layout-grid > [data-size] { grid-column: span 12; }
+  .home-shell .home-capture { max-width: none; flex-basis: 100%; }
+  .home-shell .home-mobile-move { display: inline-flex; }
+  .home-shell .home-drag, .home-shell .home-resize { display: none; }
+  .home-shell .home-toolbar { width: 100%; }
+  .home-shell .home-toolbar .ui-button { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .home-shell.home-drawer[open] { animation: none; } }
+.home-announcement { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.home-shell .home-bento-canvas { container: home-grid / inline-size; }
+@container home-grid (max-width: 1120px) { .home-shell .home-layout-grid > [data-size='s'] { grid-column: span 4; } }
+@container home-grid (max-width: 900px) {
+  .home-shell .home-layout-grid > [data-size='s'] { grid-column: span 6; }
+  .home-shell .home-layout-grid > [data-size='m'], .home-shell .home-needs-slot { grid-column: span 12; }
+  .home-shell .home-glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container home-grid (max-width: 600px) { .home-shell .home-layout-grid > [data-size] { grid-column: span 12; } }
+
+.home-shell .home-slot.is-drag-target { outline: 2px dashed var(--ui-accent); outline-offset: 2px; border-radius: var(--ui-panel-radius); }
+.home-shell .home-slot.is-drag-target > div:last-child { opacity: .35; }

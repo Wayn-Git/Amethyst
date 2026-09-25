@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
+import Button from './ui/AppButton.jsx'
 import { useApp } from '../store.jsx'
 import { api, copyText, openUrl } from '../api.js'
 import { pretty } from '../keys.js'
@@ -1093,7 +1094,7 @@ export default function CommandPalette({ bare = false }) {
         onSelectMode={handleSelectMode}
       />
 
-      <div className="widget-buttons"><button onClick={() => setCapturing(value => !value)}>{capturing ? 'Close quick capture' : 'Quick capture'}</button></div>
+      <div className="widget-buttons"><Button onClick={() => setCapturing(value => !value)}>{capturing ? 'Close quick capture' : 'Quick capture'}</Button></div>
       {capturing && <section aria-label="Quick capture"><Capture refresh={() => {}} /></section>}
       {activeMode === 'all' && localStatus && <p role="status">{localStatus}</p>}
       {/* Results Container */}
@@ -1236,16 +1237,16 @@ export default function CommandPalette({ bare = false }) {
                 <header className="damon-mixed-head">
                   <Icon name="globe" size={13} />
                   <span>Web</span>
-                  <button type="button" onClick={() => handleSelectMode('web')}>All web results</button>
+                  <Button type="button" onClick={() => handleSelectMode('web')}>All web results</Button>
                 </header>
                 {webNote && <p className="damon-mixed-note">{webNote}</p>}
                 <ul>
                   {webResults.slice(0, 3).map((r) => (
                     <li key={r.url}>
-                      <button type="button" onClick={() => openUrl(r.url)}>
+                      <Button type="button" onClick={() => openUrl(r.url)}>
                         <span className="damon-mixed-title">{r.title}</span>
                         <span className="damon-mixed-domain mono">{r.domain}</span>
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -1256,15 +1257,15 @@ export default function CommandPalette({ bare = false }) {
                 <header className="damon-mixed-head">
                   <Icon name="play" size={13} />
                   <span>Video</span>
-                  <button type="button" onClick={() => handleSelectMode('youtube')}>All videos</button>
+                  <Button type="button" onClick={() => handleSelectMode('youtube')}>All videos</Button>
                 </header>
                 <ul>
                   {ytResults.slice(0, 2).map((v) => (
                     <li key={v.url}>
-                      <button type="button" onClick={() => openUrl(v.url)}>
+                      <Button type="button" onClick={() => openUrl(v.url)}>
                         <span className="damon-mixed-title">{v.title}</span>
                         <span className="damon-mixed-domain mono">{v.channel || 'YouTube'}</span>
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -1275,18 +1276,18 @@ export default function CommandPalette({ bare = false }) {
                 <header className="damon-mixed-head">
                   <Icon name="image" size={13} />
                   <span>Images</span>
-                  <button type="button" onClick={() => handleSelectMode('images')}>All images</button>
+                  <Button type="button" onClick={() => handleSelectMode('images')}>All images</Button>
                 </header>
                 <div className="damon-mixed-images">
                   {imageResults.slice(0, 6).map((img) => (
-                    <button
+                    <Button
                       key={img.image || img.source_url}
                       type="button"
                       className="damon-mixed-thumb"
                       onClick={() => openUrl(img.image || img.source_url)}
                     >
                       <img src={img.thumbnail || img.image} alt={img.title || ''} loading="lazy" />
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </section>
@@ -1320,7 +1321,7 @@ export default function CommandPalette({ bare = false }) {
             {rows.map(({ command, header }, i) => (
               <div key={command.id}>
                 {header && <div className="palette-group">{header}</div>}
-                <button
+                <Button
                   type="button"
                   className={`palette-item group/item${i === index ? ' active' : ''}`}
                   data-active={i === index}
@@ -1345,7 +1346,7 @@ export default function CommandPalette({ bare = false }) {
                     </span>
                   )}
                   <ChevronRight className="size-4 opacity-0 group-hover/item:opacity-70 transition-opacity ml-auto text-faint flex-shrink-0" />
-                </button>
+                </Button>
               </div>
             ))}
           </>
