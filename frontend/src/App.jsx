@@ -5,7 +5,7 @@ import BrandMark from './components/BrandMark.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
 import Shortcuts from './components/Shortcuts.jsx'
-import OnboardingWizard from './components/OnboardingWizard.jsx'
+import SplashScreenWizard from './components/SplashScreenWizard.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
 import UserMenu from './components/UserMenu.jsx'
@@ -683,7 +683,7 @@ export default function App() {
       <CommandPalette />
       <Shortcuts />
       
-      <OnboardingWizard />
+      <SplashScreenWizard />
       <ConfirmDialogHost />
       {approvalModal}
       <Toasts />
