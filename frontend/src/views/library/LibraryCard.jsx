@@ -245,7 +245,7 @@ function LibraryCardComponent({
         </div>
       )}
 
-      {/* Modern Edge-To-Edge Bento Media or Header */}
+      {/* Bento Media (when thumbnail exists) */}
       {hasThumbnail ? (
         <div className="lib-card-media-wrap lib-card-media-framed">
           <div className="lib-card-media">
@@ -256,7 +256,7 @@ function LibraryCardComponent({
               loading="lazy"
               onError={() => setThumbFailed(true)}
             />
-            {/* Ambient Dark Gradient Scrim */}
+            {/* Subtle bottom vignette only */}
             <div className="lib-card-media-scrim" aria-hidden="true" />
 
             {/* Top-Left Platform Glass Badge */}
@@ -282,7 +282,7 @@ function LibraryCardComponent({
             {/* Center Frosted Play Button for Videos / Reels */}
             {(isVideo || duration) && (
               <div className="lib-card-play-btn" aria-hidden="true">
-                <Icon name="play" size={14} />
+                <Icon name="play" size={13} />
               </div>
             )}
 
@@ -294,39 +294,12 @@ function LibraryCardComponent({
             )}
           </div>
         </div>
-      ) : isNote ? (
-        <div className="lib-card-note-header">
-          <div className="lib-card-note-badge">
-            <Icon name="file-text" size={11} />
-            <span>NOTE</span>
-          </div>
-          {dateShort && (
-            <span className="lib-card-note-date" title={`Captured on ${dateFull}`}>
-              <Icon name="calendar" size={10} />
-              <span>{dateShort}</span>
-            </span>
-          )}
-        </div>
-      ) : (app || isVideo || item.kind === 'podcast' || item.kind === 'music') ? (
-        <div className="lib-card-ambient-banner">
-          <div className="lib-card-ambient-icon">
-            <Icon name={app === 'pinterest' ? 'pin' : app === 'youtube' ? 'play' : KIND_ICON[item.kind] || 'link'} size={18} />
-          </div>
-          <span className="lib-card-ambient-brand">{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
-          {dateShort && (
-            <span className="lib-card-top-date" style={{ marginLeft: 6 }}>
-              · {dateShort}
-            </span>
-          )}
-          {duration && <span className="lib-card-duration-badge" style={{ marginLeft: 'auto' }}>{duration}</span>}
-        </div>
       ) : null}
 
       {/* Card Content Core */}
-      <div className="lib-card-body">
-        {/* Source & Date metadata strip (hidden on notes since note header has it) */}
-        {!isNote && (
-          <div className="lib-card-source-row">
+      <div className={`lib-card-body ${!hasThumbnail ? 'lib-card-body--textonly' : ''}`}>
+        {/* Source metadata strip */}
+        <div className="lib-card-source-row">
           <div className="lib-card-source-left">
             {favicon ? (
               <img
@@ -337,9 +310,13 @@ function LibraryCardComponent({
                   e.currentTarget.style.display = 'none'
                 }}
               />
-            ) : null}
+            ) : (
+              <span className="lib-card-kind-icon">
+                <Icon name={isNote ? 'file-text' : KIND_ICON[item.kind] || 'link'} size={12} />
+              </span>
+            )}
             <span className="lib-card-domain">
-              {domain || item.site || (item.kind === 'note' ? 'NOTE' : 'LOCAL')}
+              {domain || item.site || (isNote ? 'NOTE' : 'RESOURCE')}
             </span>
 
             {item.author && (
@@ -350,19 +327,13 @@ function LibraryCardComponent({
           </div>
 
           <div className="lib-card-source-right">
-            {dateShort && (
-              <span className="lib-card-top-date" title={`Captured on ${dateFull}`}>
-                <Icon name="calendar" size={10} />
-                <span>{dateShort}</span>
+            {!hasThumbnail && (
+              <span className="lib-card-kind-badge">
+                <span>{app ? app.toUpperCase() : (item.kind || 'article').toUpperCase()}</span>
               </span>
             )}
-            <span className="lib-card-kind-badge">
-              <Icon name={KIND_ICON[item.kind] || 'link'} size={11} />
-              <span>{app || item.kind || 'article'}</span>
-            </span>
           </div>
         </div>
-        )}
 
         {/* Title */}
         <h3 className="lib-card-title">

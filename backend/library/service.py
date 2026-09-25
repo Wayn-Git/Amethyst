@@ -634,13 +634,40 @@ class LibraryService:
 
     async def fetch_thumbnail_for_item(self, item_id: int) -> bool:
         """Fetch or backfill thumbnail for an item that currently lacks one."""
-        row = self.store.get(item_id)
-        if not row or not row["url"]:
+        raw = self.store.get(item_id)
+        if not raw:
+            return False
+        row = dict(raw)
+
+        # Rung 0: If video file exists on disk, extract frame directly using ffmpeg
+        if row.get("media_path"):
+            vpath = Path(row["media_path"])
+            if vpath.is_file():
+                target = thumbnail_path(item_id)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                from backend.media.audio import _run, ffmpeg_missing
+                if not ffmpeg_missing():
+                    try:
+                        code, _ = await _run(["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(vpath), "-vframes", "1", "-q:v", "3", str(target)])
+                        if code == 0 and target.is_file() and target.stat().st_size > 500:
+                            self.store.update(item_id, thumbnail_path=str(target))
+                            return True
+                    except Exception as exc:
+                        log.debug("frame extract failed for item %s: %s", item_id, exc)
+
+        url = row.get("url")
+        if not url:
             return False
 
-        url = row["url"]
         thumb_url = None
-        if is_youtube(url):
+        if is_reel_url(url):
+            from backend.media.reel import fetch_reel
+            try:
+                reel = await fetch_reel(url, None)
+                thumb_url = reel.thumbnail_url or (reel.slide_urls[0] if reel.slide_urls else None)
+            except Exception as exc:
+                log.debug("reel thumbnail fetch failed for %s: %s", url, exc)
+        elif is_youtube(url):
             try:
                 info = await asyncio.to_thread(_extract_youtube_info, url)
                 if info and info.get("thumbnail"):
