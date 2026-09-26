@@ -4,8 +4,32 @@
    dark surfaces this interface uses. It gets a white chip so it reads in both
    themes; `size` is the chip, the glyph sits at ~64% of it. */
 
-export default function BrandMark({ size = 24, variant = 'orange', className = '', glow = false, ...rest }) {
-  const isOrange = variant === 'orange'
+export default function BrandMark({ size = 22, className = '', glow = false, variant = 'amethyst', ...rest }) {
+  if (variant === 'orange' || variant === 'vibe') {
+    return (
+      <svg
+        viewBox="0 0 7 5"
+        width={Math.round(size * (7 / 5))}
+        height={size}
+        fill="#f44e0f"
+        className={`brand-mark brand-mark--orange ${className}`.trim()}
+        aria-label="Brand Mark"
+        {...rest}
+      >
+        <rect x="1" y="0" width="1" height="1" />
+        <rect x="5" y="0" width="1" height="1" />
+        <rect x="1" y="1" width="2" height="1" />
+        <rect x="4" y="1" width="2" height="1" />
+        <rect x="1" y="2" width="5" height="1" />
+        <rect x="1" y="3" width="1" height="1" />
+        <rect x="3" y="3" width="1" height="1" />
+        <rect x="5" y="3" width="1" height="1" />
+        <rect x="0" y="4" width="3" height="1" />
+        <rect x="4" y="4" width="3" height="1" />
+      </svg>
+    )
+  }
+
   return (
     <span
       className={`brand-mark ${className} ${glow ? 'is-glowing' : ''}`.trim()}
@@ -19,16 +43,12 @@ export default function BrandMark({ size = 24, variant = 'orange', className = '
         justifyContent: 'center',
         flexShrink: 0,
         position: 'relative',
-        borderRadius: Math.max(6, Math.round(size * 0.28)),
-        background: isOrange 
-          ? 'linear-gradient(135deg, #ff6622 0%, #e63e00 100%)' 
-          : 'rgba(255, 255, 255, 0.08)',
-        boxShadow: isOrange
-          ? '0 2px 8px rgba(230, 62, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.35)'
-          : (glow 
-              ? '0 0 12px 2px rgba(168, 85, 247, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.1)' 
-              : 'inset 0 1px 1px rgba(255, 255, 255, 0.08)'),
-        border: isOrange ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: size * 0.25,
+        background: '#ffffff',
+        boxShadow: glow 
+          ? '0 0 12px 2px rgba(168, 85, 247, 0.4), inset 0 1px 1px rgba(0, 0, 0, 0.1)' 
+          : 'inset 0 1px 1px rgba(0, 0, 0, 0.1)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
       }}
       aria-hidden="true"
       {...rest}
@@ -38,13 +58,11 @@ export default function BrandMark({ size = 24, variant = 'orange', className = '
         alt=""
         draggable="false"
         style={{
-          width: '68%',
-          height: '68%',
+          width: '70%',
+          height: '70%',
           objectFit: 'contain',
           display: 'block',
-          filter: isOrange
-            ? 'brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2))'
-            : (glow ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' : 'none'),
+          filter: glow ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' : 'none',
         }}
       />
     </span>
