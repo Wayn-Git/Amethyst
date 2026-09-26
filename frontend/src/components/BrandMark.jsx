@@ -4,28 +4,26 @@
    dark surfaces this interface uses. It gets a white chip so it reads in both
    themes; `size` is the chip, the glyph sits at ~64% of it. */
 
-export default function BrandMark({ size = 22, className = '', glow = false, variant = 'amethyst', ...rest }) {
-  if (variant === 'orange' || variant === 'vibe') {
+export default function BrandMark({ size = 22, className = '', glow = false, raw = false, ...rest }) {
+  if (raw) {
     return (
       <svg
-        viewBox="0 0 7 5"
-        width={Math.round(size * (7 / 5))}
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="524.5 524 560 560"
+        width={size}
         height={size}
-        fill="#f44e0f"
-        className={`brand-mark brand-mark--orange ${className}`.trim()}
-        aria-label="Brand Mark"
+        className={`brand-mark brand-mark--raw ${className}`.trim()}
+        style={{
+          display: 'block',
+          flexShrink: 0,
+          filter: glow ? 'drop-shadow(0 0 14px rgba(135, 63, 255, 0.6))' : undefined,
+        }}
+        aria-label="Amethyst Logo"
         {...rest}
       >
-        <rect x="1" y="0" width="1" height="1" />
-        <rect x="5" y="0" width="1" height="1" />
-        <rect x="1" y="1" width="2" height="1" />
-        <rect x="4" y="1" width="2" height="1" />
-        <rect x="1" y="2" width="5" height="1" />
-        <rect x="1" y="3" width="1" height="1" />
-        <rect x="3" y="3" width="1" height="1" />
-        <rect x="5" y="3" width="1" height="1" />
-        <rect x="0" y="4" width="3" height="1" />
-        <rect x="4" y="4" width="3" height="1" />
+        <path fill="#873FFF" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z" />
+        <path fill="#873FFF" d="M1016 701L928 722L847 986L960 870L1039 846Z" />
+        <path fill="#873FFF" d="M595 701L570 845L651 870L763 985L682 722Z" />
       </svg>
     )
   }

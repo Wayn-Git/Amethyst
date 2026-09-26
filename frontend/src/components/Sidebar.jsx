@@ -267,7 +267,7 @@ export default function Sidebar() {
               aria-label="Expand sidebar"
             >
               <span className="sb-mini-brand-icon">
-                <BrandMark size={22} variant="orange" glow />
+                <BrandMark size={22} glow />
               </span>
               <span className="sb-mini-toggle-icon">
                 <Icon name="sidebar" size={17} />
@@ -277,7 +277,8 @@ export default function Sidebar() {
             <button
               type="button"
               className="sb-mini-btn"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation()
                 setSidebar(true)
                 setShowSearchInput(true)
               }}
@@ -290,14 +291,53 @@ export default function Sidebar() {
             <button
               type="button"
               className="sb-mini-plus-btn"
-              onClick={leave(() => {
-                setView('chat')
-                chat.startFresh?.()
-              })}
+              onClick={(e) => {
+                e.stopPropagation()
+                leave(() => {
+                  setView('chat')
+                  chat.startFresh?.()
+                })()
+              }}
               title={`New chat — ${MOD_LABEL}+Shift+O`}
               aria-label="New chat"
             >
               <Icon name="edit" size={16} />
+            </button>
+          </div>
+
+          {/* Middle Nav Items: Real Places (Today, Tasks, Mail, Skills, Automations, Memory, Library) */}
+          <div className="sb-mini-nav" aria-label="Main Navigation">
+            {navPlaces.map((place) => {
+              const isActive = view === place.id
+              return (
+                <button
+                  key={place.id}
+                  type="button"
+                  className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    leave(() => setView(place.id))()
+                  }}
+                  onPointerEnter={() => prefetchView(place.id)}
+                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
+                  aria-label={place.label}
+                >
+                  <Icon name={place.icon} size={17} />
+                </button>
+              )
+            })}
+
+            <button
+              type="button"
+              className={`sb-mini-btn${view === 'chat' ? ' is-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                leave(() => setView('chat'))()
+              }}
+              title={`Chat — ${MOD_LABEL}+1`}
+              aria-label="Chat"
+            >
+              <Icon name="chat" size={17} />
             </button>
           </div>
 
@@ -335,7 +375,7 @@ export default function Sidebar() {
            2. EXPANDED MODERN SIDEBAR (260px) — Vibecoded
            =================================================================== */
         <div className="sb-expanded-container">
-          {/* Top Header: Orange Logo + Workspace Selector + Search + Collapse */}
+          {/* Top Header: Authentic Amethyst Logo + Workspace Selector + Search + Collapse */}
           <div className="sb-header">
             <div className="sb-header-top-row">
               <UserMenu align="start" side="bottom" sideOffset={8}>
@@ -344,7 +384,7 @@ export default function Sidebar() {
                   className="sb-workspace-selector wb-brand"
                   title="Workspace settings & user menu"
                 >
-                  <BrandMark size={22} variant="orange" glow />
+                  <BrandMark size={22} glow />
                   <span className="sb-workspace-name">Amethyst</span>
                   <Icon name="chevron-down" size={11} className="sb-workspace-chevron" />
                 </button>

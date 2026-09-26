@@ -180,6 +180,12 @@
   padding-bottom: 4px;
 }
 
+.sb-mini-nav {
+  padding-top: 6px;
+  border-top: 1px solid var(--sb-border);
+  margin-top: 4px;
+}
+
 .sb-mini-body {
   flex: 1;
   width: 100%;
@@ -224,6 +230,7 @@
   cursor: pointer !important;
   transition: all 0.15s ease !important;
   padding: 0 !important;
+  position: relative !important;
 }
 
 .sb-mini-btn:hover {
@@ -234,6 +241,18 @@
 .sb-mini-btn.is-active {
   background: var(--sb-surface-active) !important;
   color: #ffffff !important;
+}
+
+.sb-mini-btn.is-active::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--accent, #873FFF);
 }
 
 .sb-mini-plus-btn {
