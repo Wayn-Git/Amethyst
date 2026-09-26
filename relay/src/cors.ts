@@ -26,10 +26,12 @@
  * workerd -- and this rule is small enough that it should not need one.
  */
 
-/** Only these. `/sync` is the machine, `/ig/webhook` is Meta, `/jobs` is the
- *  machine again: none of them is a browser, and none should advertise itself
- *  to one. */
-export const BROWSER_ROUTES: ReadonlySet<string> = new Set(['/pair', '/ops']);
+/** Routes a browser may call cross-origin.
+ *  `/sync` is the machine, `/ig/webhook` is Meta — neither is a browser.
+ *  `/share` is a phone Shortcut or a browser share-target sending a link.
+ *  `/jobs` is a phone companion polling a job it created.
+ *  Both carry bearer tokens, not cookies, so `*` is safe. */
+export const BROWSER_ROUTES: ReadonlySet<string> = new Set(['/pair', '/ops', '/share', '/jobs']);
 
 export const CORS_HEADERS: Readonly<Record<string, string>> = {
 	'access-control-allow-origin': '*',
@@ -39,7 +41,7 @@ export const CORS_HEADERS: Readonly<Record<string, string>> = {
 };
 
 export function isBrowserRoute(path: string): boolean {
-	return BROWSER_ROUTES.has(path);
+	return BROWSER_ROUTES.has(path) || path.startsWith('/jobs/');
 }
 
 /** The same response, with the headers a browser needs to read it. */
