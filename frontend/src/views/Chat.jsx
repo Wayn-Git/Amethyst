@@ -3110,7 +3110,7 @@ export default function Chat() {
                   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
                 }}
               >
-                <BrandMark size={40} glow />
+                <BrandMark size={52} glow />
               </motion.div>
 
               {/* Dynamic Greeting */}

@@ -267,7 +267,7 @@ export default function Sidebar() {
               aria-label="Expand sidebar"
             >
               <span className="sb-mini-brand-icon">
-                <BrandMark size={24} glow />
+                <BrandMark size={26} glow />
               </span>
               <span className="sb-mini-toggle-icon">
                 <Icon name="sidebar" size={19} />
@@ -371,7 +371,7 @@ export default function Sidebar() {
                   className="sb-workspace-selector wb-brand"
                   title="Workspace settings & user menu"
                 >
-                  <BrandMark size={22} glow />
+                  <BrandMark size={24} glow />
                   <span className="sb-workspace-name">Amethyst</span>
                   <Icon name="chevron-down" size={11} className="sb-workspace-chevron" />
                 </button>
