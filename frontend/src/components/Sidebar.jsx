@@ -147,45 +147,17 @@ export default function Sidebar() {
 
   const [filter, setFilter] = useState('')
   const [showSearchInput, setShowSearchInput] = useState(false)
-  const [isHovered, setIsHovered] = useState(false)
-  const hoverTimeoutRef = useRef(null)
-  const suppressHoverRef = useRef(false)
 
   const isCollapsed = compact ? !railOpen : !sidebar
 
   const handleToggle = useCallback(() => {
-    if (!isCollapsed || isHovered) {
-      suppressHoverRef.current = true
-      setIsHovered(false)
-    }
     toggleRail()
-  }, [isCollapsed, isHovered, toggleRail])
+  }, [toggleRail])
 
   const leave = useCallback((act) => () => {
     act?.()
     if (compact) closeRail()
   }, [compact, closeRail])
-
-  const handleMouseEnter = useCallback(() => {
-    if (isCollapsed && !compact && !suppressHoverRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = setTimeout(() => {
-        setIsHovered(true)
-      }, 90)
-    }
-  }, [isCollapsed, compact])
-
-  const handleMouseLeave = useCallback(() => {
-    suppressHoverRef.current = false
-    clearTimeout(hoverTimeoutRef.current)
-    hoverTimeoutRef.current = setTimeout(() => {
-      setIsHovered(false)
-    }, 120)
-  }, [])
-
-  useEffect(() => {
-    return () => clearTimeout(hoverTimeoutRef.current)
-  }, [])
 
   // Pinning conversations
   const togglePin = useCallback(async (conv) => {
@@ -259,32 +231,44 @@ export default function Sidebar() {
     ? 'API offline'
     : health ? `${health.tools} tools · ${health.skills} skills` : 'connecting…'
 
-  const showExpandedView = !isCollapsed || isHovered
+  const showExpandedView = !isCollapsed
 
   return (
     <aside
       id="rail"
-      className={`wb-sidebar${compact && !railOpen ? ' is-hidden' : ''}${isCollapsed ? ' is-collapsed' : ' is-expanded'}${isCollapsed && isHovered ? ' is-hover-expanded' : ''}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      className={`wb-sidebar${compact && !railOpen ? ' is-hidden' : ''}${isCollapsed ? ' is-collapsed' : ' is-expanded'}`}
       aria-label="Main Navigation"
       aria-hidden={compact && !railOpen ? 'true' : undefined}
     >
       {!showExpandedView ? (
         /* ===================================================================
-           1. COLLAPSED MINI RAIL (52px) — Icon Rail matching ChatGPT reference
+           1. COLLAPSED MINI RAIL (54px) — Icon Rail
            =================================================================== */
-        <div className="sb-mini-rail">
-          {/* Top Actions matching reference: Sidebar Expand + Search + New Chat */}
+        <div
+          className="sb-mini-rail"
+          onClick={(e) => {
+            // Expand sidebar if clicking anywhere on the mini-rail outside of interactive buttons
+            if (!e.target.closest('button, a, input, [role="button"]')) {
+              handleToggle()
+            }
+          }}
+          title="Click to expand sidebar"
+        >
+          {/* Top Actions: App Icon (reveals Sidebar Expand on hover) + Search + New Chat */}
           <div className="sb-mini-top">
             <button
               type="button"
-              className="sb-mini-btn"
+              className="sb-mini-brand-toggle-btn"
               onClick={handleToggle}
               title={`Expand sidebar — ${MOD_LABEL}+B`}
               aria-label="Expand sidebar"
             >
-              <Icon name="sidebar" size={17} />
+              <span className="sb-mini-brand-icon">
+                <BrandMark size={22} variant="orange" glow />
+              </span>
+              <span className="sb-mini-toggle-icon">
+                <Icon name="sidebar" size={17} />
+              </span>
             </button>
 
             <button

@@ -92,41 +92,7 @@
   display: none !important;
 }
 
-/* Floating Hover Overlay when Collapsed */
-.wb-sidebar.is-collapsed.is-hover-expanded {
-  z-index: 100 !important;
-}
-
-.wb-sidebar.is-collapsed.is-hover-expanded .sb-expanded-container {
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: var(--sb-width-expanded) !important;
-  min-width: var(--sb-width-expanded) !important;
-  max-width: var(--sb-width-expanded) !important;
-  height: 100% !important;
-  background: var(--sb-bg) !important;
-  border-right: 1px solid var(--sb-border) !important;
-  box-shadow: 12px 0 36px rgba(0, 0, 0, 0.65) !important;
-  z-index: 100 !important;
-  animation: sbOverlayIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-}
-
-@keyframes sbOverlayIn {
-  from {
-    opacity: 0;
-    transform: translateX(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* ==========================================================================
-   1. COLLAPSED MINI RAIL (54px) — Icon Rail
-   ========================================================================== */
-
+/* Mini Rail Styling */
 .sb-mini-rail {
   width: var(--sb-width-collapsed) !important;
   min-width: var(--sb-width-collapsed) !important;
@@ -138,6 +104,66 @@
   align-items: center !important;
   padding: 8px 0 10px !important;
   box-sizing: border-box !important;
+  cursor: pointer !important;
+  transition: border-color 0.15s ease !important;
+}
+
+.sb-mini-rail:hover {
+  border-right-color: var(--sb-border-strong) !important;
+}
+
+/* Top App Icon Button with Hover-to-Sidebar Toggle Icon Transition */
+.sb-mini-brand-toggle-btn {
+  width: 38px !important;
+  height: 38px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  cursor: pointer !important;
+  position: relative !important;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  margin-bottom: 2px !important;
+  padding: 0 !important;
+}
+
+.sb-mini-brand-toggle-btn .sb-mini-brand-icon,
+.sb-mini-brand-toggle-btn .sb-mini-toggle-icon {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  pointer-events: none !important;
+}
+
+.sb-mini-brand-toggle-btn .sb-mini-brand-icon {
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+
+.sb-mini-brand-toggle-btn .sb-mini-toggle-icon {
+  opacity: 0 !important;
+  transform: scale(0.8) !important;
+  color: #ffffff !important;
+}
+
+.sb-mini-brand-toggle-btn:hover {
+  background: var(--sb-surface-hover) !important;
+}
+
+.sb-mini-brand-toggle-btn:hover .sb-mini-brand-icon {
+  opacity: 0 !important;
+  transform: scale(0.8) !important;
+}
+
+.sb-mini-brand-toggle-btn:hover .sb-mini-toggle-icon {
+  opacity: 1 !important;
+  transform: scale(1) !important;
 }
 
 .sb-mini-top,
