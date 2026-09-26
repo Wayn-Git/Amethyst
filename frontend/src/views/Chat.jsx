@@ -2532,7 +2532,7 @@ export default function Chat() {
               title={`Files, skills, connectors — ${MOD_LABEL}+/`}
               aria-label="Add attachments or context"
             >
-              <Icon name="plus" size={16} />
+              <Icon name="plus" size={18} />
               {attachments.length > 0 && <span className="composer-tool-count">{attachments.length}</span>}
             </button>
 
@@ -2674,7 +2674,7 @@ export default function Chat() {
                   title="Send — Enter"
                   aria-label="Send"
                 >
-                  <Icon name="arrow-up" size={15} />
+                  <Icon name="arrow-up" size={17} weight="bold" />
                 </button>
               )}
             </div>
@@ -3110,7 +3110,7 @@ export default function Chat() {
                   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
                 }}
               >
-                <BrandMark size={28} glow />
+                <BrandMark size={40} glow />
               </motion.div>
 
               {/* Dynamic Greeting */}
@@ -3151,7 +3151,7 @@ export default function Chat() {
                     onClick={item.action}
                   >
                     <span className="hero-suggestion-icon">
-                      <Icon name={item.icon} size={16} />
+                      <Icon name={item.icon} size={18} />
                     </span>
                     <span className="hero-suggestion-label">{item.label}</span>
                   </button>

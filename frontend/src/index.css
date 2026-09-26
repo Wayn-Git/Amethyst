@@ -170,17 +170,17 @@
 
   /* ---- type scale (scales dynamically with --text-scale) -------------- */
   --text-scale: 1;
-  --text-3xs: calc(11px * var(--text-scale, 1));
-  --text-2xs: calc(12px * var(--text-scale, 1));
-  --text-xs: calc(13px * var(--text-scale, 1));
-  --text-sm: calc(14px * var(--text-scale, 1));
-  --text-md: calc(15px * var(--text-scale, 1));
-  --text-lg: calc(16px * var(--text-scale, 1));
-  --text-xl: calc(18px * var(--text-scale, 1));
-  --text-2xl: calc(22px * var(--text-scale, 1));
-  --text-3xl: calc(28px * var(--text-scale, 1));
-  --text-4xl: calc(36px * var(--text-scale, 1));
-  --text-5xl: calc(48px * var(--text-scale, 1));
+  --text-3xs: calc(11.5px * var(--text-scale, 1));
+  --text-2xs: calc(12.5px * var(--text-scale, 1));
+  --text-xs: calc(13.5px * var(--text-scale, 1));
+  --text-sm: calc(14.5px * var(--text-scale, 1));
+  --text-md: calc(15.5px * var(--text-scale, 1));
+  --text-lg: calc(16.5px * var(--text-scale, 1));
+  --text-xl: calc(19px * var(--text-scale, 1));
+  --text-2xl: calc(24px * var(--text-scale, 1));
+  --text-3xl: calc(30px * var(--text-scale, 1));
+  --text-4xl: calc(38px * var(--text-scale, 1));
+  --text-5xl: calc(50px * var(--text-scale, 1));
 
   --leading-tight: 1.2;
   --leading-normal: 1.38;
@@ -1324,7 +1324,7 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 @media (min-width: 901px) {
   .chat-scroll { padding-right: 64px; }
 }
-.chat-stream { max-width: min(768px, 100%); width: 100%; margin: auto auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 30px; box-sizing: border-box; }
+.chat-stream { max-width: min(800px, 100%); width: 100%; margin: auto auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; box-sizing: border-box; }
 
 /* ------------------------------------------------------------------ hero */
 
@@ -1336,7 +1336,7 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 24px 64px;
+  padding: 48px 24px 72px;
   width: 100%;
   margin: 0 auto;
   overflow-y: auto;
@@ -1346,32 +1346,32 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 .hero-stack-inner {
   width: 100%;
-  max-width: 660px;
+  max-width: 780px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
 }
 
-/* Orange Brand Logo Mark */
+/* Standalone Faceted Amethyst Brand Mark */
 .hero-brand-mark {
-  margin-bottom: 22px;
+  margin-bottom: 24px;
   display: flex;
   align-items: center;
 }
 
 .hero-greeting-wrap {
   width: 100%;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   text-align: left;
 }
 
 .hero-headline {
   font-family: var(--font-sans);
-  font-size: clamp(24px, 3.4cqw, 29px);
-  font-weight: 500;
-  letter-spacing: -0.025em;
-  line-height: 1.25;
+  font-size: clamp(30px, 3.8vw, 36px);
+  font-weight: 550;
+  letter-spacing: -0.028em;
+  line-height: 1.22;
   color: var(--text);
   margin: 0;
   text-align: left;
@@ -1382,14 +1382,14 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   position: relative;
 }
 
-/* Single-row Hero Composer Card (Clean Modern Match to Inspiration) */
+/* Single-row Hero Composer Card (Comfortable 54px Modern Height) */
 .composer-card--hero {
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   background: var(--surface-2, #202126) !important;
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08)) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22) !important;
-  padding: 6px 8px 6px 12px !important;
-  min-height: 48px !important;
+  padding: 8px 10px 8px 14px !important;
+  min-height: 54px !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: center !important;
@@ -1398,25 +1398,25 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .composer-card--hero:focus-within {
-  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.18)) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32) !important;
+  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.20)) !important;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.35) !important;
 }
 
 .hero-composer-single-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 36px;
+  min-height: 38px;
 }
 
 .hero-plus-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: transparent;
   border: none;
   color: var(--text-secondary, rgba(255, 255, 255, 0.72));
@@ -1455,18 +1455,19 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   outline: none !important;
   background: transparent !important;
   box-shadow: none !important;
-  padding: 4px 0;
+  padding: 6px 0;
   color: var(--text, #f3f4f6);
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 16px;
+  line-height: 1.5;
   resize: none;
-  min-height: 24px;
+  min-height: 26px;
   max-height: 200px;
 }
 
 .hero-composer-input-wrap textarea::placeholder {
   color: var(--text-faint, #636674);
   opacity: 1;
+  font-size: 16px;
 }
 
 .hero-composer-actions {
@@ -1477,13 +1478,13 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .hero-composer-model-pill {
-  max-width: 120px;
-  height: 25px !important;
-  padding: 2px 7px !important;
-  font-size: 11px !important;
-  border-radius: 6px !important;
+  max-width: 130px;
+  height: 28px !important;
+  padding: 3px 9px !important;
+  font-size: 12px !important;
+  border-radius: 7px !important;
   background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
   color: var(--text-dim, #9ca3af) !important;
 }
 
@@ -1493,7 +1494,7 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .hero-composer-model-pill .composer-model-name {
-  max-width: 70px;
+  max-width: 76px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1501,11 +1502,11 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 /* Action button matching inspiration rounded-rect button */
 .hero-composer-send-btn {
-  width: 32px !important;
-  height: 32px !important;
-  min-width: 32px !important;
-  min-height: 32px !important;
-  border-radius: 8px !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  border-radius: 9px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1579,30 +1580,30 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 13px;
-  margin-top: 26px;
+  gap: 14px;
+  margin-top: 28px;
   width: 100%;
 }
 
 .hero-suggestion-row {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   background: transparent;
   border: none;
   color: var(--text-secondary, #d1d5db);
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 450;
   letter-spacing: -0.01em;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 5px 0;
   transition: color 0.15s ease, transform 0.12s ease;
   text-align: left;
 }
 
 .hero-suggestion-row:hover {
   color: var(--text, #ffffff);
-  transform: translateX(2px);
+  transform: translateX(3px);
 }
 
 .hero-suggestion-icon {
@@ -1938,7 +1939,7 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 /* ------------------------------------------------------------- composer */
 
-.composer-wrap { position: relative; padding: 10px 24px 20px; max-width: 768px; width: 100%; margin: 0 auto; }
+.composer-wrap { position: relative; padding: 10px 24px 20px; max-width: 800px; width: 100%; margin: 0 auto; }
 .composer-wrap--hero { padding-top: 0; padding-bottom: 0; }
 
 .composer {
@@ -2449,10 +2450,10 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   box-shadow: none !important;
   padding: 2px 0;
   color: var(--text);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.5;
   resize: none;
-  min-height: 38px;
+  min-height: 40px;
   max-height: 220px;
 }
 
@@ -2991,14 +2992,10 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
    start of the next line. */
 .msg-body {
   word-break: break-word;
-  font-size: calc(15.5px * var(--text-scale, 1));
-  line-height: 1.72;
-  /* 62ch, not 72: `ch` measures a zero, which is wider than the average
-     lowercase letter, so 72ch came out at about 90 characters of actual prose
-     -- past the point where the eye reliably finds the next line. This lands
-     near 75. */
-  max-width: 62ch;
-  letter-spacing: -0.003em;
+  font-size: calc(16px * var(--text-scale, 1));
+  line-height: 1.75;
+  max-width: 68ch;
+  letter-spacing: -0.005em;
 }
 .msg-body--plain { white-space: pre-wrap; }
 

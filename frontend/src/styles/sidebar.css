@@ -19,8 +19,8 @@
   --sb-radius-pill: 9999px;
   --sb-radius-card: 8px;
   --sb-radius-item: 7px;
-  --sb-width-expanded: 264px;
-  --sb-width-collapsed: 54px;
+  --sb-width-expanded: 272px;
+  --sb-width-collapsed: 58px;
 }
 
 [data-theme="paper"],
@@ -114,8 +114,8 @@
 
 /* Top App Icon Button with Hover-to-Sidebar Toggle Icon Transition */
 .sb-mini-brand-toggle-btn {
-  width: 38px !important;
-  height: 38px !important;
+  width: 40px !important;
+  height: 40px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -218,8 +218,8 @@
 
 /* Mini Action Buttons */
 .sb-mini-btn {
-  width: 36px !important;
-  height: 36px !important;
+  width: 38px !important;
+  height: 38px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -256,8 +256,8 @@
 }
 
 .sb-mini-plus-btn {
-  width: 36px !important;
-  height: 36px !important;
+  width: 38px !important;
+  height: 38px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -279,8 +279,8 @@
 }
 
 .sb-mini-avatar-square {
-  width: 32px !important;
-  height: 32px !important;
+  width: 34px !important;
+  height: 34px !important;
   border-radius: 8px !important;
   background: #232428 !important;
   border: 1px solid rgba(255, 255, 255, 0.10) !important;
@@ -461,9 +461,9 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  height: 38px !important;
-  min-height: 38px !important;
-  max-height: 38px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
   width: calc(100% - 16px) !important;
   margin: 2px 8px 8px !important;
   padding: 0 12px !important;
@@ -471,7 +471,7 @@
   background: var(--sb-surface) !important;
   border: 1px solid var(--sb-border) !important;
   color: var(--sb-text) !important;
-  font-size: 14px !important;
+  font-size: 14.5px !important;
   font-weight: 500 !important;
   letter-spacing: -0.01em !important;
   cursor: pointer !important;
@@ -516,13 +516,13 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  height: 36px !important;
+  height: 38px !important;
   padding: 0 10px !important;
   border-radius: var(--sb-radius-item) !important;
   background: transparent !important;
   border: none !important;
   color: var(--sb-text) !important;
-  font-size: 14px !important;
+  font-size: 14.5px !important;
   font-weight: 450 !important;
   letter-spacing: -0.01em !important;
   text-align: left !important;
