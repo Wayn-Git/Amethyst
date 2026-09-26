@@ -290,11 +290,12 @@ function ComposerModal({ lists, presetList, initialStatus = 'todo', onAdded, onC
 /* =========================================================================
    Interactive Task Detail & Edit Modal (with completion progress slider)
    ========================================================================= */
-function TaskDetailModal({ task, lists, hues, busy, onPatch, onDrop, onClose }) {
+function TaskDetailModal({ task, lists, hues, myDayListId, busy, onPatch, onDrop, onClose }) {
   const ref = useRef(null)
   useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
   const done = task.status === 'done'
   const inProg = task.status === 'in_progress'
+  const inMyDay = myDayListId != null && task.list_id === myDayListId
   const [title, setTitle] = useState(task.title || '')
   const [notes, setNotes] = useState(task.notes || '')
   const [due, setDue] = useState('')
@@ -573,6 +574,21 @@ function TaskDetailModal({ task, lists, hues, busy, onPatch, onDrop, onClose }) 
           <div className="am-detail-actions">
             <button
               type="button"
+              className={`am-toggle-pill${inMyDay ? ' is-active' : ''}`}
+              onClick={() => {
+                onPatch(
+                  task,
+                  { add_to_my_day: !inMyDay },
+                  inMyDay ? 'Moved out of My Day' : 'Moved into My Day',
+                )
+              }}
+            >
+              <Icon name="sun" size={14} />
+              <span>{inMyDay ? 'In My Day' : 'Add to My Day'}</span>
+            </button>
+
+            <button
+              type="button"
               className={`am-toggle-pill${task.important ? ' is-active' : ''}`}
               onClick={() => onPatch(task, { important: !task.important })}
             >
@@ -681,6 +697,7 @@ function TaskCard({
       whileHover={{ y: -3, transition: { duration: 0.2 } }}
       className={`am-task-card am-card-${state}${done ? ' am-card--done' : ''}`}
       data-state={state}
+      onClick={() => onOpenDetail(task)}
     >
       {/* Top Banner Row */}
       <div className="am-card-top">
@@ -711,65 +728,8 @@ function TaskCard({
           </span>
         )}
 
-        {/* Hover Action Controls */}
+        {/* Minimalist Action Controls */}
         <div className="am-card-tools">
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.88 }}
-            className="am-icon-btn am-tool-open"
-            title="Open Details & Edit"
-            aria-label="Open task details"
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpenDetail(task)
-            }}
-          >
-            <Icon name="arrow-up-right" size={13} />
-          </motion.button>
-
-          {!done && (
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.88 }}
-              className={`am-icon-btn am-tool-progress${task.status === 'in_progress' ? ' is-active' : ''}`}
-              disabled={busy}
-              title={task.status === 'in_progress' ? 'Move back to To Do' : 'Move to In Progress'}
-              aria-label={task.status === 'in_progress' ? 'Move back to To Do' : 'Move to In Progress'}
-              onClick={(e) => {
-                e.stopPropagation()
-                patch(
-                  task,
-                  { status: task.status === 'in_progress' ? 'todo' : 'in_progress' },
-                  task.status === 'in_progress' ? 'Moved to To Do' : 'Moved to In Progress',
-                )
-              }}
-            >
-              <Icon name="lightning" size={13} />
-            </motion.button>
-          )}
-
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.88 }}
-            className={`am-icon-btn am-tool-sun${inMyDay ? ' is-active' : ''}`}
-            disabled={busy}
-            title={inMyDay ? 'Remove from My Day' : 'Add to My Day'}
-            aria-label={`Move ${task.title} into My Day`}
-            onClick={(e) => {
-              e.stopPropagation()
-              patch(
-                task,
-                { add_to_my_day: !inMyDay },
-                inMyDay ? 'Moved out of My Day' : 'Moved into My Day',
-              )
-            }}
-          >
-            <Icon name="sun" size={13} />
-          </motion.button>
-
           <motion.button
             type="button"
             whileHover={{ scale: 1.15 }}
@@ -1864,6 +1824,7 @@ export default function Tasks() {
           flex-direction: column;
           gap: 7px;
           flex-shrink: 0;
+          cursor: pointer;
         }
 
         .am-task-card:hover {
@@ -1955,11 +1916,12 @@ export default function Tasks() {
         .am-card-tools {
           display: flex;
           align-items: center;
-          gap: 3px;
-          opacity: 0.65;
+          gap: 4px;
+          opacity: 0.35;
           transition: opacity 0.18s ease;
         }
 
+        .am-card-tools:has(.am-tool-star.is-active),
         .am-task-card:hover .am-card-tools,
         .am-task-card:focus-within .am-card-tools {
           opacity: 1;
@@ -3286,6 +3248,7 @@ export default function Tasks() {
             task={detailTask}
             lists={counts.lists || []}
             hues={hues}
+            myDayListId={counts.my_day_list_id}
             busy={busyTask === detailTask.id}
             onPatch={patch}
             onDrop={drop}
