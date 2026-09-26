@@ -6,6 +6,7 @@ import { useCompact, usePhone } from './hooks/useMediaQuery.js'
 
 import { safeStorage } from './lib/storage.js'
 import { useSync } from './lib/sync/useSync.js'
+import { notify } from './components/application/notifications'
 
 function pathToId(pathname) {
   if (pathname === '/' || pathname === '/chat') return 'chat'
@@ -592,11 +593,12 @@ export function AppProvider({ children }) {
   }, [theme])
 
   const dismissToast = useCallback((id) => {
+    notify.dismiss(id)
     setToasts((t) => t.filter((x) => x.id !== id))
   }, [])
 
   const toast = useCallback((payload, tone = 'info') => {
-    const id = Math.random().toString(36).slice(2)
+    const id = notify.show(payload, tone)
     const toastObj = typeof payload === 'string'
       ? { id, message: payload, tone }
       : { id, tone: payload.tone || tone, ...payload }
@@ -605,13 +607,7 @@ export function AppProvider({ children }) {
       ...t.filter((x) => x.id !== id && (toastObj.message ? x.message !== toastObj.message : true)),
       toastObj,
     ])
-
-    const duration = toastObj.duration ?? 4600
-    if (duration > 0) {
-      setTimeout(() => {
-        setToasts((t) => t.filter((x) => x.id !== id))
-      }, duration)
-    }
+    return id
   }, [])
 
   const refreshHealth = useCallback(async () => {

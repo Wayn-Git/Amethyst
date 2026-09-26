@@ -24,7 +24,7 @@ import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 import MobileNav from './components/MobileNav.jsx'
-import { NotificationToastContainer } from './components/application/notifications'
+import { Toaster } from './components/application/notifications'
 
 /* The workbench.
 
@@ -294,8 +294,7 @@ function RailScrim({ onClose }) {
 }
 
 function Toasts() {
-  const { toasts, dismissToast } = useApp()
-  return <NotificationToastContainer toasts={toasts} onDismiss={dismissToast} />
+  return <Toaster />
 }
 
 /* The escape hatch, and why it is sticky.
