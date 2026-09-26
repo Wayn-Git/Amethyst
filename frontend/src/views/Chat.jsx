@@ -2614,7 +2614,7 @@ export default function Chat() {
             <div className="hero-composer-actions">
               <button
                 type="button"
-                className="composer-tool-btn"
+                className="composer-tool-btn hero-composer-tool-btn"
                 onClick={() => {
                   setInput((prev) => (prev ? `${prev} /search ` : '/search '))
                   textareaRef.current?.focus()
@@ -2627,7 +2627,7 @@ export default function Chat() {
 
               <button
                 type="button"
-                className={`composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
+                className={`composer-tool-btn hero-composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
                 onClick={toggleTerminal}
                 title="Interactive Terminal"
                 aria-label="Toggle terminal"
@@ -2639,7 +2639,7 @@ export default function Chat() {
               <div className="composer-model-pill-wrap">
                 <button
                   type="button"
-                  className="composer-model-pill"
+                  className="composer-model-pill hero-composer-model-pill"
                   onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
                   title="Provider and model"
                 >
@@ -2688,17 +2688,18 @@ export default function Chat() {
                     <span className="composer-queue-symbol">↵</span>
                   </button>
                 </>
-              ) : (input.trim() || attachments.length > 0) ? (
+              ) : (
                 <button
                   type="button"
-                  className="composer-send-circle"
+                  className={`composer-send-circle hero-composer-send-circle${input.trim() || attachments.length > 0 ? ' is-active' : ' is-idle'}`}
                   onClick={() => send()}
+                  disabled={!input.trim() && attachments.length === 0}
                   title="Send — Enter"
                   aria-label="Send"
                 >
                   <Icon name="arrow-up" size={14} />
                 </button>
-              ) : null}
+              )}
             </div>
           </div>
         ) : (
@@ -3132,7 +3133,7 @@ export default function Chat() {
                   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
                 }}
               >
-                <BrandMark size={28} variant="orange" />
+                <BrandMark size={36} glow />
               </motion.div>
 
               {/* Dynamic Greeting */}
