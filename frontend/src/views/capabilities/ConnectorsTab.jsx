@@ -749,18 +749,18 @@ function PluginRowSkeleton({ titleWidth = 140, descWidth = '84%' }) {
   return (
     <div className="plugin-row" style={{ pointerEvents: 'none' }}>
       <div className="plugin-row-icon">
-        <Skeleton w={40} h={40} r={10} />
+        <Skeleton w={46} h={46} r={12} />
       </div>
       <div className="plugin-row-info">
         <div className="plugin-row-title-wrap">
-          <Skeleton w={titleWidth} h={15} r={4} />
+          <Skeleton w={titleWidth} h={16} r={6} />
         </div>
-        <div className="plugin-row-desc">
+        <div className="plugin-row-desc" style={{ marginTop: 6 }}>
           <Skeleton w={descWidth} h={13} r={4} />
         </div>
       </div>
       <div className="plugin-row-actions">
-        <Skeleton w={32} h={32} r={16} style={{ opacity: 0.35 }} />
+        <Skeleton w={32} h={32} r={8} style={{ opacity: 0.35 }} />
       </div>
     </div>
   )
@@ -892,7 +892,7 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
       }}
     >
       <div className="plugin-row-icon">
-        <ServiceIcon name={item.name || item.id} size={40} />
+        <ServiceIcon name={item.name || item.id} size={28} />
       </div>
 
       <div className="plugin-row-info">
@@ -913,12 +913,17 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button
               type="button"
-              className="plugin-add-icon-btn"
+              className="plugin-pill-btn plugin-pill-btn--primary"
               disabled={Boolean(busy)}
               onClick={(e) => { e.stopPropagation(); onAdd(); }}
               title={busy === 'add' ? 'Adding…' : 'Install'}
             >
-              {busy === 'add' ? <span className="auth-spinner" /> : <Icon name="plus" size={18} />}
+              {busy === 'add' ? <span className="auth-spinner" /> : (
+                <>
+                  <Icon name="plus" size={13} />
+                  <span>Install</span>
+                </>
+              )}
             </button>
             <div style={{ position: 'relative' }} ref={popoverRef}>
               <button
@@ -927,7 +932,7 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
                 onClick={(e) => { e.stopPropagation(); setPopoverOpen(!popoverOpen); }}
                 title="Options"
               >
-                <Icon name="dots" size={18} />
+                <Icon name="dots" size={16} />
               </button>
               {popoverOpen && (
                 <div className="plugin-popover">
@@ -1077,6 +1082,9 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
 /* Apple macOS Dock Chip with hover magnification and floating tooltip */
 function InstalledDockChip({ item, index, onOpen }) {
   const [hovered, setHovered] = useState(false)
+  const isReady = item.ready
+  const isWarning = !isReady && ((item.missing_credentials || []).length > 0 || item.signed_in === false)
+  const statusClass = isReady ? 'live' : isWarning ? 'warning' : 'off'
 
   return (
     <div style={{ position: 'relative' }}>
@@ -1086,9 +1094,9 @@ function InstalledDockChip({ item, index, onOpen }) {
         onClick={onOpen}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        whileHover={{ scale: 1.14, y: -2 }}
+        whileHover={{ scale: 1.08, y: -2 }}
         whileTap={{ scale: 0.94 }}
-        initial={{ opacity: 0, scale: 0.8 }}
+        initial={{ opacity: 0, scale: 0.85 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{
           type: 'spring',
@@ -1096,24 +1104,24 @@ function InstalledDockChip({ item, index, onOpen }) {
           damping: 24,
           delay: Math.min(index * 0.02, 0.25),
         }}
-        aria-label={`${item.title} (${item.ready ? 'Connected' : (item.missing_credentials || []).length ? 'Needs credentials' : (item.signed_in === false && item.auth_kind !== 'none') ? 'Needs sign-in' : 'Not running'})`}
+        aria-label={`${item.title} (${isReady ? 'Connected' : isWarning ? 'Needs setup' : 'Not running'})`}
       >
-        <ServiceIcon name={item.name} size={38} />
-        <span className={`status-dot ${item.ready ? 'live' : 'off'}`} />
+        <ServiceIcon name={item.name} size={26} />
+        <span className={`status-dot ${statusClass}`} />
       </motion.button>
 
       <AnimatePresence>
         {hovered && (
           <motion.div
             className="conn-dock-tooltip"
-            initial={{ opacity: 0, y: 6, scale: 0.92 }}
+            initial={{ opacity: 0, y: 6, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.94 }}
             transition={{ duration: 0.15 }}
           >
-            <span>{item.title}</span>
+            <span style={{ fontWeight: 600 }}>{item.title}</span>
             <span style={{ opacity: 0.75, marginLeft: 4 }}>
-              · {item.ready ? 'Connected' : (item.missing_credentials || []).length ? 'Needs credentials' : (item.signed_in === false && item.auth_kind !== 'none') ? 'Needs sign-in' : 'Not running'}
+              · {isReady ? 'Connected' : isWarning ? 'Needs setup' : 'Not running'}
             </span>
           </motion.div>
         )}
@@ -1890,9 +1898,15 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
             {/* Top "Installed" Quick Strip (Inspiration UI) */}
             {totalInstalled > 0 && (
               <div className="plugin-installed-section" data-enter>
-                <div className="plugin-installed-label">
-                  <span>Installed</span>
-                  <Icon name="chevron" size={11} />
+                <div className="plugin-installed-header">
+                  <div className="plugin-installed-label">
+                    <span>Installed</span>
+                    <span className="plugin-installed-badge">{totalInstalled}</span>
+                  </div>
+                  <span className="plugin-installed-hint">
+                    <span className="status-dot live" style={{ width: 6, height: 6 }} />
+                    {installedList.filter((i) => i.ready).length} active
+                  </span>
                 </div>
                 <div className="plugin-installed-dock">
                   {installedList.map((item, index) => (
@@ -1971,8 +1985,10 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
                   {agentTools.length > 0 && (
                     <section data-enter className="plugin-section">
                       <div className="plugin-section-head">
-                        <h2 className="plugin-section-title">Agent Core Tools</h2>
-                        <span className="plugin-section-count">{agentTools.length} tools</span>
+                        <div className="plugin-section-title-wrap">
+                          <h2 className="plugin-section-title">Agent Core Tools</h2>
+                          <span className="plugin-section-badge">{agentTools.length}</span>
+                        </div>
                       </div>
 
                       <div className="plugin-grid">
@@ -2001,8 +2017,10 @@ export default function ConnectorsTab({ query = '', newOpen, setNewOpen }) {
                     return (
                       <section key={catName} data-enter className="plugin-section">
                         <div className="plugin-section-head">
-                          <h2 className="plugin-section-title">{catName}</h2>
-                          <span className="plugin-section-count">{items.length} plugins</span>
+                          <div className="plugin-section-title-wrap">
+                            <h2 className="plugin-section-title">{catName}</h2>
+                            <span className="plugin-section-badge">{items.length}</span>
+                          </div>
                         </div>
 
                         <div className="plugin-grid">
