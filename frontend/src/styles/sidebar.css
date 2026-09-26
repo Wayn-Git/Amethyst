@@ -1,6 +1,5 @@
 /* ==========================================================================
-   AMETHYST SIDEBAR — Natural Editorial Dark Palette & Balanced Typography
-   Design aligned with ChatGPT reference & DESIGN.md
+   AMETHYST SIDEBAR — Natural Big-Tech Typography & Palette (OpenAI / Claude Scale)
    ========================================================================== */
 
 :root {
@@ -13,15 +12,15 @@
   --sb-border-strong: rgba(255, 255, 255, 0.14);
   --sb-text: #ececec;
   --sb-text-secondary: rgba(255, 255, 255, 0.82);
-  --sb-text-muted: rgba(255, 255, 255, 0.44);
-  --sb-icon: rgba(255, 255, 255, 0.65);
+  --sb-text-muted: rgba(255, 255, 255, 0.46);
+  --sb-icon: rgba(255, 255, 255, 0.68);
   --sb-icon-hover: #ffffff;
   --sb-accent-orange: #f97316;
   --sb-radius-pill: 9999px;
   --sb-radius-card: 8px;
-  --sb-radius-item: 6px;
-  --sb-width-expanded: 260px;
-  --sb-width-collapsed: 52px;
+  --sb-radius-item: 7px;
+  --sb-width-expanded: 264px;
+  --sb-width-collapsed: 54px;
 }
 
 [data-theme="paper"],
@@ -36,10 +35,10 @@
   --sb-border: rgba(0, 0, 0, 0.07);
   --sb-border-subtle: rgba(0, 0, 0, 0.04);
   --sb-border-strong: rgba(0, 0, 0, 0.12);
-  --sb-text: rgba(0, 0, 0, 0.88);
-  --sb-text-secondary: rgba(0, 0, 0, 0.68);
-  --sb-text-muted: rgba(0, 0, 0, 0.44);
-  --sb-icon: rgba(0, 0, 0, 0.55);
+  --sb-text: rgba(0, 0, 0, 0.90);
+  --sb-text-secondary: rgba(0, 0, 0, 0.70);
+  --sb-text-muted: rgba(0, 0, 0, 0.46);
+  --sb-icon: rgba(0, 0, 0, 0.58);
   --sb-icon-hover: rgba(0, 0, 0, 0.95);
   --sb-accent-orange: #ea580c;
 }
@@ -125,7 +124,7 @@
 }
 
 /* ==========================================================================
-   1. COLLAPSED MINI RAIL (52px) — Icon Rail
+   1. COLLAPSED MINI RAIL (54px) — Icon Rail
    ========================================================================== */
 
 .sb-mini-rail {
@@ -213,8 +212,8 @@
 }
 
 .sb-mini-avatar-square {
-  width: 28px !important;
-  height: 28px !important;
+  width: 30px !important;
+  height: 30px !important;
   border-radius: var(--sb-radius-item) !important;
   background: linear-gradient(135deg, #7c2d12, #9a3412) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -222,7 +221,7 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 11px !important;
+  font-size: 11.5px !important;
   font-weight: 600 !important;
   letter-spacing: 0.02em !important;
   cursor: pointer !important;
@@ -236,7 +235,7 @@
 }
 
 /* ==========================================================================
-   2. EXPANDED SIDEBAR (260px)
+   2. EXPANDED SIDEBAR (264px) — OpenAI / Claude Typography Scale
    ========================================================================== */
 
 .sb-expanded-container {
@@ -282,8 +281,8 @@
   background: transparent;
   border: none;
   color: var(--sb-text);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 14px !important;
+  font-weight: 550 !important;
   letter-spacing: -0.01em;
   cursor: pointer;
   padding: 4px 6px 4px 2px;
@@ -311,8 +310,8 @@
 }
 
 .sb-header-icon-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px !important;
+  height: 30px !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -343,9 +342,9 @@
 .sb-search-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 8px;
+  gap: 8px;
+  height: 34px !important;
+  padding: 0 10px;
   border-radius: var(--sb-radius-item);
   background: var(--sb-surface);
   border: 1px solid var(--sb-border);
@@ -366,7 +365,7 @@
   background: transparent;
   border: none;
   color: var(--sb-text);
-  font-size: 13px;
+  font-size: 13.5px !important;
   outline: none;
 }
 
@@ -387,24 +386,25 @@
   color: var(--sb-text);
 }
 
-/* Prominent + New Chat Pill Button */
+/* Prominent + New Chat Pill Button (38px height, 14px font) */
 .sb-new-chat-pill {
   flex: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  height: 36px !important;
-  min-height: 36px !important;
-  max-height: 36px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
   width: calc(100% - 16px) !important;
-  margin: 2px 8px 6px !important;
+  margin: 2px 8px 8px !important;
   padding: 0 12px !important;
   border-radius: 8px !important;
   background: rgba(255, 255, 255, 0.08) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: #ffffff !important;
-  font-size: 13.5px !important;
+  font-size: 14px !important;
   font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
   box-sizing: border-box !important;
@@ -419,36 +419,37 @@
 .sb-new-chat-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
 }
 
 .sb-new-chat-shortcut {
-  font-size: 11px;
+  font-size: 11.5px !important;
   font-family: var(--font-mono, monospace);
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(255, 255, 255, 0.40);
 }
 
-/* Navigation Section */
+/* Navigation Section (36px height, 14px font) */
 .sb-nav-section {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 0 6px;
-  margin-bottom: 4px;
+  gap: 2px;
+  padding: 0 8px;
+  margin-bottom: 6px;
 }
 
 .sb-nav-item {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  height: 34px !important;
-  padding: 0 8px !important;
+  height: 36px !important;
+  padding: 0 10px !important;
   border-radius: var(--sb-radius-item) !important;
   background: transparent !important;
   border: none !important;
   color: #ececec !important;
-  font-size: 13.5px !important;
+  font-size: 14px !important;
   font-weight: 450 !important;
+  letter-spacing: -0.01em !important;
   text-align: left !important;
   cursor: pointer !important;
   transition: all 0.12s ease !important;
@@ -470,7 +471,7 @@
 .sb-nav-item-left {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -494,9 +495,9 @@
 }
 
 .sb-nav-item-shortcut {
-  font-size: 11px;
+  font-size: 11.5px !important;
   font-family: var(--font-mono, monospace);
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.38);
 }
 
 /* Scroll Area for Conversations */
@@ -505,7 +506,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 0 8px;
+  padding: 0 0 10px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
@@ -519,24 +520,24 @@
   border-radius: 4px;
 }
 
-/* Section Labels — Soft Muted Hierarchy */
+/* Section Labels — Standard 12px Clean Hierarchy */
 .sb-section-label {
-  padding: 16px 12px 6px !important;
-  font-size: 11px !important;
+  padding: 16px 14px 6px !important;
+  font-size: 12px !important;
   font-weight: 500 !important;
   color: var(--sb-text-muted) !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
+  letter-spacing: 0.04em !important;
   user-select: none !important;
 }
 
-/* Chat Items — Natural High Contrast & Readable */
+/* Chat Items — OpenAI/Claude 14px Standard Scale */
 .sb-conv-item {
   position: relative !important;
   display: flex !important;
   align-items: center !important;
-  height: 32px !important;
-  margin: 1px 6px !important;
+  height: 36px !important;
+  margin: 1px 8px !important;
   border-radius: var(--sb-radius-item) !important;
   color: #ececec !important;
   background: transparent !important;
@@ -557,14 +558,15 @@
   min-width: 0 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 7px !important;
-  padding: 0 8px !important;
+  gap: 8px !important;
+  padding: 0 10px !important;
   height: 100% !important;
   background: transparent !important;
   border: none !important;
   color: #ececec !important;
-  font-size: 13.5px !important;
+  font-size: 14px !important;
   font-weight: 400 !important;
+  line-height: 1.45 !important;
   letter-spacing: -0.01em !important;
   text-align: left !important;
   cursor: pointer !important;
@@ -574,7 +576,7 @@
 
 [data-theme="paper"] .sb-conv-btn,
 [data-theme="light"] .sb-conv-btn {
-  color: rgba(0, 0, 0, 0.88) !important;
+  color: rgba(0, 0, 0, 0.90) !important;
 }
 
 .sb-conv-title {
@@ -585,14 +587,14 @@
   white-space: nowrap !important;
   color: #ececec !important;
   opacity: 1 !important;
-  font-size: 13.5px !important;
+  font-size: 14px !important;
   font-weight: 400 !important;
-  line-height: 1.4 !important;
+  line-height: 1.45 !important;
 }
 
 [data-theme="paper"] .sb-conv-title,
 [data-theme="light"] .sb-conv-title {
-  color: rgba(0, 0, 0, 0.88) !important;
+  color: rgba(0, 0, 0, 0.90) !important;
 }
 
 .sb-conv-item:hover .sb-conv-btn,
@@ -625,14 +627,14 @@
 .sb-conv-actions {
   position: relative !important;
   z-index: 2 !important;
-  margin-right: 4px !important;
+  margin-right: 6px !important;
   display: flex !important;
   align-items: center !important;
 }
 
 .sb-conv-more-btn {
-  width: 22px !important;
-  height: 22px !important;
+  width: 24px !important;
+  height: 24px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -658,15 +660,15 @@
 /* Conversation Context Menu */
 .sb-conv-menu {
   position: absolute !important;
-  right: 4px !important;
+  right: 6px !important;
   top: 100% !important;
   z-index: 50 !important;
-  min-width: 135px !important;
+  min-width: 140px !important;
   background: #1e1e1e !important;
   border: 1px solid var(--sb-border) !important;
   border-radius: var(--sb-radius-card) !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55) !important;
-  padding: 3px !important;
+  padding: 4px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 1px !important;
@@ -682,12 +684,12 @@
   align-items: center !important;
   gap: 8px !important;
   width: 100% !important;
-  padding: 5px 8px !important;
+  padding: 6px 10px !important;
   border-radius: var(--sb-radius-item) !important;
   background: transparent !important;
   border: none !important;
   color: var(--sb-text) !important;
-  font-size: 12.5px !important;
+  font-size: 13px !important;
   text-align: left !important;
   cursor: pointer !important;
   transition: background 0.12s ease !important;
@@ -704,13 +706,13 @@
 }
 
 .sb-rename-wrap {
-  padding: 1px 6px;
+  padding: 2px 8px;
 }
 
 .sb-rename-input {
   width: 100%;
-  padding: 4px 6px;
-  font-size: 12.5px;
+  padding: 6px 8px;
+  font-size: 13.5px;
   border-radius: var(--sb-radius-item);
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: var(--sb-surface);
@@ -719,17 +721,17 @@
 }
 
 .sb-empty-chats {
-  padding: 10px 14px;
-  font-size: 12.5px;
+  padding: 12px 16px;
+  font-size: 13px;
   color: var(--sb-text-muted);
 }
 
 /* ==========================================================================
-   3. BOTTOM SECTION: User & Workspace Card
+   3. BOTTOM SECTION: User & Workspace Card (48px height, 14px font)
    ========================================================================== */
 
 .sb-bottom-container {
-  padding: 6px;
+  padding: 8px;
   border-top: 1px solid var(--sb-border);
   display: flex;
   flex-direction: column;
@@ -740,9 +742,9 @@
 .sb-user-card-bottom {
   display: flex !important;
   align-items: center !important;
-  gap: 9px !important;
-  height: 44px !important;
-  padding: 0 8px !important;
+  gap: 10px !important;
+  height: 48px !important;
+  padding: 0 10px !important;
   border-radius: var(--sb-radius-card) !important;
   background: transparent !important;
   border: none !important;
@@ -758,8 +760,8 @@
 }
 
 .sb-user-avatar-square {
-  width: 28px !important;
-  height: 28px !important;
+  width: 32px !important;
+  height: 32px !important;
   border-radius: var(--sb-radius-item) !important;
   background: linear-gradient(135deg, #7c2d12, #9a3412) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -767,7 +769,7 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   letter-spacing: 0.02em !important;
   flex-shrink: 0 !important;
@@ -782,7 +784,7 @@
 }
 
 .sb-user-name-bottom {
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 500 !important;
   color: #ececec !important;
   overflow: hidden;
@@ -791,7 +793,7 @@
 }
 
 .sb-user-subtext-bottom {
-  font-size: 11px !important;
+  font-size: 12px !important;
   color: var(--sb-text-muted) !important;
   overflow: hidden;
   text-overflow: ellipsis;
