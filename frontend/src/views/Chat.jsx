@@ -3151,7 +3151,7 @@ export default function Chat() {
                     onClick={item.action}
                   >
                     <span className="hero-suggestion-icon">
-                      <Icon name={item.icon} size={15} />
+                      <Icon name={item.icon} size={16} />
                     </span>
                     <span className="hero-suggestion-label">{item.label}</span>
                   </button>
