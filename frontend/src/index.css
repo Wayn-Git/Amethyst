@@ -1940,7 +1940,12 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 /* ------------------------------------------------------------- composer */
 
 .composer-wrap { position: relative; padding: 10px 24px 20px; max-width: 800px; width: 100%; margin: 0 auto; }
-.composer-wrap--hero { padding-top: 0; padding-bottom: 0; }
+.composer-wrap--hero {
+  padding: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
 
 .composer {
   position: relative;
@@ -23343,8 +23348,13 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 
 /* ------------------------------------------------------------- composer */
 
-.composer-wrap { position: relative; padding: 10px 24px 20px; max-width: 768px; width: 100%; margin: 0 auto; }
-.composer-wrap--hero { padding-top: 0; padding-bottom: 0; }
+.composer-wrap { position: relative; padding: 10px 24px 20px; max-width: 800px; width: 100%; margin: 0 auto; }
+.composer-wrap--hero {
+  padding: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
 
 .composer {
   position: relative;
