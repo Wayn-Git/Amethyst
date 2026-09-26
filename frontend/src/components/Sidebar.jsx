@@ -259,7 +259,10 @@ export default function Sidebar() {
             <button
               type="button"
               className="sb-mini-brand-toggle-btn"
-              onClick={handleToggle}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleToggle()
+              }}
               title={`Expand sidebar — ${MOD_LABEL}+B`}
               aria-label="Expand sidebar"
             >
@@ -298,34 +301,17 @@ export default function Sidebar() {
             </button>
           </div>
 
-          {/* Middle Nav Items: Real Places (Today, Tasks, Library, Automations, etc.) */}
-          <div className="sb-mini-nav">
-            {navPlaces.map((place) => {
-              const isActive = view === place.id
-              return (
-                <button
-                  key={place.id}
-                  type="button"
-                  className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
-                  onClick={leave(() => setView(place.id))}
-                  onPointerEnter={() => prefetchView(place.id)}
-                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
-                  aria-label={place.label}
-                >
-                  <Icon name={place.icon} size={17} />
-                </button>
-              )
-            })}
-
-            <button
-              type="button"
-              className={`sb-mini-btn${view === 'chat' ? ' is-active' : ''}`}
-              onClick={leave(() => setView('chat'))}
-              title="Chat"
-              aria-label="Chat"
-            >
-              <Icon name="chat" size={17} />
-            </button>
+          {/* Spacious middle rail area — hover shows expand hint, click anywhere opens sidebar */}
+          <div
+            className="sb-mini-body"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleToggle()
+            }}
+            title={`Open sidebar — ${MOD_LABEL}+B`}
+            aria-label="Open sidebar"
+          >
+            <div className="sb-mini-grab-line" aria-hidden="true" />
           </div>
 
           {/* Bottom Actions: User Profile Initials Square */}
@@ -432,7 +418,7 @@ export default function Sidebar() {
           {/* Prominent + New Chat Pill Button */}
           <button
             type="button"
-            className="sb-new-chat-pill"
+            className={`sb-new-chat-pill${view === 'chat' && !activeId ? ' is-active' : ''}`}
             onClick={leave(() => {
               setView('chat')
               chat.startFresh?.()

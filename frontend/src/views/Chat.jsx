@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import BrandMark from '../components/BrandMark.jsx'
 import ServiceIcon from '../components/ServiceIcon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
@@ -807,13 +808,7 @@ const Msg = memo(function Msg({
     <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
       <div className="msg-user-row">
         <div className="msg-user-content">
-          <div className="msg-body msg-body--plain">
-            {item.text?.startsWith('>') ? (
-              <Markdown text={item.text} />
-            ) : (
-              item.text
-            )}
-          </div>
+          <div className="msg-body msg-body--plain">{item.text}</div>
           <div className="msg-user-meta">
             {timeStr && <span className="msg-time">{timeStr}</span>}
             <CopyButton text={item.text} label="Copy" />
@@ -933,7 +928,7 @@ export function resolveModelContextWindow(modelId = '', provider = '') {
 
 export default function Chat() {
   const {
-    health, refreshHealth, setView, toast, registerChat,
+    health, refreshHealth, setView, setOverlay, toast, registerChat,
     conversations, refreshConvs, activeId, setActiveId, setRenaming,
     caps, setCapEnabled, refreshCaps, setCapabilitiesTab,
     workspace, setWorkspace, notify,
@@ -966,6 +961,50 @@ export default function Chat() {
     const name = userProfile?.name
     return name ? `${timeOfDay}, ${name}` : timeOfDay
   }, [userProfile?.name])
+
+  const heroGreeting = useMemo(() => {
+    const hour = new Date().getHours()
+    const period = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
+    const name = userProfile?.name?.trim()
+    return name ? `${period} ${name}, ready to start a task?` : `${period}, ready to start a task?`
+  }, [userProfile?.name])
+
+  const suggestedActions = useMemo(() => [
+    {
+      id: 'whats-new',
+      icon: 'sparkle',
+      label: "What's new in Amethyst",
+      action: () => {
+        setInput('What are the latest features, capabilities, and updates in Amethyst?')
+        textareaRef.current?.focus()
+      },
+    },
+    {
+      id: 'automate',
+      icon: 'zap',
+      label: 'How to automate with AI',
+      action: () => {
+        setInput('How can I automate tasks, scheduled workflows, and background agents in Amethyst?')
+        textareaRef.current?.focus()
+      },
+    },
+    {
+      id: 'connect',
+      icon: 'plug',
+      label: 'Connect your apps for better answers',
+      action: () => {
+        setView('capabilities')
+      },
+    },
+    {
+      id: 'discover',
+      icon: 'dots',
+      label: 'Discover more',
+      action: () => {
+        setOverlay('palette')
+      },
+    },
+  ], [setView, setOverlay])
 
   // A question handed in from the palette or the tray hotkey, waiting for the
   // composer to hold it. See `ask` below for why it cannot just call `send`.
@@ -1025,25 +1064,6 @@ export default function Chat() {
   const [fullScreenMessage, setFullScreenMessage] = useState(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [inspectOpen, setInspectOpen] = useState(false)
-  const [referencedQuote, setReferencedQuote] = useState(null)
-
-  const handleReferQuote = useCallback((quoteText) => {
-    if (!quoteText || !quoteText.trim()) return
-    setReferencedQuote(quoteText.trim())
-    setTimeout(() => {
-      textareaRef.current?.focus()
-    }, 40)
-  }, [])
-
-  useEffect(() => {
-    const onRefer = (e) => {
-      if (e.detail?.text) {
-        handleReferQuote(e.detail.text)
-      }
-    }
-    window.addEventListener('amethyst-refer-quote', onRefer)
-    return () => window.removeEventListener('amethyst-refer-quote', onRefer)
-  }, [handleReferQuote])
   const inspectCardRef = useRef(null)
   const thoughtsStreamRef = useRef(null)
 
@@ -1263,14 +1283,12 @@ export default function Chat() {
   const selectConversation = useCallback((cid) => {
     if (cid === activeId) return
     leaveTurn()
-    setReferencedQuote(null)
     setActiveId(cid)
   }, [activeId, leaveTurn, setActiveId])
 
   const startFresh = useCallback(() => {
     leaveTurn()
     setActiveId(null)
-    setReferencedQuote(null)
     setItems([])
     setInput('')
     setTimeout(() => textareaRef.current?.focus(), 0)
@@ -1576,14 +1594,6 @@ export default function Chat() {
         setStreamingArtifact((id) => (id === evt.id ? null : id))
         break
 
-      case 'memory': {
-        const created = evt.created || []
-        if (created.length > 0) {
-          toast(created.length === 1 ? `Remembered: "${created[0]}"` : `Remembered ${created.length} new facts`, 'ok')
-        }
-        break
-      }
-
       default:
         /* A frame added on the server used to vanish here without trace, which
            is how you spend an afternoon wondering why the backend's new event
@@ -1773,17 +1783,6 @@ export default function Chat() {
     if (activeTag && activeTag.name && !typed.toLowerCase().includes(`@${activeTag.name.toLowerCase()}`)) {
       typed = `@${activeTag.name} ${typed}`.trim()
     }
-    const quoteToAttach = overrideText === undefined ? referencedQuote : null
-    if (quoteToAttach) {
-      const quoteBlock = quoteToAttach.trim().split('\n').map((l) => `> ${l}`).join('\n')
-      if (typed) {
-        typed = `${quoteBlock}\n\n${typed}`
-      } else {
-        typed = `${quoteBlock}\n\nCan you explain or elaborate on this?`
-      }
-      setReferencedQuote(null)
-    }
-
     const sending = overrideFiles !== undefined ? overrideFiles : attachments
     if ((!typed && sending.length === 0) || turnState !== 'idle') return
     // A new turn: whatever the last one wrote is no longer new.
@@ -1856,7 +1855,7 @@ export default function Chat() {
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag, referencedQuote,
+    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag,
   ])
 
   const handleSaveMessageEdit = useCallback(async (msgItem, newText) => {
@@ -1966,13 +1965,11 @@ export default function Chat() {
     
     if (!activeId) { setDraft((d) => ({ ...d, ...db_patch })) }
     else {
-      api.updateConversation(activeId, db_patch).then(() => {
-        refreshConvs()
-      }).catch((err) => {
+      api.updateConversation(activeId, db_patch).catch((err) => {
         toast(err.message, 'bad')
       })
     }
-  }, [activeId, toast, refreshConvs])
+  }, [activeId, toast])
 
   /* Ask something without typing it here.
 
@@ -2359,7 +2356,7 @@ export default function Chat() {
     <div className={`composer-wrap${isEmpty ? ' composer-wrap--hero' : ''}`}>
       {plusOpen && (
         <PlusMenu
-          placement={isEmpty ? 'up' : 'up'}
+          placement={isEmpty ? 'down' : 'up'}
           conversationId={activeId}
           workspace={workspace}
           onWorkspace={setWorkspace}
@@ -2524,111 +2521,14 @@ export default function Chat() {
           onRemove={(file) => setAttachments((list) => list.filter((f) => f.path !== file.path))}
         />
 
-        {referencedQuote && (
-          <div className="composer-quote-banner" role="region" aria-label="Referenced text">
-            <div className="composer-quote-main">
-              <div className="composer-quote-header">
-                <Icon name="quote" size={12} className="composer-quote-icon" />
-                <span>Referenced text</span>
-              </div>
-              <div className="composer-quote-snippet">
-                {referencedQuote}
-              </div>
-            </div>
+        {isEmpty ? (
+          <div className="hero-composer-single-row">
+            {/* Left + Button */}
             <button
               type="button"
-              className="composer-quote-remove"
-              onClick={() => setReferencedQuote(null)}
-              title="Remove reference"
-              aria-label="Remove reference"
-            >
-              <Icon name="x" size={13} />
-            </button>
-          </div>
-        )}
-
-        {/* Top Input Row */}
-        <div className="composer-card-input-wrap">
-          {activeTag && (
-            <span className="composer-active-tag">
-              {activeTag.type === 'connector' ? (
-                <ServiceIcon name={activeTag.name} size={12} />
-              ) : (
-                <Icon name="grid" size={12} />
-              )}
-              <span className="composer-active-tag-label">{activeTag.label}</span>
-              <button
-                type="button"
-                className="composer-active-tag-remove"
-                onClick={() => setActiveTag(null)}
-                aria-label={`Remove ${activeTag.label}`}
-              >
-                <Icon name="x" size={10} />
-              </button>
-            </span>
-          )}
-          <SmoothTextarea
-            textareaRef={textareaRef}
-            rows={1}
-            value={input}
-            placeholder={
-              turnState === 'running'
-                ? 'Add context while this runs'
-                : (referencedQuote ? 'Ask about this referenced text...' : (isEmpty ? 'How can I help you today?' : 'Ask for follow-up changes'))
-            }
-            aria-label="Message"
-            onChange={(e) => {
-              setInput(e.target.value)
-              runAc(e.target.value, activeId)
-              e.target.style.height = 'auto'
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 260)}px`
-            }}
-            onPaste={(e) => {
-              const files = [...(e.clipboardData?.files || [])]
-              if (files.length) { e.preventDefault(); uploadFiles(files) }
-            }}
-            onKeyDown={(e) => {
-              if (acItems.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-                e.preventDefault()
-                setAcIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : acItems.length - 1)) % acItems.length)
-                return
-              }
-              if (acItems.length && (e.key === 'Enter' || e.key === 'Tab')) {
-                e.preventDefault()
-                acceptAc(acItems[acIndex])
-                return
-              }
-              if (acItems.length && e.key === 'Escape') {
-                e.stopPropagation()
-                setAcItems([])
-                if (turnState === 'running') stop()
-                return
-              }
-              if (e.key === 'ArrowUp' && !input && lastSent) {
-                e.preventDefault()
-                setInput(lastSent)
-                return
-              }
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                if (turnState === 'running') {
-                  handleQueue()
-                } else {
-                  send()
-                }
-              }
-            }}
-          />
-        </div>
-
-        {/* Bottom Tools & Actions Row (Matching Image 1) */}
-        <div className="composer-card-bottom-bar">
-          <div className="composer-card-tools-left">
-            <button
-              type="button"
-              className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
+              className={`hero-plus-btn${plusOpen ? ' is-active' : ''}`}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+              onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
               title={`Files, skills, connectors — ${MOD_LABEL}+/`}
               aria-label="Add attachments or context"
             >
@@ -2636,116 +2536,366 @@ export default function Chat() {
               {attachments.length > 0 && <span className="composer-tool-count">{attachments.length}</span>}
             </button>
 
-            <button
-              type="button"
-              className="composer-tool-btn"
-              onClick={() => fileRef.current?.click()}
-              title="Attach documents or data"
-              aria-label="Attach documents"
-            >
-              <Icon name="paperclip" size={16} />
-            </button>
-
-            <button
-              type="button"
-              className="composer-tool-btn"
-              onClick={() => {
-                setInput((prev) => (prev ? `${prev} /search ` : '/search '))
-                textareaRef.current?.focus()
-              }}
-              title="Web search & live internet research"
-              aria-label="Web search"
-            >
-              <Icon name="globe" size={16} />
-            </button>
-
-            <button
-              type="button"
-              className={`composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
-              onClick={toggleTerminal}
-              title="Interactive Terminal"
-              aria-label="Toggle terminal"
-            >
-              <Icon name="term" size={16} />
-            </button>
-          </div>
-
-          <div className="composer-card-tools-right">
-            {/* Model selector pill (Image 4) with real model/provider logo */}
-            <div className="composer-model-pill-wrap">
-              <button
-                type="button"
-                className="composer-model-pill"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setModelOpen((o) => !o)
-                  setPlusOpen(false)
-                  setGuardOpen(false)
-                  setEffortOpen(false)
-                  setContextOpen(false)
-                }}
-                title="Provider and model"
-              >
-                <AiProviderIcon
-                  provider={active?.provider ?? draftProvider}
-                  model={active?.model ?? draftModel}
-                  size={14}
-                  className="composer-model-provider-icon"
-                />
-                <span className="composer-model-name">{shownModel}</span>
-                <Icon name="chevron" size={9} className="composer-model-chevron" />
-              </button>
-              {modelOpen && (
-                <ModelMenu
-                  placement={isEmpty ? 'down' : 'up'}
-                  provider={active?.provider ?? draftProvider}
-                  model={active?.model ?? draftModel}
-                  scoped={Boolean(activeId)}
-                  onChange={applyModel}
-                  onClose={() => setModelOpen(false)}
-                />
+            {/* Input Wrap */}
+            <div className="hero-composer-input-wrap">
+              {activeTag && (
+                <span className="composer-active-tag">
+                  {activeTag.type === 'connector' ? (
+                    <ServiceIcon name={activeTag.name} size={12} />
+                  ) : (
+                    <Icon name="grid" size={12} />
+                  )}
+                  <span className="composer-active-tag-label">{activeTag.label}</span>
+                  <button
+                    type="button"
+                    className="composer-active-tag-remove"
+                    onClick={() => setActiveTag(null)}
+                    aria-label={`Remove ${activeTag.label}`}
+                  >
+                    <Icon name="x" size={10} />
+                  </button>
+                </span>
               )}
+              <SmoothTextarea
+                textareaRef={textareaRef}
+                rows={1}
+                value={input}
+                placeholder={
+                  turnState === 'running'
+                    ? 'Add context while this runs'
+                    : 'Type / for quick access'
+                }
+                aria-label="Message"
+                onChange={(e) => {
+                  setInput(e.target.value)
+                  runAc(e.target.value, activeId)
+                  e.target.style.height = 'auto'
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 260)}px`
+                }}
+                onPaste={(e) => {
+                  const files = [...(e.clipboardData?.files || [])]
+                  if (files.length) { e.preventDefault(); uploadFiles(files) }
+                }}
+                onKeyDown={(e) => {
+                  if (acItems.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                    e.preventDefault()
+                    setAcIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : acItems.length - 1)) % acItems.length)
+                    return
+                  }
+                  if (acItems.length && (e.key === 'Enter' || e.key === 'Tab')) {
+                    e.preventDefault()
+                    acceptAc(acItems[acIndex])
+                    return
+                  }
+                  if (acItems.length && e.key === 'Escape') {
+                    e.stopPropagation()
+                    setAcItems([])
+                    if (turnState === 'running') stop()
+                    return
+                  }
+                  if (e.key === 'ArrowUp' && !input && lastSent) {
+                    e.preventDefault()
+                    setInput(lastSent)
+                    return
+                  }
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (turnState === 'running') {
+                      handleQueue()
+                    } else {
+                      send()
+                    }
+                  }
+                }}
+              />
             </div>
 
-            {/* Send / Stop button */}
-            {turnState === 'running' ? (
-              <>
-                <button
-                  type="button"
-                  className="composer-send-circle is-stop"
-                  onClick={stop}
-                  disabled={stopping}
-                  title="Stop turn — Esc"
-                  aria-label="Stop"
-                >
-                  <span className="composer-stop-square" />
-                </button>
-                <button
-                  type="button"
-                  className="composer-queue-btn"
-                  onClick={handleQueue}
-                  title="Queue message to run after current turn — Enter"
-                  aria-label="Queue"
-                >
-                  <span>Queue</span>
-                  <span className="composer-queue-symbol">↵</span>
-                </button>
-              </>
-            ) : (
+            {/* Right Tools & Actions */}
+            <div className="hero-composer-actions">
               <button
                 type="button"
-                className="composer-send-circle"
-                onClick={() => send()}
-                disabled={!input.trim() && attachments.length === 0}
-                title="Send — Enter"
-                aria-label="Send"
+                className="composer-tool-btn"
+                onClick={() => {
+                  setInput((prev) => (prev ? `${prev} /search ` : '/search '))
+                  textareaRef.current?.focus()
+                }}
+                title="Web search & live internet research"
+                aria-label="Web search"
               >
-                <Icon name="arrow-up" size={14} />
+                <Icon name="globe" size={15} />
               </button>
-            )}
+
+              <button
+                type="button"
+                className={`composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
+                onClick={toggleTerminal}
+                title="Interactive Terminal"
+                aria-label="Toggle terminal"
+              >
+                <Icon name="term" size={15} />
+              </button>
+
+              {/* Model selector pill */}
+              <div className="composer-model-pill-wrap">
+                <button
+                  type="button"
+                  className="composer-model-pill"
+                  onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+                  title="Provider and model"
+                >
+                  <AiProviderIcon
+                    provider={active?.provider ?? draftProvider}
+                    model={active?.model ?? draftModel}
+                    size={14}
+                    className="composer-model-provider-icon"
+                  />
+                  <span className="composer-model-name">{shownModel}</span>
+                  <Icon name="chevron" size={9} className="composer-model-chevron" />
+                </button>
+                {modelOpen && (
+                  <ModelMenu
+                    placement="down"
+                    provider={active?.provider ?? draftProvider}
+                    model={active?.model ?? draftModel}
+                    scoped={Boolean(activeId)}
+                    onChange={applyModel}
+                    onClose={() => setModelOpen(false)}
+                  />
+                )}
+              </div>
+
+              {/* Send / Stop button */}
+              {turnState === 'running' ? (
+                <>
+                  <button
+                    type="button"
+                    className="composer-send-circle is-stop"
+                    onClick={stop}
+                    disabled={stopping}
+                    title="Stop turn — Esc"
+                    aria-label="Stop"
+                  >
+                    <span className="composer-stop-square" />
+                  </button>
+                  <button
+                    type="button"
+                    className="composer-queue-btn"
+                    onClick={handleQueue}
+                    title="Queue message to run after current turn — Enter"
+                    aria-label="Queue"
+                  >
+                    <span>Queue</span>
+                    <span className="composer-queue-symbol">↵</span>
+                  </button>
+                </>
+              ) : (input.trim() || attachments.length > 0) ? (
+                <button
+                  type="button"
+                  className="composer-send-circle"
+                  onClick={() => send()}
+                  title="Send — Enter"
+                  aria-label="Send"
+                >
+                  <Icon name="arrow-up" size={14} />
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Top Input Row */}
+            <div className="composer-card-input-wrap">
+              {activeTag && (
+                <span className="composer-active-tag">
+                  {activeTag.type === 'connector' ? (
+                    <ServiceIcon name={activeTag.name} size={12} />
+                  ) : (
+                    <Icon name="grid" size={12} />
+                  )}
+                  <span className="composer-active-tag-label">{activeTag.label}</span>
+                  <button
+                    type="button"
+                    className="composer-active-tag-remove"
+                    onClick={() => setActiveTag(null)}
+                    aria-label={`Remove ${activeTag.label}`}
+                  >
+                    <Icon name="x" size={10} />
+                  </button>
+                </span>
+              )}
+              <SmoothTextarea
+                textareaRef={textareaRef}
+                rows={1}
+                value={input}
+                placeholder={
+                  turnState === 'running'
+                    ? 'Add context while this runs'
+                    : 'Ask for follow-up changes'
+                }
+                aria-label="Message"
+                onChange={(e) => {
+                  setInput(e.target.value)
+                  runAc(e.target.value, activeId)
+                  e.target.style.height = 'auto'
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 260)}px`
+                }}
+                onPaste={(e) => {
+                  const files = [...(e.clipboardData?.files || [])]
+                  if (files.length) { e.preventDefault(); uploadFiles(files) }
+                }}
+                onKeyDown={(e) => {
+                  if (acItems.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                    e.preventDefault()
+                    setAcIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : acItems.length - 1)) % acItems.length)
+                    return
+                  }
+                  if (acItems.length && (e.key === 'Enter' || e.key === 'Tab')) {
+                    e.preventDefault()
+                    acceptAc(acItems[acIndex])
+                    return
+                  }
+                  if (acItems.length && e.key === 'Escape') {
+                    e.stopPropagation()
+                    setAcItems([])
+                    if (turnState === 'running') stop()
+                    return
+                  }
+                  if (e.key === 'ArrowUp' && !input && lastSent) {
+                    e.preventDefault()
+                    setInput(lastSent)
+                    return
+                  }
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (turnState === 'running') {
+                      handleQueue()
+                    } else {
+                      send()
+                    }
+                  }
+                }}
+              />
+            </div>
+
+            {/* Bottom Tools & Actions Row (Matching Image 1) */}
+            <div className="composer-card-bottom-bar">
+              <div className="composer-card-tools-left">
+                <button
+                  type="button"
+                  className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+                  title={`Files, skills, connectors — ${MOD_LABEL}+/`}
+                  aria-label="Add attachments or context"
+                >
+                  <Icon name="plus" size={16} />
+                  {attachments.length > 0 && <span className="composer-tool-count">{attachments.length}</span>}
+                </button>
+
+                <button
+                  type="button"
+                  className="composer-tool-btn"
+                  onClick={() => fileRef.current?.click()}
+                  title="Attach documents or data"
+                  aria-label="Attach documents"
+                >
+                  <Icon name="paperclip" size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  className="composer-tool-btn"
+                  onClick={() => {
+                    setInput((prev) => (prev ? `${prev} /search ` : '/search '))
+                    textareaRef.current?.focus()
+                  }}
+                  title="Web search & live internet research"
+                  aria-label="Web search"
+                >
+                  <Icon name="globe" size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  className={`composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
+                  onClick={toggleTerminal}
+                  title="Interactive Terminal"
+                  aria-label="Toggle terminal"
+                >
+                  <Icon name="term" size={16} />
+                </button>
+              </div>
+
+              <div className="composer-card-tools-right">
+                {/* Model selector pill (Image 4) with real model/provider logo */}
+                <div className="composer-model-pill-wrap">
+                  <button
+                    type="button"
+                    className="composer-model-pill"
+                    onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
+                    title="Provider and model"
+                  >
+                    <AiProviderIcon
+                      provider={active?.provider ?? draftProvider}
+                      model={active?.model ?? draftModel}
+                      size={14}
+                      className="composer-model-provider-icon"
+                    />
+                    <span className="composer-model-name">{shownModel}</span>
+                    <Icon name="chevron" size={9} className="composer-model-chevron" />
+                  </button>
+                  {modelOpen && (
+                    <ModelMenu
+                      placement={isEmpty ? 'down' : 'up'}
+                      provider={active?.provider ?? draftProvider}
+                      model={active?.model ?? draftModel}
+                      scoped={Boolean(activeId)}
+                      onChange={applyModel}
+                      onClose={() => setModelOpen(false)}
+                    />
+                  )}
+                </div>
+
+                {/* Send / Stop button */}
+                {turnState === 'running' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="composer-send-circle is-stop"
+                      onClick={stop}
+                      disabled={stopping}
+                      title="Stop turn — Esc"
+                      aria-label="Stop"
+                    >
+                      <span className="composer-stop-square" />
+                    </button>
+                    <button
+                      type="button"
+                      className="composer-queue-btn"
+                      onClick={handleQueue}
+                      title="Queue message to run after current turn — Enter"
+                      aria-label="Queue"
+                    >
+                      <span>Queue</span>
+                      <span className="composer-queue-symbol">↵</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="composer-send-circle"
+                    onClick={() => send()}
+                    disabled={!input.trim() && attachments.length === 0}
+                    title="Send — Enter"
+                    aria-label="Send"
+                  >
+                    <Icon name="arrow-up" size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Bottom Controls Bar (Only in active conversations) */}
@@ -2969,85 +3119,67 @@ export default function Chat() {
               hidden: { opacity: 0 },
               show: {
                 opacity: 1,
-                transition: { staggerChildren: 0.08, delayChildren: 0.04 },
+                transition: { staggerChildren: 0.07, delayChildren: 0.03 },
               },
             }}
           >
-            {/* Amethyst Crystal Logo with subtle ambient halo */}
-            <motion.div
-              className="hero-logo-wrap"
-              variants={{
-                hidden: { opacity: 0, scale: 0.88, y: 10 },
-                show: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
-              }}
-            >
-              <div className="hero-logo-halo" aria-hidden="true" />
-              <svg
-                viewBox="524.5 524 560 560"
-                className="hero-logo-mark"
-                width="52"
-                height="52"
-                aria-label="Amethyst Logo"
+            <div className="hero-stack-inner">
+              {/* Brand Logo Mark */}
+              <motion.div
+                className="hero-brand-mark"
+                variants={{
+                  hidden: { opacity: 0, y: 8 },
+                  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+                }}
               >
-                <path fill="var(--accent, #7132f5)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z"/>
-                <path fill="var(--accent, #7132f5)" d="M1016 701L928 722L847 986L960 870L1039 846Z"/>
-                <path fill="var(--accent, #7132f5)" d="M595 701L570 845L651 870L763 985L682 722Z"/>
-              </svg>
-            </motion.div>
+                <BrandMark size={28} variant="orange" />
+              </motion.div>
 
-            {/* Dynamic Greeting & Subtitle */}
-            <motion.div
-              className="hero"
-              variants={{
-                hidden: { opacity: 0, y: 8 },
-                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
-              }}
-            >
-              <h1 className="hero-headline">{greeting}</h1>
-              <p className="hero-subheadline">
-                What's on <span className="hero-gradient-text">your mind?</span>
-              </p>
-            </motion.div>
+              {/* Dynamic Greeting */}
+              <motion.div
+                className="hero-greeting-wrap"
+                variants={{
+                  hidden: { opacity: 0, y: 8 },
+                  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+                }}
+              >
+                <h1 className="hero-headline">{heroGreeting}</h1>
+              </motion.div>
 
-            {/* Composer Card */}
-            <motion.div
-              className="hero-composer-wrap"
-              style={{ width: '100%' }}
-              variants={{
-                hidden: { opacity: 0, y: 12 },
-                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
-              }}
-            >
-              {composer}
-            </motion.div>
+              {/* Composer Input Bar */}
+              <motion.div
+                className="hero-composer-wrap"
+                variants={{
+                  hidden: { opacity: 0, y: 10 },
+                  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+                }}
+              >
+                {composer}
+              </motion.div>
 
-            {/* Quick starts */}
-            <motion.div
-              className="hero-chips"
-              variants={{
-                hidden: { opacity: 0, y: 8 },
-                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
-              }}
-            >
-              {QUICK_STARTS.map((card) => (
-                <motion.button
-                  key={card.id}
-                  type="button"
-                  className="hero-chip"
-                  title={card.subtitle}
-                  whileHover={{ y: -2, scale: 1.015 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  onClick={() => {
-                    setInput(card.prompt)
-                    textareaRef.current?.focus()
-                  }}
-                >
-                  <Icon name={card.icon} size={14} />
-                  <span>{card.title}</span>
-                </motion.button>
-              ))}
-            </motion.div>
+              {/* Suggested Actions List */}
+              <motion.div
+                className="hero-suggestions-list"
+                variants={{
+                  hidden: { opacity: 0, y: 8 },
+                  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+                }}
+              >
+                {suggestedActions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="hero-suggestion-row"
+                    onClick={item.action}
+                  >
+                    <span className="hero-suggestion-icon">
+                      <Icon name={item.icon} size={15} />
+                    </span>
+                    <span className="hero-suggestion-label">{item.label}</span>
+                  </button>
+                ))}
+              </motion.div>
+            </div>
           </motion.div>
         ) : (
           <>
@@ -3094,10 +3226,6 @@ export default function Chat() {
             {/* The transcript fades at whichever edge it actually runs past,
                 so a reply that continues above the fold says so without a rule
                 across the page. */}
-            <SelectionActionMenu
-              containerRef={scrollRef}
-              onRefer={handleReferQuote}
-            />
             <FadeScrollArea className="chat-scroll" scrollRef={scrollRef} onScroll={onScroll} fadeHeight={28}>
               <div className={`chat-stream${settledStream ? ' is-settled' : ''}`}>
                 {loadError && (
@@ -3199,27 +3327,23 @@ export default function Chat() {
 
       {panel && !compact && view === 'chat' && (
         panelMode === 'sources' ? (
-          activeSources?.length > 0 ? (
-            <SourcesSidePanel
-              sources={activeSources}
-              activeUrl={activeSourceUrl}
-              duration="3s"
-              onClose={() => { setPanel(false); setPanelMode('artifacts') }}
-            />
-          ) : null
+          <SourcesSidePanel
+            sources={activeSources}
+            activeUrl={activeSourceUrl}
+            duration="3s"
+            onClose={() => { setPanel(false); setPanelMode('artifacts') }}
+          />
         ) : (
-          (!isEmpty && artifacts.length > 0) ? (
-            <ArtifactSide
-              artifacts={artifacts}
-              activeArtifact={activeArtifact}
-              onSelectArtifact={setActiveArtifact}
-              streamingArtifact={streamingArtifact}
-              freshArtifact={freshArtifact}
-              expanded={panelExpanded}
-              onToggleExpand={togglePanelExpanded}
-              onClose={() => { setPanelExpanded(false); setPanel(false) }}
-            />
-          ) : null
+          <ArtifactSide
+            artifacts={artifacts}
+            activeArtifact={activeArtifact}
+            onSelectArtifact={setActiveArtifact}
+            streamingArtifact={streamingArtifact}
+            freshArtifact={freshArtifact}
+            expanded={panelExpanded}
+            onToggleExpand={togglePanelExpanded}
+            onClose={() => { setPanelExpanded(false); setPanel(false) }}
+          />
         )
       )}
 
