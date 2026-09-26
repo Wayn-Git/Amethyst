@@ -11,11 +11,10 @@ import { SkeletonRows } from '../components/Skeleton.jsx'
 
 /* Smart Buckets configuration */
 const BUCKETS = [
-  { id: 'my_day', label: 'My Day', icon: 'sun', blurb: 'Your To Do list called My Day.' },
+  { id: 'my_day', label: 'My Day', icon: 'sun', blurb: 'Tasks created today.' },
   { id: 'missed', label: 'Missed', icon: 'clock', blurb: 'Past its deadline and still open.' },
   { id: 'important', label: 'Important', icon: 'star', blurb: 'Flagged, whatever the date.' },
-  { id: 'general', label: 'General', icon: 'list', blurb: 'No date attached.' },
-  { id: 'all', label: 'All open', icon: 'check', blurb: 'Everything still to do.' },
+  { id: 'general', label: 'General', icon: 'list', blurb: 'All existing tasks.' },
   { id: 'completed', label: 'Completed', icon: 'archive', blurb: 'Done. Cancelled is not done.' },
 ]
 
@@ -51,6 +50,18 @@ function dayLabel(value) {
   if (days === -1) return 'Yesterday'
   const year = date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
   return date.toLocaleDateString([], { day: 'numeric', month: 'short', year })
+}
+
+function isCreatedToday(task) {
+  if (!task) return false
+  const stamp = task.created_at || task.created
+  if (!stamp) return false
+  if (dayLabel(stamp) === 'Today') return true
+  if (typeof stamp === 'string' && !stamp.endsWith('Z') && !stamp.includes('+')) {
+    const dUtc = parse(stamp.replace(' ', 'T') + 'Z')
+    if (dUtc && dayLabel(dUtc.toISOString()) === 'Today') return true
+  }
+  return false
 }
 
 function clock(value) {
@@ -290,11 +301,12 @@ function ComposerModal({ lists, presetList, initialStatus = 'todo', onAdded, onC
 /* =========================================================================
    Interactive Task Detail & Edit Modal (with completion progress slider)
    ========================================================================= */
-function TaskDetailModal({ task, lists, hues, busy, onPatch, onDrop, onClose }) {
+function TaskDetailModal({ task, lists, hues, myDayListId, busy, onPatch, onDrop, onClose }) {
   const ref = useRef(null)
   useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
   const done = task.status === 'done'
   const inProg = task.status === 'in_progress'
+  const inMyDay = myDayListId != null && task.list_id === myDayListId
   const [title, setTitle] = useState(task.title || '')
   const [notes, setNotes] = useState(task.notes || '')
   const [due, setDue] = useState('')
@@ -573,6 +585,21 @@ function TaskDetailModal({ task, lists, hues, busy, onPatch, onDrop, onClose }) 
           <div className="am-detail-actions">
             <button
               type="button"
+              className={`am-toggle-pill${inMyDay ? ' is-active' : ''}`}
+              onClick={() => {
+                onPatch(
+                  task,
+                  { add_to_my_day: !inMyDay },
+                  inMyDay ? 'Moved out of My Day' : 'Moved into My Day',
+                )
+              }}
+            >
+              <Icon name="sun" size={14} />
+              <span>{inMyDay ? 'In My Day' : 'Add to My Day'}</span>
+            </button>
+
+            <button
+              type="button"
               className={`am-toggle-pill${task.important ? ' is-active' : ''}`}
               onClick={() => onPatch(task, { important: !task.important })}
             >
@@ -681,6 +708,7 @@ function TaskCard({
       whileHover={{ y: -3, transition: { duration: 0.2 } }}
       className={`am-task-card am-card-${state}${done ? ' am-card--done' : ''}`}
       data-state={state}
+      onClick={() => onOpenDetail(task)}
     >
       {/* Top Banner Row */}
       <div className="am-card-top">
@@ -711,65 +739,8 @@ function TaskCard({
           </span>
         )}
 
-        {/* Hover Action Controls */}
+        {/* Minimalist Action Controls */}
         <div className="am-card-tools">
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.88 }}
-            className="am-icon-btn am-tool-open"
-            title="Open Details & Edit"
-            aria-label="Open task details"
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpenDetail(task)
-            }}
-          >
-            <Icon name="arrow-up-right" size={13} />
-          </motion.button>
-
-          {!done && (
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.88 }}
-              className={`am-icon-btn am-tool-progress${task.status === 'in_progress' ? ' is-active' : ''}`}
-              disabled={busy}
-              title={task.status === 'in_progress' ? 'Move back to To Do' : 'Move to In Progress'}
-              aria-label={task.status === 'in_progress' ? 'Move back to To Do' : 'Move to In Progress'}
-              onClick={(e) => {
-                e.stopPropagation()
-                patch(
-                  task,
-                  { status: task.status === 'in_progress' ? 'todo' : 'in_progress' },
-                  task.status === 'in_progress' ? 'Moved to To Do' : 'Moved to In Progress',
-                )
-              }}
-            >
-              <Icon name="lightning" size={13} />
-            </motion.button>
-          )}
-
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.88 }}
-            className={`am-icon-btn am-tool-sun${inMyDay ? ' is-active' : ''}`}
-            disabled={busy}
-            title={inMyDay ? 'Remove from My Day' : 'Add to My Day'}
-            aria-label={`Move ${task.title} into My Day`}
-            onClick={(e) => {
-              e.stopPropagation()
-              patch(
-                task,
-                { add_to_my_day: !inMyDay },
-                inMyDay ? 'Moved out of My Day' : 'Moved into My Day',
-              )
-            }}
-          >
-            <Icon name="sun" size={13} />
-          </motion.button>
-
           <motion.button
             type="button"
             whileHover={{ scale: 1.15 }}
@@ -909,7 +880,6 @@ export default function Tasks() {
   const [view, setViewKey] = useState({ bucket: 'my_day', listId: null })
   const [viewMode, setViewMode] = useState('board') // 'board' | 'grid' | 'list'
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterTag, setFilterTag] = useState('all') // 'all' | 'important' | 'today' | 'overdue'
 
   const landed = useRef(false)
   const [tasks, setTasks] = useState([])
@@ -936,9 +906,14 @@ export default function Tasks() {
   const load = useCallback(async () => {
     const token = ++loadToken.current
     try {
+      if (!view.listId && view.bucket === 'all') {
+        setViewKey({ bucket: 'general', listId: null })
+        return
+      }
       const isCompletedBucket = view.bucket === 'completed'
+      const isAllBucket = view.bucket === 'general'
       const [rows, allCompleted, allOpen, summary, cal] = await Promise.all([
-        api.tasks(view.listId ? { listId: view.listId } : { bucket: isCompletedBucket ? 'all' : view.bucket }),
+        api.tasks(view.listId ? { listId: view.listId } : { bucket: isCompletedBucket || isAllBucket ? 'all' : view.bucket }),
         api.tasks({ bucket: 'completed' }),
         api.tasks({ bucket: 'all' }),
         api.taskBuckets(),
@@ -954,58 +929,18 @@ export default function Tasks() {
       } else if (view.bucket === 'important') {
         relevantCompleted = allCompleted.filter((t) => Boolean(t.important))
       } else if (view.bucket === 'my_day') {
-        const explicitMyDay = allOpen.filter(
-          (t) =>
-            (summary.my_day_list_id != null && t.list_id === summary.my_day_list_id) ||
-            dayLabel(t.due_at || t.scheduled_at) === 'Today',
-        )
-        const inProgress = allOpen.filter((t) => t.status === 'in_progress')
-
-        const myDayTasksMap = new Map()
-        for (const t of explicitMyDay) myDayTasksMap.set(t.id, t)
-        for (const t of inProgress) myDayTasksMap.set(t.id, t)
-
-        // If no todo tasks are explicitly assigned to My Day, populate To Do with open tasks
-        const hasTodo = Array.from(myDayTasksMap.values()).some((t) => t.status !== 'in_progress')
-        if (!hasTodo) {
-          for (const t of allOpen) {
-            myDayTasksMap.set(t.id, t)
-          }
-        }
-        openRows = Array.from(myDayTasksMap.values())
-
-        relevantCompleted = allCompleted.filter(
-          (t) =>
-            (summary.my_day_list_id != null && t.list_id === summary.my_day_list_id) ||
-            dayLabel(t.completed_at) === 'Today' ||
-            dayLabel(t.due_at || t.scheduled_at) === 'Today',
-        )
+        openRows = allOpen.filter((t) => isCreatedToday(t))
+        relevantCompleted = allCompleted.filter((t) => isCreatedToday(t))
       } else if (view.bucket === 'general') {
-        relevantCompleted = allCompleted.filter(
-          (t) =>
-            !t.due_at &&
-            !t.scheduled_at &&
-            (summary.my_day_list_id == null || t.list_id !== summary.my_day_list_id),
-        )
+        openRows = allOpen
+        relevantCompleted = allCompleted
       } else if (view.bucket === 'missed') {
         relevantCompleted = allCompleted.filter((t) => isOverdue(t))
       }
 
       if (summary?.buckets) {
-        const explicitMyDay = allOpen.filter(
-          (t) =>
-            (summary.my_day_list_id != null && t.list_id === summary.my_day_list_id) ||
-            dayLabel(t.due_at || t.scheduled_at) === 'Today',
-        )
-        const inProgress = allOpen.filter((t) => t.status === 'in_progress')
-        const myDayTasksMap = new Map()
-        for (const t of explicitMyDay) myDayTasksMap.set(t.id, t)
-        for (const t of inProgress) myDayTasksMap.set(t.id, t)
-        const hasTodo = Array.from(myDayTasksMap.values()).some((t) => t.status !== 'in_progress')
-        if (!hasTodo) {
-          for (const t of allOpen) myDayTasksMap.set(t.id, t)
-        }
-        summary.buckets.my_day = myDayTasksMap.size
+        summary.buckets.my_day = allOpen.filter((t) => isCreatedToday(t)).length
+        summary.buckets.general = allOpen.length
       }
 
       const taskMap = new Map()
@@ -1048,11 +983,11 @@ export default function Tasks() {
 
   useEffect(() => {
     if (landed.current || !counts.buckets || Object.keys(counts.buckets).length === 0) return
-    const { my_day: myDay = 0, missed = 0, all = 0 } = counts.buckets
+    const { my_day: myDay = 0, missed = 0, general = 0, all = 0 } = counts.buckets
     landed.current = true
     if (myDay > 0) return
     if (missed > 0) setViewKey({ bucket: 'missed', listId: null })
-    else if (all > 0) setViewKey({ bucket: 'all', listId: null })
+    else if (general > 0 || all > 0) setViewKey({ bucket: 'general', listId: null })
   }, [counts])
 
   const patch = useCallback(
@@ -1220,7 +1155,7 @@ export default function Tasks() {
         isDefault: Boolean(found?.is_default),
       }
     }
-    const b = BUCKETS.find((bk) => bk.id === view.bucket) || BUCKETS[0]
+    const b = BUCKETS.find((bk) => bk.id === (view.bucket === 'all' ? 'general' : view.bucket)) || BUCKETS[0]
     return { ...b, isCustomList: false }
   }, [view, counts])
 
@@ -1233,12 +1168,9 @@ export default function Tasks() {
         const notesMatch = t.notes?.toLowerCase().includes(q)
         if (!titleMatch && !notesMatch) return false
       }
-      if (filterTag === 'important') return Boolean(t.important)
-      if (filterTag === 'today') return dayLabel(t.due_at || t.scheduled_at) === 'Today'
-      if (filterTag === 'overdue') return isOverdue(t)
       return true
     })
-  }, [tasks, searchQuery, filterTag])
+  }, [tasks, searchQuery])
 
   /* Split for grid/list */
   const [mainTasks, completedTasks] = useMemo(() => {
@@ -1506,39 +1438,6 @@ export default function Tasks() {
           color: var(--text-dim);
           cursor: pointer;
           padding: 2px;
-        }
-
-        .am-tags-filter {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .am-tag-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 13px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 500;
-          border: 1px solid var(--hairline);
-          background: transparent;
-          color: var(--text-dim);
-          cursor: pointer;
-          transition: all 0.18s ease;
-        }
-
-        .am-tag-btn:hover {
-          color: var(--text);
-          border-color: var(--text-dim);
-        }
-
-        .am-tag-btn.is-active {
-          background: color-mix(in srgb, var(--accent) 18%, var(--surface));
-          color: var(--text);
-          border-color: var(--accent);
-          font-weight: 600;
         }
 
         .am-view-modes {
@@ -1864,6 +1763,7 @@ export default function Tasks() {
           flex-direction: column;
           gap: 7px;
           flex-shrink: 0;
+          cursor: pointer;
         }
 
         .am-task-card:hover {
@@ -1955,11 +1855,12 @@ export default function Tasks() {
         .am-card-tools {
           display: flex;
           align-items: center;
-          gap: 3px;
-          opacity: 0.65;
+          gap: 4px;
+          opacity: 0.35;
           transition: opacity 0.18s ease;
         }
 
+        .am-card-tools:has(.am-tool-star.is-active),
         .am-task-card:hover .am-card-tools,
         .am-task-card:focus-within .am-card-tools {
           opacity: 1;
@@ -2778,39 +2679,6 @@ export default function Tasks() {
             )}
           </div>
 
-          <div className="am-tags-filter">
-            <button
-              type="button"
-              className={`am-tag-btn${filterTag === 'all' ? ' is-active' : ''}`}
-              onClick={() => setFilterTag('all')}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              className={`am-tag-btn${filterTag === 'today' ? ' is-active' : ''}`}
-              onClick={() => setFilterTag('today')}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              className={`am-tag-btn${filterTag === 'important' ? ' is-active' : ''}`}
-              onClick={() => setFilterTag('important')}
-            >
-              <Icon name="star" size={12} />
-              <span>Important</span>
-            </button>
-            <button
-              type="button"
-              className={`am-tag-btn${filterTag === 'overdue' ? ' is-active' : ''}`}
-              onClick={() => setFilterTag('overdue')}
-            >
-              <Icon name="clock" size={12} />
-              <span>Overdue</span>
-            </button>
-          </div>
-
           <div className="am-view-modes">
             <button
               type="button"
@@ -3286,6 +3154,7 @@ export default function Tasks() {
             task={detailTask}
             lists={counts.lists || []}
             hues={hues}
+            myDayListId={counts.my_day_list_id}
             busy={busyTask === detailTask.id}
             onPatch={patch}
             onDrop={drop}
