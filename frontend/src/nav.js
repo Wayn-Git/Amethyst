@@ -12,13 +12,13 @@ export const NAV = [
   // carries digit 8 rather than 2: renumbering seven digits people already have
   // in their fingers is a worse trade than one entry whose position and digit
   // disagree.
-  { id: 'today', path: '/today', label: 'Today', icon: 'sun', digit: 8, rail: true, settings: true },
-  { id: 'tasks', path: '/tasks', label: 'Tasks', icon: 'check', digit: 2, rail: true, settings: true },
+  { id: 'today', path: '/today', label: 'Today', icon: 'calendar', digit: 8, rail: true, settings: true },
+  { id: 'tasks', path: '/tasks', label: 'Tasks', icon: 'tasks', digit: 2, rail: true, settings: true },
   { id: 'mail', path: '/mail', label: 'Mail', icon: 'mail', digit: 3, rail: true, settings: true, beta: true },
-  { id: 'capabilities', path: '/capabilities', label: 'Skills & connectors', icon: 'grid', digit: 4, rail: true, settings: true },
-  { id: 'automations', path: '/automations', label: 'Automations', icon: 'clock', digit: 5, rail: true, settings: true, beta: true },
+  { id: 'capabilities', path: '/capabilities', label: 'Skills & connectors', icon: 'connectors', digit: 4, rail: true, settings: true },
+  { id: 'automations', path: '/automations', label: 'Automations', icon: 'automations', digit: 5, rail: true, settings: true, beta: true },
   { id: 'memory', path: '/memory', label: 'Memory', icon: 'brain', digit: 6, rail: true, settings: true },
-  { id: 'library', path: '/library', label: 'Library', icon: 'book', digit: 9, rail: true, settings: true },
+  { id: 'library', path: '/library', label: 'Library', icon: 'books', digit: 9, rail: true, settings: true },
   // Reached from Settings rather than the rail. It is a page you open when
   // something looks wrong, not one you open every day, and the rail is worth
   // more to the pages that are.

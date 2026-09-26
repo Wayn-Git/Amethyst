@@ -1382,24 +1382,24 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   position: relative;
 }
 
-/* Single-row Hero Composer Capsule Pill (Matching modern inspiration) */
+/* Single-row Hero Composer Card (Clean Modern Match to Inspiration) */
 .composer-card--hero {
-  border-radius: 9999px !important;
-  background: var(--surface-2, #1f2025) !important;
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.09)) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28) !important;
-  padding: 6px 8px 6px 14px !important;
-  min-height: 52px !important;
+  border-radius: 12px !important;
+  background: var(--surface-2, #202126) !important;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08)) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22) !important;
+  padding: 6px 8px 6px 12px !important;
+  min-height: 48px !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: center !important;
   gap: 0 !important;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.15s ease !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
 }
 
 .composer-card--hero:focus-within {
-  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.22)) !important;
-  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.38) !important;
+  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.18)) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32) !important;
 }
 
 .hero-composer-single-row {
@@ -1407,19 +1407,19 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
+  min-height: 36px;
 }
 
 .hero-plus-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   background: transparent;
   border: none;
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-dim, #71717a);
   cursor: pointer;
   flex-shrink: 0;
   position: relative;
@@ -1455,7 +1455,7 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   outline: none !important;
   background: transparent !important;
   box-shadow: none !important;
-  padding: 6px 0;
+  padding: 4px 0;
   color: var(--text, #f3f4f6);
   font-size: 15px;
   line-height: 1.45;
@@ -1465,86 +1465,88 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 .hero-composer-input-wrap textarea::placeholder {
-  color: var(--text-faint, #6b7280);
+  color: var(--text-faint, #636674);
   opacity: 1;
 }
 
 .hero-composer-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.hero-composer-tool-btn {
-  width: 28px !important;
-  height: 28px !important;
-  padding: 0 !important;
-  opacity: 0.65;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-
-.hero-composer-tool-btn:hover {
-  opacity: 1;
-}
-
 .hero-composer-model-pill {
-  max-width: 140px;
-  height: 28px !important;
-  padding: 2px 8px !important;
-  font-size: 12px !important;
-  border-radius: 9999px !important;
+  max-width: 120px;
+  height: 25px !important;
+  padding: 2px 7px !important;
+  font-size: 11px !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: var(--text-dim, #9ca3af) !important;
+}
+
+.hero-composer-model-pill:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text, #ffffff) !important;
 }
 
 .hero-composer-model-pill .composer-model-name {
-  max-width: 85px;
+  max-width: 70px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.hero-composer-send-circle {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
-  min-height: 34px !important;
-  border-radius: 50% !important;
+/* Action button matching inspiration rounded-rect button */
+.hero-composer-send-btn {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  border-radius: 8px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   border: none !important;
   flex-shrink: 0 !important;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
   padding: 0 !important;
 }
 
-.hero-composer-send-circle.is-idle {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: rgba(255, 255, 255, 0.28) !important;
+.hero-composer-send-btn.is-idle {
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
   cursor: default !important;
   box-shadow: none !important;
 }
 
-.hero-composer-send-circle.is-active {
+.hero-composer-send-btn.is-active {
   background: #ffffff !important;
   color: #0b0c11 !important;
   cursor: pointer !important;
-  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.22) !important;
 }
 
-.hero-composer-send-circle.is-active:hover {
-  transform: scale(1.06);
-  background: #f0f0f4 !important;
+.hero-composer-send-btn.is-active:hover {
+  transform: scale(1.04);
+  background: #f4f4f6 !important;
 }
 
-/* Light theme overrides for hero composer capsule */
+.hero-composer-send-btn.is-stop {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+/* Light theme overrides for hero composer */
 [data-theme='light'] .composer-card--hero,
 [data-theme='paper'] .composer-card--hero,
 [data-theme='sand'] .composer-card--hero,
 [data-theme='apple'] .composer-card--hero {
-  background: #f3f4f6 !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.07) !important;
+  background: #f4f4f6 !important;
+  border-color: rgba(0, 0, 0, 0.09) !important;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06) !important;
 }
 
 [data-theme='light'] .hero-plus-btn:hover,
@@ -1555,21 +1557,21 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   color: #111827;
 }
 
-[data-theme='light'] .hero-composer-send-circle.is-idle,
-[data-theme='paper'] .hero-composer-send-circle.is-idle,
-[data-theme='sand'] .hero-composer-send-circle.is-idle,
-[data-theme='apple'] .hero-composer-send-circle.is-idle {
+[data-theme='light'] .hero-composer-send-btn.is-idle,
+[data-theme='paper'] .hero-composer-send-btn.is-idle,
+[data-theme='sand'] .hero-composer-send-btn.is-idle,
+[data-theme='apple'] .hero-composer-send-btn.is-idle {
   background: rgba(0, 0, 0, 0.06) !important;
   color: rgba(0, 0, 0, 0.28) !important;
 }
 
-[data-theme='light'] .hero-composer-send-circle.is-active,
-[data-theme='paper'] .hero-composer-send-circle.is-active,
-[data-theme='sand'] .hero-composer-send-circle.is-active,
-[data-theme='apple'] .hero-composer-send-circle.is-active {
+[data-theme='light'] .hero-composer-send-btn.is-active,
+[data-theme='paper'] .hero-composer-send-btn.is-active,
+[data-theme='sand'] .hero-composer-send-btn.is-active,
+[data-theme='apple'] .hero-composer-send-btn.is-active {
   background: #111827 !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Suggested Actions List */
@@ -13034,7 +13036,7 @@ a.text-reveal-wrap {
   justify-content: center;
   flex-shrink: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .brand-mark img {
@@ -35295,7 +35297,7 @@ a.text-reveal-wrap {
   justify-content: center;
   flex-shrink: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .brand-mark img {
