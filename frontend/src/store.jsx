@@ -170,6 +170,8 @@ function applyTheme(theme) {
   // Dark-family themes: graphite, ink, nocturne, cohere, stripe. Light-family: apple, anthropic, sunshine, paper, sand.
   const isDark = ['graphite', 'ink', 'nocturne', 'cohere', 'stripe'].includes(resolved)
   root.style.colorScheme = isDark ? 'dark' : 'light'
+  root.classList.toggle('dark', isDark)
+  root.classList.toggle('dark-mode', isDark)
   const tag = document.querySelector('meta[name="theme-color"]')
   if (tag) {
     const canvas = getComputedStyle(root).getPropertyValue('--canvas').trim()
