@@ -444,8 +444,11 @@ async function share(request: Request, env: Env): Promise<Response> {
 	const stored = await getState(env, 'share_token');
 	const presented = bearer(request.headers.get('authorization'));
 	if (!stored) return json({ error: 'no such endpoint: /share' }, 404);
-	if (!presented || !sameSecret(presented, stored)) {
-		return json({ error: 'that token is not the one this relay holds' }, 401);
+	if (!presented) {
+		return json({ error: 'an Authorization: Bearer <token> header is required' }, 401);
+	}
+	if (!sameSecret(presented, stored)) {
+		return json({ error: 'that token is not the one this relay holds — rotate with: amethyst share token' }, 401);
 	}
 
 	const raw = await request.arrayBuffer();
@@ -934,6 +937,11 @@ export default {
 			return sync(request, env);
 		}
 
+		// A link from a phone. Its own credential (share_token), not Instagram's:
+		// the same reasoning that puts /sync above the Instagram gate. A relay
+		// without Meta configured is still a relay a phone can share links to.
+		if (path === '/share' && request.method === 'POST') return share(request, env);
+
 		// Everything below is Instagram capture, which needs all three. A Worker
 		// deployed but not yet given its secrets is not half-working, it is not
 		// working -- and it answers 404 rather than 500, the same way
@@ -950,7 +958,6 @@ export default {
 			if (request.method === 'POST') return delivery(request, env, ctx);
 			return json({ error: 'method not allowed' }, 405);
 		}
-		if (path === '/share' && request.method === 'POST') return share(request, env);
 
 
 		// The worker mailbox. Its own credential, and one verb: a runner may say

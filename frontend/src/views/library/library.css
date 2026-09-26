@@ -1202,6 +1202,34 @@
 .lib-card--processing {
   border-style: dashed;
   border-color: rgba(113, 50, 245, 0.4);
+  position: relative;
+  overflow: hidden;
+  animation: lib-card-pulse 2.4s ease-in-out infinite;
+}
+
+.lib-card--processing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(139, 92, 246, 0.06) 44%,
+    rgba(139, 92, 246, 0.12) 50%,
+    rgba(139, 92, 246, 0.06) 56%,
+    transparent 62%
+  );
+  background-size: 200% 100%;
+  animation: lib-shimmer 1.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+
+@keyframes lib-card-pulse {
+  0%, 100% { border-color: rgba(113, 50, 245, 0.25); }
+  50%      { border-color: rgba(113, 50, 245, 0.55); }
 }
 
 /* Wide Bento Card (Landscape split on tablets/desktops) */
