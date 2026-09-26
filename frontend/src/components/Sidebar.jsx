@@ -254,7 +254,7 @@ export default function Sidebar() {
           }}
           title="Click to expand sidebar"
         >
-          {/* Top Actions: App Icon (reveals Sidebar Expand on hover) + Search + New Chat */}
+          {/* Top Actions: App Icon (reveals Sidebar Expand on hover) + New Chat + Search */}
           <div className="sb-mini-top">
             <button
               type="button"
@@ -267,25 +267,11 @@ export default function Sidebar() {
               aria-label="Expand sidebar"
             >
               <span className="sb-mini-brand-icon">
-                <BrandMark size={22} glow />
+                <BrandMark size={24} glow />
               </span>
               <span className="sb-mini-toggle-icon">
-                <Icon name="sidebar" size={17} />
+                <Icon name="sidebar" size={19} />
               </span>
-            </button>
-
-            <button
-              type="button"
-              className="sb-mini-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                setSidebar(true)
-                setShowSearchInput(true)
-              }}
-              title={`Search conversations — ${MOD_LABEL}+K`}
-              aria-label="Search conversations"
-            >
-              <Icon name="search" size={17} />
             </button>
 
             <button
@@ -301,7 +287,21 @@ export default function Sidebar() {
               title={`New chat — ${MOD_LABEL}+Shift+O`}
               aria-label="New chat"
             >
-              <Icon name="plus" size={16} />
+              <Icon name="plus" size={18} weight="bold" />
+            </button>
+
+            <button
+              type="button"
+              className="sb-mini-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setSidebar(true)
+                setShowSearchInput(true)
+              }}
+              title={`Search conversations — ${MOD_LABEL}+K`}
+              aria-label="Search conversations"
+            >
+              <Icon name="search" size={20} />
             </button>
           </div>
 
@@ -322,7 +322,7 @@ export default function Sidebar() {
                   title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
                   aria-label={place.label}
                 >
-                  <Icon name={place.icon} size={17} />
+                  <Icon name={place.icon} size={20} />
                 </button>
               )
             })}
@@ -385,7 +385,7 @@ export default function Sidebar() {
                   title={`Search conversations — ${MOD_LABEL}+K`}
                   aria-label="Search conversations"
                 >
-                  <Icon name="search" size={16} />
+                  <Icon name="search" size={18} />
                 </button>
 
                 <button
@@ -395,7 +395,7 @@ export default function Sidebar() {
                   title={`Collapse sidebar — ${MOD_LABEL}+B`}
                   aria-label="Collapse sidebar"
                 >
-                  <Icon name="sidebar" size={16} />
+                  <Icon name="sidebar" size={18} />
                 </button>
               </div>
             </div>
@@ -411,7 +411,7 @@ export default function Sidebar() {
                   className="sb-search-wrapper"
                 >
                   <div className="sb-search-bar">
-                    <Icon name="search" size={13} className="sb-search-icon" />
+                    <Icon name="search" size={15} className="sb-search-icon" />
                     <SmoothInput
                       autoFocus
                       value={filter}
@@ -454,7 +454,7 @@ export default function Sidebar() {
             aria-label="New chat"
           >
             <div className="sb-new-chat-left">
-              <Icon name="plus" size={15} />
+              <Icon name="plus" size={16} weight="bold" />
               <span>New Chat</span>
             </div>
             <span className="sb-new-chat-shortcut">
@@ -477,7 +477,7 @@ export default function Sidebar() {
                 >
                   <div className="sb-nav-item-left">
                     <span className="sb-nav-item-icon">
-                      <Icon name={place.icon} size={16} />
+                      <Icon name={place.icon} size={18} />
                     </span>
                     <span className="sb-nav-item-label">{place.label}</span>
                   </div>
