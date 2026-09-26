@@ -15,6 +15,7 @@ import {
   BookmarkSimple,
   Books,
   BookOpen,
+  CalendarBlank,
   Camera,
   CaretDown,
   CaretLeft,
@@ -133,6 +134,10 @@ const MARKS = {
   // so a failed web or video search drew an empty box where the icon should be
   // -- which reads as "no results" rather than "the search failed".
   'alert-triangle': WarningCircle,
+  calendar: CalendarBlank,
+  tasks: ListChecks,
+  connectors: PlugsConnected,
+  automations: Lightning,
   shield: Shield,
   'shield-check': ShieldCheck,
   zap: Lightning,

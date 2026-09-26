@@ -301,11 +301,11 @@ export default function Sidebar() {
               title={`New chat — ${MOD_LABEL}+Shift+O`}
               aria-label="New chat"
             >
-              <Icon name="edit" size={16} />
+              <Icon name="plus" size={16} />
             </button>
           </div>
 
-          {/* Middle Nav Items: Real Places (Today, Tasks, Mail, Skills, Automations, Memory, Library) */}
+          {/* Middle Nav Items: Real Places (Today, Tasks, Mail, Skills & connectors, Automations, Memory, Library) */}
           <div className="sb-mini-nav" aria-label="Main Navigation">
             {navPlaces.map((place) => {
               const isActive = view === place.id
@@ -326,19 +326,6 @@ export default function Sidebar() {
                 </button>
               )
             })}
-
-            <button
-              type="button"
-              className={`sb-mini-btn${view === 'chat' ? ' is-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                leave(() => setView('chat'))()
-              }}
-              title={`Chat — ${MOD_LABEL}+1`}
-              aria-label="Chat"
-            >
-              <Icon name="chat" size={17} />
-            </button>
           </div>
 
           {/* Spacious middle rail area — hover shows expand hint, click anywhere opens sidebar */}

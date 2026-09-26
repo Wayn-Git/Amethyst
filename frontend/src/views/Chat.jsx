@@ -2610,31 +2610,8 @@ export default function Chat() {
               />
             </div>
 
-            {/* Right Tools & Actions */}
+            {/* Right Tools & Actions: Compact Model Pill & Inspiration-Matching Action Button */}
             <div className="hero-composer-actions">
-              <button
-                type="button"
-                className="composer-tool-btn hero-composer-tool-btn"
-                onClick={() => {
-                  setInput((prev) => (prev ? `${prev} /search ` : '/search '))
-                  textareaRef.current?.focus()
-                }}
-                title="Web search & live internet research"
-                aria-label="Web search"
-              >
-                <Icon name="globe" size={15} />
-              </button>
-
-              <button
-                type="button"
-                className={`composer-tool-btn hero-composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
-                onClick={toggleTerminal}
-                title="Interactive Terminal"
-                aria-label="Toggle terminal"
-              >
-                <Icon name="term" size={15} />
-              </button>
-
               {/* Model selector pill */}
               <div className="composer-model-pill-wrap">
                 <button
@@ -2646,11 +2623,11 @@ export default function Chat() {
                   <AiProviderIcon
                     provider={active?.provider ?? draftProvider}
                     model={active?.model ?? draftModel}
-                    size={14}
+                    size={13}
                     className="composer-model-provider-icon"
                   />
                   <span className="composer-model-name">{shownModel}</span>
-                  <Icon name="chevron" size={9} className="composer-model-chevron" />
+                  <Icon name="chevron" size={8} className="composer-model-chevron" />
                 </button>
                 {modelOpen && (
                   <ModelMenu
@@ -2664,12 +2641,12 @@ export default function Chat() {
                 )}
               </div>
 
-              {/* Send / Stop button */}
+              {/* Action Button */}
               {turnState === 'running' ? (
                 <>
                   <button
                     type="button"
-                    className="composer-send-circle is-stop"
+                    className="hero-composer-send-btn is-stop"
                     onClick={stop}
                     disabled={stopping}
                     title="Stop turn — Esc"
@@ -2691,13 +2668,13 @@ export default function Chat() {
               ) : (
                 <button
                   type="button"
-                  className={`composer-send-circle hero-composer-send-circle${input.trim() || attachments.length > 0 ? ' is-active' : ' is-idle'}`}
+                  className={`hero-composer-send-btn${input.trim() || attachments.length > 0 ? ' is-active' : ' is-idle'}`}
                   onClick={() => send()}
                   disabled={!input.trim() && attachments.length === 0}
                   title="Send — Enter"
                   aria-label="Send"
                 >
-                  <Icon name="arrow-up" size={14} />
+                  <Icon name="arrow-up" size={15} />
                 </button>
               )}
             </div>
@@ -3133,7 +3110,7 @@ export default function Chat() {
                   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
                 }}
               >
-                <BrandMark size={36} glow />
+                <BrandMark size={28} glow />
               </motion.div>
 
               {/* Dynamic Greeting */}
