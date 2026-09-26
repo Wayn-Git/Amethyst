@@ -591,10 +591,27 @@ export function AppProvider({ children }) {
     return () => watch.removeEventListener('change', relay)
   }, [theme])
 
-  const toast = useCallback((message, tone = 'info') => {
+  const dismissToast = useCallback((id) => {
+    setToasts((t) => t.filter((x) => x.id !== id))
+  }, [])
+
+  const toast = useCallback((payload, tone = 'info') => {
     const id = Math.random().toString(36).slice(2)
-    setToasts((t) => [...t.filter((x) => x.message !== message), { id, message, tone }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4600)
+    const toastObj = typeof payload === 'string'
+      ? { id, message: payload, tone }
+      : { id, tone: payload.tone || tone, ...payload }
+
+    setToasts((t) => [
+      ...t.filter((x) => x.id !== id && (toastObj.message ? x.message !== toastObj.message : true)),
+      toastObj,
+    ])
+
+    const duration = toastObj.duration ?? 4600
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts((t) => t.filter((x) => x.id !== id))
+      }, duration)
+    }
   }, [])
 
   const refreshHealth = useCallback(async () => {
@@ -826,7 +843,7 @@ export function AppProvider({ children }) {
     view, setView,
     server, retryServer: wakeBackend,
     health, healthError, refreshHealth,
-    toasts, toast,
+    toasts, toast, dismissToast,
     overlay, setOverlay,
     conversations, refreshConvs,
     activeId, setActiveId,
@@ -862,7 +879,7 @@ export function AppProvider({ children }) {
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
-    view, setView, server, health, healthError, refreshHealth, toasts, toast, overlay,
+    view, setView, server, health, healthError, refreshHealth, toasts, toast, dismissToast, overlay,
     conversations, refreshConvs, activeId, setActiveId, caps, refreshCaps,
     setCapEnabled, busyCap, workspace, setWorkspace, sidebar, setSidebar,
     compact, railOpen, toggleRail, closeRail, panel, setPanel, togglePanel,

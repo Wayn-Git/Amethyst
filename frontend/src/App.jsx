@@ -24,6 +24,7 @@ import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 import MobileNav from './components/MobileNav.jsx'
+import { NotificationToastContainer } from './components/application/notifications'
 
 /* The workbench.
 
@@ -293,20 +294,8 @@ function RailScrim({ onClose }) {
 }
 
 function Toasts() {
-  const { toasts } = useApp()
-  /* `aria-live` is the whole point of a toast for anyone not looking at the
-     corner of the screen: "connector ready, 16 tools" was visible feedback and
-     silent feedback at the same time. Polite, because none of these interrupt
-     anything. */
-  return (
-    <div className="toast-wrap" role="status" aria-live="polite">
-      {toasts.map((t) => (
-        <div key={t.id} className={`toast toast--${t.tone}`}>
-          <span>{t.message}</span>
-        </div>
-      ))}
-    </div>
-  )
+  const { toasts, dismissToast } = useApp()
+  return <NotificationToastContainer toasts={toasts} onDismiss={dismissToast} />
 }
 
 /* The escape hatch, and why it is sticky.
