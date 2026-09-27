@@ -20225,31 +20225,100 @@ a.text-reveal-wrap {
   color: var(--text);
 }
 
-/* Latency pills */
+/* Latency tags */
 .latency-pill {
   font-size: 11px !important;
   font-family: var(--font-mono) !important;
-  padding: 3px 8px !important;
-  border-radius: 999px !important;
-  font-weight: 600 !important;
+  padding: 2.5px 7px !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
 }
 
 .latency-pill--ok {
-  background: var(--live-soft) !important;
-  color: var(--live) !important;
-  border: 1px solid var(--live-line) !important;
+  background: rgba(34, 197, 94, 0.08) !important;
+  color: #22c55e !important;
+  border: 1px solid rgba(34, 197, 94, 0.2) !important;
 }
 
 .latency-pill--warn {
-  background: var(--confirm-soft) !important;
-  color: var(--confirm) !important;
-  border: 1px solid var(--confirm-line) !important;
+  background: rgba(234, 179, 8, 0.08) !important;
+  color: #eab308 !important;
+  border: 1px solid rgba(234, 179, 8, 0.2) !important;
 }
 
 .latency-pill--bad {
-  background: var(--stop-soft) !important;
-  color: var(--stop) !important;
-  border: 1px solid var(--stop-line) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Modern Status Tags */
+.mod-latency-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  padding: 2.5px 7px;
+  border-radius: 6px;
+  letter-spacing: -0.01em;
+}
+.mod-latency-tag--ok {
+  background: rgba(34, 197, 94, 0.08);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+.mod-latency-tag--warn {
+  background: rgba(234, 179, 8, 0.08);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.2);
+}
+.mod-latency-tag--bad {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.mod-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mod-status-dot--ok, .mod-status-dot--live {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+.mod-status-dot--warn {
+  background: #eab308;
+  box-shadow: 0 0 6px rgba(234, 179, 8, 0.4);
+}
+.mod-status-dot--bad {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+.mod-route-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.08);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+}
+.mod-core-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Clean Apple-style Active Tier Indicator */
@@ -20327,7 +20396,7 @@ a.text-reveal-wrap {
   background: rgba(18, 18, 20, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   backdrop-filter: blur(16px);
 }
 
@@ -42787,31 +42856,31 @@ a.text-reveal-wrap {
   color: var(--text);
 }
 
-/* Latency pills */
+/* Latency tags */
 .latency-pill {
   font-size: 11px !important;
   font-family: var(--font-mono) !important;
-  padding: 3px 8px !important;
-  border-radius: 999px !important;
-  font-weight: 600 !important;
+  padding: 2.5px 7px !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
 }
 
 .latency-pill--ok {
-  background: var(--live-soft) !important;
-  color: var(--live) !important;
-  border: 1px solid var(--live-line) !important;
+  background: rgba(34, 197, 94, 0.08) !important;
+  color: #22c55e !important;
+  border: 1px solid rgba(34, 197, 94, 0.2) !important;
 }
 
 .latency-pill--warn {
-  background: var(--confirm-soft) !important;
-  color: var(--confirm) !important;
-  border: 1px solid var(--confirm-line) !important;
+  background: rgba(234, 179, 8, 0.08) !important;
+  color: #eab308 !important;
+  border: 1px solid rgba(234, 179, 8, 0.2) !important;
 }
 
 .latency-pill--bad {
-  background: var(--stop-soft) !important;
-  color: var(--stop) !important;
-  border: 1px solid var(--stop-line) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
 }
 
 /* Clean Apple-style Active Tier Indicator */
@@ -42889,7 +42958,7 @@ a.text-reveal-wrap {
   background: rgba(18, 18, 20, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   backdrop-filter: blur(16px);
 }
 

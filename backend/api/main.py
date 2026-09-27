@@ -820,6 +820,9 @@ from backend.remote import router as remote_router
 # Remote control and companion APIs
 app.include_router(remote_router)
 
+from backend.converter import router as converter_router
+app.include_router(converter_router)
+
 
 @app.post("/api/pair/claim")
 def claim_pairing(body: dict[str, Any], request: Request) -> dict[str, Any]:
@@ -1798,22 +1801,20 @@ def add_provider_route(body: AddProvider) -> dict[str, Any]:
     api_key_ref = entry.get("api_key_ref") or default_ref
     key_val = body.api_key if body.api_key is not None else body.key
     if key_val is not None:
-        value = key_val
-        if not value.strip():
-            raise HTTPException(400, "a key cannot be empty")
-        if value != value.strip():
+        if key_val != key_val.strip():
             raise HTTPException(
                 400,
                 "that key has whitespace around it, which would be sent verbatim."
                 " Paste it again without the leading or trailing space.",
             )
-        try:
-            set_secret(api_key_ref, value)
-        except CredentialError as exc:
-            # A host with no keychain -- a container, most often. The message
-            # names the way out; a 500 with a traceback named nothing.
-            raise HTTPException(503, str(exc)) from exc
-        entry["api_key_ref"] = api_key_ref
+        if key_val:
+            try:
+                set_secret(api_key_ref, key_val)
+            except CredentialError as exc:
+                # A host with no keychain -- a container, most often. The message
+                # names the way out; a 500 with a traceback named nothing.
+                raise HTTPException(503, str(exc)) from exc
+            entry["api_key_ref"] = api_key_ref
     elif api_key_ref and get_secret(api_key_ref):
         entry["api_key_ref"] = api_key_ref
 
@@ -2081,8 +2082,16 @@ async def provider_models(name: str) -> dict[str, Any]:
         import httpx
 
         async with httpx.AsyncClient(timeout=8.0) as client:
-            response = await client.get(f"{base}/models", headers=headers(key))
-            response.raise_for_status()
+            try:
+                response = await client.get(f"{base}/models", headers=headers(key))
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404 and "/openai/v1" in base:
+                    alt_base = base.replace("/openai/v1", "/v1")
+                    response = await client.get(f"{alt_base}/models", headers=headers(key))
+                    response.raise_for_status()
+                else:
+                    raise
             payload = response.json()
     except Exception as exc:
         return {"name": name, "models": [], "reason": f"{type(exc).__name__}: {exc}"}
@@ -2116,9 +2125,11 @@ def remove_provider_route(name: str) -> dict[str, Any]:
     """
     from backend.config import remove_provider
 
-    if not remove_provider(name):
+    clean_name = name.strip()
+    if not remove_provider(clean_name):
         raise HTTPException(404, f"no provider named '{name}' in providers.yaml")
-    availability.forget(name)
+    availability.forget(clean_name)
+    availability.forget(clean_name.lower())
     return {"status": "removed", "name": name}
 
 

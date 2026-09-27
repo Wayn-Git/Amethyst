@@ -1149,7 +1149,7 @@ class Director:
                 model = resolve(
                     chain[state.active].provider,
                     chain[state.active].model,
-                    max_retries=budget.allowance(len(chain) - 1 - state.active) - 1,
+                    max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
                 )
                 # Which link is actually answering, recorded the moment it is
                 # known. The conversation's own provider column is what the user
@@ -1615,7 +1615,7 @@ class Director:
                             model = resolve(
                                 chain[state.active].provider,
                                 chain[state.active].model,
-                                max_retries=budget.allowance(len(chain) - 1 - state.active) - 1,
+                                max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
                             )
                             state.link = str(chain[state.active])
                             try:
@@ -1859,7 +1859,7 @@ class Director:
                         model = resolve(
                             chain[state.active].provider,
                             chain[state.active].model,
-                            max_retries=budget.allowance(len(chain) - 1 - state.active) - 1,
+                            max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
                         )
                         state.link = str(chain[state.active])
                         try:

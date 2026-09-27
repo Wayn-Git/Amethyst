@@ -39,10 +39,6 @@ function parseContent(input: string | ToastPayload): { title: ReactNode; descrip
         return { title: title.trim(), description: rest.join(": ").trim() };
     }
 
-    if (input.length > 50) {
-        return { title: "", description: input };
-    }
-
     return { title: input };
 }
 

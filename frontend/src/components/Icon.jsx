@@ -114,6 +114,8 @@ import {
   GoogleLogo,
   SpotifyLogo,
   WindowsLogo,
+  Wrench,
+  ArrowsLeftRight,
 } from '@phosphor-icons/react'
 
 /* One icon set, one stroke weight, one grid.
@@ -275,6 +277,9 @@ const MARKS = {
   video: VideoCamera,
   wrap: ArrowElbowDownLeft,
   x: X,
+  wrench: Wrench,
+  utilities: Wrench,
+  convert: ArrowsLeftRight,
 }
 
 /* Optical weight.

@@ -132,15 +132,6 @@ def classify_status(status: int, body: str | None = None) -> FailureKind:
     if status in (408, 409, 425):
         return FailureKind.RETRYABLE
     if status == 404 and not (body and body.strip()):
-        # A *bodyless* 404. NVIDIA's NIM gateway returns this when the node a
-        # request landed on has not loaded the model yet -- transient and
-        # per-request, so retrying lands on a warm node and succeeds (measured
-        # ~50% bodyless-404 on nemotron, cleared by one retry). A genuine
-        # "model not found" is a different 404: it carries a JSON error body
-        # naming the model, matches the `>= 400` branch below, and stays fatal
-        # -- so this does not reopen the "burn the fallback on a bad model name"
-        # problem the module docstring describes. Only the empty-bodied,
-        # information-free 404 is treated as a blip.
         return FailureKind.RETRYABLE
     if status >= 400:
         # A 403 sometimes carries a quota message rather than a permissions one.

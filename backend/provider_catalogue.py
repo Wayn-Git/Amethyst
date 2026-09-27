@@ -184,16 +184,13 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ProviderPreset(
         slug="opencode-zen",
         core=True,
-        strengths=frozenset({"fast"}),
+        strengths=frozenset({"fast", "reasoning"}),
         label="OpenCode Zen",
-        # No base URL yet: nobody has confirmed the endpoint, and a guessed one
-        # is worse than none -- it fails on the first round trip with an error
-        # about a host the user never typed. Settings shows this as "needs a
-        # base URL" until it is filled in, which is the honest state.
-        base_url=None,
-        keys_url="https://opencode.ai",
-        docs_url="https://opencode.ai/docs",
-        note="Gateway. Needs its base URL and a model id filled in before it can answer.",
+        base_url="https://opencode.ai/inference/openai/v1",
+        default_model="kimi-k2.6",
+        keys_url="https://opencode.ai/console",
+        docs_url="https://opencode.ai/v2/docs/console/inference",
+        note="Console inference gateway supporting open models (kimi, glm, minimax), Claude, and Gemini.",
     ),
     ProviderPreset(
         slug="nous",

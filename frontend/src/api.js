@@ -619,6 +619,55 @@ export const api = {
     }
     return res.json()
   },
+
+  // File Converter & Processing
+  converterCapabilities: () => j('/converter/capabilities'),
+  converterUpload: async (files, onProgress) => {
+    const form = new FormData()
+    const fileList = Array.isArray(files) ? files : [files]
+    for (const f of fileList) {
+      form.append('files', f)
+    }
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${getBase()}/converter/upload`)
+      const headers = getAuthHeaders()
+      for (const [k, v] of Object.entries(headers)) {
+        xhr.setRequestHeader(k, v)
+      }
+      if (xhr.upload && onProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100)
+            onProgress(pct, e.loaded, e.total)
+          }
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText))
+          } catch (e) {
+            reject(new Error('Invalid JSON response'))
+          }
+        } else {
+          let detail = xhr.statusText
+          try {
+            detail = JSON.parse(xhr.responseText).detail || detail
+          } catch {}
+          reject(new Error(`${xhr.status}: ${detail}`))
+        }
+      }
+      xhr.onerror = () => reject(new Error('Network error during upload'))
+      xhr.send(form)
+    })
+  },
+  converterProcess: (payload) => j('/converter/process', json('POST', payload)),
+  converterDelete: (fileId) => j(`/converter/files/${encodeURIComponent(fileId)}`, json('DELETE')),
+  converterDownloadUrl: (jobId) => `${getBase()}/converter/download/${encodeURIComponent(jobId)}`,
+  converterPreviewUrl: (jobId) => `${getBase()}/converter/preview/${encodeURIComponent(jobId)}`,
+  converterGenerateQR: (payload) => j('/converter/qr', json('POST', payload)),
+
   skillSearch: (q, conversationId) =>
     j(`/skills/search?q=${encodeURIComponent(q)}${conversationId ? `&conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
 

@@ -17,6 +17,7 @@ const LOADERS = {
   today: () => import('./Today.jsx'),
   tasks: () => import('./Tasks.jsx'),
   mail: () => import('./Mail.jsx'),
+  converter: () => import('./Converter.jsx'),
   capabilities: () => import('./Capabilities.jsx'),
   automations: () => import('./Automations.jsx'),
   memory: () => import('./Memory.jsx'),

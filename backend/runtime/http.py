@@ -196,7 +196,7 @@ _CLIENTS: dict[tuple[object, float], httpx.AsyncClient] = {}
 #: be generous, because a slow model is not a broken one. OpenCode allows 300s
 #: for the first byte for exactly this reason; AMETHYST's flat 120s was killing slow
 #: reasoning models mid-answer.
-CONNECT_TIMEOUT = 10.0
+CONNECT_TIMEOUT = 4.0
 
 
 def _as_timeout(timeout: float) -> httpx.Timeout:

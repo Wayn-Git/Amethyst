@@ -21,6 +21,8 @@ import EffortMenu from '../components/EffortMenu.jsx'
 import ContextPopover from '../components/ContextPopover.jsx'
 import GuardMenu from '../components/GuardMenu.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
+import { LoaderIcon } from '../components/OnboardingWizard.jsx'
+import { Notification } from '../components/application/notifications'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
@@ -2426,7 +2428,11 @@ export default function Chat() {
                 </div>
                 <div className="inspect-metric-row">
                   <span className="inspect-metric-label">
-                    <MatrixLoader phase="thinking" />
+                    {agentLoader && agentLoader !== 'matrix' ? (
+                      <LoaderIcon type={agentLoader} />
+                    ) : (
+                      <MatrixLoader phase="thinking" />
+                    )}
                     Completion
                   </span>
                   <span className="inspect-metric-val">{elapsedSec}s</span>
@@ -2453,7 +2459,11 @@ export default function Chat() {
           <div className="chat-thinking-bar">
             <div className="thinking-bar-left">
               <span className="thinking-grid-icon">
-                <MatrixLoader phase={turnPhase} />
+                {agentLoader && agentLoader !== 'matrix' ? (
+                  <LoaderIcon type={agentLoader} />
+                ) : (
+                  <MatrixLoader phase={turnPhase} />
+                )}
               </span>
               <button
                 type="button"
@@ -3013,78 +3023,60 @@ export default function Chat() {
 
       <div className="chat-main">
         {!isEmpty && elsewhere.length > 0 && (
-          <div className="chat-banner msg-note msg-note--guard">
-            <Icon name="key" size={14} />
-            <span>
-              {elsewhere.length === 1
-                ? 'A tool call in another conversation is waiting for an answer.'
-                : `${elsewhere.length} tool calls in other conversations are waiting for an answer.`}
-              {' '}That turn stays suspended until it is answered.
-            </span>
-            <button
-              type="button"
-              className="btn btn--small"
-              style={{ marginLeft: 'auto' }}
-              onClick={() => selectConversation(elsewhere[0].conversation_id)}
-            >
-              Open it
-            </button>
+          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
+            <Notification
+              tone="amber"
+              title="Tool call suspended"
+              description={
+                elsewhere.length === 1
+                  ? 'A tool call in another conversation is waiting for an answer. That turn stays suspended until it is answered.'
+                  : `${elsewhere.length} tool calls in other conversations are waiting for an answer. That turn stays suspended until it is answered.`
+              }
+              action={{
+                label: 'Open it',
+                onClick: () => selectConversation(elsewhere[0].conversation_id),
+              }}
+              dismissible={false}
+              className="max-w-none"
+            />
           </div>
         )}
 
         {!isEmpty && connectorErrors.length > 0 && !dismissedBanners.has(errorSig) && (
-          <div className="chat-banner msg-note msg-note--error">
-            <Icon name="plug" size={14} />
-            <span>
-              {connectorErrors.map(([name, err]) => `${name}: ${String(err).slice(0, 90)}`).join(' · ')}
-              {' '}— its tools are not reaching the agent.
-            </span>
-            <button
-              type="button"
-              className="btn btn--small"
-              style={{ marginLeft: 'auto' }}
-              onClick={() => { setCapabilitiesTab('connectors'); setView('capabilities') }}
-            >
-              Open connectors
-            </button>
-            <button
-              type="button"
-              className="chat-banner-dismiss"
-              title="Dismiss until this changes"
-              aria-label="Dismiss"
-              onClick={() => dismissBanner(errorSig)}
-            >
-              <Icon name="x" size={13} />
-            </button>
+          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
+            <Notification
+              tone="bad"
+              title="MCP Connector Failure"
+              description={`${connectorErrors.map(([name, err]) => `${name}: ${String(err).slice(0, 90)}`).join(' · ')} — tools are not reaching the agent.`}
+              action={{
+                label: 'Open connectors',
+                onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
+              }}
+              onClose={() => dismissBanner(errorSig)}
+              dismissible={true}
+              className="max-w-none"
+            />
           </div>
         )}
 
         {!isEmpty && awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig) && (
-          <div className="chat-banner msg-note msg-note--guard">
-            <Icon name="key" size={14} />
-            <span>
-              {awaitingSignIn.length === 1
-                ? `${awaitingSignIn[0]} is switched on but not signed in.`
-                : `${awaitingSignIn.join(', ')} are switched on but not signed in.`}
-              {' '}Their tools stay out of reach until they are.
-            </span>
-            <button
-              type="button"
-              className="btn btn--small"
-              style={{ marginLeft: 'auto' }}
-              onClick={() => { setCapabilitiesTab('connectors'); setView('capabilities') }}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              className="chat-banner-dismiss"
-              title="Dismiss until this changes"
-              aria-label="Dismiss"
-              onClick={() => dismissBanner(signInSig)}
-            >
-              <Icon name="x" size={13} />
-            </button>
+          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
+            <Notification
+              tone="amber"
+              title="MCP Sign-in Required"
+              description={
+                awaitingSignIn.length === 1
+                  ? `${awaitingSignIn[0]} is switched on but not signed in. Tools stay out of reach until signed in.`
+                  : `${awaitingSignIn.join(', ')} are switched on but not signed in. Tools stay out of reach until signed in.`
+              }
+              action={{
+                label: 'Sign in',
+                onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
+              }}
+              onClose={() => dismissBanner(signInSig)}
+              dismissible={true}
+              className="max-w-none"
+            />
           </div>
         )}
 

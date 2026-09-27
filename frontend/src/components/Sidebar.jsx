@@ -11,6 +11,7 @@ import { useDismiss } from '../hooks/useDismiss.js'
 import { SmoothInput } from './ui/skiper/index.js'
 import { AnimatePresence, motion } from 'framer-motion'
 import UserMenu from './UserMenu.jsx'
+import { safeStorage } from '../lib/storage.js'
 
 function bucketOf(iso) {
   if (!iso) return 'Earlier'
@@ -222,10 +223,40 @@ export default function Sidebar() {
     return parts[parts.length - 1] || 'Default Workspace'
   }, [workspace])
 
-  // Navigation places excluding chat
-  const navPlaces = useMemo(() => {
-    return places.filter((p) => p.id !== 'chat')
+  // Separate primary navigation places and grouped utility places (Tasks, Email, File Converter)
+  const { topPlaces, utilityPlaces, bottomPlaces } = useMemo(() => {
+    const utils = places.filter((p) => p.group === 'utilities')
+    const others = places.filter((p) => p.id !== 'chat' && p.group !== 'utilities')
+    const top = others.filter((p) => p.id === 'today')
+    const bottom = others.filter((p) => p.id !== 'today')
+    return { topPlaces: top, utilityPlaces: utils, bottomPlaces: bottom }
   }, [places])
+
+  const isUtilityActive = useMemo(() => {
+    return utilityPlaces.some((p) => p.id === view)
+  }, [utilityPlaces, view])
+
+  const [utilitiesOpen, setUtilitiesOpen] = useState(() => {
+    return isUtilityActive || safeStorage.getItem('sb_utilities_open') !== 'false'
+  })
+
+  useEffect(() => {
+    if (isUtilityActive) {
+      setUtilitiesOpen(true)
+    }
+  }, [isUtilityActive])
+
+  const toggleUtilities = useCallback(() => {
+    setUtilitiesOpen((open) => {
+      const next = !open
+      safeStorage.setItem('sb_utilities_open', String(next))
+      return next
+    })
+  }, [])
+
+  const [miniUtilsOpen, setMiniUtilsOpen] = useState(false)
+  const miniUtilsRef = useRef(null)
+  useDismiss(miniUtilsRef, miniUtilsOpen, { onAway: () => setMiniUtilsOpen(false) })
 
   const status = healthError
     ? 'API offline'
@@ -305,9 +336,76 @@ export default function Sidebar() {
             </button>
           </div>
 
-          {/* Middle Nav Items: Real Places (Today, Tasks, Mail, Skills & connectors, Automations, Memory, Library) */}
+          {/* Middle Nav Items: Real Places */}
           <div className="sb-mini-nav" aria-label="Main Navigation">
-            {navPlaces.map((place) => {
+            {topPlaces.map((place) => {
+              const isActive = view === place.id
+              return (
+                <button
+                  key={place.id}
+                  type="button"
+                  className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    leave(() => setView(place.id))()
+                  }}
+                  onPointerEnter={() => prefetchView(place.id)}
+                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
+                  aria-label={place.label}
+                >
+                  <Icon name={place.icon} size={20} />
+                </button>
+              )
+            })}
+
+            {/* Collapsed Utilities Icon with Flyout */}
+            <div ref={miniUtilsRef} style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className={`sb-mini-btn${isUtilityActive ? ' is-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMiniUtilsOpen((o) => !o)
+                }}
+                title="Utilities (Tasks, Email, File Converter)"
+                aria-label="Utilities"
+                aria-expanded={miniUtilsOpen}
+              >
+                <Icon name="wrench" size={20} />
+              </button>
+
+              <AnimatePresence>
+                {miniUtilsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.94, x: 6 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.94, x: 6 }}
+                    transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                    className="sb-mini-flyout"
+                  >
+                    <div className="sb-mini-flyout-title">Utilities</div>
+                    {utilityPlaces.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className={`sb-mini-flyout-item${view === u.id ? ' is-active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setMiniUtilsOpen(false)
+                          leave(() => setView(u.id))()
+                        }}
+                      >
+                        <span className="sb-mini-flyout-icon"><Icon name={u.icon} size={16} /></span>
+                        <span className="sb-mini-flyout-label">{u.label}</span>
+                        {u.digit && <span className="sb-mini-flyout-shortcut">{MOD_LABEL}+{u.digit}</span>}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {bottomPlaces.map((place) => {
               const isActive = view === place.id
               return (
                 <button
@@ -464,7 +562,101 @@ export default function Sidebar() {
 
           {/* Primary Navigation Section: Real Amethyst Views */}
           <div className="sb-nav-section" aria-label="Main Navigation">
-            {navPlaces.map((place) => {
+            {/* Top item: Today */}
+            {topPlaces.map((place) => {
+              const isActive = view === place.id
+              return (
+                <button
+                  key={place.id}
+                  type="button"
+                  className={`sb-nav-item${isActive ? ' is-active' : ''}`}
+                  onClick={leave(() => setView(place.id))}
+                  onPointerEnter={() => prefetchView(place.id)}
+                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
+                >
+                  <div className="sb-nav-item-left">
+                    <span className="sb-nav-item-icon">
+                      <Icon name={place.icon} size={18} />
+                    </span>
+                    <span className="sb-nav-item-label">{place.label}</span>
+                  </div>
+                  {place.digit && (
+                    <span className="sb-nav-item-shortcut">
+                      {MOD_LABEL}+{place.digit}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+
+            {/* Expandable Utilities Group (Tasks, Email, File Converter) */}
+            <div className="sb-nav-group">
+              <button
+                type="button"
+                className={`sb-nav-item sb-nav-group-trigger${isUtilityActive ? ' has-active-child' : ''}`}
+                onClick={toggleUtilities}
+                aria-expanded={utilitiesOpen}
+                title="Utilities (Tasks, Email, File Converter)"
+              >
+                <div className="sb-nav-item-left">
+                  <span className="sb-nav-item-icon">
+                    <Icon name="wrench" size={18} />
+                  </span>
+                  <span className="sb-nav-item-label">Utilities</span>
+                </div>
+                <div className="sb-nav-group-right">
+                  {isUtilityActive && <span className="sb-nav-group-active-dot" />}
+                  <span className={`sb-nav-group-chevron${utilitiesOpen ? ' is-open' : ''}`}>
+                    <Icon name="chevron-down" size={13} />
+                  </span>
+                </div>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {utilitiesOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                    className="sb-nav-subitems-wrap"
+                  >
+                    <div className="sb-nav-subitems">
+                      {utilityPlaces.map((place) => {
+                        const isActive = view === place.id
+                        return (
+                          <button
+                            key={place.id}
+                            type="button"
+                            className={`sb-nav-item sb-nav-subitem${isActive ? ' is-active' : ''}`}
+                            onClick={leave(() => setView(place.id))}
+                            onPointerEnter={() => prefetchView(place.id)}
+                            title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
+                          >
+                            <div className="sb-nav-item-left">
+                              <span className="sb-nav-item-icon">
+                                <Icon name={place.icon} size={16} />
+                              </span>
+                              <span className="sb-nav-item-label">{place.label}</span>
+                            </div>
+                            {place.digit ? (
+                              <span className="sb-nav-item-shortcut">
+                                {MOD_LABEL}+{place.digit}
+                              </span>
+                            ) : place.beta ? (
+                              <span className="sb-nav-item-beta">Beta</span>
+                            ) : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Bottom items: Capabilities, Automations, Memory, Library */}
+            {bottomPlaces.map((place) => {
               const isActive = view === place.id
               return (
                 <button

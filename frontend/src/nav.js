@@ -13,8 +13,9 @@ export const NAV = [
   // in their fingers is a worse trade than one entry whose position and digit
   // disagree.
   { id: 'today', path: '/today', label: 'Today', icon: 'calendar', digit: 8, rail: true, settings: true },
-  { id: 'tasks', path: '/tasks', label: 'Tasks', icon: 'tasks', digit: 2, rail: true, settings: true },
-  { id: 'mail', path: '/mail', label: 'Mail', icon: 'mail', digit: 3, rail: true, settings: true, beta: true },
+  { id: 'tasks', path: '/tasks', label: 'Tasks', icon: 'tasks', digit: 2, rail: true, settings: true, group: 'utilities' },
+  { id: 'mail', path: '/mail', label: 'Email', icon: 'mail', digit: 3, rail: true, settings: true, beta: true, group: 'utilities' },
+  { id: 'converter', path: '/converter', label: 'File Converter', icon: 'convert', rail: true, settings: true, group: 'utilities' },
   { id: 'capabilities', path: '/capabilities', label: 'Skills & connectors', icon: 'connectors', digit: 4, rail: true, settings: true },
   { id: 'automations', path: '/automations', label: 'Automations', icon: 'automations', digit: 5, rail: true, settings: true, beta: true },
   { id: 'memory', path: '/memory', label: 'Memory', icon: 'brain', digit: 6, rail: true, settings: true },

@@ -616,10 +616,37 @@ def set_provider_enabled(name: str, enabled: bool, path: Path | None = None) -> 
 def remove_provider(name: str, path: Path | None = None) -> bool:
     """Drop one entry. Returns whether there was one to drop."""
     entries = provider_entries(path)
-    kept = [e for e in entries if e.get("name") != name]
+    target = name.strip().lower()
+    kept = [e for e in entries if (e.get("name") or "").strip().lower() != target]
     if len(kept) == len(entries):
         return False
     save_providers(kept, path)
+
+    # Clean up references from tiers and fallback
+    p = path or paths().providers_yaml
+    if p.exists():
+        try:
+            document = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+            changed = False
+            tiers = document.get("tiers")
+            if isinstance(tiers, dict):
+                for t_name, t_val in list(tiers.items()):
+                    if isinstance(t_val, dict) and (t_val.get("provider") or "").strip().lower() == target:
+                        del tiers[t_name]
+                        changed = True
+            fallback = document.get("fallback")
+            if isinstance(fallback, list):
+                new_fallback = [f for f in fallback if str(f).strip().lower() != target]
+                if len(new_fallback) != len(fallback):
+                    document["fallback"] = new_fallback
+                    changed = True
+            if changed:
+                write_atomic(
+                    p,
+                    _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
+                )
+        except Exception as e:
+            log.warning("failed to clean up tiers/fallback for removed provider %s: %s", name, e)
     return True
 
 
