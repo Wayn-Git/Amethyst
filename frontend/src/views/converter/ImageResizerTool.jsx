@@ -167,7 +167,7 @@ export default function ImageResizerTool() {
                 }
               }}
             />
-            <div className="fc-drop-icon-pill">
+            <div className="fc-drop-icon-box">
               <Icon name="image" size={26} />
             </div>
             <div className="fc-drop-prompt">

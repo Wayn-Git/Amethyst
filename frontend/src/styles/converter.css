@@ -63,62 +63,21 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.fc-eyebrow-row {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-}
-
-.fc-eyebrow-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 3px 8px;
-  border-radius: var(--radius-sm, 6px);
-  background: var(--accent-wash, rgba(113, 50, 245, 0.08));
-  color: var(--accent, #7132f5);
-  border: 1px solid var(--accent-soft, rgba(113, 50, 245, 0.2));
-}
-
-.fc-local-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-dim, #64748b);
-  font-family: var(--font-mono, monospace);
-  padding: 3px 8px;
-  border-radius: var(--radius-sm, 6px);
-  background: var(--surface-2, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
-}
-
-.fc-local-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--live, #149e61);
-  display: inline-block;
 }
 
 .fc-title {
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: var(--track-hero, -0.025em);
+  font-size: 32px;
+  font-weight: 750;
+  letter-spacing: var(--track-hero, -0.03em);
   color: var(--text, #ffffff);
-  line-height: 1.2;
+  line-height: 1.15;
   margin: 0;
   max-width: 900px;
+}
+
+.fc-title-accent {
+  color: var(--accent, #7132f5);
 }
 
 .fc-subtitle {
@@ -178,7 +137,7 @@
   font-weight: 600;
 }
 
-.fc-subnav-pill {
+.fc-subnav-active-bg {
   position: absolute;
   inset: 0;
   background: var(--accent, #7132f5);
@@ -261,8 +220,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 36px 24px;
+  gap: 16px;
+  padding: 44px 28px;
   border-radius: calc(var(--radius-lg, 12px) - 1px);
   background: var(--surface, #141416);
   border: 1.5px dashed var(--hairline-strong, rgba(255, 255, 255, 0.14));
@@ -283,8 +242,8 @@
 }
 
 .fc-drop-icon-box {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-md, 8px);
   background: var(--accent-wash, rgba(113, 50, 245, 0.08));
   border: 1px solid var(--accent-soft, rgba(113, 50, 245, 0.2));
@@ -304,25 +263,40 @@
 .fc-drop-prompt {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
 }
 
-.fc-drop-main-text {
-  font-size: 15px;
-  font-weight: 600;
+.fc-drop-title {
+  font-size: 19px;
+  font-weight: 650;
   color: var(--text, #ffffff);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  margin: 0;
 }
 
-.fc-drop-main-text span {
-  color: var(--accent, #7132f5);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.fc-drop-sub-text {
-  font-size: 12.5px;
+.fc-drop-formats {
+  font-size: 13px;
   color: var(--text-dim, #94a3b8);
+  max-width: 620px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.fc-drop-cta-btn {
+  height: 38px;
+  padding: 0 22px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 6px);
+  box-shadow: 0 4px 14px rgba(113, 50, 245, 0.25);
+}
+
+.fc-drop-footer-hint {
+  font-size: 11.5px;
+  color: var(--text-faint, #64748b);
+  font-family: var(--font-mono, monospace);
+  margin-top: 2px;
 }
 
 .fc-format-chips {
@@ -934,8 +908,8 @@
 /* Tool Cards Grid */
 .fc-tools-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
   width: 100%;
 }
 
@@ -943,8 +917,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 16px;
+  padding: 18px 20px;
   border-radius: var(--radius-lg, 12px);
   background: var(--surface, #141416);
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
@@ -956,7 +929,8 @@
 
 .fc-tool-card:hover {
   border-color: var(--accent, #7132f5);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: var(--lift, 0 8px 24px rgba(0, 0, 0, 0.3));
 }
 
 .fc-tool-card-top {
@@ -964,12 +938,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .fc-tool-icon-box {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-md, 8px);
   background: var(--accent-wash, rgba(113, 50, 245, 0.08));
   border: 1px solid var(--accent-soft, rgba(113, 50, 245, 0.2));
@@ -992,49 +966,140 @@
   gap: 6px;
 }
 
-.fc-tool-badge {
+.fc-tool-cat-tag {
   font-family: var(--font-mono, monospace);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  padding: 2px 6px;
+  letter-spacing: 0.05em;
+  padding: 2.5px 7px;
   border-radius: var(--radius-sm, 6px);
   background: var(--surface-2, rgba(255, 255, 255, 0.04));
   color: var(--text-dim, #94a3b8);
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.07));
+}
+
+.fc-tool-arrow-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim, #94a3b8);
+  transition: all 0.16s ease;
+}
+
+.fc-tool-card:hover .fc-tool-arrow-circle {
+  background: var(--accent, #7132f5);
+  color: var(--on-accent, #ffffff);
+  border-color: var(--accent, #7132f5);
+}
+
+.fc-tool-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
 }
 
 .fc-tool-name {
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
   color: var(--text, #ffffff);
   letter-spacing: -0.01em;
-  margin-bottom: 4px;
 }
 
 .fc-tool-desc {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-dim, #94a3b8);
-  line-height: 1.45;
-  margin: 0 0 12px 0;
+  line-height: 1.5;
+  margin: 0;
 }
 
-.fc-tool-tags {
+.fc-tool-format-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2, rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+  margin-bottom: 12px;
+}
+
+.fc-spec-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.fc-spec-label {
+  font-family: var(--font-mono, monospace);
+  color: var(--text-faint, #64748b);
+  width: 48px;
+  flex-shrink: 0;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.fc-spec-values {
+  font-family: var(--font-mono, monospace);
+  color: var(--text-dim, #94a3b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-spec-highlight {
+  color: var(--accent, #7132f5);
+  font-weight: 600;
+}
+
+.fc-tool-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+}
+
+.fc-tool-highlights {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: auto;
+  gap: 8px;
 }
 
-.fc-tool-tag {
-  font-size: 10px;
-  font-family: var(--font-mono, monospace);
-  font-weight: 500;
-  padding: 2px 5px;
-  border-radius: 4px;
-  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+.fc-tool-highlight-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
   color: var(--text-dim, #94a3b8);
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+}
+
+.fc-tool-highlight-item svg {
+  color: var(--accent, #7132f5);
+}
+
+.fc-tool-action-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent, #7132f5);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: transform 0.14s ease;
+}
+
+.fc-tool-card:hover .fc-tool-action-link {
+  transform: translateX(2px);
 }
 
 /* ==========================================================================
@@ -1047,11 +1112,107 @@
   animation: fcFadeIn 0.24s var(--ease-out);
 }
 
+.fc-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+  align-items: stretch;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .fc-tool-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .fc-tool-panel {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
   border-radius: var(--radius-lg, 12px);
   background: var(--surface, #141416);
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+  box-shadow: var(--shadow-micro, 0 1px 4px rgba(0, 0, 0, 0.04));
+}
+
+.fc-panel-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text, #ffffff);
+  letter-spacing: -0.015em;
+}
+
+.fc-panel-desc {
+  font-size: 12.5px;
+  color: var(--text-dim, #94a3b8);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.fc-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.03));
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+}
+
+.fc-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim, #94a3b8);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.fc-mode-tab:hover {
+  color: var(--text, #ffffff);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.06));
+}
+
+.fc-mode-tab:active {
+  transform: scale(0.97);
+}
+
+.fc-mode-tab.is-active {
+  background: var(--accent, #7132f5);
+  color: var(--on-accent, #ffffff);
+  font-weight: 600;
+}
+
+.fc-range-slider {
+  accent-color: var(--accent, #7132f5);
+  cursor: pointer;
+  height: 5px;
+}
+
+.fc-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-2, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.09));
+  color: var(--text, #ffffff);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.18s ease;
+  box-sizing: border-box;
+}
+
+.fc-textarea:focus {
+  border-color: var(--accent, #7132f5);
 }
 
 .fc-select {

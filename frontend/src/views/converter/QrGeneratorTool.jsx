@@ -193,10 +193,10 @@ export default function QrGeneratorTool() {
                   <button
                     key={f}
                     type="button"
-                    className={`fc-format-pill${kind === f ? ' is-active' : ''}`}
+                    className={`fc-target-chip${kind === f ? ' is-active' : ''}`}
                     onClick={() => setKind(f)}
                   >
-                    {f.toUpperCase()}
+                    .{f.toUpperCase()}
                   </button>
                 ))}
               </div>

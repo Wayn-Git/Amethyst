@@ -61,169 +61,211 @@ const ALL_TOOLS_CATALOG = [
   {
     id: 'files',
     category: 'all',
+    categoryLabel: 'Universal Core',
     title: 'Universal File Converter',
     desc: 'High-speed local file conversion pipeline. Convert images, audio, video, documents, and archives with zero quality degradation.',
+    inputs: ['PDF', 'DOCX', 'XLSX', 'PPTX', 'PNG', 'JPG', 'WEBP', 'MP4', 'MP3', 'WAV', 'CSV'],
+    outputs: ['PDF', 'DOCX', 'PNG', 'JPG', 'WEBP', 'MP4', 'MP3', 'WAV', 'TXT'],
+    highlights: ['Zero Cloud', 'Multi-File Batch', 'Auto Engine'],
+    actionText: 'Convert Files',
     tags: ['PDF', 'DOCX', 'PNG', 'MP4', 'MP3'],
     icon: 'convert',
     isUniversal: true,
-    span: 'hero',
-    badge: 'Universal Core',
     accent: '#8b5cf6',
   },
   {
     id: 'pdf-tools',
     category: 'pdf',
+    categoryLabel: 'PDF & Documents',
     title: 'PDF Tools Hub',
     desc: 'Comprehensive local PDF suite: combine multiple PDFs, slice page ranges, compress document weights, and export to Word DOCX.',
+    inputs: ['PDF', 'DOCX', 'PNG', 'JPG', 'WebP'],
+    outputs: ['PDF', 'DOCX (Word)', 'PNG', 'JPG'],
+    highlights: ['Merge & Split', 'Compress', 'Word Export'],
+    actionText: 'Open PDF Tools',
     tags: ['MERGE', 'SPLIT', 'COMPRESS', 'WORD'],
     icon: 'file',
     component: 'pdf-tools',
-    span: 'wide',
-    badge: 'PyMuPDF V2',
     accent: '#ec4899',
   },
   {
     id: 'video-tools',
     category: 'media',
+    categoryLabel: 'Video & Audio',
     title: 'Video & Audio Workshop',
     desc: 'Transcode MP4/WebM/MKV, generate frame-accurate animated GIFs, isolate lossless audio stems, and optimize bitrates.',
+    inputs: ['MP4', 'WebM', 'MKV', 'MOV', 'AVI', 'MP3', 'WAV'],
+    outputs: ['MP4', 'WebM', 'GIF', 'MP3', 'WAV', 'AAC'],
+    highlights: ['Bitrate Control', 'Audio Stems', 'Frame GIF'],
+    actionText: 'Open Media Studio',
     tags: ['MP4', 'WEBM', 'GIF', 'COMPRESS'],
     icon: 'video',
     component: 'video-tools',
-    span: 'wide',
-    badge: 'FFmpeg Hardware',
     accent: '#f59e0b',
   },
   {
     id: 'ocr',
     category: 'utilities',
+    categoryLabel: 'Document Scanner',
     title: 'OCR & Document Text Scanner',
     desc: 'Extract machine-readable structured text from scanned imagery, invoices, receipts, spreadsheets, and multi-page PDFs.',
+    inputs: ['PNG', 'JPG', 'WebP', 'PDF', 'DOCX', 'TIFF'],
+    outputs: ['TXT', 'JSON', 'Live Clipboard'],
+    highlights: ['15+ Languages', 'Table Scans', 'Multi-Page'],
+    actionText: 'Extract Text',
     tags: ['OCR', 'EXTRACT', 'READ', 'TXT'],
     icon: 'type',
     component: 'ocr',
-    span: 'wide',
-    badge: 'Tesseract Engine',
     accent: '#06b6d4',
   },
   {
     id: 'image-resizer',
     category: 'image',
+    categoryLabel: 'Image Studio',
     title: 'Image Resizer & Compress',
-    desc: 'Scale pixel dimensions, lock aspect ratios, apply WebP/AVIF compression, or generate preset asset sizes.',
+    desc: 'Scale pixel dimensions, lock aspect ratios, apply WebP/AVIF compression, or generate preset social media sizes.',
+    inputs: ['JPG', 'PNG', 'WebP', 'AVIF', 'GIF', 'TIFF', 'BMP'],
+    outputs: ['PNG', 'JPG', 'WebP', 'AVIF', 'ICO', 'PDF'],
+    highlights: ['Aspect Lock', 'Quality Scaling', 'Social Presets'],
+    actionText: 'Resize Images',
     tags: ['RESIZE', 'COMPRESS', 'PRESETS'],
     icon: 'expand',
     component: 'image-resizer',
-    span: 'normal',
-    badge: 'Lanczos3 Interpolation',
     accent: '#10b981',
   },
   {
     id: 'image-converter',
     category: 'image',
+    categoryLabel: 'Image Studio',
     title: 'Image Format Converter',
-    desc: 'Transform images between JPG, PNG, WebP, AVIF, GIF, ICO, or PDF with alpha-channel preservation.',
+    desc: 'Transform images between JPG, PNG, WebP, AVIF, GIF, ICO, or PDF with alpha-channel and color fidelity preservation.',
+    inputs: ['JPG', 'PNG', 'WebP', 'AVIF', 'HEIC', 'SVG', 'TIFF', 'PSD'],
+    outputs: ['JPG', 'PNG', 'WebP', 'AVIF', 'SVG', 'ICO', 'PDF'],
+    highlights: ['Alpha Channel', 'Lossless Mode', 'Batch Mode'],
+    actionText: 'Convert Images',
     tags: ['JPG', 'PNG', 'WEBP', 'AVIF'],
     icon: 'image',
     component: 'image-resizer',
-    span: 'normal',
-    badge: 'Lossless Pipeline',
     accent: '#3b82f6',
   },
   {
     id: 'document-converter',
     category: 'pdf',
+    categoryLabel: 'Office Documents',
     title: 'Document Transcoder',
-    desc: 'Convert Word DOCX, PowerPoint PPTX, and Excel spreadsheets directly to PDF and plain text.',
+    desc: 'Convert Word DOCX, PowerPoint PPTX, and Excel spreadsheets directly to PDF, text, and markup without Microsoft Office.',
+    inputs: ['DOCX', 'PPTX', 'XLSX', 'ODT', 'RTF', 'HTML'],
+    outputs: ['PDF', 'DOCX', 'TXT', 'HTML'],
+    highlights: ['Preserve Formatting', 'Tables & Slides', 'Zero Cloud'],
+    actionText: 'Transcode Docs',
     tags: ['DOCX', 'PPTX', 'XLSX', 'PDF'],
     icon: 'book',
     isUniversal: true,
-    span: 'normal',
-    badge: 'OpenXML Engine',
     accent: '#6366f1',
   },
   {
     id: 'audio-converter',
     category: 'media',
+    categoryLabel: 'Audio Suite',
     title: 'Audio Converter & Extractor',
-    desc: 'Isolate audio soundtracks from video or convert between MP3, WAV, AAC, FLAC, and OGG bitrates.',
+    desc: 'Isolate audio soundtracks from video or convert between MP3, WAV, AAC, FLAC, and OGG with bit-depth control.',
+    inputs: ['MP3', 'WAV', 'AAC', 'FLAC', 'OGG', 'M4A', 'MP4', 'MKV'],
+    outputs: ['MP3', 'WAV', 'AAC', 'FLAC', 'OGG'],
+    highlights: ['Extract from Video', '320kbps Hi-Res', 'Lossless'],
+    actionText: 'Convert Audio',
     tags: ['MP3', 'WAV', 'AAC', 'AUDIO'],
     icon: 'speaker',
     component: 'video-tools',
-    span: 'normal',
-    badge: '320kbps Hi-Res',
     accent: '#a855f7',
   },
   {
     id: 'qr-code',
     category: 'utilities',
+    categoryLabel: 'Utility',
     title: 'QR Code Generator',
     desc: 'Generate crisp vector QR codes for URLs, Wi-Fi credentials, vCards, and plain text with SVG download.',
+    inputs: ['URL', 'Plain Text', 'Wi-Fi Network', 'Email', 'vCard'],
+    outputs: ['PNG (Raster)', 'SVG (Scalable Vector)'],
+    highlights: ['Vector Scalable', 'Error Correction', 'Instant Save'],
+    actionText: 'Generate QR',
     tags: ['URL', 'WIFI', 'CONTACT', 'SVG'],
     icon: 'grid',
     component: 'qr-code',
-    span: 'normal',
-    badge: 'Vector SVG',
     accent: '#14b8a6',
   },
   {
     id: 'unit-converter',
     category: 'utilities',
+    categoryLabel: 'Utility',
     title: 'Unit Converter',
     desc: 'Precision conversion across 12 physical domains: length, mass, digital storage, speed, and volume.',
+    inputs: ['Length', 'Weight', 'Storage', 'Speed', 'Volume', 'Temp'],
+    outputs: ['Live Equivalents Grid', '12 Dimensions'],
+    highlights: ['High Precision', 'Live Matrix', 'One-Click Copy'],
+    actionText: 'Convert Units',
     tags: ['LENGTH', 'WEIGHT', 'VOLUME', 'STORAGE'],
     icon: 'arrows-left-right',
     component: 'unit-converter',
-    span: 'normal',
-    badge: '12 Dimensions',
     accent: '#f97316',
   },
   {
     id: 'timezone',
     category: 'utilities',
+    categoryLabel: 'Utility',
     title: 'Time Zones & World Clock',
     desc: 'Real-time multi-timezone conversion with live world clocks, DST tracking, and meeting planning offsets.',
+    inputs: ['Major Global Cities', 'Custom UTC Offsets'],
+    outputs: ['Day/Night Indicator', 'Live Clock Comparison'],
+    highlights: ['Real-time UTC', 'DST Calculation', 'Meeting Grid'],
+    actionText: 'View Clocks',
     tags: ['WORLD CLOCK', 'UTC', 'OFFSETS'],
     icon: 'clock',
     component: 'timezone',
-    span: 'normal',
-    badge: 'Live UTC Grid',
     accent: '#0ea5e9',
   },
   {
     id: 'color-converter',
     category: 'developer',
+    categoryLabel: 'Developer Tools',
     title: 'Color Converter & Contrast',
     desc: 'Two-way HEX, RGB, HSL, and CMYK transforms with WCAG AA/AAA contrast ratios and dynamic shade generator.',
+    inputs: ['HEX', 'RGB', 'HSL', 'CMYK', 'Color Picker'],
+    outputs: ['Harmonized Palettes', 'WCAG AA/AAA Ratio'],
+    highlights: ['Two-Way Transform', 'Tonal Steps', 'Accessibility'],
+    actionText: 'Convert Colors',
     tags: ['HEX', 'RGB', 'HSL', 'WCAG'],
     icon: 'palette',
     component: 'color-converter',
-    span: 'normal',
-    badge: 'WCAG AAA Audit',
     accent: '#d946ef',
   },
   {
     id: 'code-formatter',
     category: 'developer',
+    categoryLabel: 'Developer Tools',
     title: 'Code Formatter & Minifier',
     desc: 'Beautify, syntax-validate, or minify JSON, HTML, CSS, JavaScript, SQL, and XML with AST parsing.',
+    inputs: ['JSON', 'HTML', 'CSS', 'JavaScript', 'SQL', 'XML'],
+    outputs: ['Beautified Code', 'Minified Payload'],
+    highlights: ['Syntax Validation', 'Indent Choice', 'Fast AST'],
+    actionText: 'Format Code',
     tags: ['JSON', 'HTML', 'CSS', 'SQL', 'JS'],
     icon: 'code',
     component: 'code-formatter',
-    span: 'normal',
-    badge: 'AST Formatter',
     accent: '#eab308',
   },
   {
     id: 'text-tools',
     category: 'developer',
+    categoryLabel: 'Developer Tools',
     title: 'Text Tools & Statistics',
     desc: 'Casing transformers (camel, kebab, snake, pascal), line deduplication, regex replace, and word counts.',
+    inputs: ['Plain Text', 'Raw Strings', 'Log Snippets'],
+    outputs: ['Case Transforms', 'Deduplicated Lines', 'Statistics'],
+    highlights: ['Case Transforms', 'Line Dedupe', 'Word/Char Stats'],
+    actionText: 'Transform Text',
     tags: ['CASE', 'COUNT', 'CLEAN', 'REGEX'],
     icon: 'type',
     component: 'text-tools',
-    span: 'normal',
-    badge: 'Case & Stats',
     accent: '#84cc16',
   },
 ]
@@ -591,20 +633,11 @@ export default function Converter() {
       <div className="fc-container">
       {/* 1. Header Section */}
       <div className="fc-header">
-        <div className="fc-eyebrow-row">
-          <span className="fc-eyebrow-tag">
-            <Icon name="wrench" size={12} />
-            Universal Studio · Local Processing
-          </span>
-          <span className="fc-local-badge">
-            <span className="fc-local-dot" />
-            Zero Cloud Telemetry · 100% Private
-          </span>
-        </div>
-
-        <h1 className="fc-title">File Converter & Processing Suite</h1>
+        <h1 className="fc-title">
+          Convert <span className="fc-title-accent">files.</span>
+        </h1>
         <p className="fc-subtitle">
-          Instant local format transcoding, compression, and developer utilities with machine-native performance.
+          Direct, private format conversion across images, documents, audio, and video. Everything runs locally on your machine with zero cloud upload.
         </p>
       </div>
 
@@ -622,7 +655,7 @@ export default function Converter() {
               {isActive && (
                 <motion.div
                   layoutId="subnavActiveIndicator"
-                  className="fc-subnav-pill"
+                  className="fc-subnav-active-bg"
                   transition={{ type: 'spring', stiffness: 480, damping: 34 }}
                 />
               )}
@@ -694,24 +727,30 @@ export default function Converter() {
                 />
 
                 <div className="fc-drop-icon-box">
-                  <Icon name="upload" size={22} />
+                  <Icon name="upload" size={24} />
                 </div>
 
                 <div className="fc-drop-prompt">
-                  <span className="fc-drop-main-text">
-                    Drop files here to convert, or <span>choose from device</span>
-                  </span>
-                  <span className="fc-drop-sub-text">
-                    Zero cloud telemetry · Local FFmpeg, PyMuPDF, LibreOffice, and Pillow engines
-                  </span>
+                  <h2 className="fc-drop-title">Drop files to convert</h2>
+                  <p className="fc-drop-formats">
+                    JPG, PNG, WebP, SVG, GIF, BMP, AVIF, HEIC, PDF, DOCX, XLSX, PPTX, MP4, MP3, WAV. Multiple files supported.
+                  </p>
                 </div>
 
-                <div className="fc-format-chips">
-                  {['PDF', 'DOCX', 'XLSX', 'PPTX', 'PNG', 'JPG', 'WEBP', 'MP4', 'MP3', 'WAV', 'GIF', 'CSV'].map((fmt) => (
-                    <span key={fmt} className="fc-format-chip">
-                      .{fmt.toLowerCase()}
-                    </span>
-                  ))}
+                <button
+                  type="button"
+                  className="fc-btn fc-btn-primary fc-drop-cta-btn"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    fileInputRef.current?.click()
+                  }}
+                >
+                  <Icon name="folder-plus" size={15} />
+                  <span>Choose files</span>
+                </button>
+
+                <div className="fc-drop-footer-hint">
+                  Outputs: PDF, JPG, PNG, WebP, AVIF, MP4, MP3, DOCX · Local processing, files never leave your device
                 </div>
               </div>
             </div>
@@ -1133,9 +1172,9 @@ export default function Converter() {
                         <Icon name={tool.icon} size={20} />
                       </div>
                       <div className="fc-tool-top-meta">
-                        <span className="fc-tool-badge">{tool.badge}</span>
+                        <span className="fc-tool-cat-tag">{tool.categoryLabel || tool.category}</span>
                         <div className="fc-tool-arrow-circle">
-                          <Icon name="arrow-up-right" size={14} className="fc-tool-arrow" />
+                          <Icon name="arrow-up-right" size={13} className="fc-tool-arrow" />
                         </div>
                       </div>
                     </div>
@@ -1145,12 +1184,35 @@ export default function Converter() {
                       <div className="fc-tool-desc">{tool.desc}</div>
                     </div>
 
-                    <div className="fc-tool-tags">
-                      {tool.tags.map((tag) => (
-                        <span key={tag} className="fc-tool-tag">
-                          {tag}
+                    <div className="fc-tool-format-specs">
+                      <div className="fc-spec-row">
+                        <span className="fc-spec-label">Inputs:</span>
+                        <span className="fc-spec-values">
+                          {tool.inputs?.slice(0, 4).join(', ')}
+                          {tool.inputs?.length > 4 ? ` +${tool.inputs.length - 4}` : ''}
                         </span>
-                      ))}
+                      </div>
+                      <div className="fc-spec-row">
+                        <span className="fc-spec-label">Outputs:</span>
+                        <span className="fc-spec-values fc-spec-highlight">
+                          {tool.outputs?.slice(0, 3).join(', ')}
+                          {tool.outputs?.length > 3 ? ` +${tool.outputs.length - 3}` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="fc-tool-card-footer">
+                      <div className="fc-tool-highlights">
+                        {tool.highlights?.slice(0, 2).map((h) => (
+                          <span key={h} className="fc-tool-highlight-item">
+                            <Icon name="check" size={11} />
+                            {h}
+                          </span>
+                        ))}
+                      </div>
+                      <span className="fc-tool-action-link">
+                        {tool.actionText || 'Open Tool'} →
+                      </span>
                     </div>
                   </div>
                 ))}
