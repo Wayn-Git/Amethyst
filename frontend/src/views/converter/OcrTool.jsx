@@ -118,7 +118,7 @@ export default function OcrTool() {
                     }
                   }}
                 />
-                <Icon name="type" size={28} className="text-violet-400" />
+                <Icon name="type" size={28} className="text-[var(--accent)]" />
                 <span className="text-sm font-semibold text-white">
                   {file ? file.name : 'Upload Image or Document'}
                 </span>
@@ -203,7 +203,7 @@ export default function OcrTool() {
             <div className="relative">
               {loading && (
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center rounded-xl z-10">
-                  <div className="flex items-center gap-2 text-violet-400 text-sm font-semibold">
+                  <div className="flex items-center gap-2 text-[var(--accent)] text-sm font-semibold">
                     <span className="fc-local-dot animate-ping" />
                     <span>Extracting readable text…</span>
                   </div>

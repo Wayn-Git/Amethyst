@@ -164,7 +164,7 @@ export default function VideoToolsTool() {
                     }
                   }}
                 />
-                <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={28} className="text-violet-400" />
+                <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={28} className="text-[var(--accent)]" />
                 <span className="text-sm font-semibold text-white">
                   {activeTab === 'audio-converter' ? 'Choose Audio File' : 'Choose Video or Audio File'}
                 </span>
@@ -177,7 +177,7 @@ export default function VideoToolsTool() {
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 text-xs">
                 <div className="flex items-center gap-2 truncate">
-                  <Icon name={file.type.startsWith('audio/') ? 'speaker' : 'video'} size={18} className="text-violet-400" />
+                  <Icon name={file.type.startsWith('audio/') ? 'speaker' : 'video'} size={18} className="text-[var(--accent)]" />
                   <span className="font-semibold text-white truncate max-w-[200px]">{file.name}</span>
                   <span className="text-slate-400 font-mono">({formatBytes(file.size)})</span>
                 </div>
@@ -284,7 +284,7 @@ export default function VideoToolsTool() {
               />
             ) : (
               <div className="p-8 rounded-xl bg-black/30 border border-white/5 flex flex-col items-center justify-center text-center text-slate-400 gap-2">
-                <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={36} className="text-violet-400 opacity-60" />
+                <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={36} className="text-[var(--accent)] opacity-60" />
                 <span className="text-xs">Upload media to see live preview</span>
               </div>
             )}

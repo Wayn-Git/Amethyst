@@ -224,7 +224,7 @@ export default function TextToolsTool() {
       {/* Editor Box */}
       <div className="relative">
         <textarea
-          className="fc-textarea w-full h-80 p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-sm leading-relaxed outline-none focus:border-violet-600 transition resize-y"
+          className="fc-textarea w-full h-80 p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-sm leading-relaxed outline-none focus:border-[var(--accent)] transition resize-y"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste or write text to transform…"

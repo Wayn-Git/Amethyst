@@ -285,7 +285,7 @@ export default function UnitConverterTool() {
                 <input
                   type="text"
                   readOnly
-                  className="fc-input font-mono flex-1 text-base font-semibold bg-white/5 text-violet-400"
+                  className="fc-input font-mono flex-1 text-base font-semibold bg-white/5 text-[var(--accent)]"
                   value={convertedValue !== '' ? convertedValue : '—'}
                 />
                 <select
@@ -303,11 +303,11 @@ export default function UnitConverterTool() {
             </div>
 
             {/* Formula / Result Card */}
-            <div className="p-3.5 rounded-xl bg-violet-500/10 border border-violet-500/20 text-xs flex items-center justify-between">
+            <div className="p-3.5 rounded-xl bg-[var(--accent-wash)] border border-[var(--accent-soft)] text-xs flex items-center justify-between">
               <span className="text-slate-300">
                 {inputValue || 0} {currentCat.units[fromUnit]?.name} =
               </span>
-              <span className="font-mono font-bold text-violet-300 text-sm">
+              <span className="font-mono font-bold text-[var(--accent)] text-sm">
                 {convertedValue || 0} {currentCat.units[toUnit]?.name}
               </span>
             </div>
@@ -339,7 +339,7 @@ export default function UnitConverterTool() {
                 key={item.key}
                 className={`flex items-center justify-between p-2.5 rounded-lg border text-xs transition ${
                   item.key === toUnit
-                    ? 'bg-violet-600/15 border-violet-500/40 text-violet-200'
+                    ? 'bg-[var(--accent-wash)] border-[var(--accent-soft)] text-[var(--accent)]'
                     : 'bg-white/5 border-white/5 text-slate-300'
                 }`}
                 onClick={() => setToUnit(item.key)}

@@ -131,7 +131,7 @@ export default function TimeZoneTool() {
               key={zone.id}
               className={`p-4 rounded-xl border transition flex flex-col justify-between gap-2 ${
                 isBase
-                  ? 'bg-violet-950/20 border-violet-800/60 shadow-sm'
+                  ? 'bg-[var(--accent-wash)] border-[var(--accent-soft)] shadow-sm'
                   : 'bg-slate-900/40 border-slate-800/80 hover:bg-slate-800/40'
               }`}
             >
@@ -140,7 +140,7 @@ export default function TimeZoneTool() {
                   <div className="font-semibold text-white text-base flex items-center gap-1.5">
                     <span>{zone.city}</span>
                     {isBase && (
-                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-violet-600/30 text-violet-300">
+                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-[var(--accent-wash)] text-[var(--accent)] border border-[var(--accent-soft)]">
                         Base
                       </span>
                     )}

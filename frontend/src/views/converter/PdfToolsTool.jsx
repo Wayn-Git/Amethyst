@@ -238,7 +238,7 @@ export default function PdfToolsTool() {
                     }
                   }}
                 />
-                <Icon name="upload" size={24} className="text-violet-400" />
+                <Icon name="upload" size={24} className="text-[var(--accent)]" />
                 <span className="text-sm font-semibold text-white">Click to add PDF documents</span>
                 <span className="text-xs text-slate-400">Select 2 or more PDFs</span>
               </div>
@@ -252,7 +252,7 @@ export default function PdfToolsTool() {
                     className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/5 text-xs text-slate-200"
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <span className="font-mono text-violet-400 w-5">{idx + 1}.</span>
+                      <span className="font-mono text-[var(--accent)] w-5">{idx + 1}.</span>
                       <span className="truncate max-w-[200px]" title={f.name}>{f.name}</span>
                       <span className="text-slate-400 font-mono">({formatBytes(f.size)})</span>
                     </div>
@@ -370,7 +370,7 @@ export default function PdfToolsTool() {
                       }
                     }}
                   />
-                  <Icon name="file" size={26} className="text-violet-400" />
+                  <Icon name="file" size={26} className="text-[var(--accent)]" />
                   <span className="text-sm font-semibold text-white">Choose a PDF Document</span>
                   <span className="text-xs text-slate-400">PDF up to 500 MB</span>
                 </div>
@@ -379,7 +379,7 @@ export default function PdfToolsTool() {
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 text-xs">
                   <div className="flex items-center gap-2 truncate">
-                    <Icon name="file" size={18} className="text-violet-400" />
+                    <Icon name="file" size={18} className="text-[var(--accent)]" />
                     <span className="font-semibold text-white truncate max-w-[200px]">{singleFile.name}</span>
                     <span className="text-slate-400 font-mono">({formatBytes(singleFile.size)})</span>
                   </div>
@@ -510,7 +510,7 @@ export default function PdfToolsTool() {
                     }
                   }}
                 />
-                <Icon name="image" size={24} className="text-violet-400" />
+                <Icon name="image" size={24} className="text-[var(--accent)]" />
                 <span className="text-sm font-semibold text-white">Click to add images</span>
                 <span className="text-xs text-slate-400">PNG, JPG, WebP images</span>
               </div>

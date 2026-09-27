@@ -252,7 +252,7 @@ export default function ImageResizerTool() {
                     type="checkbox"
                     checked={lockAspectRatio}
                     onChange={(e) => setLockAspectRatio(e.target.checked)}
-                    className="accent-violet-500 rounded"
+                    className="rounded accent-[var(--accent)]"
                   />
                   <span>Lock Aspect Ratio ({origDimensions.width}×{origDimensions.height})</span>
                 </label>
@@ -264,7 +264,7 @@ export default function ImageResizerTool() {
               <div className="flex flex-col gap-3 mt-4">
                 <div className="flex items-center justify-between text-xs text-slate-300">
                   <span>Scale Percentage</span>
-                  <span className="font-mono font-semibold text-violet-400">{percentage}%</span>
+                  <span className="font-mono font-semibold text-[var(--accent)]">{percentage}%</span>
                 </div>
                 <input
                   type="range"
@@ -282,7 +282,7 @@ export default function ImageResizerTool() {
                       type="button"
                       className={`px-2.5 py-1 text-xs rounded-md border font-mono transition ${
                         percentage === pct
-                          ? 'bg-violet-600 border-violet-500 text-white'
+                          ? 'bg-[var(--accent)] border-[var(--accent-line)] text-white'
                           : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                       }`}
                       onClick={() => setPercentage(pct)}
@@ -305,7 +305,7 @@ export default function ImageResizerTool() {
                       type="button"
                       className={`text-left p-2 rounded-lg text-xs border transition ${
                         width === p.width && height === p.height
-                          ? 'bg-violet-600/20 border-violet-500 text-violet-300'
+                          ? 'bg-[var(--accent-wash)] border-[var(--accent-soft)] text-[var(--accent)]'
                           : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'
                       }`}
                       onClick={() => applyPreset(p)}
@@ -339,7 +339,7 @@ export default function ImageResizerTool() {
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-xs font-medium text-slate-300">
                     <span>Quality</span>
-                    <span className="font-mono text-violet-400">{quality}%</span>
+                    <span className="font-mono text-[var(--accent)]">{quality}%</span>
                   </div>
                   <input
                     type="range"
@@ -374,7 +374,7 @@ export default function ImageResizerTool() {
                       type="checkbox"
                       checked={grayscale}
                       onChange={(e) => setGrayscale(e.target.checked)}
-                      className="accent-violet-500 rounded"
+                      className="rounded accent-[var(--accent)]"
                     />
                     <span>Convert to Grayscale</span>
                   </label>

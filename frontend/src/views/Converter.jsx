@@ -321,6 +321,13 @@ export default function Converter() {
         targetFormat = ext === 'mp3' ? 'wav' : 'mp3'
       }
 
+      let localThumb = null
+      if (file.type?.startsWith('image/')) {
+        try {
+          localThumb = URL.createObjectURL(file)
+        } catch {}
+      }
+
       return {
         id: Math.random().toString(36).substring(2, 10),
         file,
@@ -328,10 +335,12 @@ export default function Converter() {
         size: file.size,
         ext,
         category: cat,
+        localThumb,
         status: 'ready',
         uploadProgress: 0,
         operation: op,
         targetFormat,
+        showOptions: false,
         options: {
           quality: 85,
           width: '',
@@ -437,8 +446,38 @@ export default function Converter() {
   }, [])
 
   const removeItem = useCallback((itemId) => {
-    setQueue((prev) => prev.filter((i) => i.id !== itemId))
+    setQueue((prev) => {
+      const target = prev.find((i) => i.id === itemId)
+      if (target?.localThumb) {
+        try { URL.revokeObjectURL(target.localThumb) } catch {}
+      }
+      return prev.filter((i) => i.id !== itemId)
+    })
   }, [])
+
+  const clearQueue = useCallback(() => {
+    setQueue((prev) => {
+      prev.forEach((i) => {
+        if (i.localThumb) {
+          try { URL.revokeObjectURL(i.localThumb) } catch {}
+        }
+      })
+      return []
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      queue.forEach((i) => {
+        if (i.localThumb) {
+          try { URL.revokeObjectURL(i.localThumb) } catch {}
+        }
+      })
+    }
+  }, [queue])
+
+  const totalQueueBytes = useMemo(() => queue.reduce((acc, i) => acc + (i.size || 0), 0), [queue])
+  const completedCount = useMemo(() => queue.filter((i) => i.status === 'completed').length, [queue])
 
   const processAll = useCallback(() => {
     const readyItems = queue.filter((i) => i.status === 'ready' || i.status === 'error')
@@ -491,12 +530,34 @@ export default function Converter() {
   const getAvailableTargets = (item) => {
     const cat = item.category
     if (cat === 'image') return ['png', 'jpg', 'webp', 'avif', 'gif', 'ico', 'tiff', 'bmp', 'pdf']
-    if (cat === 'pdf') return ['png', 'jpg', 'txt']
+    if (cat === 'pdf') return ['png', 'jpg', 'txt', 'docx']
     if (cat === 'document') return ['pdf', 'txt', 'md', 'html']
     if (cat === 'video') return ['mp4', 'webm', 'mkv', 'mov', 'gif', 'mp3', 'wav', 'aac']
     if (cat === 'audio') return ['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a']
     return ['pdf', 'txt']
   }
+
+  const getQuickTargets = (category) => {
+    if (category === 'image') return ['png', 'jpg', 'webp', 'pdf']
+    if (category === 'pdf') return ['png', 'txt', 'docx']
+    if (category === 'document') return ['pdf', 'txt', 'md']
+    if (category === 'video') return ['mp4', 'webm', 'gif', 'mp3']
+    if (category === 'audio') return ['mp3', 'wav', 'aac', 'flac']
+    return ['pdf', 'txt']
+  }
+
+  const setAllTargets = useCallback((target) => {
+    setQueue((prev) =>
+      prev.map((item) => {
+        const available = getAvailableTargets(item)
+        if (available.includes(target)) {
+          return { ...item, targetFormat: target, operation: 'convert' }
+        }
+        return item
+      })
+    )
+    toast(`Set target to .${target} for eligible files`, 'info')
+  }, [toast])
 
   // 60fps GPU compositor spotlight tracking (Zero React state re-renders)
   const handleCardPointerMove = useCallback((e) => {
@@ -632,21 +693,21 @@ export default function Converter() {
                   }}
                 />
 
-                <div className="fc-drop-icon-pill">
-                  <Icon name="upload" size={24} />
+                <div className="fc-drop-icon-box">
+                  <Icon name="upload" size={22} />
                 </div>
 
                 <div className="fc-drop-prompt">
                   <span className="fc-drop-main-text">
-                    Drop your files here, or <span>browse from computer</span>
+                    Drop files here to convert, or <span>choose from device</span>
                   </span>
                   <span className="fc-drop-sub-text">
-                    Supports all major formats up to 500 MB · No data ever leaves your device
+                    Zero cloud telemetry · Local FFmpeg, PyMuPDF, LibreOffice, and Pillow engines
                   </span>
                 </div>
 
                 <div className="fc-format-chips">
-                  {['PDF', 'DOCX', 'XLSX', 'PPTX', 'PNG', 'JPG', 'WEBP', 'MP4', 'MP3', 'WAV', 'GIF'].map((fmt) => (
+                  {['PDF', 'DOCX', 'XLSX', 'PPTX', 'PNG', 'JPG', 'WEBP', 'MP4', 'MP3', 'WAV', 'GIF', 'CSV'].map((fmt) => (
                     <span key={fmt} className="fc-format-chip">
                       .{fmt.toLowerCase()}
                     </span>
@@ -660,11 +721,37 @@ export default function Converter() {
           {queue.length > 0 && (
             <div className="fc-queue-section">
               <div className="fc-queue-header">
-                <h2 className="fc-section-title">
-                  Workspace Files ({queue.length})
-                </h2>
+                <div className="fc-queue-headline">
+                  <h2 className="fc-queue-title">Workspace Files</h2>
+                  <span className="fc-queue-metrics">
+                    {queue.length} {queue.length === 1 ? 'file' : 'files'} · {formatBytes(totalQueueBytes)}
+                  </span>
+                  {completedCount > 0 && (
+                    <span className="fc-queue-metrics text-emerald-400">
+                      <Icon name="check" size={12} />
+                      {completedCount} converted
+                    </span>
+                  )}
+                </div>
 
                 <div className="fc-batch-bar">
+                  <div className="fc-batch-target-group">
+                    <span>Batch format:</span>
+                    <div className="fc-target-chips">
+                      {['pdf', 'webp', 'jpg', 'png', 'mp3'].map((tgt) => (
+                        <button
+                          key={tgt}
+                          type="button"
+                          className="fc-target-chip uppercase"
+                          onClick={() => setAllTargets(tgt)}
+                          title={`Set all eligible files to .${tgt}`}
+                        >
+                          .{tgt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {canMergePdfs && (
                     <button
                       type="button"
@@ -673,7 +760,7 @@ export default function Converter() {
                       onClick={handleMergePdfs}
                       title="Combine all PDFs into one"
                     >
-                      <Icon name="layers" size={15} />
+                      <Icon name="layers" size={14} />
                       <span>{batchMerging ? 'Merging…' : `Merge ${pdfItems.length} PDFs`}</span>
                     </button>
                   )}
@@ -684,18 +771,28 @@ export default function Converter() {
                       className="fc-btn fc-btn-primary"
                       onClick={processAll}
                     >
-                      <Icon name="convert" size={15} />
-                      <span>Convert All</span>
+                      <Icon name="convert" size={14} />
+                      <span>Convert All ({queue.filter((i) => i.status === 'ready' || i.status === 'error').length})</span>
                     </button>
                   )}
 
                   <button
                     type="button"
+                    className="fc-btn fc-btn-secondary"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Add more files to queue"
+                  >
+                    <Icon name="plus" size={14} />
+                    <span>Add Files</span>
+                  </button>
+
+                  <button
+                    type="button"
                     className="fc-btn fc-btn-danger-ghost"
-                    onClick={() => setQueue([])}
+                    onClick={clearQueue}
                     title="Clear all workspace files"
                   >
-                    <Icon name="trash" size={15} />
+                    <Icon name="trash" size={14} />
                     <span>Clear</span>
                   </button>
                 </div>
@@ -707,23 +804,32 @@ export default function Converter() {
                     const isWorking = item.status === 'uploading' || item.status === 'processing'
                     const isDone = item.status === 'completed'
                     const hasError = item.status === 'error'
+                    const quickTargets = getQuickTargets(item.category)
 
                     return (
                       <motion.div
                         key={item.id}
                         layout="position"
-                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                        initial={{ opacity: 0, y: 8, scale: 0.99 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
                         className={`fc-file-item${isDone ? ' is-success' : ''}${hasError ? ' is-error' : ''}`}
                       >
                         <div className="fc-file-core">
                           <div className="fc-file-top-row">
                             <div className="fc-file-identity">
-                              <div className="fc-file-icon-wrap">
-                                <FileIcon type={getUntitledIconType(item.ext)} theme="dark" size={24} />
-                              </div>
+                              {item.localThumb ? (
+                                <img
+                                  src={item.localThumb}
+                                  alt={item.name}
+                                  className="fc-file-thumb"
+                                />
+                              ) : (
+                                <div className={`fc-file-icon-box is-${item.category}`}>
+                                  <FileIcon type={getUntitledIconType(item.ext)} theme="dark" size={20} />
+                                </div>
+                              )}
 
                               <div className="fc-file-meta">
                                 <span className="fc-file-name" title={item.name}>
@@ -732,9 +838,9 @@ export default function Converter() {
                                 <div className="fc-file-specs">
                                   <span>{formatBytes(item.size)}</span>
                                   <span>·</span>
-                                  <span className="uppercase text-violet-400 font-semibold">{item.ext || 'FILE'}</span>
+                                  <span className="fc-file-format-badge">.{item.ext || 'FILE'}</span>
                                   <span>·</span>
-                                  <span>{item.category}</span>
+                                  <span className="capitalize">{item.category}</span>
                                 </div>
                               </div>
                             </div>
@@ -747,8 +853,8 @@ export default function Converter() {
                                   disabled={isWorking}
                                   onClick={() => processItem(item.id)}
                                 >
-                                  <Icon name="convert" size={15} />
-                                  <span>{isWorking ? (item.status === 'uploading' ? 'Uploading…' : 'Processing…') : 'Process'}</span>
+                                  <Icon name="convert" size={14} />
+                                  <span>{isWorking ? (item.status === 'uploading' ? 'Uploading…' : 'Converting…') : 'Convert'}</span>
                                 </button>
                               )}
 
@@ -758,152 +864,159 @@ export default function Converter() {
                                 onClick={() => removeItem(item.id)}
                                 title="Remove from queue"
                               >
-                                <Icon name="x" size={15} />
+                                <Icon name="x" size={14} />
                               </button>
                             </div>
                           </div>
 
                           {!isDone && (
-                            <div className="fc-op-row">
-                              <div className="fc-select-field">
-                                <span>Operation:</span>
-                                <select
-                                  className="fc-select"
-                                  value={item.operation}
-                                  onChange={(e) => updateItem(item.id, { operation: e.target.value })}
-                                >
-                                  {item.category === 'image' && (
-                                    <>
-                                      <option value="convert">Convert Format</option>
-                                      <option value="resize">Resize Image</option>
-                                      <option value="compress">Compress / Optimize</option>
-                                      <option value="rotate">Rotate Image</option>
-                                      <option value="grayscale">Convert to Grayscale</option>
-                                    </>
-                                  )}
-                                  {item.category === 'pdf' && (
-                                    <>
-                                      <option value="pdf_to_images">Render Pages as Images</option>
-                                      <option value="extract_text">Extract Document Text</option>
-                                      <option value="pdf_extract_pages">Extract Page Range</option>
-                                      <option value="pdf_compress">Compress PDF</option>
-                                      <option value="convert">Convert to Word (DOCX)</option>
-                                    </>
-                                  )}
-                                  {item.category === 'document' && (
-                                    <>
-                                      <option value="convert">Convert Document</option>
-                                      <option value="extract_text">Extract Text Content</option>
-                                    </>
-                                  )}
-                                  {item.category === 'video' && (
-                                    <>
-                                      <option value="convert">Convert Video Format</option>
-                                      <option value="video_to_audio">Extract Audio Track</option>
-                                      <option value="video_to_gif">Convert to Animated GIF</option>
-                                      <option value="video_compress">Compress Video</option>
-                                    </>
-                                  )}
-                                  {item.category === 'audio' && (
-                                    <option value="convert">Convert Audio Format</option>
-                                  )}
-                                  {item.category === 'other' && (
-                                    <option value="convert">Convert Format</option>
-                                  )}
-                                </select>
-                              </div>
+                            <>
+                              <div className="fc-pipeline-strip">
+                                <div className="fc-pipeline-flow">
+                                  <span className="fc-pipeline-source">.{item.ext?.toUpperCase() || 'FILE'}</span>
+                                  <span className="fc-pipeline-arrow">
+                                    <Icon name="arrow-right" size={13} />
+                                  </span>
 
-                              {item.operation === 'convert' && (
-                                <div className="fc-select-field">
-                                  <span>Target:</span>
+                                  <div className="fc-target-chips">
+                                    {quickTargets.map((fmt) => (
+                                      <button
+                                        key={fmt}
+                                        type="button"
+                                        className={`fc-target-chip uppercase${item.targetFormat === fmt && item.operation === 'convert' ? ' is-active' : ''}`}
+                                        onClick={() => updateItem(item.id, { targetFormat: fmt, operation: 'convert' })}
+                                      >
+                                        .{fmt}
+                                      </button>
+                                    ))}
+                                  </div>
+
                                   <select
                                     className="fc-select uppercase font-mono"
-                                    value={item.targetFormat}
-                                    onChange={(e) => updateItem(item.id, { targetFormat: e.target.value })}
+                                    value={item.operation === 'convert' ? item.targetFormat : item.operation}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      if (['resize', 'compress', 'rotate', 'grayscale', 'pdf_to_images', 'extract_text', 'pdf_extract_pages', 'pdf_compress', 'video_to_audio', 'video_to_gif', 'video_compress'].includes(val)) {
+                                        updateItem(item.id, { operation: val })
+                                      } else {
+                                        updateItem(item.id, { operation: 'convert', targetFormat: val })
+                                      }
+                                    }}
                                   >
-                                    {getAvailableTargets(item).map((fmt) => (
-                                      <option key={fmt} value={fmt}>
-                                        .{fmt}
-                                      </option>
-                                    ))}
+                                    <optgroup label="Other Formats">
+                                      {getAvailableTargets(item).map((fmt) => (
+                                        <option key={fmt} value={fmt}>
+                                          .{fmt}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                    {item.category === 'image' && (
+                                      <optgroup label="Operations">
+                                        <option value="resize">Resize Dimensions</option>
+                                        <option value="compress">Compress / Optimize</option>
+                                        <option value="rotate">Rotate Angle</option>
+                                        <option value="grayscale">Grayscale</option>
+                                      </optgroup>
+                                    )}
+                                    {item.category === 'pdf' && (
+                                      <optgroup label="PDF Tools">
+                                        <option value="pdf_to_images">Render Images</option>
+                                        <option value="extract_text">Extract Text</option>
+                                        <option value="pdf_compress">Compress PDF</option>
+                                      </optgroup>
+                                    )}
                                   </select>
                                 </div>
-                              )}
 
-                              {item.operation === 'resize' && (
-                                <div className="fc-select-field">
-                                  <span>Scale:</span>
-                                  <select
-                                    className="fc-select font-mono"
-                                    value={item.options.percentage || 50}
-                                    onChange={(e) =>
-                                      updateItem(item.id, {
-                                        options: { ...item.options, percentage: Number(e.target.value) },
-                                      })
-                                    }
+                                {['image', 'video', 'pdf'].includes(item.category) && (
+                                  <button
+                                    type="button"
+                                    className="fc-pipeline-options-btn"
+                                    onClick={() => updateItem(item.id, { showOptions: !item.showOptions })}
                                   >
-                                    <option value="25">25% (Small)</option>
-                                    <option value="50">50% (Medium)</option>
-                                    <option value="75">75% (Large)</option>
-                                    <option value="150">150% (Enlarge)</option>
-                                    <option value="200">200% (2x)</option>
-                                  </select>
-                                </div>
-                              )}
+                                    <Icon name="sliders" size={13} />
+                                    <span>Options {item.showOptions ? '▴' : '▾'}</span>
+                                  </button>
+                                )}
+                              </div>
 
-                              {item.operation === 'compress' && (
-                                <div className="fc-select-field">
-                                  <span>Quality:</span>
-                                  <input
-                                    type="range"
-                                    min="10"
-                                    max="100"
-                                    className="fc-range-slider w-28"
-                                    value={item.options.quality || 85}
-                                    onChange={(e) =>
-                                      updateItem(item.id, {
-                                        options: { ...item.options, quality: Number(e.target.value) },
-                                      })
-                                    }
-                                  />
-                                  <span className="font-mono text-xs">{item.options.quality || 85}%</span>
-                                </div>
-                              )}
+                              {item.showOptions && (
+                                <div className="fc-options-drawer">
+                                  {item.operation === 'resize' && (
+                                    <div className="fc-option-item">
+                                      <span>Resize scale:</span>
+                                      <select
+                                        className="fc-select font-mono"
+                                        value={item.options.percentage || 50}
+                                        onChange={(e) =>
+                                          updateItem(item.id, {
+                                            options: { ...item.options, percentage: Number(e.target.value) },
+                                          })
+                                        }
+                                      >
+                                        <option value="25">25% (Thumb)</option>
+                                        <option value="50">50% (Half)</option>
+                                        <option value="75">75% (Three-Quarter)</option>
+                                        <option value="150">150% (Enlarge)</option>
+                                        <option value="200">200% (Double)</option>
+                                      </select>
+                                    </div>
+                                  )}
 
-                              {item.operation === 'rotate' && (
-                                <div className="fc-select-field">
-                                  <span>Angle:</span>
-                                  <select
-                                    className="fc-select"
-                                    value={item.options.angle || 90}
-                                    onChange={(e) =>
-                                      updateItem(item.id, {
-                                        options: { ...item.options, angle: Number(e.target.value) },
-                                      })
-                                    }
-                                  >
-                                    <option value="90">90° Clockwise</option>
-                                    <option value="180">180° Half Turn</option>
-                                    <option value="270">270° Counter-Clockwise</option>
-                                  </select>
+                                  <div className="fc-option-item">
+                                    <span>Quality:</span>
+                                    <input
+                                      type="range"
+                                      min="10"
+                                      max="100"
+                                      value={item.options.quality || 85}
+                                      onChange={(e) =>
+                                        updateItem(item.id, {
+                                          options: { ...item.options, quality: Number(e.target.value) },
+                                        })
+                                      }
+                                    />
+                                    <span className="font-mono text-xs">{item.options.quality || 85}%</span>
+                                  </div>
+
+                                  {item.category === 'image' && (
+                                    <div className="fc-option-item">
+                                      <span>Rotate:</span>
+                                      <select
+                                        className="fc-select"
+                                        value={item.options.angle || 0}
+                                        onChange={(e) =>
+                                          updateItem(item.id, {
+                                            options: { ...item.options, angle: Number(e.target.value) },
+                                          })
+                                        }
+                                      >
+                                        <option value="0">None</option>
+                                        <option value="90">90° CW</option>
+                                        <option value="180">180° Flip</option>
+                                        <option value="270">270° CCW</option>
+                                      </select>
+                                    </div>
+                                  )}
                                 </div>
                               )}
-                            </div>
+                            </>
                           )}
 
                           {isWorking && (
-                            <div className="flex flex-col gap-1.5 mt-1">
-                              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                            <div className="fc-progress-wrap">
+                              <div className="fc-progress-meta">
                                 <span>
                                   {item.status === 'uploading'
                                     ? `Uploading to local workspace… ${item.uploadProgress}%`
-                                    : 'Processing with local engine…'}
+                                    : 'Processing via local engine…'}
                                 </span>
+                                <span>{item.uploadProgress || 10}%</span>
                               </div>
                               <div className="fc-progress-bar-wrap">
                                 <div
                                   className="fc-progress-bar-fill"
-                                  style={{ width: `${item.uploadProgress || 10}%` }}
+                                  style={{ width: `${item.uploadProgress || 20}%` }}
                                 />
                               </div>
                             </div>
@@ -912,17 +1025,17 @@ export default function Converter() {
                           {isDone && item.result && (
                             <div className="fc-result-banner">
                               <div className="fc-result-info">
-                                <Icon name="check-circle" size={17} />
-                                <span className="font-semibold">{item.result.filename}</span>
+                                <Icon name="check" size={15} />
+                                <span className="fc-result-name">{item.result.filename}</span>
                                 <span className="fc-result-delta">
                                   {formatBytes(item.result.size)}
                                   {item.size > 0 && item.result.size !== item.size && (
-                                    <span className="ml-1 opacity-75">
+                                    <span className="ml-1 opacity-80">
                                       ({Math.round(((item.result.size - item.size) / item.size) * 100)}%)
                                     </span>
                                   )}
                                 </span>
-                                <span className="text-xs text-emerald-400 font-mono">
+                                <span className="fc-result-speed">
                                   in {(item.result.elapsed_ms / 1000).toFixed(2)}s
                                 </span>
                               </div>
@@ -940,7 +1053,7 @@ export default function Converter() {
                                 <a
                                   href={api.converterDownloadUrl(item.result.job_id)}
                                   download={item.result.filename}
-                                  className="fc-btn fc-btn-success"
+                                  className="fc-btn fc-btn-primary"
                                 >
                                   <Icon name="download" size={14} />
                                   <span>Download</span>
@@ -952,7 +1065,7 @@ export default function Converter() {
                           {hasError && (
                             <div className="fc-error-banner">
                               <div className="flex items-center gap-2">
-                                <Icon name="alert" size={16} />
+                                <Icon name="alert" size={15} />
                                 <span>{item.error}</span>
                               </div>
                               <button
@@ -1099,7 +1212,7 @@ export default function Converter() {
 
                 {['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a'].includes(previewItem.ext) && (
                   <div className="flex flex-col items-center gap-4 py-8">
-                    <Icon name="speaker" size={48} className="text-violet-400" />
+                    <Icon name="speaker" size={48} className="text-[var(--accent)]" />
                     <audio controls src={api.converterPreviewUrl(previewItem.job_id)} className="w-80" />
                   </div>
                 )}
@@ -1127,7 +1240,7 @@ export default function Converter() {
                 {!['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'mp4', 'webm', 'mov', 'mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a'].includes(previewItem.ext) &&
                   !previewItem.preview_text && (
                     <div className="flex flex-col items-center gap-3 py-10 text-center">
-                      <Icon name="file" size={42} className="text-violet-400" />
+                      <Icon name="file" size={42} className="text-[var(--accent)]" />
                       <p className="text-sm text-slate-300">
                         Preview not available inline for .{previewItem.ext} files.
                       </p>
