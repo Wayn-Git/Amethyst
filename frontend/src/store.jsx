@@ -5,6 +5,7 @@ import { byId, pathFor } from './nav.js'
 import { useCompact, usePhone } from './hooks/useMediaQuery.js'
 
 import { safeStorage } from './lib/storage.js'
+import { useSync } from './lib/sync/useSync.js'
 import { notify as toastNotify } from './components/application/notifications'
 
 function pathToId(pathname) {
