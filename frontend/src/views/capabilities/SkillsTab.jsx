@@ -315,10 +315,7 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
       )}
 
       {loading && shown.length === 0 && (
-        <>
-          <div className="dir-empty">Reading the skill sources…</div>
-          <SkeletonGrid cards={6} />
-        </>
+        <SkeletonGrid cards={6} />
       )}
       {loading && shown.length > 0 && <div className="dir-empty dir-empty--quiet">Refreshing…</div>}
 

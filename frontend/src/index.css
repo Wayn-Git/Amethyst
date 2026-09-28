@@ -12275,26 +12275,33 @@ a.text-reveal-wrap {
   position: relative;
   overflow: hidden;
   flex: none;
-  background: var(--surface);
-}
-
-.skel::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgb(var(--tint) / 0.055) 42%,
-    rgb(var(--tint) / 0.055) 58%,
-    transparent
+  background-color: rgba(255, 255, 255, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.04) 70%
   );
-  animation: skel-sweep 1.6s var(--ease-in-out) infinite;
+  background-size: 200% 100%;
+  animation: boneyard-shimmer 2s linear infinite;
 }
 
-@keyframes skel-sweep {
-  100% { transform: translateX(100%); }
+[data-theme="light"] .skel,
+:root:not(.dark) .skel {
+  background-color: rgba(0, 0, 0, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(0, 0, 0, 0.04) 30%,
+    rgba(0, 0, 0, 0.09) 50%,
+    rgba(0, 0, 0, 0.04) 70%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+    background-image: none;
+  }
 }
 
 .skel-stack { display: flex; flex-direction: column; gap: 8px; }
@@ -12358,8 +12365,27 @@ a.text-reveal-wrap {
   width: 100%;
   aspect-ratio: 16 / 10;
   border-radius: 12px;
-  background: var(--canvas-deep);
+  background-color: rgba(255, 255, 255, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.04) 70%
+  );
+  background-size: 200% 100%;
+  animation: boneyard-shimmer 2s linear infinite;
   border: 1px solid var(--hairline);
+}
+
+[data-theme="light"] .skel-lib-media,
+:root:not(.dark) .skel-lib-media {
+  background-color: rgba(0, 0, 0, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(0, 0, 0, 0.04) 30%,
+    rgba(0, 0, 0, 0.09) 50%,
+    rgba(0, 0, 0, 0.04) 70%
+  );
 }
 
 .skel-lib-body { display: flex; flex-direction: column; gap: 8px; padding: 13px 14px; }
@@ -34926,26 +34952,33 @@ a.text-reveal-wrap {
   position: relative;
   overflow: hidden;
   flex: none;
-  background: var(--surface);
-}
-
-.skel::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgb(var(--tint) / 0.055) 42%,
-    rgb(var(--tint) / 0.055) 58%,
-    transparent
+  background-color: rgba(255, 255, 255, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.04) 70%
   );
-  animation: skel-sweep 1.6s var(--ease-in-out) infinite;
+  background-size: 200% 100%;
+  animation: boneyard-shimmer 2s linear infinite;
 }
 
-@keyframes skel-sweep {
-  100% { transform: translateX(100%); }
+[data-theme="light"] .skel,
+:root:not(.dark) .skel {
+  background-color: rgba(0, 0, 0, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(0, 0, 0, 0.04) 30%,
+    rgba(0, 0, 0, 0.09) 50%,
+    rgba(0, 0, 0, 0.04) 70%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+    background-image: none;
+  }
 }
 
 .skel-stack { display: flex; flex-direction: column; gap: 8px; }
@@ -35009,8 +35042,27 @@ a.text-reveal-wrap {
   width: 100%;
   aspect-ratio: 16 / 10;
   border-radius: 12px;
-  background: var(--canvas-deep);
+  background-color: rgba(255, 255, 255, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.04) 70%
+  );
+  background-size: 200% 100%;
+  animation: boneyard-shimmer 2s linear infinite;
   border: 1px solid var(--hairline);
+}
+
+[data-theme="light"] .skel-lib-media,
+:root:not(.dark) .skel-lib-media {
+  background-color: rgba(0, 0, 0, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(0, 0, 0, 0.04) 30%,
+    rgba(0, 0, 0, 0.09) 50%,
+    rgba(0, 0, 0, 0.04) 70%
+  );
 }
 
 .skel-lib-body { display: flex; flex-direction: column; gap: 8px; padding: 13px 14px; }
