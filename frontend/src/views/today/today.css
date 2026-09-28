@@ -330,7 +330,7 @@
 .today-contrib-cell {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 50%;
   box-sizing: border-box;
   transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1),
               box-shadow 0.12s ease,
