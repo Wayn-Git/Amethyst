@@ -77,6 +77,19 @@ export default function TodayTasksCard({
     return tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
   }, [tasks])
 
+  const [optimisticCompletedTasks, setOptimisticCompletedTasks] = useState([])
+
+  const mergedCompletedTasks = useMemo(() => {
+    const map = new Map()
+    for (const t of completedTasks) {
+      map.set(t.id, t)
+    }
+    for (const t of optimisticCompletedTasks) {
+      map.set(t.id, t)
+    }
+    return Array.from(map.values())
+  }, [completedTasks, optimisticCompletedTasks])
+
   const handleUpdateProgress = useCallback(
     async (taskId, pct) => {
       saveProgress(taskId, pct)
@@ -107,6 +120,20 @@ export default function TodayTasksCard({
     async (taskId) => {
       try {
         saveProgress(taskId, 100)
+        
+        const target = tasks.find((t) => t.id === taskId)
+        if (target) {
+          const now = new Date()
+          const y = now.getFullYear()
+          const m = String(now.getMonth() + 1).padStart(2, '0')
+          const d = String(now.getDate()).padStart(2, '0')
+          const localStr = `${y}-${m}-${d} 12:00:00`
+          setOptimisticCompletedTasks((prev) => [
+            ...prev,
+            { ...target, status: 'done', completed_at: localStr },
+          ])
+        }
+
         await api.updateTask(taskId, { status: 'done' })
         setSelectedTask(null)
         toast?.('Task completed and removed from card', 'ok')
@@ -115,7 +142,7 @@ export default function TodayTasksCard({
         toast?.(err.message, 'bad')
       }
     },
-    [onTasksChange, saveProgress, toast],
+    [onTasksChange, saveProgress, toast, tasks],
   )
 
   const handleQuickAdd = async (e) => {
@@ -166,7 +193,7 @@ export default function TodayTasksCard({
       </div>
 
       {/* GitHub-style Contribution Graph */}
-      <TodayContributionGraph completedTasks={completedTasks} />
+      <TodayContributionGraph completedTasks={mergedCompletedTasks} />
 
       {/* Quick Add Bar */}
       <AnimatePresence>
