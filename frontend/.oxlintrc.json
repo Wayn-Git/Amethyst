@@ -1,8 +1,36 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "oxc"],
+  "plugins": [
+    "react",
+    "oxc"
+  ],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ],
+    "amethyst-ui/no-raw-controls": "warn"
+  },
+  "jsPlugins": [
+    {
+      "name": "amethyst-ui",
+      "specifier": "./lint/ui-controls.js"
+    }
+  ],
+  "overrides": [
+    {
+      "files": [
+        "src/components/ui/**",
+        "src/components/base/**",
+        "src/components/application/**",
+        "src/dashboard/primitives.jsx"
+      ],
+      "rules": {
+        "amethyst-ui/no-raw-controls": "off"
+      }
+    }
+  ]
 }

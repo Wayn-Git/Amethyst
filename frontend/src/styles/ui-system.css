@@ -1,0 +1,49 @@
+:root {
+  --ui-font: 'Inter', sans-serif;
+  --ui-display: 'Space Grotesk', sans-serif;
+  --ui-mono: 'JetBrains Mono', monospace;
+  --ui-space-1: 4px; --ui-space-2: 8px; --ui-space-3: 12px; --ui-space-4: 16px; --ui-space-6: 24px; --ui-space-8: 32px;
+  --ui-radius: 8px; --ui-panel-radius: 12px;
+  --ui-fast: 150ms; --ui-layout: 200ms; --ui-ease: cubic-bezier(.2,.8,.2,1);
+  --ui-gutter: 16px; --ui-max-width: 1600px;
+  --ui-bg: var(--canvas-deep); --ui-panel: var(--canvas); --ui-raised: var(--surface);
+  --ui-text: var(--text); --ui-muted: var(--text-dim); --ui-border: var(--hairline);
+  --ui-accent: var(--accent); --ui-on-accent: var(--on-accent);
+}
+.ui-button, [data-slot='button'], .ui-select, [data-slot='input'], [data-slot='select-trigger'] {
+  font: 500 13px/20px var(--ui-font); border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+  min-height: 36px; padding: 7px 12px; color: var(--ui-text); background: var(--ui-raised);
+  transition: background-color var(--ui-fast), border-color var(--ui-fast), transform var(--ui-fast);
+}
+.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--ui-space-2); cursor: pointer; }
+.ui-button[data-variant='primary'] { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-on-accent); }
+.ui-button[data-variant='ghost'] { background: transparent; border-color: transparent; }
+.ui-button[data-variant='destructive'] { background: var(--stop); border-color: var(--stop); color: var(--on-stop); }
+.ui-button[data-size='small'] { min-height: 28px; padding: 3px 8px; }
+.ui-button[data-size='large'] { min-height: 44px; padding: 11px 16px; }
+.ui-button[data-size='icon'] { width: 36px; padding: 7px; }
+.ui-button:hover:not(:disabled), .ui-select:hover:not(:disabled), [data-slot='input']:hover:not(:disabled) { border-color: var(--hairline-strong); background: var(--surface-2); }
+.ui-button[data-variant='primary']:hover:not(:disabled) { background: var(--accent-hover); }
+.ui-button[data-variant='destructive']:hover:not(:disabled) { background: color-mix(in srgb, var(--stop) 85%, var(--ui-text)); }
+.ui-button:active:not(:disabled) { transform: translateY(1px); }
+.ui-button:disabled, .ui-select:disabled, [data-slot][disabled], [data-slot][data-disabled] { opacity: .45; cursor: not-allowed; }
+.ui-button[aria-busy='true'] { cursor: progress; }
+:where(.ui-button, .ui-select, [data-slot='input'], [data-slot='select-trigger'], [data-slot='checkbox'], [data-slot='tabs-trigger'], [data-slot='dropdown-menu-item'], .switch):focus-visible {
+  outline: 2px solid var(--ui-accent); outline-offset: 2px; box-shadow: none;
+}
+.ui-kbd { font: 400 11px/16px var(--ui-mono); padding: 2px 4px; border: 1px solid var(--ui-border); border-radius: var(--ui-space-1); color: var(--ui-muted); background: var(--surface-2); }
+[data-slot='dialog-content'], [data-slot='dropdown-menu-content'], [data-slot='select-content'], [data-slot='tooltip-content'], [data-sonner-toast] {
+  border: 1px solid var(--ui-border); border-radius: var(--ui-panel-radius); background: var(--ui-panel); color: var(--ui-text); box-shadow: none; backdrop-filter: none;
+}
+[data-slot='tabs-list'] { border-radius: var(--ui-radius); background: var(--surface-2); }
+[data-slot='tabs-trigger'] { border-radius: var(--ui-radius); }
+[data-slot='tabs-trigger'][data-active], [data-slot='dropdown-menu-item'][data-highlighted] { background: var(--surface-3); color: var(--ui-text); }
+[data-slot='checkbox'] { border-radius: var(--ui-space-1); border-color: var(--ui-border); }
+[data-slot='checkbox'][data-checked], .switch.is-on { background: var(--ui-accent); color: var(--ui-on-accent); }
+.switch:hover:not(:disabled) { border-color: var(--ui-accent); }
+.switch:disabled { opacity: .45; }
+.palette.damon-spotlight { border: 1px solid var(--ui-border); border-radius: var(--ui-panel-radius); background: var(--ui-panel); box-shadow: none; backdrop-filter: none; animation-duration: var(--ui-fast); }
+.damon-overlay { backdrop-filter: none; background: var(--scrim); }
+.palette .palette-item { border-radius: var(--ui-radius); }
+.palette .palette-item:hover, .palette .palette-item.active { background: var(--surface-2); }
+@media (prefers-reduced-motion: reduce) { :root { --ui-fast: 0ms; --ui-layout: 0ms; } }
