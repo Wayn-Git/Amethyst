@@ -25,3 +25,15 @@ async def test_running_uses_durable_director_state(db):
     run.enter("interrupted")
     repo.save(run)
     assert await director.provide("agent.running") == {"items": []}
+
+
+async def test_audit_reads_persisted_gate_decisions(db):
+    from backend.db.repositories import ExecutionLogRepository
+
+    repo = ExecutionLogRepository()
+    assert await director.provide("agent.audit") == {"items": []}
+    repo.record(tool_name="test_write", tool_source="native", confirmation_decision="denied")
+    repo.record(tool_name="test_read", tool_source="native", confirmation_decision="auto")
+    rows = (await director.provide("agent.audit"))["items"]
+    assert [row["title"] for row in rows] == ["test_read", "test_write"]
+    assert "denied" in rows[1]["detail"]

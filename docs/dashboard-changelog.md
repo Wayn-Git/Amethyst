@@ -38,3 +38,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-24 agent.feed: Uses existing recent Director traces; bounded to 50; tracing history is process-local.
 
 - 2026-10-24 agent.running: Uses durable Director run phases and tool-call progress; Stop calls the existing turn-stop endpoint.
+
+- 2026-10-24 agent.audit: Displays the newest 50 persisted execution-log records including permission decisions; no new logging path.
