@@ -17,7 +17,7 @@ import time
 from contextlib import asynccontextmanager, suppress
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, UploadFile
@@ -4942,15 +4942,14 @@ async def _index_attachment(target: Path, name: str) -> None:
 class CreateTask(BaseModel):
     title: str
     notes: str | None = None
-    # Natural language, resolved by the scheduling engine against the real
-    # clock -- the same path the agent's tools take, so a task typed by hand and
-    # one created in a turn cannot disagree about what "tomorrow" means.
     due_date_hint: str | None = None
     scheduled_hint: str | None = None
     reminder_hint: str | None = None
     priority: str | None = None
     important: bool = False
     add_to_my_day: bool = False
+    my_day_date: str | None = None
+    checklist_items: List[Dict[str, Any]] | None = None
     list: str | None = None
     duration_estimate_minutes: int | None = None
 
@@ -4962,10 +4961,16 @@ class UpdateTask(BaseModel):
     priority: str | None = None
     important: bool | None = None
     add_to_my_day: bool | None = None
+    my_day_date: str | None = None
+    checklist_items: List[Dict[str, Any]] | None = None
     list: str | None = None
     due_date_hint: str | None = None
+    due_at: str | None = None
+    clear_due: bool = False
     scheduled_hint: str | None = None
     reminder_hint: str | None = None
+    reminder_at: str | None = None
+    clear_reminder: bool = False
     duration_estimate_minutes: int | None = None
 
 
@@ -4981,7 +4986,18 @@ TASK_BUCKETS = ("my_day", "missed", "important", "general", "completed", "all")
 
 
 def _task_row(row: Any) -> dict[str, Any]:
-    return dict(row)
+    if row is None:
+        return {}
+    out = dict(row)
+    raw_chk = out.get("checklist_items")
+    if isinstance(raw_chk, str):
+        try:
+            out["checklist_items"] = json.loads(raw_chk)
+        except Exception:
+            out["checklist_items"] = []
+    elif not isinstance(raw_chk, list):
+        out["checklist_items"] = []
+    return out
 
 
 @app.get("/api/tasks")
@@ -5163,31 +5179,33 @@ async def update_task(task_id: int, body: UpdateTask) -> dict[str, Any]:
             priority=body.priority,
             important=body.important,
             add_to_my_day=body.add_to_my_day,
+            my_day_date=body.my_day_date,
+            checklist_items=json.dumps(body.checklist_items) if body.checklist_items is not None else None,
             list_name=body.list,
             due_hint=body.due_date_hint,
+            due_at=body.due_at,
+            clear_due=body.clear_due,
             scheduled_hint=body.scheduled_hint,
             reminder_hint=body.reminder_hint,
+            reminder_at=body.reminder_at,
+            clear_reminder=body.clear_reminder,
             duration_estimate_minutes=body.duration_estimate_minutes,
         )
     except TaskError as exc:
-        # "no task with id N" is a 404; everything else the caller can fix.
         status = 404 if str(exc).startswith("no task with id") else 400
         raise HTTPException(status, str(exc)) from exc
-    return dict(TaskRepository().get(task_id))
+    return _task_row(TaskRepository().get(task_id))
 
 
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: int) -> dict[str, str]:
     from backend.tasks.service import TaskError, TaskService
 
-    # Cancelled, not deleted: a task mirrored from To Do would come straight
-    # back on the next sync, and a row that reappears is worse than one that
-    # stays and says it was dropped.
     try:
-        await TaskService().cancel(task_id)
+        await TaskService().delete(task_id)
     except TaskError as exc:
         raise HTTPException(404, str(exc)) from exc
-    return {"status": "cancelled", "id": str(task_id)}
+    return {"status": "deleted", "id": str(task_id)}
 
 
 @app.post("/api/tasks/sync")

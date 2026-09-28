@@ -196,6 +196,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- the list the task is in, `list_id`, and nothing else.
     external_categories      TEXT,
     completed_at             TEXT,
+    -- Date assigned to My Day in Amethyst (e.g. '2026-09-28'), kept date-based.
+    my_day_date              TEXT,
+    -- JSON array of subtask checklist items: [{id, displayName, isChecked}, ...]
+    checklist_items          TEXT,
     -- A local change that has not reached To Do yet. The push half of the sync
     -- reads exactly this; cleared when the upstream write returns.
     dirty_at                 TEXT,

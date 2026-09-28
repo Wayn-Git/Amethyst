@@ -34,9 +34,9 @@ export default function Capabilities() {
   return (
     <div className="view" ref={rootRef}>
       <div className="view-inner view-inner--wide">
-        {/* Clean borderless tab switcher (Skills vs Plugins) */}
+        {/* Tab switcher and unified action bar */}
         <div className="clean-cap-topbar" data-enter>
-          <div className="clean-cap-switch" role="tablist" aria-label="Skills or connectors">
+          <div className="clean-cap-switch cap-tabs" role="tablist" aria-label="Skills or connectors">
             {TABS.map((t) => {
               const isActive = capabilitiesTab === t.id
               return (
@@ -48,11 +48,11 @@ export default function Capabilities() {
                   aria-selected={isActive}
                   aria-controls={`cap-panel-${t.id}`}
                   tabIndex={isActive ? 0 : -1}
-                  className={`clean-cap-tab-btn${isActive ? ' is-active' : ''}`}
+                  className={`clean-cap-tab-btn cap-tab${isActive ? ' is-active active' : ''}`}
                   onClick={() => setCapabilitiesTab(t.id)}
                 >
                   <span style={{ position: 'relative', zIndex: 1 }}>
-                    {t.id === 'connectors' ? 'Plugins' : t.label}
+                    {t.label}
                   </span>
                   {isActive && (
                     <motion.div
@@ -66,44 +66,40 @@ export default function Capabilities() {
             })}
           </div>
 
-          {skills && (
-            <div className="clean-cap-actions">
-              <div className="plugin-search-pill">
-                <Icon name="search" size={14} />
-                <input
-                  value={query}
-                  placeholder="Search skills…"
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape' && query) {
-                      e.stopPropagation()
-                      setQuery('')
-                    }
-                  }}
-                />
-                {query && (
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    onClick={() => setQuery('')}
-                    aria-label="Clear"
-                  >
-                    <Icon name="x" size={12} />
-                  </button>
-                )}
-              </div>
-              <motion.button
-                type="button"
-                className="plugin-add-custom-btn"
-                title="New skill"
-                onClick={() => setNewOpen((o) => !o)}
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.94 }}
-              >
-                <Icon name={newOpen ? 'x' : 'plus'} size={15} />
-              </motion.button>
+          <div className="clean-cap-actions">
+            <div className="plugin-search-pill">
+              <Icon name="search" size={14} />
+              <input
+                value={query}
+                placeholder={skills ? 'Search skills…' : 'Search connectors…'}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && query) {
+                    e.stopPropagation()
+                    setQuery('')
+                  }
+                }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setQuery('')}
+                  aria-label="Clear"
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              )}
             </div>
-          )}
+            <button
+              type="button"
+              className="plugin-add-custom-btn"
+              title={skills ? 'New skill' : 'New connector'}
+              onClick={() => setNewOpen((o) => !o)}
+            >
+              <Icon name={newOpen ? 'x' : 'plus'} size={15} />
+            </button>
+          </div>
         </div>
 
         <div
@@ -130,7 +126,7 @@ export default function Capabilities() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               >
-                <ConnectorsTab query={query} newOpen={newOpen} setNewOpen={setNewOpen} />
+                <ConnectorsTab query={query} setQuery={setQuery} newOpen={newOpen} setNewOpen={setNewOpen} />
               </motion.div>
             )}
           </AnimatePresence>

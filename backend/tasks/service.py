@@ -409,10 +409,16 @@ class TaskService:
         priority: str | None = None,
         important: bool | None = None,
         add_to_my_day: bool | None = None,
+        my_day_date: str | None = None,
+        checklist_items: str | None = None,
         list_name: str | None = None,
         due_hint: str | None = None,
+        due_at: str | None = None,
+        clear_due: bool = False,
         scheduled_hint: str | None = None,
         reminder_hint: str | None = None,
+        reminder_at: str | None = None,
+        clear_reminder: bool = False,
         duration_estimate_minutes: int | None = None,
     ) -> Written:
         existing = self.tasks.get(task_id)
@@ -436,20 +442,40 @@ class TaskService:
             fields["important"] = 1 if important else 0
         if duration_estimate_minutes is not None:
             fields["duration_estimate_minutes"] = int(duration_estimate_minutes)
+        if my_day_date is not None:
+            fields["my_day_date"] = my_day_date
+        if checklist_items is not None:
+            fields["checklist_items"] = checklist_items
 
-        for hint, column, advice in (
-            (due_hint, "due_at", "Ask the user to clarify the deadline."),
-            (scheduled_hint, "scheduled_at", "Ask the user when they'll work on it."),
-            (reminder_hint, "reminder_at", "Ask the user when to remind them."),
-        ):
-            when = _hint(hint, advice=advice)
+        if clear_due:
+            fields["due_at"] = None
+        elif due_at is not None:
+            fields["due_at"] = due_at
+        elif due_hint is not None:
+            if due_hint in ("clear", "none", "null"):
+                fields["due_at"] = None
+            else:
+                when = _hint(due_hint, advice="Ask the user to clarify the deadline.")
+                if when is not None:
+                    fields["due_at"] = _stamp(when)
+
+        if clear_reminder:
+            fields["reminder_at"] = None
+        elif reminder_at is not None:
+            fields["reminder_at"] = reminder_at
+        elif reminder_hint is not None:
+            if reminder_hint in ("clear", "none", "null"):
+                fields["reminder_at"] = None
+            else:
+                when = _hint(reminder_hint, advice="Ask the user when to remind them.")
+                if when is not None:
+                    fields["reminder_at"] = _stamp(when)
+
+        if scheduled_hint is not None:
+            when = _hint(scheduled_hint, advice="Ask the user when they'll work on it.")
             if when is not None:
-                fields[column] = _stamp(when)
+                fields["scheduled_at"] = _stamp(when)
 
-        # Both of these are the same operation: My Day is a list, so the sun is
-        # a move to it and taking a task out of My Day is a move back to the
-        # default list. `add_to_my_day` wins over a named list for the reason
-        # `create` gives -- a task lives in one list, so the two cannot combine.
         list_ref = ListRef()
         target: ListRef | None = None
         if add_to_my_day is not None:
@@ -485,18 +511,44 @@ class TaskService:
             fields["dirty_at"] = _now()
 
         self.tasks.update(task_id, **fields)
+
+        # Proactively push dirty updates upstream so Microsoft To Do updates immediately
+        if existing["external_id"]:
+            try:
+                import asyncio
+                from backend.sync.microsoft_todo import push_dirty
+
+                asyncio.create_task(push_dirty())
+            except Exception as exc:
+                log.debug("could not schedule fast push: %s", exc)
+
         return Written(task_id=task_id, list_ref=list_ref, changed=fields, routed_to=moved)
 
     async def complete(self, task_id: int, *, done: bool = True) -> Written:
         return await self.update(task_id, status="done" if done else "todo")
 
     async def cancel(self, task_id: int) -> Written:
-        """Soft-cancel. Nothing in AMETHYST deletes a task.
-
-        A row deleted locally comes straight back on the next pull, so deleting
-        one is a lie that lasts fifteen minutes.
-        """
+        """Soft-cancel a task."""
         return await self.update(task_id, status="cancelled")
+
+    async def delete(self, task_id: int) -> Written:
+        """Permanently delete a task locally and upstream in Microsoft To Do."""
+        from backend.sync.microsoft_todo import delete_remote_task
+
+        existing = self.tasks.get(task_id)
+        if existing is None:
+            raise TaskError(f"no task with id {task_id}")
+
+        if existing["external_id"] and existing["list_id"]:
+            source = self.lists.get(existing["list_id"])
+            if source and source["external_id"]:
+                try:
+                    await delete_remote_task(existing["external_id"], source["external_id"])
+                except Exception as exc:
+                    log.warning("could not delete remote task: %s", exc)
+
+        self.tasks.delete(task_id)
+        return Written(task_id=task_id)
 
     # ----------------------------------------------------------------- naming
 

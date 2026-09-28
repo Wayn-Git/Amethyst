@@ -400,18 +400,19 @@ def _task_arguments(
 
 
 def _categories_for(row: Any) -> list[str]:
-    """The full category list to send back.
-
-    Built from the categories the last pull saw rather than from nothing,
-    because Graph's write is a replace: a shorter array deletes every tag left
-    out of it. AMETHYST writes none of its own -- My Day is a list -- so this hands
-    back exactly what the user already had.
-    """
+    """The full category list to send back, including 'My Day' if flagged for today."""
     try:
         kept = json.loads(row["external_categories"] or "[]")
     except (TypeError, ValueError, IndexError, KeyError):
-        return []
-    return [c for c in kept if isinstance(c, str)]
+        kept = []
+    cats = [c for c in kept if isinstance(c, str) and c.casefold() not in ("my day", "today")]
+    try:
+        my_day_date = row["my_day_date"] if "my_day_date" in row.keys() else None
+        if my_day_date and str(my_day_date)[:10] == _now()[:10]:
+            cats.append("My Day")
+    except (TypeError, IndexError, KeyError, AttributeError):
+        pass
+    return cats
 
 
 def _identity(payload: Any, *, what: str) -> dict[str, str]:
@@ -545,6 +546,43 @@ async def move_remote_task(
     return created
 
 
+async def delete_remote_task(
+    external_id: str, list_external_id: str, connection: Any | None = None
+) -> bool:
+    """Delete a task permanently from Microsoft To Do."""
+    from backend.mcp import live
+
+    conn = connection or live.connection(SERVER)
+    if conn is None:
+        return False
+    try:
+        await conn.call(
+            "delete_task", {"listId": list_external_id, "taskId": str(external_id)}
+        )
+        return True
+    except Exception as exc:
+        log.info("could not delete remote task %s: %s", external_id, exc)
+        return False
+
+
+async def push_dirty(connection: Any | None = None) -> int:
+    """Push any dirty or unsynced tasks upstream immediately without waiting for interval."""
+    from backend.mcp import live
+
+    conn = connection or live.connection(SERVER)
+    if conn is None:
+        return 0
+
+    repo = TaskRepository()
+    list_repo = TaskListRepository()
+    report = SyncReport()
+    try:
+        await _push(conn, repo, list_repo, report)
+    except Exception as exc:
+        log.warning("fast push_dirty failed: %s", exc)
+    return report.pushed
+
+
 async def _call_json(connection: Any, tool: str, arguments: dict) -> Any:
     return _payload(await connection.call(tool, arguments))
 
@@ -592,7 +630,7 @@ async def sync(manager: Any) -> SyncReport:
             _paged(
                 connection,
                 "list_tasks",
-                {"listId": task_list["id"], "status": "all"},
+                {"listId": task_list["id"], "status": "all", "includeChecklist": True},
                 "tasks",
             )
             for task_list in targets
@@ -814,8 +852,29 @@ def _apply(
     # rather than replacing them with a shorter list. None of them mean anything
     # to AMETHYST: My Day is `list_id`, decided by the list this task came out of.
     remote_categories = [c for c in (item.get("categories") or []) if isinstance(c, str)]
+    is_my_day_tag = any(c.casefold() in ("my day", "today") for c in remote_categories)
+    my_day_id = repository.my_day_list_id()
+    is_my_day_list_item = (
+        local_list is not None and my_day_id is not None and int(local_list) == int(my_day_id)
+    )
+
+    raw_checklist = item.get("checklistItems") or []
+    checklist_items = [
+        {
+            "id": str(ch.get("id") or ""),
+            "displayName": str(ch.get("displayName") or ""),
+            "isChecked": bool(ch.get("isChecked")),
+        }
+        for ch in raw_checklist
+        if isinstance(ch, dict) and ch.get("displayName")
+    ]
 
     existing = repository.by_external(SOURCE, external_id)
+
+    if is_my_day_tag or is_my_day_list_item:
+        my_day_date = _now()[:10]
+    else:
+        my_day_date = None
 
     fields = {
         "title": title,
@@ -832,6 +891,8 @@ def _apply(
         "list_id": local_list,
         "external_etag": item.get("lastModifiedDateTime") or item.get("@odata.etag"),
         "external_categories": json.dumps(remote_categories),
+        "my_day_date": my_day_date,
+        "checklist_items": json.dumps(checklist_items) if checklist_items else None,
     }
 
     if existing is None:
@@ -850,6 +911,8 @@ def _apply(
             important=bool(fields["important"]),
             status=fields["status"],
             external_categories=fields["external_categories"],
+            my_day_date=fields["my_day_date"],
+            checklist_items=fields["checklist_items"],
         )
         report.created += 1
         return

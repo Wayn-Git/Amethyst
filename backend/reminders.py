@@ -52,7 +52,7 @@ LATE_AFTER = timedelta(minutes=5)
 # pulls now go out together rather than one after another. A sync is also
 # available on demand from the API and the CLI, and the Tasks page asks for one
 # when it opens.
-SYNC_EVERY_SECONDS = 90
+SYNC_EVERY_SECONDS = 30
 
 #: How often the audit log is pruned. Every tool call from every source writes
 #: a row and nothing else retires them, so unattended runs grow a table nothing

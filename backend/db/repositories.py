@@ -74,7 +74,14 @@ def _fold_list_name(name: str | None) -> str:
 #: Matched by name, folded the same way every other list name is, so "🌞 My Day"
 #: answers to it. "Today" is accepted because it is the other name people give
 #: the same list.
-MY_DAY_LIST_NAMES = ("my day", "today")
+MY_DAY_LIST_NAMES = (
+    "my day",
+    "today",
+    "amethyst · my day",
+    "amethyst - my day",
+    "amethyst: my day",
+    "amethyst my day",
+)
 
 
 def is_my_day_list(name: str | None) -> bool:
@@ -910,14 +917,16 @@ class TaskRepository:
         completed_at: str | None = None,
         status: str | None = None,
         dirty_at: str | None = None,
+        my_day_date: str | None = None,
+        checklist_items: str | None = None,
     ) -> int:
         try:
             cur = self.conn.execute(
                 "INSERT INTO tasks (title, notes, due_at, scheduled_at, duration_estimate_minutes,"
                 " priority, source, reminder_at, external_source, external_id, external_etag,"
                 " list_id, important, external_categories, completed_at, dirty_at,"
-                " status, last_synced_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'todo'),"
+                " my_day_date, checklist_items, status, last_synced_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'todo'),"
                 " CASE WHEN ? IS NULL THEN NULL ELSE datetime('now') END)",
                 (
                     title,
@@ -936,18 +945,13 @@ class TaskRepository:
                     external_categories,
                     completed_at,
                     dirty_at,
+                    my_day_date,
+                    checklist_items,
                     status,
                     external_id,
                 ),
             )
         except sqlite3.IntegrityError:
-            # Graph has no idempotency key, so a caller that already created this
-            # task upstream (e.g. two calls racing on the same title, or a retry
-            # after an apparently-failed request that actually landed) hands back
-            # an external_id already sitting on a local row. Adopting it is the
-            # same at-least-once story as the sync push's adopt-by-title -- a
-            # second insert would only fail again, and the task is not lost, it
-            # is just already here.
             if external_source and external_id:
                 existing = self.by_external(external_source, external_id)
                 if existing is not None:
@@ -958,6 +962,11 @@ class TaskRepository:
 
     def get(self, task_id: int) -> sqlite3.Row | None:
         return self.conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+
+    def delete(self, task_id: int) -> bool:
+        cur = self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def update(self, task_id: int, **fields: Any) -> None:
         allowed = {
@@ -978,6 +987,8 @@ class TaskRepository:
             "external_categories",
             "completed_at",
             "dirty_at",
+            "my_day_date",
+            "checklist_items",
         }
         sets = {k: v for k, v in fields.items() if k in allowed}
         if not sets:
@@ -1075,7 +1086,10 @@ class TaskRepository:
     #: One list is the only version both ends can see. Cancelled rows are the
     #: tasks a pull no longer found upstream, so they are not in the list any
     #: more either.
-    _MY_DAY = "list_id = :my_day_list AND status != 'cancelled'"
+    _MY_DAY_IN = (
+        "((list_id = :my_day_list AND :my_day_list IS NOT NULL) OR my_day_date = :today)"
+    )
+    _MY_DAY = f"{_MY_DAY_IN} AND status != 'cancelled'"
     _MISSED = "due_at IS NOT NULL AND due_at < :today"
     _IMPORTANT = "important = 1"
     #: Everything nobody has scheduled or claimed for today. `:my_day_list` is
@@ -1084,6 +1098,7 @@ class TaskRepository:
     _GENERAL = (
         "due_at IS NULL AND scheduled_at IS NULL"
         " AND (:my_day_list IS NULL OR list_id IS NOT :my_day_list)"
+        " AND (my_day_date IS NULL OR my_day_date != :today)"
     )
 
     def my_day_list_id(self) -> int | None:
@@ -1101,7 +1116,12 @@ class TaskRepository:
         return None
 
     def _bucket_where(
-        self, bucket: str, list_id: int | None = None, *, my_day_list: int | None = None
+        self,
+        bucket: str,
+        list_id: int | None = None,
+        *,
+        my_day_list: int | None = None,
+        include_done: bool = True,
     ) -> tuple[str, dict]:
         """`my_day_list` is read once per `counts()` pass and passed through:
         computing it per bucket re-ran the task_lists scan six times for one
@@ -1125,7 +1145,8 @@ class TaskRepository:
             # including things you gave up on".
             return "status = 'done'", params
         if bucket == "list":
-            return f"{self.OPEN} AND list_id IS :list_id", params
+            status_clause = "status != 'cancelled'" if include_done else self.OPEN
+            return f"{status_clause} AND list_id IS :list_id", params
         if bucket == "all":
             return self.OPEN, params
         raise ValueError(f"unknown task bucket '{bucket}'")
@@ -1140,17 +1161,27 @@ class TaskRepository:
     #: them together buried a task still to do underneath three that were
     #: already crossed off. Done sinks; the rest keeps the usual order.
     _MY_DAY_ORDER = (
-        "ORDER BY (status = 'done'), important DESC, (due_at IS NULL), due_at, id"
+        "ORDER BY (status = 'done'), important DESC, (due_at IS NULL), due_at, (completed_at IS NULL), completed_at DESC, id DESC"
     )
 
     def bucket(
-        self, name: str, *, list_id: int | None = None, limit: int = 200
+        self,
+        name: str,
+        *,
+        list_id: int | None = None,
+        limit: int = 200,
+        include_done: bool = True,
     ) -> list[sqlite3.Row]:
-        where, params = self._bucket_where(name, list_id)
+        where, params = self._bucket_where(name, list_id, include_done=include_done)
         if name == "completed":
-            order = "ORDER BY completed_at DESC, id DESC"
+            order = "ORDER BY (completed_at IS NULL), completed_at DESC, id DESC"
         elif name == "my_day":
             order = self._MY_DAY_ORDER
+        elif name == "list":
+            order = (
+                "ORDER BY (status = 'done'), important DESC, (due_at IS NULL), due_at, "
+                "(completed_at IS NULL), completed_at DESC, id DESC"
+            )
         else:
             order = self._ORDER
         return self.conn.execute(
