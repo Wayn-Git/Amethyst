@@ -3,7 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api, serverTime } from '../api.js'
-import { SkeletonCard } from '../components/Skeleton.jsx'
+import { SkeletonCard, default as Skeleton } from '../components/Skeleton.jsx'
 import Button from '../components/ui/Button.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
@@ -208,7 +208,31 @@ function RunsTab({ onSelectRun }) {
     }).catch(() => setRuns([])).finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <SkeletonCard rows={3} controls={2} />
+  if (loading) {
+    return (
+      <div className="auto-runs-tab" aria-hidden="true">
+        <div className="auto-runs-table">
+          <div className="auto-runs-table-head">
+            <span>Run</span>
+            <span>Automation</span>
+            <span>Duration</span>
+            <span>Time</span>
+          </div>
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="auto-runs-row" style={{ pointerEvents: 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Skeleton w={14} h={14} r={99} />
+                <Skeleton w={120} h={12} r={4} />
+              </div>
+              <Skeleton w={150} h={13} r={4} />
+              <Skeleton w={45} h={11} r={3} />
+              <Skeleton w={75} h={11} r={3} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="auto-runs-tab">
@@ -415,7 +439,34 @@ export default function Automations() {
             )}
 
             {/* Automation List */}
-            {!loaded && <SkeletonCard rows={3} controls={2} />}
+            {!loaded && (
+              <div className="auto-table" aria-hidden="true">
+                <div className="auto-table-head">
+                  <span>Automation</span>
+                  <span>Schedule</span>
+                  <span>Next run</span>
+                  <span>Status</span>
+                  <span></span>
+                </div>
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="auto-table-row" style={{ pointerEvents: 'none' }}>
+                    <div className="auto-table-cell auto-table-cell--name">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                        <Skeleton w={16} h={16} r={4} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <Skeleton w={140} h={14} r={4} />
+                          <Skeleton w={200} h={11} r={3} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="auto-table-cell"><Skeleton w={80} h={12} r={4} /></div>
+                    <div className="auto-table-cell"><Skeleton w={65} h={12} r={4} /></div>
+                    <div className="auto-table-cell"><Skeleton w={40} h={18} r={99} /></div>
+                    <div className="auto-table-cell auto-table-cell--actions"><Skeleton w={24} h={24} r={6} /></div>
+                  </div>
+                ))}
+              </div>
+            )}
             {loaded && error && <ErrorState message={error} onRetry={load} />}
             {loaded && !error && rows.length === 0 && !showNew && (
               <EmptyState icon="clock">

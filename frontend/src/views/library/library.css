@@ -1212,15 +1212,15 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    105deg,
-    transparent 38%,
-    rgba(139, 92, 246, 0.06) 44%,
-    rgba(139, 92, 246, 0.12) 50%,
-    rgba(139, 92, 246, 0.06) 56%,
-    transparent 62%
+    110deg,
+    transparent 30%,
+    rgba(139, 92, 246, 0.08) 45%,
+    rgba(139, 92, 246, 0.16) 50%,
+    rgba(139, 92, 246, 0.08) 55%,
+    transparent 70%
   );
   background-size: 200% 100%;
-  animation: lib-shimmer 1.8s ease-in-out infinite;
+  animation: boneyard-shimmer 2s linear infinite;
   pointer-events: none;
   z-index: 1;
   border-radius: inherit;

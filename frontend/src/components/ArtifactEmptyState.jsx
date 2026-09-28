@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import Icon from './Icon.jsx'
+import Skeleton from './Skeleton.jsx'
 import { api } from '../api.js'
 
 function EnvironmentTab() {
@@ -13,7 +14,25 @@ function EnvironmentTab() {
   }, [])
 
   if (!health) {
-    return <p className="artifact-empty-loading">Loading environment...</p>
+    return (
+      <div className="artifact-env" aria-hidden="true" style={{ padding: '8px 0' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <section className="artifact-env-section">
+            <Skeleton w={90} h={13} r={3} style={{ marginBottom: 10 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Skeleton w={14} h={14} r={4} />
+                <Skeleton w={130} h={12} r={3} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Skeleton w={14} h={14} r={4} />
+                <Skeleton w={110} h={12} r={3} />
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    )
   }
 
   const providers = health.providers || []
@@ -103,7 +122,21 @@ function ChangesTab() {
   }, [])
 
   if (!git) {
-    return <p className="artifact-empty-loading">Loading changes...</p>
+    return (
+      <div className="artifact-changes" aria-hidden="true" style={{ padding: '8px 0' }}>
+        <Skeleton w={120} h={14} r={4} style={{ marginBottom: 12 }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Skeleton w={16} h={16} r={4} />
+            <Skeleton w="65%" h={12} r={3} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Skeleton w={16} h={16} r={4} />
+            <Skeleton w="45%" h={12} r={3} />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (git.error) {

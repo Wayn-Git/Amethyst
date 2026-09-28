@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
+import Skeleton from '../../components/Skeleton.jsx'
 import { api } from '../../api.js'
 
 function parseSender(from) {
@@ -158,12 +159,30 @@ export default function TodayMailsCard({ toast }) {
 
               <div className="today-mail-reader-body">
                 {loadingThread ? (
-                  <p style={{ color: 'var(--text-faint)' }}>Loading mail content…</p>
+                  <div className="skel-stack" style={{ gap: 8 }} aria-hidden="true">
+                    <Skeleton w="95%" h={12} r={3} />
+                    <Skeleton w="88%" h={12} r={3} />
+                    <Skeleton w="70%" h={12} r={3} />
+                    <Skeleton w="45%" h={12} r={3} />
+                  </div>
                 ) : (
                   threadDetail?.messages?.[0]?.body || selectedMail.snippet || 'No message content available.'
                 )}
               </div>
             </motion.div>
+          ) : loading && activeMails.length === 0 ? (
+            /* Loading Skeleton State */
+            <div className="skel-stack" style={{ gap: 14, padding: '4px 0' }} aria-hidden="true">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <Skeleton w={26} h={26} rounded />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <Skeleton w={`${60 + (i * 12)}%`} h={13} r={4} />
+                    <Skeleton w="85%" h={10} r={3} />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : activeMails.length === 0 ? (
             /* Empty State */
             <motion.div
@@ -177,7 +196,7 @@ export default function TodayMailsCard({ toast }) {
               </div>
               <div className="today-empty-title">No mails yet.</div>
               <div className="today-empty-desc">
-                {loading ? 'Checking inbox…' : 'Your recent inbox messages will appear here when connected.'}
+                Your recent inbox messages will appear here when connected.
               </div>
             </motion.div>
           ) : (

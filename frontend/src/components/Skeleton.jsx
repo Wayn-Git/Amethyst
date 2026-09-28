@@ -41,19 +41,19 @@ export function SkeletonText({ lines = 3, gap = 8 }) {
   )
 }
 
-/** Standing in for task or server rows — an icon/disc, title and meta, action controls. */
-export function SkeletonRows({ rows = 4, controls = 2 }) {
+/** Standing in for task or server rows — an optional icon/disc, title and meta, action controls. */
+export function SkeletonRows({ rows = 4, controls = 2, icon = true }) {
   return (
     <div className="skel-rows" aria-hidden="true">
       {Array.from({ length: rows }, (_, i) => (
         <div className="skel-row" key={i}>
-          <Skeleton w={18} h={18} r={99} />
+          {icon && <Skeleton w={18} h={18} r={99} />}
           <div className="skel-row-text">
             <Skeleton w={`${48 + ((i * 13) % 32)}%`} h={13} r={4} />
             <Skeleton w={`${26 + ((i * 17) % 24)}%`} h={10} r={4} />
           </div>
           {Array.from({ length: controls }, (_, c) => (
-            <Skeleton key={c} w={20} h={20} r={6} />
+            <Skeleton key={c} w={controls === 1 ? 52 : 20} h={controls === 1 ? 26 : 20} r={6} />
           ))}
         </div>
       ))}
@@ -62,11 +62,57 @@ export function SkeletonRows({ rows = 4, controls = 2 }) {
 }
 
 /** A card with a title and some rows in it, for a view built out of cards. */
-export function SkeletonCard({ title = true, rows = 3, controls = 2 }) {
+export function SkeletonCard({ title = true, rows = 3, controls = 2, icon = true }) {
   return (
     <div className="card card-pad" aria-hidden="true">
       {title && <Skeleton w={140} h={11} style={{ marginBottom: 14 }} />}
-      <SkeletonRows rows={rows} controls={controls} />
+      <SkeletonRows rows={rows} controls={controls} icon={icon} />
+    </div>
+  )
+}
+
+/** Table rows matching tabular lists like Automations, Runs, and Logs. */
+export function SkeletonTable({ rows = 5, cols = ['30%', '25%', '15%', '10%'] }) {
+  return (
+    <div className="skel-table-wrap" aria-hidden="true" style={{ width: '100%' }}>
+      {Array.from({ length: rows }, (_, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            padding: '13px 14px',
+            borderBottom: '1px solid var(--hairline)',
+          }}
+        >
+          {cols.map((colW, c) => (
+            <Skeleton
+              key={c}
+              w={colW}
+              h={c === 0 ? 14 : 11}
+              r={4}
+              style={{ flexShrink: c === 0 ? 0 : 1 }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Thread message preview with sender and multiline text. */
+export function SkeletonMessage({ lines = 3 }) {
+  return (
+    <div className="skel-stack" style={{ gap: 10, padding: '12px 0' }} aria-hidden="true">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Skeleton w={140} h={13} r={4} />
+        <Skeleton w={60} h={10} r={3} />
+      </div>
+      <Skeleton w="95%" h={12} r={3} />
+      {lines > 1 && <Skeleton w="82%" h={12} r={3} />}
+      {lines > 2 && <Skeleton w="64%" h={12} r={3} />}
     </div>
   )
 }

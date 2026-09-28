@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
+import Skeleton from '../Skeleton.jsx'
 import { api } from '../../api.js'
 
 function formatDuration(ms) {
@@ -65,7 +66,22 @@ export default function RunDetailModal({ runId, onClose }) {
 
         {/* Body */}
         <div className="auto-modal-body">
-          {loading && <div className="auto-runs-loading">Loading...</div>}
+          {loading && (
+            <div className="skel-stack" style={{ gap: 16 }} aria-hidden="true">
+              <div className="auto-run-detail-meta" style={{ marginBottom: 0 }}>
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="auto-run-detail-meta-item">
+                    <Skeleton w={50} h={11} r={3} />
+                    <Skeleton w={90} h={13} r={4} />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <Skeleton w={70} h={12} r={3} style={{ marginBottom: 6 }} />
+                <Skeleton w="100%" h={90} r={8} />
+              </div>
+            </div>
+          )}
 
           {error && !loading && (
             <div className="auto-run-detail-error">

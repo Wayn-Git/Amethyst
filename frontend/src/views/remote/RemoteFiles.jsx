@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
+import Skeleton from '../../components/Skeleton.jsx'
 import { api, getBase } from '../../api.js'
 import * as syncClient from '../../lib/sync/client.js'
 
@@ -166,8 +167,30 @@ export default function RemoteFiles() {
 
         {/* Files List */}
         {loading ? (
-          <div style={{ color: 'var(--text-faint)', fontSize: 12, textAlign: 'center', padding: 16 }}>
-            Loading files…
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-hidden="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: 6,
+                  background: 'rgba(0,0,0,0.15)',
+                  border: '1px solid var(--hairline-strong)',
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <Skeleton w={`${40 + (i * 20)}%`} h={13} r={3} />
+                  <Skeleton w="25%" h={10} r={3} />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Skeleton w={56} h={26} r={4} />
+                  <Skeleton w={26} h={26} r={4} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : files.length === 0 ? (
           <div style={{ color: 'var(--text-faint)', fontSize: 12, textAlign: 'center', padding: 24 }}>

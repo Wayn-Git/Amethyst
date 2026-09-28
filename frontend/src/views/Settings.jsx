@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import Skeleton from '../components/Skeleton.jsx'
 import BrandMark from '../components/BrandMark.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
 import { api, copyText } from '../api.js'
@@ -2359,9 +2360,16 @@ function Permissions() {
           Operations previously approved to execute without prompting. You can revoke them at any time.
         </div>
         {loading ? (
-          <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>
-            <Icon name="refresh" size={14} className="spin" style={{ marginRight: 6 }} />
-            Loading standing approvals from SQLite…
+          <div style={{ padding: '8px 18px' }} aria-hidden="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="set-box-row" style={{ pointerEvents: 'none' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <Skeleton w={`${160 + (i * 40)}px`} h={13} r={3} />
+                  <Skeleton w="120px" h={10} r={3} />
+                </div>
+                <Skeleton w={64} h={26} r={6} />
+              </div>
+            ))}
           </div>
         ) : approvals.length === 0 ? (
           <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>

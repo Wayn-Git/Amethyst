@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Icon from '../../components/Icon.jsx'
+import Skeleton from '../../components/Skeleton.jsx'
 import { api } from '../../api.js'
 
 function formatPrompt(fact) {
@@ -105,7 +106,26 @@ export default function TodayMemoryCard({ setView }) {
 
       {/* Internal Content Area: Shows exactly two memories */}
       <div className="today-card-scroll">
-        {displayMemories.length === 0 ? (
+        {loading && displayMemories.length === 0 ? (
+          <div className="today-memory-container" aria-hidden="true">
+            {Array.from({ length: 2 }, (_, i) => (
+              <div key={i} className="today-memory-tile">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <Skeleton w={14} h={14} r={4} />
+                  <Skeleton w={80} h={11} r={3} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                  <Skeleton w="95%" h={13} r={4} />
+                  <Skeleton w="70%" h={13} r={4} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Skeleton w={12} h={12} r={3} />
+                  <Skeleton w={90} h={10} r={3} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : displayMemories.length === 0 ? (
           <div className="today-card-empty">
             <div
               className="today-empty-icon-wrap"

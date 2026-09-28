@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
+import Skeleton from '../Skeleton.jsx'
 import Button from '../ui/Button.jsx'
 import Field from '../ui/Field.jsx'
 import { api } from '../../api.js'
@@ -288,7 +289,17 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
         {tab === 'runs' && (
           <div className="auto-modal-body auto-modal-body--runs">
             {runs === null ? (
-              <div className="auto-runs-loading">Loading...</div>
+              <div className="auto-runs-list" aria-hidden="true" style={{ padding: '8px 0' }}>
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="auto-run-item" style={{ pointerEvents: 'none' }}>
+                    <Skeleton w={14} h={14} r={99} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <Skeleton w={`${50 + (i * 15)}%`} h={13} r={4} />
+                      <Skeleton w="30%" h={10} r={3} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : runs.length === 0 ? (
               <div className="auto-runs-empty">No runs yet</div>
             ) : (

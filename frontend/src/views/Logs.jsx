@@ -3,7 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api, copyText, fmtTime, prettyJSON } from '../api.js'
-import { SkeletonRows } from '../components/Skeleton.jsx'
+import { SkeletonRows, default as Skeleton } from '../components/Skeleton.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 import Table from '../components/ui/Table.jsx'
@@ -231,7 +231,40 @@ export default function Logs() {
           </span>
         </div>
 
-        {!loaded && <div className="card card-pad" data-enter><SkeletonRows rows={8} controls={1} /></div>}
+        {!loaded && (
+          compact ? (
+            <div className="card card-pad" data-enter><SkeletonRows rows={8} controls={1} /></div>
+          ) : (
+            <div className="card log-table-wrap" data-enter aria-hidden="true">
+              <Table>
+                <Table.Head>
+                  <th scope="col">time</th>
+                  <th scope="col">tool</th>
+                  <th scope="col">source</th>
+                  <th scope="col">risk</th>
+                  <th scope="col">decision</th>
+                  <th scope="col">ms</th>
+                  <th scope="col">arguments</th>
+                  <th scope="col">result / error</th>
+                </Table.Head>
+                <Table.Body>
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <tr key={i}>
+                      <td><Skeleton w={50} h={11} r={3} /></td>
+                      <td><Skeleton w={75} h={11} r={3} /></td>
+                      <td><Skeleton w={60} h={11} r={3} /></td>
+                      <td><Skeleton w={35} h={16} r={99} /></td>
+                      <td><Skeleton w={45} h={16} r={99} /></td>
+                      <td><Skeleton w={30} h={11} r={3} /></td>
+                      <td><Skeleton w={120} h={11} r={3} /></td>
+                      <td><Skeleton w={160} h={11} r={3} /></td>
+                    </tr>
+                  ))}
+                </Table.Body>
+              </Table>
+            </div>
+          )
+        )}
 
         {loaded && error && <ErrorState message={error} onRetry={() => load()} />}
 

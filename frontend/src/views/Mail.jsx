@@ -5,7 +5,7 @@ import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api } from '../api.js'
 import { MOD_LABEL } from '../keys.js'
-import { SkeletonRows } from '../components/Skeleton.jsx'
+import { SkeletonRows, SkeletonMessage } from '../components/Skeleton.jsx'
 
 /* Mail, as a place rather than as fifteen tools.
 
@@ -476,7 +476,7 @@ export default function Mail() {
 
                     {isOpen && (
                       <div className="mail-thread">
-                        {!thread && <SkeletonRows rows={2} controls={0} />}
+                        {!thread && <SkeletonMessage lines={3} />}
                         {thread?.messages?.map((message) => (
                           <article key={message.id} className="mail-message">
                             <div className="mail-line">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
+import Skeleton from '../../components/Skeleton.jsx'
 import { api } from '../../api.js'
 
 /**
@@ -85,7 +86,19 @@ export default function TodayLibraryCard({ setView, todayItems = null }) {
 
       {/* Internal Scrollable Content */}
       <div className="today-card-scroll">
-        {todaysBookmarks.length === 0 ? (
+        {loading && todaysBookmarks.length === 0 ? (
+          <div className="skel-stack" style={{ gap: 12, padding: '4px 0' }} aria-hidden="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <Skeleton w={56} h={42} r={6} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <Skeleton w={`${70 + (i * 10)}%`} h={13} r={4} />
+                  <Skeleton w="45%" h={10} r={3} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : todaysBookmarks.length === 0 ? (
           <div className="today-card-empty">
             <div className="today-empty-icon-wrap">
               <Icon name="bookmark" size={24} />

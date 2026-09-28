@@ -1,4 +1,5 @@
 import Icon from '../../Icon.jsx'
+import Skeleton from '../../Skeleton.jsx'
 import { copyText } from '../../../api.js'
 
 /** The answer, then the articles.
@@ -12,9 +13,16 @@ import { copyText } from '../../../api.js'
 export default function AnswerCardView({ answer, error, sources = [], loading, onOpen, onToast }) {
   if (loading && !answer && !error) {
     return (
-      <div className="damon-answer damon-answer--loading">
-        <div className="damon-spinner" />
-        <span>Thinking…</span>
+      <div className="damon-answer" aria-hidden="true" style={{ opacity: 0.9 }}>
+        <div className="damon-answer-head">
+          <Icon name="spark" size={13} />
+          <span className="damon-answer-kicker">Thinking…</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '4px 0 2px' }}>
+          <Skeleton w="96%" h={13} r={3} />
+          <Skeleton w="84%" h={13} r={3} />
+          <Skeleton w="62%" h={13} r={3} />
+        </div>
       </div>
     )
   }

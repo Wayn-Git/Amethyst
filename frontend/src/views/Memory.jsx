@@ -176,7 +176,7 @@ export default function Memory() {
           </div>
         </div>
 
-        {!state && !error && <SkeletonCard rows={5} controls={1} />}
+        {!state && !error && <SkeletonCard rows={5} controls={1} icon={false} />}
 
         {!state && error && <ErrorState message={error} onRetry={load} />}
 

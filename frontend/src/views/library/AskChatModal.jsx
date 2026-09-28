@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
+import Skeleton from '../../components/Skeleton.jsx'
 import { api } from '../../api.js'
 import { useModalDismiss, onOverlayMouseDown } from '../../hooks/useModalDismiss.js'
 
@@ -118,9 +119,23 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
               </div>
             </div>
           ) : loading ? (
-            <div className="lib-ask-loading">
-              <span className="lib-card-spinner" />
-              <span>Searching semantic knowledge index...</span>
+            <div className="lib-ask-cards" aria-hidden="true" style={{ padding: '8px 0' }}>
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="lib-ask-card" style={{ pointerEvents: 'none' }}>
+                  <div className="lib-ask-card-top">
+                    <Skeleton w={45} h={16} r={99} />
+                    <Skeleton w={`${50 + (i * 15)}%`} h={14} r={4} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '6px 0' }}>
+                    <Skeleton w="95%" h={11} r={3} />
+                    <Skeleton w="70%" h={11} r={3} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Skeleton w={50} h={16} r={99} />
+                    <Skeleton w={40} h={16} r={99} />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : results.length === 0 ? (
             <div className="lib-ask-empty">
