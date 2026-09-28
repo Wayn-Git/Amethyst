@@ -9857,36 +9857,57 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 .conn-pill {
   position: relative;
   z-index: 1;
-  padding: 6px 14px;
-  border: 1px solid rgba(var(--tint) / 0.12);
+  padding: 5px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--r-sm, 6px);
-  background: rgba(var(--tint) / 0.02);
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s ease, border-color 0.18s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .conn-pill:hover {
   color: var(--text);
-  border-color: rgba(var(--tint) / 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 .conn-pill:active {
   transform: scale(0.97);
 }
 .conn-pill.active {
-  color: var(--on-accent) !important;
-  border-color: transparent !important;
+  color: var(--text, #ffffff) !important;
   font-weight: 600;
+  border-color: rgba(255, 255, 255, 0.22) !important;
 }
 .conn-pill-active-bg {
   position: absolute;
   inset: 0;
-  border-radius: var(--r-sm);
-  background: var(--accent);
+  border-radius: var(--r-sm, 6px);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   z-index: -1;
-  box-shadow: var(--shadow-micro);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+[data-theme="light"] .conn-pill {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  color: #64748b;
+}
+[data-theme="light"] .conn-pill:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: rgba(0, 0, 0, 0.14);
+}
+[data-theme="light"] .conn-pill.active {
+  color: #0f172a !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+[data-theme="light"] .conn-pill-active-bg {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .conn-pill-label {
   position: relative;
@@ -11153,6 +11174,48 @@ a.text-reveal-wrap {
 }
 .plugin-avatar-cluster-item:first-child {
   margin-left: 0;
+}
+
+/* Boneyard Component-Accurate Skeleton Shimmer */
+.boneyard-bone {
+  display: block;
+  background-color: rgba(255, 255, 255, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 70%
+  );
+  background-size: 200% 100%;
+  animation: boneyard-shimmer 2s linear infinite;
+  flex-shrink: 0;
+}
+
+[data-theme="light"] .boneyard-bone,
+:root:not(.dark) .boneyard-bone {
+  background-color: rgba(0, 0, 0, 0.04);
+  background-image: linear-gradient(
+    110deg,
+    rgba(0, 0, 0, 0.04) 30%,
+    rgba(0, 0, 0, 0.09) 50%,
+    rgba(0, 0, 0, 0.04) 70%
+  );
+}
+
+@keyframes boneyard-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boneyard-bone {
+    animation: none;
+    background-image: none;
+  }
 }
 
 /* The connector dock that used to live here -- a scrolling row of lit chips
@@ -32196,36 +32259,57 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 .conn-pill {
   position: relative;
   z-index: 1;
-  padding: 6px 14px;
-  border: 1px solid rgba(var(--tint) / 0.12);
+  padding: 5px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--r-sm, 6px);
-  background: rgba(var(--tint) / 0.02);
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s ease, border-color 0.18s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .conn-pill:hover {
   color: var(--text);
-  border-color: rgba(var(--tint) / 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 .conn-pill:active {
   transform: scale(0.97);
 }
 .conn-pill.active {
-  color: var(--on-accent) !important;
-  border-color: transparent !important;
+  color: var(--text, #ffffff) !important;
   font-weight: 600;
+  border-color: rgba(255, 255, 255, 0.22) !important;
 }
 .conn-pill-active-bg {
   position: absolute;
   inset: 0;
-  border-radius: var(--r-sm);
-  background: var(--accent);
+  border-radius: var(--r-sm, 6px);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   z-index: -1;
-  box-shadow: var(--shadow-micro);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+[data-theme="light"] .conn-pill {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  color: #64748b;
+}
+[data-theme="light"] .conn-pill:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: rgba(0, 0, 0, 0.14);
+}
+[data-theme="light"] .conn-pill.active {
+  color: #0f172a !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+[data-theme="light"] .conn-pill-active-bg {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .conn-pill-label {
   position: relative;
@@ -33164,31 +33248,31 @@ a.text-reveal-wrap {
   width: 44px;
   height: 44px;
   padding: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
   flex-shrink: 0;
 }
 .conn-installed-chip:hover {
-  transform: translateY(-2px) scale(1.06);
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px) scale(1.1);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 .conn-installed-chip:active {
   transform: scale(0.95);
 }
 .conn-installed-chip .status-dot {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 10px;
-  height: 10px;
+  bottom: 0px;
+  right: 0px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 2px solid var(--bg, #060608);
+  border: 1.5px solid var(--bg, #060608);
 }
 .conn-installed-chip .status-dot.live {
   background: #10b981;
@@ -33201,14 +33285,14 @@ a.text-reveal-wrap {
   opacity: 0.5;
 }
 [data-theme="light"] .conn-installed-chip {
-  background: #f8fafc;
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 [data-theme="light"] .conn-installed-chip:hover {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.18);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 [data-theme="light"] .conn-installed-chip .status-dot {
   border-color: #ffffff;
@@ -33312,29 +33396,27 @@ a.text-reveal-wrap {
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.1);
 }
 
-/* Card App Icon Tile */
+/* Card App Icon */
 .plugin-row-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   position: relative;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .plugin-row:hover .plugin-row-icon {
-  border-color: rgba(255, 255, 255, 0.16);
-  transform: scale(1.04);
+  transform: scale(1.08);
 }
 [data-theme="light"] .plugin-row-icon {
-  background: #f8fafc;
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 /* Card Info */
@@ -33379,48 +33461,49 @@ a.text-reveal-wrap {
 .plugin-row .conn-status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  border-radius: var(--r-sm, 6px);
-  font-size: 11.5px;
+  gap: 4.5px;
+  padding: 1.5px 6.5px;
+  border-radius: 4px;
+  font-size: 11px;
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.3;
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 .plugin-row .conn-status--live {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(16, 185, 129, 0.08);
   color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(16, 185, 129, 0.16);
 }
 .plugin-row .conn-status--warning {
-  background: rgba(245, 158, 11, 0.12);
+  background: rgba(245, 158, 11, 0.08);
   color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  border: 1px solid rgba(245, 158, 11, 0.16);
 }
 .plugin-row .conn-status--waiting {
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(59, 130, 246, 0.08);
   color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.16);
 }
 .plugin-row .conn-status--off {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-dim);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-dim, #a1a1aa);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 [data-theme="light"] .plugin-row .conn-status--live {
   background: #ecfdf5;
   color: #059669;
-  border: 1px solid #a7f3d0;
+  border: 1px solid #d1fae5;
 }
 [data-theme="light"] .plugin-row .conn-status--warning {
   background: #fffbeb;
   color: #d97706;
-  border: 1px solid #fde68a;
+  border: 1px solid #fef3c7;
 }
 [data-theme="light"] .plugin-row .conn-status--waiting {
   background: #eff6ff;
   color: #2563eb;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #dbeafe;
 }
 [data-theme="light"] .plugin-row .conn-status--off {
   background: #f4f4f5;
@@ -33429,8 +33512,8 @@ a.text-reveal-wrap {
 }
 
 .plugin-row .conn-status .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -33490,6 +33573,25 @@ a.text-reveal-wrap {
   color: #09090b;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.plugin-pill-btn--chat {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.plugin-pill-btn--chat:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+[data-theme="light"] .plugin-pill-btn--chat {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+[data-theme="light"] .plugin-pill-btn--chat:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 .plugin-add-icon-btn {
   display: inline-flex;
@@ -35245,6 +35347,10 @@ a.text-reveal-wrap {
    start hidden for GSAP to animate in, replacing the CSS-only .enter class. */
 [data-enter] {
   visibility: visible;
+}
+[data-boneyard-content][style*="hidden"] [data-enter],
+[data-boneyard-content][style*="hidden"] * {
+  visibility: hidden !important;
 }
 
 

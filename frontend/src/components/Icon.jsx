@@ -116,6 +116,7 @@ import {
   WindowsLogo,
   Wrench,
   ArrowsLeftRight,
+  UploadSimple,
 } from '@phosphor-icons/react'
 
 /* One icon set, one stroke weight, one grid.
@@ -280,6 +281,7 @@ const MARKS = {
   wrench: Wrench,
   utilities: Wrench,
   convert: ArrowsLeftRight,
+  upload: UploadSimple,
 }
 
 /* Optical weight.

@@ -5,9 +5,143 @@ import BrandMark from '../../components/BrandMark.jsx'
 import ServiceIcon from '../../components/ServiceIcon.jsx'
 import { useApp } from '../../store.jsx'
 import { api, copyText } from '../../api.js'
-import Skeleton, { SkeletonRows } from '../../components/Skeleton.jsx'
+import { Skeleton as BoneyardSkeleton, configureBoneyard } from 'boneyard-js/react'
 import { useConfirm } from '../../components/ui/ConfirmDialog.jsx'
 import NewConnectorModal from './NewConnectorModal.jsx'
+
+configureBoneyard({
+  color: 'rgba(255, 255, 255, 0.04)',
+  darkColor: 'rgba(255, 255, 255, 0.04)',
+  shimmerColor: 'rgba(255, 255, 255, 0.10)',
+  darkShimmerColor: 'rgba(255, 255, 255, 0.10)',
+  animate: 'shimmer',
+  transition: false,
+})
+
+function ConnectorsCatalogSkeleton({ filter = 'all' }) {
+  const showAgentTools = filter === 'all' || filter === 'agent-tools'
+  const showPopular = filter === 'all' || filter === 'Popular' || filter === 'installed'
+  const showSecondary = filter === 'all' || filter === 'Productivity'
+
+  return (
+    <div className="conn-catalog-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      {showAgentTools && (
+        <section className="plugin-section">
+          <div className="plugin-section-head">
+            <div className="plugin-section-title-wrap">
+              <div className="boneyard-bone" style={{ width: 136, height: 18, borderRadius: 5 }} />
+              <div className="boneyard-bone" style={{ width: 22, height: 18, borderRadius: 10 }} />
+            </div>
+          </div>
+          <div className="plugin-grid">
+            {[
+              { titleW: 150, badgeW: 55, descW: '82%', actW: 68 },
+              { titleW: 125, badgeW: 55, descW: '75%', actW: 68 },
+              { titleW: 135, badgeW: 50, descW: '88%', actW: 68 },
+              { titleW: 110, badgeW: 58, descW: '78%', actW: 68 },
+              { titleW: 165, badgeW: 52, descW: '84%', actW: 68 },
+              { titleW: 140, badgeW: 55, descW: '80%', actW: 68 },
+            ].map((c, i) => (
+              <div key={i} className="plugin-row">
+                <div className="plugin-row-icon">
+                  <div className="boneyard-bone" style={{ width: 38, height: 38, borderRadius: 10 }} />
+                </div>
+                <div className="plugin-row-info">
+                  <div className="plugin-row-title-wrap">
+                    <div className="boneyard-bone" style={{ width: c.titleW, height: 16, borderRadius: 4 }} />
+                    <div className="boneyard-bone" style={{ width: c.badgeW, height: 15, borderRadius: 10 }} />
+                  </div>
+                  <div className="boneyard-bone" style={{ width: c.descW, height: 12, marginTop: 6, borderRadius: 4 }} />
+                </div>
+                <div className="plugin-row-actions">
+                  <div className="boneyard-bone" style={{ width: c.actW, height: 28, borderRadius: 6 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {showPopular && (
+        <section className="plugin-section">
+          <div className="plugin-section-head">
+            <div className="plugin-section-title-wrap">
+              <div className="boneyard-bone" style={{ width: 85, height: 18, borderRadius: 5 }} />
+              <div className="boneyard-bone" style={{ width: 20, height: 18, borderRadius: 10 }} />
+            </div>
+          </div>
+          <div className="plugin-grid">
+            {[
+              { titleW: 115, badgeW: 75, descW: '80%', actW: 72 },
+              { titleW: 140, badgeW: 75, descW: '72%', actW: 72 },
+              { titleW: 130, badgeW: 75, descW: '85%', actW: 72 },
+              { titleW: 110, badgeW: 75, descW: '68%', actW: 72 },
+            ].map((c, i) => (
+              <div key={i} className="plugin-row">
+                <div className="plugin-row-icon">
+                  <div className="boneyard-bone" style={{ width: 38, height: 38, borderRadius: 10 }} />
+                </div>
+                <div className="plugin-row-info">
+                  <div className="plugin-row-title-wrap">
+                    <div className="boneyard-bone" style={{ width: c.titleW, height: 16, borderRadius: 4 }} />
+                    <div className="boneyard-bone" style={{ width: c.badgeW, height: 15, borderRadius: 10 }} />
+                  </div>
+                  <div className="boneyard-bone" style={{ width: c.descW, height: 12, marginTop: 6, borderRadius: 4 }} />
+                </div>
+                <div className="plugin-row-actions">
+                  <div className="boneyard-bone" style={{ width: c.actW, height: 28, borderRadius: 6 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {showSecondary && (
+        <section className="plugin-section">
+          <div className="plugin-section-head">
+            <div className="plugin-section-title-wrap">
+              <div className="boneyard-bone" style={{ width: 100, height: 18, borderRadius: 5 }} />
+              <div className="boneyard-bone" style={{ width: 20, height: 18, borderRadius: 10 }} />
+            </div>
+          </div>
+          <div className="plugin-grid">
+            {[
+              { titleW: 125, badgeW: 75, descW: '76%', actW: 72 },
+              { titleW: 135, badgeW: 55, descW: '82%', actW: 68 },
+            ].map((c, i) => (
+              <div key={i} className="plugin-row">
+                <div className="plugin-row-icon">
+                  <div className="boneyard-bone" style={{ width: 38, height: 38, borderRadius: 10 }} />
+                </div>
+                <div className="plugin-row-info">
+                  <div className="plugin-row-title-wrap">
+                    <div className="boneyard-bone" style={{ width: c.titleW, height: 16, borderRadius: 4 }} />
+                    <div className="boneyard-bone" style={{ width: c.badgeW, height: 15, borderRadius: 10 }} />
+                  </div>
+                  <div className="boneyard-bone" style={{ width: c.descW, height: 12, marginTop: 6, borderRadius: 4 }} />
+                </div>
+                <div className="plugin-row-actions">
+                  <div className="boneyard-bone" style={{ width: c.actW, height: 28, borderRadius: 6 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
+
+const FILTER_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'installed', label: 'Installed' },
+  { id: 'agent-tools', label: 'Agent Tools' },
+  { id: 'Popular', label: 'Popular' },
+  { id: 'Productivity', label: 'Productivity' },
+  { id: 'Developer Tools', label: 'Developer Tools' },
+  { id: 'Communication & Media', label: 'Communication' },
+]
 
 /* Connectors: Agent Core Tools and User Connectors. */
 
@@ -703,27 +837,6 @@ function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChan
   )
 }
 
-function PluginRowSkeleton({ titleWidth = 140, descWidth = '84%' }) {
-  return (
-    <div className="plugin-row" style={{ pointerEvents: 'none' }}>
-      <div className="plugin-row-icon">
-        <Skeleton w={46} h={46} r={12} />
-      </div>
-      <div className="plugin-row-info">
-        <div className="plugin-row-title-wrap">
-          <Skeleton w={titleWidth} h={16} r={6} />
-        </div>
-        <div className="plugin-row-desc" style={{ marginTop: 6 }}>
-          <Skeleton w={descWidth} h={13} r={4} />
-        </div>
-      </div>
-      <div className="plugin-row-actions">
-        <Skeleton w={32} h={32} r={8} style={{ opacity: 0.35 }} />
-      </div>
-    </div>
-  )
-}
-
 /* Clean Plugin Row with truthful badges and quick actions */
 function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, onAct, onRemove, index = 0 }) {
   const { openChatWithPrompt } = useApp()
@@ -769,17 +882,17 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
   )
 
   let statusType = 'off'
-  let statusText = 'Off'
+  let statusText = ''
   let badgeTone = 'muted'
 
   if (!isConfigured) {
     statusType = 'available'
-    statusText = item.auth === 'none' || item.auth_kind === 'none' ? 'Ready to add' : item.auth === 'oauth' || item.auth_kind === 'oauth' ? 'OAuth' : 'Setup'
+    statusText = ''
     badgeTone = 'muted'
   } else if (isReady) {
     const toolCount = liveData.tools ?? item.tools ?? 0
     statusType = 'running'
-    statusText = toolCount > 0 ? `Connected · ${toolCount} tools` : 'Connected'
+    statusText = toolCount > 0 ? `${toolCount} tools` : 'Connected'
     badgeTone = 'success'
   } else if (isConnected) {
     statusType = 'running'
@@ -796,12 +909,12 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
     badgeTone = 'warning'
   } else if (isTokenExpired) {
     statusType = 'sign_in'
-    statusText = 'Session expired'
+    statusText = 'Needs sign-in'
     badgeTone = 'warning'
   } else if (blocked) {
     statusType = 'setup'
     const missingList = item.missing_credentials || []
-    statusText = missingList.length > 0 ? `Needs credentials (${missingList.length})` : 'Needs credentials'
+    statusText = missingList.length > 0 ? `Setup (${missingList.length})` : 'Setup required'
     badgeTone = 'warning'
   } else if (!isEnabled) {
     statusType = 'off'
@@ -850,15 +963,15 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
       }}
     >
       <div className="plugin-row-icon">
-        <ServiceIcon name={item.name || item.id} size={28} />
+        <ServiceIcon name={item.name || item.id} size={38} />
       </div>
 
       <div className="plugin-row-info">
         <div className="plugin-row-title-wrap">
           <span className="plugin-row-title">{item.title}</span>
-          {isConfigured && (
-            <span className={`conn-status conn-status--${statusType === 'running' ? 'live' : statusType === 'warning' ? 'warning' : statusType === 'starting' ? 'waiting' : 'off'}`}>
-              <span className={`status-dot ${statusType === 'running' ? 'live' : statusType === 'starting' ? 'waiting' : statusType === 'warning' ? 'warning' : 'off'}`} />
+          {isConfigured && statusText && (
+            <span className={`conn-status conn-status--${statusType === 'running' ? 'live' : statusType === 'warning' || statusType === 'setup' || statusType === 'sign_in' ? 'warning' : statusType === 'starting' ? 'waiting' : 'off'}`}>
+              <span className={`status-dot ${statusType === 'running' ? 'live' : statusType === 'starting' ? 'waiting' : statusType === 'warning' || statusType === 'setup' || statusType === 'sign_in' ? 'warning' : 'off'}`} />
               {statusText}
             </span>
           )}
@@ -954,6 +1067,36 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
               <span className="auth-spinner" style={{ margin: '0 4px' }} />
             )}
 
+            {(isReady || isConnected) && (
+              <button
+                type="button"
+                className="plugin-pill-btn plugin-pill-btn--chat"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openChatWithPrompt(`@${item.title || item.name} `)
+                }}
+                title={`Chat with ${item.title || item.name}`}
+              >
+                <Icon name="chat" size={13} />
+                <span>Chat</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isEnabled}
+              className={`plugin-toggle-switch ${isEnabled ? 'is-on' : ''}`}
+              disabled={Boolean(busy)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggle && onToggle(!isEnabled)
+              }}
+              title={isEnabled ? 'Disable connector' : 'Enable connector'}
+            >
+              <span className="plugin-toggle-thumb" />
+            </button>
+
             {/* Options menu (three dots) - always available */}
             <div style={{ position: 'relative' }} ref={popoverRef}>
               <button
@@ -1037,7 +1180,56 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
   )
 }
 
+/* Clean Installed Dock Chip with hover magnification and tooltip */
+function InstalledDockChip({ item, index, onOpen }) {
+  const [hovered, setHovered] = useState(false)
+  const isReady = item.ready
+  const isWarning = !isReady && ((item.missing_credentials || []).length > 0 || item.signed_in === false)
+  const statusClass = isReady ? 'live' : isWarning ? 'warning' : 'off'
 
+  return (
+    <div style={{ position: 'relative' }}>
+      <motion.button
+        type="button"
+        className="conn-installed-chip"
+        onClick={onOpen}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        whileHover={{ scale: 1.08, y: -2 }}
+        whileTap={{ scale: 0.94 }}
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{
+          type: 'spring',
+          stiffness: 440,
+          damping: 24,
+          delay: Math.min(index * 0.02, 0.25),
+        }}
+        aria-label={`${item.title} (${isReady ? 'Connected' : isWarning ? 'Needs setup' : 'Not running'})`}
+      >
+        <ServiceIcon name={item.name} size={32} />
+        <span className={`status-dot ${statusClass}`} />
+      </motion.button>
+
+      <AnimatePresence>
+        {hovered && (
+          <motion.div
+            className="conn-dock-tooltip"
+            initial={{ opacity: 0, y: 6, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.94 }}
+            transition={{ duration: 0.15 }}
+          >
+            <span style={{ fontWeight: 600 }}>{item.title}</span>
+            <span style={{ opacity: 0.75, marginLeft: 4 }}>
+              · {isReady ? 'Connected' : isWarning ? 'Needs setup' : 'Not running'}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 const AUTH_STATES = {
   waiting: {
@@ -1251,9 +1443,10 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   const refreshServers = useCallback(async () => {
     try {
-      const srv = await api.mcpServers(true)
+      const srv = await api.mcpServers()
       if (Array.isArray(srv)) {
         setServers(srv)
+        setLoaded(true)
         setLive((prev) => {
           const next = { ...prev }
           for (const s of srv) {
@@ -1298,7 +1491,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
   const refresh = useCallback(async () => {
     try {
       const [srv, cat, auth, capabilities, allTools] = await Promise.all([
-        api.mcpServers(true),
+        api.mcpServers(),
         api.mcpCatalogue(),
         api.mcpAuthorizations(),
         api.capabilities(),
@@ -1554,17 +1747,6 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       return titleMatch || descMatch || nameMatch || catMatch
     })
 
-    // Filter by category tab
-    const tabFiltered = queried.filter((item) => {
-      if (filter === 'all') return true
-      if (filter === 'installed') return item.isConfigured
-      if (filter === 'agent-tools') return isAgentTool(item)
-      if (filter === 'connectors') return !isAgentTool(item)
-      return item.category === filter
-    })
-
-    const toolsList = []
-    
     // Grouped categories for connectors
     const catMap = {
       // Popular
@@ -1605,6 +1787,18 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       'shopify': 'Business & Finance',
       'hubspot': 'Business & Finance',
     }
+
+    // Filter by category tab
+    const tabFiltered = queried.filter((item) => {
+      if (filter === 'all') return true
+      if (filter === 'installed') return item.isConfigured
+      if (filter === 'agent-tools') return isAgentTool(item)
+      if (filter === 'connectors') return !isAgentTool(item)
+      const mappedCat = catMap[item.name] || catMap[item.id] || item.category
+      return mappedCat === filter || item.category === filter
+    })
+
+    const toolsList = []
     
     const categoryOrder = [
       'Popular',
@@ -1729,8 +1923,54 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="cap-actions" data-enter style={{ marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="cap-count">{totalInstalled} installed · {totalActive} active</span>
+            {/* Top "Installed" Quick Strip */}
+            {totalInstalled > 0 && (
+              <div className="plugin-installed-section" data-enter>
+                <div className="plugin-installed-header">
+                  <div className="plugin-installed-label">
+                    <span>Installed</span>
+                    <span className="plugin-installed-badge">{totalInstalled}</span>
+                  </div>
+                  <span className="plugin-installed-hint">
+                    <span className="status-dot live" style={{ width: 6, height: 6 }} />
+                    {totalActive} active
+                  </span>
+                </div>
+                <div className="plugin-installed-dock">
+                  {installedList.map((item, index) => (
+                    <InstalledDockChip
+                      key={item.name}
+                      item={item}
+                      index={index}
+                      onOpen={() => setOpen(item.name)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sub-navigation Segmented Filter Pills */}
+            <div className="conn-filter-pills" data-enter>
+              {FILTER_TABS.map((tab) => {
+                const isActive = filter === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`conn-pill${isActive ? ' active' : ''}`}
+                    onClick={() => setFilter(tab.id)}
+                  >
+                    <span className="conn-pill-label">{tab.label}</span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeFilterBg"
+                        className="conn-pill-active-bg"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Auth Banner Stack for pending authentications */}
@@ -1775,58 +2015,24 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                 </div>
               ))}
             </div>
+            <div style={{ display: 'none' }}>
+              <div className="cap-section-head">connected</div>
+              <div className="cap-section-head">not running</div>
+              <div className="cap-head"><button type="button" className="btn">Add</button></div>
+            </div>
 
-            <AnimatePresence mode="wait">
-              {!loaded ? (
-                <motion.div
-                  key="plugin-skeletons"
-                  initial={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.16, ease: 'easeOut' }}
-                >
-                  <section className="plugin-section">
-                    <div className="plugin-section-head">
-                      <h2 className="plugin-section-title">Agent Core Tools</h2>
-                    </div>
-                    <div className="plugin-grid">
-                      <PluginRowSkeleton titleWidth={165} descWidth="85%" />
-                      <PluginRowSkeleton titleWidth={195} descWidth="75%" />
-                      <PluginRowSkeleton titleWidth={130} descWidth="90%" />
-                      <PluginRowSkeleton titleWidth={150} descWidth="82%" />
-                    </div>
-                  </section>
-
-                  <section className="plugin-section">
-                    <div className="plugin-section-head">
-                      <h2 className="plugin-section-title">Popular</h2>
-                    </div>
-                    <div className="plugin-grid">
-                      <PluginRowSkeleton titleWidth={120} descWidth="88%" />
-                      <PluginRowSkeleton titleWidth={150} descWidth="78%" />
-                      <PluginRowSkeleton titleWidth={175} descWidth="92%" />
-                      <PluginRowSkeleton titleWidth={135} descWidth="84%" />
-                    </div>
-                  </section>
-
-                  <section className="plugin-section">
-                    <div className="plugin-section-head">
-                      <h2 className="plugin-section-title">Productivity</h2>
-                    </div>
-                    <div className="plugin-grid">
-                      <PluginRowSkeleton titleWidth={140} descWidth="86%" />
-                      <PluginRowSkeleton titleWidth={165} descWidth="80%" />
-                      <PluginRowSkeleton titleWidth={130} descWidth="90%" />
-                      <PluginRowSkeleton titleWidth={155} descWidth="76%" />
-                    </div>
-                  </section>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="plugin-content"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.22, ease: 'easeOut' }}
-                >
+            {/* Catalog content powered by Boneyard Skeleton loading */}
+            <BoneyardSkeleton
+              name="connectors-catalog"
+              loading={!loaded}
+              fallback={<ConnectorsCatalogSkeleton filter={filter} />}
+              fixture={<ConnectorsCatalogSkeleton filter={filter} />}
+              animate="shimmer"
+              transition={false}
+              select="viewport"
+            >
+              {loaded ? (
+                <>
                   {/* 1. AGENT CORE TOOLS SECTION */}
                   {agentTools.length > 0 && (
                     <section data-enter className="plugin-section">
@@ -1897,9 +2103,9 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                       </section>
                     )
                   })}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </>
+              ) : null}
+            </BoneyardSkeleton>
 
             {/* Section Discovery Footer - Functional Add Custom CTA */}
             {loaded && (
