@@ -172,97 +172,338 @@
 }
 
 /* ==========================================================================
-   CARD 1: TASKS & CONTRIBUTION GRAPH
+   CARD 1: TASKS & GITHUB CONTRIBUTION GRAPH
    ========================================================================== */
 
 .today-tasks-graph-section {
   flex: none;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 65%, var(--canvas));
   border: 1px solid var(--hairline);
-  border-radius: 16px;
-  padding: 10px 14px;
+  border-radius: 14px;
+  padding: 12px 14px 10px 14px;
   margin-bottom: 12px;
+  position: relative;
 }
 
 .today-tasks-graph-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-dim);
+  margin-bottom: 8px;
 }
 
-.today-contrib-grid-wrapper {
+.today-graph-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.today-graph-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.today-graph-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.today-graph-period {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+/* Horizontal Scroll Area for 52 Weeks */
+.today-contrib-scroll {
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 2px;
-  scrollbar-width: none;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 22%, transparent) transparent;
+  position: relative;
 }
 
-.today-contrib-grid-wrapper::-webkit-scrollbar {
-  display: none;
+.today-contrib-scroll::-webkit-scrollbar {
+  height: 4px;
 }
 
-.today-contrib-grid {
-  display: grid;
-  grid-template-rows: repeat(7, 9px);
-  grid-auto-flow: column;
-  grid-auto-columns: 9px;
-  gap: 3px;
+.today-contrib-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.today-contrib-cell {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  box-sizing: border-box;
-  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
-  cursor: pointer;
+.today-contrib-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 4px;
 }
 
-.today-contrib-cell:hover {
-  transform: scale(1.35);
-  z-index: 2;
-}
-
-.today-contrib-cell[data-level="0"] {
-  background: #121316;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.today-contrib-cell[data-level="0"]:hover {
-  background: #1c1d22;
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.today-contrib-cell[data-level="1"] {
-  background: color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
-.today-contrib-cell[data-level="2"] {
-  background: color-mix(in srgb, var(--accent) 65%, transparent);
-}
-
-.today-contrib-cell[data-level="3"] {
+.today-contrib-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
 }
 
-:root[data-theme='paper'] .today-contrib-cell[data-level="0"],
-:root[data-theme='light'] .today-contrib-cell[data-level="0"],
-:root[data-theme='sand'] .today-contrib-cell[data-level="0"],
-:root[data-theme='apple'] .today-contrib-cell[data-level="0"] {
-  background: #ebedf0;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+/* Canvas containing month labels, days and cells */
+.today-contrib-canvas {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
 }
 
-:root[data-theme='paper'] .today-contrib-cell[data-level="0"]:hover,
-:root[data-theme='light'] .today-contrib-cell[data-level="0"]:hover,
-:root[data-theme='sand'] .today-contrib-cell[data-level="0"]:hover,
-:root[data-theme='apple'] .today-contrib-cell[data-level="0"]:hover {
-  background: #dfe1e4;
-  border-color: rgba(0, 0, 0, 0.14);
+/* Month Labels Track */
+.today-contrib-months {
+  display: flex;
+  align-items: center;
+  height: 15px;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.today-contrib-day-gutter {
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.today-contrib-months-track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+}
+
+.today-contrib-month-label {
+  position: absolute;
+  top: 0;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-faint);
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Grid Body */
+.today-contrib-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Weekday Labels (Mon, Wed, Fri aligned with rows 1, 3, 5) */
+.today-contrib-day-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 20px;
+  flex-shrink: 0;
+  padding-top: 0;
+}
+
+.today-contrib-day-label {
+  height: 10px;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-faint);
+  line-height: 10px;
+  text-align: right;
+  padding-right: 2px;
+  user-select: none;
+}
+
+/* Week Columns */
+.today-contrib-weeks {
+  display: flex;
+  gap: 3px;
+}
+
+.today-contrib-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Cells */
+.today-contrib-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.12s ease,
+              border-color 0.12s ease;
+  cursor: pointer;
+  outline: none;
+}
+
+.today-contrib-cell.is-future {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.today-contrib-cell:hover:not(.is-future) {
+  transform: scale(1.35);
+  z-index: 5;
+}
+
+/* 5 Activity Levels - 100% Theme & Custom Accent Adaptive */
+/* Level 0: Empty Day */
+.today-contrib-cell[data-level="0"] {
+  background: color-mix(in srgb, var(--text) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.today-contrib-cell[data-level="0"]:hover {
+  background: color-mix(in srgb, var(--text) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+/* Level 1: Low activity (e.g. 1-2 tasks) */
+.today-contrib-cell[data-level="1"] {
+  background: color-mix(in srgb, var(--accent) 30%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.today-contrib-cell[data-level="1"]:hover {
+  border-color: var(--accent);
+}
+
+/* Level 2: Moderate activity */
+.today-contrib-cell[data-level="2"] {
+  background: color-mix(in srgb, var(--accent) 55%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.today-contrib-cell[data-level="2"]:hover {
+  border-color: var(--accent);
+}
+
+/* Level 3: High activity */
+.today-contrib-cell[data-level="3"] {
+  background: color-mix(in srgb, var(--accent) 80%, var(--surface));
+  border: 1px solid var(--accent);
+}
+
+.today-contrib-cell[data-level="3"]:hover {
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* Level 4: Peak activity */
+.today-contrib-cell[data-level="4"] {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.today-contrib-cell[data-level="4"]:hover {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+/* Tooltip */
+.today-contrib-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--raised, #18181b);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 6px 16px -2px rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  padding: 6px 10px;
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+  animation: todayTooltipFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes todayTooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -90%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
+
+.today-contrib-tooltip-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.today-contrib-tooltip-count strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.today-contrib-tooltip-date {
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+.today-contrib-tooltip-tasks {
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.today-contrib-tooltip-task-item {
+  font-size: 10px;
+  color: var(--text-dim);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-contrib-tooltip-more {
+  font-size: 9px;
+  color: var(--text-faint);
+  font-style: italic;
+  margin-top: 1px;
+}
+
+/* Footer & Legend (Less ... More) */
+.today-tasks-graph-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--hairline) 60%, transparent);
+}
+
+.today-contrib-hint {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.today-contrib-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.today-legend-label {
+  font-size: 9px;
+  color: var(--text-faint);
+  font-weight: 500;
+  user-select: none;
+}
+
+.today-contrib-legend .today-contrib-cell {
+  cursor: default;
+}
+.today-contrib-legend .today-contrib-cell:hover {
+  transform: none;
 }
 
 /* Task Row */
