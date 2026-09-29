@@ -690,6 +690,17 @@ async def enrich_text(
         if not result.empty:
             availability.record_success(link.provider)
             return result
+        if result.provider and result.note is None:
+            availability.record_success(link.provider)
+            return Enrichment(
+                category=result.category,
+                summary=None,
+                tags=result.tags,
+                resources=result.resources,
+                provider=result.provider,
+                model=result.model,
+                note="the text was too brief to extract further insights from.",
+            )
         last = result
 
     tried = ", ".join(str(link) for link in links)

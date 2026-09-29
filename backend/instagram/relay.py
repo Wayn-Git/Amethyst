@@ -488,7 +488,7 @@ class RelayPoller:
                     return True
                 except Exception as exc:
                     log.warning("direct capture for failed relay job %s failed: %s", fallback_url, exc)
-                    return False
+                    return None
             log.warning(
                 "the relay gave up on a %s job: %s",
                 kind,
@@ -526,10 +526,8 @@ class RelayPoller:
                 title=result.get("title") or None,
             )
         except LibraryError as exc:
-            # The same rule every other door into the library follows: a fetch
-            # that went wrong is not a reason to keep asking for it.
             log.warning("a relayed %s job could not be logged: %s", kind, exc)
-            return False
+            return None
         except Exception as exc:  # a crash mid-capture is transient until proven otherwise
             log.warning("applying a relayed %s job failed: %s", kind, exc)
             return None

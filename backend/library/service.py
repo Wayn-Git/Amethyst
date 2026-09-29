@@ -159,6 +159,20 @@ def as_dict(row) -> dict:
         status = "ready"
     data["status"] = status
 
+    if data.get("text_path"):
+        try:
+            from pathlib import Path
+            p = Path(data["text_path"])
+            if p.is_file():
+                raw = p.read_text(encoding="utf-8", errors="replace")
+                data["content"] = raw
+                if not data.get("excerpt"):
+                    from backend.library.enrich import body_of
+                    body, _ = body_of(raw)
+                    data["excerpt"] = body.strip()[:1000]
+        except Exception:
+            pass
+
     return data
 
 
