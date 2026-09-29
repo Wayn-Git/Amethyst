@@ -45935,245 +45935,240 @@ a.text-reveal-wrap {
 
 
 /* ==========================================================================
-   CHATGPT-STYLE RESPONSE ARTIFACT BOX & MESSAGE ACTIONS (IMAGES 3, 4, 5)
+   MODERN CHATGPT-STYLE LLM RESPONSE & TYPOGRAPHY (MATCHING DESIRED UI)
    ========================================================================== */
 
-/* The Artifact Box Container (Image 3 & 4) */
+/* Clean Assistant Response Container */
+.chat-assistant-response,
 .artifact-box-wrapper {
-  margin: 12px 0;
+  margin: 6px 0 16px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  position: relative;
 }
 
+/* Open, Borderless Prose Body */
+.chat-assistant-prose,
+.artifact-card-body,
 .artifact-container-card {
-  background: #171717;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
-  transition: border-color 0.15s ease;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
   width: 100%;
   max-width: 100%;
-  box-sizing: border-box;
+  color: #e2e8f0;
+  font-size: 15.5px;
+  line-height: 1.72;
+  overflow-x: visible;
+  overflow-wrap: break-word;
+  word-break: normal;
+  transition: all 0.25s ease;
 }
 
-.artifact-container-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
+.chat-assistant-prose.is-ai-updated,
 .artifact-container-card.is-ai-updated {
-  border-color: rgba(133, 91, 251, 0.7);
-  animation: artifactUpdatedGlow 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: aiUpdatedGlow 1.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes artifactUpdatedGlow {
+@keyframes aiUpdatedGlow {
   0% {
-    box-shadow: 0 0 0 2px rgba(133, 91, 251, 0.6), 0 8px 30px rgba(113, 50, 245, 0.3);
+    background: rgba(139, 92, 246, 0.15) !important;
+    border-radius: 8px;
   }
   100% {
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    background: transparent !important;
   }
 }
 
-/* Card Header */
+/* Hide legacy artifact header bar */
 .artifact-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.02);
-  min-height: 48px;
-  box-sizing: border-box;
-  gap: 12px;
+  display: none !important;
 }
 
-.artifact-header-left {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
+/* ==========================================================================
+   MODERN CHATGPT-STYLE BOTTOM ACTIONS TOOLBAR
+   ========================================================================== */
 
-/* Image 4: Default Edit pill */
-.artifact-edit-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 14px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #f1f5f9;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.artifact-edit-pill:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.24);
-  transform: translateY(-1px);
-}
-
-.artifact-edit-pill:active {
-  transform: scale(0.97);
-}
-
-/* Image 3: Interactive Ask for changes pill when text is selected */
-.artifact-ask-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 4px 0 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 9999px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-  width: min(340px, 65vw);
-  transition: all 0.15s ease;
-  animation: fadeIn 0.15s ease-out;
-}
-
-.artifact-ask-pill:focus-within {
-  border-color: #855bfb;
-  background: rgba(255, 255, 255, 0.11);
-  box-shadow: 0 0 0 2px rgba(133, 91, 251, 0.25);
-}
-
-.ask-pill-icon {
-  color: #94a3b8;
-  flex-shrink: 0;
-}
-
-.ask-pill-input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #f8fafc;
-  font-size: 12.5px;
-}
-
-.ask-pill-input::placeholder {
-  color: #64748b;
-}
-
-.ask-pill-submit-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f8fafc;
-  color: #0f172a;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.ask-pill-submit-btn:disabled {
-  opacity: 0.25;
-  cursor: not-allowed;
-}
-
-.ask-pill-submit-btn:not(:disabled):hover {
-  background: #fff;
-  transform: scale(1.05);
-}
-
-/* Header Right icons */
-.artifact-header-right {
+.chat-assistant-toolbar,
+.response-message-actions-bar,
+.response-message-actions-row {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
+  margin-top: 10px;
+  padding: 2px 0;
+  opacity: 0.75;
+  transition: opacity 0.15s ease;
 }
 
-.artifact-header-btn-wrap {
-  position: relative;
-  display: inline-flex;
+.msg-assistant:hover .chat-assistant-toolbar,
+.msg-assistant:hover .response-message-actions-bar,
+.msg-assistant:hover .response-message-actions-row,
+.chat-assistant-toolbar:focus-within,
+.msg-assistant.is-pinned .chat-assistant-toolbar {
+  opacity: 1;
 }
 
-.artifact-header-btn {
+@media (pointer: coarse) {
+  .chat-assistant-toolbar,
+  .response-message-actions-bar,
+  .response-message-actions-row {
+    opacity: 1;
+  }
+}
+
+.resp-action-btn,
+.msg-action-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 7px;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
   color: #94a3b8;
   background: transparent;
   border: none;
   cursor: pointer;
   transition: all 0.12s ease;
+  padding: 0;
+  outline: none;
 }
 
-.artifact-header-btn:hover {
+.resp-action-btn:hover,
+.msg-action-icon-btn:hover {
   color: #f8fafc;
   background: rgba(255, 255, 255, 0.08);
 }
 
-.artifact-header-btn.is-active {
-  color: #855bfb;
-  background: rgba(113, 50, 245, 0.14);
+.resp-action-btn:active,
+.msg-action-icon-btn:active {
+  transform: scale(0.95);
 }
 
-.artifact-floating-tooltip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #09090b;
+.resp-action-btn.is-active,
+.msg-action-icon-btn.is-active {
   color: #f8fafc;
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 50;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.12);
 }
 
-/* Version dropdown popover */
+.resp-action-btn:disabled,
+.msg-action-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.resp-action-btn--subtle {
+  width: 24px;
+  height: 24px;
+}
+
+/* Version Group & Pill */
+.resp-version-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin-right: 2px;
+}
+
+.resp-version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: #cbd5e1;
+  border-radius: 4px;
+  transition: background 0.12s ease;
+}
+
+.resp-version-pill:hover,
+.resp-version-pill.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.resp-version-pill .v-num {
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  color: #a78bfa;
+}
+
+.resp-version-pill .v-tag {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.resp-menu-anchor,
+.msg-action-menu-anchor,
 .artifact-header-menu-anchor {
   position: relative;
   display: inline-flex;
 }
 
+/* Popover Dropdowns (Export, More, Version History) */
+.response-popover-dropdown,
 .artifact-version-popover {
   position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 240px;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
   background: #1c1d22;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
-  padding: 6px;
+  padding: 5px;
   z-index: 100;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   animation: fadeIn 0.12s ease-out;
 }
 
+.popover-timestamp-header,
 .version-popover-title {
   font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 3px;
+}
+
+.version-popover-title {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
-  padding: 5px 8px;
+}
+
+.response-popover-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: #cbd5e1;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.response-popover-dropdown button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
 }
 
 .version-popover-item {
@@ -46236,127 +46231,153 @@ a.text-reveal-wrap {
   color: #94a3b8;
 }
 
-/* Document body inside Artifact Box */
-.artifact-card-body {
-  padding: 20px 24px;
-  color: #f1f5f9;
-  font-size: 14.5px;
-  line-height: 1.68;
-  overflow-x: hidden;
-  overflow-wrap: break-word;
-  word-break: normal;
-}
+/* ==========================================================================
+   MARKDOWN TYPOGRAPHY ACCURACY (CHATGPT IMAGES 1 & 2)
+   ========================================================================== */
 
-.artifact-card-body p {
-  margin: 0.8em 0;
-}
-
-.artifact-card-body h1,
-.artifact-card-body h2,
-.artifact-card-body h3 {
-  margin-top: 1.2em;
-  margin-bottom: 0.5em;
-  color: #fff;
-}
-
-/* Bottom Response Actions Row (Image 4 & 5) */
-.response-message-actions-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.msg-assistant:hover .response-message-actions-row,
-.response-message-actions-row:focus-within,
-.msg-assistant.is-pinned .response-message-actions-row {
-  opacity: 1;
-}
-
-@media (pointer: coarse) {
-  .response-message-actions-row {
-    opacity: 1;
-  }
-}
-
-.msg-action-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  color: #94a3b8;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-
-.msg-action-icon-btn:hover {
-  color: #f8fafc;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.msg-action-icon-btn.is-active {
-  color: #f8fafc;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.msg-action-menu-anchor {
-  position: relative;
-  display: inline-flex;
-}
-
-/* Popover menu matching Image 5 */
-.response-popover-dropdown {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  min-width: 190px;
-  background: #1c1d22;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
-  padding: 5px;
-  z-index: 100;
+.md {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  animation: fadeIn 0.12s ease-out;
-}
-
-.popover-timestamp-header {
-  font-size: 11px;
-  font-weight: 500;
-  color: #64748b;
-  padding: 6px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 3px;
-}
-
-.response-popover-dropdown button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+  gap: 0;
   width: 100%;
-  padding: 7px 10px;
-  font-size: 12.5px;
-  color: #cbd5e1;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.12s ease;
 }
 
-.response-popover-dropdown button:hover {
-  background: rgba(255, 255, 255, 0.08);
+.md-p {
+  margin: 0 0 14px 0;
+  font-size: 15.5px;
+  line-height: 1.72;
+  color: #e2e8f0;
+}
+
+.md-p:last-child {
+  margin-bottom: 0;
+}
+
+.md-p strong,
+.md-list strong,
+.md-task strong,
+.md-h strong {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* Headings with prominent hierarchy */
+.md-h {
+  font-family: var(--font-display, inherit);
+  letter-spacing: -0.012em;
+  color: #ffffff;
+}
+
+.md-h1, h2.md-h {
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 22px 0 10px 0;
+  color: #ffffff;
+}
+
+.md > .md-h:first-child {
+  margin-top: 0;
+}
+
+.md-h2, h3.md-h {
+  font-size: 1.22rem;
+  font-weight: 650;
+  line-height: 1.35;
+  margin: 20px 0 8px 0;
   color: #f8fafc;
 }
+
+.md-h3, h4.md-h {
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 16px 0 6px 0;
+  color: #f1f5f9;
+}
+
+.md-h4, .md-h5, .md-h6 {
+  font-size: 0.98rem;
+  font-weight: 600;
+  margin: 12px 0 4px 0;
+  color: #e2e8f0;
+}
+
+/* Thin horizontal rule divider between sections (Image 1) */
+.md-hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  margin: 24px 0;
+}
+
+/* Clean indented lists with disc bullets (Image 2) */
+.md-list {
+  margin: 6px 0 16px 0;
+  padding-left: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.md-list li {
+  line-height: 1.68;
+  color: #e2e8f0;
+  font-size: 15.5px;
+}
+
+.md-list li::marker {
+  color: #94a3b8;
+}
+
+.md-list .md-list {
+  margin: 4px 0 4px;
+  padding-left: 1.25rem;
+  gap: 4px;
+}
+
+/* Inline Code: compact subtle pill without breaking line height (Image 0 fix) */
+.md-code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.86em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  white-space: break-spaces;
+  word-break: break-word;
+  vertical-align: baseline;
+}
+
+/* Clean text links with ↗ arrow (Image 1 & 2) */
+.md-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #f1f5f9;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.md-text-link:hover {
+  color: #38bdf8;
+  text-decoration-color: #38bdf8;
+}
+
+.md-link-arrow {
+  font-size: 0.95em;
+  line-height: 1;
+  opacity: 0.8;
+  transition: transform 0.15s ease;
+}
+
+.md-text-link:hover .md-link-arrow {
+  transform: translate(1px, -1px);
+}
+
 
 /* ==========================================================================
    POLISHED RESPONSE EDITOR STYLES (MATCHING AMETHYST & FIXING IMAGE 1 / 2)

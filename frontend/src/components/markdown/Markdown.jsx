@@ -186,6 +186,24 @@ function SourcePill({ href, children }) {
     }))
   }
 
+  // If this is a descriptive title or action link (e.g. "Official Rockstar GTA VI page")
+  // rather than a short source/domain pill:
+  const isDescriptiveLink = !badgeCount && !isUrl && (textStr.length > 20 || /\b(page|guide|read|download|click|here|view|full|report|cover story|article)\b/i.test(textStr))
+  if (isDescriptiveLink) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener nofollow"
+        className="md-text-link"
+        title={href}
+      >
+        <span>{textStr}</span>
+        <span className="md-link-arrow">↗</span>
+      </a>
+    )
+  }
+
   return (
     <span className="md-citation-pill-wrap">
       <a
@@ -560,10 +578,9 @@ function block(node, key, extra = {}) {
       return <CodeBlock key={key} lang={node.lang} file={node.file} text={node.text} open={node.open} />
 
     case 'h': {
-      // Shifted down two levels: the page already owns its `h1`, and a reply
-      // that opens with `#` must not become a second one.
-      const Tag = `h${Math.min(node.level + 2, 6)}`
-      return <Tag key={key} className="md-h">{text(node.text)}</Tag>
+      // Shifted down one level: the page owns its h1, while responses start at h2 for high-contrast section hierarchy
+      const Tag = `h${Math.min(node.level + 1, 6)}`
+      return <Tag key={key} className={`md-h md-h${node.level}`}>{text(node.text)}</Tag>
     }
 
     case 'hr':
