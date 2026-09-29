@@ -92,7 +92,8 @@ async def _close_client() -> None:
 
 def _target_url(port: int, path: str, query: str) -> str:
     """Build the opencode URL to proxy to."""
-    base = f"http://127.0.0.1:{port}/api/{path}"
+    clean_path = path.lstrip("/")
+    base = f"http://127.0.0.1:{port}/{clean_path}"
     if query:
         base = f"{base}?{query}"
     return base

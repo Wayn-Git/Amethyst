@@ -20,7 +20,7 @@ export const NAV = [
   { id: 'automations', path: '/automations', label: 'Automations', icon: 'automations', digit: 5, rail: true, settings: true, beta: true },
   { id: 'memory', path: '/memory', label: 'Memory', icon: 'brain', digit: 6, rail: true, settings: true },
   { id: 'library', path: '/library', label: 'Library', icon: 'books', digit: 9, rail: true, settings: true },
-  { id: 'code', path: '/code', label: 'Code', icon: 'code', rail: true, settings: true, group: 'utilities' },
+  { id: 'code', path: '/code', label: 'Code', icon: 'code', rail: true, settings: true },
   // Reached from Settings rather than the rail. It is a page you open when
   // something looks wrong, not one you open every day, and the rail is worth
   // more to the pages that are.

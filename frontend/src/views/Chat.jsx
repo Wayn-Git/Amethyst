@@ -1624,11 +1624,15 @@ export default function Chat() {
                 ...a,
                 bytes: evt.bytes ?? (a.text ?? '').length,
                 version: evt.version || a.version,
-                error: evt.is_error ? (evt.message || 'the file was not written') : null,
+                error: evt.is_error ? (evt.message || 'The file was not written') : null,
+                is_error: Boolean(evt.is_error),
               }
             : a
         )))
         setStreamingArtifact((id) => (id === evt.id ? null : id))
+        if (evt.is_error) {
+          setFreshArtifact((id) => (id === evt.id ? null : id))
+        }
         break
 
       default:
@@ -1660,8 +1664,12 @@ export default function Chat() {
        while it does. It fires only when the connection has gone quiet
        entirely, which is the one case the server can no longer report. */
     let watchdog = null
-    const beat = () => {
+    const beat = (evt) => {
       clearTimeout(watchdog)
+      const now = liveRef.current.status
+      if (now?.state === 'awaiting_approval' || now?.state === 'awaiting_input' || evt?.waiting_on) {
+        return
+      }
       watchdog = setTimeout(() => {
         if (turnTokenRef.current !== token || settledRef.current) return
         pushNote('error', `No response from the server for ${SILENCE_LIMIT_MS / 1000}s. The turn may still be running; reload to reconnect.`)
@@ -1684,7 +1692,7 @@ export default function Chat() {
         effort: opts.effort,
         variant: opts.variant,
         model: opts.model,
-        onEvent: (evt) => { beat(); onEvent(evt) },
+        onEvent: (evt) => { beat(evt); onEvent(evt) },
         signal: controller.signal,
       })
     } catch (err) {
@@ -2212,15 +2220,32 @@ export default function Chat() {
     return () => cancelAnimationFrame(id)
   }, [activeId])
 
-  // Opening a document from the conversation: show the panel, and select the
-  // one the card names if it is still on screen.
-  const openArtifacts = useCallback((path) => {
+  const openArtifacts = useCallback((path, fallbackObj) => {
     setPanelMode('artifacts')
     setPanel(true)
     if (path) {
       setArtifacts((prev) => {
-        const match = prev.find((a) => a.path === path)
-        if (match) setActiveArtifact(match.id)
+        const match = prev.find((a) => a.path === path || a.title === path)
+        if (match) {
+          setActiveArtifact(match.id)
+          return prev
+        }
+        if (fallbackObj) {
+          const fallbackItem = {
+            id: fallbackObj.id || `art-${Date.now()}`,
+            path,
+            title: fallbackObj.title || String(path).split('/').pop(),
+            text: fallbackObj.content || '',
+            media_type: fallbackObj.media_type || 'text/markdown',
+            language: fallbackObj.language || 'markdown',
+            error: fallbackObj.error,
+            is_error: Boolean(fallbackObj.is_error),
+            bytes: (fallbackObj.content || '').length,
+            version: 0,
+          }
+          setActiveArtifact(fallbackItem.id)
+          return [...prev, fallbackItem]
+        }
         return prev
       })
     }
@@ -3160,6 +3185,30 @@ export default function Chat() {
               dismissible={true}
               className="max-w-none"
             />
+          </div>
+        )}
+
+        {isEmpty && (
+          <div className="home-top-mode-bar">
+            <div className="home-mode-segmented">
+              <button
+                type="button"
+                className="home-mode-btn is-active"
+                title="Work Mode (Conversations, Tools, General Assistant)"
+              >
+                <Icon name="chat" size={15} />
+                <span>Work</span>
+              </button>
+              <button
+                type="button"
+                className="home-mode-btn"
+                onClick={() => setView('code')}
+                title="Switch to Code Mode (Powered by OpenCode Engine)"
+              >
+                <Icon name="code" size={15} />
+                <span>Code</span>
+              </button>
+            </div>
           </div>
         )}
 

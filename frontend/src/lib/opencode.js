@@ -38,7 +38,7 @@ async function request(method, path, body = undefined, options = {}) {
     } catch {
       err = { error: res.statusText || `Request failed with status ${res.status}` }
     }
-    const msg = err.error || err.message || `Request failed with status ${res.status}`
+    const msg = err.error || err.data?.message || err.message || `Request failed with status ${res.status}`
     const error = new Error(msg)
     error.status = res.status
     error.details = err
@@ -93,8 +93,30 @@ export const opencode = {
     return Array.isArray(res) ? res : res?.data || []
   },
   listModels: async () => {
-    const res = await request('GET', '/model')
-    return Array.isArray(res) ? res : res?.data || []
+    try {
+      const res = await request('GET', '/provider')
+      const providers = res?.all || []
+      const connected = new Set(res?.connected || [])
+      const models = []
+      for (const p of providers) {
+        const pModels = p.models || {}
+        const isConn = connected.has(p.id)
+        for (const [mId, mObj] of Object.entries(pModels)) {
+          models.push({
+            id: mId,
+            name: mObj.name || mId,
+            providerID: p.id,
+            providerName: p.name || p.id,
+            connected: isConn,
+            status: mObj.status,
+          })
+        }
+      }
+      return models
+    } catch (e) {
+      console.warn('[opencode] Failed to fetch providers/models:', e)
+      return []
+    }
   },
   listProviders: async () => {
     const res = await request('GET', '/provider')
@@ -111,7 +133,23 @@ export const opencode = {
     return Array.isArray(res) ? res : res?.data || []
   },
   createSession: async (body = {}) => {
-    const res = await request('POST', '/session', body)
+    let modelObj = body.model
+    if (typeof modelObj === 'string') {
+      if (modelObj.includes('/')) {
+        const [providerID, ...rest] = modelObj.split('/')
+        modelObj = { providerID, modelID: rest.join('/') }
+      } else {
+        modelObj = { providerID: 'opencode', modelID: modelObj }
+      }
+    } else if (modelObj && modelObj.id && !modelObj.modelID) {
+      modelObj = { providerID: modelObj.providerID || 'opencode', modelID: modelObj.id }
+    }
+    const payload = {
+      agent: body.agent || 'build',
+      ...(modelObj ? { model: modelObj } : {}),
+      ...(body.title ? { title: body.title } : {}),
+    }
+    const res = await request('POST', '/session', payload)
     return res?.data || res
   },
   getSession: async (sessionID) => {
@@ -120,60 +158,55 @@ export const opencode = {
   },
   deleteSession: (sessionID) => request('DELETE', `/session/${sessionID}`),
 
-  switchAgent: (sessionID, agent) =>
-    request('POST', `/session/${sessionID}/agent`, { agent }),
-  switchModel: (sessionID, model) =>
-    request('POST', `/session/${sessionID}/model`, typeof model === 'string' ? { model } : model),
-
   // Prompts & Interactions
-  prompt: (sessionID, body) => {
-    // Normalise body if user passes a plain string
-    const payload =
-      typeof body === 'string'
-        ? { prompt: { text: body } }
-        : body?.prompt
-        ? body
-        : { prompt: { text: body?.text || '' } }
-    return request('POST', `/session/${sessionID}/prompt`, payload)
+  prompt: (sessionID, body, opts = {}) => {
+    const text = typeof body === 'string' ? body : body?.text || body?.prompt?.text || ''
+    let modelObj = opts.model
+    if (typeof modelObj === 'string') {
+      if (modelObj.includes('/')) {
+        const [providerID, ...rest] = modelObj.split('/')
+        modelObj = { providerID, modelID: rest.join('/') }
+      } else {
+        modelObj = { providerID: 'opencode', modelID: modelObj }
+      }
+    } else if (modelObj && modelObj.id && !modelObj.modelID) {
+      modelObj = { providerID: modelObj.providerID || 'opencode', modelID: modelObj.id }
+    }
+    const payload = {
+      parts: [{ type: 'text', text }],
+      ...(modelObj ? { model: modelObj } : {}),
+      ...(opts.agent ? { agent: opts.agent } : {}),
+    }
+    return request('POST', `/session/${sessionID}/prompt_async`, payload)
   },
-  interrupt: (sessionID) => request('POST', `/session/${sessionID}/interrupt`),
-  getHistory: async (sessionID, opts = {}) => {
-    const query = new URLSearchParams()
-    if (opts.cursor) query.set('cursor', opts.cursor)
-    if (opts.limit) query.set('limit', String(opts.limit))
-    const qStr = query.toString() ? `?${query.toString()}` : ''
-    const res = await request('GET', `/session/${sessionID}/history${qStr}`)
+  interrupt: (sessionID) => request('POST', `/session/${sessionID}/abort`),
+  getMessages: async (sessionID) => {
+    const res = await request('GET', `/session/${sessionID}/message`)
     return Array.isArray(res) ? res : res?.data || []
   },
-  getContext: async (sessionID) => {
-    const res = await request('GET', `/session/${sessionID}/context`)
-    return res?.data || res
+  getDiff: async (sessionID) => {
+    const res = await request('GET', `/session/${sessionID}/diff`)
+    return Array.isArray(res) ? res : res?.data || []
+  },
+  getTodo: async (sessionID) => {
+    const res = await request('GET', `/session/${sessionID}/todo`)
+    return Array.isArray(res) ? res : res?.data || []
   },
 
   // Permissions
-  listPermissions: async (sessionID) => {
-    const res = await request('GET', `/session/${sessionID}/permission`)
+  listPermissions: async () => {
+    const res = await request('GET', '/permission')
     return Array.isArray(res) ? res : res?.data || []
   },
-  replyPermission: (sessionID, requestID, body) => {
-    let reply = typeof body === 'string' ? body : body?.reply
+  replyPermission: (requestID, body) => {
+    let reply = typeof body === 'string' ? body : body?.reply || body?.response
     if (reply === 'allow') reply = 'once'
     if (reply === 'deny') reply = 'reject'
     const payload = {
       reply: reply || 'once',
       message: body?.message || '',
     }
-    return request('POST', `/session/${sessionID}/permission/${requestID}/reply`, payload)
-  },
-
-  // Commands & Skills
-  listCommands: async () => {
-    const res = await request('GET', '/command')
-    return Array.isArray(res) ? res : res?.data || []
-  },
-  listSkills: async () => {
-    const res = await request('GET', '/skill')
-    return Array.isArray(res) ? res : res?.data || []
+    return request('POST', `/permission/${requestID}/reply`, payload)
   },
 
   // Events

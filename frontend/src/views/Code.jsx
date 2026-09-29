@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
 import opencode from '../lib/opencode.js'
+import { useApp } from '../store.jsx'
 import './code.css'
 
 function formatTokens(n) {
@@ -23,6 +24,8 @@ function timeAgo(timestamp) {
 }
 
 export default function Code() {
+  const { setView } = useApp()
+
   // Server state
   const [serverStatus, setServerStatus] = useState({
     running: false,
@@ -111,13 +114,29 @@ export default function Code() {
         opencode.listSessions().catch(() => []),
       ])
 
+      // Sort models: free models first, then connected providers
+      const sortedModels = [...modelsList].sort((a, b) => {
+        const aFree = a.id?.includes('free') ? 1 : 0
+        const bFree = b.id?.includes('free') ? 1 : 0
+        if (aFree !== bFree) return bFree - aFree
+        const aConn = a.connected ? 1 : 0
+        const bConn = b.connected ? 1 : 0
+        return bConn - aConn
+      })
+
       setAgents(agentsList)
-      setModels(modelsList)
+      setModels(sortedModels)
       setSessions(sessionsList)
 
-      if (modelsList.length > 0 && !currentModel) {
-        const defaultMod = modelsList[0]
-        setCurrentModel(typeof defaultMod === 'string' ? defaultMod : defaultMod.id || defaultMod.name || '')
+      if (sortedModels.length > 0 && !currentModel) {
+        const preferred =
+          sortedModels.find((m) => m.id === 'mimo-v2.6-flash-free') ||
+          sortedModels.find((m) => m.id?.includes('free') && m.providerID === 'opencode') ||
+          sortedModels.find((m) => m.connected && m.id?.includes('free')) ||
+          sortedModels.find((m) => m.connected) ||
+          sortedModels[0]
+        const val = `${preferred.providerID || 'opencode'}/${preferred.id}`
+        setCurrentModel(val)
       }
 
       if (sessionsList.length > 0 && !activeSessionRef.current) {
@@ -127,96 +146,6 @@ export default function Code() {
       console.error('Error loading initial OpenCode data:', err)
     }
   }, [currentModel])
-
-  // -------------------------------------------------------------------------
-  // Session History Reducer
-  // -------------------------------------------------------------------------
-  const rebuildMessagesFromEvents = useCallback((events) => {
-    const msgs = []
-    let currentAssistant = null
-
-    for (const ev of events) {
-      const type = ev.type
-      const data = ev.data || {}
-
-      if (type === 'session.next.prompted') {
-        const text = data.prompt?.text || data.text || ''
-        msgs.push({
-          id: data.messageID || ev.id,
-          role: 'user',
-          text,
-          timestamp: data.timestamp || Date.now(),
-        })
-        currentAssistant = null
-      } else if (type === 'session.next.step.started') {
-        const msgId = data.assistantMessageID || `asst_${ev.id}`
-        if (!currentAssistant || currentAssistant.id !== msgId) {
-          currentAssistant = {
-            id: msgId,
-            role: 'assistant',
-            agent: data.agent,
-            model: data.model,
-            reasoning: '',
-            text: '',
-            tools: [],
-            status: 'streaming',
-            timestamp: data.timestamp || Date.now(),
-          }
-          msgs.push(currentAssistant)
-        }
-      } else if (type === 'session.next.reasoning.delta') {
-        if (currentAssistant) {
-          currentAssistant.reasoning = (currentAssistant.reasoning || '') + (data.delta || '')
-        }
-      } else if (type === 'session.next.text.delta') {
-        if (currentAssistant) {
-          currentAssistant.text = (currentAssistant.text || '') + (data.delta || data.text || '')
-        }
-      } else if (type === 'session.next.tool.called') {
-        if (currentAssistant) {
-          const exists = currentAssistant.tools.find((t) => t.callID === data.callID)
-          if (!exists) {
-            currentAssistant.tools.push({
-              callID: data.callID,
-              name: data.name,
-              input: data.input,
-              status: 'running',
-            })
-          }
-        }
-      } else if (type === 'session.next.tool.progress') {
-        if (currentAssistant) {
-          const tool = currentAssistant.tools.find((t) => t.callID === data.callID)
-          if (tool) tool.progress = data.progress
-        }
-      } else if (type === 'session.next.tool.success') {
-        if (currentAssistant) {
-          const tool = currentAssistant.tools.find((t) => t.callID === data.callID)
-          if (tool) {
-            tool.status = 'success'
-            tool.output = data.output
-          }
-        }
-      } else if (type === 'session.next.tool.failed') {
-        if (currentAssistant) {
-          const tool = currentAssistant.tools.find((t) => t.callID === data.callID)
-          if (tool) {
-            tool.status = 'failed'
-            tool.error = data.error
-          }
-        }
-      } else if (type === 'session.next.step.ended') {
-        if (currentAssistant) currentAssistant.status = 'complete'
-      } else if (type === 'session.next.step.failed') {
-        if (currentAssistant) {
-          currentAssistant.status = 'failed'
-          currentAssistant.error = data.error?.message || 'Step execution failed'
-        }
-      }
-    }
-
-    return msgs
-  }, [])
 
   // -------------------------------------------------------------------------
   // Load Session details on active session change
@@ -232,29 +161,61 @@ export default function Code() {
 
     async function loadSession() {
       try {
-        const [historyRes, contextRes, permRes] = await Promise.all([
-          opencode.getHistory(activeSessionId).catch(() => ({ data: [] })),
-          opencode.getContext(activeSessionId).catch(() => null),
-          opencode.listPermissions(activeSessionId).catch(() => []),
+        const [messagesRes, sessionRes, permRes] = await Promise.all([
+          opencode.getMessages(activeSessionId).catch(() => []),
+          opencode.getSession(activeSessionId).catch(() => null),
+          opencode.listPermissions().catch(() => []),
         ])
 
         if (!isSubscribed) return
 
-        const rawEvents = Array.isArray(historyRes) ? historyRes : historyRes?.data || []
-        const parsedMsgs = rebuildMessagesFromEvents(rawEvents)
+        const rawMsgs = Array.isArray(messagesRes) ? messagesRes : messagesRes?.data || []
+        const parsedMsgs = rawMsgs.map((m) => {
+          const info = m.info || m
+          const parts = m.parts || []
+          const role = info.role || 'assistant'
+          const textParts = parts.filter((p) => p.type === 'text')
+          const reasoningParts = parts.filter((p) => p.type === 'reasoning')
+          const toolParts = parts.filter((p) => p.type === 'tool')
+
+          const text = textParts.map((p) => p.text).join('')
+          const reasoning = reasoningParts.map((p) => p.text).join('')
+          const tools = toolParts.map((p) => ({
+            callID: p.callID || p.id,
+            name: p.tool || p.name,
+            input: p.state?.input || p.input,
+            output: p.state?.output || p.output,
+            error: p.state?.error || p.error,
+            status: p.state?.status || (p.state?.error ? 'failed' : p.state?.output ? 'success' : 'running'),
+          }))
+
+          return {
+            id: info.id,
+            role,
+            agent: info.agent,
+            model: info.modelID || (info.model ? `${info.model.providerID}/${info.model.modelID || info.model.id}` : ''),
+            text: text || info.text || '',
+            reasoning,
+            tools,
+            error: info.error?.data?.message || info.error?.message,
+            status: info.time?.completed ? 'complete' : info.error ? 'failed' : 'complete',
+            timestamp: info.time?.created || Date.now(),
+          }
+        })
+
         setMessages(parsedMsgs)
 
-        if (contextRes?.tokens) {
+        if (sessionRes?.tokens) {
           setTokenUsage({
-            input: contextRes.tokens.input || 0,
-            output: contextRes.tokens.output || 0,
-            reasoning: contextRes.tokens.reasoning || 0,
-            cost: contextRes.cost || 0,
+            input: sessionRes.tokens.input || 0,
+            output: sessionRes.tokens.output || 0,
+            reasoning: sessionRes.tokens.reasoning || 0,
+            cost: sessionRes.cost || 0,
           })
         }
 
         const perms = Array.isArray(permRes) ? permRes : permRes?.data || []
-        setPendingPermissions(perms.filter((p) => p.sessionID === activeSessionId))
+        setPendingPermissions(perms.filter((p) => !p.sessionID || p.sessionID === activeSessionId))
       } catch (err) {
         console.error('Failed to load session history:', err)
       }
@@ -264,7 +225,7 @@ export default function Code() {
     return () => {
       isSubscribed = false
     }
-  }, [activeSessionId, rebuildMessagesFromEvents])
+  }, [activeSessionId])
 
   // -------------------------------------------------------------------------
   // Event Routing (SSE)
@@ -272,22 +233,22 @@ export default function Code() {
   const handleEvent = useCallback(
     (ev) => {
       const type = ev.type
-      const data = ev.data || {}
-      const targetSid = data.sessionID || ev.durable?.aggregateID
+      const props = ev.properties || ev.data || {}
+      const targetSid = props.sessionID || props.info?.sessionID || props.part?.sessionID
 
       // Permission events
-      if (type === 'permission.v2.asked') {
+      if (type === 'permission.asked' || type === 'permission.v2.asked') {
         if (!targetSid || targetSid === activeSessionRef.current) {
           setPendingPermissions((prev) => {
-            const exists = prev.some((p) => p.id === data.id)
-            return exists ? prev : [...prev, data]
+            const exists = prev.some((p) => p.id === props.id)
+            return exists ? prev : [...prev, props]
           })
         }
         return
       }
 
-      if (type === 'permission.v2.replied') {
-        setPendingPermissions((prev) => prev.filter((p) => p.id !== data.id && p.id !== data.requestID))
+      if (type === 'permission.replied' || type === 'permission.v2.replied') {
+        setPendingPermissions((prev) => prev.filter((p) => p.id !== props.id && p.id !== props.requestID))
         return
       }
 
@@ -296,114 +257,120 @@ export default function Code() {
         return
       }
 
-      // Session context updates
-      if (type === 'session.next.context.updated' && data.tokens) {
+      // Session context & status updates
+      if (type === 'session.updated' && props.info?.tokens) {
         setTokenUsage({
-          input: data.tokens.input || 0,
-          output: data.tokens.output || 0,
-          reasoning: data.tokens.reasoning || 0,
-          cost: data.cost || 0,
+          input: props.info.tokens.input || 0,
+          output: props.info.tokens.output || 0,
+          reasoning: props.info.tokens.reasoning || 0,
+          cost: props.info.cost || 0,
+        })
+      }
+
+      if (type === 'session.idle') {
+        setStreaming(false)
+        return
+      }
+
+      if (type === 'session.error') {
+        setStreaming(false)
+        const errObj = props.error?.data?.message || props.error?.message || 'OpenCode execution error'
+        setMessages((prev) => {
+          const next = [...prev]
+          if (next.length > 0 && next[next.length - 1].role === 'assistant') {
+            next[next.length - 1] = {
+              ...next[next.length - 1],
+              status: 'failed',
+              error: errObj,
+            }
+          }
+          return next
         })
         return
       }
 
-      // Stream status
-      if (type === 'session.next.step.started') {
-        setStreaming(true)
-      } else if (type === 'session.next.step.ended' || type === 'session.next.step.failed') {
-        setStreaming(false)
+      // Live message updates
+      if (type === 'message.updated') {
+        const info = props.info
+        if (!info) return
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === info.id)
+          if (idx >= 0) {
+            const next = [...prev]
+            next[idx] = {
+              ...next[idx],
+              error: info.error?.data?.message || info.error?.message,
+              status: info.time?.completed ? 'complete' : info.error ? 'failed' : next[idx].status,
+            }
+            return next
+          } else {
+            // New message
+            return [
+              ...prev,
+              {
+                id: info.id,
+                role: info.role,
+                agent: info.agent,
+                model: info.modelID || (info.model ? `${info.model.providerID}/${info.model.modelID || info.model.id}` : ''),
+                text: '',
+                reasoning: '',
+                tools: [],
+                status: info.role === 'assistant' ? 'streaming' : 'complete',
+                timestamp: info.time?.created || Date.now(),
+              },
+            ]
+          }
+        })
       }
 
-      // Live message updates
-      setMessages((prev) => {
-        const next = [...prev]
-        let lastMsg = next[next.length - 1]
-
-        if (type === 'session.next.prompted') {
-          const userMsgId = data.messageID || ev.id
-          if (!next.some((m) => m.id === userMsgId)) {
+      if (type === 'message.part.updated') {
+        const part = props.part
+        if (!part) return
+        setMessages((prev) => {
+          const next = [...prev]
+          let asstIdx = next.findIndex((m) => m.id === part.messageID)
+          if (asstIdx === -1) {
             next.push({
-              id: userMsgId,
-              role: 'user',
-              text: data.prompt?.text || data.text || '',
-              timestamp: data.timestamp || Date.now(),
-            })
-          }
-        } else if (type === 'session.next.step.started') {
-          const asstId = data.assistantMessageID || `asst_${ev.id}`
-          if (!lastMsg || lastMsg.id !== asstId) {
-            next.push({
-              id: asstId,
+              id: part.messageID,
               role: 'assistant',
-              agent: data.agent,
-              model: data.model,
-              reasoning: '',
               text: '',
+              reasoning: '',
               tools: [],
               status: 'streaming',
-              timestamp: data.timestamp || Date.now(),
+              timestamp: Date.now(),
             })
+            asstIdx = next.length - 1
           }
-        } else if (type === 'session.next.reasoning.delta') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            lastMsg = { ...lastMsg, reasoning: (lastMsg.reasoning || '') + (data.delta || '') }
-            next[next.length - 1] = lastMsg
-          }
-        } else if (type === 'session.next.text.delta') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            lastMsg = { ...lastMsg, text: (lastMsg.text || '') + (data.delta || data.text || '') }
-            next[next.length - 1] = lastMsg
-          }
-        } else if (type === 'session.next.tool.called') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            const tools = [...(lastMsg.tools || [])]
-            if (!tools.some((t) => t.callID === data.callID)) {
-              tools.push({
-                callID: data.callID,
-                name: data.name,
-                input: data.input,
-                status: 'running',
-              })
-              next[next.length - 1] = { ...lastMsg, tools }
-            }
-          }
-        } else if (type === 'session.next.tool.progress') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            const tools = (lastMsg.tools || []).map((t) =>
-              t.callID === data.callID ? { ...t, progress: data.progress } : t
-            )
-            next[next.length - 1] = { ...lastMsg, tools }
-          }
-        } else if (type === 'session.next.tool.success') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            const tools = (lastMsg.tools || []).map((t) =>
-              t.callID === data.callID ? { ...t, status: 'success', output: data.output } : t
-            )
-            next[next.length - 1] = { ...lastMsg, tools }
-          }
-        } else if (type === 'session.next.tool.failed') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            const tools = (lastMsg.tools || []).map((t) =>
-              t.callID === data.callID ? { ...t, status: 'failed', error: data.error } : t
-            )
-            next[next.length - 1] = { ...lastMsg, tools }
-          }
-        } else if (type === 'session.next.step.ended') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            next[next.length - 1] = { ...lastMsg, status: 'complete' }
-          }
-        } else if (type === 'session.next.step.failed') {
-          if (lastMsg && lastMsg.role === 'assistant') {
-            next[next.length - 1] = {
-              ...lastMsg,
-              status: 'failed',
-              error: data.error?.message || 'Execution failed',
-            }
-          }
-        }
 
-        return next
-      })
+          const target = { ...next[asstIdx] }
+
+          if (part.type === 'text') {
+            target.text = part.text || (target.text + (props.delta || ''))
+          } else if (part.type === 'reasoning') {
+            target.reasoning = part.text || (target.reasoning + (props.delta || ''))
+          } else if (part.type === 'tool') {
+            const tools = [...(target.tools || [])]
+            const tIdx = tools.findIndex((t) => t.callID === (part.callID || part.id))
+            const toolItem = {
+              callID: part.callID || part.id,
+              name: part.tool || part.name,
+              input: part.state?.input || part.input,
+              output: part.state?.output || part.output,
+              error: part.state?.error || part.error,
+              status: part.state?.status || (part.state?.error ? 'failed' : part.state?.output ? 'success' : 'running'),
+            }
+            if (tIdx >= 0) {
+              tools[tIdx] = toolItem
+            } else {
+              tools.push(toolItem)
+            }
+            target.tools = tools
+          }
+
+          next[asstIdx] = target
+          return next
+        })
+      }
     },
     []
   )
@@ -447,7 +414,15 @@ export default function Code() {
   // -------------------------------------------------------------------------
   const handleCreateSession = async () => {
     try {
-      const newSession = await opencode.createSession({})
+      let modelObj = undefined
+      if (currentModel && currentModel.includes('/')) {
+        const [providerID, ...rest] = currentModel.split('/')
+        modelObj = { providerID, modelID: rest.join('/') }
+      }
+      const newSession = await opencode.createSession({
+        agent: currentAgent || 'build',
+        model: modelObj,
+      })
       setSessions((prev) => [newSession, ...prev])
       setActiveSessionId(newSession.id)
     } catch (err) {
@@ -476,7 +451,15 @@ export default function Code() {
     let sid = activeSessionId
     if (!sid) {
       try {
-        const created = await opencode.createSession({})
+        let modelObj = undefined
+        if (currentModel && currentModel.includes('/')) {
+          const [providerID, ...rest] = currentModel.split('/')
+          modelObj = { providerID, modelID: rest.join('/') }
+        }
+        const created = await opencode.createSession({
+          agent: currentAgent || 'build',
+          model: modelObj,
+        })
         setSessions((prev) => [created, ...prev])
         setActiveSessionId(created.id)
         sid = created.id
@@ -489,8 +472,27 @@ export default function Code() {
     setPromptText('')
     setStreaming(true)
 
+    // Append optimistic user message
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        text,
+        timestamp: Date.now(),
+      },
+    ])
+
     try {
-      await opencode.prompt(sid, text)
+      let modelObj = undefined
+      if (currentModel && currentModel.includes('/')) {
+        const [providerID, ...rest] = currentModel.split('/')
+        modelObj = { providerID, modelID: rest.join('/') }
+      }
+      await opencode.prompt(sid, text, {
+        model: modelObj,
+        agent: currentAgent,
+      })
     } catch (err) {
       console.error('Prompt error:', err)
       setStreaming(false)
@@ -510,31 +512,16 @@ export default function Code() {
   const handleAgentChange = async (e) => {
     const newAgent = e.target.value
     setCurrentAgent(newAgent)
-    if (activeSessionId) {
-      try {
-        await opencode.switchAgent(activeSessionId, newAgent)
-      } catch (err) {
-        console.warn('Switch agent error:', err)
-      }
-    }
   }
 
   const handleModelChange = async (e) => {
     const newModel = e.target.value
     setCurrentModel(newModel)
-    if (activeSessionId) {
-      try {
-        await opencode.switchModel(activeSessionId, newModel)
-      } catch (err) {
-        console.warn('Switch model error:', err)
-      }
-    }
   }
 
   const handlePermissionReply = async (requestId, reply) => {
-    if (!activeSessionId) return
     try {
-      await opencode.replyPermission(activeSessionId, requestId, reply)
+      await opencode.replyPermission(requestId, reply)
       setPendingPermissions((prev) => prev.filter((p) => p.id !== requestId))
     } catch (err) {
       console.error('Failed to reply permission:', err)
@@ -561,12 +548,33 @@ export default function Code() {
   // -------------------------------------------------------------------------
   return (
     <div className="code-view">
-      {/* Top Header */}
+      {/* Top Header with Mode Toggle */}
       <header className="code-header">
         <div className="code-header-left">
+          {/* Top Mode Switcher (Work | Code) */}
+          <div className="wb-mode-switcher" style={{ marginRight: '12px' }}>
+            <button
+              type="button"
+              className="wb-mode-btn"
+              onClick={() => setView?.('chat')}
+              title="Work Mode (Chat & General Assistant)"
+            >
+              <Icon name="chat" size={14} />
+              <span>Work</span>
+            </button>
+            <button
+              type="button"
+              className="wb-mode-btn is-active"
+              title="Code Mode (OpenCode Engine)"
+            >
+              <Icon name="code" size={14} />
+              <span>Code</span>
+            </button>
+          </div>
+
           <div className="code-brand">
             <Icon name="code" size={18} />
-            <span>Code Mode</span>
+            <span>OpenCode Engine</span>
           </div>
 
           <div className="code-status-badge">
@@ -579,8 +587,8 @@ export default function Code() {
               {serverStatus.loading
                 ? 'Connecting...'
                 : serverStatus.running
-                ? 'OpenCode Connected'
-                : 'OpenCode Stopped'}
+                ? 'Connected'
+                : 'Stopped'}
             </span>
             {serverStatus.port && <span className="code-port-pill">:{serverStatus.port}</span>}
           </div>
@@ -698,8 +706,8 @@ export default function Code() {
                   disabled={!serverStatus.running}
                 >
                   {models.map((m) => {
-                    const id = typeof m === 'string' ? m : m.id || m.name
-                    const label = typeof m === 'string' ? m : m.name || m.id
+                    const id = typeof m === 'string' ? m : `${m.providerID || 'opencode'}/${m.id}`
+                    const label = typeof m === 'string' ? m : `${m.name || m.id} (${m.providerID || 'opencode'})`
                     return (
                       <option key={id} value={id}>
                         {label}

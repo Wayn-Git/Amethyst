@@ -214,6 +214,8 @@ function WorkbenchBar() {
     panel, togglePanel, userProfile, autoHideTopBar,
   } = useApp()
 
+  const isCode = view === 'code'
+
   return (
     <>
       {autoHideTopBar && <div className="wb-bar-hover-trigger" />}
@@ -232,6 +234,28 @@ function WorkbenchBar() {
               </button>
             </div>
           )}
+
+          {/* Mode Switcher: Work | Code */}
+          <div className="wb-mode-switcher">
+            <button
+              type="button"
+              className={`wb-mode-btn ${!isCode ? 'is-active' : ''}`}
+              onClick={() => setView('chat')}
+              title="Work Mode (Chat & General Assistant)"
+            >
+              <Icon name="chat" size={14} />
+              <span>Work</span>
+            </button>
+            <button
+              type="button"
+              className={`wb-mode-btn ${isCode ? 'is-active' : ''}`}
+              onClick={() => setView('code')}
+              title="Code Mode (OpenCode Engine)"
+            >
+              <Icon name="code" size={14} />
+              <span>Code</span>
+            </button>
+          </div>
         </div>
 
         {/* Center: Apple-style Refined Search Bar */}
