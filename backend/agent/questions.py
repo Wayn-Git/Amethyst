@@ -49,6 +49,19 @@ UNANSWERED = (
     " made so they can correct it."
 )
 
+#: What the model is told when the user dismissed the question outright.
+#:
+#: Separate from `UNANSWERED` on purpose: one is the absence of an answer and
+#: the other is a person declining to give one, and a model told the former
+#: will often wait or ask again while one told the latter moves on. Both end in
+#: the same behaviour -- continue, and state the assumption -- because that is
+#: what the turn can do with a question nobody will answer.
+DISMISSED = (
+    "The user dismissed this question. Do not ask it again, and do not wait for"
+    " an answer. Continue with the most reasonable assumption, and say plainly"
+    " at the end which assumption you made so they can correct it."
+)
+
 #: Bounds. A model that asks six questions with nine options each has built a
 #: form, and a form is not a conversation -- the point is to unblock the work
 #: with the smallest question that does it.
@@ -182,20 +195,49 @@ def outstanding(conversation_id: str | None = None) -> list[dict[str, Any]]:
     return [r for r in rows if r["conversation_id"] == conversation_id]
 
 
-def answer(ask_id: str, answers: list[str]) -> bool:
-    """Resolve a waiting question. False when nothing was waiting for it."""
+def _settle(ask_id: str, answers: list[str]) -> bool:
+    """Hand answers to whichever turn is waiting on this question.
+
+    Both the answer and the dismissal arrive on an HTTP request's task; the
+    future belongs to the turn's. Same process, and usually the same loop, but
+    resolving it directly from another task is the kind of thing that works
+    until it does not -- hence `call_soon_threadsafe` -- and that call raises
+    `RuntimeError` outright once the loop it belongs to is gone. A question
+    whose turn has already been torn down is a question nothing is waiting on,
+    which is what False means; it is not an error to surface as a 500.
+    """
     entry = _waiting.get(ask_id)
-    if entry is None:
+    if entry is None or entry["settled"]:
+        # Either there is no such question, or the answer is already on its way
+        # to the turn. The flag, not `future.done()`, because the resolution is
+        # *scheduled* -- a second request in the gap between scheduling it and
+        # the loop running it would otherwise see an unresolved future and
+        # answer a question the turn has already been given an answer to.
         return False
+    entry["settled"] = True
     future: asyncio.Future = entry["future"]
     loop: asyncio.AbstractEventLoop = entry["loop"]
-    if future.done():
+    if future.done() or loop.is_closed():
         return False
-    # The answer arrives on the HTTP request's task; the future belongs to the
-    # turn's. Same process, and usually the same loop, but resolving it directly
-    # from another thread is the kind of thing that works until it does not.
-    loop.call_soon_threadsafe(lambda: None if future.done() else future.set_result(answers))
+    try:
+        loop.call_soon_threadsafe(lambda: None if future.done() else future.set_result(answers))
+    except RuntimeError:
+        return False
     return True
+
+
+def answer(ask_id: str, answers: list[str]) -> bool:
+    """Resolve a waiting question. False when nothing was waiting for it."""
+    return _settle(ask_id, answers)
+
+
+def reject(ask_id: str) -> bool:
+    """Settle a waiting question as declined. False when nothing was waiting.
+
+    The turn does not end: see `DISMISSED`. What it gets is a tool result it
+    can act on instead of a future it will sit on for thirty minutes.
+    """
+    return _settle(ask_id, [DISMISSED])
 
 
 async def ask(conversation_id: str | None, questions: list[Question], events) -> list[str]:
@@ -214,7 +256,7 @@ async def ask(conversation_id: str | None, questions: list[Question], events) ->
     pending = Ask(id=ask_id, conversation_id=conversation_id, questions=questions)
     loop = asyncio.get_running_loop()
     future: asyncio.Future[list[str]] = loop.create_future()
-    _waiting[ask_id] = {"future": future, "loop": loop, "ask": pending}
+    _waiting[ask_id] = {"future": future, "loop": loop, "ask": pending, "settled": False}
     events.put_nowait(("question_required", pending.as_dict()))
     try:
         return await asyncio.wait_for(future, timeout=ANSWER_TIMEOUT_SECONDS)

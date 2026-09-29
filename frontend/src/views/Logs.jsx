@@ -22,20 +22,42 @@ const LIMITS = [50, 100, 200, 500]
 
 /* Which decisions are worth being able to isolate. Taken from what the server
    actually writes rather than invented here: `confirmation_decision` is one of
-   these or null, and `error` is a column, not a decision. */
+   these or null, and `error` is a column, not a decision.
+
+   `blocked_by_mode` and `gate_error` are refusals too, and they are the two
+   that most need isolating: one means the conversation is in a permission mode
+   that will not allow the work, the other means the permission check itself
+   broke. Neither is a person saying no. */
+const REFUSAL_PREFIX = 'denied'
+const REFUSAL_DECISIONS = ['blocked_by_mode', 'gate_error']
+
+const isRefusal = (value) =>
+  String(value || '').startsWith(REFUSAL_PREFIX) || REFUSAL_DECISIONS.includes(String(value || ''))
+
 const LENSES = [
   { id: 'all', label: 'Everything' },
   { id: 'asked', label: 'Asked first', match: (l) => l.confirmation_decision === 'approved' },
-  { id: 'denied', label: 'Refused', match: (l) => String(l.confirmation_decision || '').startsWith('denied') },
+  { id: 'denied', label: 'Refused', match: (l) => isRefusal(l.confirmation_decision) },
   { id: 'failed', label: 'Failed', match: (l) => Boolean(l.error) },
   { id: 'risky', label: 'Medium and high risk', match: (l) => l.risk_level !== 'low' },
 ]
+
+/* Raw decision names read as code on a page a person scans. The ones with a
+   natural-language form get one; the rest are already words. */
+const DECISION_LABELS = {
+  blocked_by_mode: 'Blocked by mode',
+  gate_error: 'Permission check failed',
+  full_access: 'Full access',
+  auto_edit: 'Auto-approved edit',
+  skipped_by_pref: 'Standing approval',
+  denied_by_pref: 'Standing refusal',
+}
 
 const riskTone = (level) => (level === 'high' ? 'bad' : level === 'medium' ? 'amber' : 'info')
 
 function decisionText(value) {
   if (!value) return '—'
-  return value
+  return DECISION_LABELS[value] || value
 }
 
 /** One call, as a block. The phone form. */
@@ -57,7 +79,7 @@ function LogCard({ row, onCopy }) {
       <div className="log-card-meta">
         <span>{fmtTime(row.created_at)}</span>
         <span>{row.tool_source}</span>
-        <span className={String(row.confirmation_decision || '').startsWith('denied') ? 'log-denied' : undefined}>
+        <span className={isRefusal(row.confirmation_decision) ? 'log-denied' : undefined}>
           {decisionText(row.confirmation_decision)}
         </span>
         {row.duration_ms != null && <span>{row.duration_ms}ms</span>}
@@ -304,8 +326,8 @@ export default function Logs() {
                         <span className={`badge badge--${riskTone(l.risk_level)}`}>{l.risk_level}</span>
                       </Table.Cell>
                       <Table.Cell className="log-decision">
-                        {String(l.confirmation_decision || '').startsWith('denied')
-                          ? <span className="log-denied">{l.confirmation_decision}</span>
+                        {isRefusal(l.confirmation_decision)
+                          ? <span className="log-denied">{decisionText(l.confirmation_decision)}</span>
                           : decisionText(l.confirmation_decision)}
                       </Table.Cell>
                       <Table.Cell className="log-dim">{l.duration_ms ?? '—'}</Table.Cell>

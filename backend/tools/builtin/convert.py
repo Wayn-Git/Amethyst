@@ -215,6 +215,8 @@ async def convert_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
             env={**os.environ, "AMETHYST": "1"},
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            # Not the server's process group -- see the same line in shell.py.
+            start_new_session=True,
         )
     except OSError as exc:
         return ToolResult.error(f"could not start {engine}: {exc}")

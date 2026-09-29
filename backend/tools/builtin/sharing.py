@@ -108,6 +108,8 @@ async def _run(*command: str, input_text: str | None = None):
         stdin=asyncio.subprocess.PIPE if input_text is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        # Not the server's process group -- see the same line in shell.py.
+        start_new_session=True,
     )
     out, err = await process.communicate(input_text.encode() if input_text is not None else None)
     return SimpleNamespace(

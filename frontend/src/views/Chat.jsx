@@ -377,6 +377,12 @@ const STATUS_LABELS = {
   completed: 'Finishing',
   cancelled: 'Stopping',
   failed: 'Failed',
+  // Suspended, not stalled. These are what the turn reports while it holds a
+  // future on the far end of a gate or a question -- the one kind of silence
+  // the reader can actually shorten, and so the one kind worth naming rather
+  // than letting play as "Thinking".
+  awaiting_approval: 'Waiting for your approval',
+  awaiting_input: 'Waiting for your answer',
 }
 
 function statusLabel(status) {
@@ -440,7 +446,7 @@ const OTHER = '\u0000other'
    The turn is suspended while this is open. Answering resumes it with
    everything it had already read still in context, which is why this is a card
    in the transcript and not a new message the user has to compose. */
-function QuestionCard({ item, onAnswer, disabled }) {
+function QuestionCard({ item, onAnswer, onDismiss, disabled }) {
   const questions = item.questions ?? []
   const [index, setIndex] = useState(0)
   // One entry per question. A multi-select question holds a list; a
@@ -622,6 +628,19 @@ function QuestionCard({ item, onAnswer, disabled }) {
             Back
           </button>
         )}
+        {/* Declining is a decision the turn can act on, not an escape hatch:
+            it goes to the model as "dismissed", which tells it to pick an
+            assumption and say which one. Without it the only ways out of a
+            question nobody wants to answer were to answer it anyway or to
+            leave the turn suspended until the timeout. */}
+        <button
+          type="button"
+          className="btn btn--ghost btn--small"
+          onClick={() => onDismiss?.(item.askId)}
+          disabled={disabled || busy}
+        >
+          Skip
+        </button>
         <button
           type="button"
           className="btn btn--primary btn--small"
@@ -690,7 +709,7 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
 }
 
 const Msg = memo(function Msg({
-  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, busy, onOpenArtifact,
+  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, busy, onOpenArtifact,
   onResume, setInput, textareaRef,
   conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
 }) {
@@ -698,7 +717,7 @@ const Msg = memo(function Msg({
   const role = item.kind
 
   if (role === 'question') {
-    return <QuestionCard item={item} onAnswer={onAnswerQuestion} disabled={busy && !item.askId} />
+    return <QuestionCard item={item} onAnswer={onAnswerQuestion} onDismiss={onDismissQuestion} disabled={busy && !item.askId} />
   }
   if (role === 'plan') {
     return (
@@ -783,15 +802,6 @@ const Msg = memo(function Msg({
             onCancelEdit={onCancelEdit}
             onSaveEdit={onSaveEdit}
             onOpenFullScreen={onOpenFullScreen}
-            onRegenerate={onRegenerate}
-            onPin={onPin}
-            onExportDocx={onExportDocx}
-          />
-        )}
-        {!item.widget && item.text && (
-          <ResponseMessageActions
-            text={item.text}
-            item={item}
             onRegenerate={onRegenerate}
             onPin={onPin}
             onExportDocx={onExportDocx}
@@ -1430,6 +1440,10 @@ export default function Chat() {
       // can resume it.
       case 'question_required':
         pushAssistant()
+        // The turn is now parked on this card. Say so in the status line from
+        // the first moment rather than at the next heartbeat: everything that
+        // follows is silence, and silence alone reads as a turn still working.
+        setStatus({ state: 'awaiting_input' })
         setItems((prev) => (prev.some((it) => it.askId === evt.id) ? prev : [...prev, {
           id: nextId(),
           kind: 'question',
@@ -1445,11 +1459,16 @@ export default function Chat() {
         setItems((prev) => prev.map((it) => (
           it.askId === evt.id && !it.settled ? { ...it, settled: it.answers ?? [] } : it
         )))
+        // Suspended no more. The loop's own `status` frame overwrites this as
+        // soon as it has one; until then the line should not still be claiming
+        // an answer is owed.
+        setStatus(null)
         break
       case 'confirmation_required':
         // The turn is suspended until this is answered. The frame carries the
         // request id, which polling cannot supply unambiguously when two calls
         // to the same tool are pending.
+        setStatus({ state: 'awaiting_approval' })
         setPending((p) => (p.some((x) => x.id === evt.request_id) ? p : [...p, {
           id: evt.request_id,
           tool_name: evt.tool_name,
@@ -1536,7 +1555,23 @@ export default function Chat() {
       // A keepalive during a long tool call. Nothing to render -- its whole job
       // is done by having arrived: the `beat()` wrapping onEvent has already
       // reset the silence watchdog, and the byte kept the socket alive.
-      case 'ping': break
+      //
+      // Except when it says what the silence is for. A turn parked on the gate
+      // or on a question goes quiet for exactly the reason a turn buried in a
+      // long tool call does, and only one of those is the reader's to unblock,
+      // so the tag is what turns a spinner into an ask. The reverse matters as
+      // much: a heartbeat with no tag after an answer means the turn moved on,
+      // and leaving "Waiting for your answer" up would be the interface asking
+      // again for something it already has.
+      case 'ping': {
+        const held = evt.waiting_on
+          ? { state: evt.waiting_on === 'approval' ? 'awaiting_approval' : 'awaiting_input' }
+          : null
+        const now = liveRef.current.status
+        if (held) setStatus(held)
+        else if (now && (now.state === 'awaiting_approval' || now.state === 'awaiting_input')) setStatus(null)
+        break
+      }
 
       /* The document, as it is written. `artifact_open` arrives before the
          tool runs, so the panel shows a file that may still be refused at the
@@ -1771,6 +1806,23 @@ export default function Chat() {
         it.askId === askId ? { ...it, settled: answers } : it
       )))
     }
+  }, [toast])
+
+  /* Declining a question. The turn is still holding the future, so the card is
+     settled here exactly as an answer would be -- what differs is what the
+     model is told, which is that the question was dismissed and it should pick
+     an assumption and name it. The failure path settles for the same reason the
+     answer's does: a card whose turn has stopped waiting will never work, and
+     leaving it live is how a question gets "answered" into nothing. */
+  const dismissQuestion = useCallback(async (askId) => {
+    try {
+      await api.dismissQuestion(askId)
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+    setItems((prev) => prev.map((it) => (
+      it.askId === askId ? { ...it, settled: [] } : it
+    )))
   }, [toast])
 
   const discardPlan = useCallback((itemId) => {
@@ -2070,7 +2122,38 @@ export default function Chat() {
     } catch {
       /* the prompt still arrives on the stream; this is only the recovery path */
     }
-  }, [activeId])
+    if (!activeId) return
+    // The same recovery for questions, which was never built: the card asking
+    // was state in this component, so a reload took it and left the turn
+    // suspended against a card nobody could see -- waiting out the full
+    // timeout with no way to answer. The prompt itself lives on the server for
+    // exactly this.
+    //
+    // Merged rather than appended, because the stream may already have put this
+    // card back while the fetch was in flight, and a second one for the same
+    // question would be a second thing to answer for the one turn waiting.
+    try {
+      const asks = await api.questions(activeId)
+      if (!asks.length) return
+      setItems((prev) => {
+        const known = new Set(prev.map((it) => it.askId).filter(Boolean))
+        const missing = asks.filter((a) => !known.has(a.id))
+        if (!missing.length) return prev
+        return [...prev, ...missing.map((a) => ({
+          id: nextId(),
+          kind: 'question',
+          askId: a.id,
+          questions: a.questions ?? [],
+          settled: null,
+        }))]
+      })
+      // Every row here is one the turn is still holding a future on -- the
+      // endpoint returns nothing else -- so any of them is a turn to say so for.
+      setStatus({ state: 'awaiting_input' })
+    } catch {
+      /* as with the prompts: this is recovery, not the delivery path */
+    }
+  }, [activeId, setStatus])
 
   useEffect(() => {
     // Only between turns: mid-turn the stream is the authority, and a fetch
@@ -3229,6 +3312,7 @@ export default function Chat() {
                       busy={turnState !== 'idle'}
                       onApprovePlan={approvePlan}
                       onAnswerQuestion={answerQuestion}
+                      onDismissQuestion={dismissQuestion}
                       onDiscardPlan={discardPlan}
                       onEditPlanStep={editPlanStep}
                       onResume={resumeAnswer}

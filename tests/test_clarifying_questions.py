@@ -236,3 +236,57 @@ def test_multi_select_reaches_the_interface():
     parsed = q.parse([{"question": "Which of these?", "multi_select": True, "options": ["a", "b"]}])
     assert parsed[0].as_dict()["multi_select"] is True
     assert q.parse([{"question": "One only"}])[0].as_dict()["multi_select"] is False
+
+
+# --- declining --------------------------------------------------------------
+
+
+async def test_declining_resumes_the_turn_rather_than_ending_it():
+    """Skipping is an answer, not an escape. The turn must come back with
+    something it can act on -- and the model must be told it was dismissed, not
+    that nobody replied, or it waits for a person who already said no.
+
+    Mutation check: resolve the future with an empty list and the tool renders
+    no answer at all.
+    """
+    events: asyncio.Queue = asyncio.Queue()
+    waiting = asyncio.ensure_future(q.ask("conv-2", q.parse("Which one?"), events))
+    _, payload = await asyncio.wait_for(events.get(), timeout=2)
+
+    assert q.reject(payload["id"]) is True
+    answers = await asyncio.wait_for(waiting, timeout=2)
+    assert answers == [q.DISMISSED]
+    assert "dismissed" in answers[0].lower()
+    assert "Continue with the most reasonable assumption" in answers[0]
+
+
+async def test_declining_still_tells_the_interface_it_stopped_waiting():
+    """A card left live after the turn moved on is a button that submits into
+    nothing -- which is what `question_settled` exists to prevent."""
+    events: asyncio.Queue = asyncio.Queue()
+    waiting = asyncio.ensure_future(q.ask(None, q.parse("Which one?"), events))
+    _, payload = await asyncio.wait_for(events.get(), timeout=2)
+    q.reject(payload["id"])
+    await asyncio.wait_for(waiting, timeout=2)
+
+    kind, settled = await asyncio.wait_for(events.get(), timeout=2)
+    assert kind == "question_settled"
+    assert settled["id"] == payload["id"]
+
+
+async def test_a_question_cannot_be_declined_twice():
+    """The second request is a stale card or a double click. Answering it would
+    resolve a future nothing holds, so the honest answer is that nothing is
+    waiting -- which the endpoint turns into a 404."""
+    events: asyncio.Queue = asyncio.Queue()
+    waiting = asyncio.ensure_future(q.ask(None, q.parse("Which one?"), events))
+    _, payload = await asyncio.wait_for(events.get(), timeout=2)
+
+    assert q.reject(payload["id"]) is True
+    assert q.reject(payload["id"]) is False
+    assert q.answer(payload["id"], ["A"]) is False
+    await asyncio.wait_for(waiting, timeout=2)
+
+
+def test_declining_a_question_nobody_is_waiting_on_is_refused():
+    assert q.reject("no-such-id") is False

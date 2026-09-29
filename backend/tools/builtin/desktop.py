@@ -40,6 +40,8 @@ async def _launch(target: str) -> ToolResult:
             target,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
+            # Not the server's process group -- see the same line in shell.py.
+            start_new_session=True,
         )
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
     except TimeoutError:
@@ -83,7 +85,11 @@ async def open_application(args: dict[str, Any], _: ToolContext) -> ToolResult:
         argv = [name]
     try:
         await asyncio.create_subprocess_exec(
-            *argv, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            *argv,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+            # Not the server's process group -- see the same line in shell.py.
+            start_new_session=True,
         )
     except OSError as exc:
         return ToolResult.error(f"failed to launch {name}: {exc}")

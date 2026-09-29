@@ -7,17 +7,30 @@ truncated, and gets an audit row.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
 
 from backend.db.repositories import ExecutionLogRepository
 from backend.runtime.types import ToolSchema
-from backend.security.confirmation import ConfirmationService
+from backend.security.confirmation import ConfirmationOutcome, ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSource
 
 MAX_RESULT_CHARS = 100_000
 MCP_DELIMITER = "__mcp__"
+
+#: How long one tool call may run before the registry stops it.
+#:
+#: Sized to the turn's own `Guards.max_seconds` deliberately: a call that hangs
+#: longer than the whole turn is allowed to last cannot be stopped by any guard,
+#: because every guard is evaluated between iterations and a hung call never
+#: reaches the end of its own. The timeout is what turns an indefinite hang into
+#: an error result the model can reason about and the reader can see.
+#:
+#: A tool may override it with `Tool.timeout`; there is no way to opt out
+#: entirely, because "wait forever" is not a thing a tool gets to decide.
+TOOL_TIMEOUT_SECONDS = 600.0
 
 #: Canonical capability routing table.
 #: Decouples the model's high-level intent from the physical tool name.
@@ -343,21 +356,39 @@ class ToolRegistry:
 
             return ToolResult.error(sign_in_instruction(tool.server_name))
 
-        outcome = await self.confirmation.check(tool, arguments, ctx)
-        if not outcome.allowed:
+        # The gate gets its own `try`, and that is the whole point: an
+        # exception raised *here* used to leave the dispatch function entirely,
+        # up into the turn's own error handling, where it became one failure per
+        # tool call for the rest of the turn rather than the single call it
+        # actually was. Errors are data at this layer, including the errors of
+        # deciding whether to run at all.
+        try:
+            outcome = await self.confirmation.check(tool, arguments, ctx)
+        except Exception as exc:  # noqa: BLE001 - see above
+            reason = f"the permission check failed: {type(exc).__name__}: {exc}"
             self.logs.record(
                 tool_name=name,
                 tool_source=tool.source.value,
                 conversation_id=ctx.conversation_id,
                 arguments=arguments,
-                error="denied by user",
+                error=reason,
+                risk_level=None,
+                confirmation_decision="gate_error",
+            )
+            return ToolResult.error(f"'{name}' was not run: {reason}")
+
+        if not outcome.allowed:
+            reason = _refusal_reason(outcome)
+            self.logs.record(
+                tool_name=name,
+                tool_source=tool.source.value,
+                conversation_id=ctx.conversation_id,
+                arguments=arguments,
+                error=reason,
                 risk_level=outcome.risk.value,
                 confirmation_decision=outcome.decision,
             )
-            return ToolResult.error(
-                f"'{name}' was not run: the user declined to approve this "
-                f"{outcome.risk.value}-risk operation."
-            )
+            return ToolResult.error(f"'{name}' was not run: {reason}")
 
         cache_key = self._cache_key(tool, arguments, ctx)
         if cache_key is not None:
@@ -365,9 +396,16 @@ class ToolRegistry:
             if hit is not None and time.monotonic() - hit[0] < RESULT_CACHE_TTL_SECONDS:
                 return hit[1]
 
+        timeout = tool.timeout if tool.timeout is not None else TOOL_TIMEOUT_SECONDS
         started = time.monotonic()
         try:
-            result = await tool.handler(arguments, ctx)
+            result = await asyncio.wait_for(tool.handler(arguments, ctx), timeout=timeout)
+        except TimeoutError:
+            result = ToolResult.error(
+                f"{name} did not finish within {int(timeout)}s and was stopped."
+                " It may still be doing work in the background. Report this to the"
+                " user rather than retrying the same call unchanged."
+            )
         except Exception as exc:  # errors are data, never exceptions (see ai-runtime.md)
             result = ToolResult.error(f"{name} failed: {type(exc).__name__}: {exc}")
 
@@ -394,6 +432,33 @@ class ToolRegistry:
             duration_ms=int((time.monotonic() - started) * 1000),
         )
         return result
+
+
+def _refusal_reason(outcome: ConfirmationOutcome) -> str:
+    """Why a call did not run, in the terms that are actually true.
+
+    This text is the tool result the model reads, and the model acts on what it
+    says. "The user declined" is true only when a person was asked and said no.
+    In a permission *mode* nobody was asked: telling the model otherwise sends
+    it looking for a prompt that does not exist, and it answers the user with
+    a refusal the user never gave.
+    """
+    if outcome.decision == "blocked_by_mode":
+        where = f" ({outcome.detail})" if outcome.detail else ""
+        return (
+            f"the conversation's permission mode does not allow it{where}."
+            " Nobody was asked and nobody refused -- the mode was chosen before"
+            " this turn. Do not retry the call, and say plainly which mode the"
+            " conversation is in and what that mode permits."
+        )
+    if outcome.decision == "denied_by_pref":
+        return (
+            "the user has a standing refusal for this operation, saved under"
+            " Permissions. It can be revoked there."
+        )
+    if outcome.decision == "denied":
+        return f"the user declined to approve this {outcome.risk.value}-risk operation."
+    return f"the permission gate refused it ({outcome.decision})."
 
 
 def _unsigned_connectors() -> frozenset[str]:

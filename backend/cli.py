@@ -894,6 +894,13 @@ def cmd_serve(args: argparse.Namespace) -> int:
         print(f"! could not prepare {paths().home}: {exc}")
         return 1
 
+    # Before uvicorn, so a failure in the steps below is in the file as well as
+    # on the terminal. The lifespan attaches its own copy for the process that
+    # `--reload` actually runs the application in; this one covers the parent.
+    from backend.logging_setup import configure_logging
+
+    configure_logging(args.log_level)
+
     # Already running? Say which kind of "already", and never start a second
     # server against the same database.
     #

@@ -56,6 +56,7 @@ from backend.agent.tool_search import (
 from backend.agent.context_compressor import ContextCompressor
 from backend.agent.widgets import classify_and_extract, to_envelope
 from backend.runtime.variant_store import depth_instruction
+from backend.security.confirmation import guard_instruction
 from backend.db.repositories import (
     AgentRunRepository,
     ConversationRepository,
@@ -76,6 +77,15 @@ log = logging.getLogger(__name__)
 #: Applied to the estimated token count when checking a provider's
 #: tokens-per-minute ceiling -- see the comment at its one use site.
 TPM_SAFETY_MARGIN = 1.5
+
+#: How long one wait for a dispatch event may block before it looks again.
+#:
+#: The sentinels that end these waits are posted to the same queue by each
+#: task's own done-callback, so a healthy turn never reaches this. It is the
+#: bound for the case where one never arrives -- which, unbounded, is a turn
+#: that waits forever while `_with_heartbeats` keeps the socket demonstrably
+#: alive the whole time, so the interface cannot tell it from slow work.
+DRAIN_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass
@@ -856,6 +866,7 @@ class Director:
         memory: bool = True,
         mode: str = "chat",
         depth: str = "standard",
+        guard: str = "guard",
     ):
         self.registry = registry
         self.workspace_root = workspace_root
@@ -876,6 +887,12 @@ class Director:
         # by a hash of its inputs, and depth is the one input that changes from
         # one turn to the next in the same conversation.
         self.depth = depth
+        # The permission mode this turn runs under, for the prompt rather than
+        # for the gate: the gate gets it from the confirmation service wired
+        # into the registry, and a model that is not told which mode it is in
+        # can only guess at why a call was refused -- and it guesses the
+        # strictest mode it knows. Appended like `depth`, for the same reason.
+        self.guard = guard
         self.conversations = ConversationRepository()
         self.messages = MessageRepository()
         # Where this turn's own state goes, so it outlives the process
@@ -884,6 +901,23 @@ class Director:
         # Context compression engine. Uses a cheap auxiliary LLM to summarize
         # middle turns when the conversation approaches the context window.
         self._context_engine: ContextCompressor | None = None
+        # Dispatch tasks this turn started and has not finished with.
+        #
+        # Held on the instance rather than as a local in `_run` because every
+        # exit from `_run` skips the results pass that would have awaited them:
+        # a guard returning early, an exception, or the reader closing the
+        # generator. An abandoned dispatch keeps running against a turn whose
+        # row already says it ended -- holding a confirmation nobody will ever
+        # answer, or writing a tool result into a conversation that has moved
+        # on. `run`'s `finally` is the one place every exit goes through.
+        self._inflight: set[asyncio.Task] = set()
+
+    def _spawn(self, coro: Any) -> asyncio.Task:
+        """Start a dispatch task and remember it for that cleanup."""
+        task = asyncio.create_task(coro)
+        self._inflight.add(task)
+        task.add_done_callback(self._inflight.discard)
+        return task
 
     async def run(
         self,
@@ -964,6 +998,16 @@ class Director:
         finally:
             # However this turn ended, it does not get to leave a tool call
             # nobody answered behind it. See `close_open_tool_calls`.
+            #
+            # The dispatch tasks go first, because they are the ones still able
+            # to *write*: an early return in `_run` (a guard tripping, the user
+            # pressing Stop) abandons them without ever reaching the results
+            # pass, and one of those would otherwise keep running against a
+            # turn whose row has already been checkpointed -- holding a
+            # confirmation nobody is left to answer. See `_inflight`.
+            for task in list(self._inflight):
+                task.cancel()
+            self._inflight.clear()
             self._close_open_tool_calls(conversation_id)
             # Nor a run row that still claims to be in flight. Every ordinary
             # exit already reaches a terminal phase; this covers the ones that
@@ -1358,6 +1402,13 @@ class Director:
                     # asked for a plan once kept being asked for one forever.
                     system_prompt = f"{system_prompt}\n\n{PLAN_INSTRUCTION}"
                 system_prompt = f"{system_prompt}\n\n{depth_instruction(self.depth)}"
+                # What the permission mode allows, stated once per iteration the
+                # way depth is. A model only ever learned the mode from a
+                # refusal, which made every refusal read as "no permission" and
+                # made `full-access` sound like `read-only` from the user's
+                # side of it -- the mode is the setting, and the model is the
+                # one who has to name it.
+                system_prompt = f"{system_prompt}\n\n{guard_instruction(self.guard)}"
                 # Tool schemas are cached within a turn: the underlying tool set
                 # (registry contents, connector state, planning mode) does not
                 # change between iterations, so selection + compression runs
@@ -2203,28 +2254,58 @@ class Director:
                             already_open=live_artifacts.opened(call),
                         ):
                             yield event
-                        task = asyncio.create_task(self._execute(call, context))
+                        task = self._spawn(self._execute(call, context))
                         dispatch_tasks.append((call, task))
 
                     # Drain events from parallel tasks
-                    parallel_tasks = [t for _, t in dispatch_tasks if t is not None and not isinstance(t, type(None))]
+                    parallel_tasks = [t for _, t in dispatch_tasks if t is not None]
                     pending = [t for t in parallel_tasks if not t.done()]
                     if pending:
-                        done_count = 0
-                        total = len(pending)
-                        for task in pending:
-                            sentinel = object()
-                            def _done_cb(_result, s=sentinel):
+                        # One token per task, and only *that* token ends its
+                        # wait. Counting "a sentinel arrived" instead is what
+                        # produced `InvalidStateError: Result is not set.`:
+                        # a leftover from an earlier segment satisfied the
+                        # count early, the loop moved on with a task still
+                        # running, and the results pass called `.result()` on
+                        # it. Dropping unmatched tokens also keeps them out of
+                        # the transcript, where a raw `__parallel_done__` frame
+                        # would otherwise be rendered as an event.
+                        tokens = {object() for _ in pending}
+                        for task, token in zip(pending, tokens, strict=True):
+                            def _done_cb(_result, s=token):
                                 context.events.put_nowait(("__parallel_done__", s))
                             task.add_done_callback(_done_cb)
-                        while done_count < total:
-                            item = await context.events.get()
-                            if item[0] == "__parallel_done__":
-                                done_count += 1
-                                continue
-                            event_type, data = item
-                            self._note_suspension(state, Event(event_type, data))
-                            yield Event(event_type, data)
+                        stoppers = [
+                            stopper
+                            for stopper in (
+                                self._cancel_on_request(cancel, task) for task in pending
+                            )
+                            if stopper is not None
+                        ]
+                        remaining = len(tokens)
+                        try:
+                            while remaining > 0:
+                                item = await self._drain_next(context)
+                                if item is None:
+                                    # The bound expired. A task that has
+                                    # finished without its callback reaching us
+                                    # must not hold the loop open.
+                                    if all(t.done() for t in pending):
+                                        break
+                                    continue
+                                if item[0] == "__parallel_done__":
+                                    if item[1] in tokens:
+                                        remaining -= 1
+                                    continue
+                                event_type, data = item
+                                self._note_suspension(state, Event(event_type, data))
+                                yield Event(event_type, data)
+                        finally:
+                            # Orphaned otherwise: this watcher only ever fires
+                            # on a Stop the turn did not live long enough to
+                            # see.
+                            for stopper in stoppers:
+                                stopper.cancel()
 
                 else:
                     # Sequential segment: execute one-by-one
@@ -2265,23 +2346,33 @@ class Director:
                         ):
                             yield event
                         # Execute sequentially and drain events inline
-                        task = asyncio.create_task(self._execute(call, context))
+                        task = self._spawn(self._execute(call, context))
                         dispatch_tasks.append((call, task))
-                        stopper = self._cancel_on_request(cancel, task) if cancel else None
-                        # Wait for this task to complete before moving to next
-                        sentinel = object()
-                        def _seq_done(_result, s=sentinel):
+                        token = object()
+                        def _seq_done(_result, s=token):
                             context.events.put_nowait(("__parallel_done__", s))
                         task.add_done_callback(_seq_done)
-                        while not task.done():
-                            item = await context.events.get()
-                            if item[0] == "__parallel_done__":
-                                break
-                            event_type, data = item
-                            self._note_suspension(state, Event(event_type, data))
-                            yield Event(event_type, data)
-                        if stopper is not None:
-                            stopper.cancel()
+                        stopper = self._cancel_on_request(cancel, task) if cancel else None
+                        try:
+                            # Wait for this task to complete before moving on.
+                            while not task.done():
+                                item = await self._drain_next(context)
+                                if item is None:
+                                    continue
+                                if item[0] == "__parallel_done__":
+                                    # Only this call's own token ends the wait.
+                                    # Breaking on any of them -- as this did --
+                                    # let a leftover from the previous segment
+                                    # end it while the call was still running.
+                                    if item[1] is token:
+                                        break
+                                    continue
+                                event_type, data = item
+                                self._note_suspension(state, Event(event_type, data))
+                                yield Event(event_type, data)
+                        finally:
+                            if stopper is not None:
+                                stopper.cancel()
 
             # Collect and yield results in original order
             for call, task in dispatch_tasks:
@@ -2301,6 +2392,23 @@ class Director:
                     result = ToolResult.error(
                         f"'{call.name}' was interrupted by the user before it completed."
                     )
+                elif not task.done():
+                    # A drain that ended for any reason other than this task
+                    # finishing. Reading `.result()` here is what raised
+                    # `InvalidStateError: Result is not set.` straight out of
+                    # the turn; cancelling and saying so keeps it a tool result
+                    # like every other failure at this layer.
+                    task.cancel()
+                    result = ToolResult.error(
+                        f"'{call.name}' had not finished when the turn stopped"
+                        " waiting for it, so it was cancelled. Check whether it"
+                        " changed anything before relying on the absence of a result."
+                    )
+                elif (exc := task.exception()) is not None:
+                    # `_execute` catches everything, but a bridge path that
+                    # only catches `Exception` can still let one through, and a
+                    # second exception raised here would replace the first.
+                    result = ToolResult.error(f"'{call.name}' raised {type(exc).__name__}: {exc}")
                 else:
                     result = task.result()
 
@@ -2980,6 +3088,19 @@ class Director:
                 dispatch.cancel()
 
         return asyncio.create_task(watch())
+
+    @staticmethod
+    async def _drain_next(context) -> tuple[str, Any] | None:
+        """The next dispatch event, or None when none arrived in time.
+
+        Bounded rather than bare `queue.get()`: see `DRAIN_TIMEOUT_SECONDS`.
+        A caller that gets None re-checks whatever it is actually waiting for,
+        so a lost sentinel costs a delay rather than the turn.
+        """
+        try:
+            return await asyncio.wait_for(context.events.get(), timeout=DRAIN_TIMEOUT_SECONDS)
+        except TimeoutError:
+            return None
 
     @staticmethod
     async def _drain(queue: asyncio.Queue, task: asyncio.Task) -> AsyncIterator[Event]:

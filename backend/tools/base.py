@@ -91,6 +91,11 @@ class Tool:
     # shell's sandbox mode is not sandboxed on a machine with no sandbox, and a
     # preference granted to contained commands must not cover uncontained ones.
     subtype: Callable[[dict[str, Any]], str | None] | None = None
+    # Seconds one call may run before the registry stops it. None defers to the
+    # registry's default rather than to nothing: a call that never returns holds
+    # the turn open, and the turn's own guards are checked *between*
+    # iterations -- they cannot reach a call that is inside one.
+    timeout: float | None = None
 
     def operation_key(self, arguments: dict[str, Any]) -> str:
         """Key for 'don't ask again' preferences: operation[:subtype]."""

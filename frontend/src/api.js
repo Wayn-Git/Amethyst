@@ -506,6 +506,10 @@ export const api = {
   questions: (conversationId) =>
     j(`/questions${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
   answerQuestion: (id, answers) => j(`/questions/${id}`, json('POST', { answers })),
+  // Declining is a real answer to give back to the turn, which is why it is a
+  // call of its own rather than an empty `answerQuestion`: an empty list would
+  // reach the model as no answer at all, and the turn would stay suspended.
+  dismissQuestion: (id) => j(`/questions/${id}/reject`, json('POST', {})),
 
   confirmations: () => j('/confirmations'),
   decideConfirmation: (id, { allow, remember }) =>

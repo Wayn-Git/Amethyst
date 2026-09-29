@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,23 @@ def _clip(text: str) -> str:
     if len(text) <= MAX_OUTPUT_CHARS:
         return text
     return text[:MAX_OUTPUT_CHARS] + f"\n[... {len(text) - MAX_OUTPUT_CHARS} more characters ...]"
+
+
+def _kill_tree(proc: asyncio.subprocess.Process) -> None:
+    """Kill the command and everything it spawned, not just its leader.
+
+    `proc.kill()` signals one pid. A command that started a daemon of its own
+    survives it and keeps working after the tool has reported a timeout -- and
+    after the turn that asked for it is over. The process group is private
+    (`start_new_session=True`), so signalling it can only ever reach this
+    command's tree.
+    """
+    if proc.returncode is not None:
+        return
+    with contextlib.suppress(OSError, ProcessLookupError, PermissionError):
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    with contextlib.suppress(Exception):
+        proc.kill()
 
 
 async def run_shell_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
@@ -62,6 +80,13 @@ async def run_shell_command(args: dict[str, Any], ctx: ToolContext) -> ToolResul
             env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            # Own session, own process group. Without it the command runs in
+            # the server's group, and anything in it that signals its group --
+            # `pkill`, a build script cleaning up after itself, a Ctrl+C it
+            # synthesises -- takes the API down with it. `killpg` is also how
+            # the timeout below kills the tree, and a group it shares with the
+            # server is one that must never be used for that.
+            start_new_session=True,
         )
     except (OSError, FileNotFoundError) as exc:
         return ToolResult.error(f"failed to start command: {exc}")
@@ -69,14 +94,14 @@ async def run_shell_command(args: dict[str, Any], ctx: ToolContext) -> ToolResul
     try:
         stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except TimeoutError:
-        proc.kill()
+        _kill_tree(proc)
         await proc.wait()
         return ToolResult.error(f"command timed out after {timeout}s and was killed:\n{command}")
     except asyncio.CancelledError:
         # The user pressed Stop. Without this the process kept running with its
         # pipes unread -- orphaned, invisible, and still doing whatever the
         # model asked for after the turn that asked was over.
-        proc.kill()
+        _kill_tree(proc)
         with contextlib.suppress(Exception):
             await proc.wait()
         raise

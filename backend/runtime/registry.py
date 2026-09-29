@@ -139,7 +139,7 @@ def default_chain(*, tier: str = "fast", limit: int | None = None) -> list:
     configured = configured_providers()
     head: Link | None = None
 
-    entry = load_tiers().get(tier)
+    entry = load_tiers().get(tier) or load_tiers().get("default")
     routed = route_for_tier(tier)
     if entry is not None and entry.provider in configured:
         # A configured tier still wins. A tier is somebody's stated choice about

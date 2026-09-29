@@ -96,6 +96,8 @@ async def _run(argv: list[str], cwd: Path) -> tuple[int, str]:
         cwd=str(cwd),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
+        # Not the server's process group -- see the same line in shell.py.
+        start_new_session=True,
     )
     out, _ = await proc.communicate()
     return proc.returncode or 0, out.decode(errors="replace")

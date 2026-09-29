@@ -407,6 +407,81 @@ _instagram = InstagramRunner()
 _browser = BrowserRunner()
 
 
+#: How long a suspension has to have been sitting there before a run row with
+#: nothing behind it is believed to be abandoned rather than mid-decision.
+#:
+#: A decision removes its prompt from `_pending` a moment before the turn it
+#: belongs to wakes and moves off `awaiting_*`. Both are the same few
+#: milliseconds of a live turn; neither is distinguishable from a turn that
+#: stopped waiting without a grace period to tell them apart.
+SUSPENSION_GRACE_SECONDS = 120.0
+
+#: The two phases in which a turn's continuation belongs to somebody else.
+#: `acting` and the rest are deliberately not here: a background run working
+#: with no one watching has no prompt in flight and no streaming turn, and
+#: sweeping on that would end every automation the moment it started.
+SUSPENDED_PHASES = frozenset({"awaiting_approval", "awaiting_input"})
+
+
+def _sweep_abandoned_suspensions() -> None:
+    """End turns still marked as waiting on a prompt that is no longer there.
+
+    A suspension is a promise held in process memory: the permission gate or the
+    question service owns the future, and the run row records which one. The two
+    only stay in step while the process that opened them is the one answering
+    them, so a disagreement is a turn that stopped waiting without the row
+    finding out -- the future resolved by a path that never resumed the loop, or
+    the task holding it cancelled from under the checkpoint.
+
+    That conversation then sits "Thinking" until the next boot, because the
+    sweep which would fix it runs only at startup and is written for a *dead*
+    process. This one is for a live process that has lost track.
+    """
+    from datetime import datetime, timedelta
+
+    from backend.agent import questions
+
+    # Local naive, in the same format `repositories._now` writes: every
+    # timestamp in this schema is local naive and compared as a string, and a
+    # UTC value on one side of that comparison is off by the machine's offset
+    # -- which fails silently, by treating a turn abandoned an hour ago as
+    # one abandoned a moment ago, or the reverse.
+    cutoff = (
+        datetime.now() - timedelta(seconds=SUSPENSION_GRACE_SECONDS)
+    ).strftime("%Y-%m-%d %H:%M:%S")
+    runs = AgentRunRepository()
+    for state in runs.live():
+        if state.phase not in SUSPENDED_PHASES:
+            continue
+        conversation_id = state.conversation_id
+        if conversation_id in _active_turns:
+            continue
+        if any(
+            entry["payload"].conversation_id == conversation_id
+            for entry in list(_pending.values())
+        ):
+            continue
+        if questions.outstanding(conversation_id):
+            continue
+        if state.updated_at >= cutoff:
+            continue
+        log.warning(
+            "closing run %s in %s: nothing is left waiting on it",
+            state.id,
+            state.phase,
+        )
+        state.enter("interrupted")
+        state.error = state.error or (
+            "the turn was waiting on a prompt that is no longer there"
+        )
+        runs.save(state)
+        # The tool it was suspended on never produced a result, so the
+        # transcript has an assistant message ending in an unanswered tool call
+        # -- which breaks every later turn in this conversation on every
+        # provider. Same repair the boot sweep makes.
+        close_open_tool_calls(conversation_id)
+
+
 async def _stale_subagent_cleanup_loop() -> None:
     """Periodically clean up stale subagents with expired heartbeats.
 
@@ -434,12 +509,28 @@ async def _stale_subagent_cleanup_loop() -> None:
                 )
         except Exception:
             log.debug("stale subagent cleanup pass failed", exc_info=True)
+        # Suspended turns nobody is waiting on any more. Separate from the
+        # subagent sweep above only in what it reads; same cadence, same
+        # "a background loop may fail a pass without anybody noticing" rule.
+        try:
+            _sweep_abandoned_suspensions()
+        except Exception:
+            log.debug("abandoned suspension sweep failed", exc_info=True)
 
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
     global _control_loop
     _control_loop = asyncio.get_running_loop()
+    # Here rather than only in `cmd_serve`: `--reload` runs the application in
+    # a child process that never executes the CLI's own setup, and the desktop
+    # shell starts it a third way. Both would otherwise log nowhere at all.
+    # Idempotent, so the parent's earlier call is a no-op rather than a second
+    # pair of handlers.
+    from backend.logging_setup import configure_logging, install_asyncio_handler
+
+    configure_logging()
+    install_asyncio_handler(_control_loop)
     paths().ensure()
     get_connection()
     # Load models.dev catalog for reasoning effort metadata.
@@ -1225,49 +1316,24 @@ async def _director(
         set_session_depth,
         set_session_effort,
     )
-    from backend.security.confirmation import ConfirmationService, ConfirmationRequest
 
     registry, root = await _registry_for(workspace, reconcile_deadline=reconcile_deadline)
 
     # Dynamic permission gating based on the UI's requested guard mode.
     #
-    # ConfirmationService.check() has its own logic: LOW risk tools are
-    # auto-approved, MEDIUM tools may be covered by stored "always allow"
-    # preferences. Simply swapping the callback is not enough for modes
-    # that need to override those defaults (read-only must block writes
-    # even if the user previously allowed them; full-access must skip the
-    # prompt even for HIGH risk tools).
+    # It has to replace `check` and not the callback: each mode overrides a
+    # different part of the base decision (read-only has to block a write the
+    # user has standing-approved, full-access has to skip a prompt the base
+    # class had already decided to raise), and the callback is only reached
+    # once that decision is to ask. The modes and the reasoning behind each are
+    # in `GuardedConfirmationService`.
     #
-    # The fix: subclass ConfirmationService and override check() itself.
+    # Plain `guard` deliberately gets no override: its LOW-risk and
+    # standing-preference rules *are* what that mode means.
     if guard and guard != "guard":
-        from backend.tools.base import ToolSource
-        
-        class GuardedConfirmationService(ConfirmationService):
-            async def check(self, tool, arguments, context=None):
-                risk, reason = self.evaluate_risk(tool, arguments)
-                
-                if guard == "full-access":
-                    return ConfirmationOutcome(True, "full_access", risk)
-                
-                if guard == "read-only":
-                    # Allow read-only tools (LOW risk), block everything else
-                    if risk is RiskLevel.LOW:
-                        return ConfirmationOutcome(True, "auto", risk)
-                    return ConfirmationOutcome(False, "read_only_blocked", risk)
-                
-                if guard == "guard-auto-edit":
-                    # Auto-approve file edits, prompt for everything else
-                    if risk is RiskLevel.LOW:
-                        return ConfirmationOutcome(True, "auto", risk)
-                    if tool.name in ("replace_file_content", "multi_replace_file_content", "write_to_file", "create_document", "edit_file"):
-                        return ConfirmationOutcome(True, "auto_edit", risk)
-                    # Fall through to normal confirmation for commands etc
-                    return await super().check(tool, arguments, context)
-                
-                return await super().check(tool, arguments, context)
-        
-        from backend.security.confirmation import ConfirmationOutcome
-        guarded = GuardedConfirmationService(callback=_await_confirmation)
+        from backend.security.confirmation import GuardedConfirmationService
+
+        guarded = GuardedConfirmationService(guard, callback=_await_confirmation)
         registry = registry.with_confirmation(guarded)
 
     guards = Guards(max_iterations=load_max_iterations())
@@ -1294,6 +1360,11 @@ async def _director(
         guards=guards,
         params=params,
         depth=resolved_depth,
+        # The gate reads this from the confirmation service, so this is only
+        # for the prompt: the model has to be told which mode it is in, or it
+        # explains a refusal as "I have no permission" in a conversation that
+        # has every permission.
+        guard=guard or "guard",
     )
 
 
@@ -2476,6 +2547,24 @@ def answer_question(ask_id: str, body: QuestionAnswers) -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/api/questions/{ask_id}/reject")
+def dismiss_question(ask_id: str) -> dict[str, str]:
+    """Settle a question as declined, so the turn stops waiting on it.
+
+    Answering was the only move before this, which left a card nobody wanted to
+    answer as a turn suspended for the full thirty minutes -- or a question
+    closed by reloading the page and never reopened, since a dismissed card
+    must not come back either. Dismissal is a real outcome, so it gets an
+    endpoint of its own rather than an empty answer, which the tool would
+    render as though the user had said nothing.
+    """
+    from backend.agent import questions
+
+    if not questions.reject(ask_id):
+        raise HTTPException(404, "no question is waiting on that answer")
+    return {"status": "dismissed"}
+
+
 @app.get("/api/providers/availability")
 async def provider_availability() -> dict[str, Any]:
     """Which providers can answer right now, and when the rest come back.
@@ -2906,6 +2995,25 @@ class TurnRequest(BaseModel):
     depth: str | None = None
 
 
+def _waiting_on(conversation_id: str) -> str | None:
+    """What a silent stretch is waiting for, when it is waiting.
+
+    A keepalive and a suspended turn look identical from the outside: a stream
+    that is alive and producing nothing. The distinction is the reason a
+    heartbeat is a frame rather than just bytes on the wire -- one reads as
+    "still working" and the other as "waiting on you", and ten seconds of
+    silence produces both. Silence cannot say which, so the two things that
+    can hold a turn open -- the permission gate and a clarifying question --
+    are read off the places that already record them.
+    """
+    for entry in list(_pending.values()):
+        if entry["payload"].conversation_id == conversation_id:
+            return "approval"
+    from backend.agent import questions
+
+    return "answer" if questions.outstanding(conversation_id) else None
+
+
 @app.post("/api/conversations/{conversation_id}/turn")
 async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: BackgroundTasks) -> StreamingResponse:
     global _connectors_warm
@@ -3007,7 +3115,15 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
                     # job is to keep the stream from going silent through a long
                     # tool call -- which is what a proxy drops and the client's
                     # watchdog gives up on.
-                    yield _frame("ping")
+                    #
+                    # `waiting_on` is the one piece of information a silence
+                    # cannot carry on its own: a turn parked on the permission
+                    # gate or a question is silent for the same reason a turn
+                    # buried in a long tool call is, and only one of those is
+                    # the user's to unblock. Tagged so an interface can say so
+                    # instead of spinning.
+                    waiting = _waiting_on(conversation_id)
+                    yield _frame("ping", **({"waiting_on": waiting} if waiting else {}))
                     continue
                 # default=str so one unexpected value in a tool argument degrades
                 # to a string instead of killing the response mid-stream.
@@ -3077,12 +3193,44 @@ def stop_turn(conversation_id: str) -> dict[str, str]:
     return {"status": "stopping"}
 
 
+def _confirmation_is_zombie(entry: dict[str, Any]) -> bool:
+    """True when the turn behind a pending prompt has already ended.
+
+    A prompt is held in process memory with a six-hour timeout, because an
+    unattended run should still be approvable when the user comes back. The
+    price of that is that a turn which was stopped, crashed or was cancelled
+    while suspended leaves its prompt behind: on screen it is indistinguishable
+    from one whose turn is very much alive, and answering it records a decision
+    that nothing is waiting to read.
+
+    The turn records what it is waiting on as `awaiting_approval` the moment it
+    publishes the prompt, so the run row is the authority on whether anyone is
+    still there. Read-only: a conversation with no run row has nothing to be
+    dead against, so it is left alone rather than guessed at.
+    """
+    payload = entry.get("payload")
+    conversation_id = getattr(payload, "conversation_id", None)
+    if not conversation_id:
+        return False
+    try:
+        state = AgentRunRepository().latest(conversation_id)
+    except Exception:
+        # The snapshot is still worth showing. A prompt the interface cannot
+        # classify is exactly the case the timeout already covers.
+        return False
+    return state is not None and state.terminal
+
+
 @app.get("/api/confirmations")
 async def list_confirmations() -> list[PendingConfirmation]:
     # Async so the snapshot cannot race a turn registering a confirmation
     # mid-iteration from the loop: a sync endpoint runs in a threadpool, and
     # iterating a dict the loop is mutating raises RuntimeError.
-    return [entry["payload"] for entry in list(_pending.values())]
+    return [
+        entry["payload"]
+        for entry in list(_pending.values())
+        if not _confirmation_is_zombie(entry)
+    ]
 
 
 class ConfirmationDecision(BaseModel):
@@ -3133,6 +3281,12 @@ async def decide_confirmation(request_id: str, body: ConfirmationDecision) -> di
     entry = _pending.get(request_id)
     if entry is None:
         raise HTTPException(404, "no such pending confirmation")
+    if _confirmation_is_zombie(entry):
+        # The prompt survived its turn. Deciding it now is a decision nothing
+        # will act on -- the tool call is gone with the run -- and returning
+        # "recorded" for that would be the interface claiming it did something.
+        _pending.pop(request_id, None)
+        raise HTTPException(410, "the turn that asked for this has ended")
     if body.remember:
         from backend.db.repositories import ConfirmationPreferenceRepository
 
@@ -3146,13 +3300,36 @@ async def decide_confirmation(request_id: str, body: ConfirmationDecision) -> di
             payload.operation_key, "allow" if body.allow else "deny", payload.risk
         )
     future = entry["future"]
-    if not future.done():
-        # Resolve on the loop that created the future. asyncio futures are not
-        # thread-safe, and a sync endpoint would run here in a threadpool, so
-        # setting the result directly recorded the decision without ever waking
-        # the waiting turn -- every gated tool call hung forever.
-        entry["loop"].call_soon_threadsafe(future.set_result, body.allow)
+    loop = entry["loop"]
+    # Resolve on the loop that created the future. asyncio futures are not
+    # thread-safe, and a sync endpoint would run here in a threadpool, so
+    # setting the result directly recorded the decision without ever waking
+    # the waiting turn -- every gated tool call hung forever.
+    #
+    # Two decisions for the same request (a double submit, a second tab, or a
+    # click that raced the turn's timeout) both pass a `done()` check written
+    # here, and the loser's set_result then raises InvalidStateError inside a
+    # loop callback: logged as noise, never surfaced, and impossible to tie to
+    # the click that caused it. The re-check therefore has to happen on the
+    # loop itself, in the callback that resolves it.
+    if not future.done() and not loop.is_closed():
+        try:
+            loop.call_soon_threadsafe(_resolve_once, future, body.allow)
+        except RuntimeError:
+            # The loop went away between the check and the call, which is the
+            # turn being torn down. Nothing to wake.
+            pass
+    # Drop it now rather than waiting for the waiter's own cleanup: the future
+    # is already resolved or moot, and a prompt left in the map after its
+    # decision is one the interface will keep showing.
+    _pending.pop(request_id, None)
     return {"status": "recorded"}
+
+
+def _resolve_once(future: asyncio.Future, value: Any) -> None:
+    """Resolve a confirmation future unless something already did."""
+    if not future.done():
+        future.set_result(value)
 
 
 # ------------------------------------------------------------- automations
