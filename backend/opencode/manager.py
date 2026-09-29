@@ -100,7 +100,7 @@ class OpenCodeManager:
 
             cmd = [
                 self._binary,
-                "web",
+                "serve",
                 "--port",
                 str(port),
                 "--hostname",
@@ -216,7 +216,7 @@ class OpenCodeManager:
         except asyncio.CancelledError:
             return
         code = proc.returncode
-        if code is not None and code != 0:
+        if code is not None and code != 0 and code not in (-signal.SIGTERM, -signal.SIGKILL):
             log.warning("opencode exited unexpectedly with code %d", code)
 
 
