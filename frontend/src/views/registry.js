@@ -22,6 +22,7 @@ const LOADERS = {
   automations: () => import('./Automations.jsx'),
   memory: () => import('./Memory.jsx'),
   library: () => import('./Library.jsx'),
+  code: () => import('./Code.jsx'),
   logs: () => import('./Logs.jsx'),
   dash: () => import('./Dashboard.jsx'),
   remote: () => import('./Remote.jsx'),
