@@ -245,9 +245,9 @@ function LibraryCardComponent({
         </div>
       )}
 
-      {/* Bento Media (when thumbnail exists) */}
+      {/* Bento Media (Single clean card boundary, flush to edges) */}
       {hasThumbnail ? (
-        <div className="lib-card-media-wrap lib-card-media-framed">
+        <div className="lib-card-media-wrap">
           <div className="lib-card-media">
             <img
               className="lib-card-media-img"
@@ -298,7 +298,7 @@ function LibraryCardComponent({
 
       {/* Card Content Core */}
       <div className={`lib-card-body ${!hasThumbnail ? 'lib-card-body--textonly' : ''}`}>
-        {/* Source metadata strip */}
+        {/* Source metadata strip (prevents duplicate platform mentions) */}
         <div className="lib-card-source-row">
           <div className="lib-card-source-left">
             {favicon ? (
@@ -316,10 +316,12 @@ function LibraryCardComponent({
               </span>
             )}
             <span className="lib-card-domain">
-              {domain || item.site || (isNote ? 'NOTE' : 'RESOURCE')}
+              {hasThumbnail && app && (domain || '').toLowerCase().includes(app.toLowerCase())
+                ? (item.author ? `@${item.author.replace(/^@/, '')}` : (item.site || 'RESOURCE'))
+                : (domain || item.site || (isNote ? 'NOTE' : 'RESOURCE'))}
             </span>
 
-            {item.author && (
+            {item.author && (!hasThumbnail || !app || !(domain || '').toLowerCase().includes(app.toLowerCase())) && (
               <span className="lib-card-author" title={item.author}>
                 · {item.author}
               </span>
@@ -327,7 +329,7 @@ function LibraryCardComponent({
           </div>
 
           <div className="lib-card-source-right">
-            {!hasThumbnail && (
+            {!hasThumbnail && (!app || !(domain || '').toLowerCase().includes(app.toLowerCase())) && (
               <span className="lib-card-kind-badge">
                 <span>{app ? app.toUpperCase() : (item.kind || 'article').toUpperCase()}</span>
               </span>
@@ -392,11 +394,12 @@ function LibraryCardComponent({
           <p className="lib-card-summary">{item.excerpt}</p>
         ) : item.notes ? (
           <p className="lib-card-summary lib-card-summary--notes">{item.notes}</p>
-        ) : (item.capture_note || item.enrichment_note) ? (
-          <p className="lib-card-summary" style={{ color: 'var(--text-faint)' }}>
-            <Icon name="info" size={11} /> {item.capture_note || item.enrichment_note}
-          </p>
-        ) : null}
+        ) : (
+          <div className="lib-card-pending-chip">
+            <Icon name="spark" size={10} />
+            <span>AI summary pending</span>
+          </div>
+        )}
 
         {/* Discovered External Links (compact) */}
         {linkResources.length > 0 && (

@@ -97,7 +97,9 @@ function LibraryRowComponent({
             />
           )}
           <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-            {domain || item.author || 'LOCAL'}
+            {item.app && (domain || '').toLowerCase().includes(item.app.toLowerCase())
+              ? (item.author ? `@${item.author.replace(/^@/, '')}` : (item.site || (item.kind || 'LOCAL').toUpperCase()))
+              : (domain || item.author || 'LOCAL')}
           </span>
           {item.summary && (
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
