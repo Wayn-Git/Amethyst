@@ -45,8 +45,8 @@ export default function Today() {
     const token = ++loadToken.current
     try {
       const [allTasksRes, completedTasksRes, todayRes] = await Promise.all([
-        api.tasks({ bucket: 'all', limit: 100 }).catch(() => []),
-        api.tasks({ bucket: 'completed', limit: 100 }).catch(() => []),
+        api.tasks({ bucket: 'all', limit: 200 }).catch(() => []),
+        api.tasks({ bucket: 'completed', limit: 500 }).catch(() => []),
         api.today().catch(() => null),
       ])
 
