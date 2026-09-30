@@ -13,7 +13,7 @@ from backend.web.models import FreshnessWindow, ResearchDepth
 from backend.web.query_planner import infer_freshness
 
 _DEEP_SIGNALS = re.compile(
-    r"\b(deep dive|deep research|comprehensive|thorough|in-depth|exhaustive|investigate thoroughly|detailed analysis)\b",
+    r"\b(deep dive|deep research|comprehensive|thorough|in-depth|exhaustive|investigate thoroughly|detailed analysis|everything about|all about|tell me everything|complete overview|full breakdown)\b",
     re.IGNORECASE,
 )
 _VERIFICATION_SIGNALS = re.compile(
@@ -58,7 +58,7 @@ def route_search_strategy(
 
     # 3. Freshness requirement
     freshness = infer_freshness(q)
-    if freshness in (FreshnessWindow.PAST_24H, FreshnessWindow.PAST_7D):
+    if freshness in (FreshnessWindow.PAST_24H, FreshnessWindow.PAST_7D, FreshnessWindow.PAST_30D):
         return ResearchDepth.CURRENT
 
     # 4. Multi-entity comparison
@@ -68,6 +68,11 @@ def route_search_strategy(
     # 5. Simple factoid lookup
     if _SIMPLE_FACTOID.search(q):
         return ResearchDepth.SIMPLE
+
+    # 6. Entity or evolving topic
+    from backend.web.query_planner import extract_entities
+    if extract_entities(q):
+        return ResearchDepth.RESEARCH
 
     # Default for general queries
     return ResearchDepth.SIMPLE

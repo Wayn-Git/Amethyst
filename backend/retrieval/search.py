@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -92,11 +94,15 @@ class SearchService:
 
         Either index alone is a weak default: dense vectors miss exact terms, and
         keyword search misses paraphrase. Fusing ranks covers both.
+
+        Keyword-first with 2.5s semantic race budget: slow embedder degrades to
+        keywords rather than blocking first token. Target <5s TTFT.
         """
         if not query.strip():
             return []
 
         self.degraded = None
+        started = time.monotonic()
         rankings: list[list[tuple[int, float]]] = []
 
         # A filtered search asks each index for far more candidates.
@@ -119,20 +125,26 @@ class SearchService:
 
         if semantic and store.vector_available(self.conn):
             try:
-                vector = await self.embedder.embed_one(query)
+                vector = await asyncio.wait_for(self.embedder.embed_one(query), timeout=2.5)
                 vector_hits = store.search_vectors(self.conn, vector, candidates)
                 if vector_hits:
                     rankings.append(vector_hits)
             except Exception as exc:
                 # Keyword results are still useful, so degrade rather than fail.
-                log.warning("semantic search unavailable, using keywords only: %s", exc)
+                # Timeout included: slow endpoint costs keywords-only, not TTFT.
+                log.debug("semantic search unavailable, using keywords only: %s", exc)
                 self.degraded = str(exc)
 
         if not rankings:
             return []
 
         fused = store.reciprocal_rank_fusion(rankings)
-        return self._hydrate([cid for cid, _ in fused], dict(fused), limit, path_glob, source)
+        hits = self._hydrate([cid for cid, _ in fused], dict(fused), limit, path_glob, source)
+        log.debug(
+            "vault search %d hits (degraded=%s) in %.0fms",
+            len(hits), bool(self.degraded), (time.monotonic() - started) * 1000,
+        )
+        return hits
 
     def _hydrate(
         self,

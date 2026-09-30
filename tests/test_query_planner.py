@@ -79,3 +79,15 @@ def test_plan_research_evergreen():
     assert plan.freshness == FreshnessWindow.ANYTIME
     assert len(plan.queries) == 1
     assert "Ada Lovelace" in plan.queries[0]
+
+
+def test_route_search_strategy():
+    from backend.web.router import route_search_strategy
+
+    assert route_search_strategy("everything about gta 6") == ResearchDepth.DEEP_RESEARCH
+    assert route_search_strategy("deep dive into rust async runtime") == ResearchDepth.DEEP_RESEARCH
+    assert route_search_strategy("Has GTA 6 been delayed?") == ResearchDepth.RESEARCH
+    assert route_search_strategy("What happened today with SpaceX?") == ResearchDepth.CURRENT
+    assert route_search_strategy("Who was Ada Lovelace?") == ResearchDepth.SIMPLE
+    assert route_search_strategy("what is the capital of France?") == ResearchDepth.SIMPLE
+    assert route_search_strategy("gta 6") == ResearchDepth.RESEARCH

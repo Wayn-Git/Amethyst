@@ -327,8 +327,10 @@ async def test_the_two_sorts_do_not_share_a_pool(monkeypatch):
 
     async def first(query, sort="relevance"):
         asked.append(sort)
-        return {"videos": [{"id": sort, "url": f"u/{sort}", "title": sort, "published": "1 hour ago"}],
-                "token": None, "ctx": None, "seen": set()}
+        return {
+            "videos": [{"id": sort, "url": f"u/{sort}", "title": sort, "published": "1 hour ago"}],
+            "token": None, "ctx": None, "seen": set(),
+        }
 
     monkeypatch.setattr(search_service, "_yt_first_page", first)
     search_service._yt_pools.clear()
@@ -336,3 +338,189 @@ async def test_the_two_sorts_do_not_share_a_pool(monkeypatch):
     await search_service.search_youtube("same query", limit=1, sort="relevance")
     await search_service.search_youtube("same query", limit=1, sort="date")
     assert asked == ["relevance", "date"], "the second sort reused the first one's pool"
+
+
+def test_score_image_candidate_filters_junk():
+    """Verify junk domains, spam titles, and tiny/distorted images are rejected."""
+    score_fn = search_service._score_image_candidate
+
+    # Junk domain discarded
+    assert score_fn(
+        domain="4kwallpapers.com",
+        title="Ferrari F80 Official Wallpaper",
+        page_url="https://4kwallpapers.com/cars/ferrari-f80",
+        width=1920,
+        height=1080,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    ) is None
+
+    # Junk merchandise title discarded
+    assert score_fn(
+        domain="etsy.com",
+        title="Ferrari F80 Phone Case Cover",
+        page_url="https://etsy.com/listing/123",
+        width=1200,
+        height=800,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    ) is None
+
+    # Valnet SEO network & clickbait crops rejected
+    assert score_fn(
+        domain="gamerantimages.com",
+        title="GTA 6 Official Artwork",
+        page_url="https://gamerant.com/gta-6-art",
+        width=1920,
+        height=1080,
+        query_tokens=["gta", "6"],
+        query_lower="gta 6",
+    ) is None
+
+    # Unofficial fan wikis / leak blogs rejected
+    assert score_fn(
+        domain="rockstarintel.com",
+        title="GTA 6 Cover Art",
+        page_url="https://rockstarintel.com/news/123",
+        width=1920,
+        height=1080,
+        query_tokens=["gta", "6"],
+        query_lower="gta 6",
+    ) is None
+
+    # Price scrapers rejected
+    assert score_fn(
+        domain="pricerunner.com",
+        title="PlayStation 5 Pro",
+        page_url="https://pricerunner.com/ps5",
+        width=1000,
+        height=700,
+        query_tokens=["playstation", "5"],
+        query_lower="playstation 5",
+    ) is None
+
+    # Discard tiny banner/thumbnail
+    assert score_fn(
+        domain="topgear.com",
+        title="Ferrari F80 Review",
+        page_url="https://topgear.com/car-reviews/ferrari/f80",
+        width=250,
+        height=150,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    ) is None
+
+    # Discard low-res thumbnail query params on image URL
+    assert score_fn(
+        domain="topgear.com",
+        title="Ferrari F80 Review",
+        page_url="https://topgear.com/car-reviews/ferrari/f80",
+        img_url="https://example.com/cars/ferrari.jpg?w=310&h=460",
+        width=1920,
+        height=1080,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    ) is None
+
+    # Discard low-res path markers in image URL
+    assert score_fn(
+        domain="topgear.com",
+        title="Ferrari F80 Review",
+        page_url="https://topgear.com/car-reviews/ferrari/f80",
+        img_url="https://example.com/cars/ferrari-360p.jpg",
+        width=1920,
+        height=1080,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    ) is None
+
+    # Discard extreme aspect ratio (e.g. ultra-wide banner)
+    assert score_fn(
+        domain="topgear.com",
+        title="Ferrari F80 Banner",
+        page_url="https://topgear.com/car-reviews/ferrari/f80",
+        width=1800,
+        height=300,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    ) is None
+
+
+def test_score_image_candidate_url_and_filename_inspection():
+    """Verify generic CMS filenames are penalized and semantic high-res filenames are boosted."""
+    score_fn = search_service._score_image_candidate
+
+    # Generic uncurated CMS upload (e.g. image_45.jpeg)
+    generic_score = score_fn(
+        domain="example.com",
+        title="GTA 6 Screenshot",
+        page_url="https://example.com/gta-6-screenshots",
+        img_url="https://example.com/uploads/2025/05/image_45.jpeg",
+        width=1920,
+        height=1080,
+        query_tokens=["gta", "6", "screenshots"],
+        query_lower="gta 6 screenshots",
+    )
+
+    # Curated semantic 1080p shot (e.g. leonida-keys-05-1080.jpg)
+    curated_score = score_fn(
+        domain="example.com",
+        title="GTA 6 Screenshot",
+        page_url="https://example.com/gta-6-screenshots",
+        img_url="https://example.com/igallery/leonida-keys-05-1080.jpg",
+        width=1920,
+        height=1080,
+        query_tokens=["gta", "6", "screenshots"],
+        query_lower="gta 6 screenshots",
+    )
+
+    assert generic_score is not None
+    assert curated_score is not None
+    # Curated score should be much higher due to -30 penalty on generic and +15 on 1080
+    assert curated_score - generic_score >= 45.0
+
+    # Authoritative domain check (gtabase.com)
+    gtabase_score = score_fn(
+        domain="gtabase.com",
+        title="GTA 6 Official Screenshot",
+        page_url="https://gtabase.com/gta-6-screens",
+        img_url="https://gtabase.com/igallery/leonida-keys-05-1080.jpg",
+        width=1920,
+        height=1080,
+        query_tokens=["gta", "6"],
+        query_lower="gta 6",
+    )
+    assert gtabase_score is not None
+    assert gtabase_score >= 70.0
+
+
+def test_score_image_candidate_model_token_discrimination():
+    """Verify distinctive model codes (e.g. F80 vs SF90) boost exact hits and penalize."""
+    score_fn = search_service._score_image_candidate
+
+    # Exact F80 on authoritative domain
+    f80_score = score_fn(
+        domain="topgear.com",
+        title="Ferrari F80 First Look: 1,184-HP V6 Hypercar",
+        page_url="https://topgear.com/car-reviews/ferrari/f80",
+        width=1920,
+        height=1080,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    )
+    assert f80_score is not None
+    # 35 (authority) + 15 (ferrari) + 15 (f80) + 25 (digit token match) + 15 (res) + 5 (ar) = 110
+    assert f80_score >= 100.0
+
+    # Wrong model (SF90 returned instead of F80): digit token 'f80' missing from SF90
+    sf90_score = score_fn(
+        domain="topgear.com",
+        title="Ferrari SF90 Stradale Review",
+        page_url="https://topgear.com/car-reviews/ferrari/sf90",
+        width=1920,
+        height=1080,
+        query_tokens=["ferrari", "f80"],
+        query_lower="ferrari f80",
+    )
+    assert sf90_score is not None
+    assert f80_score > sf90_score + 50.0

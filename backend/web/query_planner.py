@@ -81,6 +81,8 @@ def infer_freshness(query: str) -> FreshnessWindow:
         return FreshnessWindow.PAST_YEAR
     if _EVERGREEN_PATTERNS.search(q):
         return FreshnessWindow.ANYTIME
+    if any(w in q.lower() for w in ("everything", "all about", "latest", "news", "update", "updates", "status", "info")):
+        return FreshnessWindow.PAST_30D
     return FreshnessWindow.ANYTIME
 
 
@@ -90,6 +92,8 @@ def detect_intent(query: str) -> str:
     if _VERIFICATION_SIGNALS.search(q):
         return "factual_verification"
     if _TODAY_SIGNALS.search(q) or _WEEK_SIGNALS.search(q):
+        return "current_events"
+    if any(w in q for w in ("everything", "all about", "deep dive", "overview", "briefing", "latest info")):
         return "current_events"
     if any(term in q for term in ("documentation", "api", "function", "method", "sdk", "library", "syntax", "how to")):
         return "technical_docs"
@@ -181,8 +185,36 @@ def plan_research(
 
     primary_entity = entities[0] if entities else clean_query
 
-    # Fast path: Simple query depth or evergreen intent
-    if depth == ResearchDepth.SIMPLE or (freshness == FreshnessWindow.ANYTIME and not requires_verification and intent == "general_information"):
+    # Fast path: ONLY for simple definition/lookup queries matching evergreen patterns without comprehensive or news intent
+    is_comprehensive = any(
+        term in query.lower()
+        for term in (
+            "everything",
+            "all about",
+            "overview",
+            "deep dive",
+            "detailed",
+            "latest",
+            "update",
+            "news",
+            "feature",
+            "gameplay",
+            "release",
+            "tell me about",
+        )
+    )
+
+    is_simple_lookup = (
+        depth == ResearchDepth.SIMPLE
+        or (
+            freshness == FreshnessWindow.ANYTIME
+            and not requires_verification
+            and intent == "general_information"
+            and not is_comprehensive
+        )
+    )
+
+    if is_simple_lookup:
         generated_queries.append(clean_query)
         rationales[clean_query] = "Direct primary search"
         return ResearchPlan(
@@ -202,7 +234,7 @@ def plan_research(
     year_str = str(now.year)
 
     # 1. Broad latest news
-    if freshness in (FreshnessWindow.PAST_24H, FreshnessWindow.PAST_7D, FreshnessWindow.PAST_30D):
+    if freshness in (FreshnessWindow.PAST_24H, FreshnessWindow.PAST_7D, FreshnessWindow.PAST_30D, FreshnessWindow.PAST_YEAR) or entities or intent == "current_events":
         q_news = f"{primary_entity} latest news"
         generated_queries.append(q_news)
         rationales[q_news] = "Recent news and developments"
@@ -224,45 +256,40 @@ def plan_research(
         generated_queries.append(q_official)
         rationales[q_official] = "Official primary source announcements"
 
-        # 3. Release status / confirmed updates
-        if any(w in query.lower() for w in ("release", "date", "launch", "when", "delay", "pc")):
-            q_status = f"{primary_entity} release date latest"
-            generated_queries.append(q_status)
-            rationales[q_status] = "Release schedule and platform status"
-        elif "driver" in query.lower():
-            q_driver = f"{primary_entity} latest driver version release notes"
-            generated_queries.append(q_driver)
-            rationales[q_driver] = "Driver version and release notes"
-
-        # 4. Temporal anchor query (Month + Year)
+        # 3. Temporal anchor query (Month + Year)
         q_temporal = f"{primary_entity} latest {month_year}"
         generated_queries.append(q_temporal)
         rationales[q_temporal] = f"Time-bounded coverage for {month_year}"
 
-        # 5. Publisher / Investor updates if multiple authority domains exist
-        if len(priority_domains) > 1:
-            sec_raw = priority_domains[1].split(".")[0]
-            sec_vendor = vendor_map.get(sec_raw, sec_raw.title())
-            q_sec = f"{primary_entity} {sec_vendor} {month_year}"
-            generated_queries.append(q_sec)
-            rationales[q_sec] = f"Publisher and investor updates from {sec_vendor}"
+        # 4. Factual verification / dispute queries if query asks about rumors/delays
+        if requires_verification:
+            dispute_word = "delayed" if "delay" in query.lower() else "rumors confirmed dispute"
+            q_verify1 = f"{primary_entity} {dispute_word} official confirmation"
+            q_verify2 = f"{primary_entity} {dispute_word} rumors dispute"
+            generated_queries.extend([q_verify1, q_verify2])
+            rationales[q_verify1] = "Official claim confirmation"
+            rationales[q_verify2] = "Conflicting reports and dispute check"
 
-        # 6. Breaking day-anchored coverage
-        day_str = now.strftime("%B %d %Y")
-        q_day = f"{primary_entity} {day_str} news"
-        generated_queries.append(q_day)
-        rationales[q_day] = f"Breaking news coverage for {day_str}"
+        # 5. Release status / confirmed updates
+        q_status = f"{primary_entity} release date platforms"
+        generated_queries.append(q_status)
+        rationales[q_status] = "Release schedule and platform status"
 
-        # 7. Specific aspects (platforms, features, or verification)
+        # 6. Features, story, gameplay
+        q_features = f"{primary_entity} gameplay features story"
+        generated_queries.append(q_features)
+        rationales[q_features] = "Gameplay, story, and feature details"
+
+        # 7. Media, screenshots, gallery
+        q_media = f"{primary_entity} screenshots trailer media gallery"
+        generated_queries.append(q_media)
+        rationales[q_media] = "Official visuals, screenshots, and media coverage"
+
+        # 8. Specific aspects (platforms)
         if "pc" in query.lower() or "console" in query.lower():
             q_plat = f"{primary_entity} PC latest"
             generated_queries.append(q_plat)
             rationales[q_plat] = "PC platform status"
-        elif requires_verification:
-            dispute_word = "delayed" if "delay" in query.lower() else "rumors confirmed"
-            q_verify = f"{primary_entity} {dispute_word} latest"
-            generated_queries.append(q_verify)
-            rationales[q_verify] = "Fact-checking rumors and reported claims"
 
     elif requires_verification:
         # Factual verification mode
@@ -286,7 +313,7 @@ def plan_research(
             generated_queries.append(q_comp)
             rationales[q_comp] = "Comparative benchmark analysis"
 
-    # Deduplicate while preserving order and limit to max 5 queries
+    # Deduplicate while preserving order and limit to max 6 queries
     seen = set()
     final_queries = []
     for q in generated_queries:
@@ -300,8 +327,8 @@ def plan_research(
         depth=depth,
         freshness=freshness,
         entities=entities,
-        queries=final_queries[:5],
-        query_rationales={q: rationales.get(q, "Search angle") for q in final_queries[:5]},
+        queries=final_queries[:6],
+        query_rationales={q: rationales.get(q, "Search angle") for q in final_queries[:6]},
         priority_domains=priority_domains,
         requires_verification=requires_verification,
     )

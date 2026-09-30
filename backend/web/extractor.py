@@ -145,6 +145,9 @@ async def inspect_and_extract(
         max_passages=max_passages,
     )
 
+    if page.image and not search_result.image_url:
+        search_result.image_url = page.image
+
     evidence_items = []
     for heading, text, score in passages:
         item = EvidenceItem(

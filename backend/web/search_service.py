@@ -15,9 +15,10 @@ import contextlib
 import html
 import json
 import logging
+import os
 import re
 from typing import Any
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -124,8 +125,8 @@ _EMPTY_FRESH = 90.0
 _CACHE_MAX = 200
 
 _results: dict[str, tuple[float, Any, float]] = {}
-_inflight: dict[str, "asyncio.Task[Any]"] = {}
-_background: set["asyncio.Task[Any]"] = set()
+_inflight: dict[str, asyncio.Task[Any]] = {}
+_background: set[asyncio.Task[Any]] = set()
 
 
 def _cache_put(key: str, value: Any) -> None:
@@ -147,11 +148,11 @@ async def _fetch_and_store(key: str, fetch) -> Any:
     return value
 
 
-def _begin_fetch(key: str, fetch, *, background: bool = False) -> "asyncio.Task[Any]":
+def _begin_fetch(key: str, fetch, *, background: bool = False) -> asyncio.Task[Any]:
     task = asyncio.ensure_future(_fetch_and_store(key, fetch))
     _inflight[key] = task
 
-    def _settled(t: "asyncio.Task[Any]") -> None:
+    def _settled(t: asyncio.Task[Any]) -> None:
         if _inflight.get(key) is t:
             _inflight.pop(key, None)
         _background.discard(t)
@@ -562,9 +563,9 @@ def configured_search_api() -> str | None:
     on the next query, not after a restart. `get_secret` is a keychain lookup,
     which is microseconds and happens once per search.
     """
-    from backend.secrets import get_secret
-
     import os
+
+    from backend.secrets import get_secret
     for api in _SEARCH_APIS:
         try:
             if get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])):
@@ -1024,10 +1025,157 @@ async def search_images(query: str, limit: int = 12) -> list[dict[str, Any]]:
     )
 
 
+_IMAGE_JUNK_DOMAINS = (
+    "youtube.com", "ytimg.com", "pinterest.com", "tiktok.com", "instagram.com", "facebook.com",
+    "x.com", "twitter.com", "4kwallpapers.com", "alphacoders.com", "uhdpaper.com",
+    "wallpaperflare.com", "wallpapersden.com", "hdqwalls.com", "getwallpapers.com",
+    "wallpapercave.com", "wallpaperaccess.com", "wallpapersafari.com", "besthdwallpaper.com",
+    "wallpapercrafter.com", "wallpapermug.com", "wallpapershome.com", "mocah.org",
+    "hdwallpapers.in", "desktopnexus.com", "wallhaven.cc",
+    # Valnet SEO network & clickbait thumbnails (often 310px downscaled crops)
+    "gamerant.com", "gamerantimages.com", "screenrant.com", "srcdn.com",
+    "cbr.com", "cbrimages.com", "thegamer.com", "thegamerimages.com",
+    "dualshockers.com", "dexerto.com", "fandomwire.com",
+    # Unofficial fan wikis, mod aggregators, and uncurated uploads
+    "rockstarintel.com", "igrandtheftauto.com", "gtavice.net", "gtavimods.com",
+    "libertycity.net", "wikigta.org", "meetthevoiceactors.com", "leonidaverse.com",
+    "gtaintel.com", "fiz-x.com",
+    # E-commerce, merch & price scrapers
+    "teepublic.com", "redbubble.com", "aliexpress.com", "ebay.com", "etsy.com", "amazon.com",
+    "society6.com", "zazzle.com", "displate.com", "picclick.com", "worthpoint.com",
+    "pricerunner.com", "idealo.de", "twenga.com", "shopzilla.com",
+    "fity.club", "ceb.ie", "ifo-records.de", "inspiredpencil.com", "cwwda.go.ke",
+    "animalia-life.club", "medienhome.de",
+)
+
+_IMAGE_JUNK_TITLES = (
+    "fan made", "concept art", "leak gameplay", "fake trailer", "clickbait", "phone case",
+    "hardcase", "t-shirt", "hoodie", "sticker", "poster print", "coloring page", "clipart",
+    "vector icon", "mod download", "stock photo", "wallpaper", "transparent png",
+    "silhouette", "coloring sheet", "custom case", "iphone case", "skin wrap", "decal",
+    "fan edit", "fan poster", "leak footage", "fake leak", "meme", "parody",
+)
+
+_IMAGE_AUTHORITATIVE_DOMAINS = (
+    "reuters.com", "apnews.com", "bloomberg.com", "nytimes.com", "theverge.com", "wired.com",
+    "arstechnica.com", "ign.com", "gamespot.com", "polygon.com", "eurogamer.com", "topgear.com",
+    "carmagazine.co.uk", "motortrend.com", "caranddriver.com", "evo.co.uk", "autoblog.com",
+    "motor1.com", "autocar.co.uk", "roadandtrack.com", "apple.com", "space.com", "nasa.gov",
+    "spacex.com", "rockstargames.com", "gtabase.com", "wikimedia.org", "wikipedia.org",
+    "playstation.com", "xbox.com", "nintendo.com", "flickr.com", "bbc.com",
+    "nbcnews.com", "cnn.com", "cnet.com", "engadget.com", "nature.com", "techcrunch.com",
+    "variety.com", "hollywoodreporter.com", "deadline.com", "nationalgeographic.com",
+)
+
+
+def _score_image_candidate(
+    *,
+    domain: str,
+    title: str,
+    page_url: str,
+    width: int | None,
+    height: int | None,
+    query_tokens: list[str],
+    query_lower: str,
+    img_url: str = "",
+) -> float | None:
+    """Score an image candidate for relevance and quality. Returns None to discard."""
+    # 1. Filter junk domains
+    if any(junk in domain for junk in _IMAGE_JUNK_DOMAINS):
+        return None
+
+    # 2. Filter junk titles (unless the user specifically asked for that term in their query)
+    low_title = title.lower()
+    if any(junk in low_title for junk in _IMAGE_JUNK_TITLES if junk not in query_lower):
+        return None
+
+    # 3. Filter tiny dimensions or extreme aspect ratios (e.g. banners, ultra-tall strips)
+    if width and height:
+        if width < 300 or height < 200:
+            return None
+        ar = width / height
+        if ar > 2.8 or ar < 0.45:
+            return None
+
+    # 4. Check image URL parameters and path artifacts if provided
+    img_filename = ""
+    if img_url:
+        parsed_img = urlparse(img_url)
+        img_path = parsed_img.path.lower()
+        img_qs = parsed_img.query.lower()
+        img_filename = os.path.basename(img_path)
+
+        # Reject explicit low-res thumbnail query parameters (e.g. w=310, width=250, q=40)
+        m_w = re.search(r"(?:^|[&?])(?:w|width)=(\d+)", img_qs)
+        if m_w and int(m_w.group(1)) < 500:
+            return None
+        m_h = re.search(r"(?:^|[&?])(?:h|height)=(\d+)", img_qs)
+        if m_h and int(m_h.group(1)) < 350:
+            return None
+        m_q = re.search(r"(?:^|[&?])(?:q|quality)=(\d+)", img_qs)
+        if m_q and int(m_q.group(1)) < 60:
+            return None
+
+        # Reject explicit low-res video/downscaled resolution markers in path
+        if re.search(r"[-_](?:144|240|360|480)p?\.(?:jpe?g|png|webp|avif)$", img_path):
+            return None
+
+    # 5. Relevance and domain authority scoring
+    score = 0.0
+    purl_low = page_url.lower()
+
+    if any(auth in domain for auth in _IMAGE_AUTHORITATIVE_DOMAINS):
+        score += 35.0
+
+    for tok in query_tokens:
+        if tok in low_title:
+            score += 15.0
+        elif tok in purl_low:
+            score += 8.0
+
+    # Distinctive model/code token check (e.g. f80, m4, ps5, rtx)
+    for tok in query_tokens:
+        if any(c.isdigit() for c in tok) and len(tok) <= 6:
+            if tok in low_title or tok in purl_low:
+                score += 25.0
+            else:
+                score -= 35.0
+
+    # Favor standard high-res landscape / editorial dimensions
+    if width and height:
+        if width >= 800 and height >= 450:
+            score += 15.0
+        if 1.3 <= (width / height) <= 1.9:
+            score += 5.0
+
+    # URL path & filename semantic inspection
+    if img_filename:
+        # Penalize generic uncurated CMS uploads (e.g. image_45.jpeg, screenshot-28.webp)
+        if re.match(
+            r"^(?:image|img|screenshot|photo|picture|pic|download|upload)[-_]?\d{1,4}\.[a-z0-9]+$",
+            img_filename,
+        ):
+            score -= 30.0
+
+        # Reward semantic query tokens found in filename slug
+        matched_tokens = sum(
+            1 for tok in query_tokens if len(tok) >= 3 and tok in img_filename
+        )
+        if matched_tokens:
+            score += min(25.0, matched_tokens * 12.0)
+
+        # Reward high-res tags in filename
+        if any(res in img_filename for res in ("1080", "2160", "4k", "uhd", "fhd", "highres")):
+            score += 15.0
+
+    return score
+
+
 async def _search_images_live(query: str, limit: int) -> list[dict[str, Any]]:
     """Search high-relevance images via Bing Images with Openverse fallback.
 
-    Applies query cleanup, relevance prioritization, and duplicate filtering.
+    Applies query cleanup, relevance prioritization, domain authority scoring,
+    and duplicate filtering.
     """
     # Clean query: strip image keywords/prefixes
     q = query.strip()
@@ -1042,6 +1190,16 @@ async def _search_images_live(query: str, limit: int) -> list[dict[str, Any]]:
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     }
 
+    _stopwords = {
+        "the", "a", "an", "of", "in", "for", "and", "to", "with", "on", "at", "by", "from",
+        "latest", "official", "photo", "image", "images", "screenshot", "artwork", "news",
+    }
+    query_tokens = [
+        tok for tok in re.findall(r"\b[a-zA-Z0-9_\-]+\b", q.lower())
+        if tok not in _stopwords and len(tok) >= 2
+    ]
+    query_lower = q.lower()
+
     # 1. Primary: High-Relevance Bing Image Search
     try:
         client = await _pool_client()
@@ -1052,7 +1210,7 @@ async def _search_images_live(query: str, limit: int) -> list[dict[str, Any]]:
         )
         if resp.status_code == 200:
             matches = re.findall(r'class="iusc"[^>]+m="([^"]+)"', resp.text)
-            results = []
+            candidates: list[tuple[float, dict[str, Any]]] = []
             seen_urls = set()
 
             for raw_m in matches:
@@ -1067,26 +1225,46 @@ async def _search_images_live(query: str, limit: int) -> list[dict[str, Any]]:
                         continue
                     seen_urls.add(img_url)
 
-                    domain = urlparse(page_url).netloc.replace("www.", "")
+                    domain = urlparse(page_url).netloc.replace("www.", "").lower()
+                    raw_w = data.get("width")
+                    raw_h = data.get("height")
+                    width = int(raw_w) if raw_w and str(raw_w).isdigit() else None
+                    height = int(raw_h) if raw_h and str(raw_h).isdigit() else None
 
-                    results.append({
-                        "id": f"bing_{len(results)}",
-                        "title": title,
-                        "thumbnail": thumb_url,
-                        "image": img_url,
-                        "source_url": page_url,
-                        "creator": domain or "Web",
-                        "width": data.get("width"),
-                        "height": data.get("height"),
-                    })
+                    cand_score = _score_image_candidate(
+                        domain=domain,
+                        title=title,
+                        page_url=page_url,
+                        width=width,
+                        height=height,
+                        query_tokens=query_tokens,
+                        query_lower=query_lower,
+                        img_url=img_url,
+                    )
+                    if cand_score is None:
+                        continue
 
-                    if len(results) >= limit:
-                        break
+                    candidates.append((
+                        cand_score,
+                        {
+                            "id": f"bing_{len(candidates)}",
+                            "title": title,
+                            "thumbnail": thumb_url,
+                            "image": img_url,
+                            "source_url": page_url,
+                            "creator": domain or "Web",
+                            "width": width,
+                            "height": height,
+                        },
+                    ))
                 except Exception:
                     continue
 
-            if results:
-                return results
+            if candidates:
+                candidates.sort(key=lambda c: c[0], reverse=True)
+                positive = [c[1] for c in candidates if c[0] >= 0.0]
+                pool = positive if positive else [c[1] for c in candidates]
+                return pool[:limit]
     except Exception as exc:
         logger.warning(f"Bing image search failed for {q}: {exc}")
 
