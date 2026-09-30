@@ -154,51 +154,74 @@ export default function Gallery({ compact = false }) {
                       className={`gallery-item-card${isAdded ? ' is-added-card' : ''}`}
                       data-widget={m.id}
                     >
-                      <div className="gallery-card-top">
+                      <div className="gallery-card-main-row">
                         <div className="gallery-card-identity">
                           <span className="gallery-card-icon" style={{ '--icon-cat-color': catColor }}>
-                            <Icon name={ICONS[m.id] || ICONS[m.id.split('.')[0]] || 'grid'} size={20} />
+                            <Icon name={ICONS[m.id] || ICONS[m.id.split('.')[0]] || 'grid'} size={18} />
                           </span>
                           <div className="gallery-card-heading">
-                            <strong className="gallery-card-title">{m.title}</strong>
+                            <div className="gallery-title-row">
+                              <strong className="gallery-card-title">{m.title}</strong>
+                              <WidgetChip className="bento-badge">{m.group}</WidgetChip>
+                            </div>
                             <span className="gallery-card-sub">
                               {source || 'local'} · {m.refresh?.mode === 'poll' ? `${m.refresh?.interval_s < 60 ? `${m.refresh.interval_s}s` : `${Math.round(m.refresh.interval_s / 60)}m`}` : `${m.refresh?.mode || 'manual'}`}
                             </span>
                           </div>
                         </div>
-                        <WidgetChip className="bento-badge">{m.group}</WidgetChip>
-                      </div>
 
-                      <div className="gallery-card-sizes" role="group" aria-label={`Size choices for ${m.title}`}>
-                        <span className="gallery-size-label">Size:</span>
-                        <div className="gallery-size-pills">
-                          {['s', 'm', 'l'].map(sizeKey => {
-                            const isSupported = m.sizes.includes(sizeKey)
-                            if (!isSupported) return null
-                            return (
+                        <div className="gallery-card-controls">
+                          <div className="gallery-card-sizes" role="group" aria-label={`Size choices for ${m.title}`}>
+                            <span className="gallery-size-label">Size:</span>
+                            <div className="gallery-size-pills">
+                              {['s', 'm', 'l'].map(sizeKey => {
+                                const isSupported = m.sizes.includes(sizeKey)
+                                if (!isSupported) return null
+                                return (
+                                  <button
+                                    key={sizeKey}
+                                    type="button"
+                                    className={`gallery-size-pill${effectiveSize === sizeKey ? ' is-active' : ''}`}
+                                    onClick={() => setWidgetSizes(prev => ({ ...prev, [m.id]: sizeKey }))}
+                                    aria-label={`Size ${sizeKey.toUpperCase()} for ${m.title}`}
+                                  >
+                                    {sizeKey.toUpperCase()}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            {!compact && (
                               <button
-                                key={sizeKey}
                                 type="button"
-                                className={`gallery-size-pill${effectiveSize === sizeKey ? ' is-active' : ''}`}
-                                onClick={() => setWidgetSizes(prev => ({ ...prev, [m.id]: sizeKey }))}
-                                aria-label={`Size ${sizeKey.toUpperCase()} for ${m.title}`}
+                                className="gallery-preview-toggle-btn"
+                                onClick={() => setPreviewId(isPreviewOpen ? null : m.id)}
+                                aria-label={`${isPreviewOpen ? 'Hide' : 'Preview'} ${m.title}`}
                               >
-                                {sizeKey.toUpperCase()}
+                                <Icon name={isPreviewOpen ? 'x' : 'sparkle'} size={13} />
+                                <span>{isPreviewOpen ? 'Close' : 'Preview'}</span>
                               </button>
-                            )
-                          })}
+                            )}
+                          </div>
+
+                          <div className="gallery-card-action">
+                            <button
+                              type="button"
+                              disabled={!system && isAdded}
+                              className={`gallery-primary-add-btn${isAdded && !system ? ' is-added' : ' home-primary'}`}
+                              aria-label={`${system ? 'Open' : isAdded ? 'Added' : 'Add'} ${m.title}`}
+                              onClick={() => {
+                                if (system) {
+                                  openWidget(m.id)
+                                } else {
+                                  handleAddWidget(m.id, effectiveSize)
+                                }
+                              }}
+                            >
+                              <Icon name={isAdded && !system ? 'check-simple' : 'plus'} size={15} />
+                              <span>{system ? `Open ${m.title}` : isAdded ? `Added ${m.title}` : `Add ${m.title}`}</span>
+                            </button>
+                          </div>
                         </div>
-                        {!compact && (
-                          <button
-                            type="button"
-                            className="gallery-preview-toggle-btn"
-                            onClick={() => setPreviewId(isPreviewOpen ? null : m.id)}
-                            aria-label={`${isPreviewOpen ? 'Hide' : 'Preview'} ${m.title}`}
-                          >
-                            <Icon name={isPreviewOpen ? 'x' : 'sparkle'} size={14} />
-                            <span>{isPreviewOpen ? 'Close' : 'Preview'}</span>
-                          </button>
-                        )}
                       </div>
 
                       {isPreviewOpen && (
@@ -212,25 +235,6 @@ export default function Gallery({ compact = false }) {
                           />
                         </div>
                       )}
-
-                      <div className="gallery-card-action">
-                        <button
-                          type="button"
-                          disabled={!system && isAdded}
-                          className={`gallery-primary-add-btn${isAdded && !system ? ' is-added' : ' home-primary'}`}
-                          aria-label={`${system ? 'Open' : isAdded ? 'Added' : 'Add'} ${m.title}`}
-                          onClick={() => {
-                            if (system) {
-                              openWidget(m.id)
-                            } else {
-                              handleAddWidget(m.id, effectiveSize)
-                            }
-                          }}
-                        >
-                          <Icon name={isAdded && !system ? 'check-simple' : 'plus'} size={17} />
-                          <span>{system ? `Open ${m.title}` : isAdded ? `Added ${m.title}` : `Add ${m.title}`}</span>
-                        </button>
-                      </div>
                     </article>
                   )
                 })}
