@@ -85,6 +85,7 @@ export const opencode = {
   status: () => request('GET', '/status'),
   start: () => request('POST', '/start'),
   stop: () => request('POST', '/stop'),
+  syncAmethyst: () => request('POST', '/sync_amethyst'),
 
   // OpenCode Core APIs
   health: () => request('GET', '/health'),
