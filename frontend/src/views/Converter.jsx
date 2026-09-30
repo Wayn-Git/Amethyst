@@ -32,6 +32,7 @@ function getFileCategory(ext) {
   if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'txt', 'md', 'csv', 'html', 'rtf', 'odt'].includes(ext)) return 'document'
   if (['mp4', 'webm', 'mkv', 'mov', 'avi', 'wmv', 'flv', 'm4v'].includes(ext)) return 'video'
   if (['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'opus', 'wma'].includes(ext)) return 'audio'
+  if (['zip', 'tar', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar'].includes(ext)) return 'archive'
   return 'other'
 }
 
@@ -314,6 +315,9 @@ export default function Converter() {
       } else if (cat === 'audio') {
         op = presetOp || 'convert'
         targetFormat = ext === 'mp3' ? 'wav' : 'mp3'
+      } else if (cat === 'archive') {
+        op = presetOp || 'convert'
+        targetFormat = ext === 'zip' ? 'tar.gz' : 'zip'
       }
 
       let localThumb = null
@@ -445,13 +449,24 @@ export default function Converter() {
           quality: Number(item.options.quality) || 85,
         }
       } else if (item.operation === 'compress') {
-        payload.options = { quality: Number(item.options.quality) || 75 }
+        if (item.category === 'video') {
+          payload.operation = 'video_compress'
+          payload.options = { crf: 28, preset: 'fast' }
+        } else {
+          payload.options = { quality: Number(item.options.quality) || 75 }
+        }
       } else if (item.operation === 'rotate') {
         payload.options = { angle: Number(item.options.angle) || 90 }
       } else if (item.operation === 'pdf_to_images') {
         payload.options = { format: item.options.format || 'png' }
       } else if (item.operation === 'pdf_extract_pages') {
         payload.options = { pages: item.options.pages || '1' }
+      } else if (item.operation === 'video_compress') {
+        payload.options = { crf: 28, preset: 'fast' }
+      } else if (item.operation === 'video_to_gif') {
+        payload.options = { fps: 15 }
+      } else if (item.operation === 'video_to_audio') {
+        payload.options = { format: item.targetFormat || 'mp3' }
       }
 
       const res = await api.converterProcess(payload)
@@ -513,6 +528,8 @@ export default function Converter() {
         return ['mp4', 'webm', 'gif', 'mp3']
       case 'audio':
         return ['mp3', 'wav', 'aac', 'flac']
+      case 'archive':
+        return ['zip', 'tar.gz', 'tar']
       default:
         return ['pdf', 'txt']
     }
@@ -526,6 +543,7 @@ export default function Converter() {
       pdf: ['docx', 'png', 'jpg', 'webp', 'txt'],
       video: ['mp4', 'webm', 'gif', 'mp3', 'wav'],
       audio: ['mp3', 'wav', 'aac', 'ogg', 'flac'],
+      archive: ['zip', 'tar.gz', 'tar'],
       other: ['txt', 'pdf'],
     }
     return (all[item.category] || ['pdf', 'txt']).filter((t) => t !== item.ext)
@@ -951,6 +969,13 @@ export default function Converter() {
                                           <option value="pdf_to_images">Render Images</option>
                                           <option value="extract_text">Extract Text</option>
                                           <option value="pdf_compress">Compress PDF</option>
+                                        </optgroup>
+                                      )}
+                                      {item.category === 'video' && (
+                                        <optgroup label="Video Tools">
+                                          <option value="video_compress">Compress Video</option>
+                                          <option value="video_to_gif">Animated GIF</option>
+                                          <option value="video_to_audio">Extract Audio</option>
                                         </optgroup>
                                       )}
                                     </select>

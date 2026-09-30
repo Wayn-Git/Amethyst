@@ -19,21 +19,26 @@ export default function VideoToolsTool() {
   const [activeTab, setActiveTab] = useState('convert-video') // 'convert-video' | 'to-gif' | 'extract-audio' | 'compress-video' | 'audio-converter'
   const [file, setFile] = useState(null)
   const [filePreview, setFilePreview] = useState(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState(null)
+  const [uploadedFileId, setUploadedFileId] = useState(null)
+  const [hasAudio, setHasAudio] = useState(true)
 
   // Options
   const [targetVideoFmt, setTargetVideoFmt] = useState('mp4')
   const [gifFps, setGifFps] = useState(15)
   const [audioFmt, setAudioFmt] = useState('mp3')
   const [targetAudioFmt, setTargetAudioFmt] = useState('wav')
+  const [compressLevel, setCompressLevel] = useState('balanced')
 
   // Status
   const [processing, setProcessing] = useState(false)
   const [result, setResult] = useState(null)
 
-  const handleFileSelect = (selectedFile) => {
+  const handleFileSelect = async (selectedFile) => {
     if (!selectedFile) return
-    const isVideo = selectedFile.type.startsWith('video/') || ['mp4', 'webm', 'mkv', 'mov', 'avi', 'flv'].some((e) => selectedFile.name.toLowerCase().endsWith(e))
-    const isAudio = selectedFile.type.startsWith('audio/') || ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].some((e) => selectedFile.name.toLowerCase().endsWith(e))
+    const ext = selectedFile.name.split('.').pop()?.toLowerCase() || ''
+    const isVideo = selectedFile.type.startsWith('video/') || ['mp4', 'webm', 'mkv', 'mov', 'avi', 'wmv', 'flv'].includes(ext)
+    const isAudio = selectedFile.type.startsWith('audio/') || ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)
 
     if (!isVideo && !isAudio) {
       toast('Please select a valid video or audio file', 'bad')
@@ -42,11 +47,33 @@ export default function VideoToolsTool() {
 
     setFile(selectedFile)
     setResult(null)
+    setUploadedFileId(null)
+    setThumbnailUrl(null)
+    setHasAudio(true)
 
-    if (isVideo) {
+    // Browsers natively only decode MP4, WebM, and Ogg
+    const isBrowserPlayable = isVideo && ['mp4', 'webm', 'ogg'].includes(ext)
+    if (isBrowserPlayable) {
       setFilePreview(URL.createObjectURL(selectedFile))
     } else {
       setFilePreview(null)
+    }
+
+    // Proactively upload to inspect streams and generate frame thumbnail for AVI/MKV
+    try {
+      const up = await api.converterUpload([selectedFile])
+      const meta = up.uploaded?.[0]
+      if (meta?.file_id) {
+        setUploadedFileId(meta.file_id)
+        if (meta.has_audio !== undefined) {
+          setHasAudio(meta.has_audio)
+        }
+        if (meta.has_thumbnail) {
+          setThumbnailUrl(api.converterThumbnailUrl(meta.file_id))
+        }
+      }
+    } catch (e) {
+      console.warn('Media inspection upload failed', e)
     }
   }
 
@@ -56,11 +83,20 @@ export default function VideoToolsTool() {
       return
     }
 
+    if (activeTab === 'extract-audio' && !hasAudio) {
+      toast(`Video "${file.name}" has no audio track to extract`, 'bad')
+      return
+    }
+
     setProcessing(true)
     try {
-      const up = await api.converterUpload([file])
-      const fileId = up.uploaded[0]?.file_id
-      if (!fileId) throw new Error('Upload failed')
+      let fileId = uploadedFileId
+      if (!fileId) {
+        const up = await api.converterUpload([file])
+        fileId = up.uploaded[0]?.file_id
+        if (!fileId) throw new Error('Upload failed')
+        setUploadedFileId(fileId)
+      }
 
       let op = 'convert'
       let targetFmt = targetVideoFmt
@@ -80,6 +116,8 @@ export default function VideoToolsTool() {
       } else if (activeTab === 'compress-video') {
         op = 'video_compress'
         targetFmt = 'mp4'
+        const crfMap = { light: 23, balanced: 28, high: 32 }
+        options = { crf: crfMap[compressLevel] || 28 }
       } else if (activeTab === 'audio-converter') {
         op = 'convert'
         targetFmt = targetAudioFmt
@@ -228,17 +266,47 @@ export default function VideoToolsTool() {
               )}
 
               {activeTab === 'extract-audio' && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Audio Format</label>
-                  <select
-                    className="fc-select font-mono uppercase"
-                    value={audioFmt}
-                    onChange={(e) => setAudioFmt(e.target.value)}
-                  >
-                    <option value="mp3">MP3 (320 kbps)</option>
-                    <option value="aac">AAC (Apple / High quality)</option>
-                    <option value="wav">WAV (Lossless 16-bit PCM)</option>
-                  </select>
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Audio Format</label>
+                    <select
+                      className="fc-select font-mono uppercase"
+                      value={audioFmt}
+                      onChange={(e) => setAudioFmt(e.target.value)}
+                    >
+                      <option value="mp3">MP3 (320 kbps)</option>
+                      <option value="aac">AAC (Apple / High quality)</option>
+                      <option value="wav">WAV (Lossless 16-bit PCM)</option>
+                      <option value="flac">FLAC (Lossless)</option>
+                      <option value="ogg">OGG (Vorbis)</option>
+                    </select>
+                  </div>
+                  {!hasAudio && (
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+                      <Icon name="alert-triangle" size={14} className="shrink-0" />
+                      <span>This video file contains no audio track to extract.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'compress-video' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Compression Preset</label>
+                    <select
+                      className="fc-select font-mono"
+                      value={compressLevel}
+                      onChange={(e) => setCompressLevel(e.target.value)}
+                    >
+                      <option value="balanced">Balanced (CRF 28 - Recommended)</option>
+                      <option value="high">High Compression (CRF 32 - Smallest File)</option>
+                      <option value="light">Light Compression (CRF 23 - Highest Quality)</option>
+                    </select>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    Re-encodes with H.264 CRF constant rate factor for maximum space savings.
+                  </p>
                 </div>
               )}
 
@@ -262,7 +330,7 @@ export default function VideoToolsTool() {
               <button
                 type="button"
                 className="fc-btn fc-btn-primary w-full mt-2"
-                disabled={processing}
+                disabled={processing || (activeTab === 'extract-audio' && !hasAudio)}
                 onClick={handleProcess}
               >
                 <Icon name="convert" size={16} />
@@ -282,10 +350,28 @@ export default function VideoToolsTool() {
                 src={filePreview}
                 className="w-full max-h-56 rounded-xl bg-black object-contain shadow-md"
               />
+            ) : thumbnailUrl ? (
+              <div className="relative rounded-xl overflow-hidden bg-black/40 border border-white/10 flex flex-col items-center">
+                <img
+                  src={thumbnailUrl}
+                  alt="Video Frame Preview"
+                  className="w-full max-h-56 object-contain"
+                />
+                <div className="absolute bottom-2 left-2 right-2 px-2.5 py-1 bg-black/75 backdrop-blur-xs rounded text-[11px] text-slate-300 flex items-center justify-between">
+                  <span>Frame preview</span>
+                  <span className="font-mono uppercase text-[10px] text-[var(--accent)] font-semibold">.{file?.name.split('.').pop()}</span>
+                </div>
+              </div>
             ) : (
               <div className="p-8 rounded-xl bg-black/30 border border-white/5 flex flex-col items-center justify-center text-center text-slate-400 gap-2">
                 <Icon name={activeTab === 'audio-converter' ? 'speaker' : 'video'} size={36} className="text-[var(--accent)] opacity-60" />
                 <span className="text-xs">Upload media to see live preview</span>
+              </div>
+            )}
+
+            {file && !filePreview && file.name.toLowerCase().endsWith('.avi') && (
+              <div className="mt-2.5 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[11px]">
+                AVI container cannot be played directly by browser player. Frame preview extracted above. Convert to MP4 to play in browser.
               </div>
             )}
           </div>

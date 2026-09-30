@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import mimetypes
-from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .service import ConverterService
@@ -30,7 +29,7 @@ async def get_capabilities() -> dict[str, Any]:
 
 
 @router.post("/upload")
-async def upload_files(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+async def upload_files(files: list[UploadFile] = File(...)) -> dict[str, Any]:  # noqa: B008
     """Upload one or more files for conversion/processing."""
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded.")
@@ -41,9 +40,9 @@ async def upload_files(files: list[UploadFile] = File(...)) -> dict[str, Any]:
             meta = await service.save_upload(file)
             uploaded.append(meta)
         except ValueError as exc:
-            raise HTTPException(status_code=413, detail=str(exc))
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}")
+            raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
 
     return {"uploaded": uploaded}
 
@@ -61,11 +60,11 @@ async def process_file(payload: ProcessRequest) -> dict[str, Any]:
         )
         return result
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Processing failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {exc}") from exc
 
 
 @router.get("/download/{job_id}")
@@ -99,6 +98,20 @@ async def preview_result(job_id: str) -> FileResponse:
     )
 
 
+@router.get("/thumbnail/{file_id}")
+async def get_thumbnail(file_id: str) -> FileResponse:
+    """Inline view of the generated thumbnail for an uploaded media file."""
+    path = service.ensure_thumbnail(file_id)
+    if not path or not path.is_file():
+        raise HTTPException(status_code=404, detail="Thumbnail not available.")
+
+    return FileResponse(
+        path=str(path),
+        media_type="image/jpeg",
+        headers={"Content-Disposition": 'inline; filename="thumbnail.jpg"'},
+    )
+
+
 @router.delete("/files/{file_id}")
 async def delete_upload(file_id: str) -> dict[str, bool]:
     """Remove an uploaded or output directory."""
@@ -128,6 +141,7 @@ async def generate_qr(payload: QRRequest) -> dict[str, Any]:
     import base64
     import io
     import urllib.parse
+
     import segno
 
     text = (payload.content or "").strip()

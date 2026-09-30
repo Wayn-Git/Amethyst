@@ -6,14 +6,12 @@ and LibreOffice to execute actual conversions without sending files to external 
 from __future__ import annotations
 
 import asyncio
-import io
 import mimetypes
 import os
 import re
 import shutil
 import time
 import zipfile
-from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -37,6 +35,36 @@ VIDEO_EXTENSIONS = {
 AUDIO_EXTENSIONS = {
     "mp3", "wav", "m4a", "aac", "ogg", "flac", "opus", "wma", "aiff",
 }
+ARCHIVE_EXTENSIONS = {
+    "zip", "tar", "gz", "tgz", "bz2", "xz", "7z", "tar.gz", "tar.bz2", "tar.xz",
+}
+
+
+def _probe_media(source: Path) -> dict[str, Any]:
+    """Inspect video/audio stream properties using ffprobe."""
+    if not _check_binary("ffprobe"):
+        return {"has_audio": True, "has_video": True}
+
+    import json
+    import subprocess
+
+    cmd = [
+        "ffprobe", "-v", "quiet", "-print_format", "json",
+        "-show_streams", "-show_format", str(source),
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        data = json.loads(res.stdout)
+        streams = data.get("streams", [])
+        has_audio = any(s.get("codec_type") == "audio" for s in streams)
+        has_video = any(s.get("codec_type") == "video" for s in streams)
+        return {
+            "has_audio": has_audio,
+            "has_video": has_video,
+            "streams": streams,
+        }
+    except Exception:
+        return {"has_audio": True, "has_video": True}
 
 
 def _get_category(ext: str) -> str:
@@ -51,6 +79,8 @@ def _get_category(ext: str) -> str:
         return "video"
     if ext in AUDIO_EXTENSIONS:
         return "audio"
+    if ext in ARCHIVE_EXTENSIONS or ext.endswith(("tar.gz", "tar.bz2", "tar.xz", "tgz", "zip")):
+        return "archive"
     return "other"
 
 
@@ -73,28 +103,34 @@ class ConverterService:
         has_soffice = _check_binary("soffice") or _check_binary("libreoffice")
 
         try:
-            import fitz
+            import fitz  # noqa: F401
             has_pymupdf = True
         except ImportError:
             has_pymupdf = False
 
         try:
-            import PIL
+            import PIL  # noqa: F401
             has_pillow = True
         except ImportError:
             has_pillow = False
 
         try:
-            import docx
+            import docx  # noqa: F401
             has_docx = True
         except ImportError:
             has_docx = False
 
         try:
-            import openpyxl
+            import openpyxl  # noqa: F401
             has_openpyxl = True
         except ImportError:
             has_openpyxl = False
+
+        try:
+            from rapidocr_onnxruntime import RapidOCR  # noqa: F401
+            has_ocr = True
+        except ImportError:
+            has_ocr = False
 
         engines = {
             "ffmpeg": has_ffmpeg,
@@ -104,10 +140,11 @@ class ConverterService:
             "pillow": has_pillow,
             "docx": has_docx,
             "openpyxl": has_openpyxl,
+            "ocr": has_ocr,
         }
 
         # Determine supported target formats per category
-        image_targets = ["png", "jpg", "webp", "gif", "bmp", "tiff", "ico", "pdf"]
+        image_targets = ["png", "jpg", "webp", "gif", "bmp", "tiff", "ico", "pdf", "txt"]
         if has_magick:
             image_targets.append("avif")
 
@@ -123,8 +160,6 @@ class ConverterService:
         if has_soffice:
             doc_targets.extend(["docx", "xlsx", "html"])
 
-        pdf_targets = ["images", "txt", "docx" if has_soffice else "txt"]
-
         return {
             "engines": engines,
             "categories": {
@@ -132,13 +167,18 @@ class ConverterService:
                     "label": "Images",
                     "formats": sorted(list(IMAGE_EXTENSIONS)),
                     "targets": image_targets,
-                    "operations": ["convert", "resize", "compress", "rotate", "grayscale"],
+                    "operations": [
+                        "convert", "resize", "compress", "rotate", "grayscale", "extract_text",
+                    ],
                 },
                 "pdf": {
                     "label": "PDF Documents",
                     "formats": ["pdf"],
                     "targets": ["images_zip", "images_png", "txt", "docx", "pdf_compressed"],
-                    "operations": ["pdf_to_images", "pdf_merge", "pdf_extract_pages", "pdf_extract_text", "pdf_compress"],
+                    "operations": [
+                        "pdf_to_images", "pdf_merge", "pdf_extract_pages",
+                        "pdf_extract_text", "pdf_compress", "convert",
+                    ],
                 },
                 "document": {
                     "label": "Office & Documents",
@@ -158,9 +198,61 @@ class ConverterService:
                     "targets": audio_targets,
                     "operations": ["convert"],
                 },
+                "archive": {
+                    "label": "Archives & Compressed",
+                    "formats": sorted(list(ARCHIVE_EXTENSIONS)),
+                    "targets": ["zip", "tar.gz", "tar"],
+                    "operations": ["convert"],
+                },
             },
             "max_file_size_bytes": MAX_CONVERTER_UPLOAD_BYTES,
         }
+
+    def generate_thumbnail(self, source: Path, thumb_path: Path) -> bool:
+        """Extract a single representative video frame to JPEG using FFmpeg."""
+        if not _check_binary("ffmpeg"):
+            return False
+        import subprocess
+
+        for t in ["00:00:01", "00:00:00"]:
+            cmd = [
+                "ffmpeg", "-y", "-ss", t, "-i", str(source),
+                "-vframes", "1", "-vf", "scale=480:-1", str(thumb_path),
+            ]
+            res = subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+            )
+            if res.returncode == 0 and thumb_path.exists() and thumb_path.stat().st_size > 0:
+                return True
+        return False
+
+    def ensure_thumbnail(self, file_id: str) -> Path | None:
+        """Find or generate a cached thumbnail for an uploaded media file."""
+        upload_path = self.get_upload_path(file_id)
+        if not upload_path or not upload_path.is_file():
+            return None
+        folder = self.uploads_dir / file_id
+        thumb_path = folder / "thumbnail.jpg"
+        if thumb_path.is_file():
+            return thumb_path
+
+        cat = _get_category(upload_path.suffix)
+        if cat == "video":
+            if self.generate_thumbnail(upload_path, thumb_path):
+                return thumb_path
+        elif cat == "image":
+            try:
+                from PIL import Image
+                with Image.open(upload_path) as img:
+                    img.thumbnail((480, 480))
+                    img.convert("RGB").save(thumb_path, "JPEG")
+                return thumb_path
+            except Exception:
+                return None
+        return None
 
     async def save_upload(self, file: UploadFile) -> dict[str, Any]:
         """Save an uploaded file to disk and return file metadata."""
@@ -180,19 +272,36 @@ class ConverterService:
                 if size > MAX_CONVERTER_UPLOAD_BYTES:
                     out.close()
                     shutil.rmtree(target_dir, ignore_errors=True)
-                    raise ValueError(f"File exceeds maximum allowed size of {MAX_CONVERTER_UPLOAD_BYTES // (1024 * 1024)}MB")
+                    max_mb = MAX_CONVERTER_UPLOAD_BYTES // (1024 * 1024)
+                    raise ValueError(f"File exceeds maximum allowed size of {max_mb}MB")
                 out.write(chunk)
 
         category = _get_category(ext)
-        mime_type = file.content_type or mimetypes.guess_type(str(target_path))[0] or "application/octet-stream"
+        guessed = mimetypes.guess_type(str(target_path))[0]
+        mime_type = file.content_type or guessed or "application/octet-stream"
+
+        has_audio = True
+        has_thumbnail = False
+        if category == "video":
+            probe = _probe_media(target_path)
+            has_audio = probe.get("has_audio", True)
+            thumb_path = target_dir / "thumbnail.jpg"
+            if self.generate_thumbnail(target_path, thumb_path):
+                has_thumbnail = True
+        elif category == "image":
+            has_thumbnail = True
 
         return {
+            "id": file_id,
             "file_id": file_id,
             "filename": safe_name,
             "size": size,
             "ext": ext,
             "category": category,
             "mime_type": mime_type,
+            "has_audio": has_audio,
+            "has_thumbnail": has_thumbnail,
+            "thumbnail_url": f"/api/converter/thumbnail/{file_id}" if has_thumbnail else None,
             "uploaded_at": int(time.time()),
         }
 
@@ -255,11 +364,17 @@ class ConverterService:
             if operation == "convert":
                 if not target_format:
                     raise ValueError("Target format must be specified.")
-                result_file = await self._convert_file(source_path, target_format.lower().lstrip("."), job_dir, options)
+                target_clean = target_format.lower().lstrip(".")
+                result_file = await self._convert_file(
+                    source_path, target_clean, job_dir, options,
+                )
             elif operation == "resize":
                 result_file = await self._resize_image(source_path, job_dir, options)
             elif operation == "compress":
-                result_file = await self._compress_image(source_path, job_dir, options)
+                if source_category == "video":
+                    result_file = await self._video_compress(source_path, job_dir, options)
+                else:
+                    result_file = await self._compress_image(source_path, job_dir, options)
             elif operation == "rotate":
                 result_file = await self._rotate_image(source_path, job_dir, options)
             elif operation == "grayscale":
@@ -273,8 +388,10 @@ class ConverterService:
             elif operation == "pdf_compress":
                 result_file = await self._pdf_compress(source_path, job_dir, options)
             elif operation == "video_to_audio":
-                audio_format = options.get("format", "mp3").lower().lstrip(".")
-                result_file = await self._video_to_audio(source_path, audio_format, job_dir, options)
+                audio_format = options.get("format", target_format or "mp3").lower().lstrip(".")
+                result_file = await self._video_to_audio(
+                    source_path, audio_format, job_dir, options,
+                )
             elif operation == "video_to_gif":
                 result_file = await self._video_to_gif(source_path, job_dir, options)
             elif operation == "video_compress":
@@ -312,7 +429,9 @@ class ConverterService:
     # Operation Handlers
     # =========================================================================
 
-    async def _convert_file(self, source: Path, target: str, job_dir: Path, options: dict[str, Any]) -> Path:
+    async def _convert_file(
+        self, source: Path, target: str, job_dir: Path, options: dict[str, Any],
+    ) -> Path:
         source_ext = source.suffix.lstrip(".").lower()
         source_cat = _get_category(source_ext)
         target_cat = _get_category(target)
@@ -320,18 +439,32 @@ class ConverterService:
         dest_name = f"{source.stem}.{target}"
         dest_path = job_dir / dest_name
 
-        # 1. Image to Image or Image to PDF via Pillow
+        # 0. Converting anything to txt: use dedicated extractor
+        if target == "txt":
+            return await self._extract_text(source, job_dir, options)
+
+        # 1. Archives (zip, tar, tar.gz)
+        if source_cat == "archive" or target_cat == "archive" or target in {"zip", "tar.gz", "tar"}:
+            return await asyncio.to_thread(self._archive_convert, source, dest_path, target)
+
+        # 2. Image to Image or Image to PDF via Pillow
         if source_cat == "image" and (target_cat == "image" or target == "pdf"):
             return await asyncio.to_thread(self._pillow_convert, source, dest_path, target, options)
 
-        # 2. Audio/Video conversions via FFmpeg
-        if (source_cat in {"video", "audio"}) and (target_cat in {"video", "audio"}):
+        # 3. Audio/Video conversions via FFmpeg
+        if (source_cat in {"video", "audio"}) and (target_cat in {"video", "audio", "image"}):
+            if target == "gif" and source_cat == "video":
+                return await self._video_to_gif(source, job_dir, options)
+            if target_cat == "audio" and source_cat == "video":
+                return await self._video_to_audio(source, target, job_dir, options)
             return await self._ffmpeg_convert(source, dest_path, target, options)
 
-        # 3. Document / Office conversion via LibreOffice headless
+        # 4. Document / Office conversion via LibreOffice headless
         if source_cat in {"document", "pdf"} or target_cat in {"document", "pdf"}:
             if target == "pdf" and source_cat == "image":
-                return await asyncio.to_thread(self._pillow_convert, source, dest_path, "pdf", options)
+                return await asyncio.to_thread(
+                    self._pillow_convert, source, dest_path, "pdf", options,
+                )
             return await self._libreoffice_convert(source, dest_path, target)
 
         # Fallback to ImageMagick if available
@@ -347,7 +480,9 @@ class ConverterService:
 
         raise ValueError(f"Cannot convert '{source.name}' to format '{target}'.")
 
-    def _pillow_convert(self, source: Path, dest: Path, target: str, options: dict[str, Any]) -> Path:
+    def _pillow_convert(
+        self, source: Path, dest: Path, target: str, options: dict[str, Any],
+    ) -> Path:
         from PIL import Image
 
         fmt_map = {
@@ -511,7 +646,9 @@ class ConverterService:
         doc.close()
         return zip_path
 
-    async def _merge_pdfs(self, file_ids: list[str], job_dir: Path, options: dict[str, Any]) -> Path:
+    async def _merge_pdfs(
+        self, file_ids: list[str], job_dir: Path, options: dict[str, Any],
+    ) -> Path:
         """Merge multiple PDF files into one combined PDF document."""
         import fitz
 
@@ -533,7 +670,9 @@ class ConverterService:
         merged_doc.close()
         return dest_path
 
-    async def _images_to_pdf(self, file_ids: list[str], job_dir: Path, options: dict[str, Any]) -> Path:
+    async def _images_to_pdf(
+        self, file_ids: list[str], job_dir: Path, options: dict[str, Any],
+    ) -> Path:
         """Convert one or more images into a single clean PDF document."""
         import fitz
 
@@ -561,7 +700,9 @@ class ConverterService:
         pdf_doc.close()
         return dest_path
 
-    async def _pdf_extract_pages(self, source: Path, job_dir: Path, options: dict[str, Any]) -> Path:
+    async def _pdf_extract_pages(
+        self, source: Path, job_dir: Path, options: dict[str, Any],
+    ) -> Path:
         """Extract given page numbers or ranges (e.g. '1, 3-5') into a new PDF."""
         import fitz
 
@@ -622,18 +763,118 @@ class ConverterService:
         doc.close()
         return dest_path
 
+    def _ocr_image(self, source: Path) -> str:
+        """Run OCR on image using RapidOCR."""
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+            engine = RapidOCR()
+            result, _ = engine(str(source))
+            if not result:
+                return "(No text detected in image via OCR)"
+            lines = [item[1] for item in result if len(item) > 1 and item[1].strip()]
+            return "\n".join(lines) if lines else "(No text detected in image via OCR)"
+        except ImportError:
+            try:
+                import fitz
+                doc = fitz.open(source)
+                tp = doc[0].get_textpage_ocr()
+                text = tp.extractText()
+                doc.close()
+                return text.strip() or "(No text detected in image)"
+            except Exception as e:
+                return f"(OCR requires rapidocr-onnxruntime: {e})"
+        except Exception as exc:
+            return f"(OCR extraction error: {exc})"
+
+    def _archive_convert(self, source: Path, dest: Path, target: str) -> Path:
+        """Convert between archive formats (zip, tar, tar.gz) using Python standard library."""
+        import tarfile
+        import tempfile
+
+        temp_extract = Path(tempfile.mkdtemp(prefix="amethyst_archive_"))
+        try:
+            src_name = source.name.lower()
+            def _extract_tar(tf, path):
+                if hasattr(tarfile, "data_filter"):
+                    tf.extractall(path, filter="data")
+                else:
+                    tf.extractall(path)
+
+            if src_name.endswith(".zip"):
+                with zipfile.ZipFile(source, "r") as zf:
+                    zf.extractall(temp_extract)
+            elif src_name.endswith((".tar.gz", ".tgz")):
+                with tarfile.open(source, "r:gz") as tf:
+                    _extract_tar(tf, temp_extract)
+            elif src_name.endswith(".tar"):
+                with tarfile.open(source, "r:") as tf:
+                    _extract_tar(tf, temp_extract)
+            elif src_name.endswith((".tar.bz2", ".tbz2")):
+                with tarfile.open(source, "r:bz2") as tf:
+                    _extract_tar(tf, temp_extract)
+            elif src_name.endswith((".tar.xz", ".txz")):
+                with tarfile.open(source, "r:xz") as tf:
+                    _extract_tar(tf, temp_extract)
+            else:
+                raise ValueError(f"Unsupported source archive format: {source.suffix}")
+
+            target_clean = target.lower().lstrip(".")
+            if target_clean == "zip":
+                with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for root, _, files in os.walk(temp_extract):
+                        for f in files:
+                            p = Path(root) / f
+                            rel = p.relative_to(temp_extract)
+                            zf.write(p, arcname=str(rel))
+            elif target_clean in {"tar.gz", "tgz"}:
+                with tarfile.open(dest, "w:gz") as tf:
+                    for root, _, files in os.walk(temp_extract):
+                        for f in files:
+                            p = Path(root) / f
+                            rel = p.relative_to(temp_extract)
+                            tf.add(p, arcname=str(rel))
+            elif target_clean == "tar":
+                with tarfile.open(dest, "w:") as tf:
+                    for root, _, files in os.walk(temp_extract):
+                        for f in files:
+                            p = Path(root) / f
+                            rel = p.relative_to(temp_extract)
+                            tf.add(p, arcname=str(rel))
+            else:
+                raise ValueError(f"Unsupported target archive format: {target}")
+
+            return dest
+        finally:
+            shutil.rmtree(temp_extract, ignore_errors=True)
+
     async def _extract_text(self, source: Path, job_dir: Path, options: dict[str, Any]) -> Path:
-        """Extract text from PDF, Word (docx), Excel, or text files into a clean text document."""
+        """Extract text from documents (PDF, Word, Excel, OCR images, text files)."""
         source_ext = source.suffix.lstrip(".").lower()
         dest_path = job_dir / f"{source.stem}_extracted.txt"
 
         extracted = ""
-        if source_ext == "pdf":
+        if source_ext in IMAGE_EXTENSIONS:
+            extracted = await asyncio.to_thread(self._ocr_image, source)
+        elif source_ext == "pdf":
             import fitz
             doc = fitz.open(source)
             pages = []
             for i, page in enumerate(doc):
                 txt = page.get_text().strip()
+                if not txt:
+                    # Fallback to OCR on page pixmap for scanned PDFs
+                    try:
+                        import tempfile
+                        pix = page.get_pixmap(dpi=150)
+                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                            tmp_path = Path(tmp.name)
+                        pix.save(str(tmp_path))
+                        ocr_txt = self._ocr_image(tmp_path)
+                        tmp_path.unlink(missing_ok=True)
+                        if ocr_txt and not ocr_txt.startswith("("):
+                            txt = ocr_txt
+                    except Exception:
+                        pass
                 if txt:
                     pages.append(f"--- Page {i + 1} ---\n{txt}")
             doc.close()
@@ -657,8 +898,10 @@ class ConverterService:
                     sheet_texts.append(f"=== Sheet: {name} ===\n" + "\n".join(rows))
             wb.close()
             extracted = "\n\n".join(sheet_texts)
-        else:
+        elif source_ext in {"txt", "md", "csv", "json", "html", "xml", "log", "py", "js", "css"}:
             extracted = source.read_text(encoding="utf-8", errors="replace")
+        else:
+            extracted = f"(Format '{source_ext}' cannot be extracted as text)"
 
         if not extracted.strip():
             extracted = "(No readable text content found in document)"
@@ -666,9 +909,13 @@ class ConverterService:
         dest_path.write_text(extracted, encoding="utf-8")
         return dest_path
 
-    async def _ffmpeg_convert(self, source: Path, dest: Path, target: str, options: dict[str, Any]) -> Path:
+    async def _ffmpeg_convert(
+        self, source: Path, dest: Path, target: str, options: dict[str, Any],
+    ) -> Path:
         if not _check_binary("ffmpeg"):
-            raise RuntimeError("ffmpeg is required for audio and video conversion but is not installed on PATH.")
+            raise RuntimeError(
+                "ffmpeg is required for audio and video conversion but is not installed on PATH."
+            )
 
         cmd = ["ffmpeg", "-y", "-i", str(source)]
 
@@ -694,12 +941,20 @@ class ConverterService:
             return dest
         raise RuntimeError(f"FFmpeg conversion failed: {err.decode(errors='replace')[-500:]}")
 
-    async def _video_to_audio(self, source: Path, audio_format: str, job_dir: Path, options: dict[str, Any]) -> Path:
+    async def _video_to_audio(
+        self, source: Path, audio_format: str, job_dir: Path, options: dict[str, Any],
+    ) -> Path:
         if not _check_binary("ffmpeg"):
             raise RuntimeError("ffmpeg is not installed on PATH.")
 
+        probe = _probe_media(source)
+        if not probe.get("has_audio", True):
+            raise ValueError(
+                f"Uploaded video '{source.name}' does not contain an audio track to extract."
+            )
+
         dest_path = job_dir / f"{source.stem}.{audio_format}"
-        cmd = ["ffmpeg", "-y", "-i", str(source), "-vn"]
+        cmd = ["ffmpeg", "-y", "-i", str(source), "-vn", "-map", "0:a:0?"]
 
         if audio_format == "mp3":
             bitrate = options.get("bitrate", "192k")
@@ -708,6 +963,10 @@ class ConverterService:
             cmd.extend(["-c:a", "aac", "-b:a", "192k"])
         elif audio_format == "wav":
             cmd.extend(["-c:a", "pcm_s16le"])
+        elif audio_format == "flac":
+            cmd.extend(["-c:a", "flac"])
+        elif audio_format == "ogg":
+            cmd.extend(["-c:a", "libvorbis", "-q:a", "5"])
 
         cmd.append(str(dest_path))
 
@@ -729,7 +988,10 @@ class ConverterService:
         width = int(options.get("width", 480))
 
         # Using palettegen + paletteuse filter
-        filter_str = f"fps={fps},scale={width}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
+        filter_str = (
+            f"fps={fps},scale={width}:-1:flags=lanczos,split[s0][s1];"
+            f"[s0]palettegen[p];[s1][p]paletteuse"
+        )
         cmd = ["ffmpeg", "-y", "-i", str(source), "-vf", filter_str, str(dest_path)]
 
         proc = await asyncio.create_subprocess_exec(
@@ -741,7 +1003,7 @@ class ConverterService:
         raise RuntimeError(f"GIF generation failed: {err.decode(errors='replace')[-500:]}")
 
     async def _video_compress(self, source: Path, job_dir: Path, options: dict[str, Any]) -> Path:
-        """Compress video using h264 CRF encoding."""
+        """Compress video using h264 CRF encoding with audio/subtitle compatibility."""
         if not _check_binary("ffmpeg"):
             raise RuntimeError("ffmpeg is not installed on PATH.")
 
@@ -749,12 +1011,21 @@ class ConverterService:
         crf = str(options.get("crf", 28))  # 28 is high compression, 23 is default
         preset = options.get("preset", "fast")
 
+        probe = _probe_media(source)
+        has_audio = probe.get("has_audio", True)
+
         cmd = [
             "ffmpeg", "-y", "-i", str(source),
+            "-sn",  # strip subtitles so unsupported subtitles do not break MP4 container
             "-c:v", "libx264", "-crf", crf, "-preset", preset,
-            "-c:a", "aac", "-b:a", "128k",
-            str(dest_path),
         ]
+
+        if has_audio:
+            cmd.extend(["-c:a", "aac", "-b:a", "128k"])
+        else:
+            cmd.append("-an")
+
+        cmd.append(str(dest_path))
 
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -767,14 +1038,27 @@ class ConverterService:
     async def _libreoffice_convert(self, source: Path, dest: Path, target: str) -> Path:
         soffice = shutil.which("soffice") or shutil.which("libreoffice")
         if not soffice:
-            raise RuntimeError(f"Converting '{source.name}' to '{target}' requires LibreOffice, which is not installed.")
+            raise RuntimeError(
+                f"Converting '{source.name}' to '{target}' requires LibreOffice, "
+                "which is not installed."
+            )
 
         outdir = dest.parent
+        profile_dir = self.base_dir / "soffice_profile"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        user_install = f"-env:UserInstallation={profile_dir.as_uri()}"
+
         cmd = [
-            soffice, "--headless", "--norestore",
-            "--convert-to", target.lstrip("."),
-            "--outdir", str(outdir), str(source),
+            soffice, "--headless", "--norestore", user_install,
         ]
+
+        source_ext = source.suffix.lstrip(".").lower()
+        target_clean = target.lstrip(".").lower()
+        # PDF to Word DOCX requires writer_pdf_import so LibreOffice uses Writer rather than Draw
+        if source_ext == "pdf" and target_clean in {"docx", "doc", "odt", "rtf"}:
+            cmd.append("--infilter=writer_pdf_import")
+
+        cmd.extend(["--convert-to", target_clean, "--outdir", str(outdir), str(source)])
 
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -782,7 +1066,7 @@ class ConverterService:
         _, err = await proc.communicate()
 
         # LibreOffice outputs source.stem + .target in outdir
-        expected = outdir / f"{source.stem}.{target.lstrip('.')}"
+        expected = outdir / f"{source.stem}.{target_clean}"
         if expected.exists():
             if expected != dest:
                 expected.replace(dest)
