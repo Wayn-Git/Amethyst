@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Markdown from '../components/markdown/Markdown.jsx'
 import opencode from '../lib/opencode.js'
@@ -23,6 +23,47 @@ function timeAgo(timestamp) {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+function formatSessionTitle(title) {
+  if (!title) return 'New Session'
+  if (title.startsWith('New session - 20')) {
+    return 'New Session'
+  }
+  return title
+}
+
+const AGENT_CONFIGS = {
+  build: {
+    name: 'Build',
+    icon: 'gear',
+    desc: 'Full development agent. Executes tools, edits code, runs commands.',
+  },
+  plan: {
+    name: 'Plan',
+    icon: 'target',
+    desc: 'Architect & planning mode. Read-only codebase analysis without edits.',
+  },
+  explore: {
+    name: 'Explore',
+    icon: 'search',
+    desc: 'Fast codebase search and directory navigation agent.',
+  },
+  general: {
+    name: 'General',
+    icon: 'chat',
+    desc: 'Multi-turn reasoning and general technical research.',
+  },
+}
+
+function getAgentMeta(id) {
+  const norm = (id || 'build').toLowerCase()
+  if (AGENT_CONFIGS[norm]) return AGENT_CONFIGS[norm]
+  return {
+    name: id.charAt(0).toUpperCase() + id.slice(1),
+    icon: 'sparkle',
+    desc: 'Custom OpenCode agent.',
+  }
+}
+
 export default function Code() {
   const { setView } = useApp()
 
@@ -37,10 +78,22 @@ export default function Code() {
   // Core OpenCode entities
   const [sessions, setSessions] = useState([])
   const [activeSessionId, setActiveSessionId] = useState(null)
+  const [sessionSearch, setSessionSearch] = useState('')
+  const [editingSessionId, setEditingSessionId] = useState(null)
+  const [editingTitle, setEditingTitle] = useState('')
+
   const [agents, setAgents] = useState([])
   const [models, setModels] = useState([])
   const [currentAgent, setCurrentAgent] = useState('build')
-  const [currentModel, setCurrentModel] = useState('')
+  const [currentModel, setCurrentModel] = useState(() => {
+    return localStorage.getItem('amethyst_code_model') || 'opencode/mimo-v2.6-flash-free'
+  })
+
+  // Modal / Dropdown states
+  const [showModelPicker, setShowModelPicker] = useState(false)
+  const [modelSearch, setModelSearch] = useState('')
+  const [modelTab, setModelTab] = useState('connected') // 'connected' | 'free' | 'all'
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false)
 
   // Messages and streaming state
   const [messages, setMessages] = useState([])
@@ -55,6 +108,8 @@ export default function Code() {
 
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
+  const modelSearchInputRef = useRef(null)
+  const agentDropdownRef = useRef(null)
   const activeSessionRef = useRef(activeSessionId)
   activeSessionRef.current = activeSessionId
 
@@ -114,38 +169,50 @@ export default function Code() {
         opencode.listSessions().catch(() => []),
       ])
 
+      // Filter internal helper agents
+      const visibleAgents = agentsList.filter(
+        (a) => !['compaction', 'summary', 'title'].includes(a.name || a.id)
+      )
+
       // Sort models: free models first, then connected providers
       const sortedModels = [...modelsList].sort((a, b) => {
-        const aFree = a.id?.includes('free') ? 1 : 0
-        const bFree = b.id?.includes('free') ? 1 : 0
+        const aFree = a.isFree ? 1 : 0
+        const bFree = b.isFree ? 1 : 0
         if (aFree !== bFree) return bFree - aFree
         const aConn = a.connected ? 1 : 0
         const bConn = b.connected ? 1 : 0
         return bConn - aConn
       })
 
-      setAgents(agentsList)
+      setAgents(visibleAgents)
       setModels(sortedModels)
       setSessions(sessionsList)
 
-      if (sortedModels.length > 0 && !currentModel) {
-        const preferred =
-          sortedModels.find((m) => m.id === 'mimo-v2.6-flash-free') ||
-          sortedModels.find((m) => m.id?.includes('free') && m.providerID === 'opencode') ||
-          sortedModels.find((m) => m.connected && m.id?.includes('free')) ||
-          sortedModels.find((m) => m.connected) ||
-          sortedModels[0]
-        const val = `${preferred.providerID || 'opencode'}/${preferred.id}`
-        setCurrentModel(val)
+      // Ensure model exists in available models or pick default free model
+      if (sortedModels.length > 0) {
+        const saved = localStorage.getItem('amethyst_code_model')
+        const match = sortedModels.find((m) => `${m.providerID || 'opencode'}/${m.id}` === saved)
+        if (match) {
+          setCurrentModel(saved)
+        } else {
+          const preferred =
+            sortedModels.find((m) => m.id === 'mimo-v2.6-flash-free') ||
+            sortedModels.find((m) => m.isFree) ||
+            sortedModels.find((m) => m.connected) ||
+            sortedModels[0]
+          const val = `${preferred.providerID || 'opencode'}/${preferred.id}`
+          setCurrentModel(val)
+          localStorage.setItem('amethyst_code_model', val)
+        }
       }
 
       if (sessionsList.length > 0 && !activeSessionRef.current) {
         setActiveSessionId(sessionsList[0].id)
       }
     } catch (err) {
-      console.error('Error loading initial OpenCode data:', err)
+      console.error('Failed to load initial OpenCode data:', err)
     }
-  }, [currentModel])
+  }, [])
 
   // -------------------------------------------------------------------------
   // Load Session details on active session change
@@ -303,23 +370,37 @@ export default function Code() {
               status: info.time?.completed ? 'complete' : info.error ? 'failed' : next[idx].status,
             }
             return next
-          } else {
-            // New message
-            return [
-              ...prev,
-              {
-                id: info.id,
-                role: info.role,
-                agent: info.agent,
-                model: info.modelID || (info.model ? `${info.model.providerID}/${info.model.modelID || info.model.id}` : ''),
-                text: '',
-                reasoning: '',
-                tools: [],
-                status: info.role === 'assistant' ? 'streaming' : 'complete',
-                timestamp: info.time?.created || Date.now(),
-              },
-            ]
           }
+
+          // User message reconciliation to avoid duplicates
+          if (info.role === 'user') {
+            const optIdx = prev.findIndex((m) => m.isOptimistic)
+            if (optIdx >= 0) {
+              const next = [...prev]
+              next[optIdx] = {
+                ...next[optIdx],
+                id: info.id,
+                isOptimistic: false,
+              }
+              return next
+            }
+          }
+
+          // New message
+          return [
+            ...prev,
+            {
+              id: info.id,
+              role: info.role,
+              agent: info.agent,
+              model: info.modelID || (info.model ? `${info.model.providerID}/${info.model.modelID || info.model.id}` : ''),
+              text: '',
+              reasoning: '',
+              tools: [],
+              status: info.role === 'assistant' ? 'streaming' : 'complete',
+              timestamp: info.time?.created || Date.now(),
+            },
+          ]
         })
       }
 
@@ -386,7 +467,6 @@ export default function Code() {
       if (status.running) {
         await loadInitialData()
       } else {
-        // Auto-start OpenCode if stopped
         await startServer()
       }
 
@@ -402,6 +482,39 @@ export default function Code() {
     }
   }, [checkStatus, handleEvent, loadInitialData, startServer])
 
+  // Global Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+N / Cmd+N -> New Session
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        handleCreateSession()
+      }
+      // Escape closes modals and dropdowns
+      if (e.key === 'Escape') {
+        setShowModelPicker(false)
+        setShowAgentDropdown(false)
+        setEditingSessionId(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentAgent, currentModel])
+
+  // Click outside to close agent dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (agentDropdownRef.current && !agentDropdownRef.current.contains(e.target)) {
+        setShowAgentDropdown(false)
+      }
+    }
+    if (showAgentDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showAgentDropdown])
+
   // Auto-scroll on new messages
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -410,23 +523,54 @@ export default function Code() {
   }, [messages, streaming])
 
   // -------------------------------------------------------------------------
-  // User Actions
+  // User Actions: Sessions
   // -------------------------------------------------------------------------
   const handleCreateSession = async () => {
     try {
-      let modelObj = undefined
-      if (currentModel && currentModel.includes('/')) {
-        const [providerID, ...rest] = currentModel.split('/')
-        modelObj = { providerID, modelID: rest.join('/') }
+      let modelPayload = undefined
+      if (currentModel) {
+        if (currentModel.includes('/')) {
+          const [pId, ...rest] = currentModel.split('/')
+          modelPayload = { providerID: pId, id: rest.join('/') }
+        } else {
+          modelPayload = { providerID: 'opencode', id: currentModel }
+        }
       }
       const newSession = await opencode.createSession({
         agent: currentAgent || 'build',
-        model: modelObj,
+        model: modelPayload,
       })
       setSessions((prev) => [newSession, ...prev])
       setActiveSessionId(newSession.id)
+      setMessages([])
+      setTimeout(() => textareaRef.current?.focus(), 100)
     } catch (err) {
       console.error('Failed to create session:', err)
+    }
+  }
+
+  const handleStartRename = (e, s) => {
+    e.stopPropagation()
+    setEditingSessionId(s.id)
+    setEditingTitle(s.title || '')
+  }
+
+  const handleSaveRename = async (e, sid) => {
+    e?.stopPropagation()
+    const trimmed = editingTitle.trim()
+    if (!trimmed) {
+      setEditingSessionId(null)
+      return
+    }
+    try {
+      await opencode.updateSession(sid, { title: trimmed })
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sid ? { ...s, title: trimmed } : s))
+      )
+    } catch (err) {
+      console.error('Failed to rename session:', err)
+    } finally {
+      setEditingSessionId(null)
     }
   }
 
@@ -444,6 +588,9 @@ export default function Code() {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // User Actions: Prompts & Interactions
+  // -------------------------------------------------------------------------
   const handleSendPrompt = async (textToSend) => {
     const text = (textToSend ?? promptText).trim()
     if (!text || streaming) return
@@ -451,14 +598,18 @@ export default function Code() {
     let sid = activeSessionId
     if (!sid) {
       try {
-        let modelObj = undefined
-        if (currentModel && currentModel.includes('/')) {
-          const [providerID, ...rest] = currentModel.split('/')
-          modelObj = { providerID, modelID: rest.join('/') }
+        let modelPayload = undefined
+        if (currentModel) {
+          if (currentModel.includes('/')) {
+            const [pId, ...rest] = currentModel.split('/')
+            modelPayload = { providerID: pId, id: rest.join('/') }
+          } else {
+            modelPayload = { providerID: 'opencode', id: currentModel }
+          }
         }
         const created = await opencode.createSession({
           agent: currentAgent || 'build',
-          model: modelObj,
+          model: modelPayload,
         })
         setSessions((prev) => [created, ...prev])
         setActiveSessionId(created.id)
@@ -472,25 +623,30 @@ export default function Code() {
     setPromptText('')
     setStreaming(true)
 
-    // Append optimistic user message
+    // Append optimistic user message tagged for deduplication
     setMessages((prev) => [
       ...prev,
       {
         id: `user-${Date.now()}`,
         role: 'user',
         text,
+        isOptimistic: true,
         timestamp: Date.now(),
       },
     ])
 
     try {
-      let modelObj = undefined
-      if (currentModel && currentModel.includes('/')) {
-        const [providerID, ...rest] = currentModel.split('/')
-        modelObj = { providerID, modelID: rest.join('/') }
+      let modelPayload = undefined
+      if (currentModel) {
+        if (currentModel.includes('/')) {
+          const [pId, ...rest] = currentModel.split('/')
+          modelPayload = { providerID: pId, modelID: rest.join('/') }
+        } else {
+          modelPayload = { providerID: 'opencode', modelID: currentModel }
+        }
       }
       await opencode.prompt(sid, text, {
-        model: modelObj,
+        model: modelPayload,
         agent: currentAgent,
       })
     } catch (err) {
@@ -509,55 +665,79 @@ export default function Code() {
     }
   }
 
-  const handleAgentChange = async (e) => {
-    const newAgent = e.target.value
-    setCurrentAgent(newAgent)
-  }
-
-  const handleModelChange = async (e) => {
-    const newModel = e.target.value
-    setCurrentModel(newModel)
-  }
-
-  const handlePermissionReply = async (requestId, reply) => {
-    try {
-      await opencode.replyPermission(requestId, reply)
-      setPendingPermissions((prev) => prev.filter((p) => p.id !== requestId))
-    } catch (err) {
-      console.error('Failed to reply permission:', err)
-    }
-  }
-
   const toggleReasoning = (msgId) => {
     setExpandedReasoning((prev) => ({ ...prev, [msgId]: !prev[msgId] }))
   }
 
   const toggleTool = (callId) => {
-    setExpandedTools((prev) => ({ ...prev, [callId]: !prev[callId] }))
+    setExpandedTools((prev) => ({ ...prev, [callId]: prev[callId] === false ? true : false }))
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendPrompt()
+  const handleReplyPermission = async (reqId, reply) => {
+    try {
+      await opencode.replyPermission(reqId, { reply })
+      setPendingPermissions((prev) => prev.filter((p) => p.id !== reqId))
+    } catch (err) {
+      console.error('Failed to reply to permission:', err)
     }
   }
 
   // -------------------------------------------------------------------------
-  // Render
+  // Filtering & Computed Models
   // -------------------------------------------------------------------------
+  const filteredSessions = useMemo(() => {
+    if (!sessionSearch.trim()) return sessions
+    const q = sessionSearch.toLowerCase()
+    return sessions.filter((s) => (s.title || s.id).toLowerCase().includes(q))
+  }, [sessions, sessionSearch])
+
+  const connectedCount = useMemo(() => {
+    return models.filter((m) => m.connected).length
+  }, [models])
+
+  const freeCount = useMemo(() => {
+    return models.filter((m) => m.isFree).length
+  }, [models])
+
+  const filteredModels = useMemo(() => {
+    let list = models
+    if (modelTab === 'connected') {
+      list = list.filter((m) => m.connected)
+    } else if (modelTab === 'free') {
+      list = list.filter((m) => m.isFree)
+    }
+
+    if (!modelSearch.trim()) return list
+
+    const q = modelSearch.toLowerCase()
+    return list.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        m.id.toLowerCase().includes(q) ||
+        (m.providerName || '').toLowerCase().includes(q) ||
+        (m.providerID || '').toLowerCase().includes(q)
+    )
+  }, [models, modelTab, modelSearch])
+
+  const selectedModelObj = useMemo(() => {
+    if (!currentModel) return null
+    return models.find((m) => `${m.providerID || 'opencode'}/${m.id}` === currentModel) || null
+  }, [models, currentModel])
+
+  const agentMeta = getAgentMeta(currentAgent)
+
   return (
     <div className="code-view">
-      {/* Top Header with Mode Toggle */}
+      {/* Top Header with Mode Toggle & Subprocess Health */}
       <header className="code-header">
         <div className="code-header-left">
           {/* Top Mode Switcher (Work | Code) */}
-          <div className="wb-mode-switcher" style={{ marginRight: '12px' }}>
+          <div className="wb-mode-switcher">
             <button
               type="button"
               className="wb-mode-btn"
               onClick={() => setView?.('chat')}
-              title="Work Mode (Chat & General Assistant)"
+              title="Work Mode (Conversations & General Assistant)"
             >
               <Icon name="chat" size={14} />
               <span>Work</span>
@@ -573,7 +753,7 @@ export default function Code() {
           </div>
 
           <div className="code-brand">
-            <Icon name="code" size={18} />
+            <Icon name="code" size={17} />
             <span>OpenCode Engine</span>
           </div>
 
@@ -624,20 +804,48 @@ export default function Code() {
         {/* Sessions Sidebar */}
         <aside className="code-sidebar">
           <div className="code-sidebar-header">
-            <span className="code-sidebar-title">Sessions</span>
+            <div className="code-sidebar-header-title">
+              <span>Sessions</span>
+              <span className="code-sidebar-count">{sessions.length}</span>
+            </div>
             <button
               type="button"
-              className="code-btn code-btn-icon"
+              className="code-new-session-btn"
               onClick={handleCreateSession}
-              title="New session"
+              title="Create new session (Ctrl+N / Cmd+N)"
             >
               <Icon name="plus" size={14} />
+              <span>New Session</span>
             </button>
           </div>
 
+          {/* Session Search */}
+          <div className="code-sidebar-search-box">
+            <Icon name="search" size={13} className="code-sidebar-search-icon" />
+            <input
+              type="text"
+              className="code-sidebar-search-input"
+              placeholder="Filter sessions..."
+              value={sessionSearch}
+              onChange={(e) => setSessionSearch(e.target.value)}
+            />
+            {sessionSearch && (
+              <button
+                type="button"
+                className="code-sidebar-search-clear"
+                onClick={() => setSessionSearch('')}
+              >
+                <Icon name="x" size={11} />
+              </button>
+            )}
+          </div>
+
+          {/* Sessions List */}
           <div className="code-sessions-list">
-            {sessions.map((s) => {
+            {filteredSessions.map((s) => {
               const isActive = s.id === activeSessionId
+              const isEditing = s.id === editingSessionId
+
               return (
                 <div
                   key={s.id}
@@ -645,7 +853,23 @@ export default function Code() {
                   onClick={() => setActiveSessionId(s.id)}
                 >
                   <div className="code-session-info">
-                    <span className="code-session-title">{s.title || s.id}</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        className="code-session-edit-input"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveRename(e, s.id)
+                          if (e.key === 'Escape') setEditingSessionId(null)
+                        }}
+                        onBlur={(e) => handleSaveRename(e, s.id)}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className="code-session-title">{formatSessionTitle(s.title || s.id)}</span>
+                    )}
                     <span className="code-session-meta">
                       {timeAgo(s.time?.updated || s.time?.created)}
                     </span>
@@ -654,20 +878,28 @@ export default function Code() {
                   <div className="code-session-actions">
                     <button
                       type="button"
-                      className="code-session-del-btn"
+                      className="code-session-action-btn"
+                      onClick={(e) => handleStartRename(e, s)}
+                      title="Rename session"
+                    >
+                      <Icon name="edit" size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="code-session-action-btn delete"
                       onClick={(e) => handleDeleteSession(e, s.id)}
                       title="Delete session"
                     >
-                      <Icon name="trash" size={13} />
+                      <Icon name="trash" size={12} />
                     </button>
                   </div>
                 </div>
               )
             })}
 
-            {sessions.length === 0 && (
-              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-faint)', fontSize: '13px' }}>
-                No sessions yet.
+            {filteredSessions.length === 0 && (
+              <div className="code-sidebar-empty">
+                {sessionSearch ? 'No matching sessions.' : 'No sessions yet.'}
               </div>
             )}
           </div>
@@ -675,48 +907,82 @@ export default function Code() {
 
         {/* Workspace Canvas */}
         <main className="code-main">
-          {/* Sub-toolbar: Agents, Models, Token Stats */}
+          {/* Sub-toolbar: Rich Pickers & Token Stats */}
           <div className="code-toolbar">
             <div className="code-selectors">
-              {/* Agent Selector */}
-              <div className="code-select-group">
-                <span className="code-select-label">Agent</span>
-                <select
-                  className="code-select"
-                  value={currentAgent}
-                  onChange={handleAgentChange}
+              {/* Agent Picker Dropdown */}
+              <div className="code-dropdown-wrap" ref={agentDropdownRef}>
+                <button
+                  type="button"
+                  className="code-picker-btn"
+                  onClick={() => setShowAgentDropdown((v) => !v)}
                   disabled={!serverStatus.running}
+                  title="Select OpenCode Agent"
                 >
-                  {agents.map((ag) => (
-                    <option key={ag.id} value={ag.id}>
-                      {ag.id} {ag.mode ? `(${ag.mode})` : ''}
-                    </option>
-                  ))}
-                  {agents.length === 0 && <option value="build">build</option>}
-                </select>
+                  <span className="code-picker-icon">
+                    <Icon name={agentMeta.icon} size={14} />
+                  </span>
+                  <span className="code-picker-text">
+                    <span className="code-picker-val">{agentMeta.name}</span>
+                  </span>
+                  <Icon name="caret-down" size={12} className="code-picker-chevron" />
+                </button>
+
+                {showAgentDropdown && (
+                  <div className="code-agent-menu">
+                    {agents.map((ag) => {
+                      const meta = getAgentMeta(ag.name || ag.id)
+                      const isSel = (ag.name || ag.id) === currentAgent
+                      return (
+                        <button
+                          key={ag.id}
+                          type="button"
+                          className={`code-agent-menu-item ${isSel ? 'active' : ''}`}
+                          onClick={() => {
+                            setCurrentAgent(ag.name || ag.id)
+                            setShowAgentDropdown(false)
+                          }}
+                        >
+                          <div className="code-agent-item-icon">
+                            <Icon name={meta.icon} size={15} />
+                          </div>
+                          <div className="code-agent-item-info">
+                            <div className="code-agent-item-title">{meta.name}</div>
+                            <div className="code-agent-item-desc">{ag.description || meta.desc}</div>
+                          </div>
+                          {isSel && <Icon name="check" size={14} className="code-agent-check" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* Model Selector */}
-              <div className="code-select-group">
-                <span className="code-select-label">Model</span>
-                <select
-                  className="code-select"
-                  value={currentModel}
-                  onChange={handleModelChange}
-                  disabled={!serverStatus.running}
-                >
-                  {models.map((m) => {
-                    const id = typeof m === 'string' ? m : `${m.providerID || 'opencode'}/${m.id}`
-                    const label = typeof m === 'string' ? m : `${m.name || m.id} (${m.providerID || 'opencode'})`
-                    return (
-                      <option key={id} value={id}>
-                        {label}
-                      </option>
-                    )
-                  })}
-                  {models.length === 0 && <option value="">Default Model</option>}
-                </select>
-              </div>
+              {/* Model Picker Button (Opens Modal Palette) */}
+              <button
+                type="button"
+                className="code-picker-btn"
+                onClick={() => {
+                  setShowModelPicker(true)
+                  setTimeout(() => modelSearchInputRef.current?.focus(), 50)
+                }}
+                disabled={!serverStatus.running}
+                title="Select AI Model"
+              >
+                <span className="code-picker-icon">
+                  <Icon name="sparkle" size={14} />
+                </span>
+                <span className="code-picker-text">
+                  <span className="code-picker-val">
+                    {selectedModelObj?.name || (currentModel ? currentModel.split('/')[1] : 'Select Model')}
+                  </span>
+                  <span className="code-picker-sub">
+                    {selectedModelObj?.providerName || (currentModel ? currentModel.split('/')[0] : '')}
+                  </span>
+                </span>
+                {selectedModelObj?.isFree && <span className="code-chip-free">FREE</span>}
+                <Icon name="caret-down" size={12} className="code-picker-chevron" />
+              </button>
             </div>
 
             {/* Token Stats Chip */}
@@ -739,11 +1005,11 @@ export default function Code() {
             {messages.length === 0 && (
               <div className="code-empty-state">
                 <div className="code-empty-icon">
-                  <Icon name="code" size={28} />
+                  <Icon name="code" size={32} />
                 </div>
-                <h3 className="code-empty-title">Complete OpenCode Engine</h3>
+                <h3 className="code-empty-title">OpenCode Runtime Engine</h3>
                 <p className="code-empty-desc">
-                  Native Amethyst interface with full OpenCode parity: real subprocess runtime,
+                  Native Amethyst client running full OpenCode subprocess parity:
                   streaming tokens, autonomous tool execution, and permission controls.
                 </p>
 
@@ -751,23 +1017,23 @@ export default function Code() {
                   <button
                     type="button"
                     className="code-suggestion-chip"
-                    onClick={() => handleSendPrompt('Analyze this repository structure and give me a summary')}
+                    onClick={() => handleSendPrompt('Analyze this repository structure and give me an overview')}
                   >
-                    Analyze this repository structure and give me a summary
+                    Analyze this repository structure and give me an overview
                   </button>
                   <button
                     type="button"
                     className="code-suggestion-chip"
-                    onClick={() => handleSendPrompt('List all git branches and recent commits')}
+                    onClick={() => handleSendPrompt('List git branches and recent changes')}
                   >
-                    List all git branches and recent commits
+                    List git branches and recent changes
                   </button>
                   <button
                     type="button"
                     className="code-suggestion-chip"
-                    onClick={() => handleSendPrompt('Inspect the test suite and run tests')}
+                    onClick={() => handleSendPrompt('Find where all MCP servers and tools are defined in amethyst')}
                   >
-                    Inspect the test suite and run tests
+                    Find where all MCP servers and tools are defined in amethyst
                   </button>
                 </div>
               </div>
@@ -785,19 +1051,37 @@ export default function Code() {
 
               // Assistant message
               const isReasoningOpen = Boolean(expandedReasoning[msg.id])
+              const hasContent = Boolean(msg.text || msg.reasoning || (msg.tools && msg.tools.length > 0))
+              const isStreamingThis = msg.status === 'streaming' || (streaming && msg === messages[messages.length - 1])
 
               return (
                 <div key={msg.id} className="code-msg-assistant">
                   <div className="code-msg-meta">
                     <span className="code-agent-tag">
-                      <Icon name="sparkle" size={12} />
-                      {msg.agent || currentAgent || 'assistant'}
+                      <Icon name={getAgentMeta(msg.agent || currentAgent).icon} size={12} />
+                      {getAgentMeta(msg.agent || currentAgent).name}
                     </span>
-                    {msg.model?.id && <span>{msg.model.id}</span>}
+                    {msg.model && <span>{msg.model}</span>}
                     <span>{timeAgo(msg.timestamp)}</span>
                   </div>
 
                   <div className="code-msg-body">
+                    {/* Shimmer Thinking Indicator while empty */}
+                    {!hasContent && isStreamingThis && (
+                      <div className="code-thinking-shimmer">
+                        <Icon name="circle-notch" size={14} className="spin" />
+                        <span>OpenCode is thinking...</span>
+                      </div>
+                    )}
+
+                    {/* Error display */}
+                    {msg.error && (
+                      <div className="code-msg-error">
+                        <Icon name="warning-circle" size={15} />
+                        <span>{msg.error}</span>
+                      </div>
+                    )}
+
                     {/* Collapsible Reasoning Block */}
                     {msg.reasoning && (
                       <div className="code-reasoning-box">
@@ -864,26 +1148,18 @@ export default function Code() {
                               <div className="code-tool-body">
                                 {tool.input && (
                                   <div className="code-tool-input">
-                                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                                      {typeof tool.input === 'string'
-                                        ? tool.input
-                                        : JSON.stringify(tool.input, null, 2)}
-                                    </pre>
+                                    <strong>Input: </strong>
+                                    <code>{typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input, null, 2)}</code>
                                   </div>
                                 )}
                                 {tool.output && (
-                                  <div className="code-tool-output">
-                                    {typeof tool.output === 'string'
-                                      ? tool.output
-                                      : JSON.stringify(tool.output, null, 2)}
-                                  </div>
+                                  <pre className="code-tool-output">
+                                    {typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output, null, 2)}
+                                  </pre>
                                 )}
                                 {tool.error && (
-                                  <div style={{ color: 'var(--stop)', marginTop: '4px' }}>
-                                    Error:{' '}
-                                    {typeof tool.error === 'string'
-                                      ? tool.error
-                                      : tool.error.message || JSON.stringify(tool.error)}
+                                  <div className="code-tool-error">
+                                    {String(tool.error)}
                                   </div>
                                 )}
                               </div>
@@ -891,103 +1167,85 @@ export default function Code() {
                           </div>
                         )
                       })}
-
-                    {/* Error Banner */}
-                    {msg.error && (
-                      <div
-                        style={{
-                          background: 'var(--stop-soft)',
-                          border: '1px solid var(--stop-line)',
-                          color: 'var(--stop)',
-                          borderRadius: '8px',
-                          padding: '10px 14px',
-                          marginTop: '8px',
-                          fontSize: '13px',
-                        }}
-                      >
-                        <strong>Execution Stopped:</strong> {msg.error}
-                      </div>
-                    )}
                   </div>
                 </div>
               )
             })}
 
-            {/* Pending Permission Banners */}
-            {pendingPermissions.map((perm) => (
-              <div key={perm.id} className="code-permission-banner">
+            {/* Pending Permissions Banner */}
+            {pendingPermissions.length > 0 && (
+              <div className="code-permission-banner">
                 <div className="code-perm-head">
                   <div className="code-perm-icon">
                     <Icon name="shield" size={16} />
                   </div>
                   <div className="code-perm-title">
-                    Approval Required: {perm.action}
+                    Tool Execution Permission Required ({pendingPermissions.length})
                   </div>
                 </div>
 
-                <div className="code-perm-details">
-                  {perm.resources && perm.resources.length > 0 && (
-                    <div>
-                      <strong>Target:</strong> {perm.resources.join(', ')}
+                {pendingPermissions.map((perm) => (
+                  <div key={perm.id} className="code-perm-item">
+                    <div className="code-perm-details">
+                      <strong>Tool:</strong> {perm.tool || perm.name || 'Unknown'} <br />
+                      {perm.pattern && (
+                        <>
+                          <strong>Pattern:</strong> {perm.pattern} <br />
+                        </>
+                      )}
                     </div>
-                  )}
-                  {perm.metadata && Object.keys(perm.metadata).length > 0 && (
-                    <div style={{ marginTop: '4px' }}>
-                      {JSON.stringify(perm.metadata, null, 2)}
+                    <div className="code-perm-actions">
+                      <button
+                        type="button"
+                        className="code-btn code-btn-danger"
+                        onClick={() => handleReplyPermission(perm.id, 'reject')}
+                      >
+                        Deny
+                      </button>
+                      <button
+                        type="button"
+                        className="code-btn code-btn-primary"
+                        onClick={() => handleReplyPermission(perm.id, 'once')}
+                      >
+                        Allow Once
+                      </button>
+                      <button
+                        type="button"
+                        className="code-btn code-btn-primary"
+                        onClick={() => handleReplyPermission(perm.id, 'always')}
+                      >
+                        Always Allow
+                      </button>
                     </div>
-                  )}
-                </div>
-
-                <div className="code-perm-actions">
-                  <button
-                    type="button"
-                    className="code-btn code-btn-danger"
-                    onClick={() => handlePermissionReply(perm.id, 'reject')}
-                  >
-                    Deny
-                  </button>
-                  <button
-                    type="button"
-                    className="code-btn"
-                    onClick={() => handlePermissionReply(perm.id, 'always')}
-                  >
-                    Allow Always
-                  </button>
-                  <button
-                    type="button"
-                    className="code-btn code-btn-primary"
-                    onClick={() => handlePermissionReply(perm.id, 'once')}
-                  >
-                    Allow Once
-                  </button>
-                </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
 
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Bottom Composer */}
+          {/* Composer */}
           <div className="code-composer-wrap">
             <div className="code-composer-box">
               <textarea
                 ref={textareaRef}
                 className="code-textarea"
                 rows={2}
-                placeholder={
-                  serverStatus.running
-                    ? 'Ask OpenCode to code, debug, refactor or run commands... (Enter to send)'
-                    : 'Start OpenCode server to begin...'
-                }
+                placeholder="Ask OpenCode to code, debug, refactor, or run commands... (Enter to send, Shift+Enter for newline)"
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSendPrompt()
+                  }
+                }}
                 disabled={!serverStatus.running}
               />
 
               <div className="code-composer-bottom">
-                <span className="code-composer-hint">Shift + Enter for new line</span>
-
+                <span className="code-composer-hint">Shift + Enter for new line • Ctrl+N new session</span>
                 <div className="code-composer-actions">
                   {streaming ? (
                     <button
@@ -1003,10 +1261,10 @@ export default function Code() {
                       type="button"
                       className="code-send-btn"
                       onClick={() => handleSendPrompt()}
-                      disabled={!serverStatus.running || !promptText.trim()}
-                      title="Send message"
+                      disabled={!promptText.trim() || !serverStatus.running}
+                      title="Send prompt"
                     >
-                      <Icon name="arrow-up" size={15} />
+                      <Icon name="paper-plane-right" size={14} />
                     </button>
                   )}
                 </div>
@@ -1015,6 +1273,112 @@ export default function Code() {
           </div>
         </main>
       </div>
+
+      {/* Model Picker Command Palette / Modal */}
+      {showModelPicker && (
+        <div className="code-modal-backdrop" onClick={() => setShowModelPicker(false)}>
+          <div className="code-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="code-modal-header">
+              <div className="code-modal-search-wrap">
+                <Icon name="search" size={16} className="code-modal-search-icon" />
+                <input
+                  ref={modelSearchInputRef}
+                  type="text"
+                  className="code-modal-search-input"
+                  placeholder="Search 200+ models, providers, or capabilities (e.g. mimo, free, claude, vision)..."
+                  value={modelSearch}
+                  onChange={(e) => setModelSearch(e.target.value)}
+                  autoFocus
+                />
+                {modelSearch && (
+                  <button
+                    type="button"
+                    className="code-modal-search-clear"
+                    onClick={() => setModelSearch('')}
+                  >
+                    <Icon name="x" size={13} />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="code-modal-close"
+                onClick={() => setShowModelPicker(false)}
+                title="Close (Esc)"
+              >
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+
+            <div className="code-modal-tabs">
+              <button
+                type="button"
+                className={`code-modal-tab ${modelTab === 'connected' ? 'active' : ''}`}
+                onClick={() => setModelTab('connected')}
+              >
+                <span className="code-tab-dot connected" />
+                Connected Providers ({connectedCount})
+              </button>
+              <button
+                type="button"
+                className={`code-modal-tab ${modelTab === 'free' ? 'active' : ''}`}
+                onClick={() => setModelTab('free')}
+              >
+                <span className="code-tab-badge-free">⚡ FREE</span>
+                Free Models ({freeCount})
+              </button>
+              <button
+                type="button"
+                className={`code-modal-tab ${modelTab === 'all' ? 'active' : ''}`}
+                onClick={() => setModelTab('all')}
+              >
+                All Providers ({models.length})
+              </button>
+            </div>
+
+            <div className="code-modal-list">
+              {filteredModels.length === 0 ? (
+                <div className="code-modal-empty">
+                  <Icon name="search" size={24} />
+                  <p>No models match "{modelSearch}"</p>
+                </div>
+              ) : (
+                filteredModels.map((m) => {
+                  const val = `${m.providerID || 'opencode'}/${m.id}`
+                  const isSelected = val === currentModel
+                  return (
+                    <div
+                      key={val}
+                      className={`code-model-row ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setCurrentModel(val)
+                        localStorage.setItem('amethyst_code_model', val)
+                        setShowModelPicker(false)
+                      }}
+                    >
+                      <div className="code-model-main">
+                        <div className="code-model-title-row">
+                          <span className="code-model-name">{m.name}</span>
+                          <span className="code-model-provider-pill">{m.providerName || m.providerID}</span>
+                          {m.isFree && <span className="code-badge code-badge-free">FREE</span>}
+                          {m.isReasoning && <span className="code-badge code-badge-reason">THINKING</span>}
+                          {m.isVision && <span className="code-badge code-badge-vision">VISION</span>}
+                        </div>
+                        <span className="code-model-id-sub">{m.id}</span>
+                      </div>
+                      {isSelected && (
+                        <div className="code-model-selected-check">
+                          <Icon name="check" size={16} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

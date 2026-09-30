@@ -90,7 +90,12 @@ export const opencode = {
   health: () => request('GET', '/health'),
   listAgents: async () => {
     const res = await request('GET', '/agent')
-    return Array.isArray(res) ? res : res?.data || []
+    const list = Array.isArray(res) ? res : res?.data || []
+    return list.map((a) => ({
+      ...a,
+      id: a.name || a.id,
+      name: a.name || a.id,
+    }))
   },
   listModels: async () => {
     try {
@@ -102,6 +107,13 @@ export const opencode = {
         const pModels = p.models || {}
         const isConn = connected.has(p.id)
         for (const [mId, mObj] of Object.entries(pModels)) {
+          const isFree = mId.toLowerCase().includes('free')
+          const isReasoning =
+            mId.includes('r1') ||
+            mId.includes('reason') ||
+            mId.includes('think') ||
+            Boolean(mObj.capabilities?.reasoning)
+          const isVision = Boolean(mObj.capabilities?.vision || mId.includes('vision') || mId.includes('4v') || mId.includes('omni'))
           models.push({
             id: mId,
             name: mObj.name || mId,
@@ -109,6 +121,9 @@ export const opencode = {
             providerName: p.name || p.id,
             connected: isConn,
             status: mObj.status,
+            isFree,
+            isReasoning,
+            isVision,
           })
         }
       }
@@ -133,20 +148,26 @@ export const opencode = {
     return Array.isArray(res) ? res : res?.data || []
   },
   createSession: async (body = {}) => {
-    let modelObj = body.model
-    if (typeof modelObj === 'string') {
-      if (modelObj.includes('/')) {
-        const [providerID, ...rest] = modelObj.split('/')
-        modelObj = { providerID, modelID: rest.join('/') }
-      } else {
-        modelObj = { providerID: 'opencode', modelID: modelObj }
+    let modelPayload = undefined
+    if (body.model) {
+      if (typeof body.model === 'string') {
+        if (body.model.includes('/')) {
+          const [pId, ...rest] = body.model.split('/')
+          modelPayload = { providerID: pId, id: rest.join('/') }
+        } else {
+          modelPayload = { providerID: 'opencode', id: body.model }
+        }
+      } else if (typeof body.model === 'object') {
+        const mId = body.model.id || body.model.modelID
+        const pId = body.model.providerID || 'opencode'
+        if (mId) {
+          modelPayload = { providerID: pId, id: mId }
+        }
       }
-    } else if (modelObj && modelObj.id && !modelObj.modelID) {
-      modelObj = { providerID: modelObj.providerID || 'opencode', modelID: modelObj.id }
     }
     const payload = {
       agent: body.agent || 'build',
-      ...(modelObj ? { model: modelObj } : {}),
+      ...(modelPayload ? { model: modelPayload } : {}),
       ...(body.title ? { title: body.title } : {}),
     }
     const res = await request('POST', '/session', payload)
@@ -156,25 +177,33 @@ export const opencode = {
     const res = await request('GET', `/session/${sessionID}`)
     return res?.data || res
   },
+  updateSession: (sessionID, body) => request('PATCH', `/session/${sessionID}`, body),
   deleteSession: (sessionID) => request('DELETE', `/session/${sessionID}`),
 
   // Prompts & Interactions
   prompt: (sessionID, body, opts = {}) => {
     const text = typeof body === 'string' ? body : body?.text || body?.prompt?.text || ''
-    let modelObj = opts.model
-    if (typeof modelObj === 'string') {
-      if (modelObj.includes('/')) {
-        const [providerID, ...rest] = modelObj.split('/')
-        modelObj = { providerID, modelID: rest.join('/') }
-      } else {
-        modelObj = { providerID: 'opencode', modelID: modelObj }
+    let modelPayload = undefined
+    const rawModel = opts.model
+    if (rawModel) {
+      if (typeof rawModel === 'string') {
+        if (rawModel.includes('/')) {
+          const [pId, ...rest] = rawModel.split('/')
+          modelPayload = { providerID: pId, modelID: rest.join('/') }
+        } else {
+          modelPayload = { providerID: 'opencode', modelID: rawModel }
+        }
+      } else if (typeof rawModel === 'object') {
+        const mId = rawModel.modelID || rawModel.id
+        const pId = rawModel.providerID || 'opencode'
+        if (mId) {
+          modelPayload = { providerID: pId, modelID: mId }
+        }
       }
-    } else if (modelObj && modelObj.id && !modelObj.modelID) {
-      modelObj = { providerID: modelObj.providerID || 'opencode', modelID: modelObj.id }
     }
     const payload = {
       parts: [{ type: 'text', text }],
-      ...(modelObj ? { model: modelObj } : {}),
+      ...(modelPayload ? { model: modelPayload } : {}),
       ...(opts.agent ? { agent: opts.agent } : {}),
     }
     return request('POST', `/session/${sessionID}/prompt_async`, payload)
