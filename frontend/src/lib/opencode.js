@@ -102,18 +102,58 @@ export const opencode = {
       const res = await request('GET', '/provider')
       const providers = res?.all || []
       const connected = new Set(res?.connected || [])
+      const amethystProviderIDs = new Set([
+        'opencode',
+        'opencode-zen',
+        'mistral',
+        'groq',
+        'nvidia',
+        'google',
+        'kilocode',
+        'kilo',
+      ])
+
       const models = []
       for (const p of providers) {
-        const pModels = p.models || {}
         const isConn = connected.has(p.id)
-        for (const [mId, mObj] of Object.entries(pModels)) {
-          const isFree = mId.toLowerCase().includes('free')
+        // If provider is not connected and not opencode, skip to avoid dumping thousands of unconfigured models
+        if (!isConn && p.id !== 'opencode') continue
+
+        const pModels = p.models || {}
+        const modelEntries = Object.entries(pModels)
+
+        // For massive proxy gateways like kilo with thousands of models, only include curated / default / free models
+        const isMassiveGateway = modelEntries.length > 80 && p.id === 'kilo'
+
+        for (const [mId, mObj] of modelEntries) {
+          const lowerId = mId.toLowerCase()
+          const isFree =
+            lowerId.includes('free') ||
+            (p.id === 'opencode' && (!mObj.cost || mObj.cost.input === 0))
+
+          if (isMassiveGateway) {
+            // Only keep Amethyst default kilo models or top free models
+            const isCurated =
+              mId === 'stepfun/step-3.7-flash:free' ||
+              lowerId.includes('gemini-3') ||
+              lowerId.includes('qwen') ||
+              lowerId.includes('deepseek')
+            if (!isCurated && !isFree) continue
+          }
+
           const isReasoning =
-            mId.includes('r1') ||
-            mId.includes('reason') ||
-            mId.includes('think') ||
+            lowerId.includes('r1') ||
+            lowerId.includes('reason') ||
+            lowerId.includes('think') ||
             Boolean(mObj.capabilities?.reasoning)
-          const isVision = Boolean(mObj.capabilities?.vision || mId.includes('vision') || mId.includes('4v') || mId.includes('omni'))
+          const isVision = Boolean(
+            mObj.capabilities?.vision ||
+              lowerId.includes('vision') ||
+              lowerId.includes('4v') ||
+              lowerId.includes('omni')
+          )
+          const isAmethyst = amethystProviderIDs.has(p.id)
+
           models.push({
             id: mId,
             name: mObj.name || mId,
@@ -124,6 +164,7 @@ export const opencode = {
             isFree,
             isReasoning,
             isVision,
+            isAmethyst,
           })
         }
       }
@@ -135,8 +176,14 @@ export const opencode = {
   },
   listProviders: async () => {
     const res = await request('GET', '/provider')
-    return Array.isArray(res) ? res : res?.data || []
+    return res || { all: [], connected: [], default: {} }
   },
+  syncAmethyst: () => request('POST', '/sync_amethyst'),
+  getConfig: () => request('GET', '/config'),
+  updateConfig: (body) => request('PATCH', '/config', body),
+  setAuth: (providerID, key) =>
+    request('PUT', `/auth/${providerID}`, { type: 'api', key }),
+  removeAuth: (providerID) => request('DELETE', `/auth/${providerID}`),
 
   // Sessions
   listSessions: async (opts = {}) => {

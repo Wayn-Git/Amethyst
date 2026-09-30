@@ -89,10 +89,22 @@ export default function Code() {
     return localStorage.getItem('amethyst_code_model') || 'opencode/mimo-v2.6-flash-free'
   })
 
+  // OpenCode Settings & Providers Config
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [settingsTab, setSettingsTab] = useState('providers') // 'providers' | 'models' | 'agents' | 'config'
+  const [syncingAmethyst, setSyncingAmethyst] = useState(false)
+  const [syncFeedback, setSyncFeedback] = useState(null)
+  const [openCodeConfig, setOpenCodeConfig] = useState(null)
+  const [openCodeProviders, setOpenCodeProviders] = useState({ all: [], connected: [], default: {} })
+  const [newProviderId, setNewProviderId] = useState('anthropic')
+  const [newProviderKey, setNewProviderKey] = useState('')
+  const [configJsonText, setConfigJsonText] = useState('')
+  const [savingConfig, setSavingConfig] = useState(false)
+
   // Modal / Dropdown states
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [modelSearch, setModelSearch] = useState('')
-  const [modelTab, setModelTab] = useState('connected') // 'connected' | 'free' | 'all'
+  const [modelTab, setModelTab] = useState('amethyst') // 'amethyst' | 'free' | 'connected'
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
 
   // Messages and streaming state
@@ -109,7 +121,9 @@ export default function Code() {
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
   const modelSearchInputRef = useRef(null)
+  const modelSelectorRef = useRef(null)
   const agentDropdownRef = useRef(null)
+  const sessionsListRef = useRef(null)
   const activeSessionRef = useRef(activeSessionId)
   activeSessionRef.current = activeSessionId
 
@@ -158,15 +172,35 @@ export default function Code() {
     }
   }, [])
 
+  const refreshOpenCodeConfig = useCallback(async () => {
+    try {
+      const [cfg, provs] = await Promise.all([
+        opencode.getConfig().catch(() => null),
+        opencode.listProviders().catch(() => ({ all: [], connected: [] })),
+      ])
+      if (cfg) {
+        setOpenCodeConfig(cfg)
+        setConfigJsonText(JSON.stringify(cfg, null, 2))
+      }
+      if (provs) {
+        setOpenCodeProviders(provs)
+      }
+    } catch (err) {
+      console.warn('Failed to refresh OpenCode config:', err)
+    }
+  }, [])
+
   // -------------------------------------------------------------------------
   // Initial Data Loading
   // -------------------------------------------------------------------------
   const loadInitialData = useCallback(async () => {
     try {
-      const [agentsList, modelsList, sessionsList] = await Promise.all([
+      const [agentsList, modelsList, sessionsList, cfg, provs] = await Promise.all([
         opencode.listAgents().catch(() => []),
         opencode.listModels().catch(() => []),
         opencode.listSessions().catch(() => []),
+        opencode.getConfig().catch(() => null),
+        opencode.listProviders().catch(() => ({ all: [], connected: [] })),
       ])
 
       // Filter internal helper agents
@@ -174,8 +208,11 @@ export default function Code() {
         (a) => !['compaction', 'summary', 'title'].includes(a.name || a.id)
       )
 
-      // Sort models: free models first, then connected providers
+      // Sort models: Amethyst providers first, then free models, then other connected
       const sortedModels = [...modelsList].sort((a, b) => {
+        const aAmethyst = a.isAmethyst ? 1 : 0
+        const bAmethyst = b.isAmethyst ? 1 : 0
+        if (aAmethyst !== bAmethyst) return bAmethyst - aAmethyst
         const aFree = a.isFree ? 1 : 0
         const bFree = b.isFree ? 1 : 0
         if (aFree !== bFree) return bFree - aFree
@@ -187,8 +224,15 @@ export default function Code() {
       setAgents(visibleAgents)
       setModels(sortedModels)
       setSessions(sessionsList)
+      if (cfg) {
+        setOpenCodeConfig(cfg)
+        setConfigJsonText(JSON.stringify(cfg, null, 2))
+      }
+      if (provs) {
+        setOpenCodeProviders(provs)
+      }
 
-      // Ensure model exists in available models or pick default free model
+      // Ensure model exists in available models or pick default model
       if (sortedModels.length > 0) {
         const saved = localStorage.getItem('amethyst_code_model')
         const match = sortedModels.find((m) => `${m.providerID || 'opencode'}/${m.id}` === saved)
@@ -196,9 +240,11 @@ export default function Code() {
           setCurrentModel(saved)
         } else {
           const preferred =
+            sortedModels.find((m) => m.isAmethyst && m.id.includes('space-bunny')) ||
+            sortedModels.find((m) => m.isAmethyst && m.id.includes('ministral')) ||
             sortedModels.find((m) => m.id === 'mimo-v2.6-flash-free') ||
+            sortedModels.find((m) => m.isAmethyst) ||
             sortedModels.find((m) => m.isFree) ||
-            sortedModels.find((m) => m.connected) ||
             sortedModels[0]
           const val = `${preferred.providerID || 'opencode'}/${preferred.id}`
           setCurrentModel(val)
@@ -502,18 +548,21 @@ export default function Code() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentAgent, currentModel])
 
-  // Click outside to close agent dropdown
+  // Click outside to close agent dropdown and model popover
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (agentDropdownRef.current && !agentDropdownRef.current.contains(e.target)) {
         setShowAgentDropdown(false)
       }
+      if (modelSelectorRef.current && !modelSelectorRef.current.contains(e.target)) {
+        setShowModelPicker(false)
+      }
     }
-    if (showAgentDropdown) {
+    if (showAgentDropdown || showModelPicker) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showAgentDropdown])
+  }, [showAgentDropdown, showModelPicker])
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -536,14 +585,27 @@ export default function Code() {
           modelPayload = { providerID: 'opencode', id: currentModel }
         }
       }
-      const newSession = await opencode.createSession({
-        agent: currentAgent || 'build',
-        model: modelPayload,
-      })
-      setSessions((prev) => [newSession, ...prev])
-      setActiveSessionId(newSession.id)
-      setMessages([])
-      setTimeout(() => textareaRef.current?.focus(), 100)
+      let newSession
+      try {
+        newSession = await opencode.createSession({
+          agent: currentAgent || 'build',
+          model: modelPayload,
+        })
+      } catch (err) {
+        console.warn('Creating session with model payload failed, falling back to default:', err)
+        newSession = await opencode.createSession({
+          agent: currentAgent || 'build',
+        })
+      }
+      if (newSession && newSession.id) {
+        setSessions((prev) => [newSession, ...prev.filter((s) => s.id !== newSession.id)])
+        setActiveSessionId(newSession.id)
+        setMessages([])
+        setPromptText('')
+        setSessionSearch('')
+        sessionsListRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+        setTimeout(() => textareaRef.current?.focus(), 80)
+      }
     } catch (err) {
       console.error('Failed to create session:', err)
     }
@@ -589,6 +651,90 @@ export default function Code() {
   }
 
   // -------------------------------------------------------------------------
+  // OpenCode Config & Amethyst Sync Actions
+  // -------------------------------------------------------------------------
+  const handleSyncAmethyst = async () => {
+    setSyncingAmethyst(true)
+    setSyncFeedback(null)
+    try {
+      const res = await opencode.syncAmethyst()
+      const synced = res.synced || []
+      const failed = res.failed || []
+      if (synced.length > 0) {
+        setSyncFeedback(`✓ Synced ${synced.length} providers from Amethyst: ${synced.join(', ')}`)
+      } else if (failed.length > 0) {
+        setSyncFeedback(`Sync had issues: ${failed.join(', ')}`)
+      } else {
+        setSyncFeedback('Amethyst configuration is up to date.')
+      }
+      await loadInitialData()
+      await refreshOpenCodeConfig()
+    } catch (err) {
+      console.error('Failed to sync Amethyst:', err)
+      setSyncFeedback(`Sync failed: ${err.message || String(err)}`)
+    } finally {
+      setSyncingAmethyst(false)
+      setTimeout(() => setSyncFeedback(null), 6000)
+    }
+  }
+
+  const handleConnectProvider = async () => {
+    if (!newProviderId || !newProviderKey.trim()) return
+    try {
+      await opencode.setAuth(newProviderId, newProviderKey.trim())
+      setNewProviderKey('')
+      await loadInitialData()
+      await refreshOpenCodeConfig()
+      setSyncFeedback(`✓ Connected provider ${newProviderId} successfully.`)
+      setTimeout(() => setSyncFeedback(null), 4000)
+    } catch (err) {
+      console.error('Failed to connect provider:', err)
+      alert(`Failed to connect provider: ${err.message}`)
+    }
+  }
+
+  const handleDisconnectProvider = async (providerID) => {
+    try {
+      await opencode.removeAuth(providerID)
+      await loadInitialData()
+      await refreshOpenCodeConfig()
+    } catch (err) {
+      console.error('Failed to disconnect provider:', err)
+    }
+  }
+
+  const handleSaveDefaultModels = async (defaultModel, defaultSmallModel) => {
+    try {
+      await opencode.updateConfig({
+        ...(defaultModel ? { model: defaultModel } : {}),
+        ...(defaultSmallModel ? { small_model: defaultSmallModel } : {}),
+      })
+      await refreshOpenCodeConfig()
+      setSyncFeedback('Default models updated in OpenCode configuration.')
+      setTimeout(() => setSyncFeedback(null), 4000)
+    } catch (err) {
+      console.error('Failed to update default models:', err)
+    }
+  }
+
+  const handleSaveRawConfig = async () => {
+    setSavingConfig(true)
+    try {
+      const parsed = JSON.parse(configJsonText)
+      await opencode.updateConfig(parsed)
+      await refreshOpenCodeConfig()
+      await loadInitialData()
+      setSyncFeedback('OpenCode configuration updated successfully.')
+      setTimeout(() => setSyncFeedback(null), 4000)
+    } catch (err) {
+      console.error('Failed to save raw config:', err)
+      alert(`Invalid JSON or update error: ${err.message}`)
+    } finally {
+      setSavingConfig(false)
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // User Actions: Prompts & Interactions
   // -------------------------------------------------------------------------
   const handleSendPrompt = async (textToSend) => {
@@ -607,10 +753,17 @@ export default function Code() {
             modelPayload = { providerID: 'opencode', id: currentModel }
           }
         }
-        const created = await opencode.createSession({
-          agent: currentAgent || 'build',
-          model: modelPayload,
-        })
+        let created
+        try {
+          created = await opencode.createSession({
+            agent: currentAgent || 'build',
+            model: modelPayload,
+          })
+        } catch {
+          created = await opencode.createSession({
+            agent: currentAgent || 'build',
+          })
+        }
         setSessions((prev) => [created, ...prev])
         setActiveSessionId(created.id)
         sid = created.id
@@ -655,69 +808,6 @@ export default function Code() {
     }
   }
 
-  const handleInterrupt = async () => {
-    if (!activeSessionId) return
-    try {
-      await opencode.interrupt(activeSessionId)
-      setStreaming(false)
-    } catch (err) {
-      console.error('Interrupt failed:', err)
-    }
-  }
-
-  const toggleReasoning = (msgId) => {
-    setExpandedReasoning((prev) => ({ ...prev, [msgId]: !prev[msgId] }))
-  }
-
-  const toggleTool = (callId) => {
-    setExpandedTools((prev) => ({ ...prev, [callId]: prev[callId] === false ? true : false }))
-  }
-
-  const handleReplyPermission = async (reqId, reply) => {
-    try {
-      await opencode.replyPermission(reqId, { reply })
-      setPendingPermissions((prev) => prev.filter((p) => p.id !== reqId))
-    } catch (err) {
-      console.error('Failed to reply to permission:', err)
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Filtering & Computed Models
-  // -------------------------------------------------------------------------
-  const filteredSessions = useMemo(() => {
-    if (!sessionSearch.trim()) return sessions
-    const q = sessionSearch.toLowerCase()
-    return sessions.filter((s) => (s.title || s.id).toLowerCase().includes(q))
-  }, [sessions, sessionSearch])
-
-  const connectedCount = useMemo(() => {
-    return models.filter((m) => m.connected).length
-  }, [models])
-
-  const freeCount = useMemo(() => {
-    return models.filter((m) => m.isFree).length
-  }, [models])
-
-  const filteredModels = useMemo(() => {
-    let list = models
-    if (modelTab === 'connected') {
-      list = list.filter((m) => m.connected)
-    } else if (modelTab === 'free') {
-      list = list.filter((m) => m.isFree)
-    }
-
-    if (!modelSearch.trim()) return list
-
-    const q = modelSearch.toLowerCase()
-    return list.filter(
-      (m) =>
-        m.name.toLowerCase().includes(q) ||
-        m.id.toLowerCase().includes(q) ||
-        (m.providerName || '').toLowerCase().includes(q) ||
-        (m.providerID || '').toLowerCase().includes(q)
-    )
-  }, [models, modelTab, modelSearch])
 
   const selectedModelObj = useMemo(() => {
     if (!currentModel) return null
@@ -775,6 +865,18 @@ export default function Code() {
         </div>
 
         <div className="code-header-right">
+          <button
+            type="button"
+            className="code-btn"
+            onClick={() => {
+              setShowSettingsModal(true)
+              refreshOpenCodeConfig()
+            }}
+            title="OpenCode Configuration, Providers & API Keys"
+          >
+            <Icon name="gear" size={14} />
+            <span>OpenCode Config</span>
+          </button>
           {serverStatus.running ? (
             <button
               type="button"
@@ -841,7 +943,7 @@ export default function Code() {
           </div>
 
           {/* Sessions List */}
-          <div className="code-sessions-list">
+          <div className="code-sessions-list" ref={sessionsListRef}>
             {filteredSessions.map((s) => {
               const isActive = s.id === activeSessionId
               const isEditing = s.id === editingSessionId
@@ -914,7 +1016,7 @@ export default function Code() {
               <div className="code-dropdown-wrap" ref={agentDropdownRef}>
                 <button
                   type="button"
-                  className="code-picker-btn"
+                  className={`code-picker-btn ${showAgentDropdown ? 'active' : ''}`}
                   onClick={() => setShowAgentDropdown((v) => !v)}
                   disabled={!serverStatus.running}
                   title="Select OpenCode Agent"
@@ -930,59 +1032,212 @@ export default function Code() {
 
                 {showAgentDropdown && (
                   <div className="code-agent-menu">
-                    {agents.map((ag) => {
-                      const meta = getAgentMeta(ag.name || ag.id)
-                      const isSel = (ag.name || ag.id) === currentAgent
-                      return (
-                        <button
-                          key={ag.id}
-                          type="button"
-                          className={`code-agent-menu-item ${isSel ? 'active' : ''}`}
-                          onClick={() => {
-                            setCurrentAgent(ag.name || ag.id)
-                            setShowAgentDropdown(false)
-                          }}
-                        >
-                          <div className="code-agent-item-icon">
-                            <Icon name={meta.icon} size={15} />
-                          </div>
-                          <div className="code-agent-item-info">
-                            <div className="code-agent-item-title">{meta.name}</div>
-                            <div className="code-agent-item-desc">{ag.description || meta.desc}</div>
-                          </div>
-                          {isSel && <Icon name="check" size={14} className="code-agent-check" />}
-                        </button>
-                      )
-                    })}
+                    <div className="code-popover-title">Agents ({agents.length})</div>
+                    <div className="code-agent-menu-list">
+                      {agents.map((ag) => {
+                        const meta = getAgentMeta(ag.name || ag.id)
+                        const isSel = (ag.name || ag.id) === currentAgent
+                        const isSubagent =
+                          (ag.name || ag.id).toLowerCase().includes('cavecrew') ||
+                          (ag.name || ag.id).toLowerCase().includes('sub')
+                        return (
+                          <button
+                            key={ag.id}
+                            type="button"
+                            className={`code-agent-menu-item ${isSel ? 'active' : ''}`}
+                            onClick={() => {
+                              setCurrentAgent(ag.name || ag.id)
+                              setShowAgentDropdown(false)
+                            }}
+                          >
+                            <div className="code-agent-item-icon">
+                              <Icon name={meta.icon} size={15} />
+                            </div>
+                            <div className="code-agent-item-info">
+                              <div className="code-agent-item-header">
+                                <span className="code-agent-item-title">{meta.name}</span>
+                                {isSubagent ? (
+                                  <span className="code-badge code-badge-sub">SUB</span>
+                                ) : (
+                                  <span className="code-badge code-badge-primary">MAIN</span>
+                                )}
+                              </div>
+                              <div className="code-agent-item-desc">{ag.description || meta.desc}</div>
+                            </div>
+                            {isSel && <Icon name="check" size={14} className="code-agent-check" />}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Model Picker Button (Opens Modal Palette) */}
-              <button
-                type="button"
-                className="code-picker-btn"
-                onClick={() => {
-                  setShowModelPicker(true)
-                  setTimeout(() => modelSearchInputRef.current?.focus(), 50)
-                }}
-                disabled={!serverStatus.running}
-                title="Select AI Model"
-              >
-                <span className="code-picker-icon">
-                  <Icon name="sparkle" size={14} />
-                </span>
-                <span className="code-picker-text">
-                  <span className="code-picker-val">
-                    {selectedModelObj?.name || (currentModel ? currentModel.split('/')[1] : 'Select Model')}
+              {/* Model Picker Popover (OpenCode Style) */}
+              <div className="code-dropdown-wrap" ref={modelSelectorRef}>
+                <button
+                  type="button"
+                  className={`code-picker-btn ${showModelPicker ? 'active' : ''}`}
+                  onClick={() => setShowModelPicker((v) => !v)}
+                  disabled={!serverStatus.running}
+                  title="Select AI Model"
+                >
+                  <span className="code-picker-icon">
+                    <Icon name="sparkle" size={14} />
                   </span>
-                  <span className="code-picker-sub">
-                    {selectedModelObj?.providerName || (currentModel ? currentModel.split('/')[0] : '')}
+                  <span className="code-picker-text">
+                    <span className="code-picker-val">
+                      {selectedModelObj?.name || (currentModel ? currentModel.split('/')[1] : 'Select Model')}
+                    </span>
+                    <span className="code-picker-sub">
+                      {selectedModelObj?.providerName || (currentModel ? currentModel.split('/')[0] : '')}
+                    </span>
                   </span>
-                </span>
-                {selectedModelObj?.isFree && <span className="code-chip-free">FREE</span>}
-                <Icon name="caret-down" size={12} className="code-picker-chevron" />
-              </button>
+                  {selectedModelObj?.isAmethyst && (
+                    <span className="code-chip-amethyst" title="Synced from Amethyst">SYNCED</span>
+                  )}
+                  {selectedModelObj?.isFree && <span className="code-chip-free">FREE</span>}
+                  <Icon name="caret-down" size={12} className="code-picker-chevron" />
+                </button>
+
+                {showModelPicker && (
+                  <div className="code-model-popover">
+                    <div className="code-popover-header">
+                      <div className="code-popover-search">
+                        <Icon name="search" size={14} className="code-popover-search-icon" />
+                        <input
+                          ref={modelSearchInputRef}
+                          type="text"
+                          className="code-popover-search-input"
+                          placeholder="Search models..."
+                          value={modelSearch}
+                          onChange={(e) => setModelSearch(e.target.value)}
+                          autoFocus
+                        />
+                        {modelSearch && (
+                          <button
+                            type="button"
+                            className="code-popover-search-clear"
+                            onClick={() => setModelSearch('')}
+                          >
+                            <Icon name="x" size={11} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="code-popover-tabs">
+                        <button
+                          type="button"
+                          className={`code-popover-tab ${modelTab === 'amethyst' ? 'active' : ''}`}
+                          onClick={() => setModelTab('amethyst')}
+                        >
+                          <span className="code-tab-dot-amethyst" />
+                          Amethyst ({amethystCount})
+                        </button>
+                        <button
+                          type="button"
+                          className={`code-popover-tab ${modelTab === 'free' ? 'active' : ''}`}
+                          onClick={() => setModelTab('free')}
+                        >
+                          <span className="code-tab-badge-free">⚡ FREE</span>
+                          Free ({freeCount})
+                        </button>
+                        <button
+                          type="button"
+                          className={`code-popover-tab ${modelTab === 'connected' ? 'active' : ''}`}
+                          onClick={() => setModelTab('connected')}
+                        >
+                          Connected ({connectedCount})
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="code-popover-list">
+                      {groupedModels.length === 0 ? (
+                        <div className="code-popover-empty">
+                          <Icon name="search" size={20} />
+                          <span>No models match "{modelSearch}"</span>
+                        </div>
+                      ) : (
+                        groupedModels.map((group) => (
+                          <div key={group.title} className="code-model-group">
+                            <div className="code-model-group-title">
+                              <span>{group.title}</span>
+                              <span className="code-model-group-count">{group.items.length}</span>
+                            </div>
+                            {group.items.map((m) => {
+                              const val = `${m.providerID || 'opencode'}/${m.id}`
+                              const isSelected = val === currentModel
+                              return (
+                                <div
+                                  key={val}
+                                  className={`code-model-row ${isSelected ? 'selected' : ''}`}
+                                  onClick={() => {
+                                    setCurrentModel(val)
+                                    localStorage.setItem('amethyst_code_model', val)
+                                    setShowModelPicker(false)
+                                  }}
+                                >
+                                  <div className="code-model-main">
+                                    <div className="code-model-title-row">
+                                      <span className="code-model-name">{m.name}</span>
+                                      {m.isAmethyst && (
+                                        <span className="code-badge code-badge-amethyst">SYNCED</span>
+                                      )}
+                                      {m.isFree && <span className="code-badge code-badge-free">FREE</span>}
+                                      {m.isReasoning && (
+                                        <span className="code-badge code-badge-reason">THINKING</span>
+                                      )}
+                                      {m.isVision && (
+                                        <span className="code-badge code-badge-vision">VISION</span>
+                                      )}
+                                    </div>
+                                    <span className="code-model-id-sub">{m.id}</span>
+                                  </div>
+                                  {isSelected && (
+                                    <div className="code-model-selected-check">
+                                      <Icon name="check" size={14} />
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="code-popover-footer">
+                      <button
+                        type="button"
+                        className="code-popover-footer-btn"
+                        onClick={handleSyncAmethyst}
+                        disabled={syncingAmethyst}
+                        title="Sync API keys and providers from Amethyst"
+                      >
+                        <Icon
+                          name="arrow-clockwise"
+                          size={13}
+                          className={syncingAmethyst ? 'code-spin' : ''}
+                        />
+                        <span>{syncingAmethyst ? 'Syncing...' : 'Sync Amethyst'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="code-popover-footer-btn primary"
+                        onClick={() => {
+                          setShowModelPicker(false)
+                          setShowSettingsModal(true)
+                          refreshOpenCodeConfig()
+                        }}
+                      >
+                        <Icon name="gear" size={13} />
+                        <span>Settings & Providers...</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Token Stats Chip */}
@@ -1274,107 +1529,333 @@ export default function Code() {
         </main>
       </div>
 
-      {/* Model Picker Command Palette / Modal */}
-      {showModelPicker && (
-        <div className="code-modal-backdrop" onClick={() => setShowModelPicker(false)}>
-          <div className="code-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="code-modal-header">
-              <div className="code-modal-search-wrap">
-                <Icon name="search" size={16} className="code-modal-search-icon" />
-                <input
-                  ref={modelSearchInputRef}
-                  type="text"
-                  className="code-modal-search-input"
-                  placeholder="Search 200+ models, providers, or capabilities (e.g. mimo, free, claude, vision)..."
-                  value={modelSearch}
-                  onChange={(e) => setModelSearch(e.target.value)}
-                  autoFocus
-                />
-                {modelSearch && (
-                  <button
-                    type="button"
-                    className="code-modal-search-clear"
-                    onClick={() => setModelSearch('')}
-                  >
-                    <Icon name="x" size={13} />
-                  </button>
+      {/* OpenCode Settings & Configuration Dialog */}
+      {showSettingsModal && (
+        <div className="code-modal-backdrop" onClick={() => setShowSettingsModal(false)}>
+          <div className="code-settings-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="code-settings-sidebar">
+              <div className="code-settings-brand">
+                <Icon name="code" size={18} />
+                <div className="code-settings-brand-info">
+                  <span className="code-settings-title">OpenCode Runtime</span>
+                  <span className="code-settings-version">Engine Config</span>
+                </div>
+              </div>
+
+              <div className="code-settings-tabs">
+                <button
+                  type="button"
+                  className={`code-settings-tab-btn ${settingsTab === 'providers' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('providers')}
+                >
+                  <Icon name="plug" size={15} />
+                  <span>Providers & Keys</span>
+                </button>
+                <button
+                  type="button"
+                  className={`code-settings-tab-btn ${settingsTab === 'models' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('models')}
+                >
+                  <Icon name="sparkle" size={15} />
+                  <span>Models & Defaults</span>
+                </button>
+                <button
+                  type="button"
+                  className={`code-settings-tab-btn ${settingsTab === 'agents' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('agents')}
+                >
+                  <Icon name="gear" size={15} />
+                  <span>Agents ({agents.length})</span>
+                </button>
+                <button
+                  type="button"
+                  className={`code-settings-tab-btn ${settingsTab === 'config' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('config')}
+                >
+                  <Icon name="terminal" size={15} />
+                  <span>Raw Config JSON</span>
+                </button>
+              </div>
+
+              <div className="code-settings-sidebar-footer">
+                <span className="code-settings-status-pill">
+                  <span className={`code-status-dot ${serverStatus.running ? 'running' : 'stopped'}`} />
+                  {serverStatus.running ? `Port :${serverStatus.port}` : 'Inactive'}
+                </span>
+              </div>
+            </div>
+
+            <div className="code-settings-body">
+              <div className="code-settings-body-header">
+                <h3 className="code-settings-body-title">
+                  {settingsTab === 'providers' && 'Model Providers & API Keys'}
+                  {settingsTab === 'models' && 'Model Configuration & Defaults'}
+                  {settingsTab === 'agents' && 'Registered OpenCode Agents'}
+                  {settingsTab === 'config' && 'OpenCode Engine Configuration (/config)'}
+                </h3>
+                <button
+                  type="button"
+                  className="code-modal-close"
+                  onClick={() => setShowSettingsModal(false)}
+                  title="Close"
+                >
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
+
+              {syncFeedback && (
+                <div className="code-feedback-banner">
+                  <Icon name="check-circle" size={15} />
+                  <span>{syncFeedback}</span>
+                </div>
+              )}
+
+              <div className="code-settings-scroll">
+                {/* Providers Tab */}
+                {settingsTab === 'providers' && (
+                  <div className="code-tab-pane">
+                    {/* Amethyst Sync Banner */}
+                    <div className="code-sync-banner">
+                      <div className="code-sync-banner-text">
+                        <div className="code-sync-banner-title">
+                          <Icon name="sparkle" size={16} />
+                          <span>Amethyst Provider Sync</span>
+                        </div>
+                        <p className="code-sync-banner-desc">
+                          Automatically synchronizes providers and API keys from <code>~/.amethyst/config/providers.yaml</code> directly to OpenCode runtime.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="code-btn code-btn-primary"
+                        onClick={handleSyncAmethyst}
+                        disabled={syncingAmethyst}
+                      >
+                        <Icon name="arrow-clockwise" size={14} className={syncingAmethyst ? 'code-spin' : ''} />
+                        <span>{syncingAmethyst ? 'Syncing...' : 'Sync from Amethyst'}</span>
+                      </button>
+                    </div>
+
+                    {/* Connected Providers */}
+                    <div className="code-settings-section">
+                      <h4 className="code-section-heading">Connected Providers</h4>
+                      <div className="code-provider-cards">
+                        {(openCodeProviders?.connected || []).map((pId) => {
+                          const isAmethyst = ['opencode', 'opencode-zen', 'mistral', 'groq', 'nvidia', 'google', 'kilocode', 'kilo'].includes(pId)
+                          const pObj = (openCodeProviders?.all || []).find((p) => p.id === pId)
+                          const modelCount = Object.keys(pObj?.models || {}).length
+                          return (
+                            <div key={pId} className="code-provider-card">
+                              <div className="code-provider-card-left">
+                                <div className="code-provider-icon">
+                                  <Icon name={pId === 'google' ? 'google' : 'cpu'} size={18} />
+                                </div>
+                                <div className="code-provider-info">
+                                  <div className="code-provider-title-row">
+                                    <span className="code-provider-name">{pObj?.name || pId}</span>
+                                    <span className="code-provider-id-tag">{pId}</span>
+                                    {isAmethyst && (
+                                      <span className="code-badge code-badge-amethyst">AMETHYST SYNCED</span>
+                                    )}
+                                  </div>
+                                  <span className="code-provider-meta">
+                                    {modelCount > 0 ? `${modelCount} models registered` : 'Active credentials'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="code-provider-card-right">
+                                <button
+                                  type="button"
+                                  className="code-btn code-btn-danger"
+                                  onClick={() => handleDisconnectProvider(pId)}
+                                  title={`Disconnect ${pId}`}
+                                >
+                                  Disconnect
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Connect Provider Form */}
+                    <div className="code-settings-section">
+                      <h4 className="code-section-heading">Connect Additional Provider</h4>
+                      <div className="code-connect-form">
+                        <div className="code-form-row">
+                          <label className="code-form-label">Provider</label>
+                          <select
+                            className="code-form-select"
+                            value={newProviderId}
+                            onChange={(e) => setNewProviderId(e.target.value)}
+                          >
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="openai">OpenAI (GPT-4o, o3-mini)</option>
+                            <option value="google">Google Gemini</option>
+                            <option value="groq">Groq (Llama, Mixtral)</option>
+                            <option value="mistral">Mistral AI</option>
+                            <option value="nvidia">NVIDIA NIM</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="xpl">Experiential Labs (xpl)</option>
+                            <option value="github-copilot">GitHub Copilot</option>
+                          </select>
+                        </div>
+                        <div className="code-form-row">
+                          <label className="code-form-label">API Key</label>
+                          <input
+                            type="password"
+                            className="code-form-input"
+                            placeholder="Enter API key or credential..."
+                            value={newProviderKey}
+                            onChange={(e) => setNewProviderKey(e.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="code-btn code-btn-primary"
+                          onClick={handleConnectProvider}
+                          disabled={!newProviderKey.trim()}
+                        >
+                          <Icon name="plug" size={14} />
+                          <span>Connect Provider</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Models Tab */}
+                {settingsTab === 'models' && (
+                  <div className="code-tab-pane">
+                    <div className="code-settings-section">
+                      <h4 className="code-section-heading">OpenCode Engine Defaults</h4>
+                      <p className="code-section-desc">
+                        Configure the default primary model for development sessions and the lightweight small model for fast reasoning and helper tasks.
+                      </p>
+                      <div className="code-form-row">
+                        <label className="code-form-label">Primary Model (model)</label>
+                        <select
+                          className="code-form-select"
+                          value={typeof openCodeConfig?.model === 'string' ? openCodeConfig.model : openCodeConfig?.model?.id || currentModel}
+                          onChange={(e) => handleSaveDefaultModels(e.target.value, undefined)}
+                        >
+                          {models.map((m) => (
+                            <option key={`${m.providerID}/${m.id}`} value={`${m.providerID}/${m.id}`}>
+                              {m.name} ({m.providerName || m.providerID}) {m.isFree ? '[FREE]' : ''} {m.isAmethyst ? '[AMETHYST]' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="code-form-row">
+                        <label className="code-form-label">Fast / Small Model (small_model)</label>
+                        <select
+                          className="code-form-select"
+                          value={typeof openCodeConfig?.small_model === 'string' ? openCodeConfig.small_model : openCodeConfig?.small_model?.id || ''}
+                          onChange={(e) => handleSaveDefaultModels(undefined, e.target.value)}
+                        >
+                          <option value="">(Inherit / Default)</option>
+                          {models.map((m) => (
+                            <option key={`${m.providerID}/${m.id}`} value={`${m.providerID}/${m.id}`}>
+                              {m.name} ({m.providerName || m.providerID})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="code-settings-section">
+                      <h4 className="code-section-heading">Available Models Catalog ({models.length})</h4>
+                      <div className="code-catalog-list">
+                        {models.map((m) => (
+                          <div key={`${m.providerID}/${m.id}`} className="code-catalog-row">
+                            <div className="code-catalog-info">
+                              <span className="code-catalog-name">{m.name}</span>
+                              <span className="code-catalog-id">{m.providerID}/{m.id}</span>
+                            </div>
+                            <div className="code-catalog-tags">
+                              {m.isAmethyst && <span className="code-badge code-badge-amethyst">AMETHYST</span>}
+                              {m.isFree && <span className="code-badge code-badge-free">FREE</span>}
+                              {m.isReasoning && <span className="code-badge code-badge-reason">THINKING</span>}
+                              {m.isVision && <span className="code-badge code-badge-vision">VISION</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Agents Tab */}
+                {settingsTab === 'agents' && (
+                  <div className="code-tab-pane">
+                    <div className="code-settings-section">
+                      <h4 className="code-section-heading">OpenCode Runtime Agents ({agents.length})</h4>
+                      <p className="code-section-desc">
+                        OpenCode ships with specialized primary agents and cavecrew subagents with distinct permissions and tool access.
+                      </p>
+                      <div className="code-agents-grid">
+                        {agents.map((ag) => {
+                          const meta = getAgentMeta(ag.name || ag.id)
+                          const isSubagent = (ag.name || ag.id).toLowerCase().includes('cavecrew') || (ag.name || ag.id).toLowerCase().includes('sub')
+                          return (
+                            <div key={ag.id} className="code-agent-card">
+                              <div className="code-agent-card-header">
+                                <div className="code-agent-card-title-row">
+                                  <Icon name={meta.icon} size={18} />
+                                  <span className="code-agent-card-title">{meta.name}</span>
+                                </div>
+                                <span className={`code-badge ${isSubagent ? 'code-badge-sub' : 'code-badge-primary'}`}>
+                                  {isSubagent ? 'SUBAGENT' : 'PRIMARY'}
+                                </span>
+                              </div>
+                              <p className="code-agent-card-desc">{ag.description || meta.desc}</p>
+                              <div className="code-agent-card-footer">
+                                <span className="code-agent-card-id">ID: {ag.name || ag.id}</span>
+                                {ag.name === currentAgent && (
+                                  <span className="code-badge code-badge-free">CURRENT ACTIVE</span>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Raw Config Tab */}
+                {settingsTab === 'config' && (
+                  <div className="code-tab-pane">
+                    <div className="code-settings-section">
+                      <div className="code-config-header-row">
+                        <div>
+                          <h4 className="code-section-heading">Server Configuration</h4>
+                          <p className="code-section-desc">
+                            Direct read/write access to OpenCode server's <code>GET /config</code> and <code>PATCH /config</code>.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="code-btn code-btn-primary"
+                          onClick={handleSaveRawConfig}
+                          disabled={savingConfig}
+                        >
+                          <Icon name="check" size={14} />
+                          <span>{savingConfig ? 'Saving...' : 'Save Configuration'}</span>
+                        </button>
+                      </div>
+                      <textarea
+                        className="code-config-textarea"
+                        value={configJsonText}
+                        onChange={(e) => setConfigJsonText(e.target.value)}
+                        rows={18}
+                        spellCheck={false}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
-              <button
-                type="button"
-                className="code-modal-close"
-                onClick={() => setShowModelPicker(false)}
-                title="Close (Esc)"
-              >
-                <Icon name="x" size={16} />
-              </button>
-            </div>
-
-            <div className="code-modal-tabs">
-              <button
-                type="button"
-                className={`code-modal-tab ${modelTab === 'connected' ? 'active' : ''}`}
-                onClick={() => setModelTab('connected')}
-              >
-                <span className="code-tab-dot connected" />
-                Connected Providers ({connectedCount})
-              </button>
-              <button
-                type="button"
-                className={`code-modal-tab ${modelTab === 'free' ? 'active' : ''}`}
-                onClick={() => setModelTab('free')}
-              >
-                <span className="code-tab-badge-free">⚡ FREE</span>
-                Free Models ({freeCount})
-              </button>
-              <button
-                type="button"
-                className={`code-modal-tab ${modelTab === 'all' ? 'active' : ''}`}
-                onClick={() => setModelTab('all')}
-              >
-                All Providers ({models.length})
-              </button>
-            </div>
-
-            <div className="code-modal-list">
-              {filteredModels.length === 0 ? (
-                <div className="code-modal-empty">
-                  <Icon name="search" size={24} />
-                  <p>No models match "{modelSearch}"</p>
-                </div>
-              ) : (
-                filteredModels.map((m) => {
-                  const val = `${m.providerID || 'opencode'}/${m.id}`
-                  const isSelected = val === currentModel
-                  return (
-                    <div
-                      key={val}
-                      className={`code-model-row ${isSelected ? 'selected' : ''}`}
-                      onClick={() => {
-                        setCurrentModel(val)
-                        localStorage.setItem('amethyst_code_model', val)
-                        setShowModelPicker(false)
-                      }}
-                    >
-                      <div className="code-model-main">
-                        <div className="code-model-title-row">
-                          <span className="code-model-name">{m.name}</span>
-                          <span className="code-model-provider-pill">{m.providerName || m.providerID}</span>
-                          {m.isFree && <span className="code-badge code-badge-free">FREE</span>}
-                          {m.isReasoning && <span className="code-badge code-badge-reason">THINKING</span>}
-                          {m.isVision && <span className="code-badge code-badge-vision">VISION</span>}
-                        </div>
-                        <span className="code-model-id-sub">{m.id}</span>
-                      </div>
-                      {isSelected && (
-                        <div className="code-model-selected-check">
-                          <Icon name="check" size={16} />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
-              )}
             </div>
           </div>
         </div>

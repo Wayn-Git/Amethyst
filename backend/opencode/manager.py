@@ -135,6 +135,35 @@ class OpenCodeManager:
                 )
 
             log.info("opencode running on port %d (pid %d)", port, self._process.pid)
+            asyncio.create_task(self._sync_amethyst_keys(port), name="opencode-sync-keys")
+
+    async def _sync_amethyst_keys(self, port: int) -> None:
+        """Push any Amethyst configured provider keys into OpenCode."""
+        try:
+            import yaml
+            from backend.secrets import resolve_api_key
+
+            cfg_path = Path.home() / ".amethyst" / "config" / "providers.yaml"
+            if not cfg_path.exists():
+                return
+
+            with open(cfg_path) as f:
+                data = yaml.safe_load(f) or {}
+
+            async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}", timeout=5.0) as c:
+                for p in data.get("providers", []):
+                    name = p.get("name")
+                    ref = p.get("api_key_ref")
+                    env = p.get("api_key_env")
+                    key = resolve_api_key(ref=ref, env=env)
+                    if key and name:
+                        try:
+                            await c.put(f"/auth/{name}", json={"type": "api", "key": key})
+                            log.info("synced Amethyst key for provider '%s' to OpenCode", name)
+                        except Exception as ex:
+                            log.warning("could not sync key for '%s': %s", name, ex)
+        except Exception as exc:
+            log.warning("failed to sync Amethyst keys to OpenCode: %s", exc)
 
     async def stop(self) -> None:
         """Gracefully shut down the opencode process."""

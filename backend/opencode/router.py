@@ -59,6 +59,47 @@ async def opencode_stop():
     return {"running": False}
 
 
+@router.post("/sync_amethyst")
+async def opencode_sync_amethyst():
+    """Sync Amethyst's configured providers and API keys to OpenCode."""
+    mgr = get_manager()
+    port = await mgr.ensure_running()
+    synced = []
+    failed = []
+
+    from pathlib import Path
+    import yaml
+    from backend.secrets import resolve_api_key
+
+    cfg_path = Path.home() / ".amethyst" / "config" / "providers.yaml"
+    if not cfg_path.exists():
+        return {"synced": [], "failed": [], "message": "No providers.yaml found"}
+
+    try:
+        with open(cfg_path) as f:
+            data = yaml.safe_load(f) or {}
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": f"Failed to read providers.yaml: {exc}"})
+
+    async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}") as c:
+        for p in data.get("providers", []):
+            name = p.get("name")
+            ref = p.get("api_key_ref")
+            env = p.get("api_key_env")
+            key = resolve_api_key(ref=ref, env=env)
+            if key and name:
+                try:
+                    res = await c.put(f"/auth/{name}", json={"type": "api", "key": key}, timeout=5.0)
+                    if res.status_code == 200:
+                        synced.append(name)
+                    else:
+                        failed.append(f"{name}: HTTP {res.status_code}")
+                except Exception as ex:
+                    failed.append(f"{name}: {ex}")
+
+    return {"synced": synced, "failed": failed}
+
+
 # ---------------------------------------------------------------------------
 # Catch-all proxy
 # ---------------------------------------------------------------------------
