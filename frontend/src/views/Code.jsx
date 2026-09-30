@@ -808,6 +808,84 @@ export default function Code() {
     }
   }
 
+  const handleInterrupt = async () => {
+    if (!activeSessionId) return
+    try {
+      await opencode.interrupt(activeSessionId)
+      setStreaming(false)
+    } catch (err) {
+      console.error('Interrupt failed:', err)
+    }
+  }
+
+  const toggleReasoning = (msgId) => {
+    setExpandedReasoning((prev) => ({ ...prev, [msgId]: !prev[msgId] }))
+  }
+
+  const toggleTool = (callId) => {
+    setExpandedTools((prev) => ({ ...prev, [callId]: prev[callId] === false ? true : false }))
+  }
+
+  const handleReplyPermission = async (reqId, reply) => {
+    try {
+      await opencode.replyPermission(reqId, { reply })
+      setPendingPermissions((prev) => prev.filter((p) => p.id !== reqId))
+    } catch (err) {
+      console.error('Failed to reply to permission:', err)
+    }
+  }
+
+  const filteredSessions = useMemo(() => {
+    if (!sessionSearch.trim()) return sessions
+    const q = sessionSearch.toLowerCase()
+    return sessions.filter((s) => (s.title || s.id || '').toLowerCase().includes(q))
+  }, [sessions, sessionSearch])
+
+  const amethystCount = useMemo(() => {
+    return models.filter((m) => m.isAmethyst).length
+  }, [models])
+
+  const freeCount = useMemo(() => {
+    return models.filter((m) => m.isFree).length
+  }, [models])
+
+  const connectedCount = useMemo(() => {
+    return models.filter((m) => m.connected).length
+  }, [models])
+
+  const filteredModels = useMemo(() => {
+    let list = models
+    if (modelTab === 'amethyst') {
+      list = list.filter((m) => m.isAmethyst)
+    } else if (modelTab === 'free') {
+      list = list.filter((m) => m.isFree)
+    } else if (modelTab === 'connected') {
+      list = list.filter((m) => m.connected)
+    }
+
+    if (!modelSearch.trim()) return list
+
+    const q = modelSearch.toLowerCase()
+    return list.filter(
+      (m) =>
+        (m.name || '').toLowerCase().includes(q) ||
+        (m.id || '').toLowerCase().includes(q) ||
+        (m.providerName || '').toLowerCase().includes(q) ||
+        (m.providerID || '').toLowerCase().includes(q)
+    )
+  }, [models, modelTab, modelSearch])
+
+  const groupedModels = useMemo(() => {
+    const map = new Map()
+    for (const m of filteredModels) {
+      const groupTitle = m.providerName || m.providerID || 'Other'
+      if (!map.has(groupTitle)) {
+        map.set(groupTitle, [])
+      }
+      map.get(groupTitle).push(m)
+    }
+    return Array.from(map.entries()).map(([title, items]) => ({ title, items }))
+  }, [filteredModels])
 
   const selectedModelObj = useMemo(() => {
     if (!currentModel) return null
