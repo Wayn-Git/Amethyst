@@ -10,6 +10,7 @@ gate rather than here.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -76,26 +77,36 @@ def normalize_result(result: Any) -> ToolResult:
     Every provider receives plain text; images and other binary blocks become
     artifacts so they never bloat the text the model reads.
     """
+    if isinstance(result, ToolResult):
+        return result
+
     text_parts: list[str] = []
     artifacts: list[dict[str, Any]] = []
 
-    for block in getattr(result, "content", None) or []:
-        kind = getattr(block, "type", None)
+    content_blocks = getattr(result, "content", None)
+    if content_blocks is None and isinstance(result, dict):
+        content_blocks = result.get("content")
+
+    for block in content_blocks or []:
+        kind = getattr(block, "type", None) or (block.get("type") if isinstance(block, dict) else None)
         if kind == "text":
-            text_parts.append(getattr(block, "text", "") or "")
+            text = getattr(block, "text", "") if not isinstance(block, dict) else block.get("text", "")
+            text_parts.append(text or "")
         elif kind == "image":
+            mime = getattr(block, "mime_type", "image/png") if not isinstance(block, dict) else block.get("mime_type", "image/png")
+            data = getattr(block, "data", "") if not isinstance(block, dict) else block.get("data", "")
             artifacts.append(
                 {
                     "type": "image",
-                    "mime_type": getattr(block, "mime_type", "image/png"),
-                    "data": getattr(block, "data", ""),
+                    "mime_type": mime,
+                    "data": data,
                 }
             )
             text_parts.append("[image returned]")
         elif kind == "resource":
-            resource = getattr(block, "resource", None)
-            uri = getattr(resource, "uri", "")
-            inline = getattr(resource, "text", None)
+            resource = getattr(block, "resource", None) if not isinstance(block, dict) else block.get("resource")
+            uri = getattr(resource, "uri", "") if not isinstance(resource, dict) else resource.get("uri", "")
+            inline = getattr(resource, "text", None) if not isinstance(resource, dict) else resource.get("text")
             text_parts.append(inline if inline else f"[resource: {uri}]")
             if not inline:
                 artifacts.append({"type": "resource", "uri": str(uri)})
@@ -106,24 +117,153 @@ def normalize_result(result: Any) -> ToolResult:
     if structured and not text_parts:
         text_parts.append(str(structured))
 
+    if not text_parts and isinstance(result, str) and result:
+        text_parts.append(result)
+
+    is_err = bool(
+        getattr(result, "is_error", False)
+        or (result.get("is_error", False) if isinstance(result, dict) else False)
+    )
     content = "\n".join(p for p in text_parts if p) or "(no content returned)"
     return ToolResult(
-        content=content, artifacts=artifacts, is_error=bool(getattr(result, "is_error", False))
+        content=content, artifacts=artifacts, is_error=is_err
     )
 
 
-def normalize_composio_multi_execute_args(arguments: dict[str, Any]) -> dict[str, Any]:
+
+def _apply_gmail_defaults(slug: str, inner_args: dict[str, Any]) -> None:
+    slug_upper = slug.upper().strip()
+    if slug_upper.startswith("GMAIL_FETCH_EMAILS") or slug_upper.startswith("GMAIL_SEARCH"):
+        if "verbose" not in inner_args:
+            inner_args["verbose"] = False
+    elif slug_upper in (
+        "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+        "GMAIL_FETCH_MESSAGE_BY_THREAD_ID",
+        "GMAIL_GET_MESSAGE",
+    ):
+        if "format" not in inner_args:
+            inner_args["format"] = "metadata"
+
+
+def _flatten_composio_tools(items: list[Any]) -> list[Any]:
+    flat = []
+    for item in items:
+        if isinstance(item, dict) and "tools" in item and isinstance(item["tools"], list):
+            flat.extend(_flatten_composio_tools(item["tools"]))
+        elif isinstance(item, dict) and "calls" in item and isinstance(item["calls"], list):
+            flat.extend(_flatten_composio_tools(item["calls"]))
+        else:
+            flat.append(item)
+    return flat
+
+
+def normalize_composio_search_tools_args(arguments: Any) -> dict[str, Any]:
+    """Coerce various LLM argument shapes into the required structure for COMPOSIO_SEARCH_TOOLS:
+
+    {"queries": [{"use_case": str, "known_fields": dict}]}
+    """
+    if isinstance(arguments, str):
+        q = arguments.strip()
+        return {"queries": [{"use_case": q}]} if q else {"queries": []}
+
+    if not isinstance(arguments, dict):
+        return {"queries": []}
+
+    if "queries" in arguments:
+        queries_val = arguments["queries"]
+        if isinstance(queries_val, str):
+            q = queries_val.strip()
+            return {"queries": [{"use_case": q}]} if q else {"queries": []}
+        if isinstance(queries_val, list):
+            norm_queries = []
+            for item in queries_val:
+                if isinstance(item, str):
+                    norm_queries.append({"use_case": item.strip()})
+                elif isinstance(item, dict):
+                    if "use_case" in item:
+                        norm_queries.append(item)
+                    elif "query" in item:
+                        norm_queries.append({"use_case": item["query"]})
+                    elif "text" in item:
+                        norm_queries.append({"use_case": item["text"]})
+                    else:
+                        norm_queries.append(item)
+            return {"queries": norm_queries}
+
+    use_case = (
+        arguments.get("use_case")
+        or arguments.get("query")
+        or arguments.get("text")
+        or arguments.get("search")
+    )
+    if use_case and isinstance(use_case, str):
+        known_fields = arguments.get("known_fields")
+        entry: dict[str, Any] = {"use_case": use_case.strip()}
+        if isinstance(known_fields, dict):
+            entry["known_fields"] = known_fields
+        return {"queries": [entry]}
+
+    return arguments if "queries" in arguments else {"queries": []}
+
+
+def normalize_composio_remote_workbench_args(arguments: Any) -> dict[str, Any]:
+    """Coerce various LLM argument shapes into the required structure for COMPOSIO_REMOTE_WORKBENCH:
+
+    {"code_to_execute": str}
+    """
+    if isinstance(arguments, str):
+        return {"code_to_execute": arguments.strip()}
+
+    if not isinstance(arguments, dict):
+        return {"code_to_execute": ""}
+
+    if "code_to_execute" in arguments and arguments["code_to_execute"]:
+        return arguments
+
+    code = (
+        arguments.get("code")
+        or arguments.get("command")
+        or arguments.get("script")
+        or arguments.get("python")
+        or arguments.get("cell")
+        or arguments.get("code_to_execute")
+    )
+    if code is not None:
+        out = dict(arguments)
+        out["code_to_execute"] = str(code).strip()
+        return out
+
+    return arguments
+
+
+def normalize_composio_multi_execute_args(arguments: Any) -> dict[str, Any]:
     """Coerce various LLM argument shapes into the required structure for COMPOSIO_MULTI_EXECUTE_TOOL:
 
-    {"tools": [{"tool_slug": str, "arguments": dict[str, Any]}]}
+    {"sync_response_to_workbench": bool, "tools": [{"tool_slug": str, "arguments": dict[str, Any]}]}
     """
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except Exception:
+            return {"sync_response_to_workbench": False, "tools": []}
+
+    if isinstance(arguments, list):
+        arguments = {"tools": arguments, "sync_response_to_workbench": False}
+
     if not isinstance(arguments, dict):
-        return {"tools": []}
+        return {"sync_response_to_workbench": False, "tools": []}
+
+    sync_bench = (
+        False
+        if arguments.get("sync_response_to_workbench") is None
+        else bool(arguments.get("sync_response_to_workbench"))
+    )
 
     tools_val = arguments.get("tools")
     if isinstance(tools_val, list):
+        flattened_items = _flatten_composio_tools(tools_val)
         normalized_tools = []
-        for item in tools_val:
+        for i, item in enumerate(flattened_items):
             if isinstance(item, dict):
                 slug = (
                     item.get("tool_slug")
@@ -132,6 +272,11 @@ def normalize_composio_multi_execute_args(arguments: dict[str, Any]) -> dict[str
                     or item.get("slug")
                     or item.get("action")
                 )
+                if not slug or not str(slug).strip():
+                    raise ValueError(
+                        f"tools[{i}].tool_slug is empty; expected {{\"tool_slug\": \"...\", \"arguments\": {{...}}}}, received: {json.dumps(item)}"
+                    )
+                slug_str = str(slug).strip()
                 inner_args = item.get("arguments")
                 if inner_args is None or not isinstance(inner_args, dict):
                     inner_args = {
@@ -139,20 +284,34 @@ def normalize_composio_multi_execute_args(arguments: dict[str, Any]) -> dict[str
                         for k, v in item.items()
                         if k not in ("tool_slug", "name", "tool_name", "slug", "action", "arguments")
                     }
+                else:
+                    inner_args = dict(inner_args)
+                _apply_gmail_defaults(slug_str, inner_args)
                 normalized_tools.append({
-                    "tool_slug": str(slug or "").strip(),
+                    "tool_slug": slug_str,
                     "arguments": inner_args,
                 })
             elif isinstance(item, str):
+                slug_str = item.strip()
+                if not slug_str:
+                    raise ValueError(
+                        f"tools[{i}].tool_slug is empty; expected {{\"tool_slug\": \"...\", \"arguments\": {{...}}}}, received: {repr(item)}"
+                    )
+                inner_args = (
+                    dict(arguments.get("arguments", {}))
+                    if isinstance(arguments.get("arguments"), dict)
+                    else {}
+                )
+                _apply_gmail_defaults(slug_str, inner_args)
                 normalized_tools.append({
-                    "tool_slug": item.strip(),
-                    "arguments": (
-                        arguments.get("arguments", {})
-                        if isinstance(arguments.get("arguments"), dict)
-                        else {}
-                    ),
+                    "tool_slug": slug_str,
+                    "arguments": inner_args,
                 })
-        return {"tools": normalized_tools}
+            else:
+                raise ValueError(
+                    f"tools[{i}] is malformed; expected {{\"tool_slug\": \"...\", \"arguments\": {{...}}}}, received: {repr(item)}"
+                )
+        return {"sync_response_to_workbench": sync_bench, "tools": normalized_tools}
 
     # Top-level without 'tools' key
     slug = (
@@ -163,21 +322,29 @@ def normalize_composio_multi_execute_args(arguments: dict[str, Any]) -> dict[str
         or arguments.get("action")
     )
     if slug:
+        slug_str = str(slug).strip()
         inner_args = arguments.get("arguments")
         if inner_args is None or not isinstance(inner_args, dict):
             inner_args = {
                 k: v
                 for k, v in arguments.items()
-                if k not in ("tool_slug", "name", "tool_name", "slug", "action", "arguments")
+                if k not in (
+                    "tool_slug", "name", "tool_name", "slug", "action",
+                    "arguments", "sync_response_to_workbench"
+                )
             }
+        else:
+            inner_args = dict(inner_args)
+        _apply_gmail_defaults(slug_str, inner_args)
         return {
+            "sync_response_to_workbench": sync_bench,
             "tools": [{
-                "tool_slug": str(slug).strip(),
+                "tool_slug": slug_str,
                 "arguments": inner_args,
-            }]
+            }],
         }
 
-    return arguments
+    return {"sync_response_to_workbench": sync_bench, "tools": []}
 
 
 # What a dead transport looks like coming back out of the SDK. Matched on the
@@ -953,10 +1120,48 @@ class MCPManager:
                 self.registry.register(cached)
                 tools_for_cache.append(cached)
             else:
+                desc = self._describe(config, discovered.description)
+                params = discovered.input_schema
+                if config.name == "composio":
+                    if "COMPOSIO_SEARCH_TOOLS" in discovered.name:
+                        desc = (
+                            f"[{config.name}] Required arguments: queries: [{{'use_case': '...'}}]. "
+                            "You may also pass use_case='...' or a bare search string.\n\n"
+                            + (discovered.description or "")
+                        )
+                        if isinstance(params, dict):
+                            params = dict(params)
+                            props = dict(params.get("properties") or {})
+                            props.setdefault("use_case", {"type": "string", "description": "High-level goal or query to discover tools for"})
+                            props.setdefault("query", {"type": "string", "description": "Search query"})
+                            params["properties"] = props
+                    elif "COMPOSIO_MULTI_EXECUTE_TOOL" in discovered.name:
+                        desc = (
+                            f"[{config.name}] Required arguments: tools: [{{'tool_slug': '...', 'arguments': {{...}}}}]. "
+                            "sync_response_to_workbench is optional and defaults to false.\n\n"
+                            + (discovered.description or "")
+                        )
+                        if isinstance(params, dict):
+                            params = dict(params)
+                            if "required" in params and isinstance(params["required"], list):
+                                params["required"] = [r for r in params["required"] if r != "sync_response_to_workbench"]
+                    elif "COMPOSIO_REMOTE_WORKBENCH" in discovered.name:
+                        desc = (
+                            f"[{config.name}] Required arguments: code_to_execute: str (Python code to execute). "
+                            "You may also pass code='...' or command='...'.\n\n"
+                            + (discovered.description or "")
+                        )
+                        if isinstance(params, dict):
+                            params = dict(params)
+                            props = dict(params.get("properties") or {})
+                            props.setdefault("code", {"type": "string", "description": "Python code to execute in the remote sandbox"})
+                            props.setdefault("command", {"type": "string", "description": "Command or script to execute"})
+                            params["properties"] = props
+
                 tool = Tool(
                     name=key,
-                    description=self._describe(config, discovered.description),
-                    parameters=discovered.input_schema,
+                    description=desc,
+                    parameters=params,
                     handler=self._make_handler(config.name, discovered.name),
                     risk=classify(discovered.name, discovered.annotations),
                     source=ToolSource.MCP,
@@ -965,6 +1170,10 @@ class MCPManager:
                 self.registry.register(tool)
                 tools_for_cache.append(tool)
             registered += 1
+
+        if config.name == "composio":
+            registered += self._register_composio_fast_lane_tools(config, tools_for_cache)
+
         # Update cache for this server.
         if tools_for_cache:
             self._tool_cache[config.name] = tools_for_cache
@@ -991,8 +1200,16 @@ class MCPManager:
                 # it cannot do -- naming the screen and the button is what makes
                 # this relayable to the person who can.
                 return ToolResult.error(guidance.not_connected_instruction(server_name))
-            if server_name == "composio" and "COMPOSIO_MULTI_EXECUTE_TOOL" in tool_name:
-                arguments = normalize_composio_multi_execute_args(arguments)
+            if server_name == "composio":
+                if "COMPOSIO_MULTI_EXECUTE_TOOL" in tool_name:
+                    try:
+                        arguments = normalize_composio_multi_execute_args(arguments)
+                    except ValueError as val_err:
+                        return ToolResult.error(str(val_err))
+                elif "COMPOSIO_SEARCH_TOOLS" in tool_name:
+                    arguments = normalize_composio_search_tools_args(arguments)
+                elif "COMPOSIO_REMOTE_WORKBENCH" in tool_name:
+                    arguments = normalize_composio_remote_workbench_args(arguments)
             try:
                 raw = await connection.call(tool_name, arguments)
             except OAuthRequired:
@@ -1089,6 +1306,11 @@ class MCPManager:
                 connection = revived
 
             result = normalize_result(raw)
+            if server_name == "composio":
+                from backend.mcp.composio_sanitizer import sanitize_composio_tool_result
+
+                result = sanitize_composio_tool_result(result, tool_name=tool_name, arguments=arguments)
+
             if result.is_error and is_auth_failure_text(result.content):
                 log.warning("%s returned an authentication error in tool result: %s", server_name, result.content)
                 self.errors[server_name] = f"Authentication error: {result.content}"
@@ -1100,6 +1322,119 @@ class MCPManager:
 
             connection.breaker.record_success()
             return result
+
+        return handler
+
+    def _register_composio_fast_lane_tools(
+        self,
+        config: ServerConfig,
+        tools_for_cache: list[Tool],
+    ) -> int:
+        registered = 0
+        try:
+            from backend.mcp.composio_service import composio_service, FAST_LANE_CONFIG
+
+            if not composio_service.is_configured():
+                return 0
+            connections = composio_service.get_connections()
+            connected_toolkits = [
+                tk for tk in FAST_LANE_CONFIG if tk in connections
+            ]
+            if not connected_toolkits:
+                return 0
+
+            cached_tools = self._tool_cache.get(config.name)
+            cached_by_name = {t.name: t for t in cached_tools} if cached_tools else {}
+
+            for tk in connected_toolkits:
+                fast_tools = composio_service.get_fast_lane_tools(tk)
+                for tool_def in fast_tools:
+                    slug = tool_def["slug"]
+                    key = mcp_tool_key(slug, config.name)
+                    if self.registry.get(key):
+                        continue
+                    cached = cached_by_name.get(key)
+                    if cached is not None:
+                        self.registry.register(cached)
+                        tools_for_cache.append(cached)
+                    else:
+                        tool = Tool(
+                            name=key,
+                            description=f"[{config.name}:{tk}] {tool_def['description']}",
+                            parameters=tool_def["parameters"],
+                            handler=self._make_composio_fast_lane_handler(config.name, slug),
+                            risk=classify(slug, {}),
+                            source=ToolSource.MCP,
+                            server_name=config.name,
+                        )
+                        self.registry.register(tool)
+                        tools_for_cache.append(tool)
+                    registered += 1
+        except Exception as exc:
+            log.warning("Could not register Composio fast-lane tools: %s", exc)
+        return registered
+
+    def _make_composio_fast_lane_handler(self, server_name: str, slug: str):
+        async def handler(arguments: dict[str, Any], ctx: ToolContext) -> ToolResult:
+            connection = self.connections.get(server_name)
+            if connection is None or not connection.connected:
+                return ToolResult.error(guidance.not_connected_instruction(server_name))
+
+            exec_args = {
+                "tools": [
+                    {
+                        "tool_slug": slug,
+                        "arguments": arguments,
+                    }
+                ]
+            }
+            try:
+                raw = await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", exec_args)
+            except OAuthRequired:
+                self.errors[server_name] = f"Authentication required for {server_name}"
+                await self.disconnect_server(server_name)
+                self._hold_off(server_name)
+                guidance.forget()
+                return ToolResult.error(guidance.sign_in_instruction(server_name))
+            except TimeoutError:
+                return ToolResult.error(f"'{slug}' on '{server_name}' timed out.")
+            except Exception as exc:
+                if _is_auth_failure(exc):
+                    log.warning("%s failed authentication during %s: %s", server_name, slug, exc)
+                    self.errors[server_name] = f"Authentication failed: {exc}"
+                    await self.disconnect_server(server_name)
+                    self._hold_off(server_name)
+                    guidance.forget()
+                    return ToolResult.error(guidance.sign_in_instruction(server_name))
+                return ToolResult.error(f"'{slug}' on '{server_name}' failed: {exc}")
+
+            norm = normalize_result(raw)
+            if norm.is_error:
+                return norm
+
+            # Unpack response from COMPOSIO_MULTI_EXECUTE_TOOL payload
+            try:
+                data = json.loads(norm.content) if isinstance(norm.content, str) else norm.content
+                if isinstance(data, dict):
+                    results = data.get("data", {}).get("results") or data.get("results")
+                    if isinstance(results, list) and results:
+                        first_res = results[0]
+                        resp_obj = first_res.get("response", {})
+                        if isinstance(resp_obj, dict):
+                            if not resp_obj.get("successful", True):
+                                err_msg = resp_obj.get("error") or resp_obj.get("data", {}).get("message") or f"{slug} failed"
+                                return ToolResult.error(str(err_msg))
+                            inner_data = resp_obj.get("data")
+                            if inner_data is not None:
+                                return ToolResult.ok(
+                                    json.dumps(inner_data, indent=2)
+                                    if isinstance(inner_data, (dict, list))
+                                    else str(inner_data)
+                                )
+            except Exception as exc:
+                log.debug("Fast-lane result unpacking failed: %s", exc)
+
+            return norm
 
         return handler
 

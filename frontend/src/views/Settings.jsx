@@ -10,7 +10,7 @@ import { useConfirm } from '../components/ui/ConfirmDialog.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Switch from '../components/ui/Switch.jsx'
 import AnimatedSelect from '../components/ui/AnimatedSelect.jsx'
-import { LoaderIcon } from '../components/OnboardingWizard.jsx'
+import { LoaderIcon } from '../components/LoaderIcon.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import { safeStorage } from '../lib/storage.js'
 import * as syncClient from '../lib/sync/client.js'
@@ -47,7 +47,7 @@ const THEME_CHOICES = [
 ]
 
 const VENDOR_PRESETS = [
-  { slug: 'kilocode', name: 'Kilo Code', base_url: 'https://api.kilo.ai/api/gateway', default_model: 'stepfun/step-3.7-flash:free', hint: 'Generous multi-model inference gateway' },
+  { slug: 'kilocode', name: 'Kilo Code', base_url: 'https://api.kilo.ai/api/gateway', default_model: 'kilo-auto/free', hint: 'Generous multi-model inference gateway' },
   { slug: 'nvidia', name: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', default_model: 'nvidia/llama-3.1-nemotron-70b-instruct', hint: 'Generous free tier enterprise microservices' },
   { slug: 'opencode-zen', name: 'OpenCode Zen', base_url: 'https://opencode.ai/zen/v1', default_model: 'kimi-k2.6', hint: 'OpenCode Console inference (kimi-k2.6, glm-5.1, minimax-m2.7)' },
   { slug: 'google', name: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', default_model: 'gemini-2.0-flash', hint: 'Free tier 1M context Gemini 2.0 Flash' },
@@ -2189,9 +2189,9 @@ const POPULAR_PROVIDER_MODELS = {
     { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
   ],
   kilocode: [
-    { id: 'stepfun/step-3.7-flash:free', label: 'StepFun 3.7 Flash (Free)' },
-    { id: 'stepfun/step-2-16k:free', label: 'StepFun 2 16k (Free)' },
-    { id: 'nex-agi/nex-n2.5-pro:free', label: 'Nex N2.5 Pro (Free)' },
+    { id: 'kilo-auto/free', label: 'Kilo Auto (Free)' },
+    { id: 'nvidia/nemotron-3.5-super-vl:free', label: 'NVIDIA Nemotron 3.5 Super VL (Free)' },
+    { id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash' },
   ],
   ollama: [
     { id: 'llama3.2', label: 'Llama 3.2' },

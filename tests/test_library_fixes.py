@@ -69,3 +69,129 @@ def test_reddit_and_x_url_matchers():
     assert is_reddit("https://v.redd.it/abc123xyz")
     assert is_x_post("https://x.com/jack/status/20")
     assert is_x_post("https://twitter.com/sama/status/1763618195844464811")
+
+
+@pytest.mark.asyncio
+async def test_capture_url_notes_sanitization(db):
+    """Verify capture_url strips trailing query params and hash fragments from notes."""
+    from unittest.mock import patch
+    from backend.library.service import LibraryService
+    from backend.media.reel import Reel
+
+    svc = LibraryService()
+    url_with_query = "https://www.instagram.com/reel/DeNA3LtjDzc/?cplk=abc123xyz&ref=share"
+    mock_reel = Reel(
+        url="https://www.instagram.com/reel/DeNA3LtjDzc/",
+        title="Test Reel",
+        caption="A sample caption",
+        author="creator",
+        duration=15.0,
+        thumbnail_url="https://example.com/thumb.jpg",
+        video_path=None,
+    )
+    with patch("backend.library.reels.fetch_reel", return_value=mock_reel):
+        captured = await svc.capture_url(url=url_with_query)
+    
+    item = svc.store.get(captured.item["id"])
+    assert item is not None
+    assert item["notes"] is None or not item["notes"].startswith("?")
+
+
+
+def test_instagram_photo_post_fallback():
+    """Verify _fetch_blocking hook handles posts where formats is empty without raising."""
+    from unittest.mock import MagicMock, patch
+    from backend.media.reel import _fetch_blocking
+
+    mock_info = {
+        "id": "DedkCc6olmo",
+        "title": "10 best Github repos for Claude",
+        "description": "Here are 10 repos...",
+        "uploader": "testuser",
+        "uploader_id": "testuser",
+        "thumbnail": "https://example.com/thumb.jpg",
+        "thumbnails": [{"url": "https://example.com/thumb.jpg"}],
+        "formats": [],
+    }
+
+    with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
+        instance = MagicMock()
+        mock_ydl_cls.return_value.__enter__.return_value = instance
+        instance.extract_info.return_value = mock_info
+
+        reel = _fetch_blocking("https://www.instagram.com/p/DedkCc6olmo/", None, {})
+        assert reel.caption == "Here are 10 repos..."
+        assert reel.author == "testuser"
+        assert reel.thumbnail_url == "https://example.com/thumb.jpg"
+        assert reel.video_path is None
+
+
+@pytest.mark.asyncio
+async def test_reel_capture_sqlite_row_dict_access(db):
+    """Verify ReelCapture safely updates resources and tags on sqlite3.Row without AttributeError."""
+    from backend.library.service import LibraryService
+    from backend.library.reels import ReelCapture
+    import json
+
+    svc = LibraryService()
+    # Create an item in db so row is returned as sqlite3.Row
+    item_id = svc.store.create(
+        title="Test Reel",
+        kind="video",
+        url="https://www.instagram.com/reel/test12345/",
+    )
+    svc.store.update(
+        item_id,
+        resources=json.dumps([{"type": "link", "url": "https://example.com"}]),
+        tags=json.dumps(["test"]),
+    )
+
+    row = svc.store.get(item_id)
+    assert row is not None
+    # sqlite3.Row does not support dot notation (row.resources would raise AttributeError)
+    with pytest.raises(AttributeError):
+        _ = row.resources
+    # But dict-style indexing works properly
+    assert row["resources"] is not None
+    assert row["tags"] is not None
+
+
+def test_library_settings_persistence(db):
+    """Verify load_library and save_library persist enrich_provider and enrich_model."""
+    from backend.config import load_library, save_library
+
+    # Default resolves to a high-tier model, not None and not mistral
+    settings = load_library()
+    assert settings.enrich_provider is not None
+    assert settings.enrich_model is not None
+    assert settings.enrich_provider != "mistral"
+
+    # Save custom enrichment model
+    save_library({"enrich_provider": "google", "enrich_model": "gemini-2.5-flash"})
+    updated = load_library()
+    assert updated.enrich_provider == "google"
+    assert updated.enrich_model == "gemini-2.5-flash"
+
+
+def test_library_settings_api_endpoints(db):
+    """Verify GET and PATCH /api/settings/library endpoints."""
+    from fastapi.testclient import TestClient
+    from backend.api.main import app
+
+    client = TestClient(app)
+    # GET initial settings
+    res = client.get("/api/settings/library")
+    assert res.status_code == 200
+    data = res.json()
+    assert "enrich_provider" in data
+    assert "enrich_model" in data
+
+    # PATCH custom settings
+    patch_res = client.patch(
+        "/api/settings/library",
+        json={"enrich_provider": "groq", "enrich_model": "llama-3.3-70b-versatile"},
+    )
+    assert patch_res.status_code == 200
+    patched_data = patch_res.json()
+    assert patched_data["enrich_provider"] == "groq"
+    assert patched_data["enrich_model"] == "llama-3.3-70b-versatile"

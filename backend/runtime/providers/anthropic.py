@@ -10,10 +10,12 @@ max_tokens -- a provider quirk absorbed here and invisible above (ADR-0001).
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
+from backend.agent.trace import record_llm_call
 from backend.config import ProviderConfig
 from backend.runtime.failures import classify_stream_error
 from backend.runtime.http import MAX_RETRIES, ProviderStreamError, post_json, stream_sse
@@ -270,6 +272,7 @@ class AnthropicClient:
         tools: list[ToolSchema] | None = None,
         params: ModelParameters | None = None,
     ) -> ModelResponse:
+        _t0 = time.perf_counter()
         data = await post_json(
             f"{self.base_url}/messages",
             headers=self._headers(),
@@ -279,6 +282,7 @@ class AnthropicClient:
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
+        _total_ms = (time.perf_counter() - _t0) * 1000.0
         text_parts: list[str] = []
         calls: list[ToolCall] = []
         for block in data.get("content") or []:
@@ -293,7 +297,7 @@ class AnthropicClient:
                     )
                 )
         usage = data.get("usage") or {}
-        return ModelResponse(
+        resp = ModelResponse(
             text="\n".join(t for t in text_parts if t) or None,
             tool_calls=calls,
             stop_reason=data.get("stop_reason"),
@@ -301,6 +305,15 @@ class AnthropicClient:
             output_tokens=usage.get("output_tokens"),
             raw=data,
         )
+        record_llm_call(
+            provider="anthropic",
+            model=self.model,
+            ttft_ms=_total_ms,
+            total_ms=_total_ms,
+            input_tokens=resp.input_tokens,
+            output_tokens=resp.output_tokens,
+        )
+        return resp
 
     async def stream(
         self,
@@ -323,6 +336,9 @@ class AnthropicClient:
         blocks: dict[int, dict[str, Any]] = {}
         stop_reason: str | None = None
         usage: dict[str, Any] = {}
+
+        _stream_start = time.perf_counter()
+        _ttft_ms: float | None = None
 
         async for raw in stream_sse(
             f"{self.base_url}/messages",
@@ -351,6 +367,8 @@ class AnthropicClient:
                 )
 
             if kind == "content_block_start":
+                if _ttft_ms is None:
+                    _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
                 block = event.get("content_block") or {}
                 if block.get("type") == "tool_use":
                     blocks[index] = {
@@ -359,6 +377,8 @@ class AnthropicClient:
                         "arguments": "",
                     }
             elif kind == "content_block_delta":
+                if _ttft_ms is None:
+                    _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
                 delta = event.get("delta") or {}
                 delta_type = delta.get("type")
                 if delta_type == "text_delta" and delta.get("text"):
@@ -398,6 +418,18 @@ class AnthropicClient:
             # the difference between an answer and a blank turn.
             yield StreamEvent(type="done", response=await self.complete(messages, tools, params))
             return
+
+        _total_ms = (time.perf_counter() - _stream_start) * 1000.0
+        if _ttft_ms is None:
+            _ttft_ms = _total_ms
+        record_llm_call(
+            provider="anthropic",
+            model=self.model,
+            ttft_ms=_ttft_ms,
+            total_ms=_total_ms,
+            input_tokens=usage.get("input_tokens"),
+            output_tokens=usage.get("output_tokens"),
+        )
 
         yield StreamEvent(
             type="done",

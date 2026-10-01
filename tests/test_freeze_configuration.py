@@ -4,8 +4,8 @@ def test_freeze_configuration():
     entry = Path("packaging/freeze_entry.py")
     assert entry.exists()
     content = entry.read_text()
-    assert "uvicorn" in content
-    assert "backend.api.main" in content
+    assert "backend.cli" in content
+    assert "cli_main" in content
 
     spec = Path("packaging/amethyst-backend.spec")
     assert spec.exists()

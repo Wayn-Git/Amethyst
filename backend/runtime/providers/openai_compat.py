@@ -17,6 +17,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from backend.agent.trace import record_llm_call
 from backend.runtime.failures import (
     FailureKind,
     classify_stream_error,
@@ -183,27 +184,20 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     and schema-validating servers answer 400.
     """
     out: list[dict[str, Any]] = []
+    valid_tool_call_ids: set[str] = set()
+
     for m in messages:
         role = m.get("role")
-
-        if role == "tool":
-            out.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": m.get("tool_call_id"),
-                    "content": m.get("content") or "",
-                }
-            )
-            continue
 
         if role == "assistant" and m.get("tool_calls"):
             calls = []
             for tc in m["tool_calls"]:
                 fn = tc.get("function", tc)
                 arguments = fn.get("arguments")
+                call_id = tc.get("id")
                 calls.append(
                     {
-                        "id": tc.get("id"),
+                        "id": call_id,
                         "type": "function",
                         "function": {
                             "name": fn.get("name"),
@@ -215,10 +209,50 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         },
                     }
                 )
+                if call_id:
+                    valid_tool_call_ids.add(call_id)
             out.append({"role": "assistant", "content": m.get("content"), "tool_calls": calls})
             continue
 
+        if role == "tool":
+            call_id = m.get("tool_call_id")
+            # In chat completions spec (Mistral, OpenAI, Anthropic), a 'tool' role message
+            # MUST directly follow an 'assistant' message with matching tool_calls.
+            # An orphaned tool result (e.g. from history compaction or turn slicing)
+            # would trigger 400 'Unexpected role tool after role user' or 'invalid_request_message_order'.
+            if call_id and call_id in valid_tool_call_ids:
+                valid_tool_call_ids.discard(call_id)
+                out.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "content": m.get("content") or "",
+                    }
+                )
+            else:
+                # Orphaned tool result: safely represent as user context instead of breaking wire schema
+                orphan_name = m.get("name") or "tool"
+                orphan_text = f"[Previous tool output for {orphan_name}]:\n{m.get('content') or ''}"
+                if out and out[-1].get("role") == "user" and isinstance(out[-1].get("content"), str):
+                    out[-1]["content"] = f"{out[-1]['content']}\n\n{orphan_text}"
+                else:
+                    out.append({"role": "user", "content": orphan_text})
+            continue
+
+        valid_tool_call_ids.clear()
         content = m.get("content") or ""
+
+        # Collapse consecutive user messages to satisfy strict alternation APIs (e.g. Mistral)
+        if (
+            role == "user"
+            and out
+            and out[-1].get("role") == "user"
+            and isinstance(out[-1].get("content"), str)
+            and isinstance(content, str)
+        ):
+            out[-1]["content"] = f"{out[-1]['content']}\n\n{content}"
+            continue
+
         if isinstance(content, list):
             formatted = []
             for b in content:
@@ -299,11 +333,13 @@ class OpenAICompatClient:
         # 120s was cutting those off. Connect stays fast (see http._as_timeout).
         timeout: float = 300.0,
         max_retries: int = MAX_RETRIES,
+        provider_name: str = "openai-compatible",
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = normalize_model_name(f"{self.base_url} {model}", model)
         self.timeout = timeout
+        self.provider_name = provider_name
         #: Retries after the first attempt. The fallback chain
         #: owns one budget for the whole turn and hands each link its share, so
         #: a three-provider chain costs the same order of wall clock as one
@@ -415,6 +451,7 @@ class OpenAICompatClient:
                 return last_resp
             return ModelResponse(text=None)
 
+        _t0 = time.perf_counter()
         data = await post_json(
             self._url,
             headers=self._headers(),
@@ -422,7 +459,17 @@ class OpenAICompatClient:
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
-        return self._parse(data)
+        resp = self._parse(data)
+        _total_ms = (time.perf_counter() - _t0) * 1000.0
+        record_llm_call(
+            provider=getattr(self, "provider_name", "openai-compatible"),
+            model=self.model,
+            ttft_ms=_total_ms,
+            total_ms=_total_ms,
+            input_tokens=resp.input_tokens,
+            output_tokens=resp.output_tokens,
+        )
+        return resp
 
     def _parse(self, data: dict[str, Any]) -> ModelResponse:
         choice = (data.get("choices") or [{}])[0]
@@ -466,6 +513,8 @@ class OpenAICompatClient:
         accumulated by index and only parsed once the stream ends.
         """
         payload = self._build_payload(messages, tools, params, stream=True)
+        _stream_start = time.perf_counter()
+        _ttft_ms: float | None = None
 
         text_parts: list[str] = []
         reasoning_parts: list[str] = []
@@ -525,15 +574,21 @@ class OpenAICompatClient:
                     delta = choice.get("delta") or {}
 
                     if (piece := _as_text(delta.get("content"))):
+                        if _ttft_ms is None:
+                            _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
                         text_parts.append(piece)
                         yielded_content = True
                         yield StreamEvent(type="text", text=piece)
 
                     if thought := _reasoning_of(delta):
+                        if _ttft_ms is None:
+                            _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
                         reasoning_parts.append(thought)
                         yield StreamEvent(type="reasoning", text=thought)
 
                     for fragment in delta.get("tool_calls") or []:
+                        if _ttft_ms is None:
+                            _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
                         index = fragment.get("index", 0)
                         slot = partial.setdefault(index, {"id": None, "name": "", "arguments": ""})
                         if fragment.get("id"):
@@ -601,6 +656,18 @@ class OpenAICompatClient:
             if not self.is_opencode:
                 yield StreamEvent(type="done", response=await self.complete(messages, tools, params))
                 return
+
+        _total_ms = (time.perf_counter() - _stream_start) * 1000.0
+        if _ttft_ms is None:
+            _ttft_ms = _total_ms
+        record_llm_call(
+            provider=getattr(self, "provider_name", "openai-compatible"),
+            model=self.model,
+            ttft_ms=_ttft_ms,
+            total_ms=_total_ms,
+            input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"),
+        )
 
         yield StreamEvent(
             type="done",
@@ -671,7 +738,11 @@ def initialize(
         from backend.runtime.registry import ProviderNotConfigured
         raise ProviderNotConfigured(f"No API key configured for provider '{config.name}'. Add an API key in Settings.")
     client = OpenAICompatClient(
-        base_url=base_url, api_key=api_key, model=resolved_model, max_retries=max_retries
+        base_url=base_url,
+        api_key=api_key,
+        model=resolved_model,
+        max_retries=max_retries,
+        provider_name=config.name,
     )
     return ResolvedModel(
         provider=config.name,

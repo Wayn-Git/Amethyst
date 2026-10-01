@@ -448,6 +448,9 @@ export function AppProvider({ children }) {
   const setOnboardingDone = useCallback((value) => {
     setOnboardingDoneRaw(value)
     savePrefs({ onboardingDone: value })
+    if (value) {
+      api.completeSetup().catch(() => {})
+    }
   }, [])
   const openOnboarding = useCallback(() => {
     setOnboardingDone(false)
@@ -826,6 +829,15 @@ export function AppProvider({ children }) {
   useEffect(() => { if (ready) refreshConvs() }, [ready, refreshConvs])
   useEffect(() => { if (ready) refreshCaps() }, [ready, refreshCaps])
   useEffect(() => { if (ready) refreshUserProfile() }, [ready, refreshUserProfile])
+  useEffect(() => {
+    if (!ready) return
+    api.setupStatus().then((status) => {
+      if (status?.setup?.completed) {
+        setOnboardingDoneRaw(true)
+        savePrefs({ onboardingDone: true })
+      }
+    }).catch(() => {})
+  }, [ready])
 
   /* The phone's poll.
    *

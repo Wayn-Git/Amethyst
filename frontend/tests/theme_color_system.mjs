@@ -46,16 +46,12 @@ for (const theme of requiredPalettes) {
 }
 console.log('✓ CommandPalette.jsx: All 8 curated themes present')
 
-// 5. Verify OnboardingWizard.jsx & SplashScreenWizard.jsx
-const obContent = readFileSync(join(ROOT, 'src/components/OnboardingWizard.jsx'), 'utf-8')
-for (const theme of requiredPalettes) {
-  assert(obContent.includes(`id: '${theme}'`), `OnboardingWizard.jsx: missing ${theme}`)
-}
+// 5. Verify SplashScreenWizard.jsx
 const splashContent = readFileSync(join(ROOT, 'src/components/SplashScreenWizard.jsx'), 'utf-8')
 for (const theme of requiredPalettes) {
   assert(splashContent.includes(`id: '${theme}'`), `SplashScreenWizard.jsx: missing ${theme}`)
 }
-console.log('✓ OnboardingWizard & SplashScreenWizard: Theme choices aligned')
+console.log('✓ SplashScreenWizard: Theme choices aligned')
 
 // 6. Verify Skiper26.jsx
 const skiperContent = readFileSync(join(ROOT, 'src/components/ui/skiper/Skiper26.jsx'), 'utf-8')

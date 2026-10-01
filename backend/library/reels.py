@@ -137,7 +137,7 @@ class ReelCapture:
             bool(notes and notes.strip().lower() in ("music", "song", "#music", "audio"))
         )
         has_slides = bool(reel.slide_urls and len(reel.slide_urls) > 1)
-        kind = "music" if is_music_intent else ("video" if (reel.video_path is not None and not has_slides) else ("post" if has_slides else "article"))
+        kind = "music" if is_music_intent else ("post" if has_slides else "video")
 
         captured = await self.library.capture_media(
             title=reel.title,
@@ -163,30 +163,36 @@ class ReelCapture:
 
         item_id = captured.item["id"]
 
+        # 1. Download thumbnail immediately so the card has an image on first paint
+        thumb_url = reel.thumbnail_url or (reel.slide_urls[0] if reel.slide_urls else None)
+        thumb_note = await self._add_thumbnail(
+            item_id, thumb_url, reel.video_path, fallback_urls=reel.slide_urls
+        )
+
+        # 2. Populate initial resources including video streaming / direct fallback and slides
+        initial_res = []
+        if kind == "video" or reel.direct_video_url:
+            initial_res.append({
+                "type": "video",
+                "name": "Video",
+                "url": f"/api/library/{item_id}/media",
+                "remote_url": reel.direct_video_url,
+            })
+        if reel.slide_urls:
+            initial_res.extend([
+                {"type": "slide", "name": f"Slide {i + 1}", "url": f"/api/library/{item_id}/slides/{i}", "index": i}
+                for i in range(len(reel.slide_urls))
+            ])
+        if initial_res:
+            import json as _json
+            self.library.store.update(item_id, resources=_json.dumps(initial_res))
+
+        initial_status = "enriching" if settings.enrich else "ready"
+        self.library.store.update(item_id, status=initial_status)
+
         async def process_models():
             try:
-                notes_out = [captured.item.get("capture_note") or ""]
-                thumb_url = reel.thumbnail_url or (reel.slide_urls[0] if reel.slide_urls else None)
-                notes_out.append(
-                    await self._add_thumbnail(
-                        item_id, thumb_url, reel.video_path, fallback_urls=reel.slide_urls
-                    )
-                )
-                if reel.slide_urls:
-                    import json as _json
-                    row = self.library.store.get(item_id)
-                    existing_res = []
-                    if row and row["resources"]:
-                        try:
-                            existing_res = _json.loads(row["resources"])
-                        except Exception:
-                            existing_res = []
-                    non_slides = [r for r in existing_res if isinstance(r, dict) and r.get("type") not in ("slide", "image")]
-                    slide_items = [
-                        {"type": "slide", "name": f"Slide {i + 1}", "url": f"/api/library/{item_id}/slides/{i}", "index": i}
-                        for i in range(len(reel.slide_urls))
-                    ]
-                    self.library.store.update(item_id, resources=_json.dumps(non_slides + slide_items))
+                notes_out = [captured.item.get("capture_note") or "", thumb_note]
 
                 notes_out.append(
                     await self._process_content(
@@ -244,7 +250,11 @@ class ReelCapture:
             if not ffmpeg_missing():
                 try:
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    code, _ = await _run(["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(vp), "-vframes", "1", "-q:v", "3", str(target)])
+                    code, _ = await _run(
+                        ["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(vp), "-vframes", "1", "-q:v", "3", str(target)],
+                        timeout=30.0,
+                        workspace=str(target.parent),
+                    )
                     if code == 0 and target.is_file() and target.stat().st_size > 500:
                         self.library.store.update(item_id, thumbnail_path=str(target))
                         return ""
@@ -359,9 +369,9 @@ class ReelCapture:
                     import json as _json
                     row = self.library.store.get(item_id)
                     existing_res = []
-                    if row and row.resources:
+                    if row and row["resources"]:
                         try:
-                            existing_res = _json.loads(row.resources)
+                            existing_res = _json.loads(row["resources"])
                         except Exception:
                             existing_res = []
                     if not any(isinstance(r, dict) and r.get("type") == "video" for r in existing_res):
@@ -380,9 +390,9 @@ class ReelCapture:
                 import json as _json
                 row = self.library.store.get(item_id)
                 r_list = []
-                if row and row.resources:
+                if row and row["resources"]:
                     try:
-                        r_list = _json.loads(row.resources)
+                        r_list = _json.loads(row["resources"])
                     except Exception:
                         r_list = []
                 r_item = {
@@ -399,9 +409,9 @@ class ReelCapture:
                 # ONLY tag as music and promote to music item if the user sent this with music intent!
                 if is_music_intent:
                     t_list = []
-                    if row and row.tags:
+                    if row and row["tags"]:
                         try:
-                            t_list = _json.loads(row.tags)
+                            t_list = _json.loads(row["tags"])
                         except Exception:
                             t_list = []
                     if "music" not in t_list:

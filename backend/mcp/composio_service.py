@@ -7,14 +7,17 @@ to Amethyst's MCP manager.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 from typing import Any
 
 from backend import secrets
+from backend.agent.trace import is_trace_enabled, record_blocking_call
 from backend.db.connection import get_connection
 
 log = logging.getLogger(__name__)
@@ -835,7 +838,90 @@ def _validate_consumer_key(key: str) -> tuple[bool, str | None]:
         return False, f"Composio Connect returned status {resp.status_code}: {resp.text[:200]}"
     except Exception as exc:
         log.warning("Composio consumer key probe failed: %s", exc)
-        return False, f"Could not reach Composio Connect MCP gateway: {exc}"
+#: The ~5 most-used tool slugs per popular toolkit and their essential optional parameters.
+FAST_LANE_CONFIG: dict[str, dict[str, list[str]]] = {
+    "googlecalendar": {
+        "GOOGLECALENDAR_FIND_EVENT": ["query", "calendar_id", "time_min", "time_max", "max_results", "single_events"],
+        "GOOGLECALENDAR_CREATE_EVENT": ["summary", "start_datetime", "end_datetime", "calendar_id", "description", "location", "attendees"],
+        "GOOGLECALENDAR_UPDATE_EVENT": ["event_id", "calendar_id", "summary", "start_datetime", "end_datetime", "description"],
+        "GOOGLECALENDAR_DELETE_EVENT": ["event_id", "calendar_id"],
+        "GOOGLECALENDAR_LIST_CALENDARS": ["max_results"],
+    },
+    "gmail": {
+        "GMAIL_FETCH_EMAILS": ["query", "max_results", "verbose", "label_ids"],
+        "GMAIL_SEND_EMAIL": ["recipient_email", "subject", "body", "cc", "bcc"],
+        "GMAIL_CREATE_EMAIL_DRAFT": ["recipient_email", "subject", "body"],
+        "GMAIL_REPLY_TO_THREAD": ["thread_id", "body"],
+        "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID": ["message_id"],
+    },
+    "github": {
+        "GITHUB_CREATE_AN_ISSUE": ["owner", "repo", "title", "body", "assignees", "labels"],
+        "GITHUB_CREATE_AN_ISSUE_COMMENT": ["owner", "repo", "issue_number", "body"],
+        "GITHUB_CREATE_A_PULL_REQUEST": ["owner", "repo", "title", "head", "base", "body"],
+        "GITHUB_GET_AN_ISSUE": ["owner", "repo", "issue_number"],
+        "GITHUB_GET_A_REPOSITORY": ["owner", "repo"],
+    },
+    "slack": {
+        "SLACK_SEND_MESSAGE": ["channel", "text", "thread_ts"],
+        "SLACK_SEARCH_MESSAGES": ["query", "count"],
+        "SLACK_LIST_ALL_CHANNELS": ["types", "limit"],
+        "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION": ["channel", "ts"],
+        "SLACK_ADD_REACTION_TO_AN_ITEM": ["channel", "timestamp", "name"],
+    },
+    "notion": {
+        "NOTION_SEARCH_NOTION_PAGE": ["query", "filter", "page_size"],
+        "NOTION_GET_PAGE_MARKDOWN": ["page_id"],
+        "NOTION_CREATE_NOTION_PAGE": ["parent_id", "title", "content"],
+        "NOTION_UPDATE_PAGE_MARKDOWN": ["page_id", "type", "content"],
+        "NOTION_QUERY_DATABASE": ["database_id", "filter", "page_size"],
+    },
+}
+
+ALL_FAST_LANE_SLUGS: frozenset[str] = frozenset(
+    slug for toolkit_slugs in FAST_LANE_CONFIG.values() for slug in toolkit_slugs
+)
+
+FAST_LANE_TTL: float = 3600.0  # 1 hour cache TTL
+
+
+def trim_composio_tool_schema(
+    slug: str,
+    raw_schema: dict[str, Any],
+    allowed_optional: list[str] | None = None,
+) -> dict[str, Any]:
+    """Trim raw Composio tool schema to required params plus key optional params.
+
+    Strips bulky docs, examples, and redundant fields to produce a minimal,
+    clean parameter schema suitable for live model tool definition.
+    """
+    props = raw_schema.get("properties") or {}
+    required = list(raw_schema.get("required") or [])
+    allowed = set(required)
+    if allowed_optional:
+        allowed.update(allowed_optional)
+
+    trimmed_props = {}
+    for prop_name, prop_def in props.items():
+        if prop_name not in allowed:
+            continue
+        if not isinstance(prop_def, dict):
+            continue
+        trimmed_def: dict[str, Any] = {}
+        for key in ("type", "description", "enum", "default", "items"):
+            if key in prop_def:
+                val = prop_def[key]
+                if key == "description" and isinstance(val, str):
+                    val = val.split("\n")[0].strip()
+                    if len(val) > 200:
+                        val = val[:197] + "..."
+                trimmed_def[key] = val
+        trimmed_props[prop_name] = trimmed_def
+
+    return {
+        "type": "object",
+        "properties": trimmed_props,
+        "required": required,
+    }
 
 
 class ComposioService:
@@ -845,8 +931,17 @@ class ComposioService:
         self._cached_client: Any = None
         self._cached_session: Any = None
         self._connections_cache: tuple[float, dict[str, Any]] | None = None
+        self._last_good_connections: dict[str, dict[str, Any]] = {}
+        self._connections_expires_at: float = 0.0
+        self._connections_backoff_until: float = 0.0
+        self._connections_backoff_s: float = 5.0
+        self._connections_revalidating: bool = False
+        self._cached_api_key: str | None = None
+        self._enabled_toolkits_cache: tuple[float, list[str]] | None = None
         self._catalog_cache: tuple[float, dict[str, Any]] | None = None
         self._tools_cache: tuple[float, dict[str, Any]] | None = None
+        self._fast_lane_cache: dict[str, list[dict[str, Any]]] = {}
+        self._fast_lane_cache_time: dict[str, float] = {}
         self._key_mode: str | None = None
 
     def _detect_key_mode(self, key: str) -> str:
@@ -898,8 +993,12 @@ class ComposioService:
         )
         if from_env:
             return sanitize_composio_key(from_env)
+        if getattr(self, "_cached_api_key", None) is not None:
+            return self._cached_api_key
         secret = secrets.get_secret(SECRET_KEY_REF)
-        return sanitize_composio_key(secret) if secret else None
+        val = sanitize_composio_key(secret) if secret else None
+        self._cached_api_key = val
+        return val
 
     def set_api_key(self, key: str, mode: str | None = None) -> bool:
         """Store the Composio API key in the OS keychain and persist key_mode to database."""
@@ -910,6 +1009,11 @@ class ComposioService:
         self._cached_client = None
         self._cached_session = None
         self._connections_cache = None
+        self._last_good_connections = {}
+        self._connections_expires_at = 0.0
+        self._connections_backoff_until = 0.0
+        self._cached_api_key = cleaned
+        self._enabled_toolkits_cache = None
         self._catalog_cache = None
 
         target_mode = mode or getattr(self, "_key_mode", None) or self._detect_key_mode(cleaned)
@@ -1008,7 +1112,14 @@ class ComposioService:
         self._cached_client = None
         self._cached_session = None
         self._connections_cache = None
+        self._last_good_connections = {}
+        self._connections_expires_at = 0.0
+        self._connections_backoff_until = 0.0
+        self._cached_api_key = None
+        self._enabled_toolkits_cache = None
         self._catalog_cache = None
+        self._fast_lane_cache.clear()
+        self._fast_lane_cache_time.clear()
         self._key_mode = None
         conn = get_connection()
         conn.execute("DELETE FROM composio_state WHERE id = 1")
@@ -1039,16 +1150,21 @@ class ComposioService:
 
     def get_enabled_toolkits(self) -> list[str]:
         """Fetch list of enabled toolkit slugs from database or defaults."""
+        now = time.monotonic()
+        if getattr(self, "_enabled_toolkits_cache", None) is not None and now < self._enabled_toolkits_cache[0]:
+            return list(self._enabled_toolkits_cache[1])
         conn = get_connection()
         row = conn.execute("SELECT enabled_toolkits FROM composio_state WHERE id = 1").fetchone()
+        result = list(DEFAULT_TOOLKITS)
         if row and row["enabled_toolkits"]:
             try:
                 parsed = json.loads(row["enabled_toolkits"])
                 if isinstance(parsed, list):
-                    return parsed
+                    result = parsed
             except (ValueError, TypeError):
                 pass
-        return list(DEFAULT_TOOLKITS)
+        self._enabled_toolkits_cache = (now + 60.0, list(result))
+        return list(result)
 
     def _canonical_toolkit_slug(self, slug: str) -> str:
         """Map toolkit aliases (e.g. 'x' -> 'twitter') to canonical Composio slug."""
@@ -1083,16 +1199,44 @@ class ComposioService:
 
     def _get_stable_user_id(self) -> str:
         """Generate a persistent, stable identifier for this Amethyst instance."""
+        if getattr(self, "_stable_user_id", None):
+            return self._stable_user_id
         node = os.environ.get("AMETHYST_USER_ID")
         if node:
+            self._stable_user_id = node
             return node
-        conn = get_connection()
-        row = conn.execute("SELECT user_id FROM composio_state WHERE id = 1").fetchone()
-        if row and row["user_id"]:
-            return row["user_id"]
-        return f"amethyst_{uuid.uuid4().hex[:12]}"
+        try:
+            conn = get_connection()
+            row = conn.execute("SELECT user_id FROM composio_state WHERE id = 1").fetchone()
+            if row and row["user_id"]:
+                self._stable_user_id = str(row["user_id"])
+                return self._stable_user_id
+        except Exception:
+            pass
+        uid = f"amethyst_{uuid.uuid4().hex[:12]}"
+        self._stable_user_id = uid
+        return uid
 
     def get_or_create_session(
+        self,
+        enabled_toolkits: list[str] | None = None,
+        force_refresh: bool = False,
+    ) -> Any:
+        _t0 = time.perf_counter()
+        try:
+            return self._get_or_create_session_inner(enabled_toolkits=enabled_toolkits, force_refresh=force_refresh)
+        finally:
+            if is_trace_enabled():
+                elapsed_ms = (time.perf_counter() - _t0) * 1000.0
+                log.info("[TRACE] composio_service.get_or_create_session took %.2fms", elapsed_ms)
+                if elapsed_ms >= 50.0:
+                    record_blocking_call(
+                        elapsed_ms,
+                        "backend/mcp/composio_service.py:get_or_create_session",
+                        detail="(synchronous session create/query)",
+                    )
+
+    def _get_or_create_session_inner(
         self,
         enabled_toolkits: list[str] | None = None,
         force_refresh: bool = False,
@@ -1220,6 +1364,7 @@ class ComposioService:
             (json.dumps(toolkits),),
         )
         conn.commit()
+        self._enabled_toolkits_cache = None
         return True
 
     def get_mcp_config(self) -> dict[str, Any] | None:
@@ -1313,18 +1458,139 @@ class ComposioService:
         }
 
     def get_connections(self, force: bool = False) -> dict[str, dict[str, Any]]:
+        """Return dict of {toolkit_slug: connection_details} for ACTIVE accounts only.
+
+        Uses stale-while-revalidate: returns the last good value immediately,
+        revalidating in the background. On failure, backs off and retains the previous value.
+        """
+        _t0 = time.perf_counter()
+        try:
+            return self._get_connections_inner(force=force)
+        finally:
+            if is_trace_enabled():
+                elapsed_ms = (time.perf_counter() - _t0) * 1000.0
+                log.info("[TRACE] composio_service.get_connections took %.2fms", elapsed_ms)
+                if elapsed_ms >= 50.0:
+                    record_blocking_call(
+                        elapsed_ms,
+                        "backend/mcp/composio_service.py:get_connections",
+                        detail="(synchronous connected accounts HTTP/SDK call)",
+                    )
+
+    def _get_connections_inner(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """Return dict of {toolkit_slug: connection_details} for ACTIVE accounts only."""
         if not self.is_configured():
             return {}
         now = time.monotonic()
-        if not force and self._connections_cache is not None and now < self._connections_cache[0]:
-            return self._connections_cache[1]
+        # Fast path 1: Fresh cached good connections
+        if not force and now < self._connections_expires_at and self._last_good_connections:
+            return dict(self._last_good_connections)
 
-        active: dict[str, dict[str, Any]] = {}
+        # Stale or forced: check if background revalidation should be triggered
+        should_revalidate = (force or now >= self._connections_expires_at) and (now >= self._connections_backoff_until)
+        if should_revalidate and not self._connections_revalidating:
+            self._trigger_background_revalidation()
+
+        # If we have a good value, return it immediately (stale-while-revalidate)
+        if self._last_good_connections:
+            return dict(self._last_good_connections)
+
+        # Legacy / fallback compatibility: if _connections_cache has a value
+        if self._connections_cache is not None and self._connections_cache[1]:
+            self._last_good_connections = dict(self._connections_cache[1])
+            return dict(self._last_good_connections)
+
+        # Cold start (no cache at all):
+        # If in an active event loop, do NOT block the event loop! Trigger background task and return empty
+        try:
+            loop = asyncio.get_running_loop()
+            if loop and loop.is_running():
+                if not self._connections_revalidating:
+                    self._trigger_background_revalidation()
+                return {}
+        except RuntimeError:
+            pass
+
+        # Outside event loop (synchronous context, CLI, or test): run synchronous fetch
+        return self._fetch_connections_sync()
+
+    async def get_connections_async(self, force: bool = False) -> dict[str, dict[str, Any]]:
+        """Asynchronously return or refresh connected accounts."""
+        if not self.is_configured():
+            return {}
+        now = time.monotonic()
+        if not force and now < self._connections_expires_at and self._last_good_connections:
+            return dict(self._last_good_connections)
+
+        if not force and now < self._connections_backoff_until and self._last_good_connections:
+            return dict(self._last_good_connections)
+
+        return await self.fetch_connections_async()
+
+    async def fetch_connections_async(self) -> dict[str, dict[str, Any]]:
+        """Perform non-blocking fetch of connected accounts."""
+        if not self.is_configured():
+            return {}
+        self._connections_revalidating = True
         headers = self._auth_headers()
         user_id = self._get_stable_user_id()
 
-        # Strategy 1: OpenMausBot HTTP query to connected_accounts
+        # Strategy 1: Async HTTP query
+        if headers:
+            try:
+                import httpx
+                params = {
+                    "limit": "50",
+                    "user_ids": user_id,
+                    "order_by": "updated_at",
+                    "order_direction": "desc",
+                }
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    res = await client.get(
+                        "https://backend.composio.dev/api/v3.1/connected_accounts",
+                        headers=headers,
+                        params=params,
+                    )
+                if res.status_code == 200:
+                    data = res.json()
+                    active = self._parse_connected_accounts_json(data)
+                    self._on_fetch_success(active)
+                    return active
+            except Exception as exc:
+                log.debug("Async HTTP connected accounts listing failed: %s; falling back to SDK", exc)
+
+        # Strategy 2: Python SDK fallback via asyncio.to_thread
+        mode = self.get_key_mode()
+        if mode != "consumer":
+            try:
+                def _call_sdk() -> Any:
+                    client = self._get_client()
+                    try:
+                        return client.connected_accounts.list(user_ids=[user_id], statuses=["ACTIVE"])
+                    except Exception as exc:
+                        log.debug("User-scoped connection list failed, querying project connections: %s", exc)
+                        return client.connected_accounts.list(statuses=["ACTIVE"])
+
+                accounts = await asyncio.to_thread(_call_sdk)
+                active = self._parse_connected_accounts_sdk(accounts)
+                self._on_fetch_success(active)
+                return active
+            except Exception as exc:
+                log.warning("Failed to fetch Composio connected accounts via SDK (async): %s", exc)
+
+        # Both failed: back off and retain previous good connections
+        self._on_fetch_failure()
+        return dict(self._last_good_connections)
+
+    def _fetch_connections_sync(self) -> dict[str, dict[str, Any]]:
+        """Perform synchronous fetch of connected accounts (used outside event loop)."""
+        if not self.is_configured():
+            return {}
+        self._connections_revalidating = True
+        headers = self._auth_headers()
+        user_id = self._get_stable_user_id()
+
+        # Strategy 1: OpenMausBot HTTP query
         if headers:
             try:
                 import httpx
@@ -1342,27 +1608,13 @@ class ComposioService:
                 )
                 if res.status_code == 200:
                     data = res.json()
-                    for item in data.get("items", []):
-                        status = (item.get("status") or "").upper()
-                        if status == "ACTIVE":
-                            tk = item.get("toolkit") or {}
-                            slug = tk.get("slug") if isinstance(tk, dict) else tk
-                            if slug:
-                                s_slug = str(slug).lower()
-                                active[s_slug] = {
-                                    "id": item.get("id", ""),
-                                    "status": "ACTIVE",
-                                    "created_at": item.get("created_at"),
-                                    "updated_at": item.get("updated_at"),
-                                    "word_id": item.get("word_id"),
-                                    "alias": item.get("alias"),
-                                }
-                    self._connections_cache = (now + 30.0, active)
+                    active = self._parse_connected_accounts_json(data)
+                    self._on_fetch_success(active)
                     return active
             except Exception as exc:
                 log.debug("HTTP connected accounts listing failed: %s; falling back to SDK", exc)
 
-        # Strategy 2: Python SDK fallback (e.g. for mock tests)
+        # Strategy 2: Python SDK fallback
         mode = self.get_key_mode()
         if mode != "consumer":
             try:
@@ -1372,23 +1624,86 @@ class ComposioService:
                 except Exception as exc:
                     log.debug("User-scoped connection list failed, querying project connections: %s", exc)
                     accounts = client.connected_accounts.list(statuses=["ACTIVE"])
-                for item in getattr(accounts, "items", []):
-                    toolkit = getattr(item, "toolkit", None)
-                    slug = getattr(toolkit, "slug", None) if toolkit else None
-                    if not slug and isinstance(toolkit, str):
-                        slug = toolkit
-                    status = getattr(item, "status", "")
-                    if slug and (status == "ACTIVE" or not status):
-                        active[str(slug).lower()] = {
-                            "id": getattr(item, "id", ""),
-                            "status": status or "ACTIVE",
-                            "created_at": getattr(item, "created_at", None),
-                        }
+                active = self._parse_connected_accounts_sdk(accounts)
+                self._on_fetch_success(active)
+                return active
             except Exception as exc:
-                log.warning("Failed to fetch Composio connected accounts via SDK: %s", exc)
+                log.warning("Failed to fetch Composio connected accounts via SDK (sync): %s", exc)
 
-        self._connections_cache = (now + 30.0, active)
+        # Both failed
+        self._on_fetch_failure()
+        return dict(self._last_good_connections)
+
+    def _parse_connected_accounts_json(self, data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        active: dict[str, dict[str, Any]] = {}
+        for item in data.get("items", []):
+            status = (item.get("status") or "").upper()
+            if status == "ACTIVE":
+                tk = item.get("toolkit") or {}
+                slug = tk.get("slug") if isinstance(tk, dict) else tk
+                if slug:
+                    s_slug = str(slug).lower()
+                    active[s_slug] = {
+                        "id": item.get("id", ""),
+                        "status": "ACTIVE",
+                        "created_at": item.get("created_at"),
+                        "updated_at": item.get("updated_at"),
+                        "word_id": item.get("word_id"),
+                        "alias": item.get("alias"),
+                    }
         return active
+
+    def _parse_connected_accounts_sdk(self, accounts: Any) -> dict[str, dict[str, Any]]:
+        active: dict[str, dict[str, Any]] = {}
+        for item in getattr(accounts, "items", []):
+            toolkit = getattr(item, "toolkit", None)
+            slug = getattr(toolkit, "slug", None) if toolkit else None
+            if not slug and isinstance(toolkit, str):
+                slug = toolkit
+            status = getattr(item, "status", "")
+            if slug and (status == "ACTIVE" or not status):
+                active[str(slug).lower()] = {
+                    "id": getattr(item, "id", ""),
+                    "status": status or "ACTIVE",
+                    "created_at": getattr(item, "created_at", None),
+                }
+        return active
+
+    def _on_fetch_success(self, active: dict[str, dict[str, Any]]) -> None:
+        now = time.monotonic()
+        self._last_good_connections = dict(active)
+        self._connections_expires_at = now + 60.0
+        self._connections_backoff_s = 5.0
+        self._connections_backoff_until = 0.0
+        self._connections_cache = (now + 60.0, dict(active))
+        self._connections_revalidating = False
+
+    def _on_fetch_failure(self) -> None:
+        now = time.monotonic()
+        self._connections_backoff_until = now + self._connections_backoff_s
+        log.debug(
+            "Composio connection fetch failed; backing off for %.1fs, retaining previous %d connection(s)",
+            self._connections_backoff_s,
+            len(self._last_good_connections),
+        )
+        self._connections_backoff_s = min(self._connections_backoff_s * 2, 60.0)
+        self._connections_revalidating = False
+
+    def _trigger_background_revalidation(self) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            if loop and loop.is_running():
+                self._connections_revalidating = True
+                asyncio.create_task(self._revalidate_task_wrapper())
+        except RuntimeError:
+            self._connections_revalidating = False
+
+    async def _revalidate_task_wrapper(self) -> None:
+        try:
+            await self.fetch_connections_async()
+        except Exception as exc:
+            log.debug("Background connections revalidation failed: %s", exc)
+            self._on_fetch_failure()
 
     def initiate_connection(self, toolkit: str, alias: str | None = None) -> str:
         """Initiate hosted OAuth authorization with Composio and return redirect URL.
@@ -1875,6 +2190,112 @@ class ComposioService:
             ]
         self._tools_cache = (now + 60.0, tools_map)
         return tools_map
+
+    def get_fast_lane_tools(self, toolkit: str) -> list[dict[str, Any]]:
+        """Return trimmed fast-lane tool schemas for a toolkit, cached with TTL."""
+        slug = self._canonical_toolkit_slug(toolkit)
+        if slug not in FAST_LANE_CONFIG:
+            return []
+
+        now = time.monotonic()
+        cached_time = self._fast_lane_cache_time.get(slug, 0.0)
+        cached = self._fast_lane_cache.get(slug)
+
+        # If cache is valid within TTL, return immediately
+        if cached is not None and (now - cached_time) < FAST_LANE_TTL:
+            return cached
+
+        # If cache exists but is expired, return stale and refresh in background
+        if cached is not None:
+            self._trigger_background_fast_lane_refresh([slug])
+            return cached
+
+        # If cache is completely empty, fetch synchronously
+        try:
+            fetched = self._fetch_fast_lane_tools_sync([slug])
+            if slug in fetched:
+                self._fast_lane_cache[slug] = fetched[slug]
+                self._fast_lane_cache_time[slug] = now
+                return fetched[slug]
+        except Exception as exc:
+            log.warning("Failed to fetch fast-lane tools for %s: %s", slug, exc)
+            return []
+
+        return self._fast_lane_cache.get(slug, [])
+
+    def _trigger_background_fast_lane_refresh(self, toolkits: list[str]) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.warm_fast_lane(toolkits))
+        except RuntimeError:
+            pass  # No running event loop
+
+    async def warm_fast_lane(self, toolkits: list[str] | None = None) -> None:
+        """Warm or refresh fast-lane cache in background thread."""
+        if not self.is_configured():
+            return
+        if toolkits is None:
+            conns = await asyncio.to_thread(self.get_connections)
+            toolkits = [tk for tk in FAST_LANE_CONFIG if tk in conns]
+        if not toolkits:
+            return
+        try:
+            fetched = await asyncio.to_thread(self._fetch_fast_lane_tools_sync, toolkits)
+            now = time.monotonic()
+            for tk, tools in fetched.items():
+                self._fast_lane_cache[tk] = tools
+                self._fast_lane_cache_time[tk] = now
+            log.info("Composio fast-lane warmed %d toolkits: %s", len(fetched), list(fetched.keys()))
+        except Exception as exc:
+            log.warning("Composio fast-lane background refresh failed: %s", exc)
+
+    def _fetch_fast_lane_tools_sync(self, toolkits: list[str]) -> dict[str, list[dict[str, Any]]]:
+        if not self.is_configured():
+            return {}
+        try:
+            client = self._get_client()
+        except Exception as exc:
+            log.warning("Could not instantiate Composio client for fast-lane tools: %s", exc)
+            return {}
+
+        slug_to_toolkit: dict[str, str] = {}
+        all_slugs: list[str] = []
+        for tk in toolkits:
+            canonical = self._canonical_toolkit_slug(tk)
+            if canonical in FAST_LANE_CONFIG:
+                for slug in FAST_LANE_CONFIG[canonical]:
+                    slug_to_toolkit[slug] = canonical
+                    all_slugs.append(slug)
+
+        if not all_slugs:
+            return {}
+
+        results: dict[str, list[dict[str, Any]]] = {self._canonical_toolkit_slug(tk): [] for tk in toolkits}
+        try:
+            raw_tools = client.tools.get_raw_composio_tools(tools=all_slugs)
+        except Exception as exc:
+            log.warning("Composio client.tools.get_raw_composio_tools failed: %s", exc)
+            return results
+
+        for raw_tool in raw_tools:
+            slug = getattr(raw_tool, "slug", "")
+            tk = slug_to_toolkit.get(slug)
+            if not tk:
+                continue
+            allowed_optional = FAST_LANE_CONFIG[tk].get(slug, [])
+            raw_params = getattr(raw_tool, "input_parameters", {}) or {}
+            trimmed_params = trim_composio_tool_schema(slug, raw_params, allowed_optional)
+            desc = getattr(raw_tool, "description", "") or getattr(raw_tool, "name", slug)
+            first_sentence = desc.split("\n")[0].strip()
+            if len(first_sentence) > 300:
+                first_sentence = first_sentence[:297] + "..."
+            results[tk].append({
+                "slug": slug,
+                "name": getattr(raw_tool, "name", slug),
+                "description": first_sentence,
+                "parameters": trimmed_params,
+            })
+        return results
 
 
 composio_service = ComposioService()
