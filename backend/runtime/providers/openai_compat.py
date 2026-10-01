@@ -19,12 +19,14 @@ from backend.config import ProviderConfig
 from backend.runtime.failures import FailureKind, classify_stream_error, should_retry
 from backend.runtime.http import (
     MAX_RETRIES,
+    ProviderError,
     ProviderHTTPError,
     ProviderStreamError,
     post_json,
     stream_backoff,
     stream_sse,
 )
+from backend.runtime.reasoning_catalog import is_reasoning_model
 from backend.runtime.types import (
     Capabilities,
     ModelParameters,
@@ -33,12 +35,6 @@ from backend.runtime.types import (
     StreamEvent,
     ToolCall,
     ToolSchema,
-)
-from backend.runtime.reasoning_catalog import (
-    is_reasoning_model,
-    effort_levels,
-    default_effort,
-    capabilities_for,
 )
 from backend.secrets import resolve_api_key
 
@@ -168,6 +164,21 @@ def _describe_provider_error(error: object) -> str:
     return str(error)
 
 
+def _validate_stream_chunk(chunk: dict[str, Any]) -> None:
+    """Reject malformed frames instead of silently turning them into a blank turn."""
+    choices = chunk.get("choices")
+    if choices is not None and not isinstance(choices, list):
+        raise ProviderStreamError(
+            "Provider sent malformed choices in stream",
+            kind=FailureKind.UPSTREAM_UNHEALTHY,
+        )
+    if choices and not isinstance(choices[0], dict):
+        raise ProviderStreamError(
+            "Provider sent malformed choice in stream",
+            kind=FailureKind.UPSTREAM_UNHEALTHY,
+        )
+
+
 class OpenAICompatClient:
     def __init__(
         self,
@@ -185,11 +196,11 @@ class OpenAICompatClient:
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
-        #: Attempts this client may make, counting the first. The fallback chain
+        #: Retries after the first attempt. The fallback chain
         #: owns one budget for the whole turn and hands each link its share, so
         #: a three-provider chain costs the same order of wall clock as one
         #: provider rather than three times it.
-        self.max_retries = max_retries
+        self.max_retries = max(0, max_retries)
         #: Session ID for provider-side prompt cache affinity. Set per-turn by
         #: the director so repeated turns to the same conversation hit the
         #: cached prefix instead of re-processing system+tools from scratch.
@@ -247,8 +258,9 @@ class OpenAICompatClient:
             payload["seed"] = p.seed
         # Provider quirk, absorbed here so the loop never learns about it: some
         # reasoning models reject reasoning_effort when function tools are present.
+        # Non-reasoning models reject reasoning_effort outright.
         if p.reasoning_effort and p.reasoning_effort != "none":
-            if not (tools and is_reasoning_model(self.model)):
+            if is_reasoning_model(self.model) and not tools:
                 payload["reasoning_effort"] = p.reasoning_effort
         return payload
 
@@ -313,19 +325,17 @@ class OpenAICompatClient:
         text_parts: list[str] = []
         reasoning_parts: list[str] = []
         partial: dict[int, dict[str, Any]] = {}
-        dropped = 0
         finish_reason: str | None = None
         usage: dict[str, Any] = {}
 
-        for stream_attempt in range(self.max_retries + 1):
+        effective_stream_retries = self.max_retries
+        for stream_attempt in range(effective_stream_retries + 1):
             text_parts.clear()
             reasoning_parts.clear()
             partial.clear()
-            dropped = 0
             finish_reason = None
             usage = {}
             yielded_any = False
-            retry_stream = False
 
             try:
                 async for raw in stream_sse(
@@ -333,30 +343,25 @@ class OpenAICompatClient:
                     headers=self._headers(),
                     payload=payload,
                     timeout=self.timeout,
-                    max_retries=self.max_retries if stream_attempt == 0 else 0,
+                    max_retries=0,
                 ):
                     try:
                         chunk = json.loads(raw)
-                    except json.JSONDecodeError:
-                        if "input stream" in raw.lower():
-                            desc = "Error in input stream"
-                            kind = FailureKind.UPSTREAM_UNHEALTHY
-                            if not text_parts and stream_attempt < self.max_retries:
-                                log.warning(
-                                    "%s bare 'Error in input stream' before text; retrying stream (%d/%d)",
-                                    self.model,
-                                    stream_attempt + 1,
-                                    self.max_retries,
-                                )
-                                await asyncio.sleep(stream_backoff(stream_attempt))
-                                retry_stream = True
-                                break
-                            raise ProviderStreamError(desc, kind=kind)
-                        # Counted rather than silently dropped: a provider emitting
-                        # subtly broken frames otherwise produces a blank or truncated
-                        # answer with nothing anywhere to say why.
-                        dropped += 1
-                        continue
+                    except json.JSONDecodeError as exc:
+                        desc = (
+                            "Error in input stream"
+                            if "error in input stream" in raw.lower()
+                            else "Provider sent malformed JSON in stream"
+                        )
+                        raise ProviderStreamError(
+                            desc, kind=FailureKind.UPSTREAM_UNHEALTHY
+                        ) from exc
+
+                    if not isinstance(chunk, dict):
+                        raise ProviderStreamError(
+                            "Provider sent a non-object stream chunk",
+                            kind=FailureKind.UPSTREAM_UNHEALTHY,
+                        )
 
                     # An OpenAI-compatible provider can report a failure *inside* the
                     # stream rather than as an HTTP status: the connection is already
@@ -364,23 +369,9 @@ class OpenAICompatClient:
                     if error := chunk.get("error"):
                         kind = classify_stream_error(error)
                         desc = _describe_provider_error(error)
-                        is_input_stream = "input stream" in desc.lower() or "input stream" in str(error).lower()
-                        # If no final text has arrived yet, retry the stream attempt seamlessly.
-                        # Do not let reasoning tokens or initial empty deltas block retry.
-                        if (not text_parts or is_input_stream and not text_parts) and should_retry(kind) and stream_attempt < self.max_retries:
-                            log.warning(
-                                "%s stream reported %s before text (%s); retrying stream (%d/%d)",
-                                self.model,
-                                kind,
-                                desc,
-                                stream_attempt + 1,
-                                self.max_retries,
-                            )
-                            await asyncio.sleep(stream_backoff(stream_attempt))
-                            retry_stream = True
-                            break
                         raise ProviderStreamError(desc, kind=kind)
 
+                    _validate_stream_chunk(chunk)
                     if chunk.get("usage"):
                         usage = chunk["usage"]
 
@@ -388,7 +379,7 @@ class OpenAICompatClient:
                     finish_reason = choice.get("finish_reason") or finish_reason
                     delta = choice.get("delta") or {}
 
-                    if (piece := _as_text(delta.get("content"))) is not None:
+                    if (piece := _as_text(delta.get("content"))):
                         text_parts.append(piece)
                         yielded_any = True
                         yield StreamEvent(type="text", text=piece)
@@ -417,20 +408,23 @@ class OpenAICompatClient:
                                     arguments_so_far=slot["arguments"],
                                 )
 
-                if retry_stream:
-                    continue
-
                 break
-            except ProviderHTTPError as exc:
-                if not text_parts and should_retry(exc.kind) and stream_attempt < self.max_retries:
+            except ProviderError as exc:
+                if (
+                    not yielded_any
+                    and should_retry(exc.kind)
+                    and stream_attempt < effective_stream_retries
+                ):
                     log.warning(
                         "%s stream connection dropped before content (%s); retrying stream (%d/%d)",
                         self.model,
                         exc,
                         stream_attempt + 1,
-                        self.max_retries,
+                        effective_stream_retries,
                     )
-                    await asyncio.sleep(stream_backoff(stream_attempt))
+                    if exc.retry_after and exc.retry_after > self.timeout:
+                        raise
+                    await asyncio.sleep(max(stream_backoff(stream_attempt), exc.retry_after or 0))
                     continue
                 raise
 
@@ -459,13 +453,6 @@ class OpenAICompatClient:
             # Thinking is not a reply.
             yield StreamEvent(type="done", response=await self.complete(messages, tools, params))
             return
-
-        if dropped:
-            log.warning(
-                "%s sent %d frame(s) this stream that were not valid JSON; they were skipped",
-                self.model,
-                dropped,
-            )
 
         yield StreamEvent(
             type="done",

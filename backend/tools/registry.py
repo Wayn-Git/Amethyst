@@ -397,9 +397,14 @@ class ToolRegistry:
                 return hit[1]
 
         timeout = tool.timeout if tool.timeout is not None else TOOL_TIMEOUT_SECONDS
+        if timeout is not None and timeout <= 0:
+            timeout = None
         started = time.monotonic()
         try:
-            result = await asyncio.wait_for(tool.handler(arguments, ctx), timeout=timeout)
+            if timeout is not None:
+                result = await asyncio.wait_for(tool.handler(arguments, ctx), timeout=timeout)
+            else:
+                result = await tool.handler(arguments, ctx)
         except TimeoutError:
             result = ToolResult.error(
                 f"{name} did not finish within {int(timeout)}s and was stopped."
@@ -512,6 +517,7 @@ def build_default_registry(
         ask,
         authoring,
         browser,
+        conversations,
         convert,
         desktop,
         documents,
@@ -535,6 +541,7 @@ def build_default_registry(
     registry.register_all(tasks.tools())
     registry.register_all(mail.tools())
     registry.register_all(memory.tools())
+    registry.register_all(conversations.tools())
     registry.register_all(documents.tools())
     registry.register_all(library.tools())
     registry.register_all(web.tools())

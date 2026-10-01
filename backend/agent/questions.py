@@ -32,13 +32,8 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 #: How long a question waits before the turn gives up on it.
-#:
-#: Shorter than a confirmation's six hours on purpose. A permission prompt
-#: guards something that must not happen without a person, so waiting all day is
-#: correct. A question is the model checking an assumption -- if nobody is
-#: there, the useful behaviour is to get on with it and say what was assumed,
-#: not to hold a turn open until tomorrow.
-ANSWER_TIMEOUT_SECONDS = 60 * 30
+#: Effectively infinite / very high (7 days) so the user is never rushed or timed out.
+ANSWER_TIMEOUT_SECONDS = 7 * 24 * 3600
 
 #: What the model is told when nobody answered. Phrased as an instruction
 #: because a bare "timed out" reads as a tool failure, and the model's next move

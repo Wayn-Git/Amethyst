@@ -186,11 +186,10 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         core=True,
         strengths=frozenset({"fast", "reasoning"}),
         label="OpenCode Zen",
-        base_url="https://opencode.ai/inference/openai/v1",
-        default_model="kimi-k2.6",
+        base_url=None,
         keys_url="https://opencode.ai/console",
         docs_url="https://opencode.ai/v2/docs/console/inference",
-        note="Console inference gateway supporting open models (kimi, glm, minimax), Claude, and Gemini.",
+        note="Gateway. Needs its base URL and a model id filled in before it can answer.",
     ),
     ProviderPreset(
         slug="nous",

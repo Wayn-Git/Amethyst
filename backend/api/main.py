@@ -3003,6 +3003,13 @@ class TurnRequest(BaseModel):
     #: thinking -- `effort` is the other one. Unset means "whatever this
     #: conversation last used, else the saved default".
     depth: str | None = None
+    #: Coarse client session signals (ChatGPT layer-1 parity, local-first).
+    #: Allowlisted server-side: IANA tz, BCP47 locale, desktop|mobile|tablet.
+    #: No geo, no UA, no hostname. All optional.
+    client_tz: str | None = None
+    client_tz_offset: int | None = None
+    locale: str | None = None
+    device_class: str | None = None
 
 
 def _waiting_on(conversation_id: str) -> str | None:
@@ -3106,17 +3113,28 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
                 yield _frame("error", message=clean_msg)
                 return
 
+            run_kwargs = {}
+            if body.attachments:
+                run_kwargs["attachments"] = [a.model_dump() for a in body.attachments]
+            try:
+                import inspect
+                sig = inspect.signature(director.run)
+                if "client_context" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+                    run_kwargs["client_context"] = {
+                        "client_tz": body.client_tz,
+                        "client_tz_offset": body.client_tz_offset,
+                        "locale": body.locale,
+                        "device_class": body.device_class,
+                    }
+            except (ValueError, TypeError):
+                pass
+
             async for event in _with_heartbeats(
-                # Passed only when there is something to pass. `run` grew this
-                # parameter; anything implementing the older three-argument
-                # shape -- the unattended runner, the doubles in the tests --
-                # stays callable, which is the whole point of it being optional.
                 director.run(
                     conversation_id,
                     body.message,
                     cancel,
-                    **({"attachments": [a.model_dump() for a in body.attachments]}
-                       if body.attachments else {}),
+                    **run_kwargs,
                 )
             ):
                 if event is _HEARTBEAT:
@@ -6307,6 +6325,33 @@ def library_media(item_id: int) -> FileResponse:
         
     mime_type, _ = mimetypes.guess_type(str(path))
     return FileResponse(path, media_type=mime_type or "application/octet-stream")
+
+
+@app.get("/api/media/local")
+def local_media(path: str) -> FileResponse:
+    """Serve a local image file (screenshots, charts, generated media).
+
+    Safe: only serves existing image files with recognized image mime types.
+    """
+    import mimetypes
+
+    target = Path(path).expanduser().resolve()
+    if not target.is_file():
+        # Check against home or cwd if relative or not found
+        for base in (Path.home(), paths().home, Path.cwd()):
+            candidate = (base / path.lstrip("/")).resolve()
+            if candidate.is_file():
+                target = candidate
+                break
+
+    if not target.is_file():
+        raise HTTPException(404, "file not found")
+
+    mime_type, _ = mimetypes.guess_type(str(target))
+    if not mime_type or not mime_type.startswith("image/"):
+        raise HTTPException(400, "only image files can be previewed")
+
+    return FileResponse(target, media_type=mime_type)
 
 
 @app.post("/api/library/{item_id}/reindex")

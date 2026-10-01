@@ -1569,3 +1569,58 @@ class SubagentSessionRepository:
             " AND julianday('now') - julianday(last_heartbeat) > ?",
             (idle_seconds / 86400.0,),
         ).fetchall()
+
+
+class ConversationSummaryRepository:
+    """Recent-conversation summaries: ChatGPT layer-3 continuity, precomputed.
+
+    One row per conversation, refreshed post-turn from user messages only.
+    Read pre-turn as a cheap block — no embedding, no model call.
+    """
+
+    def __init__(self, conn: sqlite3.Connection | None = None):
+        self.conn = _conn(conn)
+
+    def get(self, conversation_id: str) -> sqlite3.Row | None:
+        try:
+            return self.conn.execute(
+                "SELECT * FROM conversation_summaries WHERE conversation_id = ?",
+                (conversation_id,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return None  # table predates migration on very old DBs
+
+    def upsert(self, conversation_id: str, summary: str, source_max_id: int) -> None:
+        self.conn.execute(
+            "INSERT INTO conversation_summaries (conversation_id, summary, source_max_id, updated_at)"
+            " VALUES (?, ?, ?, datetime('now'))"
+            " ON CONFLICT(conversation_id) DO UPDATE SET"
+            " summary = excluded.summary, source_max_id = excluded.source_max_id,"
+            " updated_at = datetime('now')",
+            (conversation_id, summary, source_max_id),
+        )
+        self.conn.commit()
+
+    def recent(self, *, exclude_id: str | None = None, limit: int = 15) -> list[sqlite3.Row]:
+        """Newest summaries first, with conversation titles joined when present."""
+        try:
+            base_filter = "(c.id IS NULL OR c.automation_id IS NULL)"
+            if exclude_id:
+                return self.conn.execute(
+                    "SELECT s.*, c.title, c.updated_at AS convo_updated"
+                    " FROM conversation_summaries s"
+                    " LEFT JOIN conversations c ON c.id = s.conversation_id"
+                    f" WHERE s.conversation_id != ? AND {base_filter}"
+                    " ORDER BY s.updated_at DESC LIMIT ?",
+                    (exclude_id, limit),
+                ).fetchall()
+            return self.conn.execute(
+                "SELECT s.*, c.title, c.updated_at AS convo_updated"
+                " FROM conversation_summaries s"
+                " LEFT JOIN conversations c ON c.id = s.conversation_id"
+                f" WHERE {base_filter}"
+                " ORDER BY s.updated_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return []

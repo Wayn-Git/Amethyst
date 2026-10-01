@@ -70,7 +70,9 @@ def tools() -> list[Tool]:
                 " substring of the title or URL. Use it for 'what was that site"
                 " about X' and 'the page I read last Tuesday'. It searches only"
                 " what was actually visited on this machine, and nothing is"
-                " uploaded. Bookmarked pages are in the library instead --"
+                " uploaded. This is BROWSER pages, not chat: for 'what did we"
+                " talk about', use search_conversations / list_conversations"
+                " instead. Bookmarked pages are in the library instead --"
                 " search_library and search_documents find those, with their text."
             ),
             parameters={

@@ -168,6 +168,11 @@ def tools() -> list[Tool]:
         " cwd rather than prefixing `cd`.\n"
         "LIMITS: never commit or push unless the user explicitly asked. Do not"
         " use this to talk to the user -- text outside tool calls does that."
+        " Never read app databases through the shell (no sqlite3/cp against"
+        " amethyst.db or any *.db under ~/.amethyst): a live copy risks locks"
+        " and a snapshot without the WAL. Conversation history has first-class"
+        " tools -- list_conversations, read_conversation, search_conversations"
+        " -- use those; one call replaces a dozen shell probes."
     )
     if sandbox_note:
         description += f" Note: {sandbox_note}."

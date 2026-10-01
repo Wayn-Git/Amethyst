@@ -12,9 +12,11 @@ and dilutes what actually matters.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 
 from backend.memory.store import Memory, MemoryStore
@@ -183,19 +185,31 @@ class MemoryService:
         what is current but unrelated, semantic surfaces what is related but
         possibly stale. Neither alone is recall.
 
-        Semantic search is best-effort. With no embedder configured, or none
-        reachable, this degrades to recency rather than returning nothing --
-        memory that needs a running embedding server to work at all would be
-        off by default on most machines.
+        ChatGPT parity fast path: small stores (<=30 live, the common case)
+        inject everything with zero embedding calls. Semantic search is only
+        paid for when the store is large enough to need ranking.
+
+        Semantic search is best-effort with a 2.5s race budget. With no embedder
+        configured, none reachable, or too slow, this degrades to recency
+        rather than blocking first token -- memory that needs a running
+        embedding server to work at all would be off by default on most
+        machines. Target <5s TTFT non-trivial.
         """
+        started = time.monotonic()
         if not self.store.is_enabled(conversation_id):
             return []
-        if not self.store.live(1):
+        live_all = self.store.live(MAX_FACTS_IN_PROMPT)
+        if not live_all:
             # Nothing to recall, so nothing to embed a query against. Without
             # this an empty store still cost a round trip to the embedding
             # server on every single turn -- and the full retry budget when that
             # server is not running, which is the common case before first use.
             return []
+        if len(live_all) <= MAX_FACTS_IN_PROMPT:
+            # Inject-all: no query embedding, no vector search. Recency order
+            # is newest-first already from live().
+            log.debug("memory recall inject-all %d facts in %.0fms", len(live_all), (time.monotonic() - started) * 1000)
+            return render(live_all)
 
         by_id: dict[int, Memory] = {m.id: m for m in self.store.recent(RECENCY_DAYS, RECENCY_LIMIT)}
 
@@ -203,7 +217,9 @@ class MemoryService:
             by_id.setdefault(memory.id, memory)
 
         ordered = sorted(by_id.values(), key=lambda m: (m.created_at, m.id), reverse=True)
-        return render(ordered[:MAX_FACTS_IN_PROMPT])
+        result = render(ordered[:MAX_FACTS_IN_PROMPT])
+        log.debug("memory recall hybrid %d facts in %.0fms", len(result), (time.monotonic() - started) * 1000)
+        return result
 
     async def _semantic_ids(self, query: str) -> list[int]:
         if not query.strip():
@@ -212,7 +228,8 @@ class MemoryService:
         if embedder is None:
             return []
         try:
-            vector = await embedder.embed_one(query)
+            # Race budget: slow embedder must degrade, never block TTFT.
+            vector = await asyncio.wait_for(embedder.embed_one(query), timeout=2.5)
         except Exception as exc:
             log.debug("memory semantic recall unavailable: %s", exc)
             return []

@@ -47,25 +47,15 @@ def is_reasoning_model(model_id: str, provider_caps: dict | None = None) -> bool
     if provider_caps is not None and provider_caps.get("supports_effort") is True:
         return True
 
-    # 4. Pattern-based fallback — exclude known non-reasoning models
+    # 4. Pattern-based fallback — only known reasoning model families
     lower = model_id.lower()
-    _NO_EFFORT = (
-        "text-embedding", "embed", "embedding",
-        "dall-e", "stable-diffusion", "midjourney",
-        "tts-", "whisper", "audio-",
-        "gpt-3", "gpt-3.5",
-        "gpt-4",
-        "gemini-1.",
-        "claude-2",
-        "llama-", "mistral-", "codestral-", "mixtral-",
-        "qwen2-", "qwen3-",
-        "yi-", "internlm-", "baichuan-", "glm-",
-    )
-    for prefix in _NO_EFFORT:
-        if lower.startswith(prefix):
-            return False
+    clean = lower.split("/")[-1]  # strip provider/org prefix like meta-llama/
+    if any(clean.startswith(s) for s in ("o1", "o3", "o4", "gpt-5", "qwq")):
+        return True
+    if any(s in clean for s in ("reasoner", "reasoning", "thinking", "r1", "sky-t1", "marco-o1")):
+        return True
 
-    return True
+    return False
 
 
 def effort_levels(

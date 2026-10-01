@@ -85,7 +85,11 @@ TPM_SAFETY_MARGIN = 1.5
 #: bound for the case where one never arrives -- which, unbounded, is a turn
 #: that waits forever while `_with_heartbeats` keeps the socket demonstrably
 #: alive the whole time, so the interface cannot tell it from slow work.
-DRAIN_TIMEOUT_SECONDS = 30.0
+#: Reduced from 30s. A healthy dispatch posts its sentinel in well under a
+#: second; this only bounds the case where one never arrives. Ten seconds is
+#: still generous for that, and the old 30s added a full half-minute of dead
+#: wait to a turn whenever a callback was lost.
+DRAIN_TIMEOUT_SECONDS = 10.0
 
 
 @dataclass
@@ -105,10 +109,7 @@ class Guards:
     # so a model that only ever returns nothing cannot spin.
     max_continuations: int = 2
     # How many times one answer may be picked up again after the stream carrying
-    # it failed halfway. Two: the failure is intermittent, so one covers the
-    # ordinary blip and a second a long answer that stumbles twice -- and every
-    # resume re-sends the whole partial, so a third triples the token cost of
-    # the longest answers with no evidence it recovers any more of them.
+    # it failed halfway. Two resumes before fallback moves to the next provider.
     max_resumes: int = 2
 
 
@@ -441,14 +442,25 @@ def _nothing_can_answer(routed: Any) -> str:
 
 # ---- smart parallel/sequential segmentation ----
 # Tools that must never run concurrently (interactive / user-facing).
-_NEVER_PARALLEL = frozenset({"clarify", "manage_connections"})
+_NEVER_PARALLEL = frozenset({"ask_user", "clarify", "manage_connections"})
 
 # Tools that are always safe to run in parallel (read-only, no shared state).
 _ALWAYS_PARALLEL = frozenset({
     "read_file", "grep_files", "search_files", "view_file", "list_files",
     "search_web", "web_search", "tavily_search", "research_web", "extract_page",
     "fetch_url", "list_calendar", "list_upcoming",
+    # MCP/connector read-only tools follow a naming convention. Listing them
+    # explicitly is fragile against new connectors; the prefix check in
+    # _plan_tool_segments catches the rest.
+    "search_documents", "search_email", "read_email", "search_history",
+    "search_library", "search_social", "read_social",
+    "search_agentmail", "read_agentmail",
+    "index_status", "find_free_slot",
 })
+
+#: Name prefixes that indicate a read-only MCP tool safe for parallel dispatch.
+#: Checked when a tool is not in _ALWAYS_PARALLEL and not in _PATH_SCOPED.
+_PARALLEL_PREFIXES = ("search_", "read_", "list_", "get_", "fetch_")
 
 # Filesystem tools that mutate state — path overlap forces sequential.
 _PATH_WRITERS = frozenset({"edit_file", "write_file", "create_file"})
@@ -522,13 +534,15 @@ def _plan_tool_segments(
         is_writer = call.name in _PATH_WRITERS
 
         if not scoped and call.name not in _ALWAYS_PARALLEL and call.name not in _PATH_SCOPED:
-            # Unknown tool — treat as barrier (safe default)
-            _close_parallel()
-            if segments and segments[-1][0] == "sequential":
-                segments[-1][1].append(call)
-            else:
-                segments.append(("sequential", [call]))
-            continue
+            # MCP tools with read-only prefixes are safe to parallelize.
+            # Unknown tools without a recognized prefix stay sequential.
+            if not any(call.name.startswith(p) for p in _PARALLEL_PREFIXES):
+                _close_parallel()
+                if segments and segments[-1][0] == "sequential":
+                    segments[-1][1].append(call)
+                else:
+                    segments.append(("sequential", [call]))
+                continue
 
         # Check path overlap with reserved paths
         if any(
@@ -700,6 +714,8 @@ class _LiveArtifacts:
 
     def feed(self, chunk: Any):
         """Events for one `tool_arguments` fragment. Yields nothing for most."""
+        if getattr(self._director, "guard", None) == "read-only":
+            return
         if chunk.tool_name != self._director.ARTIFACT_TOOL:
             return
         raw = chunk.arguments_so_far or ""
@@ -925,6 +941,7 @@ class Director:
         user_message: str,
         cancel: asyncio.Event | None = None,
         attachments: list[dict[str, Any]] | None = None,
+        client_context: dict[str, Any] | None = None,
     ) -> AsyncIterator[Event]:
         """Errors are data, all the way out to the interface.
 
@@ -947,7 +964,7 @@ class Director:
         state = AgentState(conversation_id=conversation_id, mode=self.mode)
         try:
             async for event in self._run(
-                state, conversation_id, user_message, cancel, attachments
+                state, conversation_id, user_message, cancel, attachments, client_context
             ):
                 if event.type in ("assistant_delta", "assistant_text"):
                     shown.append(event.data.get("text") or "")
@@ -955,7 +972,12 @@ class Director:
         except Exception as exc:
             log.exception("the turn failed outside the loop's own handling")
             partial = "".join(shown).strip()
-            message = f"{type(exc).__name__}: {exc}"
+            raw_str = f"{type(exc).__name__}: {exc}"
+            message = (
+                "The model stream was interrupted by the provider. Please try again."
+                if "input stream" in raw_str.lower()
+                else raw_str
+            )
             state.error = message
             state.carried = partial
             if partial:
@@ -1023,6 +1045,7 @@ class Director:
         user_message: str,
         cancel: asyncio.Event | None = None,
         attachments: list[dict[str, Any]] | None = None,
+        client_context: dict[str, Any] | None = None,
     ) -> AsyncIterator[Event]:
         conversation = self.conversations.get(conversation_id)
         if conversation is None:
@@ -1059,7 +1082,20 @@ class Director:
         # turns where the agent has work the classifier cannot see. Everything
         # uncertain classifies as `none` and falls through to the loop below, so
         # the cost of this misfiring is a wasted call rather than a lost answer.
-        if self.mode != "plan" and not attachments:
+        # Skip the widget classifier for messages that are obviously code/file
+        # tasks — the classifier never returns a widget for these, and skipping
+        # it saves a model call (0.5-2s) per turn.
+        _CODE_SIGNALS = {
+            "fix", "bug", "error", "refactor", "edit", "write", "create",
+            "delete", "rename", "move", "debug", "test", "lint", "build",
+            "compile", "run", "deploy", "commit", "push", "pull", "merge",
+            "review", "analyze", "explain", "implement", "add", "remove",
+            "update", "change", "modify", "install", "configure", "setup",
+        }
+        _skip_widget = bool(
+            set(user_message.lower().split()) & _CODE_SIGNALS
+        ) or len(user_message) > 500
+        if self.mode != "plan" and not attachments and not _skip_widget:
             widget_started = time.monotonic()
             widget_type, widget_data, widget_media = await classify_and_extract(user_message)
             if widget_type != "none" and widget_data is not None:
@@ -1243,9 +1279,15 @@ class Director:
         # Skip retrieval and memory for trivial turns — short greetings,
         # acknowledgments, and simple questions don't need document search or
         # memory recall, and skipping them saves 1-5s of embedding + DB calls.
+        # P0 timing: prefetch_ms measures gate to first model call.
+        _prefetch_started = time.monotonic()
         trivial = self._is_trivial_turn(user_message, attachments)
         if trivial:
             retrieved, recalled = await _none(), await _empty()
+            # Recent summaries still cheap (single SQLite read, no embed) and
+            # keep greetings continuity ("still on the load balancer?").
+            recent_conversations = await self._recent(conversation_id)
+            log.debug("turn prefetch trivial skip in %.0fms", (time.monotonic() - _prefetch_started) * 1000)
         else:
             if self.retrieval:
                 yield Event("status", {"state": "retrieving"})
@@ -1253,10 +1295,16 @@ class Director:
                 yield Event("status", {"state": "recalling"})
             # Two independent best-effort lookups, run together: an embedder round
             # trip awaited before the memory service added its own latency to the
-            # head of every turn for no ordering reason at all.
-            retrieved, recalled = await asyncio.gather(
+            # head of every turn for no ordering reason at all. Recent summaries
+            # ride along: single SQLite read, no embedding, no model call.
+            retrieved, recalled, recent_conversations = await asyncio.gather(
                 self._retrieve(user_message) if self.retrieval else _none(),
                 self._recall(conversation_id, user_message) if self.memory else _empty(),
+                self._recent(conversation_id),
+            )
+            log.debug(
+                "turn prefetch retrieve+recall in %.0fms (trivial=%s, memories=%d)",
+                (time.monotonic() - _prefetch_started) * 1000, trivial, len(recalled or []),
             )
         retrieved_context, chunk_refs = retrieved
         # What the turn was given, by reference rather than by copy: the text
@@ -1367,12 +1415,16 @@ class Director:
                 # so they are still appended per iteration to the cached base.
                 if system_base is None:
                     try:
+                        from backend.agent.prompt import sanitize_client_context
+
                         system_base = build_system_prompt(
                             workspace_root=self.workspace_root,
                             conversation_id=conversation_id,
                             pinned_skills=pinned,
                             retrieved_context=retrieved_context,
                             memories=recalled,
+                            recent_conversations=recent_conversations,
+                            client_context=sanitize_client_context(client_context),
                         )
                     except Exception as exc:
                         # An unreadable skill file, a capability table mid-migration,
@@ -1382,7 +1434,15 @@ class Director:
                         log.warning(
                             "system prompt assembly failed, using the base prompt: %s", exc
                         )
-                        system_base = f"{BASE_PROMPT}\n\n{environment_block(self.workspace_root)}"
+                        try:
+                            from backend.agent.prompt import sanitize_client_context as _san
+
+                            system_base = (
+                                f"{BASE_PROMPT}\n\n"
+                                f"{environment_block(self.workspace_root, _san(client_context))}"
+                            )
+                        except Exception:
+                            system_base = f"{BASE_PROMPT}\n\n{environment_block(self.workspace_root)}"
                         if not state.degraded:
                             state.degraded = True
                             yield Event(
@@ -1414,11 +1474,12 @@ class Director:
                 # change between iterations, so selection + compression runs
                 # once instead of up to 24 times per turn.
                 if model.capabilities.tools:
-                    _tool_hash_key = f"{hidden_servers}:{planning}:{ready_servers}"
+                    _is_read_only = planning or (self.guard == "read-only")
+                    _tool_hash_key = f"{hidden_servers}:{planning}:{ready_servers}:{self.guard}"
                     if _cached_tool_schemas is None or _tool_hash_key != _cached_tool_hash:
                         raw_schemas = self.registry.schemas(
                             hidden_servers=hidden_servers,
-                            read_only=planning,
+                            read_only=_is_read_only,
                             priority_servers=ready_servers,
                         )
                         # Progressive tool disclosure: when there are many tools
@@ -1910,7 +1971,7 @@ class Director:
                         model = resolve(
                             chain[state.active].provider,
                             chain[state.active].model,
-                            max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
+                    max_retries=max(1, budget.allowance(len(chain) - 1 - state.active) - 1),
                         )
                         state.link = str(chain[state.active])
                         try:
@@ -2005,7 +2066,8 @@ class Director:
                     # Nothing was produced, so this really is a failed turn.
                     clean_msg = (
                         "The model stream was interrupted by the provider. Please try again."
-                        if "input stream" in str(raw_message).lower() or "input stream" in str(message).lower()
+                        if "input stream" in str(raw_message).lower()
+                        or "input stream" in str(message).lower()
                         else message
                     )
                     noted = f"[model error] {clean_msg}"
@@ -2040,6 +2102,8 @@ class Director:
                         "total_tokens": (response.input_tokens or 0) + (response.output_tokens or 0),
                     })
                 state.nudge = None
+                state.resumes = 0
+                budget.spent = 0
                 break
 
             if not streamed and response.reasoning:
@@ -2133,6 +2197,9 @@ class Director:
                     conversation_id, user_message, answer, chain[state.active]
                 ):
                     yield event
+                # Conversation summary refresh: deterministic SQLite write, no
+                # LLM, no embed. Keeps recent-conversations block fresh.
+                await asyncio.to_thread(self._refresh_summary, conversation_id)
                 return
 
             if planning:
@@ -2161,6 +2228,7 @@ class Director:
                             **_cost(iteration + 1, state.tool_calls_made, started),
                         },
                     )
+                    await asyncio.to_thread(self._refresh_summary, conversation_id)
                     return
 
             asked = self._persist(
@@ -2377,6 +2445,9 @@ class Director:
             # Collect and yield results in original order
             for call, task in dispatch_tasks:
                 if state.pending:
+                    if getattr(state, "suspended_at", None):
+                        started += (time.monotonic() - state.suspended_at)
+                        state.suspended_at = None
                     state.pending.clear()
                     self._checkpoint(state, "acting")
 
@@ -2570,10 +2641,19 @@ class Director:
         Trivial turns are short greetings, acknowledgments, and conversational pleasantries
         where there's nothing to retrieve and no memories to recall. Skipping
         them saves 1-5s of embedding + DB calls per turn.
+
+        ChatGPT parity: questions always need context, even short ones. Only
+        non-questions with ack/greeting shape skip. Target <2s TTFT trivial.
         """
         if attachments:
             return False
-        cleaned = user_message.strip().lower().rstrip(".!? ")
+        text = user_message.strip()
+        if not text:
+            return True
+        # Any question mark means retrieval/recall may matter.
+        if "?" in text:
+            return False
+        cleaned = text.lower().rstrip(".!? ")
         greetings = {
             "hi", "hello", "hey", "yo", "sup",
             "good morning", "good afternoon", "good evening", "good night",
@@ -2583,7 +2663,51 @@ class Director:
             "bye", "goodbye", "cya", "see ya",
             "ping", "test",
         }
-        return cleaned in greetings
+        if cleaned in greetings:
+            return True
+        # Interrogatives alone are never trivial ("why", "how", "search x").
+        first = cleaned.split()[0] if cleaned.split() else ""
+        if first in {
+            "what", "why", "how", "when", "where", "who", "which",
+            "search", "find", "remember", "recall", "forget",
+        }:
+            return False
+        # Short ack phrases: "thanks a lot", "ok thanks", "got it", "sounds good".
+        # Bounded: <=4 words, <=32 chars, every token known-ack.
+        ack_tokens = greetings | {
+            "a", "lot", "so", "much", "very", "got", "it", "noted",
+            "understood", "sure", "will", "do", "sounds", "good",
+            "great", "please", "for", "that", "this", "my", "all",
+        }
+        words = re.findall(r"[a-z']+", cleaned)
+        if 0 < len(words) <= 4 and len(cleaned) <= 32 and all(w in ack_tokens for w in words):
+            return True
+        return False
+
+    async def _recent(self, conversation_id: str) -> str | None:
+        """Recent-conversation summaries for continuity, precomputed.
+
+        Single SQLite read, no embedding, no model call. Best-effort like
+        recall: never fails a turn. Excludes current conversation.
+        """
+        try:
+            from backend.conversations import summaries as convo_summaries
+
+            return await asyncio.to_thread(
+                convo_summaries.recent_block, conversation_id, 15,
+            )
+        except Exception as exc:
+            log.debug("recent conversations unavailable for this turn: %s", exc)
+            return None
+
+    def _refresh_summary(self, conversation_id: str) -> None:
+        """Update this conversation's summary post-turn. Sync SQLite, no LLM."""
+        try:
+            from backend.conversations import summaries as convo_summaries
+
+            convo_summaries.refresh_conversation_summary(conversation_id)
+        except Exception as exc:
+            log.debug("conversation summary refresh failed: %s", exc)
 
     async def _recall(self, conversation_id: str, user_message: str) -> list[str]:
         """Standing facts about the user, for the top of the prompt.
@@ -2861,6 +2985,7 @@ class Director:
                 "artifact_done",
                 {
                     "id": artifact_id,
+                    "path": path,
                     "bytes": 0,
                     "version": 0,
                     "is_error": True,
@@ -2976,6 +3101,9 @@ class Director:
         what the gate allows, what it escalates and what it asks about are
         exactly as they were.
         """
+        if event.type in ("confirmation_required", "question_required"):
+            if not getattr(state, "suspended_at", None):
+                state.suspended_at = time.monotonic()
         if event.type == "confirmation_required":
             state.pending.append(
                 {

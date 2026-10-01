@@ -58,6 +58,21 @@ def test_openai_payload_drops_reasoning_when_tools_present():
     assert without_tools["reasoning_effort"] == "high"
 
 
+def test_openai_payload_omits_reasoning_effort_for_non_reasoning_models():
+    """Non-reasoning models (Mistral, Llama, Qwen, etc.) reject reasoning_effort with HTTP 400."""
+    from backend.runtime.reasoning_catalog import is_reasoning_model
+    from backend.runtime.types import ModelParameters, ToolSchema
+
+    client = OpenAICompatClient(base_url="https://api.mistral.ai/v1", api_key=None, model="ministral-8b-2512")
+    tool = ToolSchema(name="t", description="", parameters={"type": "object"})
+    params = ModelParameters(reasoning_effort="high")
+
+    with_tools = client._build_payload([], [tool], params)
+    without_tools = client._build_payload([], None, params)
+    assert "reasoning_effort" not in with_tools
+    assert "reasoning_effort" not in without_tools
+
+
 def test_gemini_schema_sanitization():
     """Gemini rejects unions and non-string enums that other providers accept."""
     sanitized = sanitize_schema(

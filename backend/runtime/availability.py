@@ -73,7 +73,18 @@ PROBE_TTL_SECONDS = 60.0
 
 #: How long an observed failure sticks. Longer than a probe because it cost a
 #: real turn to learn, shorter than a session because providers recover.
+#: Base TTL for observed failures. Overridden per-kind below.
 FAILURE_TTL_SECONDS = 300.0
+
+#: Kind-specific TTLs. UPSTREAM_UNHEALTHY (mid-stream errors, 5xx) recovers
+#: fast -- NIM's 'Error in input stream' is intermittent and clears in seconds,
+#: so darkening the provider for five minutes costs dozens of turns that would
+#: have succeeded. UNREACHABLE (nothing answered at all) is a harder failure
+#: and keeps the full TTL.
+FAILURE_TTL_BY_KIND: dict[str, float] = {
+    "upstream_unhealthy": 60.0,
+    "retryable": 60.0,
+}
 
 #: A probe is a liveness check, not a request that has to succeed. Anything
 #: slower than this is unusable for a turn anyway.
@@ -215,7 +226,7 @@ def record_failure(name: str, kind: FailureKind, message: str = "") -> None:
         FailureKind.NON_RETRYABLE_RATE_LIMIT: "the account's rate limit or quota was exceeded",
     }[kind]
     _cache[name] = (
-        time.monotonic() + FAILURE_TTL_SECONDS,
+        time.monotonic() + FAILURE_TTL_BY_KIND.get(kind.value, FAILURE_TTL_SECONDS),
         Availability(name=name, available=False, reason=message or reason, source="observed"),
     )
 

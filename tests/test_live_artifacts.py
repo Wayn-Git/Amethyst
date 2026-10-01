@@ -126,3 +126,14 @@ def test_sent_for_reports_what_already_reached_the_panel(tmp_path):
     # This is what stops `_artifact_opening` sending the whole file a second
     # time once the call is finally dispatched.
     assert live.sent_for(call) == document
+
+
+def test_read_only_guard_suppresses_live_artifacts(tmp_path):
+    double = _director_double(tmp_path)
+    double.guard = "read-only"
+    document = "read only content"
+    payload = json.dumps({"path": "notes.md", "content": document})
+    live = _LiveArtifacts(double, "conv-1")
+    chunk = SimpleNamespace(tool_name="create_artifact", tool_index=0, arguments_so_far=payload)
+    assert list(live.feed(chunk)) == []
+

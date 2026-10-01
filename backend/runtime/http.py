@@ -13,6 +13,7 @@ import json
 import logging
 import random
 from collections.abc import AsyncIterator
+from datetime import UTC
 from typing import Any
 
 import httpx
@@ -25,11 +26,19 @@ from backend.runtime.failures import (
 )
 
 MAX_RETRIES = 3
+#: Mid-stream errors get an extra attempt. The request already passed auth and
+#: routing to open a 200, so the provider was working moments ago; one more try
+#: is cheap and often succeeds. Separate from MAX_RETRIES so non-stream paths
+#: are not affected.
+MAX_STREAM_RETRIES = 4
 TRANSIENT_EXCEPTIONS = (
     httpx.ConnectError,
     httpx.ConnectTimeout,
     httpx.ReadTimeout,
     httpx.RemoteProtocolError,
+    httpx.ReadError,
+    httpx.WriteError,
+    httpx.WriteTimeout,
     httpx.PoolTimeout,
 )
 
@@ -128,9 +137,9 @@ def _duration(raw: str) -> float | None:
             return None
         if when is None:
             return None
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(when.tzinfo or timezone.utc)
+        now = datetime.now(when.tzinfo or UTC)
         return max(0.0, (when - now).total_seconds())
 
     units = {"ms": 0.001, "h": 3600.0, "m": 60.0, "s": 1.0}
@@ -171,9 +180,9 @@ def stream_backoff(attempt: int) -> float:
     """Faster backoff for mid-stream errors — the provider was working moments ago.
 
     NIM's 'Error in input stream' is intermittent; a quick retry often succeeds.
-    Uses a shorter ceiling (4s vs 8s) and tighter jitter to minimize user-visible
-    latency while still avoiding thundering herd."""
-    return min(1.5**attempt, 4.0) * (0.6 + random.random() / 4)
+    Ceiling reduced from 4s to 2.5s: NIM recovers in under a second when it
+    recovers at all, and the old ceiling added dead time to every retry."""
+    return min(1.5**attempt, 2.5) * (0.6 + random.random() / 4)
 
 
 # One client per (event loop, read timeout), so connections are reused across
@@ -216,7 +225,7 @@ def _client(timeout: float) -> httpx.AsyncClient:
     if client is None or client.is_closed:
         client = httpx.AsyncClient(
             timeout=_as_timeout(timeout),
-            limits=httpx.Limits(max_keepalive_connections=16, keepalive_expiry=300.0),
+            limits=httpx.Limits(max_keepalive_connections=16, keepalive_expiry=20.0),
         )
         _CLIENTS[key] = client
     return client
@@ -343,14 +352,10 @@ def _replay_delay(data: str, attempt: int, max_retries: int) -> float | None:
     """
     if attempt >= max_retries:
         return None
-    if "input stream" in data.lower():
-        return stream_backoff(attempt)
-    if '"error"' not in data:
-        return None
     try:
         payload = json.loads(data)
     except ValueError:
-        return None
+        return stream_backoff(attempt) if "error in input stream" in data.lower() else None
     if not isinstance(payload, dict):
         return None
     error = payload.get("error")
@@ -368,7 +373,7 @@ async def stream_sse(
     payload: dict[str, Any],
     timeout: float,
     params: dict[str, Any] | None = None,
-    max_retries: int = MAX_RETRIES,
+    max_retries: int = MAX_STREAM_RETRIES,
 ) -> AsyncIterator[str]:
     """Yield raw `data:` payloads from a server-sent-event stream.
 
@@ -405,9 +410,17 @@ async def stream_sse(
 
                 async for line in response.aiter_lines():
                     if not line.startswith("data:"):
+                        if line.strip().lower().startswith("error in input stream"):
+                            data = line.strip()
+                            if not started and attempt < max_retries:
+                                replay = stream_backoff(attempt)
+                                break
+                            raise ProviderStreamError(data, kind=FailureKind.UPSTREAM_UNHEALTHY)
                         continue
                     data = line[5:].strip()
-                    if not data or data == "[DONE]":
+                    if data == "[DONE]":
+                        return
+                    if not data:
                         continue
                     if not started:
                         replay = _replay_delay(data, attempt, max_retries)

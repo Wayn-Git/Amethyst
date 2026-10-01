@@ -320,3 +320,33 @@ def test_every_preset_says_which_environment_variable_carries_its_key(amethyst_h
             continue
         assert entry["api_key_env"], preset.slug
         assert entry["api_key_env"].isupper(), preset.slug
+
+
+def test_local_media_endpoint_serves_images(tmp_path):
+    """The local media endpoint serves screenshots and images to the frontend.
+
+    Mutation check: drop the /api/media/local endpoint and this fails.
+    """
+    from fastapi.testclient import TestClient
+    from backend.api.main import app
+
+    img = tmp_path / "test.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+    txt = tmp_path / "test.txt"
+    txt.write_text("not an image")
+
+    with TestClient(app) as client:
+        # Existing image
+        res = client.get(f"/api/media/local?path={img}")
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "image/png"
+
+        # Missing image
+        res = client.get(f"/api/media/local?path={tmp_path / 'missing.png'}")
+        assert res.status_code == 404
+
+        # Disallowed non-image extension
+        res = client.get(f"/api/media/local?path={txt}")
+        assert res.status_code == 400
+

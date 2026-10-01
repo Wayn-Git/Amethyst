@@ -131,5 +131,6 @@ def tools() -> list[Tool]:
             # It reads nothing and writes nothing. The permission gate exists
             # for what a tool does to the machine, and this does nothing to it.
             risk=RiskLevel.LOW,
+            timeout=0,
         )
     ]

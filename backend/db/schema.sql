@@ -967,3 +967,17 @@ CREATE TABLE IF NOT EXISTS sync_intents (
 );
 CREATE INDEX IF NOT EXISTS idx_intents_pending
     ON sync_intents(state, created_at) WHERE state = 'pending';
+
+-- Recent-conversation summaries: ChatGPT layer-3 parity, local precompute.
+-- One row per conversation, refreshed post-turn from user messages only (no
+-- assistant/tool text). Read pre-turn as a cheap continuity block — no
+-- embedding, no vector search, no model call on the critical path.
+-- source_max_id versions the summary so refresh is incremental.
+CREATE TABLE IF NOT EXISTS conversation_summaries (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+    summary         TEXT NOT NULL,
+    source_max_id   INTEGER NOT NULL DEFAULT 0,
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_conversation_summaries_updated
+    ON conversation_summaries(updated_at DESC);
