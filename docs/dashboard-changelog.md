@@ -36,3 +36,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - dev.backup: explicit repository settings, local clone/remotes/reachability, credential-free cache and honest local push evidence; bounded read-only Git processes. Disposable Git/backend/browser/lint checks pass; cross-host push time remains unknown without evidence.
 
 - 2026-10-24 agent.feed: Uses existing recent Director traces; bounded to 50; tracing history is process-local.
+
+- 2026-10-24 agent.running: Uses durable Director run phases and tool-call progress; Stop calls the existing turn-stop endpoint.

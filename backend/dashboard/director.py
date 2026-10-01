@@ -1,9 +1,22 @@
 """Read the Director's existing diagnostics; never execute tools here."""
 
 from backend.agent.trace import get_recent_traces
+from backend.db.repositories import AgentRunRepository
 
 
 async def provide(widget_id):
+    if widget_id == "agent.running":
+        return {
+            "items": [
+                {
+                    "id": run.id,
+                    "title": run.phase,
+                    "detail": f"{run.tool_calls_made} tool calls completed",
+                    "conversation_id": run.conversation_id,
+                }
+                for run in AgentRunRepository().live()
+            ]
+        }
     return {
         "items": [
             {

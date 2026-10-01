@@ -9,3 +9,19 @@ async def test_feed_uses_existing_traces(monkeypatch):
     assert result["items"][0]["title"] == "Test turn"
     monkeypatch.setattr(director, "get_recent_traces", lambda: [])
     assert await director.provide("agent.feed") == {"items": []}
+
+
+async def test_running_uses_durable_director_state(db):
+    from backend.agent.state import AgentState
+    from backend.db.repositories import AgentRunRepository, ConversationRepository
+
+    conversation = ConversationRepository().create("test", "test")
+    run = AgentState(conversation_id=conversation)
+    repo = AgentRunRepository()
+    repo.open(run)
+    result = await director.provide("agent.running")
+    assert result["items"][0]["id"] == run.id
+    assert "0 tool calls" in result["items"][0]["detail"]
+    run.enter("interrupted")
+    repo.save(run)
+    assert await director.provide("agent.running") == {"items": []}

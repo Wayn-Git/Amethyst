@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'agent.running': lazy(() => import('./widgets/Director.jsx')),
   'agent.feed': lazy(() => import('./widgets/Director.jsx')),
   'dev.backup': lazy(() => import('./widgets/GitRepos.jsx')),
   'dev.recovery': lazy(() => import('./widgets/Items.jsx')),

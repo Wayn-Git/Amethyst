@@ -104,6 +104,7 @@ def director_manifest(widget_id, title, actions=()):
 
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    director_manifest("agent.running", "Running tasks", ("stop",)),
     director_manifest("agent.feed", "Activity feed"),
     developer_manifest("dev.appeal", "Support cases"),
     developer_manifest("dev.recovery", "Recovery checklist"),

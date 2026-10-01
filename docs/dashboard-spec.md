@@ -222,7 +222,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
 | agent.feed | Live activity feed (turn traces) | dir | MVP | [x] |
-| agent.running | Running tasks with progress and a stop button | dir | MVP | [ ] |
+| agent.running | Running tasks with progress and a stop button | dir | MVP | [x] |
 | agent.audit | Tool-call audit log | dir | MVP | [ ] |
 | agent.errors | Errors and retries | dir | MVP | [ ] |
 | agent.brief | Daily brief and evening wrap-up | llm, all widget data | MVP | [ ] |
