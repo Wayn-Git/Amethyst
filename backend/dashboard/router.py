@@ -240,6 +240,11 @@ async def item_action(widget_id: str, action: str, body: dict):
             from backend.dashboard.library import draft as library_draft
 
             return library_draft(widget_id, action, INPUTS[widget_id].model_validate(body))
+        if widget_id == "agent.knows":
+            from backend.dashboard.knows import MemoryInput
+            from backend.dashboard.knows import draft as memory_draft
+
+            return memory_draft(action, MemoryInput.model_validate(body))
         if widget_id == "agent.rules":
             from backend.dashboard.rules import RuleInput
             from backend.dashboard.rules import draft as rule_draft

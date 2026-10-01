@@ -303,6 +303,11 @@ async def decide(widget_id, draft_id, approved):
                 "widget_id": widget_id,
                 "action": action,
                 **(
+                    {"memory_id": body["id"], "fact": body["fact"]}
+                    if widget_id == "agent.knows" and action == "edit"
+                    else {}
+                ),
+                **(
                     {"tool": body["tool"], "decision": body["decision"]}
                     if widget_id == "agent.rules"
                     else {}
@@ -340,6 +345,10 @@ def apply(conn, widget_id, action, body):
         from backend.dashboard.focus import apply as apply_focus
 
         return apply_focus(conn, action, body)
+    if widget_id == "agent.knows":
+        from backend.dashboard.knows import apply as apply_memory
+
+        return apply_memory(conn, action, body)
     if widget_id == "agent.rules":
         from backend.dashboard.rules import apply as apply_rule
 

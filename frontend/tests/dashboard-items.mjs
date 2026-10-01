@@ -47,6 +47,19 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('agent.knows')) {
+    const card = page.locator('[data-widget="agent.knows"]')
+    const fact = card.getByRole('textbox').first()
+    await fact.fill('Edited browser fixture')
+    await card.getByRole('button', { name: 'Review edit', exact: true }).first().click()
+    await card.getByRole('button', { name: 'Reject change', exact: true }).click()
+    await card.getByRole('button', { name: 'Review edit', exact: true }).first().click()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await page.waitForFunction(() => document.querySelector('[data-widget="agent.knows"] textarea')?.defaultValue === 'Edited browser fixture')
+    await card.getByRole('button', { name: 'Delete memory', exact: true }).first().click()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await card.getByText('No activity.', { exact: true }).waitFor()
+  }
   if (widgets.includes('dev.backup')) {
     const card = page.locator('[data-widget="dev.backup"]')
     await card.getByLabel('Local repository paths (one per line)', { exact: true }).fill('/tmp/amethyst-missing-widget-fixture')

@@ -133,3 +133,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 task.focus: completion reuses the shared notification dispatcher, including quiet hours and desktop delivery; worker retries tick failures.
 
 - 2026-10-25 task.kanban: projects reuse existing local task lists; editable columns store placement only, gated moves update canonical task status and dependent caches. All four widgets: 32 focused backend tests, fixed-clock Asia/Kolkata UI checks and targeted lint pass.
+
+- 2026-10-25 agent.knows: existing memory facts, gated edits and real deletes, audit entries, shared-primitives UI; targeted backend and browser checks passed.

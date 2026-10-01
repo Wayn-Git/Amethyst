@@ -8,6 +8,10 @@ from backend.secrets import redact
 
 
 async def provide(widget_id):
+    if widget_id == "agent.knows":
+        from backend.dashboard.knows import provide as knows
+
+        return await knows()
     if widget_id == "agent.usage":
         from backend.dashboard.usage import provide as usage
 
