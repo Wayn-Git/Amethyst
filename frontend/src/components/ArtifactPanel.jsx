@@ -186,10 +186,16 @@ function Preview({ artifact, text }) {
   const kind = previewKind(artifact)
 
   if (kind === 'image') {
+    const src = `/api/media/local?path=${encodeURIComponent(artifact.path || '')}`
     return (
       <div className="artifact-preview artifact-preview--image">
-        {/* The bytes never came through the stream for an image, so this is the
-            path on disk and only resolves when the API can serve it. */}
+        <div className="artifact-image-container">
+          <img
+            src={src}
+            alt={artifact.title || 'Image preview'}
+            className="artifact-image-display"
+          />
+        </div>
         <p className="artifact-note">
           <Icon name="image" size={13} />
           <span className="mono">{artifact.path}</span>
@@ -324,7 +330,9 @@ export default function ArtifactPanel({
           title={active.path}
         >
           <span className="artifact-title">{active.title || tailPath(active.path, 1)}</span>
-          <span className="artifact-kind">{fileKind(active)}</span>
+          <span className={`artifact-kind${active.error ? ' artifact-kind--error' : ''}`}>
+            {active.error ? 'UNSAVED' : fileKind(active)}
+          </span>
           {active.version > 1 && <span className="artifact-version">v{active.version}</span>}
           {artifacts.length > 1 && <Icon name="chevron" size={11} className="artifact-switch-caret" />}
         </button>
@@ -388,10 +396,19 @@ export default function ArtifactPanel({
       </AnimatePresence>
 
       {active.error && (
-        <p className="artifact-note artifact-note--bad">
-          <Icon name="alert" size={13} />
-          <span>{active.error}</span>
-        </p>
+        <div className="artifact-error-banner" role="alert">
+          <div className="artifact-error-header">
+            <Icon name="alert" size={15} className="artifact-error-icon" />
+            <span className="artifact-error-title">File creation blocked</span>
+            <span className="artifact-error-badge">Not written to disk</span>
+          </div>
+          <p className="artifact-error-body">{active.error}</p>
+          {full ? (
+            <p className="artifact-error-sub">
+              Below is the drafted text generated before execution was blocked. This document was <strong>never saved to disk</strong>.
+            </p>
+          ) : null}
+        </div>
       )}
       {active.missing && (
         <p className="artifact-note artifact-note--bad">
@@ -425,11 +442,20 @@ export default function ArtifactPanel({
       </FadeScrollArea>
 
       <div className="artifact-foot">
-        <span className="mono artifact-path" title={active.path}>{tailPath(active.path)}</span>
+        <span className={`mono artifact-path${active.error ? ' artifact-path--unwritten' : ''}`} title={active.error ? 'This file was not written to disk' : active.path}>
+          {active.error ? (
+            <>
+              <Icon name="x" size={11} className="artifact-path-warn-icon" />
+              <span>Not created: {tailPath(active.path)}</span>
+            </>
+          ) : tailPath(active.path)}
+        </span>
         <span className="mono artifact-bytes">
           {writing
             ? <span className="artifact-writing">writing<span className="ellipsis"><i /><i /><i /></span></span>
-            : `${bytes.toLocaleString()} B`}
+            : active.error
+              ? `${bytes.toLocaleString()} B (unsaved draft)`
+              : `${bytes.toLocaleString()} B`}
         </span>
       </div>
     </div>

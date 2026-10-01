@@ -72,6 +72,26 @@ function LightboxModal({ item, onClose }) {
   )
 }
 
+export function resolveMediaUrl(href) {
+  if (!href) return ''
+  if (/^https?:\/\//i.test(href) || href.startsWith('data:image/')) {
+    return href
+  }
+  let clean = href.trim()
+  if (clean.startsWith('file://')) {
+    clean = clean.slice(7)
+  }
+  return `/api/media/local?path=${encodeURIComponent(clean)}`
+}
+
+function isAllowedImageHref(href) {
+  if (!href) return false
+  if (SAFE_PROTOCOL.test(href)) return true
+  if (href.startsWith('data:image/')) return true
+  if (href.startsWith('/') || href.startsWith('file://') || href.startsWith('./') || href.startsWith('~/')) return true
+  return false
+}
+
 /* OpenAI-style visual context gallery: clean 16:9 thumbnail strip with subtle borders,
  * hover elevation, count badge on overflow, and click-to-enlarge lightbox modal.
  * No dark gradient text overlays blocking the images. */
@@ -90,6 +110,7 @@ function ImageGallery({ items }) {
         {displayItems.map((item, idx) => {
           const label = item.alt || 'Visual context'
           const isLast = idx === displayItems.length - 1 && totalCount > displayItems.length
+          const resolvedSrc = resolveMediaUrl(item.href)
 
           return (
             <figure
@@ -98,27 +119,28 @@ function ImageGallery({ items }) {
               role="button"
               tabIndex={0}
               title={`Click to enlarge: ${label}`}
-              onClick={() => setActiveItem(item)}
+              onClick={() => setActiveItem({ ...item, href: resolvedSrc })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setActiveItem(item)
+                  setActiveItem({ ...item, href: resolvedSrc })
                 }
               }}
             >
               <div className="md-image-thumb-wrap">
                 <img
-                  src={item.href}
+                  src={resolvedSrc}
                   alt={label}
                   loading="lazy"
                   className="md-image-thumb"
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none'
+                    const card = e.currentTarget.closest('.md-image-card')
+                    if (card) card.style.display = 'none'
                   }}
                 />
                 {isLast && (
                   <div className="md-image-count-badge" title={`${totalCount} images total`}>
-                    <Icon name="image" size={13} />
+                    <Icon name="camera" size={13} />
                     <span>{totalCount}</span>
                   </div>
                 )}
@@ -139,9 +161,10 @@ function ImageRef({ alt, href }) {
   const [failed, setFailed] = useState(false)
   const [open, setOpen] = useState(false)
   const label = alt || 'Visual context'
-  if (!SAFE_PROTOCOL.test(href || '') || failed) {
+  if (!isAllowedImageHref(href || '') || failed) {
     return <span className="md-image-fallback" title={href}>{label}</span>
   }
+  const resolvedSrc = resolveMediaUrl(href)
   return (
     <>
       <figure
@@ -153,7 +176,7 @@ function ImageRef({ alt, href }) {
       >
         <div className="md-image-thumb-wrap">
           <img
-            src={href}
+            src={resolvedSrc}
             alt={label}
             loading="lazy"
             className="md-image-thumb"
@@ -161,7 +184,7 @@ function ImageRef({ alt, href }) {
           />
         </div>
       </figure>
-      {open && <LightboxModal item={{ href, alt: label }} onClose={() => setOpen(false)} />}
+      {open && <LightboxModal item={{ href: resolvedSrc, alt: label }} onClose={() => setOpen(false)} />}
     </>
   )
 }
@@ -172,45 +195,93 @@ function SourcePill({ href, children }) {
   const textStr = (Array.isArray(linkText) ? linkText.filter((c) => typeof c === 'string').join('') : String(linkText || '')).trim()
   const isUrl = /^https?:\/\//i.test(textStr) || textStr === host || textStr === `www.${host}`
 
-  // Check for badge counter e.g. "Rockstar Games +2" or "+1" (Image 1)
+  // Check for badge counter e.g. "Rockstar Games +2" or "OLX +1" (Image 4 & 5)
   const badgeMatch = textStr.match(/\+(\d+)$/)
-  const badgeCount = badgeMatch ? badgeMatch[1] : null
+  const badgeCount = badgeMatch ? parseInt(badgeMatch[1], 10) : 0
   const displayLabel = isUrl ? host : (badgeMatch ? textStr.replace(/\s*\+\d+$/, '').trim() : textStr)
   const initial = (host.charAt(0) || 'S').toUpperCase()
 
+  const [isOpen, setIsOpen] = useState(false)
+  const [sourceIndex, setSourceIndex] = useState(0)
+  const closeTimerRef = useRef(null)
+
+  const isDescriptiveLink = !badgeCount && !isUrl && (textStr.length > 20 || /\b(page|guide|read|download|click|here|view|full|report|cover story|article|gallery|album|newswire)\b/i.test(textStr))
+
+  const handleMouseEnter = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+    setIsOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    closeTimerRef.current = setTimeout(() => {
+      setIsOpen(false)
+    }, 220)
+  }
+
   const handleClick = (e) => {
     if (e.metaKey || e.ctrlKey) return
-    e.preventDefault()
     window.dispatchEvent(new CustomEvent('amethyst-open-sources', {
       detail: { url: href, host, title: displayLabel },
     }))
   }
 
-  // If this is a descriptive title or action link (e.g. "Official Rockstar GTA VI page")
-  // rather than a short source/domain pill:
-  const isDescriptiveLink = !badgeCount && !isUrl && (textStr.length > 20 || /\b(page|guide|read|download|click|here|view|full|report|cover story|article)\b/i.test(textStr))
+  const totalSources = 1 + badgeCount
+  const previewTitle = isDescriptiveLink ? textStr : (displayLabel && displayLabel !== host ? `${displayLabel} — ${host}` : host)
+
   if (isDescriptiveLink) {
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer noopener nofollow"
-        className="md-text-link"
-        title={href}
-      >
-        <span>{textStr}</span>
-        <span className="md-link-arrow">↗</span>
-      </a>
+      <span className="md-text-link-wrap" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer noopener nofollow"
+          className="md-text-link"
+          title={href}
+          onClick={handleClick}
+        >
+          <span className="md-text-link-label">{textStr}</span>
+          <span className="md-link-arrow">↗</span>
+        </a>
+        {isOpen && (
+          <div className="citation-popover" role="tooltip" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+            <div className="citation-popover-site">
+              <img
+                src={`https://www.google.com/s2/favicons?domain=${host}&sz=32`}
+                alt=""
+                className="citation-popover-favicon"
+                onError={(e) => { e.currentTarget.style.display = 'none' }}
+              />
+              <span className="citation-popover-host">{host}</span>
+            </div>
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer noopener nofollow"
+              className="citation-popover-title"
+              onClick={handleClick}
+            >
+              {textStr}
+            </a>
+          </div>
+        )}
+      </span>
     )
   }
 
   return (
-    <span className="md-citation-pill-wrap">
+    <span
+      className="md-citation-pill-wrap"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <a
         href={href}
         target="_blank"
         rel="noreferrer noopener nofollow"
-        className="md-citation-badge"
+        className={`md-citation-badge${isOpen ? ' is-active' : ''}`}
         title={`Source: ${displayLabel} (${href})`}
         onClick={handleClick}
       >
@@ -229,10 +300,71 @@ function SourcePill({ href, children }) {
           </span>
         </span>
         <span className="citation-badge-label">{displayLabel}</span>
-        {badgeCount && (
+        {badgeCount > 0 && (
           <span className="citation-badge-counter">+{badgeCount}</span>
         )}
       </a>
+
+      {isOpen && (
+        <div
+          className="citation-popover"
+          role="tooltip"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div className="citation-popover-header">
+            <div className="citation-popover-nav">
+              <button
+                type="button"
+                className="citation-nav-btn"
+                disabled={totalSources <= 1 || sourceIndex === 0}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSourceIndex((i) => Math.max(0, i - 1))
+                }}
+                aria-label="Previous source"
+              >
+                <Icon name="caret-left" size={11} />
+              </button>
+              <button
+                type="button"
+                className="citation-nav-btn"
+                disabled={totalSources <= 1 || sourceIndex >= totalSources - 1}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSourceIndex((i) => Math.min(totalSources - 1, i + 1))
+                }}
+                aria-label="Next source"
+              >
+                <Icon name="caret-right" size={11} />
+              </button>
+              <span className="citation-nav-counter">
+                {sourceIndex + 1}/{totalSources}
+              </span>
+            </div>
+          </div>
+
+          <div className="citation-popover-site">
+            <img
+              src={`https://www.google.com/s2/favicons?domain=${host}&sz=32`}
+              alt=""
+              className="citation-popover-favicon"
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
+            <span className="citation-popover-host">{displayLabel || host}</span>
+          </div>
+
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer noopener nofollow"
+            className="citation-popover-title"
+            onClick={handleClick}
+          >
+            {previewTitle}
+          </a>
+        </div>
+      )}
     </span>
   )
 }
@@ -287,10 +419,7 @@ function ArticleCarousel({ items, galleryImages = [] }) {
       <div className="openai-carousel-track" ref={scrollRef}>
         {items.map((art, idx) => {
           const host = art.domain || domain(art.url)
-          const previewService = art.url && /^https?:\/\//i.test(art.url)
-            ? `https://api.microlink.io/?url=${encodeURIComponent(art.url)}&screenshot=true&embed=screenshot.url`
-            : null
-          const thumb = art.image || (galleryImages.length > 0 ? galleryImages[idx % galleryImages.length]?.href : null) || previewService
+          const thumb = art.image || null
           const label = art.title || host
           const dateStr = art.date || (art.snippet && /\b\d{4}\b/.test(art.snippet) ? art.snippet : null)
 
@@ -564,12 +693,67 @@ function List({ block, keyBase }) {
   )
 }
 
-function getStatusKind(val) {
-  const str = String(val || '').trim().toLowerCase()
-  if (/^(confirmed|official|verified|active|done)/i.test(str)) return 'confirmed'
-  if (/^(reported|corroborated|in review|planned)/i.test(str)) return 'reported'
-  if (/^(unconfirmed|pending|rumor|speculation|tba|tbd)/i.test(str)) return 'pending'
-  return null
+function TableBlock({ head, rows }) {
+  const [copied, setCopied] = useState(false)
+  const colCount = head.length
+
+  const handleCopy = useCallback(async () => {
+    const headerLine = `| ${head.join(' | ')} |`
+    const sepLine = `| ${head.map(() => '---').join(' | ')} |`
+    const rowLines = rows.map((r) => `| ${(Array.isArray(r) ? r : []).join(' | ')} |`)
+    const tableMd = [headerLine, sepLine, ...rowLines].join('\n')
+    const ok = await copyText(tableMd)
+    setCopied(ok ? 'copied' : 'failed')
+    setTimeout(() => setCopied(false), 1500)
+  }, [head, rows])
+
+  return (
+    <div className="md-table-wrap" tabIndex={0} role="region" aria-label="Table">
+      <div className="md-table-topbar">
+        <button
+          type="button"
+          className={`md-table-copy-btn${copied === 'copied' ? ' is-copied' : ''}`}
+          onClick={handleCopy}
+          title={copied === 'copied' ? 'Copied table' : 'Copy table'}
+          aria-label="Copy table"
+        >
+          <Icon name={copied === 'copied' ? 'check' : 'copy'} size={13} />
+        </button>
+      </div>
+      <table className="md-table">
+        <thead>
+          <tr>
+            {head.map((c, x) => (
+              <th key={x} scope="col">
+                {text(c)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((rawRow, y) => {
+            const row = Array.isArray(rawRow) ? rawRow : []
+            return (
+              <tr key={y}>
+                {row.map((c, x) => {
+                  const isFirst = x === 0
+                  const isLast = x === colCount - 1
+                  return (
+                    <td
+                      key={x}
+                      className={isFirst ? 'md-table-cell--first' : isLast ? 'md-table-cell--last' : undefined}
+                    >
+                      {text(c)}
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 function block(node, key, extra = {}) {
@@ -612,41 +796,8 @@ function block(node, key, extra = {}) {
     case 'article_carousel':
       return <ArticleCarousel key={key} items={node.items} galleryImages={extra.galleryImages || []} />
 
-    case 'table': {
-      const colCount = node.head.length
-      return (
-        <div key={key} className="md-table-wrap" tabIndex={0} role="region" aria-label="Table">
-          <table className="md-table">
-            <thead>
-              <tr>{node.head.map((c, x) => <th key={x} scope="col">{text(c)}</th>)}</tr>
-            </thead>
-            <tbody>
-              {node.rows.map((rawRow, y) => {
-                const row = Array.isArray(rawRow) ? rawRow : []
-                return (
-                  <tr key={y}>
-                    {row.map((c, x) => {
-                      const isLast = x === colCount - 1
-                      const isFirst = x === 0
-                      const statusKind = isLast ? getStatusKind(c) : null
-                      return (
-                        <td key={x} className={isFirst ? 'md-table-cell--first' : isLast ? 'md-table-cell--last' : undefined}>
-                          {statusKind ? (
-                            <span className={`md-status-pill md-status-pill--${statusKind}`}>{text(c)}</span>
-                          ) : (
-                            text(c)
-                          )}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )
-    }
+    case 'table':
+      return <TableBlock key={key} head={node.head} rows={node.rows} />
 
     default:
       return <p key={key} className="md-p">{text(node.text)}</p>

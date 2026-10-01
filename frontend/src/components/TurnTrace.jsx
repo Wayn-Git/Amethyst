@@ -153,6 +153,8 @@ function group(events) {
       arguments: typeof call.arguments === 'string' ? safeArgs(call.arguments) : (call.arguments ?? {}),
       content: call.content,
       isError,
+      status: call.status,
+      durationMs: call.durationMs ?? call.duration_ms ?? call.elapsed_ms,
     }
     const prev = out[out.length - 1]
     if (prev && prev.kind === 'run' && prev.name === item.name && !prev.isError && !isError) {
@@ -222,6 +224,12 @@ function clip(value, max = 130) {
   return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
+function durationLabel(ms) {
+  if (!Number.isFinite(Number(ms)) || Number(ms) < 1) return null
+  const seconds = Number(ms) / 1000
+  return seconds < 1 ? `${Math.max(1, Math.round(Number(ms)))}ms` : `${Math.round(seconds)}s`
+}
+
 function Row({ run, live, isLatest }) {
   const [open, setOpen] = useState(false)
   const action = describe(run.name)
@@ -230,6 +238,7 @@ function Row({ run, live, isLatest }) {
   const subject = only && action.subject ? clip(action.subject(only.arguments ?? {})) : null
   const shortLabel = action.shortLabel || 'Tool'
   const metrics = only ? extractMetrics(only) : `${count} calls`
+  const duration = only ? durationLabel(only.durationMs) : null
 
   if ((run.name === 'dispatch_parallel_jobs' || run.name === 'collect_jobs') && only) {
     return <ParallelJobCard call={only} running={live} />
@@ -255,7 +264,8 @@ function Row({ run, live, isLatest }) {
         {subject && <span className="trace-tool-subject mono">{subject}</span>}
         {live && <span className="ellipsis trace-live"><i /><i /><i /></span>}
         <span className="trace-tool-meta">
-          {metrics && <span className="trace-tool-count">{metrics}</span>}
+           {metrics && <span className="trace-tool-count">{metrics}</span>}
+           {duration && <span className="trace-tool-count">{duration}</span>}
           <Icon name="chevron" size={11} className={`trace-tool-chevron${open ? ' is-open' : ''}`} />
         </span>
       </button>
@@ -331,18 +341,35 @@ function ArtifactCard({ call, onOpen }) {
   const args = typeof call.arguments === 'string' ? safeArgs(call.arguments) : (call.arguments ?? {})
   const name = args.title || tail(args.path) || 'document'
   const failed = call.status === 'error' || call.isError
+  const errorReason = String(call.content || call.error || '')
+  const isReadOnly = errorReason.toLowerCase().includes('read-only')
+  const ext = String(args.path || name).split('.').pop()?.toLowerCase()
+  const isImage = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)
+  const statusLabel = failed
+    ? (isReadOnly ? 'Write blocked (read-only mode)' : 'Could not be written')
+    : `Artifact · ${kindOf(args)}`
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={`trace-artifact${failed ? ' is-error' : ''}`}
-      onClick={() => onOpen?.(args.path)}
-      title={args.path || name}
+      onClick={() => onOpen?.(args.path, { ...args, error: errorReason || 'The file was not written to disk.', is_error: failed })}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen?.(args.path, { ...args, error: errorReason || 'The file was not written to disk.', is_error: failed })
+        }
+      }}
+      aria-label={`Open artifact: ${name}`}
     >
-      <Icon name={failed ? 'alert' : 'page'} size={15} className="trace-artifact-icon" />
+      <span className="trace-artifact-icon-wrap">
+        <Icon name={failed ? 'alert' : (isImage ? 'image' : 'page')} size={15} className="trace-artifact-icon" />
+      </span>
       <span className="trace-artifact-text">
         <span className="trace-artifact-name">{name}</span>
         <span className="trace-artifact-sub">
-          {failed ? 'could not be written' : `Document · ${kindOf(args)}`}
+          {statusLabel}
         </span>
       </span>
       {!failed && typeof args.content === 'string' && (
@@ -350,17 +377,20 @@ function ArtifactCard({ call, onOpen }) {
           role="button"
           tabIndex={0}
           className="trace-artifact-save"
-          title={`Download ${name}`}
+          aria-label={`Download ${name}`}
           onClick={(e) => { e.stopPropagation(); saveFile(name, args.content) }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); saveFile(name, args.content) }
           }}
         >
-          Download
+          <Icon name="download" size={12} />
+          <span>Download</span>
         </span>
       )}
-      <Icon name="chevron" size={12} className="trace-artifact-caret" />
-    </button>
+      <span className="trace-artifact-action-badge">
+        <Icon name="chevron" size={12} className="trace-artifact-caret" />
+      </span>
+    </div>
   )
 }
 
@@ -428,7 +458,7 @@ export default function TurnTrace({ events, live, reasoning, running, ms, onOpen
         onClick={() => setManual((prev) => (prev === null ? !open : !prev))}
         aria-expanded={open}
       >
-        <Icon name="search" size={13} className="trace-worked-icon" />
+        <span className={`trace-worked-dot${running ? ' is-running' : ''}`} aria-hidden="true" />
         <span className="trace-worked-title">{running ? 'Working' : 'Worked'}</span>
         {stats && (
           <>

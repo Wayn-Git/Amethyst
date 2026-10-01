@@ -386,6 +386,34 @@ test('parseBlocks transforms Sources Consulted into article_carousel block', () 
   assert.equal(blocks[2].items[2].date, 'September 17, 2026');
 });
 
+test("parseBlocks transforms 'The articles I'd read' into article_carousel block", () => {
+  const md = [
+    'The GTA 6 situation right now',
+    '',
+    '| Thing | Current status |',
+    '| - | - |',
+    '| Release | November 19, 2026 |',
+    '| PS5 | Confirmed |',
+    '| PC | Not announced |',
+    '',
+    "### The articles I'd read",
+    '- [Grand Theft Auto VI official page](https://www.rockstargames.com/VI) — *Rockstar Games*',
+    '- [GTA VI Cover Story](https://gameinformer.com/cover-reveal/2026) — *Game Informer* (September 29, 2026)',
+  ].join('\n');
+
+  const blocks = parseBlocks(md);
+  assert.equal(blocks.length, 3);
+  assert.equal(blocks[1].type, 'table');
+  assert.equal(blocks[1].rows.length, 3);
+  assert.equal(blocks[1].rows[1][1], 'Confirmed');
+  assert.equal(blocks[2].type, 'article_carousel');
+  assert.equal(blocks[2].items.length, 2);
+  assert.equal(blocks[2].items[0].title, 'Grand Theft Auto VI official page');
+  assert.equal(blocks[2].items[0].domain, 'Rockstar Games');
+  assert.equal(blocks[2].items[1].domain, 'Game Informer');
+  assert.equal(blocks[2].items[1].date, 'September 29, 2026');
+});
+
 /* ---------------------------------------------------------------- report */
 
 for (const f of failures) console.log(`FAIL  ${f.name}\n      ${f.message}`)

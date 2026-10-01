@@ -281,7 +281,7 @@ export function parseArticleItems(items) {
 }
 
 function isSourcesHeading(text) {
-  return /^(?:📚\s*)?(?:(?:key|verified|primary|latest)\s+)?(?:sources|coverage|articles|references)\b/i.test(String(text || '').trim())
+  return /^(?:📚\s*)?(?:(?:key|verified|primary|latest|the)\s+)?(?:sources|coverage|articles(?:\s+i'?d\s+read)?|references)\b/i.test(String(text || '').trim())
 }
 
 function isSourcesList(block) {

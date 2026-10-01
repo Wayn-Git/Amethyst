@@ -710,7 +710,7 @@ function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
 
 const Msg = memo(function Msg({
   item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, busy, onOpenArtifact,
-  onResume, setInput, textareaRef,
+  onResume, setInput, textareaRef, minimalToolbar = false,
   conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
 }) {
   const msgRef = useRef(null)
@@ -796,6 +796,7 @@ const Msg = memo(function Msg({
           <ResponseArtifactBox
             text={item.text}
             item={item}
+            minimalToolbar={minimalToolbar}
             conversationId={conversationId}
             isEditing={isEditing}
             onStartEdit={onStartEdit}
@@ -1190,13 +1191,17 @@ export default function Chat() {
          terminal frame. The run row is the source of truth for both. */
       const run = await api.runState(cid).catch(() => null)
       if (run?.resumable) {
+        let errText = run.phase === 'interrupted'
+          ? 'This turn stopped when AMETHYST did. The answer above is unfinished.'
+          : run.error || 'This turn ended before it finished answering.'
+        if (typeof errText === 'string' && errText.toLowerCase().includes('input stream')) {
+          errText = 'The model stream was interrupted by the provider. Please try again.'
+        }
         rows.push({
           id: nextId(),
           kind: 'note',
           tone: 'error',
-          text: run.phase === 'interrupted'
-            ? 'This turn stopped when AMETHYST did. The answer above is unfinished.'
-            : run.error || 'This turn ended before it finished answering.',
+          text: errText,
           resumable: true,
         })
       }
@@ -1541,14 +1546,16 @@ export default function Chat() {
         settle()
         break
       case 'guard': pushNote('guard', evt.reason); notifyDone('Turn stopped', evt.reason); settle(); break
-      case 'error':
-        // `resumable` means half an answer is in the transcript, so the card
-        // offers to finish it rather than leaving the reader to type
-        // "continue" -- which is what they were doing, several times a session.
-        pushNote('error', evt.message, { resumable: Boolean(evt.resumable) })
-        notifyDone('Turn failed', evt.message)
+      case 'error': {
+        let errMessage = evt.message || ''
+        if (typeof errMessage === 'string' && errMessage.toLowerCase().includes('input stream')) {
+          errMessage = 'The model stream was interrupted by the provider. Please try again.'
+        }
+        pushNote('error', errMessage, { resumable: Boolean(evt.resumable) })
+        notifyDone('Turn failed', errMessage)
         settle()
         break
+      }
       // Not terminal: the loop is continuing a turn that came back empty or
       // truncated, and the composer stays disabled while it does.
       case 'warning': pushNote('warning', evt.message); break
@@ -2263,6 +2270,28 @@ export default function Chat() {
      transcript and its text left empty, so the conversation showed nothing at
      all. The panel is for the documents themselves now, and only those. */
   const transcript = useMemo(() => foldTraces(rendered), [rendered])
+
+  // Identify the terminal assistant message per turn so intermediate tool steps
+  // do not clutter the chat with duplicate full action toolbars.
+  const lastAssistantIndices = useMemo(() => {
+    const lastSet = new Set()
+    let lastAssistantIdx = -1
+    for (let i = 0; i < transcript.length; i += 1) {
+      const it = transcript[i]
+      if (it.kind === 'user') {
+        if (lastAssistantIdx !== -1) {
+          lastSet.add(lastAssistantIdx)
+          lastAssistantIdx = -1
+        }
+      } else if (it.kind === 'assistant' && it.text?.trim()) {
+        lastAssistantIdx = i
+      }
+    }
+    if (lastAssistantIdx !== -1) {
+      lastSet.add(lastAssistantIdx)
+    }
+    return lastSet
+  }, [transcript])
 
   const handleRegenerateAnswer = useCallback((msgItem) => {
     const idx = transcript.findIndex((it) => it.id === msgItem.id || (it.rowId && it.rowId === msgItem.rowId))
@@ -3352,10 +3381,11 @@ export default function Chat() {
                     </span>
                   </div>
                 )}
-                {transcript.map((item) => (
+                {transcript.map((item, idx) => (
                   <div key={item.id} data-item={item.id} className="stream-item">
                     <Msg
                       item={item}
+                      minimalToolbar={item.kind === 'assistant' && !lastAssistantIndices.has(idx)}
                       onOpenArtifact={openArtifacts}
                       onPin={onPin}
                       busy={turnState !== 'idle'}

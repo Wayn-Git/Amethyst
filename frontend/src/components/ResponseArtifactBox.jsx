@@ -9,6 +9,7 @@ import { api, copyText } from '../api.js'
 export default function ResponseArtifactBox({
   text,
   item,
+  minimalToolbar = false,
   conversationId,
   isEditing,
   onStartEdit,
@@ -264,223 +265,237 @@ export default function ResponseArtifactBox({
         <Markdown text={text} />
       </div>
 
-      {/* Modern ChatGPT-Style Bottom Action Toolbar */}
-      <div className="chat-assistant-toolbar" role="toolbar" aria-label="Response message actions">
-        {/* Copy */}
-        <button
-          type="button"
-          className="resp-action-btn"
-          title={copied ? 'Copied!' : 'Copy'}
-          aria-label="Copy response"
-          onClick={handleCopyDocument}
-        >
-          <Icon name={copied ? 'check' : 'copy'} size={15} />
-        </button>
-
-        {/* Edit */}
-        {onStartEdit && (
+      {/* Bottom Action Toolbar: subtle hover copy for intermediate steps, full action suite for final response */}
+      {minimalToolbar ? (
+        <div className="chat-assistant-toolbar chat-assistant-toolbar--minimal" role="toolbar" aria-label="Step actions">
+          <button
+            type="button"
+            className="resp-action-btn resp-action-btn--subtle"
+            title={copied ? 'Copied!' : 'Copy'}
+            aria-label="Copy step text"
+            onClick={handleCopyDocument}
+          >
+            <Icon name={copied ? 'check' : 'copy'} size={14} />
+          </button>
+        </div>
+      ) : (
+        <div className="chat-assistant-toolbar" role="toolbar" aria-label="Response message actions">
+          {/* Copy */}
           <button
             type="button"
             className="resp-action-btn"
-            title="Edit response"
-            aria-label="Edit response"
-            onClick={onStartEdit}
+            title={copied ? 'Copied!' : 'Copy'}
+            aria-label="Copy response"
+            onClick={handleCopyDocument}
           >
-            <Icon name="edit" size={15} />
+            <Icon name={copied ? 'check' : 'copy'} size={15} />
           </button>
-        )}
 
-        {/* Version History Pill & Undo/Redo (when versions exist) */}
-        {artifact?.versions?.length > 1 && (
-          <div className="resp-version-group" ref={versionRef}>
+          {/* Edit */}
+          {onStartEdit && (
             <button
               type="button"
-              className={`resp-version-pill${versionMenuOpen ? ' is-active' : ''}`}
-              title={`Version ${artifact.version} (Click for history)`}
-              onClick={() => setVersionMenuOpen((v) => !v)}
+              className="resp-action-btn"
+              title="Edit response"
+              aria-label="Edit response"
+              onClick={onStartEdit}
             >
-              <span className="v-num">v{artifact.version}</span>
-              <span className="v-tag">Edited</span>
+              <Icon name="edit" size={15} />
             </button>
+          )}
 
+          {/* Version History Pill & Undo/Redo (when versions exist) */}
+          {artifact?.versions?.length > 1 && (
+            <div className="resp-version-group" ref={versionRef}>
+              <button
+                type="button"
+                className={`resp-version-pill${versionMenuOpen ? ' is-active' : ''}`}
+                title={`Version ${artifact.version} (Click for history)`}
+                onClick={() => setVersionMenuOpen((v) => !v)}
+              >
+                <span className="v-num">v{artifact.version}</span>
+                <span className="v-tag">Edited</span>
+              </button>
+
+              <button
+                type="button"
+                className="resp-action-btn resp-action-btn--subtle"
+                title="Undo version"
+                disabled={!canUndo}
+                onClick={() => {
+                  const prevVer = [...versions].reverse().find((v) => v.version < currentVer)?.version
+                  if (prevVer) handleRevertVersion(prevVer)
+                }}
+              >
+                <Icon name="undo" size={13} />
+              </button>
+
+              <button
+                type="button"
+                className="resp-action-btn resp-action-btn--subtle"
+                title="Redo version"
+                disabled={!canRedo}
+                onClick={() => {
+                  const nextVer = versions.find((v) => v.version > currentVer)?.version
+                  if (nextVer) handleRevertVersion(nextVer)
+                }}
+              >
+                <Icon name="redo" size={13} />
+              </button>
+
+              {versionMenuOpen && (
+                <div className="artifact-version-popover">
+                  <div className="version-popover-title">Version History</div>
+                  {artifact.versions.map((ver) => (
+                    <button
+                      key={ver.version}
+                      type="button"
+                      className={`version-popover-item${ver.version === artifact.version ? ' is-current' : ''}`}
+                      onClick={() => handleRevertVersion(ver.version)}
+                    >
+                      <div className="version-meta-row">
+                        <span className="v-pill">v{ver.version}</span>
+                        <span className="v-author">
+                          {ver.author === 'assistant' ? 'Original' : ver.author === 'ai_edit' ? 'AI edit' : 'User edit'}
+                        </span>
+                        {ver.version === artifact.version && <span className="v-active-pill">Current</span>}
+                      </div>
+                      {ver.change_summary && (
+                        <div className="v-summary-row">{ver.change_summary}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Regenerate */}
+          {onRegenerate && (
             <button
               type="button"
-              className="resp-action-btn resp-action-btn--subtle"
-              title="Undo version"
-              disabled={!canUndo}
-              onClick={() => {
-                const prevVer = [...versions].reverse().find((v) => v.version < currentVer)?.version
-                if (prevVer) handleRevertVersion(prevVer)
-              }}
+              className="resp-action-btn"
+              title="Regenerate"
+              aria-label="Regenerate response"
+              onClick={onRegenerate}
             >
-              <Icon name="undo" size={13} />
+              <Icon name="refresh" size={15} />
             </button>
+          )}
 
+          {/* Share & Export */}
+          <div className="resp-menu-anchor" ref={exportRef}>
             <button
               type="button"
-              className="resp-action-btn resp-action-btn--subtle"
-              title="Redo version"
-              disabled={!canRedo}
-              onClick={() => {
-                const nextVer = versions.find((v) => v.version > currentVer)?.version
-                if (nextVer) handleRevertVersion(nextVer)
-              }}
+              className={`resp-action-btn${exportMenuOpen ? ' is-active' : ''}`}
+              title="Share & Export"
+              aria-label="Share and export"
+              onClick={() => { setExportMenuOpen((v) => !v); setMoreMenuOpen(false) }}
             >
-              <Icon name="redo" size={13} />
+              <Icon name="share" size={15} />
             </button>
 
-            {versionMenuOpen && (
-              <div className="artifact-version-popover">
-                <div className="version-popover-title">Version History</div>
-                {artifact.versions.map((ver) => (
-                  <button
-                    key={ver.version}
-                    type="button"
-                    className={`version-popover-item${ver.version === artifact.version ? ' is-current' : ''}`}
-                    onClick={() => handleRevertVersion(ver.version)}
-                  >
-                    <div className="version-meta-row">
-                      <span className="v-pill">v{ver.version}</span>
-                      <span className="v-author">
-                        {ver.author === 'assistant' ? 'Original' : ver.author === 'ai_edit' ? 'AI edit' : 'User edit'}
-                      </span>
-                      {ver.version === artifact.version && <span className="v-active-pill">Current</span>}
-                    </div>
-                    {ver.change_summary && (
-                      <div className="v-summary-row">{ver.change_summary}</div>
-                    )}
-                  </button>
-                ))}
+            {exportMenuOpen && (
+              <div className="response-popover-dropdown export-dropdown">
+                <button type="button" onClick={() => handleExport('docx')}>
+                  <Icon name="page" size={14} />
+                  <span>Word Document (.docx)</span>
+                </button>
+                <button type="button" onClick={() => handleExport('md')}>
+                  <Icon name="code" size={14} />
+                  <span>Markdown (.md)</span>
+                </button>
+                <button type="button" onClick={() => handleExport('html')}>
+                  <Icon name="globe" size={14} />
+                  <span>Standalone HTML (.html)</span>
+                </button>
+                <button type="button" onClick={() => handleExport('txt')}>
+                  <Icon name="type" size={14} />
+                  <span>Plain Text (.txt)</span>
+                </button>
               </div>
             )}
           </div>
-        )}
 
-        {/* Regenerate */}
-        {onRegenerate && (
-          <button
-            type="button"
-            className="resp-action-btn"
-            title="Regenerate"
-            aria-label="Regenerate response"
-            onClick={onRegenerate}
-          >
-            <Icon name="refresh" size={15} />
-          </button>
-        )}
-
-        {/* Share & Export */}
-        <div className="resp-menu-anchor" ref={exportRef}>
-          <button
-            type="button"
-            className={`resp-action-btn${exportMenuOpen ? ' is-active' : ''}`}
-            title="Share & Export"
-            aria-label="Share and export"
-            onClick={() => { setExportMenuOpen((v) => !v); setMoreMenuOpen(false) }}
-          >
-            <Icon name="share" size={15} />
-          </button>
-
-          {exportMenuOpen && (
-            <div className="response-popover-dropdown export-dropdown">
-              <button type="button" onClick={() => handleExport('docx')}>
-                <Icon name="page" size={14} />
-                <span>Word Document (.docx)</span>
-              </button>
-              <button type="button" onClick={() => handleExport('md')}>
-                <Icon name="code" size={14} />
-                <span>Markdown (.md)</span>
-              </button>
-              <button type="button" onClick={() => handleExport('html')}>
-                <Icon name="globe" size={14} />
-                <span>Standalone HTML (.html)</span>
-              </button>
-              <button type="button" onClick={() => handleExport('txt')}>
-                <Icon name="type" size={14} />
-                <span>Plain Text (.txt)</span>
-              </button>
-            </div>
+          {/* Fullscreen Workspace */}
+          {onOpenFullScreen && (
+            <button
+              type="button"
+              className="resp-action-btn"
+              title="Fullscreen workspace"
+              aria-label="Open fullscreen"
+              onClick={onOpenFullScreen}
+            >
+              <Icon name="expand" size={15} />
+            </button>
           )}
-        </div>
 
-        {/* Fullscreen Workspace */}
-        {onOpenFullScreen && (
-          <button
-            type="button"
-            className="resp-action-btn"
-            title="Fullscreen workspace"
-            aria-label="Open fullscreen"
-            onClick={onOpenFullScreen}
-          >
-            <Icon name="expand" size={15} />
-          </button>
-        )}
+          {/* View Sources */}
+          {hasSources && (
+            <button
+              type="button"
+              className="resp-action-btn"
+              title="View sources"
+              aria-label="View sources"
+              onClick={() => onViewSources?.(item)}
+            >
+              <Icon name="book" size={15} />
+            </button>
+          )}
 
-        {/* View Sources */}
-        {hasSources && (
-          <button
-            type="button"
-            className="resp-action-btn"
-            title="View sources"
-            aria-label="View sources"
-            onClick={() => onViewSources?.(item)}
-          >
-            <Icon name="book" size={15} />
-          </button>
-        )}
+          {/* More Menu (...) */}
+          <div className="resp-menu-anchor" ref={moreRef}>
+            <button
+              type="button"
+              className={`resp-action-btn${moreMenuOpen ? ' is-active' : ''}`}
+              title="More actions"
+              aria-label="More actions"
+              onClick={() => { setMoreMenuOpen((v) => !v); setExportMenuOpen(false) }}
+            >
+              <Icon name="more" size={15} />
+            </button>
 
-        {/* More Menu (...) */}
-        <div className="resp-menu-anchor" ref={moreRef}>
-          <button
-            type="button"
-            className={`resp-action-btn${moreMenuOpen ? ' is-active' : ''}`}
-            title="More actions"
-            aria-label="More actions"
-            onClick={() => { setMoreMenuOpen((v) => !v); setExportMenuOpen(false) }}
-          >
-            <Icon name="more" size={15} />
-          </button>
+            {moreMenuOpen && (
+              <div className="response-popover-dropdown more-dropdown">
+                <div className="popover-timestamp-header">
+                  {getFormattedTime()}
+                </div>
 
-          {moreMenuOpen && (
-            <div className="response-popover-dropdown more-dropdown">
-              <div className="popover-timestamp-header">
-                {getFormattedTime()}
+                <button type="button" onClick={handleReadAloud}>
+                  <Icon name="speaker" size={14} />
+                  <span>{speaking ? 'Stop reading' : 'Read aloud'}</span>
+                </button>
+
+                {onBranchInNewChat && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      onBranchInNewChat?.(item)
+                    }}
+                  >
+                    <Icon name="branch" size={14} />
+                    <span>Branch in new chat</span>
+                  </button>
+                )}
+
+                {onPin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      onPin(item, !item.pinned)
+                    }}
+                  >
+                    <Icon name="pin" size={14} />
+                    <span>{item.pinned ? 'Unpin message' : 'Pin message'}</span>
+                  </button>
+                )}
               </div>
-
-              <button type="button" onClick={handleReadAloud}>
-                <Icon name="speaker" size={14} />
-                <span>{speaking ? 'Stop reading' : 'Read aloud'}</span>
-              </button>
-
-              {onBranchInNewChat && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMoreMenuOpen(false)
-                    onBranchInNewChat?.(item)
-                  }}
-                >
-                  <Icon name="branch" size={14} />
-                  <span>Branch in new chat</span>
-                </button>
-              )}
-
-              {onPin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMoreMenuOpen(false)
-                    onPin(item, !item.pinned)
-                  }}
-                >
-                  <Icon name="pin" size={14} />
-                  <span>{item.pinned ? 'Unpin message' : 'Pin message'}</span>
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

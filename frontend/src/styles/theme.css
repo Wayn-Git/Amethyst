@@ -1,7 +1,8 @@
 @theme {
     /* FONT FAMILY */
-    --font-body: var(--font-inter, "Inter"), -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    --font-display: var(--font-inter, "Inter"), -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --font-openai-sans: 'OpenAI Sans', 'Inter', -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --font-body: var(--font-openai-sans);
+    --font-display: var(--font-openai-sans);
     --font-mono: ui-monospace, "Roboto Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
     /* FONT SIZE */
