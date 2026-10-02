@@ -12,6 +12,7 @@ import { SmoothInput } from './ui/skiper/index.js'
 import { AnimatePresence, motion } from 'framer-motion'
 import UserMenu from './UserMenu.jsx'
 import { safeStorage } from '../lib/storage.js'
+import opencode from '../lib/opencode.js'
 
 function bucketOf(iso) {
   if (!iso) return 'Earlier'
@@ -129,6 +130,101 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
   )
 }
 
+function CodeSessionItem({ session, active, onOpen, onRename, onDelete }) {
+  const [menu, setMenu] = useState(false)
+  const [up, setUp] = useState(false)
+  const ref = useRef(null)
+  const confirm = useConfirm()
+
+  useDismiss(ref, menu, { onAway: () => setMenu(false) })
+
+  const openMenu = useCallback(() => {
+    const row = ref.current?.getBoundingClientRect()
+    const rail = ref.current?.closest('.wb-sidebar')?.getBoundingClientRect()
+    if (row && rail) setUp(rail.bottom - row.bottom < 132)
+    setMenu((m) => !m)
+  }, [])
+
+  const agentLabel = session.agent || 'build'
+  const timeFormatted = fmtDate(session.time?.updated || session.time?.created)
+  const title = session.title || session.slug || 'Untitled session'
+
+  return (
+    <div className={`sb-conv-item sb-code-session-item${active ? ' is-active' : ''}${menu ? ' menu-open' : ''}`} ref={ref}>
+      <button
+        type="button"
+        className="sb-conv-btn"
+        onClick={onOpen}
+        onDoubleClick={onRename}
+        title={`${title} (${timeFormatted})`}
+      >
+        <span className="sb-code-session-icon">
+          <Icon name="code" size={13} />
+        </span>
+        <span className="sb-conv-title">{title}</span>
+        {agentLabel && agentLabel !== 'build' && (
+          <span className="sb-code-agent-badge">{agentLabel}</span>
+        )}
+      </button>
+
+      <div className="sb-conv-actions">
+        <button
+          type="button"
+          className="sb-conv-more-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            openMenu()
+          }}
+          title="Session options"
+          aria-label="Session options"
+          aria-expanded={menu}
+        >
+          <Icon name="dots" size={14} />
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {menu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: up ? 4 : -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: up ? 4 : -4 }}
+            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            className={`sb-conv-menu${up ? ' is-up' : ''}`}
+            role="menu"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setMenu(false)
+                onRename()
+              }}
+            >
+              <Icon name="edit" size={12} /> Rename
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={async () => {
+                setMenu(false)
+                const ok = await confirm({
+                  title: `Delete "${title}"?`,
+                  description: 'This code session will be permanently deleted from OpenCode.',
+                  confirmLabel: 'Delete',
+                  tone: 'danger',
+                })
+                if (ok) onDelete()
+              }}
+            >
+              <Icon name="trash" size={12} /> Delete
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function Sidebar() {
   const {
     view, setView, setOverlay, health, healthError,
@@ -139,9 +235,121 @@ export default function Sidebar() {
     theme, setTheme, betaPages, refreshConvs, toast,
     userProfile, updateUserProfile,
     workspace, setWorkspace,
+    sidebarMode, setSidebarMode,
+    codeActiveSessionId, setCodeActiveSessionId,
+    codeActiveProjectId, setCodeActiveProjectId,
+    openCodeSession,
+    opencode: opencodeCtx,
   } = useApp()
 
+  // Live OpenCode State
+  const [codeProjects, setCodeProjects] = useState([])
+  const [codeSessions, setCodeSessions] = useState([])
+  const [codeSkills, setCodeSkills] = useState([])
+  const [codeSkillsOpen, setCodeSkillsOpen] = useState(false)
+  const [codeContextOpen, setCodeContextOpen] = useState(true)
+  const [codeRenamingId, setCodeRenamingId] = useState(null)
+  const [codeLoading, setCodeLoading] = useState(false)
+
+  const loadCodeData = useCallback(async () => {
+    try {
+      setCodeLoading(true)
+      const [projList, sesList, skillsList] = await Promise.all([
+        opencode.listProjects().catch(() => []),
+        opencode.listSessions().catch(() => []),
+        opencode.listSkills().catch(() => []),
+      ])
+      setCodeProjects(Array.isArray(projList) ? projList : [])
+      setCodeSessions(Array.isArray(sesList) ? sesList : [])
+      setCodeSkills(Array.isArray(skillsList) ? skillsList : [])
+    } catch (e) {
+      console.warn('[Sidebar] Failed to load OpenCode data:', e)
+    } finally {
+      setCodeLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (sidebarMode === 'code') {
+      loadCodeData()
+    }
+  }, [sidebarMode, loadCodeData])
+
+  // Filter root sessions (exclude child subagents from the root list)
+  const rootSessions = useMemo(() => {
+    const list = codeSessions.filter((s) => !s.parentID)
+    if (!filter.trim()) return list
+    const q = filter.trim().toLowerCase()
+    return list.filter((s) => (s.title || s.slug || '').toLowerCase().includes(q))
+  }, [codeSessions, filter])
+
+  // Active project
+  const activeProject = useMemo(() => {
+    if (codeActiveProjectId) {
+      return codeProjects.find((p) => p.id === codeActiveProjectId) || codeProjects[0]
+    }
+    const match = codeProjects.find((p) => p.worktree && p.worktree !== '/')
+    return match || codeProjects[0] || null
+  }, [codeProjects, codeActiveProjectId])
+
+  const handleNewCodeSession = useCallback(async () => {
+    try {
+      const dir = activeProject?.worktree || ''
+      const res = await opencode.createSession({ directory: dir })
+      if (res?.id) {
+        openCodeSession(res.id, res.directory || dir)
+        await loadCodeData()
+        toast('New code session started', 'good')
+      }
+    } catch (e) {
+      toast(e.message || 'Failed to create session', 'bad')
+    }
+  }, [activeProject, openCodeSession, loadCodeData, toast])
+
+  const renameCodeSession = useCallback(async (sessionId, newTitle) => {
+    setCodeRenamingId(null)
+    const title = (newTitle || '').trim()
+    if (!title) return
+    try {
+      await opencode.updateSession(sessionId, { title })
+      setCodeSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, title } : s))
+      )
+      toast('Session renamed', 'good')
+    } catch (e) {
+      toast(e.message || 'Failed to rename session', 'bad')
+    }
+  }, [toast])
+
+  const deleteCodeSession = useCallback(async (sessionId) => {
+    try {
+      await opencode.deleteSession(sessionId)
+      setCodeSessions((prev) => prev.filter((s) => s.id !== sessionId))
+      if (codeActiveSessionId === sessionId) {
+        setCodeActiveSessionId(null)
+      }
+      toast('Session deleted', 'good')
+    } catch (e) {
+      toast(e.message || 'Failed to delete session', 'bad')
+    }
+  }, [codeActiveSessionId, setCodeActiveSessionId, toast])
+
   const toggleSidebar = toggleRail
+
+  const handleSwitchMode = useCallback((mode) => {
+    setSidebarMode(mode)
+    if (mode === 'code' && view !== 'code') {
+      setView('code')
+    } else if (mode === 'work' && view === 'code') {
+      setView('chat')
+    }
+  }, [setSidebarMode, view, setView])
+
+  useEffect(() => {
+    if (view === 'code' && sidebarMode !== 'code') {
+      setSidebarMode('code')
+    }
+  }, [view, sidebarMode, setSidebarMode])
 
   // Real navigation places
   const places = useMemo(() => forRail(betaPages), [betaPages])
@@ -226,7 +434,7 @@ export default function Sidebar() {
   // Separate primary navigation places and grouped utility places (Tasks, Email, File Converter)
   const { topPlaces, utilityPlaces, bottomPlaces } = useMemo(() => {
     const utils = places.filter((p) => p.group === 'utilities')
-    const others = places.filter((p) => p.id !== 'chat' && p.group !== 'utilities')
+    const others = places.filter((p) => p.id !== 'chat' && p.id !== 'code' && p.group !== 'utilities')
     const top = others.filter((p) => p.id === 'today')
     const bottom = others.filter((p) => p.id !== 'today')
     return { topPlaces: top, utilityPlaces: utils, bottomPlaces: bottom }
@@ -285,7 +493,7 @@ export default function Sidebar() {
           }}
           title="Click to expand sidebar"
         >
-          {/* Top Actions: App Icon (reveals Sidebar Expand on hover) + New Chat + Search */}
+          {/* Top Actions: App Icon (reveals Sidebar Expand on hover) + Mode Switch + New Chat/Session + Search */}
           <div className="sb-mini-top">
             <button
               type="button"
@@ -305,18 +513,50 @@ export default function Sidebar() {
               </span>
             </button>
 
+            {/* Mini Mode Switcher (Work / Code) */}
+            <div className="sb-mini-mode-switch">
+              <button
+                type="button"
+                className={`sb-mini-mode-btn${sidebarMode === 'work' ? ' is-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSwitchMode('work')
+                }}
+                title="Work Mode (Amethyst Assistant & Tools)"
+                aria-label="Work Mode"
+              >
+                <Icon name="chat" size={16} />
+              </button>
+              <button
+                type="button"
+                className={`sb-mini-mode-btn${sidebarMode === 'code' ? ' is-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSwitchMode('code')
+                }}
+                title="Code Mode (OpenCode Engine)"
+                aria-label="Code Mode"
+              >
+                <Icon name="code" size={16} />
+              </button>
+            </div>
+
             <button
               type="button"
               className="sb-mini-plus-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                leave(() => {
-                  setView('chat')
-                  chat.startFresh?.()
-                })()
+                if (sidebarMode === 'code') {
+                  handleNewCodeSession()
+                } else {
+                  leave(() => {
+                    setView('chat')
+                    chat.startFresh?.()
+                  })()
+                }
               }}
-              title={`New chat — ${MOD_LABEL}+Shift+O`}
-              aria-label="New chat"
+              title={sidebarMode === 'code' ? 'New OpenCode session' : `New chat — ${MOD_LABEL}+Shift+O`}
+              aria-label={sidebarMode === 'code' ? 'New OpenCode session' : 'New chat'}
             >
               <Icon name="plus" size={18} weight="bold" />
             </button>
@@ -329,101 +569,128 @@ export default function Sidebar() {
                 setSidebar(true)
                 setShowSearchInput(true)
               }}
-              title={`Search conversations — ${MOD_LABEL}+K`}
-              aria-label="Search conversations"
+              title={sidebarMode === 'code' ? 'Search sessions' : `Search conversations — ${MOD_LABEL}+K`}
+              aria-label="Search"
             >
               <Icon name="search" size={20} />
             </button>
           </div>
 
-          {/* Middle Nav Items: Real Places */}
+          {/* Middle Nav Items: Real Places (Work Mode) or Sessions (Code Mode) */}
           <div className="sb-mini-nav" aria-label="Main Navigation">
-            {topPlaces.map((place) => {
-              const isActive = view === place.id
-              return (
-                <button
-                  key={place.id}
-                  type="button"
-                  className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    leave(() => setView(place.id))()
-                  }}
-                  onPointerEnter={() => prefetchView(place.id)}
-                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
-                  aria-label={place.label}
-                >
-                  <Icon name={place.icon} size={20} />
-                </button>
-              )
-            })}
-
-            {/* Collapsed Utilities Icon with Flyout */}
-            <div ref={miniUtilsRef} style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className={`sb-mini-btn${isUtilityActive ? ' is-active' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setMiniUtilsOpen((o) => !o)
-                }}
-                title="Utilities (Tasks, Email, File Converter)"
-                aria-label="Utilities"
-                aria-expanded={miniUtilsOpen}
-              >
-                <Icon name="wrench" size={20} />
-              </button>
-
-              <AnimatePresence>
-                {miniUtilsOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.94, x: 6 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.94, x: 6 }}
-                    transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-                    className="sb-mini-flyout"
+            {sidebarMode === 'code' ? (
+              rootSessions.slice(0, 8).map((s) => {
+                const isActive = codeActiveSessionId === s.id && view === 'code'
+                const title = s.title || s.slug || 'Session'
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      leave(() => {
+                        if (view !== 'code') setView('code')
+                        openCodeSession(s.id, s.directory || activeProject?.worktree)
+                      })()
+                    }}
+                    title={title}
+                    aria-label={title}
                   >
-                    <div className="sb-mini-flyout-title">Utilities</div>
-                    {utilityPlaces.map((u) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        className={`sb-mini-flyout-item${view === u.id ? ' is-active' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setMiniUtilsOpen(false)
-                          leave(() => setView(u.id))()
-                        }}
-                      >
-                        <span className="sb-mini-flyout-icon"><Icon name={u.icon} size={16} /></span>
-                        <span className="sb-mini-flyout-label">{u.label}</span>
-                        {u.digit && <span className="sb-mini-flyout-shortcut">{MOD_LABEL}+{u.digit}</span>}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <Icon name="code" size={18} />
+                  </button>
+                )
+              })
+            ) : (
+              <>
+                {topPlaces.map((place) => {
+                  const isActive = view === place.id
+                  return (
+                    <button
+                      key={place.id}
+                      type="button"
+                      className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        leave(() => setView(place.id))()
+                      }}
+                      onPointerEnter={() => prefetchView(place.id)}
+                      title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
+                      aria-label={place.label}
+                    >
+                      <Icon name={place.icon} size={20} />
+                    </button>
+                  )
+                })}
 
-            {bottomPlaces.map((place) => {
-              const isActive = view === place.id
-              return (
-                <button
-                  key={place.id}
-                  type="button"
-                  className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    leave(() => setView(place.id))()
-                  }}
-                  onPointerEnter={() => prefetchView(place.id)}
-                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
-                  aria-label={place.label}
-                >
-                  <Icon name={place.icon} size={20} />
-                </button>
-              )
-            })}
+                {/* Collapsed Utilities Icon with Flyout */}
+                <div ref={miniUtilsRef} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className={`sb-mini-btn${isUtilityActive ? ' is-active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMiniUtilsOpen((o) => !o)
+                    }}
+                    title="Utilities (Tasks, Email, File Converter)"
+                    aria-label="Utilities"
+                    aria-expanded={miniUtilsOpen}
+                  >
+                    <Icon name="wrench" size={20} />
+                  </button>
+
+                  <AnimatePresence>
+                    {miniUtilsOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.94, x: 6 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.94, x: 6 }}
+                        transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                        className="sb-mini-flyout"
+                      >
+                        <div className="sb-mini-flyout-title">Utilities</div>
+                        {utilityPlaces.map((u) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            className={`sb-mini-flyout-item${view === u.id ? ' is-active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setMiniUtilsOpen(false)
+                              leave(() => setView(u.id))()
+                            }}
+                          >
+                            <span className="sb-mini-flyout-icon"><Icon name={u.icon} size={16} /></span>
+                            <span className="sb-mini-flyout-label">{u.label}</span>
+                            {u.digit && <span className="sb-mini-flyout-shortcut">{MOD_LABEL}+{u.digit}</span>}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {bottomPlaces.map((place) => {
+                  const isActive = view === place.id
+                  return (
+                    <button
+                      key={place.id}
+                      type="button"
+                      className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        leave(() => setView(place.id))()
+                      }}
+                      onPointerEnter={() => prefetchView(place.id)}
+                      title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
+                      aria-label={place.label}
+                    >
+                      <Icon name={place.icon} size={20} />
+                    </button>
+                  )
+                })}
+              </>
+            )}
           </div>
 
           {/* Spacious middle rail area — hover shows expand hint, click anywhere opens sidebar */}
@@ -514,7 +781,7 @@ export default function Sidebar() {
                       autoFocus
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
-                      placeholder="Search chats..."
+                      placeholder={sidebarMode === 'code' ? 'Search sessions…' : 'Search chats…'}
                       className="sb-search-input"
                       onKeyDown={(e) => {
                         if (e.key === 'Escape') {
@@ -539,6 +806,152 @@ export default function Sidebar() {
               )}
             </AnimatePresence>
           </div>
+
+          {/* Work / Code Mode Switcher */}
+          <div className="sb-mode-segmented-wrapper">
+            <div className="sb-mode-segmented" role="tablist" aria-label="Sidebar Mode">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sidebarMode === 'work'}
+                className={`sb-mode-tab${sidebarMode === 'work' ? ' is-active' : ''}`}
+                onClick={() => handleSwitchMode('work')}
+              >
+                <Icon name="chat" size={13} />
+                <span>Work</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sidebarMode === 'code'}
+                className={`sb-mode-tab${sidebarMode === 'code' ? ' is-active' : ''}`}
+                onClick={() => handleSwitchMode('code')}
+              >
+                <Icon name="code" size={13} />
+                <span>Code</span>
+              </button>
+            </div>
+          </div>
+
+          {sidebarMode === 'code' ? (
+            <>
+              {/* Prominent + New Code Session Pill Button */}
+              <button
+                type="button"
+                className="sb-new-chat-pill sb-code-new-session-pill"
+                onClick={handleNewCodeSession}
+                title="New OpenCode session"
+                aria-label="New OpenCode session"
+              >
+                <div className="sb-new-chat-left">
+                  <Icon name="plus" size={16} weight="bold" />
+                  <span>New Session</span>
+                </div>
+                <span className="sb-code-counter-badge">
+                  {rootSessions.length}
+                </span>
+              </button>
+
+              {/* Active Project & Skills Context Accordion */}
+              <div className="sb-code-projects-section">
+                <div className="sb-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 14 }}>
+                  <span>Project & Context</span>
+                  {codeLoading && <Icon name="refresh" size={12} className="sb-code-spinner spin" />}
+                </div>
+
+                <div className="sb-code-project-badge" title={activeProject?.worktree || 'Current workspace'}>
+                  <Icon name="folder" size={14} />
+                  <span className="sb-code-project-title">
+                    {activeProject?.worktree ? activeProject.worktree.split('/').pop() : 'Default Workspace'}
+                  </span>
+                  {codeSkills.length > 0 && (
+                    <button
+                      type="button"
+                      className="sb-code-counter-badge"
+                      onClick={() => setCodeSkillsOpen((o) => !o)}
+                      title="Toggle available skills"
+                      style={{ cursor: 'pointer', border: 'none' }}
+                    >
+                      {codeSkills.length} skills
+                    </button>
+                  )}
+                </div>
+
+                <AnimatePresence>
+                  {codeSkillsOpen && codeSkills.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.16 }}
+                      className="sb-code-skills-drawer"
+                    >
+                      {codeSkills.slice(0, 10).map((sk) => (
+                        <div key={sk.name || sk.id} className="sb-code-skill-row" title={sk.description || sk.name}>
+                          <span>⚡ {sk.name}</span>
+                        </div>
+                      ))}
+                      {codeSkills.length > 10 && (
+                        <div className="sb-code-skills-more">
+                          +{codeSkills.length - 10} more skills
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Scroll Area: Code Sessions */}
+              <div className="sb-scroll-body wb-list sb-code-sessions-section">
+                <div className="sb-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 14 }}>
+                  <span>Sessions</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{rootSessions.length}</span>
+                </div>
+
+                {rootSessions.length === 0 ? (
+                  <div className="sb-empty-chats">
+                    {codeLoading ? 'Loading sessions…' : filter ? 'No matching sessions' : 'No sessions yet'}
+                  </div>
+                ) : (
+                  rootSessions.map((s) => (
+                    codeRenamingId === s.id ? (
+                      <div key={s.id} className="sb-rename-wrap">
+                        <SmoothInput
+                          autoFocus
+                          defaultValue={s.title || s.slug || ''}
+                          className="sb-rename-input"
+                          onBlur={(e) => renameCodeSession(s.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              renameCodeSession(s.id, e.target.value)
+                            }
+                            if (e.key === 'Escape') {
+                              e.stopPropagation()
+                              setCodeRenamingId(null)
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <CodeSessionItem
+                        key={s.id}
+                        session={s}
+                        active={codeActiveSessionId === s.id}
+                        onOpen={leave(() => {
+                          if (view !== 'code') setView('code')
+                          openCodeSession(s.id, s.directory || activeProject?.worktree)
+                        })}
+                        onRename={() => setCodeRenamingId(s.id)}
+                        onDelete={() => deleteCodeSession(s.id)}
+                      />
+                    )
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <>
 
           {/* Prominent + New Chat Pill Button */}
           <button
@@ -775,6 +1188,8 @@ export default function Sidebar() {
               ))
             )}
           </div>
+        </>
+      )}
 
           {/* Bottom Actions: Functional User & Workspace Card */}
           <div className="sb-bottom-container">
