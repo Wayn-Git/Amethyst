@@ -7,6 +7,7 @@ import { useCompact, usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import { useSync } from './lib/sync/useSync.js'
 import { notify as toastNotify } from './components/application/notifications'
+import opencode from './lib/opencode.js'
 
 function pathToId(pathname) {
   if (pathname === '/' || pathname === '/chat') return 'chat'
@@ -842,6 +843,196 @@ export function AppProvider({ children }) {
     }
   }, [ready, refreshHealth, refreshCaps])
 
+  // OpenCode Engine state & actions
+  const [opencodeStatus, setOpencodeStatus] = useState({
+    running: false,
+    port: null,
+    loading: true,
+    error: null,
+  })
+  const [opencodeIframeKey, setOpencodeIframeKey] = useState(0)
+  const [opencodeSyncing, setOpencodeSyncing] = useState(false)
+
+  const refreshOpencodeStatus = useCallback(async (quiet = false) => {
+    if (!quiet) setOpencodeStatus((prev) => ({ ...prev, loading: true, error: null }))
+    try {
+      const data = await opencode.status()
+      setOpencodeStatus({
+        running: Boolean(data?.running),
+        port: data?.port || null,
+        loading: false,
+        error: null,
+      })
+    } catch (err) {
+      setOpencodeStatus({
+        running: false,
+        port: null,
+        loading: false,
+        error: err.message || 'Cannot reach OpenCode service',
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshOpencodeStatus(true)
+    const interval = setInterval(() => {
+      refreshOpencodeStatus(true)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [refreshOpencodeStatus])
+
+  const startOpencode = useCallback(async () => {
+    setOpencodeStatus((prev) => ({ ...prev, loading: true, error: null }))
+    try {
+      const res = await opencode.start()
+      if (res?.running && res?.port) {
+        setOpencodeStatus({
+          running: true,
+          port: res.port,
+          loading: false,
+          error: null,
+        })
+        setOpencodeIframeKey((k) => k + 1)
+        toastNotify('OpenCode Engine started')
+      } else {
+        await refreshOpencodeStatus()
+      }
+    } catch (err) {
+      setOpencodeStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || 'Failed to start OpenCode',
+      }))
+      toastNotify(err.message || 'Failed to start OpenCode', { type: 'error' })
+    }
+  }, [refreshOpencodeStatus])
+
+  const stopOpencode = useCallback(async () => {
+    setOpencodeStatus((prev) => ({ ...prev, loading: true }))
+    try {
+      await opencode.stop()
+      setOpencodeStatus({
+        running: false,
+        port: null,
+        loading: false,
+        error: null,
+      })
+      toastNotify('OpenCode Engine stopped')
+    } catch (err) {
+      setOpencodeStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || 'Failed to stop OpenCode',
+      }))
+      toastNotify(err.message || 'Failed to stop OpenCode', { type: 'error' })
+    }
+  }, [])
+
+  const syncOpencodeKeys = useCallback(async () => {
+    if (opencodeSyncing) return
+    setOpencodeSyncing(true)
+    try {
+      const res = await opencode.syncAmethyst()
+      const count = res?.synced?.length || 0
+      toastNotify(count > 0 ? `Synced ${count} provider keys to OpenCode` : 'Provider keys are up to date')
+    } catch (err) {
+      toastNotify(err.message || 'Failed to sync API keys', { type: 'error' })
+    } finally {
+      setOpencodeSyncing(false)
+    }
+  }, [opencodeSyncing])
+
+  const reloadOpencode = useCallback(() => {
+    setOpencodeIframeKey((k) => k + 1)
+    toastNotify('Reloaded OpenCode')
+  }, [])
+
+  const openOpencodeExternal = useCallback(() => {
+    const host = typeof window !== 'undefined' ? window.location.hostname || '127.0.0.1' : '127.0.0.1'
+    if (opencodeStatus.port) {
+      window.open(`http://${host}:${opencodeStatus.port}/`, '_blank', 'noopener,noreferrer')
+    }
+  }, [opencodeStatus.port])
+
+  const [sidebarMode, setSidebarModeRaw] = useState(() => {
+    return safeStorage.getItem('amethyst_sidebar_mode') || (view === 'code' ? 'code' : 'work')
+  })
+
+  // Sync mode with view if user navigates to /code directly
+  useEffect(() => {
+    if (view === 'code' && sidebarMode !== 'code') {
+      setSidebarModeRaw('code')
+      safeStorage.setItem('amethyst_sidebar_mode', 'code')
+    }
+  }, [view, sidebarMode])
+
+  const setSidebarMode = useCallback((mode) => {
+    setSidebarModeRaw(mode)
+    safeStorage.setItem('amethyst_sidebar_mode', mode)
+    if (mode === 'code') {
+      if (view !== 'code') {
+        setView('code')
+      }
+    } else if (mode === 'work') {
+      if (view === 'code') {
+        setView('chat')
+      }
+    }
+  }, [view, setView])
+
+  const [codeActiveSessionId, setCodeActiveSessionIdRaw] = useState(() => {
+    return safeStorage.getItem('amethyst_code_session_id') || null
+  })
+
+  const setCodeActiveSessionId = useCallback((id) => {
+    setCodeActiveSessionIdRaw(id)
+    if (id) safeStorage.setItem('amethyst_code_session_id', id)
+    else safeStorage.removeItem('amethyst_code_session_id')
+  }, [])
+
+  const [codeActiveProjectId, setCodeActiveProjectId] = useState(null)
+
+  const openCodeSession = useCallback((sessionId, dir = '') => {
+    setCodeActiveSessionId(sessionId)
+    if (sidebarMode !== 'code') {
+      setSidebarMode('code')
+    } else if (view !== 'code') {
+      setView('code')
+    }
+  }, [sidebarMode, setSidebarMode, view, setView, setCodeActiveSessionId])
+
+  const opencodeContext = useMemo(() => ({
+    status: opencodeStatus,
+    iframeKey: opencodeIframeKey,
+    syncing: opencodeSyncing,
+    refresh: refreshOpencodeStatus,
+    start: startOpencode,
+    stop: stopOpencode,
+    syncKeys: syncOpencodeKeys,
+    reload: reloadOpencode,
+    openExternal: openOpencodeExternal,
+    activeSessionId: codeActiveSessionId,
+    setActiveSessionId: setCodeActiveSessionId,
+    activeProjectId: codeActiveProjectId,
+    setActiveProjectId: setCodeActiveProjectId,
+    openSession: openCodeSession,
+  }), [
+    opencodeStatus,
+    opencodeIframeKey,
+    opencodeSyncing,
+    refreshOpencodeStatus,
+    startOpencode,
+    stopOpencode,
+    syncOpencodeKeys,
+    reloadOpencode,
+    openOpencodeExternal,
+    codeActiveSessionId,
+    setCodeActiveSessionId,
+    codeActiveProjectId,
+    setCodeActiveProjectId,
+    openCodeSession,
+  ])
+
   const value = useMemo(() => ({
     view, setView,
     server, retryServer: wakeBackend,
@@ -881,6 +1072,11 @@ export function AppProvider({ children }) {
     terminalMinimized, setTerminalMinimized,
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
+    opencode: opencodeContext,
+    sidebarMode, setSidebarMode,
+    codeActiveSessionId, setCodeActiveSessionId,
+    codeActiveProjectId, setCodeActiveProjectId,
+    openCodeSession,
   }), [
     view, setView, server, health, healthError, refreshHealth, toasts, toast, dismissToast, overlay,
     conversations, refreshConvs, activeId, setActiveId, caps, refreshCaps,
@@ -906,6 +1102,11 @@ export function AppProvider({ children }) {
     userProfile, refreshUserProfile, updateUserProfile,
     renaming, renameConversation, deleteConversation, deleteAllConversations,
     terminalOpen, toggleTerminal, terminalHeight, terminalMinimized,
+    opencodeContext,
+    sidebarMode, setSidebarMode,
+    codeActiveSessionId, setCodeActiveSessionId,
+    codeActiveProjectId, setCodeActiveProjectId,
+    openCodeSession,
   ])
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

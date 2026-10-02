@@ -80,7 +80,21 @@ function subscribeEvents(onEvent, onError) {
   }
 }
 
+export function encodeDirectory(dir) {
+  if (!dir) return ''
+  try {
+    const bytes = new TextEncoder().encode(dir)
+    const bin = Array.from(bytes, (b) => String.fromCharCode(b)).join('')
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  } catch {
+    return ''
+  }
+}
+
 export const opencode = {
+  // Utilities
+  encodeDir: encodeDirectory,
+
   // Subprocess management
   status: () => request('GET', '/status'),
   start: () => request('POST', '/start'),
@@ -89,6 +103,18 @@ export const opencode = {
 
   // OpenCode Core APIs
   health: () => request('GET', '/health'),
+  listProjects: async () => {
+    const res = await request('GET', '/project')
+    return Array.isArray(res) ? res : res?.data || []
+  },
+  getCurrentProject: async () => {
+    const res = await request('GET', '/project/current')
+    return res?.data || res
+  },
+  listSkills: async () => {
+    const res = await request('GET', '/skill')
+    return Array.isArray(res) ? res : res?.data || []
+  },
   listAgents: async () => {
     const res = await request('GET', '/agent')
     const list = Array.isArray(res) ? res : res?.data || []
