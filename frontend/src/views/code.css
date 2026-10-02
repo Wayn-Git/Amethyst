@@ -16,52 +16,50 @@
 }
 
 /* --------------------------------------------------------------------------
-   Header / Connection Bar
+   WorkbenchBar Integration Elements
    -------------------------------------------------------------------------- */
-.code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--canvas);
-  border-bottom: 1px solid var(--hairline);
-  min-height: 48px;
-  gap: 12px;
-  flex-shrink: 0;
-  z-index: 10;
-}
-
-.code-header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.code-brand {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-weight: 600;
-  font-size: 13.5px;
-  letter-spacing: -0.2px;
-  color: var(--text);
-}
-
-.code-status-badge {
+.wb-code-status-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 9999px;
   font-size: 11.5px;
   font-weight: 500;
-  background: var(--canvas-deep);
+  background: var(--surface-raised, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  user-select: none;
+  animation: fadeIn 0.2s ease;
+}
+
+.wb-code-status-text {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.wb-code-port {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  background: color-mix(in srgb, var(--text-faint) 12%, transparent);
+  border-radius: 4px;
   color: var(--text-dim);
 }
 
+.wb-icon-btn--stop:hover {
+  color: var(--stop, #ef4444) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  background: color-mix(in srgb, #ef4444 10%, transparent) !important;
+}
+
+.wb-icon-btn--play:hover {
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  background: color-mix(in srgb, #10b981 10%, transparent) !important;
+}
+
+/* Status Indicator Dot */
 .code-status-dot {
   width: 7px;
   height: 7px;
@@ -89,45 +87,6 @@
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.6; transform: scale(0.9); }
-}
-
-.code-port-pill {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 1px 5px;
-  background: color-mix(in srgb, var(--text-faint) 12%, transparent);
-  border-radius: 4px;
-  color: var(--text-dim);
-}
-
-.code-header-toast {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 500;
-  animation: fadeIn 0.2s ease;
-}
-
-.code-header-toast.success {
-  background: color-mix(in srgb, #10b981 15%, transparent);
-  border: 1px solid color-mix(in srgb, #10b981 30%, transparent);
-  color: #10b981;
-}
-
-.code-header-toast.error {
-  background: color-mix(in srgb, #ef4444 15%, transparent);
-  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
-  color: #ef4444;
-}
-
-.code-header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -274,4 +233,175 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* --------------------------------------------------------------------------
+   Top Context Bar (Breadcrumbs & Direct Browser Actions)
+   -------------------------------------------------------------------------- */
+.code-context-bar {
+  height: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--canvas, #111116);
+  border-bottom: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+  user-select: none;
+  z-index: 10;
+}
+
+.code-context-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.code-context-project,
+.code-context-session {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text, #ffffff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-context-separator {
+  color: var(--text-faint, rgba(255, 255, 255, 0.3));
+  font-weight: 400;
+  user-select: none;
+}
+
+.code-context-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.code-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.1));
+  background: var(--surface-raised, rgba(255, 255, 255, 0.04));
+  color: var(--text-dim, rgba(255, 255, 255, 0.7));
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.code-action-btn:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text, #ffffff);
+  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.16));
+}
+
+.code-action-btn:active {
+  transform: scale(0.97);
+}
+
+/* --------------------------------------------------------------------------
+   Offline Card & Universal Cross-Platform Install Guide
+   -------------------------------------------------------------------------- */
+.code-offline-card {
+  max-width: 520px;
+}
+
+.code-offline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.code-install-guide {
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-sunken, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.07));
+  box-sizing: border-box;
+}
+
+.code-install-guide-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim, rgba(255, 255, 255, 0.6));
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.code-install-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.code-install-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.code-install-label {
+  width: 105px;
+  flex-shrink: 0;
+  color: var(--text-dim, rgba(255, 255, 255, 0.65));
+  font-weight: 500;
+  font-size: 11.5px;
+}
+
+.code-install-cmd {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+  color: var(--accent, #a855f7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-x: auto;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.1));
+  color: var(--text-dim, rgba(255, 255, 255, 0.6));
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.code-copy-btn:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text, #ffffff);
+  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.18));
+}
+
+.code-copy-btn:active {
+  transform: scale(0.95);
 }

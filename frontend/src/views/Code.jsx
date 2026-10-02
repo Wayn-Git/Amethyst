@@ -1,257 +1,144 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Icon from '../components/Icon.jsx'
-import opencode from '../lib/opencode.js'
 import { useApp } from '../store.jsx'
+import opencodeClient from '../lib/opencode.js'
 import './code.css'
 
 export default function Code() {
-  const { setView } = useApp()
-  const [serverStatus, setServerStatus] = useState({
-    running: false,
-    port: null,
-    loading: true,
-    error: null,
-  })
-  const [syncing, setSyncing] = useState(false)
-  const [syncToast, setSyncToast] = useState(null)
-  const [iframeKey, setIframeKey] = useState(0)
+  const {
+    opencode,
+    codeActiveSessionId,
+    codeActiveProjectId,
+    workspace,
+    toast,
+  } = useApp()
 
-  const checkStatus = useCallback(async (quiet = false) => {
-    if (!quiet) {
-      setServerStatus((prev) => ({ ...prev, loading: true, error: null }))
-    }
-    try {
-      const data = await opencode.status()
-      setServerStatus({
-        running: Boolean(data?.running),
-        port: data?.port || null,
-        loading: false,
-        error: null,
-      })
-    } catch (err) {
-      setServerStatus({
-        running: false,
-        port: null,
-        loading: false,
-        error: err.message || 'Cannot reach Amethyst OpenCode service',
-      })
-    }
-  }, [])
+  const status = opencode?.status || { running: false, loading: true, port: null }
+  const iframeKey = opencode?.iframeKey || 0
+  const start = opencode?.start
+  const reloadIframe = opencode?.reloadIframe
+
+  const [sessions, setSessions] = useState([])
+  const [projects, setProjects] = useState([])
 
   useEffect(() => {
-    checkStatus()
-    const interval = setInterval(() => {
-      checkStatus(true)
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [checkStatus])
-
-  const handleStart = async () => {
-    setServerStatus((prev) => ({ ...prev, loading: true, error: null }))
-    try {
-      const res = await opencode.start()
-      if (res?.running && res?.port) {
-        setServerStatus({
-          running: true,
-          port: res.port,
-          loading: false,
-          error: null,
-        })
-        setIframeKey((k) => k + 1)
-      } else {
-        await checkStatus()
-      }
-    } catch (err) {
-      setServerStatus((prev) => ({
-        ...prev,
-        loading: false,
-        error: err.message || 'Failed to start OpenCode',
-      }))
-    }
-  }
-
-  const handleStop = async () => {
-    setServerStatus((prev) => ({ ...prev, loading: true }))
-    try {
-      await opencode.stop()
-      setServerStatus({
-        running: false,
-        port: null,
-        loading: false,
-        error: null,
+    if (status?.running) {
+      Promise.all([
+        opencodeClient.listSessions().catch(() => []),
+        opencodeClient.listProjects().catch(() => []),
+      ]).then(([sList, pList]) => {
+        setSessions(Array.isArray(sList) ? sList : [])
+        setProjects(Array.isArray(pList) ? pList : [])
       })
-    } catch (err) {
-      setServerStatus((prev) => ({
-        ...prev,
-        loading: false,
-        error: err.message || 'Failed to stop OpenCode',
-      }))
     }
-  }
+  }, [status?.running, iframeKey, codeActiveSessionId])
 
-  const handleSyncKeys = async () => {
-    if (syncing) return
-    setSyncing(true)
-    try {
-      const res = await opencode.syncAmethyst()
-      const count = res?.synced?.length || 0
-      setSyncToast({
-        type: 'success',
-        text: count > 0 ? `Synced ${count} provider keys` : 'No new keys to sync',
-      })
-    } catch (err) {
-      setSyncToast({
-        type: 'error',
-        text: err.message || 'Failed to sync API keys',
-      })
-    } finally {
-      setSyncing(false)
-      setTimeout(() => setSyncToast(null), 3500)
+  const activeSession = useMemo(() => {
+    if (!codeActiveSessionId) return null
+    return sessions.find((s) => s.id === codeActiveSessionId) || null
+  }, [sessions, codeActiveSessionId])
+
+  const activeProject = useMemo(() => {
+    if (codeActiveProjectId) {
+      return projects.find((p) => p.id === codeActiveProjectId) || null
     }
-  }
+    return projects.find((p) => p.worktree && p.worktree !== '/') || projects[0] || null
+  }, [projects, codeActiveProjectId])
 
   const host = typeof window !== 'undefined' ? window.location.hostname || '127.0.0.1' : '127.0.0.1'
-  const opencodeUrl = serverStatus.port ? `http://${host}:${serverStatus.port}/` : ''
+  const currentDir = activeSession?.directory || activeProject?.worktree || workspace || ''
+  const encodedDir = currentDir ? opencodeClient.encodeDir(currentDir) : ''
 
-  const handleOpenExternal = () => {
-    if (opencodeUrl) {
-      window.open(opencodeUrl, '_blank', 'noopener,noreferrer')
+  const iframeSrc = useMemo(() => {
+    if (!status?.port) return ''
+    if (activeSession?.id && encodedDir) {
+      return `http://${host}:${status.port}/${encodedDir}/session/${activeSession.id}`
     }
-  }
+    if (encodedDir) {
+      return `http://${host}:${status.port}/${encodedDir}`
+    }
+    return `http://${host}:${status.port}/`
+  }, [host, status?.port, activeSession?.id, encodedDir])
+
+  const copyCmd = useCallback(
+    async (cmd) => {
+      try {
+        await navigator.clipboard.writeText(cmd)
+        toast('Command copied to clipboard', 'good')
+      } catch (err) {
+        toast('Failed to copy command', 'bad')
+      }
+    },
+    [toast]
+  )
+
+  const projectName = currentDir ? currentDir.split('/').filter(Boolean).pop() : 'Default Workspace'
+  const sessionTitle = activeSession?.title || activeSession?.slug || 'All Sessions'
 
   return (
     <div className="code-view">
-      {/* Top Header with Amethyst Integration Controls */}
-      <header className="code-header">
-        <div className="code-header-left">
-          {/* Mode Switcher (Work | Code) */}
-          <div className="wb-mode-switcher">
-            <button
-              type="button"
-              className="wb-mode-btn"
-              onClick={() => setView?.('chat')}
-              title="Work Mode (Conversations & Assistant)"
-            >
-              <Icon name="chat" size={14} />
-              <span>Work</span>
-            </button>
-            <button
-              type="button"
-              className="wb-mode-btn is-active"
-              title="Code Mode (OpenCode Desktop Interface)"
-            >
-              <Icon name="code" size={14} />
-              <span>Code</span>
-            </button>
-          </div>
-
-          <div className="code-brand">
-            <Icon name="code" size={16} />
-            <span>OpenCode Engine</span>
-          </div>
-
-          <div className="code-status-badge">
-            <span
-              className={`code-status-dot ${
-                serverStatus.loading ? 'starting' : serverStatus.running ? 'running' : 'stopped'
-              }`}
-            />
-            <span>
-              {serverStatus.loading
-                ? 'Connecting...'
-                : serverStatus.running
-                ? 'Connected'
-                : 'Stopped'}
+      {/* Top Context Bar */}
+      {status?.running && (
+        <header className="code-context-bar">
+          <div className="code-context-breadcrumb">
+            <span className="code-context-project" title={currentDir || 'Workspace'}>
+              <Icon name="folder" size={14} />
+              <span>{projectName}</span>
             </span>
-            {serverStatus.port && <span className="code-port-pill">:{serverStatus.port}</span>}
+            <span className="code-context-separator">/</span>
+            <span className="code-context-session" title={sessionTitle}>
+              <Icon name="code" size={13} />
+              <span>{sessionTitle}</span>
+            </span>
+            {activeSession?.agent && activeSession.agent !== 'build' && (
+              <span className="sb-code-agent-badge">{activeSession.agent}</span>
+            )}
           </div>
 
-          {syncToast && (
-            <div className={`code-header-toast ${syncToast.type}`}>
-              <Icon name={syncToast.type === 'success' ? 'check' : 'alert'} size={13} />
-              <span>{syncToast.text}</span>
+          <div className="code-context-actions">
+            <div className="wb-code-status-pill">
+              <span className={`code-status-dot ${status.running ? 'running' : 'stopped'}`} />
+              <span className="wb-code-status-text">{status.running ? 'Running' : 'Offline'}</span>
+              {status.port && <span className="wb-code-port">:{status.port}</span>}
             </div>
-          )}
-        </div>
 
-        <div className="code-header-right">
-          {serverStatus.running ? (
-            <>
-              <button
-                type="button"
-                className="code-btn"
-                onClick={handleSyncKeys}
-                disabled={syncing}
-                title="Sync Amethyst AI provider API keys to OpenCode"
+            {iframeSrc && (
+              <a
+                href={iframeSrc}
+                target="_blank"
+                rel="noreferrer"
+                className="code-action-btn"
+                title="Open native OpenCode in browser tab"
               >
-                <Icon
-                  name={syncing ? 'circle-notch' : 'key'}
-                  size={14}
-                  className={syncing ? 'spin' : ''}
-                />
-                <span>{syncing ? 'Syncing...' : 'Sync Keys'}</span>
-              </button>
+                <Icon name="arrow-up-right" size={14} />
+                <span>Open in Browser</span>
+              </a>
+            )}
 
-              <button
-                type="button"
-                className="code-btn"
-                onClick={() => setIframeKey((k) => k + 1)}
-                title="Reload OpenCode interface"
-              >
-                <Icon name="refresh" size={14} />
-                <span>Reload</span>
-              </button>
-
-              <button
-                type="button"
-                className="code-btn"
-                onClick={handleOpenExternal}
-                title="Open OpenCode web interface in a dedicated browser tab"
-              >
-                <Icon name="external-link" size={14} />
-                <span>Open in Tab</span>
-              </button>
-
-              <button
-                type="button"
-                className="code-btn"
-                onClick={handleStop}
-                title="Stop local OpenCode process"
-              >
-                <Icon name="stop" size={14} />
-                <span>Stop</span>
-              </button>
-            </>
-          ) : (
             <button
               type="button"
-              className="code-btn code-btn-primary"
-              onClick={handleStart}
-              disabled={serverStatus.loading}
-              title="Launch OpenCode subprocess"
+              className="code-action-btn"
+              onClick={reloadIframe}
+              title="Reload engine frame"
+              aria-label="Reload engine frame"
             >
-              <Icon
-                name={serverStatus.loading ? 'circle-notch' : 'play'}
-                size={14}
-                className={serverStatus.loading ? 'spin' : ''}
-              />
-              <span>{serverStatus.loading ? 'Starting...' : 'Start OpenCode'}</span>
+              <Icon name="refresh" size={14} />
             </button>
-          )}
-        </div>
-      </header>
+          </div>
+        </header>
+      )}
 
       {/* Main Content Area */}
       <main className="code-frame-container">
-        {serverStatus.running && opencodeUrl ? (
+        {status?.running && iframeSrc ? (
           <iframe
-            key={iframeKey}
-            src={opencodeUrl}
+            key={`${iframeKey}-${activeSession?.id || 'root'}`}
+            src={iframeSrc}
             className="code-native-iframe"
             title="OpenCode Desktop"
-            allow="clipboard-read; clipboard-write"
+            allow="clipboard-read; clipboard-write; fullscreen"
           />
-        ) : serverStatus.loading ? (
+        ) : status?.loading ? (
           <div className="code-state-card">
             <div className="code-state-icon spin">
               <Icon name="circle-notch" size={32} />
@@ -262,29 +149,66 @@ export default function Code() {
             </p>
           </div>
         ) : (
-          <div className="code-state-card">
+          <div className="code-state-card code-offline-card">
             <div className="code-state-icon">
               <Icon name="code" size={36} />
             </div>
             <h3 className="code-state-title">OpenCode Engine is Offline</h3>
             <p className="code-state-desc">
-              Start the local OpenCode server to load the official desktop web interface with full
-              session history, multi-agent workspaces, code diffs, and AI tools.
+              Start the local OpenCode server or install the binary to run the native AI coding engine across macOS, Linux, and Windows.
             </p>
-            {serverStatus.error && (
+
+            {status?.error && (
               <div className="code-error-box">
-                <Icon name="alert" size={14} />
-                <span>{serverStatus.error}</span>
+                <Icon name="info" size={14} />
+                <span>{status.error}</span>
               </div>
             )}
-            <button
-              type="button"
-              className="code-btn code-btn-primary code-btn-large"
-              onClick={handleStart}
-            >
-              <Icon name="play" size={16} />
-              <span>Start OpenCode Engine</span>
-            </button>
+
+            <div className="code-offline-actions">
+              <button
+                type="button"
+                className="code-btn code-btn-primary code-btn-large"
+                onClick={start}
+              >
+                <Icon name="play" size={16} />
+                <span>Start OpenCode Engine</span>
+              </button>
+            </div>
+
+            <div className="code-install-guide">
+              <div className="code-install-guide-title">
+                Not installed on this machine? Install in one command:
+              </div>
+              <div className="code-install-tabs">
+                <div className="code-install-row">
+                  <span className="code-install-label">macOS / Linux:</span>
+                  <code className="code-install-cmd">curl -fsSL https://opencode.ai/install.sh | bash</code>
+                  <button
+                    type="button"
+                    className="code-copy-btn"
+                    onClick={() => copyCmd('curl -fsSL https://opencode.ai/install.sh | bash')}
+                    title="Copy command"
+                    aria-label="Copy macOS / Linux install command"
+                  >
+                    <Icon name="copy" size={13} />
+                  </button>
+                </div>
+                <div className="code-install-row">
+                  <span className="code-install-label">npm / Windows:</span>
+                  <code className="code-install-cmd">npm i -g opencode-ai</code>
+                  <button
+                    type="button"
+                    className="code-copy-btn"
+                    onClick={() => copyCmd('npm i -g opencode-ai')}
+                    title="Copy command"
+                    aria-label="Copy npm install command"
+                  >
+                    <Icon name="copy" size={13} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
