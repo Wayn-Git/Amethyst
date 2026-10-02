@@ -242,6 +242,9 @@ export default function Sidebar() {
     opencode: opencodeCtx,
   } = useApp()
 
+  const [filter, setFilter] = useState('')
+  const [showSearchInput, setShowSearchInput] = useState(false)
+
   // Live OpenCode State
   const [codeProjects, setCodeProjects] = useState([])
   const [codeSessions, setCodeSessions] = useState([])
@@ -353,9 +356,6 @@ export default function Sidebar() {
 
   // Real navigation places
   const places = useMemo(() => forRail(betaPages), [betaPages])
-
-  const [filter, setFilter] = useState('')
-  const [showSearchInput, setShowSearchInput] = useState(false)
 
   const isCollapsed = compact ? !railOpen : !sidebar
 
