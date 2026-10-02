@@ -53,6 +53,7 @@ documents = [
     "python-docx>=1.1",
     "openpyxl>=3.1",
     "python-pptx>=1.0",
+    "rapidocr-onnxruntime>=1.4.0",
 ]
 # The tray process: an icon, a global hotkey, and the autostart entry. Optional
 # because the daemon is the server, and the server needs none of it -- `amethyst

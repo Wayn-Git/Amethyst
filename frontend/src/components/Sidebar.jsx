@@ -14,9 +14,18 @@ import UserMenu from './UserMenu.jsx'
 import { safeStorage } from '../lib/storage.js'
 import opencode from '../lib/opencode.js'
 
+function parseSessionTime(val) {
+  if (!val) return null
+  if (typeof val === 'number' || (!Number.isNaN(Number(val)) && !String(val).includes('-'))) {
+    const n = Number(val)
+    return new Date(n > 1e11 ? n : n * 1000)
+  }
+  return serverTime(val) || new Date(val)
+}
+
 function bucketOf(iso) {
   if (!iso) return 'Earlier'
-  const then = serverTime(iso) || new Date(iso)
+  const then = parseSessionTime(iso)
   if (!then || Number.isNaN(then.getTime())) return 'Earlier'
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -28,6 +37,13 @@ function bucketOf(iso) {
   if (days < 30) return 'Previous 30 days'
   return 'Earlier'
 }
+
+function formatSessionDate(val) {
+  const d = parseSessionTime(val)
+  if (!d || Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
 
 function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
   const [menu, setMenu] = useState(false)
@@ -146,7 +162,7 @@ function CodeSessionItem({ session, active, onOpen, onRename, onDelete }) {
   }, [])
 
   const agentLabel = session.agent || 'build'
-  const timeFormatted = fmtDate(session.time?.updated || session.time?.created)
+  const timeFormatted = formatSessionDate(session.time?.updated || session.time?.created)
   const title = session.title || session.slug || 'Untitled session'
 
   return (
@@ -273,31 +289,68 @@ export default function Sidebar() {
   }, [])
 
   useEffect(() => {
-    if (sidebarMode === 'code') {
-      loadCodeData()
+    if (sidebarMode !== 'code') return
+    loadCodeData()
+    const handleFocus = () => loadCodeData()
+    window.addEventListener('focus', handleFocus)
+    const interval = setInterval(loadCodeData, 3500)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(interval)
     }
   }, [sidebarMode, loadCodeData])
 
-  // Filter root sessions (exclude child subagents from the root list)
+  // Filter root sessions scoped to active workspace, excluding child subagents
   const rootSessions = useMemo(() => {
-    const list = codeSessions.filter((s) => !s.parentID)
+    let list = codeSessions.filter((s) => !s.parentID)
+    if (workspace) {
+      const normWorkspace = workspace.replace(/\/+$/, '').toLowerCase()
+      list = list.filter((s) => {
+        if (!s.directory) return true
+        return s.directory.replace(/\/+$/, '').toLowerCase() === normWorkspace
+      })
+    }
     if (!filter.trim()) return list
     const q = filter.trim().toLowerCase()
     return list.filter((s) => (s.title || s.slug || '').toLowerCase().includes(q))
-  }, [codeSessions, filter])
+  }, [codeSessions, workspace, filter])
 
-  // Active project
-  const activeProject = useMemo(() => {
-    if (codeActiveProjectId) {
-      return codeProjects.find((p) => p.id === codeActiveProjectId) || codeProjects[0]
+  // Group root sessions into temporal buckets (Today, Yesterday, Previous 7 days, Earlier)
+  const sessionBuckets = useMemo(() => {
+    if (filter.trim()) {
+      return [{ label: '', items: rootSessions }]
     }
-    const match = codeProjects.find((p) => p.worktree && p.worktree !== '/')
-    return match || codeProjects[0] || null
-  }, [codeProjects, codeActiveProjectId])
+    const order = ['Today', 'Yesterday', 'Previous 7 days', 'Earlier']
+    const map = new Map(order.map((b) => [b, []]))
+
+    for (const s of rootSessions) {
+      const b = bucketOf(s.time?.updated || s.time?.created)
+      if (map.has(b)) map.get(b).push(s)
+      else map.get('Earlier').push(s)
+    }
+
+    return order
+      .map((label) => ({ label, items: map.get(label) }))
+      .filter((b) => b.items.length > 0)
+  }, [rootSessions, filter])
+
+  // Active project scoped to active workspace (no more foreign khoj project)
+  const activeProject = useMemo(() => {
+    if (workspace) {
+      const norm = workspace.replace(/\/+$/, '').toLowerCase()
+      const match = codeProjects.find((p) => (p.worktree || '').replace(/\/+$/, '').toLowerCase() === norm)
+      if (match) return match
+      return { id: 'workspace', worktree: workspace }
+    }
+    if (codeActiveProjectId) {
+      return codeProjects.find((p) => p.id === codeActiveProjectId) || null
+    }
+    return codeProjects[0] || null
+  }, [codeProjects, codeActiveProjectId, workspace])
 
   const handleNewCodeSession = useCallback(async () => {
     try {
-      const dir = activeProject?.worktree || ''
+      const dir = activeProject?.worktree || workspace || ''
       const res = await opencode.createSession({ directory: dir })
       if (res?.id) {
         openCodeSession(res.id, res.directory || dir)
@@ -307,7 +360,7 @@ export default function Sidebar() {
     } catch (e) {
       toast(e.message || 'Failed to create session', 'bad')
     }
-  }, [activeProject, openCodeSession, loadCodeData, toast])
+  }, [activeProject, workspace, openCodeSession, loadCodeData, toast])
 
   const renameCodeSession = useCallback(async (sessionId, newTitle) => {
     setCodeRenamingId(null)
@@ -348,9 +401,12 @@ export default function Sidebar() {
     }
   }, [setSidebarMode, view, setView])
 
+  // Keep sidebarMode and view in sync bidirectionally
   useEffect(() => {
     if (view === 'code' && sidebarMode !== 'code') {
       setSidebarMode('code')
+    } else if (view !== 'code' && sidebarMode === 'code') {
+      setSidebarMode('work')
     }
   }, [view, sidebarMode, setSidebarMode])
 
@@ -852,100 +908,72 @@ export default function Sidebar() {
                 </span>
               </button>
 
-              {/* Active Project & Skills Context Accordion */}
+              {/* Active Workspace */}
               <div className="sb-code-projects-section">
                 <div className="sb-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 14 }}>
-                  <span>Project & Context</span>
+                  <span>Active Workspace</span>
                   {codeLoading && <Icon name="refresh" size={12} className="sb-code-spinner spin" />}
                 </div>
 
-                <div className="sb-code-project-badge" title={activeProject?.worktree || 'Current workspace'}>
+                <div className="sb-code-project-badge" title={activeProject?.worktree || workspace || 'Current workspace'}>
                   <Icon name="folder" size={14} />
                   <span className="sb-code-project-title">
-                    {activeProject?.worktree ? activeProject.worktree.split('/').pop() : 'Default Workspace'}
+                    {workspaceName}
                   </span>
-                  {codeSkills.length > 0 && (
-                    <button
-                      type="button"
-                      className="sb-code-counter-badge"
-                      onClick={() => setCodeSkillsOpen((o) => !o)}
-                      title="Toggle available skills"
-                      style={{ cursor: 'pointer', border: 'none' }}
-                    >
-                      {codeSkills.length} skills
-                    </button>
-                  )}
+                  <span className="sb-code-counter-badge">Active</span>
                 </div>
-
-                <AnimatePresence>
-                  {codeSkillsOpen && codeSkills.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.16 }}
-                      className="sb-code-skills-drawer"
-                    >
-                      {codeSkills.slice(0, 10).map((sk) => (
-                        <div key={sk.name || sk.id} className="sb-code-skill-row" title={sk.description || sk.name}>
-                          <span>⚡ {sk.name}</span>
-                        </div>
-                      ))}
-                      {codeSkills.length > 10 && (
-                        <div className="sb-code-skills-more">
-                          +{codeSkills.length - 10} more skills
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
 
               {/* Scroll Area: Code Sessions */}
               <div className="sb-scroll-body wb-list sb-code-sessions-section">
-                <div className="sb-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 14 }}>
-                  <span>Sessions</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{rootSessions.length}</span>
-                </div>
-
                 {rootSessions.length === 0 ? (
                   <div className="sb-empty-chats">
                     {codeLoading ? 'Loading sessions…' : filter ? 'No matching sessions' : 'No sessions yet'}
                   </div>
                 ) : (
-                  rootSessions.map((s) => (
-                    codeRenamingId === s.id ? (
-                      <div key={s.id} className="sb-rename-wrap">
-                        <SmoothInput
-                          autoFocus
-                          defaultValue={s.title || s.slug || ''}
-                          className="sb-rename-input"
-                          onBlur={(e) => renameCodeSession(s.id, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              renameCodeSession(s.id, e.target.value)
-                            }
-                            if (e.key === 'Escape') {
-                              e.stopPropagation()
-                              setCodeRenamingId(null)
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <CodeSessionItem
-                        key={s.id}
-                        session={s}
-                        active={codeActiveSessionId === s.id}
-                        onOpen={leave(() => {
-                          if (view !== 'code') setView('code')
-                          openCodeSession(s.id, s.directory || activeProject?.worktree)
-                        })}
-                        onRename={() => setCodeRenamingId(s.id)}
-                        onDelete={() => deleteCodeSession(s.id)}
-                      />
-                    )
+                  sessionBuckets.map((bucket) => (
+                    <div key={bucket.label || 'all'} className="sb-bucket-group">
+                      {bucket.label && (
+                        <div className="sb-section-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 14 }}>
+                          <span>{bucket.label}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{bucket.items.length}</span>
+                        </div>
+                      )}
+                      {bucket.items.map((s) => (
+                        codeRenamingId === s.id ? (
+                          <div key={s.id} className="sb-rename-wrap">
+                            <SmoothInput
+                              autoFocus
+                              defaultValue={s.title || s.slug || ''}
+                              className="sb-rename-input"
+                              onBlur={(e) => renameCodeSession(s.id, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  renameCodeSession(s.id, e.target.value)
+                                }
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation()
+                                  setCodeRenamingId(null)
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <CodeSessionItem
+                            key={s.id}
+                            session={s}
+                            active={codeActiveSessionId === s.id}
+                            onOpen={leave(() => {
+                              if (view !== 'code') setView('code')
+                              openCodeSession(s.id, s.directory || activeProject?.worktree || workspace)
+                            })}
+                            onRename={() => setCodeRenamingId(s.id)}
+                            onDelete={() => deleteCodeSession(s.id)}
+                          />
+                        )
+                      ))}
+                    </div>
                   ))
                 )}
               </div>

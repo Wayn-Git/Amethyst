@@ -420,7 +420,22 @@ export const api = {
   // `mode` is 'chat' or 'plan'. It is a field rather than a sentence glued to
   // the message: the sentence landed in the transcript and was replayed on
   // every later turn, and the server had no idea the mode existed.
-  turn: async ({ conversationId, message, workspace, mode, attachments, guard, effort, variant, model, onEvent, signal }) => {
+  // Client session signals: coarse, local-derived, allowlisted server-side.
+  // IANA tz + locale + desktop/mobile only. No geo, no UA, no hostname.
+  turn: async ({ conversationId, message, workspace, mode, attachments, guard, effort, variant, model, depth, onEvent, signal }) => {
+    let clientCtx = {}
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null
+      const locale = navigator.language || null
+      const coarseMobile = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+      const smallScreen = Math.min(window.innerWidth || 0, window.innerHeight || 0) < 500
+      clientCtx = {
+        client_tz: tz,
+        client_tz_offset: -new Date().getTimezoneOffset(),
+        locale,
+        device_class: coarseMobile || smallScreen ? 'mobile' : 'desktop',
+      }
+    } catch { clientCtx = {} }
     let res
     try {
       res = await fetch(`${getBase()}/conversations/${conversationId}/turn`, {
@@ -448,6 +463,8 @@ export const api = {
           effort: effort || null,
           variant: variant || null,
           model: model || null,
+          depth: depth || null,
+          ...clientCtx,
         }),
         signal,
       })
@@ -670,6 +687,7 @@ export const api = {
   converterDelete: (fileId) => j(`/converter/files/${encodeURIComponent(fileId)}`, json('DELETE')),
   converterDownloadUrl: (jobId) => `${getBase()}/converter/download/${encodeURIComponent(jobId)}`,
   converterPreviewUrl: (jobId) => `${getBase()}/converter/preview/${encodeURIComponent(jobId)}`,
+  converterThumbnailUrl: (fileId) => `${getBase()}/converter/thumbnail/${encodeURIComponent(fileId)}`,
   converterGenerateQR: (payload) => j('/converter/qr', json('POST', payload)),
 
   skillSearch: (q, conversationId) =>

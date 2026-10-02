@@ -7,6 +7,24 @@ import { api } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import { useMenuFit } from '../hooks/useMenuFit.js'
 import { FadeScrollArea, SmoothInput } from './ui/skiper/index.js'
+import { safeStorage } from '../lib/storage.js'
+
+const RECENT_MODELS_KEY = 'amethyst.recent-models'
+const RECENT_MODELS_LIMIT = 5
+
+export function readRecentModels() {
+  try {
+    const value = JSON.parse(safeStorage.getItem(RECENT_MODELS_KEY, '[]'))
+    return Array.isArray(value) ? value.filter((x) => x && typeof x.provider === 'string' && typeof x.model === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function rememberModel(selection) {
+  const next = [selection, ...readRecentModels().filter((x) => !(x.provider === selection.provider && x.model === selection.model))]
+  safeStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(next.slice(0, RECENT_MODELS_LIMIT)))
+}
 
 /* Fallback model definitions for providers that don't serve a live GET /models endpoint */
 const FALLBACK_MODELS = {
@@ -80,6 +98,7 @@ export default function ModelMenu({
   const [query, setQuery] = useState('')
   const [modelMap, setModelMap] = useState({})
   const [loading, setLoading] = useState(true)
+  const [recentModels, setRecentModels] = useState(readRecentModels)
 
   const providers = health?.providers ?? []
   const defaults = health?.provider_defaults ?? {}
@@ -182,6 +201,31 @@ export default function ModelMenu({
     return false
   }, [groupedModels, query])
 
+  useEffect(() => {
+    if (provider && model) {
+      rememberModel({ provider, model })
+      setRecentModels(readRecentModels())
+    }
+  }, [provider, model])
+
+  const recentAvailable = useMemo(() => {
+    let list = recentModels
+    if (list.length === 0 && provider && model) {
+      list = [{ provider, model }]
+    }
+    if (selectedProvider !== 'all') {
+      list = list.filter((item) => item.provider === selectedProvider)
+    }
+    return list.filter((item) => providers.length === 0 || providers.includes(item.provider))
+  }, [recentModels, providers, provider, model, selectedProvider])
+
+  const selectModel = (selection) => {
+    rememberModel(selection)
+    setRecentModels((prev) => [selection, ...prev.filter((x) => !(x.provider === selection.provider && x.model === selection.model))].slice(0, RECENT_MODELS_LIMIT))
+    onChange(selection)
+    onClose()
+  }
+
   const handleSelectCustom = (customName) => {
     const clean = customName.trim()
     if (!clean) return
@@ -249,7 +293,7 @@ export default function ModelMenu({
 
         {/* Right Model List with Provider Groups (matching Screenshot 2) */}
         <div className="model-menu-main">
-          <FadeScrollArea className="model-menu-list" fadeHeight={16}>
+           <FadeScrollArea className="model-menu-list" fadeHeight={16}>
             {loading && Object.keys(modelMap).length === 0 && (
               <div className="model-menu-loading">Loading models…</div>
             )}
@@ -257,6 +301,30 @@ export default function ModelMenu({
             {groupedModels.length === 0 && !loading && (
               <div className="model-menu-empty">
                 {query ? 'No models match your search.' : 'No models available.'}
+              </div>
+            )}
+
+            {!query.trim() && recentAvailable.length > 0 && (
+              <div className="model-menu-group model-menu-group--recent">
+                <div className="model-menu-group-head">
+                  <span className="model-menu-group-name">Recent</span>
+                  <span className="model-menu-group-count">{recentAvailable.length}</span>
+                </div>
+                {recentAvailable.map((recent) => (
+                  <button
+                    key={`recent:${recent.provider}:${recent.model}`}
+                    type="button"
+                    className={`model-menu-item${recent.provider === provider && recent.model === model ? ' is-active' : ''}`}
+                    onClick={() => selectModel({ provider: recent.provider, model: recent.model })}
+                  >
+                    <span className="model-menu-item-icon"><AiProviderIcon model={recent.model} provider={recent.provider} size={16} /></span>
+                    <span className="model-menu-item-text">
+                      <span className="model-menu-item-name">{recent.model}</span>
+                      <span className="model-menu-item-meta">{recent.provider}</span>
+                    </span>
+                    {recent.provider === provider && recent.model === model && <Icon name="check" size={15} className="model-menu-check" />}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -276,10 +344,7 @@ export default function ModelMenu({
                       key={m.id}
                       type="button"
                       className={`model-menu-item${isSelected ? ' is-active' : ''}`}
-                      onClick={() => {
-                        onChange({ provider: group.provider, model: m.id, capabilities: m.capabilities, context_length: m.context_length })
-                        onClose()
-                      }}
+                      onClick={() => selectModel({ provider: group.provider, model: m.id, capabilities: m.capabilities, context_length: m.context_length })}
                     >
                       <span className="model-menu-item-icon">
                         <AiProviderIcon model={m.id} provider={group.provider} size={16} />
