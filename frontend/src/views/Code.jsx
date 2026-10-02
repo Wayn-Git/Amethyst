@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
 import opencodeClient from '../lib/opencode.js'
@@ -16,8 +16,9 @@ export default function Code() {
   const status = opencode?.status || { running: false, loading: true, port: null }
   const iframeKey = opencode?.iframeKey || 0
   const start = opencode?.start
-  const reloadIframe = opencode?.reloadIframe
 
+  const iframeRef = useRef(null)
+  const lastSrcRef = useRef('')
   const [sessions, setSessions] = useState([])
   const [projects, setProjects] = useState([])
 
@@ -31,7 +32,7 @@ export default function Code() {
         setProjects(Array.isArray(pList) ? pList : [])
       })
     }
-  }, [status?.running, iframeKey, codeActiveSessionId])
+  }, [status?.running, iframeKey])
 
   const activeSession = useMemo(() => {
     if (!codeActiveSessionId) return null
@@ -60,6 +61,14 @@ export default function Code() {
     return `http://${host}:${status.port}/`
   }, [host, status?.port, activeSession?.id, encodedDir])
 
+  // Navigate existing iframe smoothly without destroying DOM
+  useEffect(() => {
+    if (iframeRef.current && iframeSrc && iframeSrc !== lastSrcRef.current) {
+      lastSrcRef.current = iframeSrc
+      iframeRef.current.src = iframeSrc
+    }
+  }, [iframeSrc])
+
   const copyCmd = useCallback(
     async (cmd) => {
       try {
@@ -72,67 +81,14 @@ export default function Code() {
     [toast]
   )
 
-  const projectName = currentDir ? currentDir.split('/').filter(Boolean).pop() : 'Default Workspace'
-  const sessionTitle = activeSession?.title || activeSession?.slug || 'All Sessions'
-
   return (
     <div className="code-view">
-      {/* Top Context Bar */}
-      {status?.running && (
-        <header className="code-context-bar">
-          <div className="code-context-breadcrumb">
-            <span className="code-context-project" title={currentDir || 'Workspace'}>
-              <Icon name="folder" size={14} />
-              <span>{projectName}</span>
-            </span>
-            <span className="code-context-separator">/</span>
-            <span className="code-context-session" title={sessionTitle}>
-              <Icon name="code" size={13} />
-              <span>{sessionTitle}</span>
-            </span>
-            {activeSession?.agent && activeSession.agent !== 'build' && (
-              <span className="sb-code-agent-badge">{activeSession.agent}</span>
-            )}
-          </div>
-
-          <div className="code-context-actions">
-            <div className="wb-code-status-pill">
-              <span className={`code-status-dot ${status.running ? 'running' : 'stopped'}`} />
-              <span className="wb-code-status-text">{status.running ? 'Running' : 'Offline'}</span>
-              {status.port && <span className="wb-code-port">:{status.port}</span>}
-            </div>
-
-            {iframeSrc && (
-              <a
-                href={iframeSrc}
-                target="_blank"
-                rel="noreferrer"
-                className="code-action-btn"
-                title="Open native OpenCode in browser tab"
-              >
-                <Icon name="arrow-up-right" size={14} />
-                <span>Open in Browser</span>
-              </a>
-            )}
-
-            <button
-              type="button"
-              className="code-action-btn"
-              onClick={reloadIframe}
-              title="Reload engine frame"
-              aria-label="Reload engine frame"
-            >
-              <Icon name="refresh" size={14} />
-            </button>
-          </div>
-        </header>
-      )}
-
-      {/* Main Content Area */}
+      {/* Main Content Area - Full height flush with WorkbenchBar */}
       <main className="code-frame-container">
         {status?.running && iframeSrc ? (
           <iframe
-            key={`${iframeKey}-${activeSession?.id || 'root'}`}
+            ref={iframeRef}
+            key={iframeKey}
             src={iframeSrc}
             className="code-native-iframe"
             title="OpenCode Desktop"

@@ -211,7 +211,7 @@ function useUnhandledRejections() {
 function WorkbenchBar() {
   const {
     setOverlay, view, setView, compact, railOpen, toggleRail,
-    panel, togglePanel, userProfile, autoHideTopBar,
+    panel, togglePanel, userProfile, autoHideTopBar, opencode, workspace,
   } = useApp()
 
   const isCode = view === 'code'
@@ -235,27 +235,19 @@ function WorkbenchBar() {
             </div>
           )}
 
-          {/* Mode Switcher: Work | Code */}
-          <div className="wb-mode-switcher">
-            <button
-              type="button"
-              className={`wb-mode-btn ${!isCode ? 'is-active' : ''}`}
-              onClick={() => setView('chat')}
-              title="Work Mode (Chat & General Assistant)"
-            >
-              <Icon name="chat" size={14} />
-              <span>Work</span>
-            </button>
-            <button
-              type="button"
-              className={`wb-mode-btn ${isCode ? 'is-active' : ''}`}
-              onClick={() => setView('code')}
-              title="Code Mode (OpenCode Engine)"
-            >
-              <Icon name="code" size={14} />
-              <span>Code</span>
-            </button>
-          </div>
+          {/* OpenCode Breadcrumb (only when in Code view) */}
+          {isCode && (
+            <div className="wb-code-breadcrumb">
+              <span className="wb-code-brand">
+                <Icon name="code" size={14} />
+                <span>OpenCode</span>
+              </span>
+              <span className="wb-breadcrumb-sep">/</span>
+              <span className="wb-code-project-name" title={workspace || 'Workspace'}>
+                {workspace ? workspace.split('/').filter(Boolean).pop() : 'Workspace'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Center: Apple-style Refined Search Bar */}
@@ -273,18 +265,121 @@ function WorkbenchBar() {
           </button>
         </div>
 
-        {/* Right Icon Actions: Artifact Panel + Settings */}
+        {/* Right Icon Actions: Artifact Panel / Code actions + Settings */}
         <div className="wb-bar-actions">
-          <button
-            type="button"
-            className={`wb-icon-btn${panel ? ' is-active' : ''}`}
-            onClick={togglePanel}
-            title={panel ? 'Hide detail panel' : 'Show detail panel'}
-            aria-label={panel ? 'Hide detail panel' : 'Show detail panel'}
-            aria-pressed={panel}
-          >
-            <Icon name="layout" size={15} />
-          </button>
+          {isCode && opencode && (
+            <div
+              className="wb-code-status-pill"
+              title={`OpenCode Engine: ${
+                opencode.status.running
+                  ? 'Connected (port :' + (opencode.status.port || '') + ')'
+                  : opencode.status.loading
+                  ? 'Connecting...'
+                  : 'Offline'
+              }`}
+            >
+              <span
+                className={`code-status-dot ${
+                  opencode.status.loading
+                    ? 'starting'
+                    : opencode.status.running
+                    ? 'running'
+                    : 'stopped'
+                }`}
+              />
+              <span className="wb-code-status-text">
+                {opencode.status.loading
+                  ? 'Connecting'
+                  : opencode.status.running
+                  ? 'Connected'
+                  : 'Offline'}
+              </span>
+              {opencode.status.port && (
+                <span className="wb-code-port">:{opencode.status.port}</span>
+              )}
+            </div>
+          )}
+
+          {isCode && opencode && (
+            <>
+              {opencode.status.running ? (
+                <>
+                  <button
+                    type="button"
+                    className="wb-icon-btn"
+                    onClick={opencode.syncKeys}
+                    disabled={opencode.syncing}
+                    title="Sync Amethyst AI provider API keys to OpenCode"
+                    aria-label="Sync API keys"
+                  >
+                    <Icon
+                      name={opencode.syncing ? 'circle-notch' : 'key'}
+                      size={15}
+                      className={opencode.syncing ? 'spin' : ''}
+                    />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wb-icon-btn"
+                    onClick={opencode.reload}
+                    title="Reload OpenCode interface"
+                    aria-label="Reload OpenCode"
+                  >
+                    <Icon name="refresh" size={15} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wb-icon-btn"
+                    onClick={opencode.openExternal}
+                    title="Open OpenCode in dedicated browser tab"
+                    aria-label="Open in new tab"
+                  >
+                    <Icon name="external-link" size={15} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wb-icon-btn wb-icon-btn--stop"
+                    onClick={opencode.stop}
+                    title="Stop OpenCode engine"
+                    aria-label="Stop OpenCode"
+                  >
+                    <Icon name="stop" size={14} />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="wb-icon-btn wb-icon-btn--play"
+                  onClick={opencode.start}
+                  disabled={opencode.status.loading}
+                  title="Start OpenCode engine"
+                  aria-label="Start OpenCode"
+                >
+                  <Icon
+                    name={opencode.status.loading ? 'circle-notch' : 'play'}
+                    size={14}
+                    className={opencode.status.loading ? 'spin' : ''}
+                  />
+                </button>
+              )}
+            </>
+          )}
+
+          {!isCode && (
+            <button
+              type="button"
+              className={`wb-icon-btn${panel ? ' is-active' : ''}`}
+              onClick={togglePanel}
+              title={panel ? 'Hide detail panel' : 'Show detail panel'}
+              aria-label={panel ? 'Hide detail panel' : 'Show detail panel'}
+              aria-pressed={panel}
+            >
+              <Icon name="layout" size={15} />
+            </button>
+          )}
 
           <button
             type="button"

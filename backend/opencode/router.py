@@ -178,7 +178,7 @@ async def proxy(request: Request, path: str):
                 content={"error": f"OpenCode not available: {exc}"},
             )
 
-    port = mgr.port
+    port = mgr.raw_port or mgr.port
     if not port:
         return JSONResponse(
             status_code=502,
