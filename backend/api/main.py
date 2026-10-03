@@ -4584,6 +4584,85 @@ async def reconcile_connectors() -> dict[str, Any]:
     }
 
 
+# ------------------------------------------------------------------ Composio
+@app.get("/api/composio/status")
+def get_composio_status() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    return composio_service.get_status()
+
+
+@app.post("/api/composio/key")
+async def save_composio_key(payload: dict[str, Any]) -> dict[str, Any]:
+    api_key = str(payload.get("api_key", "")).strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="api_key is required")
+    from backend.mcp.composio_service import composio_service
+
+    success = composio_service.set_api_key(api_key)
+    if not success:
+        raise HTTPException(status_code=400, detail="Invalid API key")
+    try:
+        await _registry_for(None)
+    except Exception:
+        pass
+    return {"ok": True, "status": composio_service.get_status()}
+
+
+@app.delete("/api/composio/key")
+def delete_composio_key() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    composio_service.delete_api_key()
+    return {"ok": True}
+
+
+@app.get("/api/composio/toolkits")
+def get_composio_toolkits() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    enabled = set(composio_service.get_enabled_toolkits())
+    catalogue = [
+        {"slug": "slack", "name": "Slack", "description": "Send messages, manage channels, and search Slack.", "category": "Communication"},
+        {"slug": "github", "name": "GitHub", "description": "Manage repositories, issues, and pull requests.", "category": "Development"},
+        {"slug": "linear", "name": "Linear", "description": "Track issues, sprints, and project milestones.", "category": "Productivity"},
+        {"slug": "notion", "name": "Notion", "description": "Search workspace, read pages, and update databases.", "category": "Knowledge"},
+        {"slug": "gmail", "name": "Gmail", "description": "Send emails, search inbox, and manage threads.", "category": "Communication"},
+        {"slug": "googlecalendar", "name": "Google Calendar", "description": "Schedule events and check availability.", "category": "Productivity"},
+        {"slug": "jira", "name": "Jira", "description": "Create and update issues in Atlassian Jira.", "category": "Development"},
+        {"slug": "asana", "name": "Asana", "description": "Manage tasks, projects, and team workflows.", "category": "Productivity"},
+        {"slug": "spotify", "name": "Spotify", "description": "Control playback, search music, and manage playlists.", "category": "Media"},
+    ]
+    for item in catalogue:
+        item["enabled"] = item["slug"] in enabled
+    return {"toolkits": catalogue, "enabled": list(enabled)}
+
+
+@app.post("/api/composio/toolkits/toggle")
+async def toggle_composio_toolkit(payload: dict[str, Any]) -> dict[str, Any]:
+    toolkit = str(payload.get("toolkit", "")).strip().lower()
+    enable = bool(payload.get("enabled", False))
+    if not toolkit:
+        raise HTTPException(status_code=400, detail="toolkit is required")
+    from backend.mcp.composio_service import composio_service
+
+    current = list(composio_service.get_enabled_toolkits())
+    if enable:
+        if toolkit not in current:
+            current.append(toolkit)
+    else:
+        if toolkit in current:
+            current.remove(toolkit)
+    composio_service.update_toolkits(current)
+    try:
+        await _registry_for(None)
+    except Exception:
+        pass
+    return {"ok": True, "enabled_toolkits": current}
+
+
+
+
 @app.get("/api/capabilities")
 def list_capabilities(conversation_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
     from backend.capabilities import CapabilityService, Kind
