@@ -8,6 +8,7 @@ truncated, and gets an audit row.
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 import logging
 import time
@@ -15,7 +16,9 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+from backend.agent.config import agent_config
 from backend.db.repositories import ExecutionLogRepository
+from backend.mcp.client import is_auth_failure_text
 from backend.runtime.types import ToolSchema
 from backend.security.confirmation import ConfirmationOutcome, ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSource
@@ -33,7 +36,7 @@ MCP_DELIMITER = "__mcp__"
 #:
 #: A tool may override it with `Tool.timeout`; there is no way to opt out
 #: entirely, because "wait forever" is not a thing a tool gets to decide.
-TOOL_TIMEOUT_SECONDS = 600.0
+TOOL_TIMEOUT_SECONDS = agent_config.tool_timeout_seconds
 
 #: Canonical capability routing table.
 #: Decouples the model's high-level intent from the physical tool name.
@@ -65,6 +68,35 @@ CAPABILITY_MAP: dict[str, str] = {
     "firecrawl": "fetch_url",
     "firecrawl_scrape": "fetch_url",
     "scrape__mcp__firecrawl": "fetch_url",
+
+    # Calendar capabilities
+    "google_calendar": "GOOGLECALENDAR_FIND_EVENT",
+    "googlecalendar": "GOOGLECALENDAR_FIND_EVENT",
+    "calendar": "GOOGLECALENDAR_FIND_EVENT",
+    "calendar_find": "GOOGLECALENDAR_FIND_EVENT",
+    "calendar_search": "GOOGLECALENDAR_FIND_EVENT",
+    "find_event": "GOOGLECALENDAR_FIND_EVENT",
+    "find_events": "GOOGLECALENDAR_FIND_EVENT",
+    "list_events": "GOOGLECALENDAR_FIND_EVENT",
+
+    # Email / Gmail capabilities
+    "gmail": "GMAIL_FETCH_EMAILS",
+    "email": "GMAIL_FETCH_EMAILS",
+    "emails": "GMAIL_FETCH_EMAILS",
+    "search_emails": "GMAIL_FETCH_EMAILS",
+    "fetch_emails": "GMAIL_FETCH_EMAILS",
+    "fetch_email": "GMAIL_FETCH_EMAILS",
+    "read_emails": "GMAIL_FETCH_EMAILS",
+
+    # GitHub capabilities
+    "github": "GITHUB_GET_A_REPOSITORY",
+
+    # Slack capabilities
+    "slack": "SLACK_SEARCH_MESSAGES",
+
+    # Notion capabilities
+    "notion": "NOTION_SEARCH_NOTION_PAGE",
+    "notion_search": "NOTION_SEARCH_NOTION_PAGE",
 
     # Shell execution capabilities
     "bash": "run_shell_command",
@@ -120,15 +152,52 @@ NEVER_CACHE = frozenset({
 
 def truncate(
     text: str,
-    limit: int = MAX_RESULT_CHARS,
+    limit: int | None = None,
     tool_name: str = "",
     arguments: dict[str, Any] | None = None,
 ) -> str:
-    if len(text) <= limit:
+    if not text:
         return text
-    from backend.mcp.composio_sanitizer import cap_tool_result_content
+    from backend.agent.config import agent_config
+    eff_limit = limit if limit is not None else agent_config.max_payload_chars
+    from backend.agent.projection import project_tool_result_content
+    projected = project_tool_result_content(text, tool_name=tool_name, arguments=arguments)
+    from backend.agent.scratch_store import scratch_store
+    compacted, _ = scratch_store.compact_payload(projected, tool_name=tool_name, max_chars=eff_limit)
+    return compacted
 
-    return cap_tool_result_content(text, tool_name=tool_name, arguments=arguments, max_chars=limit)
+
+WRITE_ACTION_KEYWORDS: frozenset[str] = frozenset({
+    "send",
+    "delete",
+    "create",
+    "update",
+    "write",
+    "post",
+    "remove",
+    "patch",
+    "modify",
+    "drop",
+    "destroy",
+    "insert",
+    "edit",
+})
+
+
+def is_write_action(name: str, tool: Tool | None = None) -> bool:
+    """Whether a tool or tool name represents a mutating/write operation."""
+    tokens = set(name.lower().replace("-", "_").split("_"))
+    if tokens & WRITE_ACTION_KEYWORDS:
+        return True
+    if tool is not None:
+        if tool.risk is RiskLevel.HIGH:
+            return True
+        t_tokens = set(tool.name.lower().replace("-", "_").split("_"))
+        if t_tokens & WRITE_ACTION_KEYWORDS:
+            return True
+        if tool.risk is not RiskLevel.LOW:
+            return getattr(tool, "touches_paths", False)
+    return False
 
 
 class ToolRegistry:
@@ -142,6 +211,7 @@ class ToolRegistry:
         self._logs = logs
         # Repeated reads within a turn, answered once. See RESULT_CACHE_TTL_SECONDS.
         self._result_cache: dict[str, tuple[float, ToolResult]] = {}
+        self.mcp_manager: Any = None
 
     @property
     def logs(self) -> ExecutionLogRepository:
@@ -166,6 +236,7 @@ class ToolRegistry:
         # an unattended turn's edit leaves an interactive turn reading the file
         # as it used to be.
         view._result_cache = self._result_cache
+        view.mcp_manager = getattr(self, "mcp_manager", None)
         return view
 
     def register(self, tool: Tool) -> None:
@@ -187,12 +258,32 @@ class ToolRegistry:
     def resolve_tool(self, name: str) -> Tool | None:
         if not name:
             return None
-        # 1. Exact match
+        # 1. Exact match (allowed for both read and write tools when explicitly called by exact name)
         if name in self._tools:
             return self._tools[name]
 
         clean_name = name.strip()
-        # 2. Check MCP delimiter and prefix/suffix variations
+        if clean_name in self._tools:
+            return self._tools[clean_name]
+
+        # Auto-repair and fuzzy matching applies ONLY to read-only tools (Task 5).
+        # Write tools (send/delete/create/update) must never be fuzzy-matched.
+        if is_write_action(clean_name):
+            return None
+
+        def _check_readonly(cand: Tool | None) -> Tool | None:
+            if cand is None:
+                return None
+            if is_write_action(cand.name, cand):
+                return None
+            return cand
+
+        # 2. Check normalized name (case, spaces, hyphens)
+        normalized = clean_name.lower().replace(" ", "_").replace("-", "_")
+        if normalized in self._tools:
+            return _check_readonly(self._tools[normalized])
+
+        # 3. Check MCP delimiter and prefix/suffix variations
         # e.g. tavily__tavily_search -> tavily_search__mcp__tavily
         # e.g. firecrawl__scrape -> scrape__mcp__firecrawl
         if "__" in clean_name:
@@ -200,22 +291,38 @@ class ToolRegistry:
             s, t = parts[0], parts[-1]
             cand1 = f"{t}__mcp__{s}"
             if cand1 in self._tools:
-                return self._tools[cand1]
+                return _check_readonly(self._tools[cand1])
             cand2 = f"{s}__mcp__{t}"
             if cand2 in self._tools:
-                return self._tools[cand2]
+                return _check_readonly(self._tools[cand2])
 
-        # 3. Check if any MCP tool has matching base name or server prefix
+        # 4. Check if any MCP tool has matching base name or server prefix
         for tool_name, tool in self._tools.items():
             if MCP_DELIMITER in tool_name:
                 t_base, s_name = tool_name.split(MCP_DELIMITER, 1)
                 if clean_name in (t_base, f"{s_name}_{t_base}", f"{s_name}__{t_base}"):
-                    return tool
+                    return _check_readonly(tool)
+                if normalized in (t_base.lower(), f"{s_name.lower()}_{t_base.lower()}"):
+                    return _check_readonly(tool)
 
-        # 4. Capability alias map
-        target = CAPABILITY_MAP.get(clean_name.lower())
-        if target and target in self._tools:
-            return self._tools[target]
+        # 5. Capability alias map
+        for cand in (clean_name.lower(), normalized):
+            target = CAPABILITY_MAP.get(cand)
+            if target:
+                if target in self._tools:
+                    return _check_readonly(self._tools[target])
+                for t_name, tool in self._tools.items():
+                    if MCP_DELIMITER in t_name and t_name.split(MCP_DELIMITER)[0] == target:
+                        return _check_readonly(tool)
+                if target == "GOOGLECALENDAR_FIND_EVENT" and "list_calendar" in self._tools:
+                    return _check_readonly(self._tools["list_calendar"])
+                if target == "GMAIL_FETCH_EMAILS" and "search_email" in self._tools:
+                    return _check_readonly(self._tools["search_email"])
+
+        # 6. Case-insensitive match against all registered tools
+        for tool_name, tool in self._tools.items():
+            if tool_name.lower() in (clean_name.lower(), normalized):
+                return _check_readonly(tool)
 
         return None
 
@@ -313,6 +420,15 @@ class ToolRegistry:
 
     @staticmethod
     def normalize_arguments(tool: Tool, arguments: dict[str, Any]) -> dict[str, Any]:
+        if isinstance(arguments, str) or (isinstance(arguments, dict) and "_raw" in arguments):
+            try:
+                from backend.agent.tool_repair import parse_and_repair_json
+
+                parsed, _ = parse_and_repair_json(arguments)
+                if isinstance(parsed, dict):
+                    arguments = parsed
+            except Exception:
+                pass
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments)
@@ -523,8 +639,31 @@ class ToolRegistry:
         if tool is not None:
             arguments = self.normalize_arguments(tool, arguments)
         if tool is None:
-            known = ", ".join(sorted(self._tools)[:20]) or "none"
-            return ToolResult.error(f"unknown tool '{name}'. Available tools: {known}")
+            all_known = sorted(self._tools.keys())
+            sample_valid = ", ".join(all_known[:15]) or "none"
+            lower_map = {k.lower(): k for k in all_known}
+            bare_map: dict[str, str] = {}
+            for k in all_known:
+                bare = k.split(MCP_DELIMITER)[0].lower()
+                bare_map[bare] = k
+                if "_" in bare:
+                    for part_idx in range(1, bare.count("_") + 1):
+                        sub = "_".join(bare.split("_")[part_idx:])
+                        if sub not in bare_map:
+                            bare_map[sub] = k
+
+            name_lower = name.lower().strip()
+            if name_lower in lower_map:
+                closest = lower_map[name_lower]
+            elif name_lower in bare_map:
+                closest = bare_map[name_lower]
+            else:
+                matches = difflib.get_close_matches(name_lower, list(lower_map.keys()), n=1, cutoff=0.25)
+                if matches:
+                    closest = lower_map[matches[0]]
+                else:
+                    closest = "none"
+            return ToolResult.error(f"Unknown tool '{name}' (unknown tool). Valid tools: [{sample_valid}]. Closest match: '{closest}'.")
 
         # A capability switched off for this conversation is not advertised and
         # not dispatchable. Withholding the schema is not enough on its own: the
@@ -559,7 +698,11 @@ class ToolRegistry:
         # Check Composio toolkit authentication and local overrides
         tk = extract_composio_toolkit(tool)
         if tk:
-            from backend.mcp.guidance import composio_sign_in_instruction
+            from backend.mcp.guidance import (
+                auth_failure_instruction,
+                composio_sign_in_instruction,
+                extract_service_name,
+            )
 
             try:
                 from backend.mcp.provider_ownership import is_provider_overridden_by_local
@@ -574,6 +717,10 @@ class ToolRegistry:
 
             try:
                 from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
+
+                if composio_service.is_reauth_required(tk):
+                    service = extract_service_name(tool)
+                    return ToolResult.error(auth_failure_instruction(service))
 
                 if not composio_service.is_configured():
                     return ToolResult.error(
@@ -658,7 +805,34 @@ class ToolRegistry:
                 " user rather than retrying the same call unchanged."
             )
         except Exception as exc:  # errors are data, never exceptions (see ai-runtime.md)
-            result = ToolResult.error(f"{name} failed: {type(exc).__name__}: {exc}")
+            if is_auth_failure_text(str(exc)):
+                from backend.mcp.guidance import auth_failure_instruction, extract_service_name
+
+                service = extract_service_name(tool, server_name=tool.server_name, arguments=arguments)
+                if tk:
+                    try:
+                        from backend.mcp.composio_service import composio_service
+
+                        composio_service.mark_reauth_required(tk, reason=str(exc))
+                    except Exception:
+                        pass
+                result = ToolResult.error(auth_failure_instruction(service))
+            else:
+                result = ToolResult.error(f"{name} failed: {type(exc).__name__}: {exc}")
+
+        if result.is_error and is_auth_failure_text(result.content):
+            if "needs re-auth:" not in result.content:
+                from backend.mcp.guidance import auth_failure_instruction, extract_service_name
+
+                service = extract_service_name(tool, server_name=tool.server_name, arguments=arguments)
+                if tk:
+                    try:
+                        from backend.mcp.composio_service import composio_service
+
+                        composio_service.mark_reauth_required(tk, reason=result.content)
+                    except Exception:
+                        pass
+                result.content = auth_failure_instruction(service)
 
         if tk and result.is_error:
             try:
@@ -774,13 +948,24 @@ def extract_composio_toolkit(tool_or_name: Tool | str) -> str | None:
     if isinstance(tool_or_name, str):
         name = tool_or_name
         server_name = None
+        source = None
     else:
         name = tool_or_name.name
         server_name = tool_or_name.server_name
-    if server_name != "composio" and not name.endswith(f"{MCP_DELIMITER}composio"):
+        source = getattr(tool_or_name, "source", None)
+    if server_name is not None and server_name != "composio":
+        return None
+    if not isinstance(tool_or_name, str) and server_name is None and source == ToolSource.BUILTIN:
         return None
     bare = name.split(MCP_DELIMITER)[0]
-    return bare.split("_")[0].lower() if "_" in bare else "app"
+    if server_name == "composio" or name.endswith(f"{MCP_DELIMITER}composio"):
+        return bare.split("_")[0].lower() if "_" in bare else "app"
+    prefix = bare.split("_")[0].lower() if "_" in bare else bare.lower()
+    from backend.mcp.composio_service import FAST_LANE_CONFIG
+
+    if prefix in FAST_LANE_CONFIG:
+        return prefix
+    return None
 
 
 def build_default_registry(
@@ -833,6 +1018,8 @@ def build_default_registry(
     registry.register_all(workers.tools())
     registry.register_all(task.tools())
     registry.register_all(generative_ui.tools())
+    from backend.agent.scratch_store import scratch_tool
+    registry.register(scratch_tool())
     return registry
 
 
