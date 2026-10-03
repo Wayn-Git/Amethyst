@@ -23,10 +23,12 @@ import GuardMenu from '../components/GuardMenu.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
 import { LoaderIcon } from '../components/OnboardingWizard.jsx'
 import { Notification } from '../components/application/notifications'
+import { BlurredText } from '../components/arc/streaming-text/blurred-text'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
+import ComposioConnectCard, { extractComposioAuth } from '../components/ComposioConnectCard.jsx'
 import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
@@ -168,7 +170,7 @@ function foldTraces(items) {
     it.kind === 'reasoning'
     || it.kind === 'cost'
     || it.kind === 'tool'
-    || (it.kind === 'assistant' && !it.text?.trim() && (it.toolCalls?.length ?? 0) > 0)
+    || (it.kind === 'assistant' && (it.toolCalls?.length ?? 0) > 0)
   )
   /* A note is not machinery, but it does not end a run of it either. The
      provider-fallback lines -- "groq failed, answering with nvidia instead" --
@@ -212,6 +214,7 @@ function foldTraces(items) {
       } else if (it.kind === 'tool') {
         events.push({ type: 'tool', call: { name: it.name, arguments: it.arguments, content: it.content, status: it.isError ? 'error' : 'done' } })
       } else {
+        if (it.text?.trim()) events.push({ type: 'thought', text: it.text.trim() })
         for (const c of it.toolCalls) events.push({ type: 'tool', call: c })
       }
       j += 1
@@ -231,7 +234,15 @@ function foldTraces(items) {
 
     for (const aside of asides) out.push(aside)
     if (events.length) {
-      out.push({ kind: 'trace', id: `trace-${list[i].id}`, events, ms })
+      const hasTools = events.some((e) => e.type === 'tool' || e.call)
+      if (hasTools) {
+        out.push({ kind: 'trace', id: `trace-${list[i].id}`, events, ms })
+      } else {
+        const thoughtText = events.filter((e) => e.type === 'thought').map((e) => e.text).filter(Boolean).join('\n\n')
+        if (thoughtText) {
+          out.push({ kind: 'reasoning', id: `reasoning-${list[i].id}`, text: thoughtText, ms })
+        }
+      }
     }
     i = j - 1
   }
@@ -333,7 +344,9 @@ function Reasoning({ text, live, ms }) {
         <span>{label}</span>
       </button>
       {open && (
-        <div className={`reasoning-body${live ? ' is-live' : ''}`} ref={bodyRef}>{text}</div>
+        <div className={`reasoning-body${live ? ' is-live' : ''}`} ref={bodyRef}>
+          {live ? <BlurredText text={text} /> : text}
+        </div>
       )}
     </div>
   )
@@ -775,15 +788,38 @@ const Msg = memo(function Msg({
   // A tool call that never got folded into an assistant turn -- a turn that was
   // stopped, or history whose assistant row is missing. Still a line, not a card.
   if (role === 'tool') {
-    return <TurnTrace events={[{ type: 'tool', call: { name: item.name, arguments: item.arguments, content: item.content, status: item.isError ? 'error' : 'done' } }]} />
+    const auth = extractComposioAuth(item.content, item.name)
+    return (
+      <div className="msg-tool-wrap">
+        {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+        <TurnTrace events={[{ type: 'tool', call: { name: item.name, arguments: item.arguments, content: item.content, status: item.isError ? 'error' : 'done' } }]} />
+      </div>
+    )
   }
   if (role === 'assistant') {
+    let auth = null
+    if (item.toolCalls?.length) {
+      for (const tc of item.toolCalls) {
+        const found = extractComposioAuth(tc.content || tc.output || tc.result, tc.name)
+        if (found) { auth = found; break }
+      }
+    }
+    if (!auth && item.text) {
+      auth = extractComposioAuth(item.text)
+    }
+
     if (!item.text && item.toolCalls?.length) {
-      return <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
+      return (
+        <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+          {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+          <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
+        </div>
+      )
     }
 
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+        {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
         {item.toolCalls?.length > 0 && (
           <TurnTrace
             events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
@@ -1399,6 +1435,14 @@ export default function Chat() {
   const onEvent = useCallback((evt) => {
     switch (evt.type) {
       case 'assistant_delta':
+        if (liveRef.current.reasoning) {
+          const r = liveRef.current.reasoning
+          const rMs = liveRef.current.reasoningStart ? Date.now() - liveRef.current.reasoningStart : 0
+          liveRef.current.reasoning = ''
+          liveRef.current.reasoningStart = 0
+          setReasoning('')
+          setItems((prev) => [...prev, { id: nextId(), kind: 'reasoning', text: r, ms: rMs }])
+        }
         liveRef.current.buffer += evt.text ?? ''
         setBuffer(liveRef.current.buffer)
         break
@@ -2620,7 +2664,7 @@ export default function Chat() {
                 ) : turnPhase === 'executing' ? (
                   liveTool?.name ? `Running ${liveTool.name}...` : 'Executing tool...'
                 ) : (
-                  liveThinkingSnippet
+                  <BlurredText text={liveThinkingSnippet} duration={0.15} />
                 )}
               </span>
             </div>
@@ -3410,8 +3454,15 @@ export default function Chat() {
                     />
                   </div>
                 ))}
-                {turnState === 'running' && (liveTool || liveBuffer) && (
+                {turnState === 'running' && (liveTool || liveBuffer || liveReasoning) && (
                   <div className="msg msg-assistant is-live">
+                    {liveReasoning && !liveBuffer && (
+                      <Reasoning
+                        text={liveReasoning}
+                        live
+                        ms={liveRef.current.reasoningStart ? Date.now() - liveRef.current.reasoningStart : 0}
+                      />
+                    )}
                     {liveTool && (
                       <TurnTrace
                         events={[]}
