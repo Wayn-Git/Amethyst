@@ -235,6 +235,49 @@ function General() {
     }
   }
 
+  // Composio integration
+  const [composioStatus, setComposioStatus] = useState(null)
+  const [composioKeyDraft, setComposioKeyDraft] = useState('')
+  const [savingComposio, setSavingComposio] = useState(false)
+  const [showComposioKey, setShowComposioKey] = useState(false)
+
+  const loadComposioStatus = useCallback(() => {
+    api.composioStatus()
+      .then((status) => setComposioStatus(status))
+      .catch(() => {})
+  }, [])
+
+  useEffect(loadComposioStatus, [loadComposioStatus])
+
+  const saveComposioKey = async () => {
+    if (!composioKeyDraft.trim()) return
+    setSavingComposio(true)
+    try {
+      await api.saveComposioKey(composioKeyDraft.trim())
+      setComposioKeyDraft('')
+      await loadComposioStatus()
+      toast('Composio API key saved & tested successfully', 'ok')
+    } catch (e) {
+      toast(e.message || 'Failed to validate Composio key', 'bad')
+    } finally {
+      setSavingComposio(false)
+    }
+  }
+
+  const deleteComposioKey = async () => {
+    setSavingComposio(true)
+    try {
+      await api.deleteComposioKey()
+      setComposioKeyDraft('')
+      await loadComposioStatus()
+      toast('Composio API key removed', 'ok')
+    } catch (e) {
+      toast(e.message || 'Failed to remove Composio key', 'bad')
+    } finally {
+      setSavingComposio(false)
+    }
+  }
+
   useEffect(() => {
     setWsDraft(workspace || '')
   }, [workspace])
@@ -465,6 +508,111 @@ function General() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Category: Cloud Integrations (Composio) */}
+      <div className="set-section-label">Cloud Integrations</div>
+      <div className="set-box">
+        <div className="set-box-row" style={{ alignItems: 'flex-start' }}>
+          <div className="set-row-text">
+            <span className="set-row-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <span>Composio</span>
+              {composioStatus?.active ? (
+                <Badge tone="ok">Connected</Badge>
+              ) : composioStatus?.configured ? (
+                <Badge tone="amber">Configured</Badge>
+              ) : (
+                <Badge tone="dim">Not configured</Badge>
+              )}
+            </span>
+            <span className="set-row-desc">
+              Connect external apps (Slack, GitHub, Notion, Linear, Gmail, and 100+ others) with local-first privacy and on-demand tool search.
+            </span>
+          </div>
+          <div>
+            <a
+              href="https://dashboard.composio.dev"
+              target="_blank"
+              rel="noreferrer"
+              className="set-btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}
+            >
+              <span>Dashboard</span>
+              <Icon name="arrow-up-right" size={13} />
+            </a>
+          </div>
+        </div>
+
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">API Key</span>
+            <span className="set-row-desc">
+              {composioStatus?.configured
+                ? 'Your key is verified and active. Supported apps appear in Capabilities > Connectors.'
+                : 'Enter your Composio API key from dashboard.composio.dev/settings to enable cloud connectors.'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type={showComposioKey ? 'text' : 'password'}
+                className="set-input"
+                style={{ minWidth: 200, paddingRight: 32 }}
+                placeholder={composioStatus?.configured ? '••••••••••••••••' : 'Paste Composio API Key…'}
+                value={composioKeyDraft}
+                onChange={(e) => setComposioKeyDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveComposioKey() }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowComposioKey((s) => !s)}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-dim)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 0,
+                }}
+                title={showComposioKey ? 'Hide key' : 'Show key'}
+              >
+                <Icon name={showComposioKey ? 'eye-slash' : 'eye'} size={14} />
+              </button>
+            </div>
+            <button
+              type="button"
+              className="set-btn is-primary"
+              disabled={savingComposio || !composioKeyDraft.trim()}
+              onClick={saveComposioKey}
+            >
+              {savingComposio ? 'Testing…' : 'Save & Test'}
+            </button>
+            {composioStatus?.configured && (
+              <button
+                type="button"
+                className="set-btn"
+                disabled={savingComposio}
+                onClick={deleteComposioKey}
+                title="Remove API Key"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {composioStatus?.error && (
+          <div className="set-box-row" style={{ background: 'var(--bad-dim, rgba(239, 68, 68, 0.08))', borderLeft: '3px solid var(--bad, #ef4444)' }}>
+            <div className="set-row-text">
+              <span className="set-row-desc" style={{ color: 'var(--bad, #ef4444)' }}>
+                {composioStatus.error}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Category: Chats */}
