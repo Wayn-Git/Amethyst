@@ -19,19 +19,30 @@ def test_get_composio_status():
 
 
 def test_post_and_delete_composio_key():
-    with patch("backend.mcp.composio_service.composio_service.set_api_key") as mock_set, \
+    with patch("backend.mcp.composio_service.composio_service.validate_api_key") as mock_validate, \
+         patch("backend.mcp.composio_service.composio_service.set_api_key") as mock_set, \
          patch("backend.mcp.composio_service.composio_service.delete_api_key") as mock_del:
+        mock_validate.return_value = (True, None)
         mock_set.return_value = True
 
         res = client.post("/api/composio/key", json={"api_key": "comp_test_secret"})
         assert res.status_code == 200
         assert res.json()["ok"] is True
+        mock_validate.assert_called_once_with("comp_test_secret")
         mock_set.assert_called_once_with("comp_test_secret")
 
         del_res = client.delete("/api/composio/key")
         assert del_res.status_code == 200
         assert del_res.json()["ok"] is True
         mock_del.assert_called_once()
+
+
+def test_post_invalid_composio_key():
+    with patch("backend.mcp.composio_service.composio_service.validate_api_key") as mock_validate:
+        mock_validate.return_value = (False, "Invalid Composio API key. Please check your credentials.")
+        res = client.post("/api/composio/key", json={"api_key": "bad_secret"})
+        assert res.status_code == 400
+        assert "Invalid Composio API key" in res.json()["detail"]
 
 
 def test_get_and_toggle_toolkits():

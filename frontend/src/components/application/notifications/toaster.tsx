@@ -15,63 +15,48 @@ export type ToasterProps = ComponentProps<typeof SonnerToaster>;
 export const Toaster = ({ className, ...props }: ToasterProps) => {
     return (
         <SonnerToaster
+            theme="dark"
             position="bottom-right"
             closeButton
             expand={false}
-            visibleToasts={5}
-            duration={4600}
-            gap={12}
+            visibleToasts={4}
+            duration={4200}
+            gap={8}
             className={cx("toaster group", className)}
             icons={{
                 success: (
-                    <FeaturedIcon
-                        size="sm"
-                        color="success"
-                        theme="light"
-                        icon={CheckCircle}
-                        className="shrink-0"
-                    />
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 mt-0.5">
+                        <CheckCircle className="size-3.5" />
+                    </span>
                 ),
                 error: (
-                    <FeaturedIcon
-                        size="sm"
-                        color="error"
-                        theme="light"
-                        icon={AlertCircle}
-                        className="shrink-0"
-                    />
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-400 mt-0.5">
+                        <AlertCircle className="size-3.5" />
+                    </span>
                 ),
                 warning: (
-                    <FeaturedIcon
-                        size="sm"
-                        color="warning"
-                        theme="light"
-                        icon={AlertTriangle}
-                        className="shrink-0"
-                    />
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-400 mt-0.5">
+                        <AlertTriangle className="size-3.5" />
+                    </span>
                 ),
                 info: (
-                    <FeaturedIcon
-                        size="sm"
-                        color="brand"
-                        theme="light"
-                        icon={InfoCircle}
-                        className="shrink-0"
-                    />
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-purple-500/15 text-purple-400 mt-0.5">
+                        <InfoCircle className="size-3.5" />
+                    </span>
                 ),
             }}
             toastOptions={{
                 classNames: {
                     toast: cx(
-                        "group toast flex items-start gap-3.5 rounded-2xl p-4 shadow-xl transition-all",
-                        "group-[.toaster]:bg-primary group-[.toaster]:text-primary group-[.toaster]:border group-[.toaster]:border-secondary",
-                        "font-sans text-sm",
+                        "amethyst-toast group/toast relative flex w-full max-w-[360px] items-start gap-3 rounded-xl p-3.5 transition-all duration-200",
+                        "bg-[var(--raised,#18191e)] text-[var(--text,#f3f4f6)] font-sans",
+                        "border border-[var(--hairline-strong,rgba(255,255,255,0.12))] shadow-2xl shadow-black/60",
                     ),
-                    title: "text-sm font-semibold text-primary leading-tight",
-                    description: "text-sm text-tertiary leading-normal mt-0.5 break-words",
-                    actionButton: "rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-brand-solid_hover",
-                    cancelButton: "rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary hover:bg-secondary_hover",
-                    closeButton: "border-0 bg-transparent text-fg-quaternary hover:text-primary hover:bg-primary_hover p-1 rounded-md transition-colors",
+                    title: "text-[13px] font-semibold text-[var(--text,#ffffff)] leading-snug tracking-[-0.01em]",
+                    description: "text-xs text-[var(--text-dim,rgba(255,255,255,0.65))] leading-relaxed mt-0.5 break-words",
+                    actionButton: "rounded-md bg-[var(--accent,#7132f5)] px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90 transition-opacity cursor-pointer",
+                    cancelButton: "rounded-md bg-white/10 px-2.5 py-1 text-xs font-medium text-[var(--text,#ffffff)] hover:bg-white/15 transition-colors cursor-pointer",
+                    closeButton: "amethyst-toast-close",
                 },
             }}
             {...props}

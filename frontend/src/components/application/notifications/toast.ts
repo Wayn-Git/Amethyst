@@ -24,22 +24,35 @@ function parseContent(input: string | ToastPayload): { title: ReactNode; descrip
         return parseContent(input.message || "");
     }
 
-    if (input.includes(" — ")) {
-        const [title, ...rest] = input.split(" — ");
+    let text = input.trim();
+    // Strip HTTP status prefix like "400: ", "500: ", "404: "
+    text = text.replace(/^\d{3}:\s*/, "");
+
+    if (text.includes(" — ")) {
+        const [title, ...rest] = text.split(" — ");
         return { title: title.trim(), description: rest.join(" — ").trim() };
     }
 
-    if (input.includes(" · ")) {
-        const [title, ...rest] = input.split(" · ");
+    if (text.includes(" · ")) {
+        const [title, ...rest] = text.split(" · ");
         return { title: title.trim(), description: rest.join(" · ").trim() };
     }
 
-    if (input.includes(": ")) {
-        const [title, ...rest] = input.split(": ");
+    // Split on first period followed by space if sentence is descriptive
+    const dotIndex = text.indexOf(". ");
+    if (dotIndex > 8 && dotIndex < text.length - 2) {
+        return {
+            title: text.slice(0, dotIndex).trim(),
+            description: text.slice(dotIndex + 2).trim(),
+        };
+    }
+
+    if (text.includes(": ")) {
+        const [title, ...rest] = text.split(": ");
         return { title: title.trim(), description: rest.join(": ").trim() };
     }
 
-    return { title: input };
+    return { title: text };
 }
 
 export type ToastTone = "ok" | "bad" | "amber" | "info" | "good" | "default" | "error" | "success" | "warning";

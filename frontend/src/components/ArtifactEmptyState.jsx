@@ -50,15 +50,22 @@ function EnvironmentTab() {
           <p className="artifact-env-empty">No providers configured</p>
         ) : (
           <ul className="artifact-env-list">
-            {providers.map((p) => (
-              <li key={p} className="artifact-env-item">
-                <Icon name="check" size={12} className="artifact-env-icon artifact-env-icon--ok" />
-                <span>{p}</span>
-                {health.providers_unavailable?.[p] && (
-                  <span className="artifact-env-warn">{health.providers_unavailable[p]}</span>
-                )}
-              </li>
-            ))}
+            {providers.map((p) => {
+              const unavail = health.providers_unavailable?.[p]
+              return (
+                <li key={p} className="artifact-env-item">
+                  <Icon
+                    name={unavail ? 'alert' : 'check'}
+                    size={12}
+                    className={`artifact-env-icon artifact-env-icon--${unavail ? 'error' : 'ok'}`}
+                  />
+                  <span>{p}</span>
+                  {unavail && (
+                    <span className="artifact-env-warn">{unavail}</span>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -70,20 +77,44 @@ function EnvironmentTab() {
         ) : (
           <ul className="artifact-env-list">
             {connectors.map((c) => {
-              const err = errors[c.name]
               const waiting = awaiting.includes(c.name)
+              const err = !waiting ? errors[c.name] : null
               const status = err ? 'error' : waiting ? 'awaiting' : 'ok'
+              const toolCount = c.live?.tools || 0
               return (
-                <li key={c.name} className="artifact-env-item">
-                  <Icon
-                    name={status === 'ok' ? 'check' : status === 'awaiting' ? 'alert' : 'alert'}
-                    size={12}
-                    className={`artifact-env-icon artifact-env-icon--${status}`}
-                  />
-                  <span>{c.title || c.name}</span>
-                  {c.live?.tools > 0 && <span className="artifact-env-badge">{c.live.tools} tools</span>}
-                  {err && <span className="artifact-env-warn">{err}</span>}
-                  {waiting && <span className="artifact-env-warn">Sign in required</span>}
+                <li key={c.name} className="artifact-env-item artifact-env-item--connector">
+                  <div className="artifact-env-row">
+                    <div className="artifact-env-title">
+                      <Icon
+                        name={status === 'ok' ? 'check' : 'alert'}
+                        size={12}
+                        className={`artifact-env-icon artifact-env-icon--${status}`}
+                      />
+                      <span className="artifact-env-name" title={c.title || c.name}>
+                        {c.title || c.name}
+                      </span>
+                    </div>
+                    {status === 'ok' && toolCount > 0 && (
+                      <span className="artifact-env-badge">
+                        {toolCount} {toolCount === 1 ? 'tool' : 'tools'}
+                      </span>
+                    )}
+                    {waiting && (
+                      <span className="artifact-env-badge artifact-env-badge--amber">
+                        Sign in required
+                      </span>
+                    )}
+                    {err && (
+                      <span className="artifact-env-badge artifact-env-badge--bad">
+                        Failed
+                      </span>
+                    )}
+                  </div>
+                  {err && (
+                    <div className="artifact-env-subtext" title={err}>
+                      {err}
+                    </div>
+                  )}
                 </li>
               )
             })}

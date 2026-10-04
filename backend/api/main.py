@@ -4598,22 +4598,35 @@ async def save_composio_key(payload: dict[str, Any]) -> dict[str, Any]:
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
     from backend.mcp.composio_service import composio_service
+    from backend.capabilities import CapabilityService, Kind
+
+    valid, error_msg = composio_service.validate_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=400, detail=error_msg or "Invalid Composio API key")
 
     success = composio_service.set_api_key(api_key)
     if not success:
-        raise HTTPException(status_code=400, detail="Invalid API key")
-    try:
-        await _registry_for(None)
-    except Exception:
-        pass
-    return {"ok": True, "status": composio_service.get_status()}
+        raise HTTPException(status_code=400, detail="Failed to store API key")
+
+    CapabilityService().set_enabled(Kind.CONNECTOR, "composio", True)
+    live_result = await _apply_connector("composio", True)
+
+    status = composio_service.get_status()
+    if live_result.get("error") and not status.get("error"):
+        status["error"] = live_result["error"]
+        status["active"] = False
+
+    return {"ok": True, "status": status, "live": live_result}
 
 
 @app.delete("/api/composio/key")
-def delete_composio_key() -> dict[str, Any]:
+async def delete_composio_key() -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
+    from backend.capabilities import CapabilityService, Kind
 
     composio_service.delete_api_key()
+    CapabilityService().set_enabled(Kind.CONNECTOR, "composio", False)
+    await _apply_connector("composio", False)
     return {"ok": True}
 
 
@@ -4654,10 +4667,7 @@ async def toggle_composio_toolkit(payload: dict[str, Any]) -> dict[str, Any]:
         if toolkit in current:
             current.remove(toolkit)
     composio_service.update_toolkits(current)
-    try:
-        await _registry_for(None)
-    except Exception:
-        pass
+    await _apply_connector("composio", True)
     return {"ok": True, "enabled_toolkits": current}
 
 
@@ -4816,6 +4826,13 @@ async def toggle_capability(kind: str, name: str, body: CapabilityToggle) -> dic
 
 async def _apply_connector(name: str, enabled: bool) -> dict[str, Any]:
     """Start or stop one connector immediately, reporting the real outcome."""
+    if not enabled:
+        if _mcp["manager"] is not None:
+            async with _registry_lock:
+                await _mcp["manager"].disconnect_server(name)
+                _mcp["errors"].pop(name, None)
+        return {"connected": False, "tools": 0, "error": None}
+
     from backend.mcp.config import load_servers
 
     config = load_servers().get(name)
@@ -4830,10 +4847,6 @@ async def _apply_connector(name: str, enabled: bool) -> dict[str, Any]:
     manager = _mcp["manager"]
 
     async with _registry_lock:
-        if not enabled:
-            await manager.disconnect_server(name)
-            _mcp["errors"].pop(name, None)
-            return {"connected": False, "tools": 0, "error": None}
 
         manager.errors.pop(name, None)  # an explicit switch-on retries a failure
         try:

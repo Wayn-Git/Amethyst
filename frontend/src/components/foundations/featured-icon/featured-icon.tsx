@@ -4,10 +4,10 @@ import { cx, sortCx } from "@/lib/utils/cx";
 import { isReactComponent } from "@/lib/utils/is-react-component";
 
 const iconsSizes = {
-    sm: "*:data-icon:size-4 *:data-icon:stroke-[2.25px]",
-    md: "*:data-icon:size-5",
-    lg: "*:data-icon:size-6",
-    xl: "*:data-icon:size-7",
+    sm: "*:data-icon:size-4 *:data-icon:stroke-[2.25px] [&>svg]:size-4 [&>svg]:shrink-0",
+    md: "*:data-icon:size-5 [&>svg]:size-5 [&>svg]:shrink-0",
+    lg: "*:data-icon:size-6 [&>svg]:size-6 [&>svg]:shrink-0",
+    xl: "*:data-icon:size-7 [&>svg]:size-7 [&>svg]:shrink-0",
 };
 
 const styles = sortCx({
@@ -20,11 +20,11 @@ const styles = sortCx({
             xl: "size-14",
         },
         colors: {
-            brand: "bg-brand-secondary text-featured-icon-light-fg-brand",
-            gray: "bg-tertiary text-featured-icon-light-fg-gray",
-            error: "bg-error-secondary text-featured-icon-light-fg-error",
-            warning: "bg-warning-secondary text-featured-icon-light-fg-warning",
-            success: "bg-success-secondary text-featured-icon-light-fg-success",
+            brand: "bg-purple-500/15 text-purple-400 border border-purple-500/25",
+            gray: "bg-white/10 text-neutral-300 border border-white/15",
+            error: "bg-red-500/15 text-red-400 border border-red-500/25",
+            warning: "bg-amber-500/15 text-amber-400 border border-amber-500/25",
+            success: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25",
         },
     },
 

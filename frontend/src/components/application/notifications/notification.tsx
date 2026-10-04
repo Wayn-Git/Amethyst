@@ -65,9 +65,9 @@ export const Notification = ({
             {...props}
             role="alert"
             className={cx(
-                "untitledui-notification group relative flex w-full max-w-md items-start gap-3.5 rounded-2xl p-4 transition-all duration-200",
-                "bg-[var(--surface-2,#1a1b1f)]/95 text-[var(--text,#ffffff)] backdrop-blur-xl",
-                "border border-[var(--hairline-strong,rgba(255,255,255,0.1))] shadow-2xl shadow-black/30",
+                "untitledui-notification group relative flex w-full items-start gap-3.5 rounded-2xl p-3.5 sm:p-4 transition-all duration-200",
+                "bg-[var(--raised,#18191e)]/95 text-[var(--text,#f3f4f6)] backdrop-blur-xl font-sans",
+                "border border-[var(--hairline-strong,rgba(255,255,255,0.12))] shadow-xl shadow-black/30",
                 className,
             )}
         >
@@ -87,13 +87,13 @@ export const Notification = ({
             {/* Notification Content Area */}
             <div className="flex-1 min-w-0 pt-0.5">
                 {title && (
-                    <h5 className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text,#ffffff)] leading-snug">
+                    <h5 className="text-[13.5px] sm:text-sm font-semibold tracking-[-0.01em] text-[var(--text,#ffffff)] leading-snug">
                         {title}
                     </h5>
                 )}
 
                 {(description || children) && (
-                    <div className="text-[13px] text-[var(--text-secondary,rgba(255,255,255,0.7))] leading-relaxed mt-0.5 break-words">
+                    <div className="text-xs sm:text-[13px] text-[var(--text-dim,rgba(255,255,255,0.68))] leading-relaxed mt-0.5 break-words">
                         {description || children}
                     </div>
                 )}
@@ -107,7 +107,7 @@ export const Notification = ({
                             <button
                                 type="button"
                                 onClick={action.onClick}
-                                className="text-[13px] font-semibold text-[var(--accent,#873FFF)] hover:underline focus:outline-none"
+                                className="text-xs sm:text-[13px] font-semibold text-[var(--accent,#7132f5)] hover:underline focus:outline-none transition-colors cursor-pointer"
                             >
                                 {action.label}
                             </button>
@@ -122,7 +122,7 @@ export const Notification = ({
                     type="button"
                     onClick={onClose}
                     aria-label="Dismiss notification"
-                    className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg text-[var(--text-dim,rgba(255,255,255,0.45))] hover:text-[var(--text,#ffffff)] hover:bg-[var(--surface-hover,rgba(255,255,255,0.06))] transition-colors"
+                    className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg text-[var(--text-dim,rgba(255,255,255,0.45))] hover:text-[var(--text,#ffffff)] hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
                 >
                     <XClose className="size-4" />
                 </button>

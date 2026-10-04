@@ -195,6 +195,7 @@ function General() {
     showUsage, setShowUsage,
     betaPages, setBetaPages,
     toast,
+    refreshCaps, refreshHealth,
   } = useApp()
 
   // Automation & Rhythm settings from backend
@@ -253,10 +254,16 @@ function General() {
     if (!composioKeyDraft.trim()) return
     setSavingComposio(true)
     try {
-      await api.saveComposioKey(composioKeyDraft.trim())
+      const res = await api.saveComposioKey(composioKeyDraft.trim())
       setComposioKeyDraft('')
       await loadComposioStatus()
-      toast('Composio API key saved & tested successfully', 'ok')
+      refreshCaps?.()
+      refreshHealth?.()
+      if (res?.status?.error) {
+        toast(res.status.error, 'bad')
+      } else {
+        toast('Composio API key saved & tested successfully', 'ok')
+      }
     } catch (e) {
       toast(e.message || 'Failed to validate Composio key', 'bad')
     } finally {
@@ -270,6 +277,8 @@ function General() {
       await api.deleteComposioKey()
       setComposioKeyDraft('')
       await loadComposioStatus()
+      refreshCaps?.()
+      refreshHealth?.()
       toast('Composio API key removed', 'ok')
     } catch (e) {
       toast(e.message || 'Failed to remove Composio key', 'bad')
@@ -499,7 +508,7 @@ function General() {
               />
               <button
                 type="button"
-                className="set-btn"
+                className="set-btn-sm"
                 disabled={savingSearch === prov.name}
                 onClick={() => saveSearchKey(prov.name)}
               >
@@ -584,7 +593,7 @@ function General() {
             </div>
             <button
               type="button"
-              className="set-btn is-primary"
+              className="set-btn-sm is-primary"
               disabled={savingComposio || !composioKeyDraft.trim()}
               onClick={saveComposioKey}
             >
@@ -593,7 +602,7 @@ function General() {
             {composioStatus?.configured && (
               <button
                 type="button"
-                className="set-btn"
+                className="set-btn-sm"
                 disabled={savingComposio}
                 onClick={deleteComposioKey}
                 title="Remove API Key"

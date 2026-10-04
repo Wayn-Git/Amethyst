@@ -36,13 +36,35 @@ class ComposioService:
         return secrets.get_secret(SECRET_KEY_REF)
 
     def set_api_key(self, key: str) -> bool:
-        """Store the Composio API key in the OS keychain."""
+        """Store the Composio API key in the OS keychain and clear stale session state."""
         cleaned = key.strip()
         if not cleaned:
             return False
         secrets.set_secret(SECRET_KEY_REF, cleaned)
         self._cached_client = None
+        conn = get_connection()
+        conn.execute("DELETE FROM composio_state WHERE id = 1")
+        conn.commit()
         return True
+
+    def validate_api_key(self, key: str) -> tuple[bool, str | None]:
+        """Verify that the API key is accepted by the Composio API."""
+        cleaned = key.strip()
+        if not cleaned:
+            return False, "API key cannot be empty"
+        try:
+            from composio import Composio
+
+            client = Composio(api_key=cleaned)
+            # Lightweight API call to verify key credentials
+            client.toolkits.list()
+            return True, None
+        except Exception as exc:
+            msg = str(exc)
+            if "AuthenticationError" in type(exc).__name__ or "401" in msg:
+                return False, "Invalid Composio API key. Please check your credentials."
+            log.warning("Composio API key validation check failed: %s", msg)
+            return False, f"Composio validation error: {msg}"
 
     def delete_api_key(self) -> None:
         """Remove the Composio API key and clear local session state."""
@@ -189,10 +211,12 @@ class ComposioService:
             }
         try:
             session = self.get_or_create_session()
+            mcp_info = getattr(session, "mcp", None)
+            mcp_url = getattr(mcp_info, "url", None)
             return {
                 "configured": True,
-                "active": True,
-                "session_id": session.session_id,
+                "active": bool(mcp_url),
+                "session_id": getattr(session, "session_id", None),
                 "enabled_toolkits": self.get_enabled_toolkits(),
                 "error": None,
             }
