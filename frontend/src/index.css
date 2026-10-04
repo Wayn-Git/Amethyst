@@ -1416,6 +1416,70 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 .toast--bad { border-left: 2px solid var(--stop); }
 .toast--amber { border-left: 2px solid var(--confirm); }
 
+/* Sonner Toast Theme Overrides for Kraken Design */
+[data-sonner-toaster] {
+  font-family: var(--sans) !important;
+}
+[data-sonner-toast] {
+  --normal-bg: var(--raised, #18191e) !important;
+  --normal-border: var(--hairline-strong, rgba(255, 255, 255, 0.12)) !important;
+  --normal-text: var(--text, #f3f4f6) !important;
+  background: var(--raised, #18191e) !important;
+  border: 1px solid var(--hairline-strong, rgba(255, 255, 255, 0.12)) !important;
+  color: var(--text, #f3f4f6) !important;
+  border-radius: var(--r-md, 12px) !important;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  font-family: var(--sans) !important;
+  gap: 10px !important;
+  padding: 12px 14px !important;
+}
+[data-sonner-toast] [data-icon] {
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+[data-sonner-toast] [data-content] {
+  gap: 2px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+[data-sonner-toast] [data-title] {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text, #ffffff) !important;
+  line-height: 1.35 !important;
+}
+[data-sonner-toast] [data-description] {
+  font-size: 12px !important;
+  color: var(--text-dim, rgba(255, 255, 255, 0.65)) !important;
+  line-height: 1.4 !important;
+}
+[data-sonner-toast] [data-close-button] {
+  left: auto !important;
+  right: 8px !important;
+  top: 8px !important;
+  transform: none !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-faint, rgba(255, 255, 255, 0.4)) !important;
+  border-radius: 6px !important;
+  width: 20px !important;
+  height: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: background 0.15s, color 0.15s !important;
+}
+[data-sonner-toast] [data-close-button]:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text, #ffffff) !important;
+}
+
 /* ------------------------------------------------------------ chat shell */
 .chat-main {
   flex: 1;
@@ -7739,25 +7803,26 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
    ========================================================================== */
 
 .pm-menu-container {
-  width: 316px !important;
-  background: rgba(20, 20, 25, 0.88) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-  padding: 8px !important;
-  user-select: none;
-  max-height: calc(100vh - 100px) !important;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 24px;
+  z-index: 50;
   display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
+  flex-direction: row;
+  align-items: flex-start;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  width: auto !important;
+  max-height: none !important;
 }
 
 [data-theme="light"] .pm-menu-container {
-  background: rgba(255, 255, 255, 0.94) !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .pm-scroll-body {
@@ -9360,6 +9425,24 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
 .hero-stack .hero-hints { margin-top: 18px; }
 
 .chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.chat-notification-region {
+  width: 100%;
+  max-width: 800px;
+  margin: 12px auto 0;
+  padding: 0 24px;
+  box-sizing: border-box;
+  z-index: 30;
+  flex-shrink: 0;
+}
+@media (min-width: 901px) {
+  .chat-notification-region:not(.chat-notification-region--hero) {
+    padding-right: 64px;
+  }
+}
+.chat-notification-region--hero {
+  max-width: 780px;
+  margin: 14px auto 0;
+}
 .chat-banner { margin: 8px 26px 0; }
 /* The dismiss affordance on a health banner. Ghost until hovered so it never
    competes with the banner's primary action, but always reachable. */
@@ -20662,6 +20745,7 @@ a.text-reveal-wrap {
 }
 
 /* Buttons in Settings */
+.set-btn,
 .set-btn-sm {
   display: inline-flex;
   align-items: center;
@@ -20680,30 +20764,50 @@ a.text-reveal-wrap {
   white-space: nowrap;
 }
 
+.set-btn:hover,
 .set-btn-sm:hover {
   background: color-mix(in srgb, var(--text) 5%, transparent);
   border-color: var(--hairline-strong);
   transform: translateY(-1px);
 }
 
+.set-btn:active,
 .set-btn-sm:active {
   transform: scale(0.96);
 }
 
+.set-btn:disabled,
+.set-btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+
+.set-btn:focus-visible,
+.set-btn-sm:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.set-btn.is-primary,
 .set-btn-sm.is-primary {
   background: var(--accent);
   border-color: var(--accent-line);
   color: var(--on-accent);
 }
 
+.set-btn.is-primary:hover,
 .set-btn-sm.is-primary:hover {
   background: var(--accent-hover);
 }
 
+.set-btn.is-danger,
 .set-btn-sm.is-danger {
   color: var(--stop);
 }
 
+.set-btn.is-danger:hover,
 .set-btn-sm.is-danger:hover {
   background: var(--stop-soft);
   border-color: var(--stop-line);
@@ -22152,6 +22256,7 @@ a.text-reveal-wrap {
    land. Keyed on the input rather than the width so it also covers a touch
    laptop, and scoped to controls that were sized for a mouse. */
 @media (pointer: coarse) {
+  .set-btn,
   .set-btn-sm,
   .set-nav-item,
   .rc-tab,
@@ -29539,25 +29644,26 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
    ========================================================================== */
 
 .pm-menu-container {
-  width: 316px !important;
-  background: rgba(20, 20, 25, 0.88) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-  padding: 8px !important;
-  user-select: none;
-  max-height: calc(100vh - 100px) !important;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 24px;
+  z-index: 50;
   display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
+  flex-direction: row;
+  align-items: flex-start;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  width: auto !important;
+  max-height: none !important;
 }
 
 [data-theme="light"] .pm-menu-container {
-  background: rgba(255, 255, 255, 0.94) !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .pm-scroll-body {
@@ -43542,6 +43648,7 @@ a.text-reveal-wrap {
 }
 
 /* Buttons in Settings */
+.set-btn,
 .set-btn-sm {
   display: inline-flex;
   align-items: center;
@@ -43560,30 +43667,50 @@ a.text-reveal-wrap {
   white-space: nowrap;
 }
 
+.set-btn:hover,
 .set-btn-sm:hover {
   background: color-mix(in srgb, var(--text) 5%, transparent);
   border-color: var(--hairline-strong);
   transform: translateY(-1px);
 }
 
+.set-btn:active,
 .set-btn-sm:active {
   transform: scale(0.96);
 }
 
+.set-btn:disabled,
+.set-btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+
+.set-btn:focus-visible,
+.set-btn-sm:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.set-btn.is-primary,
 .set-btn-sm.is-primary {
   background: var(--accent);
   border-color: var(--accent-line);
   color: var(--on-accent);
 }
 
+.set-btn.is-primary:hover,
 .set-btn-sm.is-primary:hover {
   background: var(--accent-hover);
 }
 
+.set-btn.is-danger,
 .set-btn-sm.is-danger {
   color: var(--stop);
 }
 
+.set-btn.is-danger:hover,
 .set-btn-sm.is-danger:hover {
   background: var(--stop-soft);
   border-color: var(--stop-line);
@@ -44963,6 +45090,7 @@ a.text-reveal-wrap {
    land. Keyed on the input rather than the width so it also covers a touch
    laptop, and scoped to controls that were sized for a mouse. */
 @media (pointer: coarse) {
+  .set-btn,
   .set-btn-sm,
   .set-nav-item,
   .rc-tab,
@@ -45559,17 +45687,43 @@ a.text-reveal-wrap {
   align-items: center;
   gap: 8px;
 }
+.artifact-env-item--connector {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.artifact-env-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.artifact-env-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.artifact-env-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .artifact-env-icon {
   color: var(--text-faint);
+  flex-shrink: 0;
 }
 .artifact-env-icon--ok {
-  color: #10b981;
+  color: var(--live, #10b981);
 }
 .artifact-env-icon--error {
-  color: #ef4444;
+  color: var(--stop, #ef4444);
 }
 .artifact-env-icon--awaiting {
-  color: #f59e0b;
+  color: var(--confirm, #f59e0b);
 }
 .artifact-env-label {
   color: var(--text-faint);
@@ -45577,13 +45731,34 @@ a.text-reveal-wrap {
 }
 .artifact-env-badge {
   background: rgb(var(--tint) / 0.1);
+  color: var(--text-dim, var(--text-muted));
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--r-xs, 4px);
   font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.artifact-env-badge--amber {
+  background: color-mix(in srgb, var(--confirm, #f59e0b) 15%, transparent);
+  color: var(--confirm, #f59e0b);
+  border: 1px solid color-mix(in srgb, var(--confirm, #f59e0b) 25%, transparent);
+}
+.artifact-env-badge--bad {
+  background: color-mix(in srgb, var(--stop, #ef4444) 15%, transparent);
+  color: var(--stop, #ef4444);
+  border: 1px solid color-mix(in srgb, var(--stop, #ef4444) 25%, transparent);
 }
 .artifact-env-warn {
-  color: #ef4444;
+  color: var(--stop, #ef4444);
   font-size: 12px;
+}
+.artifact-env-subtext {
+  padding-left: 20px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--stop, #ef4444);
+  word-break: break-word;
 }
 .artifact-empty-loading, .artifact-empty-note, .artifact-env-empty {
   color: var(--text-faint);

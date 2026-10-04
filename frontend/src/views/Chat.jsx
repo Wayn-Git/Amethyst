@@ -22,7 +22,7 @@ import ContextPopover from '../components/ContextPopover.jsx'
 import GuardMenu from '../components/GuardMenu.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
 import { LoaderIcon } from '../components/OnboardingWizard.jsx'
-import { Notification } from '../components/application/notifications'
+import { Notification, NotificationStack } from '../components/application/notifications'
 import { BlurredText } from '../components/arc/streaming-text/blurred-text'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
@@ -2438,13 +2438,73 @@ export default function Chat() {
      exactly this. The banner showed both in the same red sentence, which made
      an ordinary un-signed-in Gmail look like a crash and made a real crash
      look ordinary. Split, and each gets the sentence it deserves. */
-  const awaitingSignIn = health?.connectors_awaiting_sign_in ?? []
-  const connectorErrors = Object.entries(health?.connector_errors ?? {})
-    .filter(([name]) => !awaitingSignIn.includes(name))
+  const awaitingSignIn = useMemo(
+    () => health?.connectors_awaiting_sign_in ?? [],
+    [health?.connectors_awaiting_sign_in],
+  )
+  const connectorErrors = useMemo(
+    () => Object.entries(health?.connector_errors ?? {}).filter(([name]) => !awaitingSignIn.includes(name)),
+    [health?.connector_errors, awaitingSignIn],
+  )
   // A banner's signature is its content: dismissing "gmail: refused" hides that
   // exact sentence, and a later "gmail: timed out" is a new one that shows.
   const errorSig = `err:${connectorErrors.map(([n, e]) => `${n}=${e}`).join('|')}`
   const signInSig = `signin:${[...awaitingSignIn].sort().join(',')}`
+
+  const notificationItems = useMemo(() => {
+    const list = []
+
+    if (elsewhere.length > 0) {
+      list.push({
+        id: 'suspended-turn',
+        tone: 'amber',
+        title: 'Tool call suspended',
+        description: elsewhere.length === 1
+          ? 'A tool call in another conversation is waiting for an answer. That turn stays suspended until it is answered.'
+          : `${elsewhere.length} tool calls in other conversations are waiting for an answer. That turn stays suspended until it is answered.`,
+        action: {
+          label: 'Open it',
+          onClick: () => selectConversation(elsewhere[0].conversation_id),
+        },
+        dismissible: false,
+      })
+    }
+
+    if (connectorErrors.length > 0 && !dismissedBanners.has(errorSig)) {
+      list.push({
+        id: errorSig,
+        tone: 'bad',
+        title: 'MCP Connector Failure',
+        description: `${connectorErrors.map(([name, err]) => `${name}: ${String(err).slice(0, 90)}`).join(' · ')} — tools are not reaching the agent.`,
+        action: {
+          label: 'Open connectors',
+          onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
+        },
+        onClose: () => dismissBanner(errorSig),
+        dismissible: true,
+      })
+    }
+
+    if (awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig)) {
+      list.push({
+        id: signInSig,
+        tone: 'amber',
+        title: 'MCP Sign-in Required',
+        description: awaitingSignIn.length === 1
+          ? `${awaitingSignIn[0]} is switched on but not signed in. Tools stay out of reach until signed in.`
+          : `${awaitingSignIn.join(', ')} are switched on but not signed in. Tools stay out of reach until signed in.`,
+        action: {
+          label: 'Sign in',
+          onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
+        },
+        onClose: () => dismissBanner(signInSig),
+        dismissible: true,
+      })
+    }
+
+    return list
+  }, [elsewhere, connectorErrors, dismissedBanners, errorSig, awaitingSignIn, signInSig, selectConversation, setCapabilitiesTab, setView, dismissBanner])
+
   const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'Auto'
     // How many connectors are actually switched on for the next message. Rides on
   // the + chip in place of the dock that used to spell the same fact out.
@@ -2540,11 +2600,16 @@ export default function Chat() {
       {plusOpen && (
         <PlusMenu
           placement={isEmpty ? 'down' : 'up'}
+          isHero={isEmpty}
           conversationId={activeId}
           workspace={workspace}
           onWorkspace={setWorkspace}
           onNavigate={setView}
           onAttach={(file) => setAttachments((list) => [...list, file])}
+          onSelectSkill={(skillName) => {
+            setInput((prev) => (prev ? prev.trim() + ' ' : '') + '/' + skillName + ' ')
+            textareaRef.current?.focus()
+          }}
           onClose={() => { setPlusOpen(false); refreshCaps() }}
         />
       )}
@@ -2717,6 +2782,7 @@ export default function Chat() {
             {/* Left + Button */}
             <button
               type="button"
+              data-plus-trigger="true"
               className={`hero-plus-btn${plusOpen ? ' is-active' : ''}`}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
@@ -2951,6 +3017,7 @@ export default function Chat() {
               <div className="composer-card-tools-left">
                 <button
                   type="button"
+                  data-plus-trigger="true"
                   className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
@@ -3203,61 +3270,9 @@ export default function Chat() {
       />
 
       <div className="chat-main">
-        {!isEmpty && elsewhere.length > 0 && (
-          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
-            <Notification
-              tone="amber"
-              title="Tool call suspended"
-              description={
-                elsewhere.length === 1
-                  ? 'A tool call in another conversation is waiting for an answer. That turn stays suspended until it is answered.'
-                  : `${elsewhere.length} tool calls in other conversations are waiting for an answer. That turn stays suspended until it is answered.`
-              }
-              action={{
-                label: 'Open it',
-                onClick: () => selectConversation(elsewhere[0].conversation_id),
-              }}
-              dismissible={false}
-              className="max-w-none"
-            />
-          </div>
-        )}
-
-        {!isEmpty && connectorErrors.length > 0 && !dismissedBanners.has(errorSig) && (
-          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
-            <Notification
-              tone="bad"
-              title="MCP Connector Failure"
-              description={`${connectorErrors.map(([name, err]) => `${name}: ${String(err).slice(0, 90)}`).join(' · ')} — tools are not reaching the agent.`}
-              action={{
-                label: 'Open connectors',
-                onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
-              }}
-              onClose={() => dismissBanner(errorSig)}
-              dismissible={true}
-              className="max-w-none"
-            />
-          </div>
-        )}
-
-        {!isEmpty && awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig) && (
-          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
-            <Notification
-              tone="amber"
-              title="MCP Sign-in Required"
-              description={
-                awaitingSignIn.length === 1
-                  ? `${awaitingSignIn[0]} is switched on but not signed in. Tools stay out of reach until signed in.`
-                  : `${awaitingSignIn.join(', ')} are switched on but not signed in. Tools stay out of reach until signed in.`
-              }
-              action={{
-                label: 'Sign in',
-                onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
-              }}
-              onClose={() => dismissBanner(signInSig)}
-              dismissible={true}
-              className="max-w-none"
-            />
+        {notificationItems.length > 0 && (
+          <div className={`chat-notification-region${isEmpty ? ' chat-notification-region--hero' : ''}`}>
+            <NotificationStack items={notificationItems} />
           </div>
         )}
 

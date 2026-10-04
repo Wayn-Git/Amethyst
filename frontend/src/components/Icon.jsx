@@ -127,6 +127,10 @@ import {
   Wrench,
   ArrowsLeftRight,
   UploadSimple,
+  Scroll,
+  Tray,
+  Plug,
+  ClockCounterClockwise,
 } from '@phosphor-icons/react'
 
 /* One icon set, one stroke weight, one grid.
@@ -278,7 +282,14 @@ const MARKS = {
   music: MusicNote,
   mic: Microphone,
   microphone: Microphone,
-  plug: PlugsConnected,
+  plug: Plug,
+  'plugs-connected': PlugsConnected,
+  scroll: Scroll,
+  skills: Scroll,
+  tray: Tray,
+  memory: ClockCounterClockwise,
+  'clock-counter-clockwise': ClockCounterClockwise,
+  'squares-four': SquaresFour,
   plus: Plus,
   refresh: ArrowsClockwise,
   search: MagnifyingGlass,
