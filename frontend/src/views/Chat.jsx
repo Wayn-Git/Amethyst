@@ -22,11 +22,13 @@ import ContextPopover from '../components/ContextPopover.jsx'
 import GuardMenu from '../components/GuardMenu.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
 import { LoaderIcon } from '../components/OnboardingWizard.jsx'
-import { Notification } from '../components/application/notifications'
+import { Notification, NotificationStack } from '../components/application/notifications'
+import { BlurredText } from '../components/arc/streaming-text/blurred-text'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
+import ComposioConnectCard, { extractComposioAuth } from '../components/ComposioConnectCard.jsx'
 import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
@@ -168,7 +170,7 @@ function foldTraces(items) {
     it.kind === 'reasoning'
     || it.kind === 'cost'
     || it.kind === 'tool'
-    || (it.kind === 'assistant' && !it.text?.trim() && (it.toolCalls?.length ?? 0) > 0)
+    || (it.kind === 'assistant' && (it.toolCalls?.length ?? 0) > 0)
   )
   /* A note is not machinery, but it does not end a run of it either. The
      provider-fallback lines -- "groq failed, answering with nvidia instead" --
@@ -212,6 +214,7 @@ function foldTraces(items) {
       } else if (it.kind === 'tool') {
         events.push({ type: 'tool', call: { name: it.name, arguments: it.arguments, content: it.content, status: it.isError ? 'error' : 'done' } })
       } else {
+        if (it.text?.trim()) events.push({ type: 'thought', text: it.text.trim() })
         for (const c of it.toolCalls) events.push({ type: 'tool', call: c })
       }
       j += 1
@@ -231,7 +234,15 @@ function foldTraces(items) {
 
     for (const aside of asides) out.push(aside)
     if (events.length) {
-      out.push({ kind: 'trace', id: `trace-${list[i].id}`, events, ms })
+      const hasTools = events.some((e) => e.type === 'tool' || e.call)
+      if (hasTools) {
+        out.push({ kind: 'trace', id: `trace-${list[i].id}`, events, ms })
+      } else {
+        const thoughtText = events.filter((e) => e.type === 'thought').map((e) => e.text).filter(Boolean).join('\n\n')
+        if (thoughtText) {
+          out.push({ kind: 'reasoning', id: `reasoning-${list[i].id}`, text: thoughtText, ms })
+        }
+      }
     }
     i = j - 1
   }
@@ -333,7 +344,9 @@ function Reasoning({ text, live, ms }) {
         <span>{label}</span>
       </button>
       {open && (
-        <div className={`reasoning-body${live ? ' is-live' : ''}`} ref={bodyRef}>{text}</div>
+        <div className={`reasoning-body${live ? ' is-live' : ''}`} ref={bodyRef}>
+          {live ? <BlurredText text={text} /> : text}
+        </div>
       )}
     </div>
   )
@@ -775,15 +788,38 @@ const Msg = memo(function Msg({
   // A tool call that never got folded into an assistant turn -- a turn that was
   // stopped, or history whose assistant row is missing. Still a line, not a card.
   if (role === 'tool') {
-    return <TurnTrace events={[{ type: 'tool', call: { name: item.name, arguments: item.arguments, content: item.content, status: item.isError ? 'error' : 'done' } }]} />
+    const auth = extractComposioAuth(item.content, item.name)
+    return (
+      <div className="msg-tool-wrap">
+        {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+        <TurnTrace events={[{ type: 'tool', call: { name: item.name, arguments: item.arguments, content: item.content, status: item.isError ? 'error' : 'done' } }]} />
+      </div>
+    )
   }
   if (role === 'assistant') {
+    let auth = null
+    if (item.toolCalls?.length) {
+      for (const tc of item.toolCalls) {
+        const found = extractComposioAuth(tc.content || tc.output || tc.result, tc.name)
+        if (found) { auth = found; break }
+      }
+    }
+    if (!auth && item.text) {
+      auth = extractComposioAuth(item.text)
+    }
+
     if (!item.text && item.toolCalls?.length) {
-      return <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
+      return (
+        <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+          {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+          <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
+        </div>
+      )
     }
 
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+        {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
         {item.toolCalls?.length > 0 && (
           <TurnTrace
             events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
@@ -1399,6 +1435,14 @@ export default function Chat() {
   const onEvent = useCallback((evt) => {
     switch (evt.type) {
       case 'assistant_delta':
+        if (liveRef.current.reasoning) {
+          const r = liveRef.current.reasoning
+          const rMs = liveRef.current.reasoningStart ? Date.now() - liveRef.current.reasoningStart : 0
+          liveRef.current.reasoning = ''
+          liveRef.current.reasoningStart = 0
+          setReasoning('')
+          setItems((prev) => [...prev, { id: nextId(), kind: 'reasoning', text: r, ms: rMs }])
+        }
         liveRef.current.buffer += evt.text ?? ''
         setBuffer(liveRef.current.buffer)
         break
@@ -2394,13 +2438,73 @@ export default function Chat() {
      exactly this. The banner showed both in the same red sentence, which made
      an ordinary un-signed-in Gmail look like a crash and made a real crash
      look ordinary. Split, and each gets the sentence it deserves. */
-  const awaitingSignIn = health?.connectors_awaiting_sign_in ?? []
-  const connectorErrors = Object.entries(health?.connector_errors ?? {})
-    .filter(([name]) => !awaitingSignIn.includes(name))
+  const awaitingSignIn = useMemo(
+    () => health?.connectors_awaiting_sign_in ?? [],
+    [health?.connectors_awaiting_sign_in],
+  )
+  const connectorErrors = useMemo(
+    () => Object.entries(health?.connector_errors ?? {}).filter(([name]) => !awaitingSignIn.includes(name)),
+    [health?.connector_errors, awaitingSignIn],
+  )
   // A banner's signature is its content: dismissing "gmail: refused" hides that
   // exact sentence, and a later "gmail: timed out" is a new one that shows.
   const errorSig = `err:${connectorErrors.map(([n, e]) => `${n}=${e}`).join('|')}`
   const signInSig = `signin:${[...awaitingSignIn].sort().join(',')}`
+
+  const notificationItems = useMemo(() => {
+    const list = []
+
+    if (elsewhere.length > 0) {
+      list.push({
+        id: 'suspended-turn',
+        tone: 'amber',
+        title: 'Tool call suspended',
+        description: elsewhere.length === 1
+          ? 'A tool call in another conversation is waiting for an answer. That turn stays suspended until it is answered.'
+          : `${elsewhere.length} tool calls in other conversations are waiting for an answer. That turn stays suspended until it is answered.`,
+        action: {
+          label: 'Open it',
+          onClick: () => selectConversation(elsewhere[0].conversation_id),
+        },
+        dismissible: false,
+      })
+    }
+
+    if (connectorErrors.length > 0 && !dismissedBanners.has(errorSig)) {
+      list.push({
+        id: errorSig,
+        tone: 'bad',
+        title: 'MCP Connector Failure',
+        description: `${connectorErrors.map(([name, err]) => `${name}: ${String(err).slice(0, 90)}`).join(' · ')} — tools are not reaching the agent.`,
+        action: {
+          label: 'Open connectors',
+          onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
+        },
+        onClose: () => dismissBanner(errorSig),
+        dismissible: true,
+      })
+    }
+
+    if (awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig)) {
+      list.push({
+        id: signInSig,
+        tone: 'amber',
+        title: 'MCP Sign-in Required',
+        description: awaitingSignIn.length === 1
+          ? `${awaitingSignIn[0]} is switched on but not signed in. Tools stay out of reach until signed in.`
+          : `${awaitingSignIn.join(', ')} are switched on but not signed in. Tools stay out of reach until signed in.`,
+        action: {
+          label: 'Sign in',
+          onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
+        },
+        onClose: () => dismissBanner(signInSig),
+        dismissible: true,
+      })
+    }
+
+    return list
+  }, [elsewhere, connectorErrors, dismissedBanners, errorSig, awaitingSignIn, signInSig, selectConversation, setCapabilitiesTab, setView, dismissBanner])
+
   const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'Auto'
     // How many connectors are actually switched on for the next message. Rides on
   // the + chip in place of the dock that used to spell the same fact out.
@@ -2496,11 +2600,16 @@ export default function Chat() {
       {plusOpen && (
         <PlusMenu
           placement={isEmpty ? 'down' : 'up'}
+          isHero={isEmpty}
           conversationId={activeId}
           workspace={workspace}
           onWorkspace={setWorkspace}
           onNavigate={setView}
           onAttach={(file) => setAttachments((list) => [...list, file])}
+          onSelectSkill={(skillName) => {
+            setInput((prev) => (prev ? prev.trim() + ' ' : '') + '/' + skillName + ' ')
+            textareaRef.current?.focus()
+          }}
           onClose={() => { setPlusOpen(false); refreshCaps() }}
         />
       )}
@@ -2620,7 +2729,7 @@ export default function Chat() {
                 ) : turnPhase === 'executing' ? (
                   liveTool?.name ? `Running ${liveTool.name}...` : 'Executing tool...'
                 ) : (
-                  liveThinkingSnippet
+                  <BlurredText text={liveThinkingSnippet} duration={0.15} />
                 )}
               </span>
             </div>
@@ -2673,6 +2782,7 @@ export default function Chat() {
             {/* Left + Button */}
             <button
               type="button"
+              data-plus-trigger="true"
               className={`hero-plus-btn${plusOpen ? ' is-active' : ''}`}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
@@ -2907,6 +3017,7 @@ export default function Chat() {
               <div className="composer-card-tools-left">
                 <button
                   type="button"
+                  data-plus-trigger="true"
                   className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => { setPlusOpen((o) => !o); setModelOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
@@ -3159,61 +3270,9 @@ export default function Chat() {
       />
 
       <div className="chat-main">
-        {!isEmpty && elsewhere.length > 0 && (
-          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
-            <Notification
-              tone="amber"
-              title="Tool call suspended"
-              description={
-                elsewhere.length === 1
-                  ? 'A tool call in another conversation is waiting for an answer. That turn stays suspended until it is answered.'
-                  : `${elsewhere.length} tool calls in other conversations are waiting for an answer. That turn stays suspended until it is answered.`
-              }
-              action={{
-                label: 'Open it',
-                onClick: () => selectConversation(elsewhere[0].conversation_id),
-              }}
-              dismissible={false}
-              className="max-w-none"
-            />
-          </div>
-        )}
-
-        {!isEmpty && connectorErrors.length > 0 && !dismissedBanners.has(errorSig) && (
-          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
-            <Notification
-              tone="bad"
-              title="MCP Connector Failure"
-              description={`${connectorErrors.map(([name, err]) => `${name}: ${String(err).slice(0, 90)}`).join(' · ')} — tools are not reaching the agent.`}
-              action={{
-                label: 'Open connectors',
-                onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
-              }}
-              onClose={() => dismissBanner(errorSig)}
-              dismissible={true}
-              className="max-w-none"
-            />
-          </div>
-        )}
-
-        {!isEmpty && awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig) && (
-          <div className="chat-banner-wrapper" style={{ margin: '0 0 12px' }}>
-            <Notification
-              tone="amber"
-              title="MCP Sign-in Required"
-              description={
-                awaitingSignIn.length === 1
-                  ? `${awaitingSignIn[0]} is switched on but not signed in. Tools stay out of reach until signed in.`
-                  : `${awaitingSignIn.join(', ')} are switched on but not signed in. Tools stay out of reach until signed in.`
-              }
-              action={{
-                label: 'Sign in',
-                onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
-              }}
-              onClose={() => dismissBanner(signInSig)}
-              dismissible={true}
-              className="max-w-none"
-            />
+        {notificationItems.length > 0 && (
+          <div className={`chat-notification-region${isEmpty ? ' chat-notification-region--hero' : ''}`}>
+            <NotificationStack items={notificationItems} />
           </div>
         )}
 
@@ -3410,8 +3469,15 @@ export default function Chat() {
                     />
                   </div>
                 ))}
-                {turnState === 'running' && (liveTool || liveBuffer) && (
+                {turnState === 'running' && (liveTool || liveBuffer || liveReasoning) && (
                   <div className="msg msg-assistant is-live">
+                    {liveReasoning && !liveBuffer && (
+                      <Reasoning
+                        text={liveReasoning}
+                        live
+                        ms={liveRef.current.reasoningStart ? Date.now() - liveRef.current.reasoningStart : 0}
+                      />
+                    )}
                     {liveTool && (
                       <TurnTrace
                         events={[]}

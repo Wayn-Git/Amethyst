@@ -243,6 +243,10 @@ class MCPManager:
         # registry pointer.
         self._tool_cache: dict[str, list[Tool]] = {}
 
+    def get_server_config(self, server_name: str) -> ServerConfig | None:
+        """Resolve a server's configuration by name, including dynamic servers."""
+        return load_servers().get(server_name)
+
     def _hold_off(self, name: str) -> None:
         """Back a failed server off, rather than writing it off.
 

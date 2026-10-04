@@ -78,6 +78,10 @@ def _entry_search_text(entry: CatalogEntry) -> str:
 
 def _classify_source(tool_name: str, server_name: str | None) -> tuple[str, str]:
     """Classify a tool's source type and display name."""
+    if server_name == "composio" or tool_name.endswith("__mcp__composio"):
+        bare_name = tool_name.split("__mcp__")[0]
+        toolkit = bare_name.split("_")[0].lower() if "_" in bare_name else "app"
+        return "mcp", f"composio:{toolkit}"
     if server_name:
         return "mcp", server_name
     if tool_name.startswith("mcp_") or "__mcp__" in tool_name:

@@ -224,7 +224,7 @@ export default function PdfToolsTool() {
               className="fc-dropzone-shell cursor-pointer mb-4"
               onClick={() => mergeInputRef.current?.click()}
             >
-              <div className="fc-dropzone-core py-8">
+              <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
                 <input
                   ref={mergeInputRef}
                   type="file"
@@ -238,9 +238,13 @@ export default function PdfToolsTool() {
                     }
                   }}
                 />
-                <Icon name="upload" size={24} className="text-[var(--accent)]" />
-                <span className="text-sm font-semibold text-white">Click to add PDF documents</span>
-                <span className="text-xs text-slate-400">Select 2 or more PDFs</span>
+                <div className="fc-drop-featured-icon">
+                  <Icon name="layers" size={24} />
+                </div>
+                <div className="flex flex-col items-center text-center gap-1">
+                  <span className="text-sm font-semibold text-[var(--fc-text)]">Click or drop PDF documents to merge</span>
+                  <span className="text-xs text-[var(--fc-text-faint)]">Select 2 or more PDFs · Preserves bookmarks & vector layers</span>
+                </div>
               </div>
             </div>
 
@@ -249,18 +253,18 @@ export default function PdfToolsTool() {
                 {mergeFiles.map((f, idx) => (
                   <div
                     key={`${f.name}-${idx}`}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/5 text-xs text-slate-200"
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-xs text-[var(--fc-text)]"
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <span className="font-mono text-[var(--accent)] w-5">{idx + 1}.</span>
+                      <span className="font-mono text-[var(--fc-accent)] w-5">{idx + 1}.</span>
                       <span className="truncate max-w-[200px]" title={f.name}>{f.name}</span>
-                      <span className="text-slate-400 font-mono">({formatBytes(f.size)})</span>
+                      <span className="text-[var(--fc-text-dim)] font-mono">({formatBytes(f.size)})</span>
                     </div>
 
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        className="p-1 hover:text-white disabled:opacity-30"
+                        className="p-1 hover:text-[var(--fc-text)] disabled:opacity-30"
                         disabled={idx === 0}
                         onClick={() => moveMergeFile(idx, -1)}
                       >
@@ -268,7 +272,7 @@ export default function PdfToolsTool() {
                       </button>
                       <button
                         type="button"
-                        className="p-1 hover:text-white disabled:opacity-30"
+                        className="p-1 hover:text-[var(--fc-text)] disabled:opacity-30"
                         disabled={idx === mergeFiles.length - 1}
                         onClick={() => moveMergeFile(idx, 1)}
                       >
@@ -301,7 +305,7 @@ export default function PdfToolsTool() {
           <div className="fc-tool-panel flex flex-col justify-between">
             <div>
               <div className="fc-panel-title mb-2">Result & Information</div>
-              <div className="text-xs text-slate-400 leading-relaxed space-y-2">
+              <div className="text-xs text-[var(--fc-text-dim)] leading-relaxed space-y-2">
                 <p>• Merged files are processed 100% locally with high-fidelity PyMuPDF engine.</p>
                 <p>• Bookmarks, text layers, vector curves, and raster graphics are preserved.</p>
                 <p>• Output filename is automatically sanitized and ready for instant download.</p>
@@ -318,7 +322,7 @@ export default function PdfToolsTool() {
                   <Icon name="check-circle" size={18} />
                   <span>{result.filename}</span>
                 </div>
-                <div className="text-xs text-slate-300 font-mono">
+                <div className="text-xs text-[var(--fc-text)] font-mono">
                   Size: {formatBytes(result.size)} · Processed in {(result.elapsed_ms / 1000).toFixed(2)}s
                 </div>
                 <a
@@ -357,7 +361,7 @@ export default function PdfToolsTool() {
                 className="fc-dropzone-shell cursor-pointer mb-4"
                 onClick={() => singleInputRef.current?.click()}
               >
-                <div className="fc-dropzone-core py-10">
+                <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
                   <input
                     ref={singleInputRef}
                     type="file"
@@ -370,18 +374,22 @@ export default function PdfToolsTool() {
                       }
                     }}
                   />
-                  <Icon name="file" size={26} className="text-[var(--accent)]" />
-                  <span className="text-sm font-semibold text-white">Choose a PDF Document</span>
-                  <span className="text-xs text-slate-400">PDF up to 500 MB</span>
+                  <div className="fc-drop-featured-icon">
+                    <Icon name="file" size={24} />
+                  </div>
+                  <div className="flex flex-col items-center text-center gap-1">
+                    <span className="text-sm font-semibold text-[var(--fc-text)]">Choose a PDF Document</span>
+                    <span className="text-xs text-[var(--fc-text-faint)]">PDF up to 500 MB · 100% on-device processing</span>
+                  </div>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 text-xs">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-xs">
                   <div className="flex items-center gap-2 truncate">
-                    <Icon name="file" size={18} className="text-[var(--accent)]" />
-                    <span className="font-semibold text-white truncate max-w-[200px]">{singleFile.name}</span>
-                    <span className="text-slate-400 font-mono">({formatBytes(singleFile.size)})</span>
+                    <Icon name="file" size={18} className="text-[var(--fc-accent)]" />
+                    <span className="font-semibold text-[var(--fc-text)] truncate max-w-[200px]">{singleFile.name}</span>
+                    <span className="text-[var(--fc-text-dim)] font-mono">({formatBytes(singleFile.size)})</span>
                   </div>
                   <button
                     type="button"
@@ -397,7 +405,7 @@ export default function PdfToolsTool() {
 
                 {activeTab === 'split' && (
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Pages to Extract</label>
+                    <label className="text-xs font-semibold text-[var(--fc-text)]">Pages to Extract</label>
                     <input
                       type="text"
                       className="fc-input font-mono"
@@ -405,7 +413,7 @@ export default function PdfToolsTool() {
                       value={pageRange}
                       onChange={(e) => setPageRange(e.target.value)}
                     />
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-[var(--fc-text-faint)]">
                       Comma-separated pages and hyphens for ranges (e.g. 1, 3-5).
                     </span>
                   </div>
@@ -413,7 +421,7 @@ export default function PdfToolsTool() {
 
                 {activeTab === 'to-images' && (
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Image Format</label>
+                    <label className="text-xs font-semibold text-[var(--fc-text)]">Image Format</label>
                     <select
                       className="fc-select font-mono uppercase"
                       value={imgFmt}
@@ -451,7 +459,7 @@ export default function PdfToolsTool() {
           <div className="fc-tool-panel flex flex-col justify-between">
             <div>
               <div className="fc-panel-title mb-2">Process Details</div>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-[var(--fc-text-dim)] leading-relaxed">
                 Everything runs directly inside your local environment without any cloud uploads.
               </p>
             </div>
@@ -466,7 +474,7 @@ export default function PdfToolsTool() {
                   <Icon name="check-circle" size={18} />
                   <span>{result.filename}</span>
                 </div>
-                <div className="text-xs text-slate-300 font-mono">
+                <div className="text-xs text-[var(--fc-text)] font-mono">
                   Output size: {formatBytes(result.size)} · Completed in {(result.elapsed_ms / 1000).toFixed(2)}s
                 </div>
                 <a
@@ -496,7 +504,7 @@ export default function PdfToolsTool() {
               className="fc-dropzone-shell cursor-pointer mb-4"
               onClick={() => imagesInputRef.current?.click()}
             >
-              <div className="fc-dropzone-core py-8">
+              <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
                 <input
                   ref={imagesInputRef}
                   type="file"
@@ -510,9 +518,13 @@ export default function PdfToolsTool() {
                     }
                   }}
                 />
-                <Icon name="image" size={24} className="text-[var(--accent)]" />
-                <span className="text-sm font-semibold text-white">Click to add images</span>
-                <span className="text-xs text-slate-400">PNG, JPG, WebP images</span>
+                <div className="fc-drop-featured-icon">
+                  <Icon name="image" size={24} />
+                </div>
+                <div className="flex flex-col items-center text-center gap-1">
+                  <span className="text-sm font-semibold text-[var(--fc-text)]">Click to add images</span>
+                  <span className="text-xs text-[var(--fc-text-faint)]">PNG, JPG, WebP images · Auto-formatted to PDF</span>
+                </div>
               </div>
             </div>
 
@@ -521,7 +533,7 @@ export default function PdfToolsTool() {
                 {imageFiles.map((f, idx) => (
                   <div
                     key={`${f.name}-${idx}`}
-                    className="flex items-center justify-between p-2 rounded-lg bg-white/5 text-xs text-slate-200"
+                    className="flex items-center justify-between p-2 rounded-lg bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-xs text-[var(--fc-text)]"
                   >
                     <span className="truncate max-w-[220px]">{f.name}</span>
                     <button
@@ -550,7 +562,7 @@ export default function PdfToolsTool() {
           <div className="fc-tool-panel flex flex-col justify-between">
             <div>
               <div className="fc-panel-title mb-2">Overview</div>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-[var(--fc-text-dim)] leading-relaxed">
                 Images are scaled and converted into pages in the exact sequence added.
               </p>
             </div>
@@ -565,7 +577,7 @@ export default function PdfToolsTool() {
                   <Icon name="check-circle" size={18} />
                   <span>{result.filename}</span>
                 </div>
-                <div className="text-xs text-slate-300 font-mono">
+                <div className="text-xs text-[var(--fc-text)] font-mono">
                   {formatBytes(result.size)} · Generated in {(result.elapsed_ms / 1000).toFixed(2)}s
                 </div>
                 <a

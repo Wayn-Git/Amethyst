@@ -109,8 +109,11 @@ class Guards:
     # so a model that only ever returns nothing cannot spin.
     max_continuations: int = 2
     # How many times one answer may be picked up again after the stream carrying
-    # it failed halfway. Two resumes before fallback moves to the next provider.
-    max_resumes: int = 2
+    # it failed halfway. Four resumes before fallback moves to the next provider.
+    # Reset per iteration (state.begin_iteration), so this is per model call, not
+    # per 24-iteration turn. Two proved too small: a single 3-blip burst in one
+    # call forced a handover/error while healthy providers sat unused.
+    max_resumes: int = 4
 
 
 # Providers name a truncated response differently; all of them mean the same

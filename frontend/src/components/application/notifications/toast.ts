@@ -24,60 +24,113 @@ function parseContent(input: string | ToastPayload): { title: ReactNode; descrip
         return parseContent(input.message || "");
     }
 
-    if (input.includes(" — ")) {
-        const [title, ...rest] = input.split(" — ");
+    let text = input.trim();
+    // Strip HTTP status prefix like "400: ", "500: ", "404: "
+    text = text.replace(/^\d{3}:\s*/, "");
+
+    if (text.includes(" — ")) {
+        const [title, ...rest] = text.split(" — ");
         return { title: title.trim(), description: rest.join(" — ").trim() };
     }
 
-    if (input.includes(" · ")) {
-        const [title, ...rest] = input.split(" · ");
+    if (text.includes(" · ")) {
+        const [title, ...rest] = text.split(" · ");
         return { title: title.trim(), description: rest.join(" · ").trim() };
     }
 
-    if (input.includes(": ")) {
-        const [title, ...rest] = input.split(": ");
+    // Split on first period followed by space if sentence is descriptive
+    const dotIndex = text.indexOf(". ");
+    if (dotIndex > 8 && dotIndex < text.length - 2) {
+        return {
+            title: text.slice(0, dotIndex).trim(),
+            description: text.slice(dotIndex + 2).trim(),
+        };
+    }
+
+    if (text.includes(": ")) {
+        const [title, ...rest] = text.split(": ");
         return { title: title.trim(), description: rest.join(": ").trim() };
     }
 
-    return { title: input };
+    return { title: text };
 }
 
-export const notify = {
-    show: (payload: string | ToastPayload, tone: "ok" | "bad" | "amber" | "info" | "good" | "default" = "info") => {
-        const effectiveTone = typeof payload === "object" ? payload.tone || tone : tone;
-        const { title, description } = parseContent(payload);
-        const action = typeof payload === "object" ? payload.action : undefined;
-        const duration = typeof payload === "object" ? payload.duration : undefined;
+export type ToastTone = "ok" | "bad" | "amber" | "info" | "good" | "default" | "error" | "success" | "warning";
 
-        const opts = {
-            description,
-            action,
-            duration,
-        };
+export type ToastOptions = ToastTone | { tone?: ToastTone; type?: string; duration?: number; action?: { label: string; onClick: () => void } };
 
-        switch (effectiveTone) {
-            case "ok":
-            case "good":
-                return sonnerToast.success(title, opts);
-            case "bad":
-                return sonnerToast.error(title, opts);
-            case "amber":
-                return sonnerToast.warning(title, opts);
-            case "info":
-            default:
-                return sonnerToast.info(title, opts);
-        }
-    },
-    success: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
-        sonnerToast.success(title, opts),
-    error: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
-        sonnerToast.error(title, opts),
-    warning: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
-        sonnerToast.warning(title, opts),
-    info: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
-        sonnerToast.info(title, opts),
-    dismiss: (id?: string | number) => sonnerToast.dismiss(id),
-    custom: sonnerToast.custom,
-};
+function showNotification(
+    payload: string | ToastPayload,
+    toneOrOpts: ToastOptions = "info",
+) {
+    let effectiveTone: "ok" | "bad" | "amber" | "info" | "good" | "default" = "info";
 
+    if (typeof payload === "object" && payload !== null && payload.tone) {
+        const t = payload.tone;
+        effectiveTone = t === "error" ? "bad" : t === "success" ? "good" : t === "warning" ? "amber" : t;
+    } else if (typeof toneOrOpts === "string") {
+        if (toneOrOpts === "error") effectiveTone = "bad";
+        else if (toneOrOpts === "success") effectiveTone = "good";
+        else if (toneOrOpts === "warning") effectiveTone = "amber";
+        else effectiveTone = toneOrOpts as "ok" | "bad" | "amber" | "info" | "good" | "default";
+    } else if (typeof toneOrOpts === "object" && toneOrOpts !== null) {
+        const raw = toneOrOpts.type || toneOrOpts.tone;
+        if (raw === "error") effectiveTone = "bad";
+        else if (raw === "success") effectiveTone = "good";
+        else if (raw === "warning") effectiveTone = "amber";
+        else if (raw) effectiveTone = raw as any;
+    }
+
+    const { title, description } = parseContent(payload);
+    const action = typeof payload === "object" ? payload.action : (typeof toneOrOpts === "object" ? toneOrOpts.action : undefined);
+    const duration = typeof payload === "object" ? payload.duration : (typeof toneOrOpts === "object" ? toneOrOpts.duration : undefined);
+
+    const opts = {
+        description,
+        action,
+        duration,
+    };
+
+    switch (effectiveTone) {
+        case "ok":
+        case "good":
+            return sonnerToast.success(title, opts);
+        case "bad":
+            return sonnerToast.error(title, opts);
+        case "amber":
+            return sonnerToast.warning(title, opts);
+        case "info":
+        default:
+            return sonnerToast.info(title, opts);
+    }
+}
+
+interface NotifyFunction {
+    (payload: string | ToastPayload, tone?: ToastOptions): string | number;
+    show: (payload: string | ToastPayload, tone?: ToastOptions) => string | number;
+    success: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) => string | number;
+    error: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) => string | number;
+    warning: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) => string | number;
+    info: (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) => string | number;
+    dismiss: (id?: string | number) => void;
+    custom: typeof sonnerToast.custom;
+}
+
+const notifyFn = ((payload: string | ToastPayload, tone: ToastOptions = "info") => {
+    return showNotification(payload, tone);
+}) as NotifyFunction;
+
+notifyFn.show = showNotification;
+notifyFn.success = (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
+    sonnerToast.success(title, opts);
+notifyFn.error = (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
+    sonnerToast.error(title, opts);
+notifyFn.warning = (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
+    sonnerToast.warning(title, opts);
+notifyFn.info = (title: ReactNode, opts?: { description?: ReactNode; action?: { label: string; onClick: () => void } }) =>
+    sonnerToast.info(title, opts);
+notifyFn.dismiss = (id?: string | number) => sonnerToast.dismiss(id);
+notifyFn.custom = sonnerToast.custom;
+
+export const notify: NotifyFunction = notifyFn;
 export default notify;

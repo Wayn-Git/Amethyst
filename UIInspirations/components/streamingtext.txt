@@ -1,0 +1,87 @@
+The Components COde:
+
+"use client";
+import { motion } from "motion/react";
+import type React from "react";
+
+type BlurredTextProps = {
+  text: string;
+  className?: string;
+  wordClassName?: string;
+  staggerChildren?: number;
+  delayChildren?: number;
+  blurFrom?: string;
+  blurTo?: string;
+  duration?: number;
+  as?: React.ElementType;
+};
+
+export const BlurredText: React.FC<BlurredTextProps> = ({
+  text,
+  className = "font-satoshi text-sm text-muted-foreground/80 leading-relaxed mt-2",
+  wordClassName = "",
+  staggerChildren = 0.06,
+  delayChildren = 0.1,
+  blurFrom = "8px",
+  blurTo = "0px",
+  duration = 0.25,
+  as: Tag = "p",
+}) => {
+  const MotionTag = motion(Tag as unknown as React.ElementType);
+  // Support empty strings gracefully
+  const words = typeof text === "string" ? text.split(" ") : [];
+
+  return (
+    <MotionTag
+      className={className}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+      variants={{
+        visible: {
+          transition: {
+            staggerChildren,
+            delayChildren,
+          },
+        },
+        hidden: {},
+      }}
+      style={{ display: "flex", flexWrap: "wrap" }}
+      // Renders as the specified element (e.g., "p") via 'as' prop in Framer Motion
+    >
+      {words.map((word, i) => (
+        <motion.span
+          key={word}
+          className={wordClassName}
+          variants={{
+            hidden: { y: 0, filter: `blur(${blurFrom})`, opacity: 0 },
+            visible: { y: 0, filter: `blur(${blurTo})`, opacity: 1 },
+          }}
+          transition={{ duration }}
+          style={{ display: "inline-block", whiteSpace: "pre" }}
+        >
+          {word + (i < words.length - 1 ? " " : "")}
+        </motion.span>
+      ))}
+    </MotionTag>
+  );
+};
+
+
+Usage example in order to adjust it's content for our project
+
+import { BlurredText } from "@/components/ui/streaming-text";
+
+export default function StreamingTextExample() {
+  return (
+    <BlurredText
+      as="h2"
+      text="Build interfaces that feel as good as they look."
+      className="max-w-3xl text-4xl font-semibold tracking-tight"
+      wordClassName="mr-[0.25em]"
+      staggerChildren={0.05}
+      delayChildren={0.1}
+      duration={0.3}
+    />
+  );
+}

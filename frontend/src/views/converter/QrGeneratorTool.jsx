@@ -6,7 +6,7 @@ import { useApp } from '../../store.jsx'
 export default function QrGeneratorTool() {
   const { toast } = useApp()
   const [mode, setMode] = useState('url') // 'url' | 'wifi' | 'text' | 'email' | 'phone'
-  const [url, setUrl] = useState('https://justconvert.io')
+  const [url, setUrl] = useState('https://example.com')
   const [text, setText] = useState('')
   const [wifiSsid, setWifiSsid] = useState('')
   const [wifiPass, setWifiPass] = useState('')
@@ -20,7 +20,7 @@ export default function QrGeneratorTool() {
 
   // Construct payload text based on mode
   const getPayload = () => {
-    if (mode === 'url') return url.trim() || 'https://amethyst.local'
+    if (mode === 'url') return url.trim() || 'https://example.com'
     if (mode === 'text') return text.trim() || 'Amethyst'
     if (mode === 'wifi') {
       const p = wifiPass ? `P:${wifiPass};` : ''
@@ -71,10 +71,14 @@ export default function QrGeneratorTool() {
       <div className="fc-tool-grid">
         {/* Left: Input options */}
         <div className="fc-tool-panel">
-          <div className="fc-panel-title">QR Code Configuration</div>
+          <div className="flex items-center justify-between">
+            <h3 className="fc-panel-title">QR Code Configuration</h3>
+            <span className="fc-file-format-badge">VECTOR ENGINE</span>
+          </div>
+          <p className="fc-panel-desc">Generate high-density, vector-scalable QR codes with instant format export.</p>
 
           {/* Mode Tabs */}
-          <div className="fc-mode-tabs">
+          <div className="fc-cat-tabs">
             {[
               { id: 'url', label: 'URL / Link', icon: 'link' },
               { id: 'text', label: 'Plain Text', icon: 'type' },
@@ -85,23 +89,25 @@ export default function QrGeneratorTool() {
               <button
                 key={m.id}
                 type="button"
-                className={`fc-mode-tab${mode === m.id ? ' is-active' : ''}`}
+                className={`fc-cat-tab${mode === m.id ? ' is-active' : ''}`}
                 onClick={() => setMode(m.id)}
               >
-                <Icon name={m.icon} size={14} />
+                <Icon name={m.icon} size={13} />
                 <span>{m.label}</span>
               </button>
             ))}
           </div>
 
           {/* Contextual Form Inputs */}
-          <div className="flex flex-col gap-3 mt-4">
+          <div className="flex flex-col gap-3.5 mt-2">
             {mode === 'url' && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-slate-300">Website URL</label>
+                <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                  Target Website URL
+                </label>
                 <input
                   type="url"
-                  className="fc-input"
+                  className="fc-input font-mono text-sm"
                   placeholder="https://example.com"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
@@ -111,11 +117,13 @@ export default function QrGeneratorTool() {
 
             {mode === 'text' && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-slate-300">Content</label>
+                <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                  Raw Text or Note
+                </label>
                 <textarea
                   rows={4}
-                  className="fc-textarea"
-                  placeholder="Type any message, note, or raw data…"
+                  className="fc-textarea font-mono text-xs"
+                  placeholder="Paste or type content here…"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
@@ -125,27 +133,33 @@ export default function QrGeneratorTool() {
             {mode === 'wifi' && (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-slate-300">Network Name (SSID)</label>
+                  <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                    Network Name (SSID)
+                  </label>
                   <input
                     type="text"
                     className="fc-input"
-                    placeholder="e.g. Office_WiFi"
+                    placeholder="MyOfficeWiFi"
                     value={wifiSsid}
                     onChange={(e) => setWifiSsid(e.target.value)}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-slate-300">Password</label>
+                  <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                    Password
+                  </label>
                   <input
                     type="text"
-                    className="fc-input"
-                    placeholder="Wi-Fi Password"
+                    className="fc-input font-mono"
+                    placeholder="WPA2 Password…"
                     value={wifiPass}
                     onChange={(e) => setWifiPass(e.target.value)}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-slate-300">Security Type</label>
+                  <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                    Encryption Security
+                  </label>
                   <select
                     className="fc-select"
                     value={wifiEnc}
@@ -161,7 +175,9 @@ export default function QrGeneratorTool() {
 
             {mode === 'email' && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-slate-300">Email Address</label>
+                <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                  Email Address
+                </label>
                 <input
                   type="email"
                   className="fc-input"
@@ -174,7 +190,9 @@ export default function QrGeneratorTool() {
 
             {mode === 'phone' && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-slate-300">Phone Number</label>
+                <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                  Phone Number
+                </label>
                 <input
                   type="tel"
                   className="fc-input"
@@ -186,14 +204,14 @@ export default function QrGeneratorTool() {
             )}
 
             {/* Format choice */}
-            <div className="flex items-center gap-3 pt-2">
-              <span className="text-xs font-medium text-slate-400">Download format:</span>
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between pt-2 border-t border-[var(--fc-border)]">
+              <span className="text-xs font-medium text-[var(--fc-text-dim)]">Export format:</span>
+              <div className="flex items-center gap-1.5">
                 {['png', 'svg'].map((f) => (
                   <button
                     key={f}
                     type="button"
-                    className={`fc-target-chip${kind === f ? ' is-active' : ''}`}
+                    className={`fc-cat-tab${kind === f ? ' is-active' : ''}`}
                     onClick={() => setKind(f)}
                   >
                     .{f.toUpperCase()}
@@ -206,46 +224,57 @@ export default function QrGeneratorTool() {
 
         {/* Right: Live Preview & Download */}
         <div className="fc-tool-panel items-center justify-center text-center">
-          <div className="fc-qr-display-box">
-            {qrDataUrl ? (
-              <img
-                src={qrDataUrl}
-                alt="QR Code"
-                className="w-56 h-56 rounded-lg bg-white p-3 shadow-md"
-              />
-            ) : (
-              <div className="w-56 h-56 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
-                Generating…
-              </div>
-            )}
-          </div>
+          <div className="flex flex-col items-center gap-4">
+            <div className={`p-3.5 rounded-2xl ${qrDataUrl ? 'bg-white shadow-lg' : 'bg-[var(--fc-surface-2)]'} border border-[var(--fc-border)] transition-colors duration-200`}>
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="QR Code Preview"
+                  className="w-56 h-56 rounded-xl block"
+                />
+              ) : (
+                <div className="w-56 h-56 rounded-xl flex items-center justify-center text-[var(--fc-text-faint)] font-mono text-xs">
+                  {loading ? 'Generating…' : 'Awaiting input'}
+                </div>
+              )}
+            </div>
 
-          <div className="flex items-center gap-3 mt-4">
-            {qrDataUrl && (
-              <>
-                <a
-                  href={qrDataUrl}
-                  download={`amethyst_qr_${mode}.${kind}`}
-                  className="fc-btn fc-btn-primary"
-                >
-                  <Icon name="download" size={15} />
-                  <span>Download QR ({kind.toUpperCase()})</span>
-                </a>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xs font-semibold text-[var(--fc-text)]">
+                {kind === 'svg' ? 'Lossless Vector SVG' : 'High-Res Raster PNG'}
+              </span>
+              <span className="text-[11px] text-[var(--fc-text-faint)] font-mono max-w-xs truncate">
+                {getPayload()}
+              </span>
+            </div>
 
-                <button
-                  type="button"
-                  className="fc-btn fc-btn-secondary"
-                  onClick={() => {
-                    navigator.clipboard.writeText(getPayload())
-                    toast('Copied raw QR payload to clipboard!', 'good')
-                  }}
-                  title="Copy encoded payload"
-                >
-                  <Icon name="copy" size={15} />
-                  <span>Copy Payload</span>
-                </button>
-              </>
-            )}
+            <div className="flex items-center gap-2.5 mt-2">
+              {qrDataUrl && (
+                <>
+                  <a
+                    href={qrDataUrl}
+                    download={`amethyst_qr_${mode}.${kind}`}
+                    className="fc-btn fc-btn-primary"
+                  >
+                    <Icon name="download" size={14} />
+                    <span>Download {kind.toUpperCase()}</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    className="fc-btn fc-btn-secondary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(getPayload())
+                      toast('Copied raw QR payload to clipboard!', 'good')
+                    }}
+                    title="Copy encoded payload"
+                  >
+                    <Icon name="copy" size={14} />
+                    <span>Copy Payload</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

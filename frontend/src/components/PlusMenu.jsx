@@ -6,20 +6,21 @@ import { api } from '../api.js'
 import { useApp } from '../store.jsx'
 import { MOD_LABEL } from '../keys.js'
 import { useDismiss } from '../hooks/useDismiss.js'
-import { useMenuFit } from '../hooks/useMenuFit.js'
-import { connectorState } from './connectorState.js'
-import { FadeScrollArea } from './ui/skiper/index.js'
+import './PlusMenu.css'
 
-function MicroSwitch({ on, disabled }) {
-  return (
-    <span
-      className={`pm-switch${on ? ' is-on' : ''}${disabled ? ' is-disabled' : ''}`}
-      aria-hidden="true"
-    >
-      <span className="pm-switch-thumb" />
-    </span>
-  )
-}
+const THEME_OPTIONS = [
+  { id: 'system', label: 'System' },
+  { id: 'graphite', label: 'Graphite (Dark)' },
+  { id: 'nocturne', label: 'Nocturne (OLED)' },
+  { id: 'apple', label: 'Apple (Light)' },
+  { id: 'anthropic', label: 'Anthropic (Warm)' },
+  { id: 'cohere', label: 'Cohere' },
+  { id: 'sunshine', label: 'Sunshine' },
+  { id: 'stripe', label: 'Stripe' },
+  { id: 'ink', label: 'Ink' },
+  { id: 'paper', label: 'Paper' },
+  { id: 'sand', label: 'Sand' },
+]
 
 export default function PlusMenu({
   conversationId,
@@ -28,35 +29,96 @@ export default function PlusMenu({
   onClose,
   onNavigate,
   onAttach,
+  onSelectSkill,
   placement = 'up',
+  isHero = false,
 }) {
-  const { caps, refreshCaps, setCapEnabled, busyCap, setCapabilitiesTab, toast } = useApp()
-  const [panel, setPanel] = useState(null) // 'workspace' | 'skills'
+  const {
+    caps,
+    refreshCaps,
+    setCapEnabled,
+    busyCap,
+    setCapabilitiesTab,
+    toast,
+    health,
+    theme,
+    setTheme,
+  } = useApp()
+
+  const [panel, setPanel] = useState(null) // null | 'skills' | 'connectors' | 'design' | 'plugins'
   const [toolsOpen, setToolsOpen] = useState(false)
-  const [allConnectors, setAllConnectors] = useState(false)
   const [memory, setMemory] = useState(null)
   const [tools, setTools] = useState([])
-  const [draftWorkspace, setDraftWorkspace] = useState(workspace || '')
   const [busy, setBusy] = useState('')
-  const [effectivePlacement, setEffectivePlacement] = useState(placement)
+  const [layoutState, setLayoutState] = useState({
+    placement: isHero ? 'down' : placement,
+    maxHeight: 480,
+    flipHorizontal: false,
+    leftOffset: isHero ? 0 : 24,
+  })
+
   const ref = useRef(null)
   const fileRef = useRef(null)
 
+  // Smart layout measurement: guarantees the menu never clips out
   useEffect(() => {
-    setEffectivePlacement(placement)
-  }, [placement])
+    const updateLayout = () => {
+      if (!ref.current) return
+      const parent = ref.current.parentElement
+      const parentRect = parent ? parent.getBoundingClientRect() : ref.current.getBoundingClientRect()
 
-  useEffect(() => {
-    if (!ref.current) return
-    const rect = ref.current.parentElement?.getBoundingClientRect() || ref.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - (ref.current.parentElement ? rect.bottom : rect.top)
-    const spaceAbove = ref.current.parentElement ? rect.top : rect.bottom
-    if (spaceBelow < 460 && spaceAbove > spaceBelow) {
-      setEffectivePlacement('up')
-    } else if (spaceAbove < 460 && spaceBelow > spaceAbove) {
-      setEffectivePlacement('down')
+      // Dynamically locate the trigger button to match exact horizontal alignment
+      const triggerBtn = parent?.querySelector('[data-plus-trigger="true"]')
+      let triggerLeft = isHero ? 0 : 24
+      if (triggerBtn && parent) {
+        const tRect = triggerBtn.getBoundingClientRect()
+        triggerLeft = Math.max(0, Math.round(tRect.left - parentRect.left))
+      }
+
+      const spaceAbove = Math.max(120, Math.floor(parentRect.top - 12))
+      const spaceBelow = Math.max(120, Math.floor(window.innerHeight - parentRect.bottom - 12))
+
+      let resolvedPlacement = isHero ? 'down' : placement
+      if (isHero) {
+        // Hero mode: if spaceBelow is constrained (< 260px) and spaceAbove is larger, flip up
+        if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+          resolvedPlacement = 'up'
+        } else {
+          resolvedPlacement = 'down'
+        }
+      } else {
+        // Bottom docked composer: open upwards unless space above is cramped (< 160px)
+        if (spaceAbove < 160 && spaceBelow > spaceAbove) {
+          resolvedPlacement = 'down'
+        } else {
+          resolvedPlacement = 'up'
+        }
+      }
+
+      const availableHeight = resolvedPlacement === 'down' ? spaceBelow : spaceAbove
+      // Compact height capped at 330px, ensuring it never touches the screen edge
+      const maxH = Math.min(330, Math.max(180, availableHeight))
+
+      // Check if primary panel (224) + submenu (252) + gap (6) would clip beyond right edge of viewport
+      const menuLeftViewport = parentRect.left + triggerLeft
+      const flipH = menuLeftViewport + 488 > window.innerWidth - 16
+
+      setLayoutState({
+        placement: resolvedPlacement,
+        maxHeight: maxH,
+        flipHorizontal: flipH,
+        leftOffset: triggerLeft,
+      })
     }
-  }, [])
+
+    updateLayout()
+    window.addEventListener('resize', updateLayout)
+    window.addEventListener('scroll', updateLayout, true)
+    return () => {
+      window.removeEventListener('resize', updateLayout)
+      window.removeEventListener('scroll', updateLayout, true)
+    }
+  }, [isHero, placement])
 
   const scope = conversationId || null
 
@@ -72,13 +134,18 @@ export default function PlusMenu({
     else onClose()
   }, [onClose, panel, toolsOpen])
 
-  useDismiss(ref, true, { onAway: onClose, onEscape: escapeOneLevel })
+  useDismiss(ref, true, {
+    onAway: onClose,
+    onEscape: escapeOneLevel,
+    ignore: '.hero-plus-btn, .composer-tool-btn, [data-plus-trigger]',
+  })
 
   const toggleMemory = useCallback(async () => {
     setBusy('memory')
     try {
       const next = await api.toggleMemory(!memory?.enabled, scope)
       setMemory((m) => ({ ...m, enabled: next.enabled }))
+      toast(next.enabled ? 'Memory active' : 'Memory paused', 'info')
     } catch (err) {
       toast(err.message, 'bad')
     } finally {
@@ -87,219 +154,49 @@ export default function PlusMenu({
   }, [memory, scope, toast])
 
   const pickFiles = useCallback(
-    async (files) => {
-      for (const file of files) {
-        try {
-          onAttach?.(await api.upload(file))
-        } catch (err) {
-          toast(`${file.name}: ${err.message}`, 'bad')
-        }
-      }
+    (files) => {
+      for (const f of files) onAttach(f)
       onClose()
     },
-    [onAttach, onClose, toast]
+    [onAttach, onClose]
   )
 
-  const skills = caps.skills ?? []
-  const connectors = useMemo(() => caps.connectors ?? [], [caps.connectors])
-  const live = connectors.filter((c) => c.live?.connected).length
+  const skills = useMemo(() => caps.skills || [], [caps.skills])
+  const connectors = useMemo(() => caps.connectors || [], [caps.connectors])
+  const connectorErrors = useMemo(() => health?.errors || [], [health?.errors])
+  const awaitingSignIn = useMemo(() => health?.awaiting_signin || [], [health?.awaiting_signin])
 
-  const CONNECTOR_PREVIEW = 4
-  const ordered = useMemo(() => {
-    const on = connectors.filter((c) => c.enabled)
-    const off = connectors.filter((c) => !c.enabled)
-    return [...on, ...off]
-  }, [connectors])
-
-  const shownConnectors = allConnectors ? ordered : ordered.slice(0, CONNECTOR_PREVIEW)
-  const hiddenCount = Math.max(0, ordered.length - shownConnectors.length)
-  const engaged = skills.filter((s) => s.enabled).length
+  const warningCount = useMemo(() => {
+    let count = 0
+    for (const c of connectors) {
+      if (c.live?.error || connectorErrors.some(([n]) => n === c.name) || awaitingSignIn.includes(c.name)) {
+        count += 1
+      }
+    }
+    return count
+  }, [connectors, connectorErrors, awaitingSignIn])
 
   const byServer = useMemo(() => {
     const groups = new Map()
     for (const tool of tools) {
-      const key = tool.server || 'builtin'
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key).push(tool)
+      const server = tool.server || 'builtin'
+      if (!groups.has(server)) groups.set(server, [])
+      groups.get(server).push(tool)
     }
     return [...groups.entries()]
   }, [tools])
 
-  useMenuFit(ref, [shownConnectors.length, skills.length, tools.length, memory, panel, toolsOpen])
-
-  const flyouts = (
-    <>
-      {/* Workspace Selector Submenu */}
-      {panel === 'workspace' && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, x: -6 }}
-          animate={{ opacity: 1, scale: 1, x: 0 }}
-          exit={{ opacity: 0, scale: 0.96, x: -6 }}
-          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="pm-flyout pm-flyout--workspace"
-        >
-          <div className="pm-flyout-header">
-            <div className="pm-flyout-title">
-              <Icon name="folder" size={14} className="pm-flyout-icon" />
-              <span>Workspace Directory</span>
-            </div>
-            <button
-              type="button"
-              className="pm-flyout-close"
-              onClick={() => setPanel(null)}
-              aria-label="Close"
-            >
-              <Icon name="x" size={12} />
-            </button>
-          </div>
-          <p className="pm-flyout-desc">
-            File tools and terminal sessions will be confined to this folder path.
-          </p>
-          <div className="pm-flyout-body">
-            <input
-              autoFocus
-              className="pm-input"
-              value={draftWorkspace}
-              placeholder="e.g. ~/projects/my-app"
-              onChange={(e) => setDraftWorkspace(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  onWorkspace(draftWorkspace.trim())
-                  onClose()
-                }
-              }}
-            />
-            <div className="pm-flyout-actions">
-              <button
-                type="button"
-                className="pm-btn pm-btn--primary"
-                onClick={() => {
-                  onWorkspace(draftWorkspace.trim())
-                  onClose()
-                }}
-              >
-                Apply Directory
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Skills Flyout */}
-      {panel === 'skills' && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, x: -6 }}
-          animate={{ opacity: 1, scale: 1, x: 0 }}
-          exit={{ opacity: 0, scale: 0.96, x: -6 }}
-          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="pm-flyout pm-flyout--skills"
-        >
-          <div className="pm-flyout-header">
-            <div className="pm-flyout-title">
-              <Icon name="book" size={14} className="pm-flyout-icon" />
-              <span>Active Skills ({engaged}/{skills.length})</span>
-            </div>
-            <button
-              type="button"
-              className="pm-flyout-close"
-              onClick={() => setPanel(null)}
-              aria-label="Close"
-            >
-              <Icon name="x" size={12} />
-            </button>
-          </div>
-
-          <FadeScrollArea className="pm-flyout-scroll" fadeHeight={16}>
-            {skills.length === 0 ? (
-              <div className="pm-empty-text">No skills currently installed.</div>
-            ) : (
-              skills.map((skill) => (
-                <button
-                  key={skill.name}
-                  type="button"
-                  className={`pm-item-row${skill.enabled ? ' is-active' : ''}`}
-                  onClick={() => setCapEnabled(skill, !skill.enabled)}
-                >
-                  <span className="pm-item-icon-box">
-                    <Icon name="book" size={13} />
-                  </span>
-                  <span className="pm-item-label">{skill.name}</span>
-                  {busyCap === `skill:${skill.name}` ? (
-                    <span className="pm-item-busy">…</span>
-                  ) : (
-                    <MicroSwitch on={skill.enabled} />
-                  )}
-                </button>
-              ))
-            )}
-          </FadeScrollArea>
-
-          <div className="pm-flyout-footer">
-            <button
-              type="button"
-              className="pm-footer-link"
-              onClick={() => {
-                setCapabilitiesTab('skills')
-                onNavigate('capabilities')
-                onClose()
-              }}
-            >
-              <Icon name="sliders" size={12} />
-              <span>Manage all skills</span>
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Tools Flyout */}
-      {toolsOpen && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, x: -6 }}
-          animate={{ opacity: 1, scale: 1, x: 0 }}
-          exit={{ opacity: 0, scale: 0.96, x: -6 }}
-          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="pm-flyout pm-flyout--tools"
-        >
-          <div className="pm-flyout-header">
-            <div className="pm-flyout-title">
-              <Icon name="grid" size={14} className="pm-flyout-icon" />
-              <span>Tool Access ({tools.length})</span>
-            </div>
-            <button
-              type="button"
-              className="pm-flyout-close"
-              onClick={() => setToolsOpen(false)}
-              aria-label="Close"
-            >
-              <Icon name="x" size={12} />
-            </button>
-          </div>
-
-          <FadeScrollArea className="pm-flyout-scroll pm-flyout-scroll--tall" fadeHeight={16}>
-            {byServer.map(([server, group]) => (
-              <div key={server} className="pm-tool-group">
-                <div className="pm-tool-group-name">{server}</div>
-                {group.map((tool) => (
-                  <div key={tool.name} className="pm-tool-item" title={tool.description}>
-                    <span className="pm-tool-name">{tool.name}</span>
-                    <span className={`pm-tool-risk pm-tool-risk--${tool.risk}`}>
-                      {tool.risk}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </FadeScrollArea>
-        </motion.div>
-      )}
-    </>
-  )
-
   return (
     <div
-      className={`pm-menu-container menu${effectivePlacement === 'down' ? ' menu--down' : ''}`}
       ref={ref}
+      className={`pmenu-container ${layoutState.placement === 'down' ? 'pmenu-container--down' : 'pmenu-container--up'}${layoutState.flipHorizontal ? ' pmenu-container--flip-x' : ''}`}
+      style={{
+        '--menu-max-height': `${layoutState.maxHeight}px`,
+        left: `${layoutState.leftOffset}px`,
+        zIndex: 120,
+      }}
       role="menu"
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <input
         ref={fileRef}
@@ -309,217 +206,502 @@ export default function PlusMenu({
         onChange={(e) => pickFiles([...e.target.files])}
       />
 
-      <FadeScrollArea className="menu-body pm-scroll-body" fadeHeight={18}>
-        {/* Section 1: Primary Actions */}
-        <div className="pm-section">
-          {/* Add Files Action Card */}
-          <button
-            type="button"
-            className="pm-action-card pm-action-card--primary"
-            onClick={() => fileRef.current?.click()}
-          >
-            <div className="pm-action-icon-tile pm-action-icon-tile--accent">
-              <Icon name="paperclip" size={16} />
-            </div>
-            <div className="pm-action-content">
-              <span className="pm-action-title">Add files or photos</span>
-              <span className="pm-action-desc">Upload documents, code, images</span>
-            </div>
-            <span className="pm-shortcut-pill">
-              <kbd>{MOD_LABEL}</kbd>
-              <kbd>U</kbd>
-            </span>
-          </button>
+      {/* Primary Cascade Menu */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: layoutState.placement === 'down' ? -6 : 6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: layoutState.placement === 'down' ? -6 : 6 }}
+        transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+        className="pmenu-primary-panel"
+      >
+        {/* 1. Add files or photos */}
+        <button
+          type="button"
+          className="pmenu-item"
+          onClick={() => fileRef.current?.click()}
+          onMouseEnter={() => { setPanel(null); setToolsOpen(false) }}
+        >
+          <div className="pmenu-item-left">
+            <Icon name="paperclip" size={15} className="pmenu-item-icon" />
+            <span className="pmenu-item-label">Add files or photos</span>
+          </div>
+          <span className="pmenu-shortcut">{MOD_LABEL}+U</span>
+        </button>
 
-          {/* Working Directory Card */}
-          <button
-            type="button"
-            className={`pm-action-card${panel === 'workspace' ? ' is-active' : ''}`}
-            onClick={() => setPanel(panel === 'workspace' ? null : 'workspace')}
-            aria-haspopup="dialog"
-            aria-expanded={panel === 'workspace'}
-          >
-            <div className="pm-action-icon-tile">
-              <Icon name="folder" size={16} />
-            </div>
-            <div className="pm-action-content">
-              <span className="pm-action-title">Working directory</span>
-              <span className="pm-action-desc pm-action-path">
-                {workspace ? workspace.split('/').slice(-2).join('/') || workspace : 'Project root'}
+        {/* 2. Skills */}
+        <button
+          type="button"
+          className={`pmenu-item${panel === 'skills' ? ' is-active' : ''}`}
+          onClick={() => setPanel((p) => (p === 'skills' ? null : 'skills'))}
+          onMouseEnter={() => { setPanel('skills'); setToolsOpen(false) }}
+          aria-haspopup="menu"
+          aria-expanded={panel === 'skills'}
+        >
+          <div className="pmenu-item-left">
+            <Icon name="scroll" size={15} className="pmenu-item-icon" />
+            <span className="pmenu-item-label">Skills</span>
+          </div>
+          <Icon name="caret-right" size={12} className="pmenu-chevron" />
+        </button>
+
+        {/* 3. Connectors */}
+        <button
+          type="button"
+          className={`pmenu-item${panel === 'connectors' ? ' is-active' : ''}`}
+          onClick={() => setPanel((p) => (p === 'connectors' ? null : 'connectors'))}
+          onMouseEnter={() => { setPanel('connectors'); setToolsOpen(false) }}
+          aria-haspopup="menu"
+          aria-expanded={panel === 'connectors'}
+        >
+          <div className="pmenu-item-left">
+            <Icon name="squares-four" size={15} className="pmenu-item-icon" />
+            <span className="pmenu-item-label">Connectors</span>
+          </div>
+          <div className="pmenu-item-right">
+            {warningCount > 0 && (
+              <span className="pmenu-warning-pill">
+                <Icon name="warning" size={11} weight="fill" />
+                <span>{warningCount}</span>
               </span>
-            </div>
-            <Icon name="chevron" size={12} className="pm-action-chevron" />
-          </button>
-        </div>
+            )}
+            <Icon name="caret-right" size={12} className="pmenu-chevron" />
+          </div>
+        </button>
 
-        <div className="pm-divider" />
+        {/* 4. Design system */}
+        <button
+          type="button"
+          className={`pmenu-item${panel === 'design' ? ' is-active' : ''}`}
+          onClick={() => setPanel((p) => (p === 'design' ? null : 'design'))}
+          onMouseEnter={() => { setPanel('design'); setToolsOpen(false) }}
+          aria-haspopup="menu"
+          aria-expanded={panel === 'design'}
+        >
+          <div className="pmenu-item-left">
+            <Icon name="palette" size={15} className="pmenu-item-icon" />
+            <span className="pmenu-item-label">Design system</span>
+          </div>
+          <Icon name="caret-right" size={12} className="pmenu-chevron" />
+        </button>
 
-        {/* Section 2: Agent Capabilities & Memory */}
-        <div className="pm-section">
-          <div className="pm-section-label">Capabilities</div>
+        {/* 5. Plugins */}
+        <button
+          type="button"
+          className={`pmenu-item${panel === 'plugins' ? ' is-active' : ''}`}
+          onClick={() => setPanel((p) => (p === 'plugins' ? null : 'plugins'))}
+          onMouseEnter={() => { setPanel('plugins'); setToolsOpen(false) }}
+          aria-haspopup="menu"
+          aria-expanded={panel === 'plugins'}
+        >
+          <div className="pmenu-item-left">
+            <Icon name="plug" size={15} className="pmenu-item-icon" />
+            <span className="pmenu-item-label">Plugins</span>
+          </div>
+          <Icon name="caret-right" size={12} className="pmenu-chevron" />
+        </button>
 
-          {/* Skills Row */}
-          <button
-            type="button"
-            className={`pm-nav-row${panel === 'skills' ? ' is-active' : ''}`}
-            onClick={() => setPanel(panel === 'skills' ? null : 'skills')}
-            aria-haspopup="dialog"
-            aria-expanded={panel === 'skills'}
+        {/* 6. Memory */}
+        <button
+          type="button"
+          className="pmenu-item"
+          onClick={toggleMemory}
+          onMouseEnter={() => { setPanel(null); setToolsOpen(false) }}
+          disabled={busy === 'memory'}
+        >
+          <div className="pmenu-item-left">
+            <Icon name="clock-counter-clockwise" size={15} className="pmenu-item-icon" />
+            <span className="pmenu-item-label">Memory</span>
+          </div>
+          {memory?.enabled && (
+            <Icon name="check-simple" size={14} weight="bold" className="pmenu-check-accent" />
+          )}
+        </button>
+      </motion.div>
+
+      {/* Flyout Submenus */}
+      <AnimatePresence mode="wait">
+        {/* Skills Submenu */}
+        {panel === 'skills' && (
+          <motion.div
+            key="skills"
+            initial={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="pmenu-submenu"
           >
-            <div className="pm-row-lead">
-              <Icon name="book" size={15} className="pm-row-icon" />
-              <span className="pm-row-title">Skills</span>
-            </div>
-            <div className="pm-row-trail">
-              <span className="pm-count-badge">
-                {engaged} of {skills.length} engaged
-              </span>
-              <Icon name="chevron" size={12} className="pm-row-chevron" />
-            </div>
-          </button>
-
-          {/* Tool Access Row */}
-          <button
-            type="button"
-            className={`pm-nav-row${toolsOpen ? ' is-active' : ''}`}
-            onClick={() => setToolsOpen((o) => !o)}
-            aria-haspopup="dialog"
-            aria-expanded={toolsOpen}
-          >
-            <div className="pm-row-lead">
-              <Icon name="grid" size={15} className="pm-row-icon" />
-              <span className="pm-row-title">Tool access</span>
-            </div>
-            <div className="pm-row-trail">
-              <span className="pm-count-badge">{tools.length} reachable</span>
-              <Icon name="chevron" size={12} className="pm-row-chevron" />
-            </div>
-          </button>
-
-          {/* Memory Row */}
-          <button
-            type="button"
-            className={`pm-nav-row${memory?.enabled ? ' is-active' : ''}`}
-            onClick={toggleMemory}
-            disabled={!memory}
-          >
-            <div className="pm-row-lead">
-              <Icon name="spark" size={15} className="pm-row-icon" />
-              <span className="pm-row-title">Memory</span>
-            </div>
-            <div className="pm-row-trail">
-              {busy === 'memory' ? (
-                <span className="pm-item-busy">…</span>
+            <div className="pmenu-submenu-scroll">
+              {skills.length === 0 ? (
+                <div className="pmenu-empty-item">No skills installed</div>
               ) : (
-                <>
-                  <span className="pm-meta-text">
-                    {memory ? `${memory.facts.length} facts` : 'Disabled'}
-                  </span>
-                  <MicroSwitch on={Boolean(memory?.enabled)} disabled={!memory} />
-                </>
+                skills.map((skill) => (
+                  <button
+                    key={skill.name}
+                    type="button"
+                    className="pmenu-item"
+                    onClick={() => {
+                      onSelectSkill?.(skill.name)
+                      onClose()
+                    }}
+                    title={skill.description}
+                  >
+                    <div className="pmenu-item-left">
+                      <Icon name="scroll" size={15} className="pmenu-item-icon" />
+                      <span className="pmenu-item-label">{skill.name}</span>
+                    </div>
+                  </button>
+                ))
               )}
             </div>
-          </button>
-        </div>
 
-        <div className="pm-divider" />
+            <div className="pmenu-divider" />
 
-        {/* Section 3: Connectors Hub */}
-        <div className="pm-section">
-          <div className="pm-section-head-row">
-            <span className="pm-section-label">Connectors</span>
-            <div className="pm-connectors-meta">
-              <span className="pm-live-pill">
-                <span className="pm-live-dot" />
-                {live} active
-              </span>
-              <button
-                type="button"
-                className="pm-manage-btn"
-                onClick={() => {
-                  setCapabilitiesTab('connectors')
-                  onNavigate('capabilities')
-                  onClose()
-                }}
-              >
-                Manage
-              </button>
+            <button
+              type="button"
+              className="pmenu-item"
+              onClick={() => {
+                setCapabilitiesTab('skills')
+                onNavigate('capabilities')
+                onClose()
+              }}
+            >
+              <div className="pmenu-item-left">
+                <Icon name="tray" size={15} className="pmenu-item-icon" />
+                <span className="pmenu-item-label">Manage skills</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="pmenu-item"
+              onClick={() => {
+                setCapabilitiesTab('skills')
+                onNavigate('capabilities')
+                onClose()
+              }}
+            >
+              <div className="pmenu-item-left">
+                <Icon name="plus" size={15} className="pmenu-item-icon" />
+                <span className="pmenu-item-label">Browse skills</span>
+              </div>
+            </button>
+          </motion.div>
+        )}
+
+        {/* Connectors Submenu */}
+        {panel === 'connectors' && (
+          <motion.div
+            key="connectors"
+            initial={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="pmenu-submenu"
+          >
+            <button
+              type="button"
+              className="pmenu-item"
+              onClick={() => {
+                setCapabilitiesTab('connectors')
+                onNavigate('capabilities')
+                onClose()
+              }}
+            >
+              <div className="pmenu-item-left">
+                <Icon name="plus" size={15} className="pmenu-item-icon" />
+                <span className="pmenu-item-label">Add connector</span>
+              </div>
+              <Icon name="caret-right" size={12} className="pmenu-chevron" />
+            </button>
+
+            <button
+              type="button"
+              className="pmenu-item"
+              onClick={() => {
+                setCapabilitiesTab('connectors')
+                onNavigate('capabilities')
+                onClose()
+              }}
+            >
+              <div className="pmenu-item-left">
+                <Icon name="tray" size={15} className="pmenu-item-icon" />
+                <span className="pmenu-item-label">Manage connectors</span>
+              </div>
+            </button>
+
+            <div className="pmenu-divider" />
+
+            <div className="pmenu-submenu-scroll">
+              {connectors.length === 0 ? (
+                <div className="pmenu-empty-item">No connectors configured</div>
+              ) : (
+                connectors.map((cap) => {
+                  const needsSignIn = awaitingSignIn.includes(cap.name)
+                  const hasError = Boolean(
+                    cap.live?.error || connectorErrors.some(([n]) => n === cap.name) || needsSignIn
+                  )
+                  const isBusy = busyCap === `connector:${cap.name}`
+                  return (
+                    <div
+                      key={cap.name}
+                      className="pmenu-item"
+                      onClick={() => {
+                        if (needsSignIn) {
+                          setCapabilitiesTab('connectors')
+                          onNavigate('capabilities')
+                          onClose()
+                        } else if (!hasError) {
+                          setCapEnabled(cap, !cap.enabled)
+                        }
+                      }}
+                      title={
+                        needsSignIn
+                          ? 'Sign-in required'
+                          : cap.live?.error || cap.title || cap.name
+                      }
+                    >
+                      <div className="pmenu-item-left">
+                        <ServiceIcon name={cap.name} size={16} className="pmenu-service-icon" />
+                        <span className="pmenu-item-label">{cap.title || cap.name}</span>
+                      </div>
+                      <div className="pmenu-item-right">
+                        {hasError ? (
+                          <span
+                            className="pmenu-warning-icon-wrap"
+                            title={needsSignIn ? 'Sign-in required' : cap.live?.error || 'Needs authorization'}
+                          >
+                            <Icon name="warning" size={14} className="pmenu-warning-icon" weight="fill" />
+                          </span>
+                        ) : isBusy ? (
+                          <span className="pmenu-busy-spinner">…</span>
+                        ) : (
+                          <div
+                            className={`pmenu-toggle-switch${cap.enabled ? ' is-on' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCapEnabled(cap, !cap.enabled)
+                            }}
+                            role="switch"
+                            aria-checked={Boolean(cap.enabled)}
+                          >
+                            <div className="pmenu-toggle-thumb" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
-          </div>
 
-          {connectors.length === 0 ? (
-            <div className="pm-empty-text">No connectors configured.</div>
-          ) : (
-            <div className="pm-connectors-list">
-              {shownConnectors.map((cap) => {
-                const state = connectorState(cap, busyCap === `connector:${cap.name}`)
-                const isRunning = state.tone === 'live' || Boolean(cap.enabled)
+            <div className="pmenu-divider" />
+
+            <button
+              type="button"
+              className={`pmenu-item${toolsOpen ? ' is-active' : ''}`}
+              onClick={() => setToolsOpen((o) => !o)}
+            >
+              <div className="pmenu-item-left">
+                <Icon name="wrench" size={15} className="pmenu-item-icon" />
+                <span className="pmenu-item-label">Tool access</span>
+              </div>
+              <Icon name="caret-right" size={12} className="pmenu-chevron" />
+            </button>
+          </motion.div>
+        )}
+
+        {/* Design System Submenu */}
+        {panel === 'design' && (
+          <motion.div
+            key="design"
+            initial={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="pmenu-submenu"
+          >
+            <div className="pmenu-submenu-scroll">
+              {THEME_OPTIONS.map((t) => {
+                const isCurrent = theme === t.id
                 return (
                   <button
-                    key={cap.name}
+                    key={t.id}
                     type="button"
-                    className={`pm-connector-row${isRunning ? ' is-on' : ''}`}
-                    onClick={() => setCapEnabled(cap, !cap.enabled)}
-                    title={state.detail ? `${state.label} — ${state.detail}` : state.label}
+                    className={`pmenu-item${isCurrent ? ' is-active' : ''}`}
+                    onClick={() => setTheme(t.id)}
                   >
-                    <div className="pm-connector-lead">
-                      <div className="pm-connector-icon-wrap">
-                        <ServiceIcon name={cap.name} size={15} />
-                      </div>
-                      <span className="pm-connector-name">{cap.title || cap.name}</span>
+                    <div className="pmenu-item-left">
+                      <span className={`pmenu-theme-dot pmenu-theme-dot--${t.id}`} />
+                      <span className="pmenu-item-label">{t.label}</span>
                     </div>
-
-                    <div className="pm-connector-trail">
-                      {(state.tone === 'busy' || state.tone === 'error') && (
-                        <span className={`pm-dot pm-dot--${state.tone}`} />
-                      )}
-                      <MicroSwitch on={cap.enabled} />
-                    </div>
+                    {isCurrent && (
+                      <Icon name="check-simple" size={14} weight="bold" className="pmenu-check-accent" />
+                    )}
                   </button>
                 )
               })}
             </div>
-          )}
+          </motion.div>
+        )}
 
-          {(hiddenCount > 0 || allConnectors) && (
+        {/* Plugins Submenu */}
+        {panel === 'plugins' && (
+          <motion.div
+            key="plugins"
+            initial={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="pmenu-submenu"
+          >
             <button
               type="button"
-              className="pm-expand-btn"
-              onClick={() => setAllConnectors((o) => !o)}
-              aria-expanded={allConnectors}
+              className="pmenu-item"
+              onClick={() => {
+                setCapabilitiesTab('connectors')
+                onNavigate('capabilities')
+                onClose()
+              }}
             >
-              <span>{allConnectors ? 'Show fewer' : `View ${hiddenCount} more`}</span>
-              <Icon
-                name="chevron"
-                size={11}
-                className={`pm-expand-chevron${allConnectors ? ' is-open' : ''}`}
-              />
+              <div className="pmenu-item-left">
+                <Icon name="plus" size={15} className="pmenu-item-icon" />
+                <span className="pmenu-item-label">Add plugin</span>
+              </div>
+              <Icon name="caret-right" size={12} className="pmenu-chevron" />
             </button>
-          )}
-        </div>
 
-        <div className="pm-divider" />
+            <button
+              type="button"
+              className="pmenu-item"
+              onClick={() => {
+                setCapabilitiesTab('connectors')
+                onNavigate('capabilities')
+                onClose()
+              }}
+            >
+              <div className="pmenu-item-left">
+                <Icon name="tray" size={15} className="pmenu-item-icon" />
+                <span className="pmenu-item-label">Manage plugins</span>
+              </div>
+            </button>
 
-        {/* Section 4: Audit & Activity */}
-        <div className="pm-section pm-section--footer">
-          <button
-            type="button"
-            className="pm-nav-row pm-nav-row--subtle"
-            onClick={() => {
-              onNavigate('logs')
-              onClose()
-            }}
-          >
-            <div className="pm-row-lead">
-              <Icon name="logs" size={14} className="pm-row-icon" />
-              <span className="pm-row-title">What it just did (Logs)</span>
+            <div className="pmenu-divider" />
+
+            <div className="pmenu-submenu-scroll">
+              {byServer.length === 0 ? (
+                <div className="pmenu-empty-item">No plugins detected</div>
+              ) : (
+                byServer.map(([server, group]) => (
+                  <div key={server} className="pmenu-plugin-group">
+                    <div className="pmenu-group-title">{server}</div>
+                    {group.slice(0, 4).map((tool) => (
+                      <div
+                        key={tool.name}
+                        className="pmenu-item pmenu-item--static"
+                        title={tool.description}
+                      >
+                        <div className="pmenu-item-left">
+                          <Icon name="plug" size={14} className="pmenu-item-icon" />
+                          <span className="pmenu-item-label">{tool.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
             </div>
-            <Icon name="arrow-up-right" size={12} className="pm-row-chevron" />
-          </button>
-        </div>
-      </FadeScrollArea>
+          </motion.div>
+        )}
 
-      <AnimatePresence>{flyouts}</AnimatePresence>
+        {/* Tool Access Sub-Flyout (Tertiary) */}
+        {toolsOpen && (
+          <motion.div
+            key="tools"
+            initial={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={{
+              opacity: 0,
+              scale: 0.97,
+              x: layoutState.flipHorizontal ? 6 : -6,
+              y: layoutState.placement === 'down' ? -4 : 4,
+            }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="pmenu-submenu pmenu-submenu--tertiary"
+          >
+            <div className="pmenu-submenu-header">
+              <span className="pmenu-header-title">Tool Access ({tools.length})</span>
+              <button
+                type="button"
+                className="pmenu-close-btn"
+                onClick={() => setToolsOpen(false)}
+                aria-label="Close"
+              >
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+            <div className="pmenu-submenu-scroll">
+              {byServer.map(([server, group]) => (
+                <div key={server} className="pmenu-plugin-group">
+                  <div className="pmenu-group-title">{server}</div>
+                  {group.map((tool) => (
+                    <div key={tool.name} className="pmenu-tool-item" title={tool.description}>
+                      <span className="pmenu-tool-name">{tool.name}</span>
+                      <span className={`pmenu-tool-risk pmenu-tool-risk--${tool.risk}`}>
+                        {tool.risk}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

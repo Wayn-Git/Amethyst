@@ -76,15 +76,22 @@ class Link:
 
 
 class AttemptBudget:
-    """One pool of attempts for the whole chain.
+    """One pool of attempts for the whole turn, not just one model call.
 
     `allowance` is what the current link may spend without starving the links
     behind it: every remaining one is reserved a single attempt, and the caller
     gets the rest. That is what keeps a three-provider chain bounded at the same
     order of wall clock as a one-provider turn rather than three times it.
+
+    Total is 10, not MAX_RETRIES + 1 (= 4): a turn runs up to 24 iterations and
+    each iteration is its own model call, so 4 failures across a whole long turn
+    is a normal intermittent-blip count, not a dead provider. Mid-stream resumes
+    recover in ~1-2.5s (stream_backoff ceiling), not 120s timeouts, so the extra
+    headroom costs seconds, not minutes. Still bounded by max_seconds (600s) and
+    the per-iteration resume cap.
     """
 
-    def __init__(self, total: int = MAX_RETRIES + 1) -> None:
+    def __init__(self, total: int = MAX_RETRIES + 7) -> None:
         self.total = max(1, total)
         self.spent = 0
 

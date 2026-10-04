@@ -359,6 +359,15 @@ export const api = {
     j(`/tiers/${encodeURIComponent(tier)}`, json('PUT', { provider, model })),
   clearTier: (tier) => j(`/tiers/${encodeURIComponent(tier)}`, json('DELETE')),
 
+  // Composio
+  composioStatus: () => j('/composio/status'),
+  saveComposioKey: (apiKey) => j('/composio/key', json('POST', { api_key: apiKey })),
+  deleteComposioKey: () => j('/composio/key', json('DELETE')),
+  composioToolkits: () => j('/composio/toolkits'),
+  toggleComposioToolkit: (toolkit, enabled) =>
+    j('/composio/toolkits/toggle', json('POST', { toolkit, enabled })),
+
+
   conversations: () => j('/conversations'),
   createConversation: (provider, model, title) =>
     j('/conversations', json('POST', { provider, model, title })),

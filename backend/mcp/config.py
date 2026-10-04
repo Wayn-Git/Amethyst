@@ -305,7 +305,31 @@ def load_servers(path: Path | None = None) -> dict[str, ServerConfig]:
         config = ServerConfig.from_dict(name, entry or {})
         _fill_catalogue_env(config)
         servers[name] = config
+    _inject_composio_server(servers)
     return servers
+
+
+def _inject_composio_server(servers: dict[str, ServerConfig]) -> None:
+    """Inject dynamic Composio hosted MCP server if configured and not explicitly in mcp.yaml."""
+    if "composio" in servers:
+        return
+    try:
+        from backend.mcp.composio_service import composio_service
+
+        mcp_conf = composio_service.get_mcp_config()
+        if mcp_conf and mcp_conf.get("url"):
+            servers["composio"] = ServerConfig(
+                name="composio",
+                transport=Transport(mcp_conf.get("transport", "streamable-http")),
+                url=mcp_conf.get("url"),
+                headers=dict(mcp_conf.get("headers") or {}),
+                enabled=True,
+                source=Source.CONFIGURED,
+                description="Composio Managed Cloud Apps",
+            )
+    except Exception as exc:
+        log.debug("Could not inject dynamic Composio server: %s", exc)
+
 
 
 def _fill_catalogue_env(config: ServerConfig) -> None:

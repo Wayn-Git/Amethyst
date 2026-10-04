@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, Component } from 'react'
 import Icon from './Icon.jsx'
+import { JsonViewer } from './arc/json-viewer/json-viewer'
+import { CodeBlock } from './arc/code-block/code-block'
 
 class SubagentErrorBoundary extends Component {
   constructor(props) {
@@ -148,17 +150,32 @@ function SubagentCard({ call, running }) {
             )}
 
             {result.result && (
-              <>
+              <div style={{ marginTop: 8 }}>
                 <span className="tool-block-label">result</span>
-                <pre className="tool-json">{typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2)}</pre>
-              </>
+                {typeof result.result === 'object' ? (
+                  <JsonViewer data={result.result} rootName="result" maxHeight={240} defaultExpandDepth={1} />
+                ) : typeof result.result === 'string' && (result.result.trim().startsWith('{') || result.result.trim().startsWith('[')) ? (
+                  (() => {
+                    try {
+                      const parsed = JSON.parse(result.result)
+                      return <JsonViewer data={parsed} rootName="result" maxHeight={240} defaultExpandDepth={1} />
+                    } catch {
+                      return <CodeBlock code={result.result} language="text" maxLines={12} />
+                    }
+                  })()
+                ) : typeof result.result === 'string' && result.result.includes('\n') ? (
+                  <CodeBlock code={result.result} language="text" maxLines={12} />
+                ) : (
+                  <pre className="tool-json">{String(result.result)}</pre>
+                )}
+              </div>
             )}
 
             {isFailed && result.error && (
-              <>
+              <div style={{ marginTop: 8 }}>
                 <span className="tool-block-label">error</span>
-                <pre className="tool-json tool-json--error">{result.error}</pre>
-              </>
+                <CodeBlock code={result.error} language="text" filename="Error" maxLines={8} />
+              </div>
             )}
           </div>
         </div>

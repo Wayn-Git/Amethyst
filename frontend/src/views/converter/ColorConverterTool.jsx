@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
+import { HexColorPicker } from 'react-colorful'
 import Icon from '../../components/Icon.jsx'
 import { useApp } from '../../store.jsx'
 
 // Color math helpers
 function hexToRgb(hex) {
-  let c = hex.replace('#', '')
+  let c = (hex || '#7132F5').replace('#', '')
   if (c.length === 3) c = c.split('').map((x) => x + x).join('')
   const num = parseInt(c, 16)
   if (isNaN(num) || c.length !== 6) return { r: 113, g: 50, b: 245 }
@@ -16,7 +17,7 @@ function hexToRgb(hex) {
 }
 
 function rgbToHex(r, g, b) {
-  return '#' + [r, g, b].map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('')
+  return '#' + [r, g, b].map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('').toUpperCase()
 }
 
 function rgbToHsl(r, g, b) {
@@ -100,123 +101,174 @@ export default function ColorConverterTool() {
   // Tonal shades
   const shades = useMemo(() => {
     const list = [15, 30, 45, 60, 75, 90]
-    return list.map((l) => {
-      // hsl with varying lightness
-      return `hsl(${hsl.h}, ${hsl.s}%, ${l}%)`
-    })
+    return list.map((l) => `hsl(${hsl.h}, ${hsl.s}%, ${l}%)`)
   }, [hsl])
 
   return (
     <div className="fc-tool-workspace">
       <div className="fc-tool-grid">
-        {/* Left: Color Picker & Formats */}
+        {/* Left: Interactive Visual Picker & Formats */}
         <div className="fc-tool-panel">
-          <div className="fc-panel-title">Color Formats</div>
+          <div className="flex items-center justify-between">
+            <h3 className="fc-panel-title">Color Formats & Transforms</h3>
+            <span className="fc-file-format-badge">{hexInput.toUpperCase()}</span>
+          </div>
+          <p className="fc-panel-desc">Interactive visual spectrum picker with precision mathematical transforms.</p>
 
-          {/* Visual Picker Row */}
-          <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-900/60 border border-slate-800 mt-2">
-            <input
-              type="color"
-              value={rgbToHex(rgb.r, rgb.g, rgb.b)}
-              onChange={(e) => setHexInput(e.target.value.toUpperCase())}
-              className="w-14 h-14 rounded-lg cursor-pointer bg-transparent border-0"
-            />
-            <div className="flex-1">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">HEX Code</span>
-              <input
-                type="text"
-                className="fc-input font-mono text-lg font-bold mt-1"
-                value={hexInput}
-                onChange={(e) => setHexInput(e.target.value)}
-                placeholder="#000000"
-              />
+          {/* react-colorful visual picker container */}
+          <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)]">
+            <div className="custom-color-picker-wrap">
+              <HexColorPicker color={hexInput} onChange={(c) => setHexInput(c.toUpperCase())} />
+            </div>
+
+            <div className="flex-1 w-full flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-12 h-12 rounded-xl border border-[var(--fc-border)] shadow-sm shrink-0"
+                  style={{ backgroundColor: hexInput }}
+                />
+                <div className="flex-1">
+                  <label className="text-[11px] font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider block">
+                    HEX Code
+                  </label>
+                  <input
+                    type="text"
+                    className="fc-input font-mono font-bold mt-1 text-sm uppercase"
+                    value={hexInput}
+                    onChange={(e) => setHexInput(e.target.value)}
+                    placeholder="#7132F5"
+                  />
+                </div>
+              </div>
+
+              {/* Tonal Shades Swatches */}
+              <div className="flex flex-col gap-1.5 mt-2">
+                <span className="text-[11px] font-semibold text-[var(--fc-text-faint)] uppercase tracking-wider">
+                  Harmonic Shades:
+                </span>
+                <div className="grid grid-cols-6 gap-2">
+                  {shades.map((color, i) => (
+                    <div
+                      key={i}
+                      className="h-8 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-transform border border-[var(--fc-border)] shadow-xs"
+                      style={{ backgroundColor: color }}
+                      title={`Copy ${color}`}
+                      onClick={() => copyVal(color, 'Shade')}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Formats List */}
-          <div className="flex flex-col gap-2 mt-4">
+          <div className="flex flex-col gap-2 mt-2">
             {[
-              { label: 'HEX', val: rgbToHex(rgb.r, rgb.g, rgb.b).toUpperCase() },
+              { label: 'HEX', val: rgbToHex(rgb.r, rgb.g, rgb.b) },
               { label: 'RGB', val: `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})` },
               { label: 'HSL', val: `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)` },
               { label: 'CMYK', val: `cmyk(${cmyk.c}%, ${cmyk.m}%, ${cmyk.y}%, ${cmyk.k}%)` },
             ].map((f) => (
               <div
                 key={f.label}
-                className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/40 border border-slate-800 text-sm"
+                className="flex items-center justify-between p-2.5 px-3.5 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-sm"
               >
-                <span className="text-xs font-mono font-semibold text-slate-400 w-12">{f.label}</span>
-                <span className="font-mono text-white flex-1">{f.val}</span>
+                <span className="text-xs font-mono font-bold text-[var(--fc-text-dim)] w-12">{f.label}</span>
+                <span className="font-mono text-[var(--fc-text)] font-medium flex-1 text-xs">{f.val}</span>
                 <button
                   type="button"
                   className="fc-btn fc-btn-secondary text-xs h-7 py-0 px-2.5"
                   onClick={() => copyVal(f.val, f.label)}
                 >
-                  <Icon name="copy" size={13} />
+                  <Icon name="copy" size={12} />
                   <span>Copy</span>
                 </button>
               </div>
             ))}
           </div>
-
-          {/* Color Swatch Shades */}
-          <div className="flex flex-col gap-2 mt-4">
-            <span className="text-xs font-medium text-slate-400">Tonal Shades:</span>
-            <div className="grid grid-cols-6 gap-2">
-              {shades.map((color, i) => (
-                <div
-                  key={i}
-                  className="h-8 rounded-md cursor-pointer hover:scale-105 transition"
-                  style={{ backgroundColor: color }}
-                  title={color}
-                  onClick={() => copyVal(color, 'Shade')}
-                />
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Right: Contrast Analysis */}
+        {/* Right: Accessibility & Contrast Studio */}
         <div className="fc-tool-panel">
-          <div className="fc-panel-title">Accessibility & Contrast Check</div>
+          <div className="flex items-center justify-between">
+            <h3 className="fc-panel-title">Accessibility & Contrast</h3>
+            <span className="text-xs font-mono text-[var(--fc-text-dim)]">WCAG 2.1 Standard</span>
+          </div>
+          <p className="fc-panel-desc">Real-time legibility ratio analysis against light and dark grounds.</p>
 
+          {/* Live Text Preview Box */}
           <div
-            className="w-full h-32 rounded-xl flex items-center justify-center p-4 mt-2 transition"
+            className="w-full h-36 rounded-2xl flex flex-col items-center justify-center p-6 transition-colors shadow-inner border border-[var(--fc-border)]"
             style={{ backgroundColor: hexInput }}
           >
             <span
-              className="text-lg font-bold transition"
+              className="text-lg font-bold tracking-tight transition-colors"
               style={{ color: Number(contrastWhite) > 4.5 ? '#ffffff' : '#000000' }}
             >
-              Readable Text Sample
+              The quick brown fox jumps
+            </span>
+            <span
+              className="text-xs font-medium opacity-85 mt-1 transition-colors"
+              style={{ color: Number(contrastWhite) > 4.5 ? '#ffffff' : '#000000' }}
+            >
+              Over the lazy dog · 14px Sample
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            {/* White Text */}
-            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex flex-col gap-1">
-              <span className="text-xs font-semibold text-slate-400">On White Text</span>
-              <div className="text-xl font-bold font-mono text-white">{contrastWhite} : 1</div>
-              <span
-                className={`text-xs font-semibold ${
-                  Number(contrastWhite) >= 4.5 ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {Number(contrastWhite) >= 4.5 ? '✓ PASS (WCAG AA)' : '✕ FAIL (< 4.5)'}
+          {/* Dual Ground Matrix */}
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            {/* White Ground */}
+            <div className="p-3.5 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                Against White
               </span>
+              <div className="text-2xl font-bold font-mono text-[var(--fc-text)]">
+                {contrastWhite} <span className="text-xs font-normal text-[var(--fc-text-dim)]">: 1</span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                    Number(contrastWhite) >= 7.0
+                      ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/25'
+                      : Number(contrastWhite) >= 4.5
+                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                      : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                  }`}
+                >
+                  {Number(contrastWhite) >= 7.0
+                    ? '✓ PASS (AAA)'
+                    : Number(contrastWhite) >= 4.5
+                    ? '✓ PASS (AA)'
+                    : '✕ FAIL (< 4.5)'}
+                </span>
+              </div>
             </div>
 
-            {/* Black Text */}
-            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex flex-col gap-1">
-              <span className="text-xs font-semibold text-slate-400">On Black Text</span>
-              <div className="text-xl font-bold font-mono text-white">{contrastBlack} : 1</div>
-              <span
-                className={`text-xs font-semibold ${
-                  Number(contrastBlack) >= 4.5 ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {Number(contrastBlack) >= 4.5 ? '✓ PASS (WCAG AA)' : '✕ FAIL (< 4.5)'}
+            {/* Black Ground */}
+            <div className="p-3.5 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
+                Against Black
               </span>
+              <div className="text-2xl font-bold font-mono text-[var(--fc-text)]">
+                {contrastBlack} <span className="text-xs font-normal text-[var(--fc-text-dim)]">: 1</span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                    Number(contrastBlack) >= 7.0
+                      ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/25'
+                      : Number(contrastBlack) >= 4.5
+                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                      : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                  }`}
+                >
+                  {Number(contrastBlack) >= 7.0
+                    ? '✓ PASS (AAA)'
+                    : Number(contrastBlack) >= 4.5
+                    ? '✓ PASS (AA)'
+                    : '✕ FAIL (< 4.5)'}
+                </span>
+              </div>
             </div>
           </div>
         </div>

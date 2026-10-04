@@ -1,0 +1,36 @@
+.button {
+  position: relative;
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  background: var(--surface-raised, rgba(255, 255, 255, 0.04));
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s ease;
+}
+
+.button:hover {
+  background: var(--surface-muted, rgba(255, 255, 255, 0.08));
+  color: var(--foreground, #f8fafc);
+  border-color: var(--border, rgba(255, 255, 255, 0.15));
+}
+
+.button[data-state="done"] {
+  color: var(--success, #10b981);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.button[data-state="error"] {
+  color: var(--danger, #ef4444);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+}

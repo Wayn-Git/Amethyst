@@ -235,14 +235,15 @@ export default function UnitConverterTool() {
       <div className="fc-tool-grid">
         {/* Left: Input & Conversion Card */}
         <div className="fc-tool-panel">
-          <div className="fc-panel-title mb-4">
-            Convert {currentCat.label}
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="fc-panel-title">Convert {currentCat.label}</h3>
+            <span className="fc-file-format-badge">64-BIT PRECISION</span>
           </div>
 
           <div className="flex flex-col gap-4">
             {/* Input Row */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-300">From</label>
+              <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">From</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -280,12 +281,12 @@ export default function UnitConverterTool() {
 
             {/* Output Row */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-300">To</label>
+              <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">To</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   readOnly
-                  className="fc-input font-mono flex-1 text-base font-semibold bg-white/5 text-[var(--accent)]"
+                  className="fc-input font-mono flex-1 text-base font-semibold bg-[var(--fc-surface-2)] text-[var(--fc-accent)]"
                   value={convertedValue !== '' ? convertedValue : '—'}
                 />
                 <select
@@ -303,11 +304,11 @@ export default function UnitConverterTool() {
             </div>
 
             {/* Formula / Result Card */}
-            <div className="p-3.5 rounded-xl bg-[var(--accent-wash)] border border-[var(--accent-soft)] text-xs flex items-center justify-between">
-              <span className="text-slate-300">
+            <div className="p-3.5 rounded-xl bg-[var(--fc-accent-wash)] border border-[var(--fc-accent-soft)] text-xs flex items-center justify-between">
+              <span className="text-[var(--fc-text-dim)]">
                 {inputValue || 0} {currentCat.units[fromUnit]?.name} =
               </span>
-              <span className="font-mono font-bold text-[var(--accent)] text-sm">
+              <span className="font-mono font-bold text-[var(--fc-accent)] text-sm">
                 {convertedValue || 0} {currentCat.units[toUnit]?.name}
               </span>
             </div>
@@ -337,13 +338,12 @@ export default function UnitConverterTool() {
             {allEquivalents.map((item) => (
               <div
                 key={item.key}
-                className={`flex items-center justify-between p-2.5 rounded-lg border text-xs transition ${
+                className={`flex items-center justify-between p-2.5 px-3 rounded-lg border text-xs cursor-pointer transition ${
                   item.key === toUnit
-                    ? 'bg-[var(--accent-wash)] border-[var(--accent-soft)] text-[var(--accent)]'
-                    : 'bg-white/5 border-white/5 text-slate-300'
+                    ? 'bg-[var(--fc-accent-wash)] border-[var(--fc-accent-soft)] text-[var(--fc-accent)] font-semibold shadow-xs'
+                    : 'bg-[var(--fc-surface-2)] border-[var(--fc-border)] text-[var(--fc-text)] hover:bg-[var(--fc-surface-hover)]'
                 }`}
                 onClick={() => setToUnit(item.key)}
-                style={{ cursor: 'pointer' }}
               >
                 <span className="font-medium truncate max-w-[180px]">{item.name}</span>
                 <span className="font-mono font-semibold text-right truncate max-w-[140px]">

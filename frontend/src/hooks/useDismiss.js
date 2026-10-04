@@ -6,10 +6,22 @@ import { useEffect } from 'react'
  * level at a time instead of the whole thing -- the content each menu holds
  * is too different to also share a `<Menu>` component, but this listener
  * pair was pure duplication. */
-export function useDismiss(ref, active, { onAway, onEscape = onAway } = {}) {
+export function useDismiss(ref, active, { onAway, onEscape = onAway, ignore } = {}) {
   useEffect(() => {
     if (!active) return undefined
-    const away = (e) => { if (ref.current && !ref.current.contains(e.target)) onAway?.() }
+    const away = (e) => {
+      if (ignore) {
+        if (typeof ignore === 'string' && e.target?.closest?.(ignore)) return
+        if (ignore.current && ignore.current.contains(e.target)) return
+        if (Array.isArray(ignore)) {
+          for (const item of ignore) {
+            if (typeof item === 'string' && e.target?.closest?.(item)) return
+            if (item?.current && item.current.contains(e.target)) return
+          }
+        }
+      }
+      if (ref.current && !ref.current.contains(e.target)) onAway?.()
+    }
     const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onEscape?.() } }
     /* `pointerdown`, not `mousedown`: a touch only produces a synthesised
        mouse event after the tap has finished, and browsers suppress it
@@ -21,5 +33,5 @@ export function useDismiss(ref, active, { onAway, onEscape = onAway } = {}) {
       document.removeEventListener('pointerdown', away, true)
       document.removeEventListener('keydown', key, true)
     }
-  }, [ref, active, onAway, onEscape])
+  }, [ref, active, onAway, onEscape, ignore])
 }

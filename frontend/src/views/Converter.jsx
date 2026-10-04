@@ -227,15 +227,11 @@ const ALL_TOOLS_CATALOG = [
 ]
 
 const PRIMARY_NAV_ITEMS = [
-  { id: 'files', label: 'File Converter', icon: 'convert' },
-  { id: 'all', label: 'All Studios Directory', icon: 'grid' },
+  { id: 'files', label: 'Universal Converter', icon: 'convert' },
+  { id: 'all', label: 'Studios Directory', icon: 'grid' },
   { id: 'pdf-tools', label: 'PDF Suite', icon: 'file' },
   { id: 'image-resizer', label: 'Image Studio', icon: 'expand' },
   { id: 'video-tools', label: 'Media Workshop', icon: 'video' },
-  { id: 'ocr', label: 'OCR Scanner', icon: 'type' },
-  { id: 'qr-code', label: 'QR Generator', icon: 'grid' },
-  { id: 'color-converter', label: 'Color Lab', icon: 'palette' },
-  { id: 'code-formatter', label: 'Code Formatter', icon: 'code' },
 ]
 
 export default function Converter() {
@@ -636,6 +632,30 @@ export default function Converter() {
               )
             })}
           </div>
+
+          <div className="fc-nav-quick-actions">
+            <select
+              className="fc-studio-quick-select"
+              value={activeView}
+              onChange={(e) => setActiveView(e.target.value)}
+              aria-label="Quick jump to studio"
+            >
+              <option value="files">Universal Converter</option>
+              <option value="all">All Studios Directory</option>
+              <optgroup label="Dedicated Studios">
+                <option value="pdf-tools">PDF Tools Hub</option>
+                <option value="image-resizer">Image Resizer & Studio</option>
+                <option value="video-tools">Video & Audio Workshop</option>
+                <option value="ocr">OCR Document Scanner</option>
+                <option value="qr-code">QR Vector Generator</option>
+                <option value="unit-converter">Unit Converter</option>
+                <option value="timezone">Time Zones & World Clock</option>
+                <option value="color-converter">Color & Contrast Lab</option>
+                <option value="code-formatter">Code Formatter</option>
+                <option value="text-tools">Text & String Tools</option>
+              </optgroup>
+            </select>
+          </div>
         </div>
 
         {/* 3. Breadcrumb Bar when in a dedicated sub-view */}
@@ -729,20 +749,20 @@ export default function Converter() {
                       {isDragging ? 'Release files to stage in converter' : 'Drop files here or click to browse'}
                     </h2>
                     <p className="fc-drop-subtext">
-                      Instant on-device conversion. Multi-file batch processing supported with zero file size limits.
+                      Instant on-device conversion · Multi-file batch processing · Zero file size limits
                     </p>
                   </div>
 
                   <div className="fc-drop-format-tags">
-                    <span className="fc-format-tag-pill">Images: JPG, PNG, WebP, AVIF, SVG, GIF</span>
-                    <span className="fc-format-tag-pill">Documents: PDF, Word DOCX, Excel XLSX</span>
-                    <span className="fc-format-tag-pill">Media: MP4, WebM, MKV, MP3, WAV</span>
+                    {['PDF', 'PNG', 'JPG', 'WEBP', 'AVIF', 'DOCX', 'XLSX', 'MP4', 'MP3', 'WAV', 'ZIP'].map((fmt) => (
+                      <span key={fmt} className="fc-format-tag-pill">.{fmt}</span>
+                    ))}
                   </div>
 
                   <div className="fc-drop-action-row">
                     <button
                       type="button"
-                      className="fc-btn fc-btn-primary"
+                      className="fc-btn fc-btn-primary fc-btn-pill"
                       onClick={(e) => {
                         e.stopPropagation()
                         fileInputRef.current?.click()
@@ -750,8 +770,11 @@ export default function Converter() {
                     >
                       <Icon name="folder-plus" size={15} />
                       <span>Select Files</span>
+                      <div className="fc-btn-icon-bubble">
+                        <Icon name="arrow-right" size={13} />
+                      </div>
                     </button>
-                    <span className="fc-drop-paste-hint">or press Ctrl+V to paste from clipboard</span>
+                    <span className="fc-drop-paste-hint">or press <kbd>Ctrl+V</kbd> to paste</span>
                   </div>
                 </div>
               </div>
@@ -1140,8 +1163,8 @@ export default function Converter() {
               </div>
             )}
 
-            {/* Gapless Bento Tool Directory (Shown in 'all' view or as catalogue) */}
-            {activeView === 'all' && (
+            {/* Gapless Bento Tool Directory (Always visible on workbench and directory views) */}
+            {(activeView === 'all' || activeView === 'files') && (
               <div className="fc-tools-section">
                 <div className="fc-section-title-row">
                   <h2 className="fc-section-title">Specialized Tool Studios</h2>
@@ -1297,7 +1320,7 @@ export default function Converter() {
 
                   {previewItem.preview_text && (
                     <div className="w-full flex flex-col gap-2">
-                      <div className="flex items-center justify-between text-xs text-slate-400">
+                      <div className="flex items-center justify-between text-xs text-[var(--fc-text-faint)]">
                         <span>Extracted Content ({previewItem.preview_text.length} characters)</span>
                         <button
                           type="button"
@@ -1319,7 +1342,7 @@ export default function Converter() {
                     !previewItem.preview_text && (
                       <div className="flex flex-col items-center gap-3 py-10 text-center">
                         <Icon name="file" size={42} className="text-[var(--fc-accent)]" />
-                        <p className="text-sm text-slate-300">
+                        <p className="text-sm text-[var(--fc-text-dim)]">
                           Preview not available inline for .{previewItem.ext} files.
                         </p>
                         <a

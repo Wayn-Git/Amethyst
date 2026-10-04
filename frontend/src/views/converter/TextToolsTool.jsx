@@ -117,6 +117,7 @@ export default function TextToolsTool() {
   return (
     <div className="fc-tool-workspace">
       {/* Real-time Statistics Bar */}
+      {/* Live Text Telemetry */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mb-4">
         {[
           { label: 'Words', val: stats.words },
@@ -126,16 +127,16 @@ export default function TextToolsTool() {
           { label: 'Lines', val: stats.lines },
           { label: 'Reading Time', val: `~${stats.readingTimeMins} min` },
         ].map((s) => (
-          <div key={s.label} className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-center">
-            <div className="text-lg font-bold font-mono text-white">{s.val}</div>
-            <div className="text-[11px] text-slate-400 uppercase tracking-wider">{s.label}</div>
+          <div key={s.label} className="p-2.5 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] text-center shadow-xs">
+            <div className="text-lg font-bold font-mono text-[var(--fc-text)]">{s.val}</div>
+            <div className="text-[10.5px] font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Case Converters Row */}
-      <div className="flex flex-wrap items-center gap-1.5 p-3 rounded-xl bg-slate-900/60 border border-slate-800 mb-4">
-        <span className="text-xs font-semibold text-slate-400 mr-2">Case:</span>
+      <div className="flex flex-wrap items-center gap-1.5 p-3 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] shadow-xs mb-4">
+        <span className="text-xs font-semibold text-[var(--fc-text-dim)] mr-2">Case:</span>
         {[
           { id: 'upper', label: 'UPPERCASE' },
           { id: 'lower', label: 'lowercase' },
@@ -158,7 +159,7 @@ export default function TextToolsTool() {
       </div>
 
       {/* Find & Replace Row */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] shadow-xs mb-4">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           <input
             type="text"
@@ -174,12 +175,12 @@ export default function TextToolsTool() {
             value={replaceText}
             onChange={(e) => setReplaceText(e.target.value)}
           />
-          <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-xs text-[var(--fc-text-dim)] cursor-pointer select-none">
             <input
               type="checkbox"
               checked={matchCase}
               onChange={(e) => setMatchCase(e.target.checked)}
-              className="rounded bg-slate-800 border-slate-700"
+              className="rounded bg-[var(--fc-surface-2)] border-[var(--fc-border)]"
             />
             <span>Match case</span>
           </label>
@@ -224,7 +225,7 @@ export default function TextToolsTool() {
       {/* Editor Box */}
       <div className="relative">
         <textarea
-          className="fc-textarea w-full h-80 p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-sm leading-relaxed outline-none focus:border-[var(--accent)] transition resize-y"
+          className="fc-textarea w-full h-80 p-4 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] text-[var(--fc-text)] font-mono text-sm leading-relaxed outline-none focus:border-[var(--fc-accent)] transition resize-y shadow-sm"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste or write text to transform…"

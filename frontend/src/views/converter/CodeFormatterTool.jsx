@@ -156,10 +156,10 @@ export default function CodeFormatterTool() {
       </div>
 
       {/* Editor Controls Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800 mb-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] shadow-sm mb-4">
+        <div className="flex items-center gap-3">
           {lang === 'json' && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="flex items-center gap-1.5 text-xs text-[var(--fc-text-dim)]">
               <span>Indentation:</span>
               <select
                 className="fc-select text-xs h-7 py-0"
@@ -173,7 +173,7 @@ export default function CodeFormatterTool() {
             </div>
           )}
 
-          <div className="text-xs text-slate-400 font-mono">
+          <div className="text-xs text-[var(--fc-text-dim)] font-mono">
             <span>{lineCount} lines</span>
             <span className="mx-1.5">·</span>
             <span>{charCount} chars</span>
@@ -240,7 +240,7 @@ export default function CodeFormatterTool() {
       {/* Code Textarea */}
       <textarea
         rows={18}
-        className="fc-textarea font-mono text-xs leading-relaxed w-full bg-black/40 border border-slate-800"
+        className="fc-textarea font-mono text-xs leading-relaxed w-full bg-[var(--fc-surface)] border border-[var(--fc-border)] shadow-sm"
         value={code}
         onChange={(e) => {
           setCode(e.target.value)

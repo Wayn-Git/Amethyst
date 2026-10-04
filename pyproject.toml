@@ -26,6 +26,7 @@ dependencies = [
     # characters" is the difference between a feature people use and one they
     # do not. See backend/sync/devices.py, pairing_payload.
     "segno>=1.6",
+    "composio>=0.22.0",
 ]
 
 [project.optional-dependencies]

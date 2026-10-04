@@ -1180,6 +1180,77 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
   )
 }
 
+/* Composio Cloud Connector Row with "Powered by Composio" pill */
+function ComposioPluginRow({ item, isConfigured, busy, onToggle, index = 0 }) {
+  const isEnabled = Boolean(item.enabled)
+  return (
+    <motion.div
+      layout="position"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{
+        type: 'spring',
+        stiffness: 450,
+        damping: 30,
+        delay: Math.min(index * 0.02, 0.16),
+      }}
+      className={`plugin-row${isEnabled ? ' is-running' : ''}`}
+    >
+      <div className="plugin-row-icon">
+        <ServiceIcon name={item.slug} size={38} />
+      </div>
+
+      <div className="plugin-row-info">
+        <div className="plugin-row-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="plugin-row-title">{item.name}</span>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 500,
+              padding: '1px 6px',
+              borderRadius: '999px',
+              background: 'rgba(168, 85, 247, 0.12)',
+              color: 'var(--accent, #a855f7)',
+              border: '1px solid rgba(168, 85, 247, 0.25)',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            Powered by Composio
+          </span>
+          {isEnabled && (
+            <span className="conn-status conn-status--live">
+              <span className="status-dot live" />
+              Active
+            </span>
+          )}
+        </div>
+        <p className="plugin-row-desc">{item.description}</p>
+      </div>
+
+      <div className="plugin-row-actions" onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isEnabled}
+            className={`plugin-toggle-switch ${isEnabled ? 'is-on' : ''}`}
+            disabled={Boolean(busy)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle && onToggle(item, !isEnabled)
+            }}
+            title={isEnabled ? `Disable ${item.name}` : `Enable ${item.name}`}
+          >
+            <span className="plugin-toggle-thumb" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 /* Clean Installed Dock Chip with hover magnification and tooltip */
 function InstalledDockChip({ item, index, onOpen }) {
   const [hovered, setHovered] = useState(false)
@@ -1433,6 +1504,8 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
   const [live, setLive] = useState({})
   const [auths, setAuths] = useState([])
   const [tools, setTools] = useState([])
+  const [composioStatus, setComposioStatus] = useState(null)
+  const [composioToolkits, setComposioToolkits] = useState([])
   const [busy, setBusy] = useState({})
   const [open, setOpen] = useState(null)
   const [pendingConnect, setPendingConnect] = useState(null)
@@ -1490,17 +1563,21 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   const refresh = useCallback(async () => {
     try {
-      const [srv, cat, auth, capabilities, allTools] = await Promise.all([
+      const [srv, cat, auth, capabilities, allTools, compStatus, compToolkits] = await Promise.all([
         api.mcpServers(),
         api.mcpCatalogue(),
         api.mcpAuthorizations(),
         api.capabilities(),
         api.tools().catch(() => []),
+        api.composioStatus().catch(() => null),
+        api.composioToolkits().catch(() => ({ toolkits: [], enabled: [] })),
       ])
       setServers(srv)
       setCatalogue(cat)
       setAuths(auth)
       setTools(allTools)
+      if (compStatus) setComposioStatus(compStatus)
+      if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
       setLive((prev) => {
         const next = { ...prev }
         for (const c of (capabilities.connectors ?? [])) {
@@ -1608,6 +1685,35 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       }
     },
     [caps.connectors, setCapEnabled, refresh, toast]
+  )
+
+  /* Composio toolkit toggle handler */
+  const handleComposioToggle = useCallback(
+    async (item, nextEnabled) => {
+      if (!composioStatus?.configured) {
+        toast('Configure your Composio API key in Settings > General to enable cloud connectors', 'amber')
+        return
+      }
+      const slug = item.slug || item
+      const name = item.name || slug
+      setBusy((b) => ({ ...b, [`composio:${slug}`]: true }))
+      try {
+        await api.toggleComposioToolkit(slug, nextEnabled)
+        toast(`${name} ${nextEnabled ? 'enabled' : 'disabled'} in Composio`, 'ok')
+        const [compStatus, compToolkits] = await Promise.all([
+          api.composioStatus().catch(() => null),
+          api.composioToolkits().catch(() => ({ toolkits: [], enabled: [] })),
+        ])
+        if (compStatus) setComposioStatus(compStatus)
+        if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
+        await refresh()
+      } catch (err) {
+        toast(err.message || 'Failed to toggle Composio toolkit', 'bad')
+      } finally {
+        setBusy((b) => ({ ...b, [`composio:${slug}`]: false }))
+      }
+    },
+    [composioStatus, refresh, toast]
   )
 
   /* Main Action Handler: 100% real operations. */
@@ -1828,6 +1934,29 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
     return [toolsList, categories]
   }, [servers, catalogue, configuredSet, q, filter])
+
+  const filteredComposioToolkits = useMemo(() => {
+    if (!composioToolkits || composioToolkits.length === 0) return []
+    return composioToolkits.filter((item) => {
+      if (q) {
+        const match =
+          (item.name || '').toLowerCase().includes(q) ||
+          (item.description || '').toLowerCase().includes(q) ||
+          (item.slug || '').toLowerCase().includes(q) ||
+          (item.category || '').toLowerCase().includes(q)
+        if (!match) return false
+      }
+      if (filter === 'all') return true
+      if (filter === 'installed') return Boolean(item.enabled)
+      if (filter === 'agent-tools') return false
+      if (filter === 'connectors') return true
+      if (filter === 'Popular') return ['slack', 'github', 'gmail', 'notion'].includes(item.slug)
+      if (filter === 'Productivity') return ['linear', 'notion', 'googlecalendar', 'asana'].includes(item.slug)
+      if (filter === 'Developer Tools') return ['github', 'jira'].includes(item.slug)
+      if (filter === 'Communication & Media' || filter === 'Communication') return ['slack', 'gmail', 'spotify'].includes(item.slug)
+      return item.category === filter
+    })
+  }, [composioToolkits, q, filter])
 
   // Installed connectors list for the top chips row
   const installedList = useMemo(() => {
@@ -2062,7 +2191,48 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                     </section>
                   )}
 
-                  {/* 2. USER CONNECTORS & INTEGRATIONS SECTION (Grouped) */}
+                  {/* 2. COMPOSIO CLOUD CONNECTORS SECTION */}
+                  {filteredComposioToolkits.length > 0 && (
+                    <section data-enter className="plugin-section">
+                      <div className="plugin-section-head">
+                        <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <h2 className="plugin-section-title">Cloud Connectors</h2>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              padding: '2px 8px',
+                              borderRadius: '999px',
+                              background: 'rgba(168, 85, 247, 0.12)',
+                              color: 'var(--accent, #a855f7)',
+                              border: '1px solid rgba(168, 85, 247, 0.25)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              letterSpacing: '0.02em',
+                            }}
+                          >
+                            Powered by Composio
+                          </span>
+                          <span className="plugin-section-badge">{filteredComposioToolkits.length}</span>
+                        </div>
+                      </div>
+
+                      <div className="plugin-grid">
+                        {filteredComposioToolkits.map((item, idx) => (
+                          <ComposioPluginRow
+                            key={item.slug}
+                            index={idx}
+                            item={item}
+                            isConfigured={Boolean(composioStatus?.configured)}
+                            busy={busy[`composio:${item.slug}`]}
+                            onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* 3. USER CONNECTORS & INTEGRATIONS SECTION (Grouped) */}
                   {Object.entries(userConnectors).map(([catName, items]) => {
                     if (items.length === 0) return null
 
@@ -2135,7 +2305,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             )}
 
             {/* Empty State */}
-            {loaded && agentTools.length === 0 && Object.values(userConnectors).every(arr => arr.length === 0) && (
+            {loaded && agentTools.length === 0 && filteredComposioToolkits.length === 0 && Object.values(userConnectors).every(arr => arr.length === 0) && (
               <motion.div
                 className="dir-empty"
                 initial={{ opacity: 0, scale: 0.95 }}

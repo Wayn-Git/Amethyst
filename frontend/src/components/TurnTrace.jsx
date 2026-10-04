@@ -4,6 +4,11 @@ import Icon from './Icon.jsx'
 import { prettyJSON } from '../api.js'
 import ParallelJobCard from './ParallelJobCard.jsx'
 import SubagentCard from './SubagentCard.jsx'
+import { JsonViewer } from './arc/json-viewer/json-viewer'
+import { CodeBlock } from './arc/code-block/code-block'
+import { BlurredText } from './arc/streaming-text/blurred-text'
+import { AgentRun } from './arc/agent-run/agent-run'
+import ComposioConnectCard, { extractComposioAuth } from './ComposioConnectCard.jsx'
 
 /* What the agent did, represented as the Worked pill and expandable tool execution tree.
    Matches the user's reference screenshots with high visual fidelity:
@@ -230,8 +235,83 @@ function durationLabel(ms) {
   return seconds < 1 ? `${Math.max(1, Math.round(Number(ms)))}ms` : `${Math.round(seconds)}s`
 }
 
+function ItemPayload({ item, runName }) {
+  const content = item.content !== undefined && item.content !== null ? item.content : item.arguments
+  const args = typeof item.arguments === 'string' ? safeArgs(item.arguments) : (item.arguments ?? {})
+
+  // 1. Shell commands -> CodeBlock
+  if (runName === 'run_shell_command' || runName === 'bash') {
+    const cmd = args.command || args.CommandLine || ''
+    const output = typeof item.content === 'string' ? item.content : ''
+    return (
+      <div className="trace-code-section">
+        {cmd && <CodeBlock code={cmd} language="bash" filename="Command" maxLines={6} />}
+        {output && <CodeBlock code={output} language="text" filename="Output" maxLines={14} />}
+      </div>
+    )
+  }
+
+  // 2. View/Edit/Write file -> CodeBlock
+  if (runName === 'view_file' || runName === 'edit_file' || runName === 'write_file' || runName === 'open_file') {
+    const filePath = args.path || args.file_path || args.AbsolutePath || args.TargetFile || ''
+    const filename = filePath.split('/').pop() || 'file'
+    const ext = filename.split('.').pop() || 'text'
+    const fileContent = typeof item.content === 'string' ? item.content : (args.content || args.ReplacementContent || '')
+    if (fileContent) {
+      return <CodeBlock code={fileContent} language={ext} filename={filename} maxLines={18} />
+    }
+  }
+
+  // 3. Object or JSON parseable -> JsonViewer
+  let jsonObj = null
+  if (typeof content === 'object' && content !== null) {
+    jsonObj = content
+  } else if (typeof content === 'string') {
+    const trimmed = content.trim()
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        jsonObj = JSON.parse(trimmed)
+      } catch {
+        jsonObj = null
+      }
+    }
+  }
+
+  const auth = extractComposioAuth(jsonObj || content, runName)
+  if (auth) {
+    return (
+      <div>
+        <ComposioConnectCard url={auth.url} app={auth.app} />
+        {jsonObj && (
+          <JsonViewer
+            data={jsonObj}
+            rootName={runName || 'payload'}
+            defaultExpandDepth={1}
+            maxHeight={200}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (jsonObj) {
+    return (
+      <JsonViewer
+        data={jsonObj}
+        rootName={runName || 'payload'}
+        defaultExpandDepth={2}
+        maxHeight={280}
+      />
+    )
+  }
+
+  // 4. Default clean text
+  const textStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2)
+  return <pre className="trace-json">{textStr}</pre>
+}
+
 function Row({ run, live, isLatest }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(Boolean(live))
   const action = describe(run.name)
   const count = run.items.length
   const only = count === 1 ? run.items[0] : null
@@ -249,7 +329,7 @@ function Row({ run, live, isLatest }) {
   }
 
   return (
-    <div className={`trace-item${run.isError ? ' is-error' : ''}${open ? ' is-open' : ''}`}>
+    <div className={`trace-item${run.isError ? ' is-error' : ''}${open ? ' is-open' : ''}${live ? ' is-live' : ''}`}>
       <button
         type="button"
         className="trace-item-line"
@@ -276,11 +356,7 @@ function Row({ run, live, isLatest }) {
             {isLatest && <span className="trace-latest-badge">Latest</span>}
             {run.items.map((item, i) => (
               <div className="trace-call-output" key={item.id ?? i}>
-                {item.content !== undefined && item.content !== null ? (
-                  <pre className="trace-json">{formatOutput(item.content)}</pre>
-                ) : (
-                  <pre className="trace-json">{formatOutput(item.arguments ?? {})}</pre>
-                )}
+                <ItemPayload item={item} runName={run.name} />
               </div>
             ))}
           </div>
@@ -307,7 +383,7 @@ function Thought({ text }) {
       {open && (
         <div className="trace-item-fold">
           <div className="trace-inset-card">
-            <p className="trace-thought-text">{text}</p>
+            <BlurredText text={text} className="trace-thought-text" />
           </div>
         </div>
       )}
@@ -395,120 +471,28 @@ function ArtifactCard({ call, onOpen }) {
 }
 
 export default function TurnTrace({ events, live, reasoning, running, ms, onOpenArtifact }) {
-  const rows = useMemo(() => group(events), [events])
-  const [manual, setManual] = useState(null)
-  const open = manual === null ? false : manual
-
-  // Compute stats for "Worked" pill: e.g. "read 1 file · searched 3 times · 12s"
-  const stats = useMemo(() => {
-    let filesRead = 0
-    let searches = 0
-    let commands = 0
-    let edits = 0
-
-    for (const r of rows) {
-      if (r.kind === 'thought') continue
-      const n = r.items.length
-      const name = r.name || ''
-      if (name.includes('view') || name.includes('read') || name.includes('open_file')) {
-        filesRead += n
-      } else if (name.includes('search') || name.includes('grep') || name.includes('find')) {
-        searches += n
-      } else if (name.includes('shell') || name.includes('term') || name.includes('exec') || name.includes('bash')) {
-        commands += n
-      } else if (name.includes('edit') || name.includes('write')) {
-        edits += n
-      }
-    }
-
-    const parts = []
-    if (filesRead > 0) parts.push(`read ${filesRead} file${filesRead > 1 ? 's' : ''}`)
-    if (searches > 0) parts.push(`searched ${searches} time${searches > 1 ? 's' : ''}`)
-    if (commands > 0) parts.push(`ran ${commands} command${commands > 1 ? 's' : ''}`)
-    if (edits > 0) parts.push(`edited ${edits} file${edits > 1 ? 's' : ''}`)
-
-    if (parts.length === 0) {
-      const totalTools = rows.reduce((acc, r) => acc + (r.items?.length || 0), 0)
-      if (totalTools > 0) parts.push(`${totalTools} tool${totalTools > 1 ? 's' : ''}`)
-    }
-
-    const durationSec = ms ? Math.max(1, Math.round(ms / 1000)) : null
-    if (durationSec) parts.push(`${durationSec}s`)
-
-    return parts.join(' · ')
-  }, [rows, ms])
-
   const documents = (events || [])
     .filter((e) => e.type === 'tool' && String((e.call || e).name).split('__mcp__')[0] === 'create_artifact')
     .map((e) => e.call || e)
 
-  const hasTools = rows.some((r) => r.kind !== 'thought' && (r.items?.length > 0 || r.name))
-  if (!hasTools && !live && documents.length === 0) return null
+  const hasTools = (events || []).some((e) => e.type === 'tool' || e.call)
+  if (!hasTools && !running && !live && documents.length === 0) {
+    return null
+  }
 
   return (
-    <div className={`trace-worked-panel${running ? ' is-running' : ''}${open ? ' is-open' : ''}`}>
+    <div className={`trace-worked-panel${running ? ' is-running' : ''}`}>
       {documents.map((call, i) => (
         <ArtifactCard key={`doc${i}`} call={call} onOpen={onOpenArtifact} />
       ))}
-
-      {/* The "Worked" Top Pill (Screenshot 1 & 2) */}
-      <button
-        type="button"
-        className={`trace-worked-pill${open ? ' is-open' : ''}`}
-        onClick={() => setManual((prev) => (prev === null ? !open : !prev))}
-        aria-expanded={open}
-      >
-        <span className={`trace-worked-dot${running ? ' is-running' : ''}`} aria-hidden="true" />
-        <span className="trace-worked-title">{running ? 'Working' : 'Worked'}</span>
-        {stats && (
-          <>
-            <span className="trace-worked-sep">·</span>
-            <span className="trace-worked-stats">{stats}</span>
-          </>
-        )}
-        <Icon name="caret-down" size={11} className={`trace-worked-caret${open ? ' is-open' : ''}`} />
-      </button>
-
-      {/* The Curly Tree Container with Left Bracket */}
-      {open && (
-        <div className="trace-tree-container">
-          <svg className="trace-tree-bracket-svg" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 16 100">
-            <path
-              d="M 12,0 C 12,8 3,12 3,24 L 3,42 C 3,48 0,50 0,50 C 0,50 3,52 3,58 L 3,76 C 3,88 12,92 12,100"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-          <div className="trace-tree-items">
-            {rows.map((row, i) => (
-              row.kind === 'thought' ? (
-                <Thought key={i} text={row.text} />
-              ) : (
-                <Row
-                  key={i}
-                  run={row}
-                  live={live}
-                  isLatest={i === rows.length - 1}
-                />
-              )
-            ))}
-            {reasoning && (
-              <div className="trace-item">
-                <span className="trace-item-line trace-item-line--static">
-                  <span className="trace-tool-badge">
-                    <Icon name="brain" size={12} className="trace-tool-icon" />
-                    <span className="trace-tool-name">Thinking</span>
-                  </span>
-                  <span className="ellipsis trace-live"><i /><i /><i /></span>
-                </span>
-              </div>
-            )}
-            {live && <Row run={{ kind: 'run', name: live.name, items: [live], isError: false }} live isLatest />}
-          </div>
-        </div>
-      )}
+      <AgentRun
+        events={events}
+        live={live}
+        reasoning={reasoning}
+        running={running}
+        ms={ms}
+        onOpenArtifact={onOpenArtifact}
+      />
     </div>
   )
 }

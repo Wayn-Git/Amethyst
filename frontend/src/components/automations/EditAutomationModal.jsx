@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
 import Skeleton from '../Skeleton.jsx'
 import Button from '../ui/Button.jsx'
 import Field from '../ui/Field.jsx'
+import { modalOverlayVariants, modalContentVariants } from '../../motion.js'
 import { api } from '../../api.js'
 import { INTERVAL_PRESETS, WEEKDAYS, NOTIFICATION_OPTIONS, ActionsEditor } from './NewAutomationModal.jsx'
 
@@ -131,8 +133,19 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
   const unavailable = automation.unavailable_actions || []
 
   return (
-    <div className="auto-modal-overlay" onClick={onClose}>
-      <div className="auto-modal auto-modal--wide" onClick={(e) => e.stopPropagation()} data-enter>
+    <motion.div
+      className="auto-modal-overlay"
+      variants={modalOverlayVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      onClick={onClose}
+    >
+      <motion.div
+        className="auto-modal auto-modal--wide"
+        variants={modalContentVariants}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="auto-modal-head">
           <div className="auto-modal-tabs">
             <button
@@ -384,7 +397,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
