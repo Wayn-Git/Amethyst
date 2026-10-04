@@ -216,6 +216,8 @@ tests/         75 pytest files — permissions, sandbox, retrieval, streaming
 PRs welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first — it documents the
 conventions (one worker, secrets rule, comment philosophy) the codebase holds.
 
+**thanks to salko for claude**
+
 ## License
 
 [MIT](LICENSE)
