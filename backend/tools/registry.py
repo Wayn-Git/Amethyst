@@ -279,12 +279,41 @@ class ToolRegistry:
         """
         hidden = hidden_servers or set()
         ready = priority_servers or set()
-        offered = [
-            t
-            for t in self._tools.values()
-            if not (t.server_name and t.server_name in hidden)
-            and not (read_only and t.risk is not RiskLevel.LOW)
-        ]
+
+        # Resolve active Composio connections and local overrides
+        composio_conns: dict[str, Any] = {}
+        try:
+            from backend.mcp.composio_service import composio_service
+
+            if composio_service.is_configured():
+                composio_conns = composio_service.get_connections()
+        except Exception:
+            pass
+
+        try:
+            from backend.mcp.provider_ownership import is_provider_overridden_by_local
+        except Exception:
+            def is_provider_overridden_by_local(_tk: str) -> bool:
+                return False
+
+        offered = []
+        for t in self._tools.values():
+            if t.server_name and t.server_name in hidden:
+                continue
+            if read_only and t.risk is not RiskLevel.LOW:
+                continue
+
+            # Cloud Connectors (Composio) filtering: withhold if overridden by active
+            # local server or if account has not been connected.
+            tk = extract_composio_toolkit(t)
+            if tk:
+                if is_provider_overridden_by_local(tk):
+                    continue
+                if tk not in composio_conns:
+                    continue
+
+            offered.append(t)
+
         if ready:
             offered.sort(
                 key=lambda t: 0 if not t.server_name else (1 if t.server_name in ready else 2)
@@ -355,6 +384,30 @@ class ToolRegistry:
             from backend.mcp.guidance import sign_in_instruction
 
             return ToolResult.error(sign_in_instruction(tool.server_name))
+
+        # Check Composio toolkit authentication and local overrides
+        tk = extract_composio_toolkit(tool)
+        if tk:
+            from backend.mcp.guidance import composio_sign_in_instruction
+
+            try:
+                from backend.mcp.provider_ownership import is_provider_overridden_by_local
+
+                if is_provider_overridden_by_local(tk):
+                    return ToolResult.error(
+                        f"'composio:{tk}' is disabled because a local MCP server has active ownership of this provider."
+                        " Use the local connector instead. Do not retry this tool."
+                    )
+            except Exception:
+                pass
+
+            try:
+                from backend.mcp.composio_service import composio_service
+
+                if not composio_service.is_configured() or tk not in composio_service.get_connections():
+                    return ToolResult.error(composio_sign_in_instruction(tk))
+            except Exception:
+                return ToolResult.error(composio_sign_in_instruction(tk))
 
         # The gate gets its own `try`, and that is the whole point: an
         # exception raised *here* used to leave the dispatch function entirely,
@@ -506,6 +559,20 @@ def mcp_tool_key(tool_name: str, server_name: str) -> str:
     """
     safe_server = "".join(c if (c.isalnum() or c == "_") else f"_{ord(c):02x}" for c in server_name)
     return f"{tool_name}{MCP_DELIMITER}{safe_server}"
+
+
+def extract_composio_toolkit(tool_or_name: Tool | str) -> str | None:
+    """Extract Composio toolkit slug from a Tool object or tool name."""
+    if isinstance(tool_or_name, str):
+        name = tool_or_name
+        server_name = None
+    else:
+        name = tool_or_name.name
+        server_name = tool_or_name.server_name
+    if server_name != "composio" and not name.endswith(f"{MCP_DELIMITER}composio"):
+        return None
+    bare = name.split(MCP_DELIMITER)[0]
+    return bare.split("_")[0].lower() if "_" in bare else "app"
 
 
 def build_default_registry(

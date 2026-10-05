@@ -135,6 +135,21 @@ def ready_connectors_block() -> str | None:
         lines = []
         slow_lines = []
         for name, count in ready.items():
+            if name == "composio":
+                # Decompose Composio into individually active connected toolkits
+                try:
+                    from backend.mcp.composio_service import composio_service
+                    from backend.mcp.provider_ownership import is_provider_overridden_by_local
+
+                    conns = composio_service.get_connections() if composio_service.is_configured() else {}
+                    for tk in sorted(conns.keys()):
+                        if not is_provider_overridden_by_local(tk):
+                            purpose = _COMPOSIO_PURPOSES.get(tk, "cloud app integration")
+                            lines.append(f"  - composio:{tk} — {purpose}")
+                except Exception as exc:
+                    log.debug("could not list active composio toolkits: %s", exc)
+                continue
+
             config = configured.get(name)
             purpose = (config.description if config else None) or _PURPOSES.get(name) or ""
             suffix = f" — {purpose}" if purpose else ""
@@ -170,6 +185,32 @@ def ready_connectors_block() -> str | None:
 
     _connectors_cache = (now + CACHE_TTL_SECONDS, block)
     return block
+
+
+_COMPOSIO_PURPOSES: dict[str, str] = {
+    "slack": "send messages, manage channels, and search Slack",
+    "linear": "track issues, sprints, and project milestones",
+    "notion": "search workspace, read pages, and update databases",
+    "github": "repositories, issues, pull requests, and actions",
+    "gmail": "send emails, search inbox, and manage threads",
+    "googlecalendar": "schedule events and check availability",
+    "jira": "create and update issues in Atlassian Jira",
+    "asana": "manage tasks, projects, and team workflows",
+    "spotify": "control playback, search music, and manage playlists",
+}
+
+
+def composio_sign_in_instruction(toolkit: str) -> str:
+    """Told to the model when it names a tool of a Composio toolkit with no connected account."""
+    name = toolkit.lower()
+    return (
+        f"'composio:{name}' is available but no account is connected to it, so none of its"
+        " tools can work yet. This is not an outage and not a bug: it is a setup step"
+        " only the user can complete."
+        f" Tell them to open {CONNECTORS_SCREEN}, find '{name.capitalize()}' under Cloud Connectors and press"
+        " Connect. Do not retry this tool. Finish everything else the request needs and"
+        " say plainly which part is waiting on that connection."
+    )
 
 
 def sign_in_instruction(server_name: str) -> str:
