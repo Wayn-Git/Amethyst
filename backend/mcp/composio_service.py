@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import uuid
 from typing import Any
 
@@ -27,6 +28,7 @@ class ComposioService:
 
     def __init__(self) -> None:
         self._cached_client: Any = None
+        self._connections_cache: tuple[float, dict[str, Any]] | None = None
 
     def get_api_key(self) -> str | None:
         """Retrieve the configured Composio API key from environment or keychain."""
@@ -42,6 +44,7 @@ class ComposioService:
             return False
         secrets.set_secret(SECRET_KEY_REF, cleaned)
         self._cached_client = None
+        self._connections_cache = None
         conn = get_connection()
         conn.execute("DELETE FROM composio_state WHERE id = 1")
         conn.commit()
@@ -70,6 +73,7 @@ class ComposioService:
         """Remove the Composio API key and clear local session state."""
         secrets.delete_secret(SECRET_KEY_REF)
         self._cached_client = None
+        self._connections_cache = None
         conn = get_connection()
         conn.execute("DELETE FROM composio_state WHERE id = 1")
         conn.commit()
@@ -228,6 +232,57 @@ class ComposioService:
                 "enabled_toolkits": self.get_enabled_toolkits(),
                 "error": str(exc),
             }
+
+
+    def get_connections(self, force: bool = False) -> dict[str, dict[str, Any]]:
+        """Return dict of {toolkit_slug: connection_details} for ACTIVE accounts only."""
+        if not self.is_configured():
+            return {}
+        now = time.monotonic()
+        if not force and self._connections_cache is not None and now < self._connections_cache[0]:
+            return self._connections_cache[1]
+        try:
+            client = self._get_client()
+            user_id = self._get_stable_user_id()
+            try:
+                accounts = client.connected_accounts.list(user_ids=[user_id], statuses=["ACTIVE"])
+            except Exception as exc:
+                log.debug("User-scoped connection list failed, querying project connections: %s", exc)
+                accounts = client.connected_accounts.list(statuses=["ACTIVE"])
+            active: dict[str, dict[str, Any]] = {}
+            for item in getattr(accounts, "items", []):
+                toolkit = getattr(item, "toolkit", None)
+                slug = getattr(toolkit, "slug", None) if toolkit else None
+                if not slug and isinstance(toolkit, str):
+                    slug = toolkit
+                status = getattr(item, "status", "")
+                if slug and (status == "ACTIVE" or not status):
+                    active[str(slug).lower()] = {
+                        "id": getattr(item, "id", ""),
+                        "status": status or "ACTIVE",
+                        "created_at": getattr(item, "created_at", None),
+                    }
+            self._connections_cache = (now + 5.0, active)
+            return active
+        except Exception as exc:
+            log.warning("Failed to fetch Composio connected accounts: %s", exc)
+            return self._connections_cache[1] if self._connections_cache else {}
+
+    def initiate_connection(self, toolkit: str) -> str:
+        """Initiate hosted OAuth authorization with Composio and return redirect URL."""
+        if not self.is_configured():
+            raise RuntimeError("Composio API key is not configured.")
+        client = self._get_client()
+        user_id = self._get_stable_user_id()
+        req = client.toolkits.authorize(user_id=user_id, toolkit=toolkit.lower())
+        redirect_url = getattr(req, "redirect_url", None)
+        if not redirect_url and hasattr(req, "connection_data"):
+            val = getattr(req.connection_data, "val", None)
+            if val:
+                redirect_url = getattr(val, "redirect_url", None)
+        if not redirect_url:
+            raise RuntimeError(f"Could not retrieve redirect authorization URL for '{toolkit}'.")
+        return str(redirect_url)
 
 
 composio_service = ComposioService()

@@ -96,3 +96,93 @@ def test_composio_service_update_toolkits():
         assert success is True
         mock_session.update.assert_called_once_with(toolkits={"enable": ["slack", "linear", "notion"]})
         assert service.get_enabled_toolkits() == ["slack", "linear", "notion"]
+
+
+def test_get_connections_empty_when_unconfigured(monkeypatch):
+    service = ComposioService()
+    monkeypatch.setattr(service, "is_configured", lambda: False)
+    assert service.get_connections() == {}
+
+
+def test_get_connections_returns_active_accounts(monkeypatch):
+    service = ComposioService()
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+
+    class DummyItem:
+        status = "ACTIVE"
+        id = "ca_123"
+        created_at = "2026-10-05T00:00:00Z"
+
+        class toolkit:
+            slug = "slack"
+
+    class DummyResp:
+        items = [DummyItem()]
+
+    class DummyClient:
+        class connected_accounts:
+            @staticmethod
+            def list(*args, **kwargs):
+                return DummyResp()
+
+    monkeypatch.setattr(service, "_get_client", lambda: DummyClient())
+    conns = service.get_connections()
+    assert "slack" in conns
+    assert conns["slack"]["id"] == "ca_123"
+    assert conns["slack"]["status"] == "ACTIVE"
+
+
+def test_initiate_connection_returns_redirect_url(monkeypatch):
+    service = ComposioService()
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+
+    class DummyReq:
+        redirect_url = "https://connect.composio.dev/auth/123"
+
+    class DummyClient:
+        class toolkits:
+            @staticmethod
+            def authorize(*args, **kwargs):
+                return DummyReq()
+
+    monkeypatch.setattr(service, "_get_client", lambda: DummyClient())
+    url = service.initiate_connection("gmail")
+    assert url == "https://connect.composio.dev/auth/123"
+
+
+def test_api_composio_connections_and_toolkits(monkeypatch):
+    from fastapi.testclient import TestClient
+    from backend.api.main import app
+    from backend.mcp.composio_service import composio_service
+
+    monkeypatch.setattr(composio_service, "is_configured", lambda: True)
+    monkeypatch.setattr(
+        composio_service,
+        "get_connections",
+        lambda: {"slack": {"id": "ca_slack", "status": "ACTIVE"}},
+    )
+    monkeypatch.setattr(
+        composio_service,
+        "initiate_connection",
+        lambda tk: f"https://connect.composio.dev/{tk}",
+    )
+
+    client = TestClient(app)
+    # Test GET /api/composio/connections
+    resp = client.get("/api/composio/connections")
+    assert resp.status_code == 200
+    assert "slack" in resp.json().get("connections", {})
+
+    # Test GET /api/composio/toolkits
+    resp = client.get("/api/composio/toolkits")
+    assert resp.status_code == 200
+    toolkits = {t["slug"]: t for t in resp.json().get("toolkits", [])}
+    assert toolkits["slack"]["connected"] is True
+    assert toolkits["gmail"]["connected"] is False
+
+    # Test POST /api/composio/toolkits/{toolkit}/connect
+    resp = client.post("/api/composio/toolkits/gmail/connect")
+    assert resp.status_code == 200
+    assert resp.json()["redirect_url"] == "https://connect.composio.dev/gmail"
+
+

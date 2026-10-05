@@ -4630,11 +4630,32 @@ async def delete_composio_key() -> dict[str, Any]:
     return {"ok": True}
 
 
+@app.get("/api/composio/connections")
+def get_composio_connections() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    return {"connections": composio_service.get_connections()}
+
+
+@app.post("/api/composio/toolkits/{toolkit}/connect")
+def connect_composio_toolkit(toolkit: str) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    if not composio_service.is_configured():
+        raise HTTPException(status_code=400, detail="Composio API key is not configured")
+    try:
+        redirect_url = composio_service.initiate_connection(toolkit)
+        return {"redirect_url": redirect_url, "toolkit": toolkit}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.get("/api/composio/toolkits")
 def get_composio_toolkits() -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
 
     enabled = set(composio_service.get_enabled_toolkits())
+    connections = composio_service.get_connections() if composio_service.is_configured() else {}
     catalogue = [
         {"slug": "slack", "name": "Slack", "description": "Send messages, manage channels, and search Slack.", "category": "Communication"},
         {"slug": "github", "name": "GitHub", "description": "Manage repositories, issues, and pull requests.", "category": "Development"},
@@ -4648,7 +4669,8 @@ def get_composio_toolkits() -> dict[str, Any]:
     ]
     for item in catalogue:
         item["enabled"] = item["slug"] in enabled
-    return {"toolkits": catalogue, "enabled": list(enabled)}
+        item["connected"] = item["slug"] in connections
+    return {"toolkits": catalogue, "enabled": list(enabled), "connections": connections}
 
 
 @app.post("/api/composio/toolkits/toggle")
