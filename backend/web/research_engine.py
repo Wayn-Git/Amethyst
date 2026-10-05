@@ -42,7 +42,11 @@ async def _default_search_fn(
 ) -> list[dict[str, Any]]:
     """Default search execution through Amethyst's optimized multi-engine search service."""
     from backend.web.search_service import search_web
-    return await search_web(query, limit=limit, options=options)
+    import inspect
+    sig = inspect.signature(search_web)
+    if "options" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        return await search_web(query, limit=limit, options=options)
+    return await search_web(query, limit=limit)
 
 
 async def _default_image_search_fn(query: str, limit: int) -> list[dict[str, Any]]:

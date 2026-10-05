@@ -258,8 +258,12 @@ async def _search_via_service(
     """Try the optimized search service. Returns None on any failure."""
     try:
         from backend.web.search_service import search_web as optimized_search
-
-        results = await optimized_search(query, limit=limit, options=options)
+        import inspect
+        sig = inspect.signature(optimized_search)
+        if "options" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            results = await optimized_search(query, limit=limit, options=options)
+        else:
+            results = await optimized_search(query, limit=limit)
         if not results:
             return None
         hits = []

@@ -407,8 +407,15 @@ async def _build_web_pool(
     passes, so merging it in would drown genuine results under encyclopaedia
     articles. It is used only when nothing else cleared the gate.
     """
+    async def _call_api(q: str, n: int) -> list[dict[str, Any]]:
+        import inspect
+        sig = inspect.signature(_search_api)
+        if "options" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            return await _search_api(q, n, options=options)
+        return await _search_api(q, n)
+
     engines = {
-        "api": lambda q, n: _search_api(q, n, options=options),
+        "api": _call_api,
         "bing": _search_bing,
         "duckduckgo": _search_ddg_lite,
     }

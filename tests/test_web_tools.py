@@ -67,7 +67,7 @@ async def test_research_engine_ingests_rich_text_without_scrape():
         ]
 
     engine = ResearchEngine(search_fn=mock_search)
-    evidence, registry, trace = await engine.execute_research("Python 3.13 free-threaded", depth="research")
+    evidence, registry, trace = await engine.execute_research("Python 3.13 free-threaded", depth="deep")
 
     assert len(trace.evidence_extracted) > 0
     # No network pages were inspected because rich text was ingested directly

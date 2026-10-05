@@ -207,7 +207,7 @@ def plan_research(
     is_simple_lookup = (
         depth == ResearchDepth.SIMPLE
         or (
-            depth is None
+            depth != ResearchDepth.DEEP_RESEARCH
             and freshness == FreshnessWindow.ANYTIME
             and not requires_verification
             and intent == "general_information"
