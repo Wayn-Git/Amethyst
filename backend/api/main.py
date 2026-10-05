@@ -4653,6 +4653,7 @@ def connect_composio_toolkit(toolkit: str) -> dict[str, Any]:
 @app.get("/api/composio/toolkits")
 def get_composio_toolkits() -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
+    from backend.mcp.provider_ownership import is_provider_overridden_by_local
 
     enabled = set(composio_service.get_enabled_toolkits())
     connections = composio_service.get_connections() if composio_service.is_configured() else {}
@@ -4670,6 +4671,7 @@ def get_composio_toolkits() -> dict[str, Any]:
     for item in catalogue:
         item["enabled"] = item["slug"] in enabled
         item["connected"] = item["slug"] in connections
+        item["overridden_by_local"] = is_provider_overridden_by_local(item["slug"])
     return {"toolkits": catalogue, "enabled": list(enabled), "connections": connections}
 
 
