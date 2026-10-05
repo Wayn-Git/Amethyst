@@ -4594,11 +4594,13 @@ def get_composio_status() -> dict[str, Any]:
 
 @app.post("/api/composio/key")
 async def save_composio_key(payload: dict[str, Any]) -> dict[str, Any]:
-    api_key = str(payload.get("api_key", "")).strip()
+    from backend.mcp.composio_service import composio_service, sanitize_composio_key
+    from backend.capabilities import CapabilityService, Kind
+
+    raw_key = str(payload.get("api_key", ""))
+    api_key = sanitize_composio_key(raw_key)
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
-    from backend.mcp.composio_service import composio_service
-    from backend.capabilities import CapabilityService, Kind
 
     valid, error_msg = composio_service.validate_api_key(api_key)
     if not valid:
@@ -4652,27 +4654,35 @@ def connect_composio_toolkit(toolkit: str) -> dict[str, Any]:
 
 @app.get("/api/composio/toolkits")
 def get_composio_toolkits() -> dict[str, Any]:
-    from backend.mcp.composio_service import composio_service
-    from backend.mcp.provider_ownership import is_provider_overridden_by_local
+    from backend.mcp.composio_service import composio_service, get_toolkits_catalog
+    from backend.mcp.provider_ownership import (
+        PROVIDER_MAPPING,
+        get_active_target,
+        is_provider_overridden_by_local,
+    )
 
     enabled = set(composio_service.get_enabled_toolkits())
     connections = composio_service.get_connections() if composio_service.is_configured() else {}
-    catalogue = [
-        {"slug": "slack", "name": "Slack", "description": "Send messages, manage channels, and search Slack.", "category": "Communication"},
-        {"slug": "github", "name": "GitHub", "description": "Manage repositories, issues, and pull requests.", "category": "Development"},
-        {"slug": "linear", "name": "Linear", "description": "Track issues, sprints, and project milestones.", "category": "Productivity"},
-        {"slug": "notion", "name": "Notion", "description": "Search workspace, read pages, and update databases.", "category": "Knowledge"},
-        {"slug": "gmail", "name": "Gmail", "description": "Send emails, search inbox, and manage threads.", "category": "Communication"},
-        {"slug": "googlecalendar", "name": "Google Calendar", "description": "Schedule events and check availability.", "category": "Productivity"},
-        {"slug": "jira", "name": "Jira", "description": "Create and update issues in Atlassian Jira.", "category": "Development"},
-        {"slug": "asana", "name": "Asana", "description": "Manage tasks, projects, and team workflows.", "category": "Productivity"},
-        {"slug": "spotify", "name": "Spotify", "description": "Control playback, search music, and manage playlists.", "category": "Media"},
-    ]
+    catalogue = get_toolkits_catalog()
     for item in catalogue:
         item["enabled"] = item["slug"] in enabled
-        item["connected"] = item["slug"] in connections
+        if item.get("no_auth"):
+            item["connected"] = composio_service.is_configured()
+        else:
+            item["connected"] = item["slug"] in connections
         item["overridden_by_local"] = is_provider_overridden_by_local(item["slug"])
-    return {"toolkits": catalogue, "enabled": list(enabled), "connections": connections}
+        item["has_local_alternative"] = item["slug"] in PROVIDER_MAPPING
+        item["active_target"] = get_active_target(item["slug"])
+        item["local_server_names"] = sorted(list(PROVIDER_MAPPING.get(item["slug"], set())))
+
+    return {
+        "toolkits": catalogue,
+        "no_auth_toolkits": [t for t in catalogue if t.get("no_auth")],
+        "auth_required_toolkits": [t for t in catalogue if not t.get("no_auth")],
+        "enabled": list(enabled),
+        "connections": connections,
+        "key_mode": composio_service.get_key_mode(),
+    }
 
 
 @app.post("/api/composio/toolkits/toggle")
@@ -4693,6 +4703,46 @@ async def toggle_composio_toolkit(payload: dict[str, Any]) -> dict[str, Any]:
     composio_service.update_toolkits(current)
     await _apply_connector("composio", True)
     return {"ok": True, "enabled_toolkits": current}
+
+
+@app.get("/api/composio/fallback/status")
+def get_composio_fallback_status() -> dict[str, Any]:
+    from backend.mcp.provider_ownership import get_all_fallbacks
+
+    return {"fallbacks": get_all_fallbacks()}
+
+
+@app.post("/api/composio/fallback/switch")
+async def switch_composio_fallback(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.mcp.provider_ownership import switch_target
+
+    provider = str(payload.get("provider", "")).strip().lower()
+    target = str(payload.get("target", "")).strip().lower()
+    reason = payload.get("reason")
+    if not provider or target not in ("local", "composio"):
+        raise HTTPException(
+            status_code=400,
+            detail="provider and valid target ('local' or 'composio') required",
+        )
+    ok = switch_target(provider, target, reason)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to switch provider fallback target")
+    await _apply_connector("composio", True)
+    return {"ok": True, "provider": provider, "active_target": target}
+
+
+@app.post("/api/composio/fallback/reset")
+async def reset_composio_fallback(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.mcp.provider_ownership import reset_target
+
+    provider = str(payload.get("provider", "")).strip().lower()
+    if not provider:
+        raise HTTPException(status_code=400, detail="provider is required")
+    ok = reset_target(provider)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to reset provider fallback target")
+    await _apply_connector("composio", True)
+    return {"ok": True, "provider": provider}
 
 
 
@@ -6799,56 +6849,119 @@ async def search_github_endpoint(q: str, limit: int = 6) -> dict[str, Any]:
 
 
 class SearchKey(BaseModel):
-    name: str
-    key: str
+    name: str | None = None
+    key: str | None = None
+    preferred: str | None = None
 
 
 @app.get("/api/search/provider")
 def search_provider_route() -> dict[str, Any]:
-    """Which search API is set up, and which ones could be.
+    """Which search API is set up, their real-time health, and user preferences.
 
     Write-only for the key itself: this says a provider *has* one, never what
-    it is. The interface needs the distinction because "no provider" is the
-    single commonest reason a web search comes back as encyclopaedia articles,
-    and until this existed there was no way to see or fix that outside a
-    terminal.
+    it is. Returns active provider, user preference mode, circuit breaker health,
+    and provider catalogue options.
     """
+    import os
     from backend.secrets import get_secret
+    from backend.web.circuit_breaker import get_circuit_breaker
     from backend.web.search_service import configured_search_api, search_api_catalogue
+
+    preferred = None
+    try:
+        preferred = get_secret("amethyst/search_preferred")
+    except Exception:
+        preferred = None
+    if not preferred:
+        preferred = os.environ.get("AMETHYST_SEARCH_PREFERRED", "auto")
+
+    cb = get_circuit_breaker()
+    status = cb.get_status()
 
     options = []
     for api in search_api_catalogue():
+        name = api["name"]
+        has_key = False
         try:
-            has_key = bool(get_secret(api["ref"]))
+            has_key = bool(
+                get_secret(api["ref"])
+                or (api.get("env") and os.environ.get(api["env"]))
+            )
         except Exception:
             has_key = False
-        options.append({**api, "configured": has_key})
-    return {"active": configured_search_api(), "options": options}
+        options.append({
+            **api,
+            "configured": has_key,
+            "status": status.get(name, {}),
+        })
+    return {
+        "active": configured_search_api(),
+        "preferred": preferred,
+        "status": status,
+        "options": options,
+    }
 
 
 @app.put("/api/search/provider")
 def set_search_provider_route(body: SearchKey) -> dict[str, Any]:
-    """Store a search API key in the keychain. An empty key removes it."""
-    from backend.secrets import CredentialError, delete_secret, set_secret
+    """Store a search API key in keychain or set provider preference mode."""
+    import os
+    from backend.secrets import CredentialError, delete_secret, get_secret, set_secret
+    from backend.web.circuit_breaker import get_circuit_breaker
     from backend.web.search_service import configured_search_api, search_api_catalogue
 
-    match = next((a for a in search_api_catalogue() if a["name"] == body.name.strip().lower()), None)
-    if match is None:
-        raise HTTPException(400, f"'{body.name}' is not a search provider AMETHYST knows about.")
-    key = body.key.strip()
-    try:
-        if key:
-            set_secret(match["ref"], key)
-        else:
-            delete_secret(match["ref"])
-    except CredentialError as exc:
-        raise HTTPException(400, str(exc)) from exc
+    if not body.name and not body.preferred:
+        raise HTTPException(400, "Provide a provider 'name' or a 'preferred' preference.")
+
+    cb = get_circuit_breaker()
+
+    # 1. Handle preferred provider mode update if specified
+    if body.preferred is not None:
+        clean_pref = body.preferred.strip().lower()
+        if clean_pref not in ("auto", "langsearch", "exa", "firecrawl", "tavily"):
+            raise HTTPException(400, f"Unknown preferred provider '{body.preferred}'.")
+        set_secret("amethyst/search_preferred", clean_pref)
+
+    # 2. Handle provider API key update/removal if name is specified
+    match = None
+    key_configured = None
+    if body.name:
+        match = next((a for a in search_api_catalogue() if a["name"] == body.name.strip().lower()), None)
+        if match is None:
+            raise HTTPException(400, f"'{body.name}' is not a search provider AMETHYST knows about.")
+        key = (body.key or "").strip()
+        try:
+            if key:
+                set_secret(match["ref"], key)
+                cb.reset(match["name"])
+                key_configured = True
+            elif body.key is not None:
+                delete_secret(match["ref"])
+                cb.reset(match["name"])
+                key_configured = False
+        except CredentialError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
     # The pool is keyed by query and was built with whatever was configured at
     # the time, so a new key would otherwise not be believed until it expired.
     from backend.web import search_service
-
     search_service._results.clear()
-    return {"active": configured_search_api(), "name": match["name"], "configured": bool(key)}
+
+    preferred = None
+    try:
+        preferred = get_secret("amethyst/search_preferred")
+    except Exception:
+        preferred = None
+    if not preferred:
+        preferred = os.environ.get("AMETHYST_SEARCH_PREFERRED", "auto")
+
+    return {
+        "active": configured_search_api(),
+        "name": match["name"] if match else None,
+        "configured": key_configured if match else None,
+        "preferred": preferred,
+        "status": cb.get_status(),
+    }
 
 
 @app.get("/api/search/wiki")

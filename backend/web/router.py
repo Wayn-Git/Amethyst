@@ -106,6 +106,14 @@ def route_search_task(
 
     # Apply user or tool preference override if specified
     pref = (preferred or "").strip().lower()
+    if not pref or pref == "auto":
+        from backend.secrets import get_secret
+        try:
+            stored_pref = get_secret("amethyst/search_preferred")
+        except Exception:
+            stored_pref = None
+        pref = (stored_pref or os.environ.get("AMETHYST_SEARCH_PREFERRED") or "").strip().lower()
+
     if pref and pref in ("langsearch", "exa", "firecrawl", "tavily"):
         ordered = [pref] + [p for p in base_order if p != pref]
     else:

@@ -86,16 +86,17 @@ class SearchCircuitBreaker:
             ph.last_status_code = 200
             ph.total_calls += 1
 
-    def record_failure(self, provider: str, status_code: int, error_msg: str = "") -> None:
+    def record_failure(self, provider: str, status_code: int = 500, error_msg: str = "", error: str = "") -> None:
         """Record error and set appropriate cooldown policy."""
         now = time.monotonic()
+        msg = error_msg or error
         with self._lock:
             ph = self._get_or_create(provider)
             ph.consecutive_failures += 1
             ph.total_calls += 1
             ph.total_failures += 1
             ph.last_status_code = status_code
-            ph.last_error = str(error_msg)[:300]
+            ph.last_error = str(msg)[:300]
 
             if status_code in (401, 403):
                 ph.status = ProviderStatus.AUTH_FAILED
