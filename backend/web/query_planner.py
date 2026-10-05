@@ -207,7 +207,8 @@ def plan_research(
     is_simple_lookup = (
         depth == ResearchDepth.SIMPLE
         or (
-            freshness == FreshnessWindow.ANYTIME
+            depth is None
+            and freshness == FreshnessWindow.ANYTIME
             and not requires_verification
             and intent == "general_information"
             and not is_comprehensive
@@ -234,7 +235,12 @@ def plan_research(
     year_str = str(now.year)
 
     # 1. Broad latest news
-    if freshness in (FreshnessWindow.PAST_24H, FreshnessWindow.PAST_7D, FreshnessWindow.PAST_30D, FreshnessWindow.PAST_YEAR) or entities or intent == "current_events":
+    if (
+        freshness in (FreshnessWindow.PAST_24H, FreshnessWindow.PAST_7D, FreshnessWindow.PAST_30D, FreshnessWindow.PAST_YEAR)
+        or entities
+        or intent == "current_events"
+        or depth in (ResearchDepth.RESEARCH, ResearchDepth.DEEP_RESEARCH)
+    ):
         q_news = f"{primary_entity} latest news"
         generated_queries.append(q_news)
         rationales[q_news] = "Recent news and developments"

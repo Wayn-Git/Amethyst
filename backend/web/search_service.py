@@ -366,17 +366,28 @@ def _merge_rank_dedup(
     return merged
 
 
-async def search_web(query: str, limit: int = 8, offset: int = 0) -> list[dict[str, Any]]:
+async def search_web(
+    query: str,
+    limit: int = 8,
+    offset: int = 0,
+    options: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """One page of a ranked, cached pool. `offset` pages without re-fetching.
 
     The pool is cached by query alone (not by limit/offset), so scrolling is
     free: every page after the first is a slice of results already in memory.
     """
-    pool = await _cached(f"webpool:{query.strip().lower()}", lambda: _build_web_pool(query))
+    cache_key = f"webpool:{query.strip().lower()}"
+    if options and options.get("preferred"):
+        cache_key += f":{options.get('preferred')}"
+    pool = await _cached(cache_key, lambda: _build_web_pool(query, options=options))
     return pool[offset : offset + limit] if offset < len(pool) else []
 
 
-async def _build_web_pool(query: str) -> list[dict[str, Any]]:
+async def _build_web_pool(
+    query: str,
+    options: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """Ask every engine at once, then merge, dedup and rank what answers.
 
     This used to be a chain, then a race that kept the *first* honest answer and
@@ -396,7 +407,11 @@ async def _build_web_pool(query: str) -> list[dict[str, Any]]:
     passes, so merging it in would drown genuine results under encyclopaedia
     articles. It is used only when nothing else cleared the gate.
     """
-    engines = {"api": _search_api, "bing": _search_bing, "duckduckgo": _search_ddg_lite}
+    engines = {
+        "api": lambda q, n: _search_api(q, n, options=options),
+        "bing": _search_bing,
+        "duckduckgo": _search_ddg_lite,
+    }
     tasks = {
         asyncio.create_task(engine(query, _WEB_POOL_FETCH)): name
         for name, engine in engines.items()
