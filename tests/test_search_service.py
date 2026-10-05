@@ -524,3 +524,52 @@ def test_score_image_candidate_model_token_discrimination():
     )
     assert sf90_score is not None
     assert f80_score > sf90_score + 50.0
+
+
+@pytest.mark.asyncio
+async def test_search_api_circuit_breaker_bypasses_failed_provider(monkeypatch):
+    """When primary provider returns 402 or 429, circuit breaker records cooldown
+    and next provider in fallback chain answers immediately without repeated calls."""
+    from backend.web.circuit_breaker import get_circuit_breaker
+    cb = get_circuit_breaker()
+    cb.reset()
+
+    calls = []
+
+    class MockResponse:
+        def __init__(self, status_code, data=None):
+            self.status_code = status_code
+            self._data = data or {}
+            self.text = "Error" if status_code != 200 else "OK"
+
+        def json(self):
+            return self._data
+
+    class MockClient:
+        async def post(self, url, json=None, headers=None, timeout=None):
+            if "langsearch" in url:
+                calls.append("langsearch")
+                return MockResponse(402, {"msg": "Daily token allowance exhausted"})
+            elif "exa" in url:
+                calls.append("exa")
+                return MockResponse(200, {
+                    "results": [{"title": "Exa Result", "url": "https://exa.ai/1", "text": "Semantic"}]
+                })
+            return MockResponse(500)
+
+    monkeypatch.setattr(search_service, "_pool_client", lambda: _resolved(MockClient()))
+    monkeypatch.setenv("LANGSEARCH_API_KEY", "ls-key")
+    monkeypatch.setenv("EXA_API_KEY", "exa-key")
+
+    # Query 1: langsearch fails 402, falls through to exa
+    res1 = await search_service._search_api("test query", 5)
+    assert len(res1) == 1
+    assert res1[0]["title"] == "Exa Result"
+    assert calls == ["langsearch", "exa"]
+
+    # Query 2: langsearch is on cooldown, exa called directly with zero-latency bypass
+    calls.clear()
+    res2 = await search_service._search_api("test query 2", 5)
+    assert len(res2) == 1
+    assert calls == ["exa"]
+

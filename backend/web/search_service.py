@@ -601,35 +601,40 @@ def configured_search_api() -> str | None:
     which is microseconds and happens once per search.
     """
     import os
-
     from backend.secrets import get_secret
+    from backend.web.circuit_breaker import get_circuit_breaker
+
+    cb = get_circuit_breaker()
+    # 1. Prefer an active and healthy provider
     for api in _SEARCH_APIS:
+        name = str(api["name"])
+        try:
+            has_key = bool(get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])))
+            if has_key and cb.is_available(name):
+                return name
+        except Exception:
+            continue
+
+    # 2. If all configured providers are temporarily in cooldown, still return the configured one
+    for api in _SEARCH_APIS:
+        name = str(api["name"])
         try:
             if get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])):
-                return str(api["name"])
+                return name
         except Exception:
             continue
     return None
 
 
-async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
-    """A real search API, when there is a key for one.
-
-    The free scrapers below are a good answer to "no key, no account, no cost"
-    and a bad answer to "this network is blocked" -- which, increasingly, is
-    every network. On the machine this was written for, DuckDuckGo resolves to
-    an ISP holding page with 443 closed and Bing answers every query with
-    results for its first word only. Neither is a bug anything here can fix,
-    and an engine that is *allowed* to answer beats two that are not.
-
-    Called over REST rather than through an MCP server on purpose: this is a
-    fixed query against a fixed endpoint with no decision in it, and standing
-    up an MCP session with a tool schema and a model to make it would be the
-    expensive way to send one POST.
-
-    No key is not an error. It loses the race in the time a keychain read takes.
-    """
+async def _search_api(
+    query: str,
+    limit: int,
+    options: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """A real search API, using task-aware routing, circuit breaker, and intelligent fallback."""
     from backend.secrets import get_secret
+    from backend.web.circuit_breaker import get_circuit_breaker
+    from backend.web.router import route_search_task
 
     q = query.strip()
     if not q:
@@ -637,13 +642,29 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
     limit = max(1, min(limit, 20))
 
     import os
-    for api in _SEARCH_APIS:
+    cb = get_circuit_breaker()
+    pref = options.get("preferred") if options else None
+    primary, fallbacks = route_search_task(q, preferred=pref, options=options)
+    candidate_names = [primary] + [f for f in fallbacks if f != primary]
+    for a in _SEARCH_APIS:
+        if a["name"] not in candidate_names:
+            candidate_names.append(a["name"])
+
+    for prov_name in candidate_names:
+        if not cb.is_available(prov_name):
+            continue
+
+        api = next((a for a in _SEARCH_APIS if a["name"] == prov_name), None)
+        if not api:
+            continue
+
         try:
             key = get_secret(api["ref"]) or (os.environ.get(api["env"]) if "env" in api else None)
         except Exception:
             key = None
         if not key:
             continue
+
         try:
             client = await _pool_client()
             if "body" in api:
@@ -657,10 +678,12 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
                     headers=api["headers"](key), timeout=8.0,
                 )
             if resp.status_code != 200:
+                cb.record_failure(prov_name, status_code=resp.status_code, error_msg=getattr(resp, "text", ""))
                 logger.warning("%s search returned %s", api["name"], resp.status_code)
                 continue
             payload = resp.json()
         except Exception as exc:
+            cb.record_failure(prov_name, status_code=500, error_msg=str(exc))
             logger.warning("%s search failed for %s: %s", api["name"], query, exc)
             continue
 
@@ -695,6 +718,7 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
                 item["published_date"] = pub_date
             results.append(item)
         if results:
+            cb.record_success(prov_name)
             return results
     return []
 
