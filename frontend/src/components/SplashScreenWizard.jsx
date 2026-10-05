@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Icon from './Icon.jsx'
 import BrandMark from './BrandMark.jsx'
+import ServiceIcon from './ServiceIcon.jsx'
 import AiProviderIcon from './AiProviderIcon.jsx'
 import { LoaderIcon } from './OnboardingWizard.jsx'
 import { api, copyText } from '../api.js'
@@ -1115,26 +1116,89 @@ function StepMobileShortcuts({ toast }) {
 }
 
 // -----------------------------------------------------------------------------
-// STEP 4: Connected Apps (Real Brand SVGs)
+// STEP 4: Connected Apps
 // -----------------------------------------------------------------------------
 function StepConnectors({ toast }) {
   const [servers, setServers] = useState([])
+  const [composioStatus, setComposioStatus] = useState(null)
+  const [composioToolkits, setComposioToolkits] = useState([])
   const [actionBusy, setActionBusy] = useState('')
+  const [composioKeyDraft, setComposioKeyDraft] = useState('')
+  const [savingComposio, setSavingComposio] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const loadServers = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const data = await api.mcpServers(true)
-      setServers(data?.servers || [])
+      const [mcpData, compStatus, compToolkits] = await Promise.all([
+        api.mcpServers(true).catch(() => ({ servers: [] })),
+        api.composioStatus().catch(() => null),
+        api.composioToolkits().catch(() => ({ toolkits: [] })),
+      ])
+      setServers(mcpData?.servers || [])
+      if (compStatus) setComposioStatus(compStatus)
+      if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
     } catch {
       /* ignore */
     }
   }, [])
 
   useEffect(() => {
-    loadServers()
-  }, [loadServers])
+    loadData()
+  }, [loadData])
 
-  const handleLogin = async (name) => {
+  const handleSaveComposio = async () => {
+    if (!composioKeyDraft.trim()) return
+    setSavingComposio(true)
+    try {
+      const res = await api.saveComposioKey(composioKeyDraft.trim())
+      setComposioKeyDraft('')
+      await loadData()
+      if (res?.status?.error) {
+        toast(res.status.error, 'bad')
+      } else {
+        toast('Composio connected! You can now authorize cloud apps.', 'ok')
+      }
+    } catch (e) {
+      toast(e.message || 'Failed to save Composio key', 'bad')
+    } finally {
+      setSavingComposio(false)
+    }
+  }
+
+  const handleComposioConnect = async (slug, name) => {
+    setActionBusy(`comp:${slug}`)
+    try {
+      const res = await api.connectComposioToolkit(slug)
+      if (res?.redirect_url) {
+        window.open(res.redirect_url, '_blank')
+        toast(`Complete ${name} authorization in your browser tab`, 'ok')
+        let attempts = 0
+        const interval = setInterval(async () => {
+          attempts++
+          try {
+            const data = await api.composioToolkits()
+            if (data?.toolkits) {
+              setComposioToolkits(data.toolkits)
+              const updated = data.toolkits.find((t) => t.slug === slug)
+              if (updated?.connected) {
+                clearInterval(interval)
+                toast(`${name} connected!`, 'ok')
+              }
+            }
+          } catch {}
+          if (attempts >= 20) clearInterval(interval)
+        }, 3000)
+      } else {
+        toast(`Failed to start connection for ${name}`, 'bad')
+      }
+    } catch (err) {
+      toast(err.message || `Failed to connect ${name}`, 'bad')
+    } finally {
+      setActionBusy('')
+    }
+  }
+
+  const handleLocalLogin = async (name) => {
     setActionBusy(name)
     try {
       const res = await api.mcpLogin(name)
@@ -1147,7 +1211,7 @@ function StepConnectors({ toast }) {
       } else {
         toast(`Connecting ${name}`, 'ok')
       }
-      await loadServers()
+      await loadData()
     } catch (err) {
       toast(err.message, 'bad')
     } finally {
@@ -1155,47 +1219,23 @@ function StepConnectors({ toast }) {
     }
   }
 
-  const CATALOGUE_CONNECTORS = [
-    {
-      id: 'google-workspace',
-      name: 'Google Workspace',
-      desc: 'Gmail, Calendar, Drive & Docs.',
-    },
-    {
-      id: 'microsoft-todo',
-      name: 'Microsoft To Do',
-      desc: 'Tasks and checklists.',
-    },
-    {
-      id: 'github',
-      name: 'GitHub',
-      desc: 'Repos, PRs, and issues.',
-    },
-    {
-      id: 'spotify',
-      name: 'Spotify',
-      desc: 'Music and playback.',
-    },
-    {
-      id: 'tavily',
-      name: 'Tavily Search',
-      desc: 'Fast web search.',
-    },
-    {
-      id: 'playwright',
-      name: 'Playwright Browser',
-      desc: 'Web browsing.',
-    },
-    {
-      id: 'chrome-devtools',
-      name: 'Chrome DevTools',
-      desc: 'Web inspection.',
-    },
-    {
-      id: 'memory',
-      name: 'Knowledge Memory',
-      desc: 'Long-term chat memory.',
-    },
+  const RECOMMENDED_COMPOSIO_APPS = [
+    { slug: 'gmail', name: 'Gmail', desc: 'Read, search, and send emails.' },
+    { slug: 'googlecalendar', name: 'Google Calendar', desc: 'Schedule and manage events.' },
+    { slug: 'slack', name: 'Slack', desc: 'Team channels and direct messages.' },
+    { slug: 'github', name: 'GitHub', desc: 'Repos, PRs, and issues.' },
+    { slug: 'linear', name: 'Linear', desc: 'Issue tracking and project management.' },
+    { slug: 'notion', name: 'Notion', desc: 'Docs, notes, and workspace databases.' },
+  ]
+
+  const ADVANCED_LOCAL_SERVERS = [
+    { id: 'google-workspace', name: 'Google Workspace (Self-Hosted GCP)', desc: 'Gmail & Calendar via custom GCP OAuth app.' },
+    { id: 'microsoft-todo', name: 'Microsoft To Do', desc: 'Tasks and checklists.' },
+    { id: 'spotify', name: 'Spotify (Local App)', desc: 'Spotify Web API via developer credentials.' },
+    { id: 'tavily', name: 'Tavily Search', desc: 'Fast agent web search.' },
+    { id: 'playwright', name: 'Playwright Browser', desc: 'Headless browser automation.' },
+    { id: 'chrome-devtools', name: 'Chrome DevTools', desc: 'Web inspection & debugging.' },
+    { id: 'memory', name: 'Knowledge Memory', desc: 'Long-term chat memory.' },
   ]
 
   const getServerState = (id) => servers.find((s) => s.name === id)
@@ -1206,52 +1246,190 @@ function StepConnectors({ toast }) {
         <span className="splash-step-tag">Step 4 of 5</span>
         <h2 className="splash-step-title">Connect Your Apps</h2>
         <p className="splash-step-subtitle">
-          Connect the apps and tools you use every day.
+          Connect the services and tools your AI assistant can use.
         </p>
       </div>
 
-      <div className="splash-connectors-grid">
-        {CATALOGUE_CONNECTORS.map((c) => {
-          const s = getServerState(c.id)
-          const isConnected = s?.signed_in === true || s?.status === 'running'
-          const needsAuth = s && !isConnected && s.signed_in === false
-
-          return (
-            <div key={c.id} className="splash-connector-card">
-              <div className="splash-connector-head">
-                <div className="splash-connector-icon">
-                  <ConnectorSvgIcon id={c.id} size={22} />
-                </div>
-                <div className="splash-connector-meta">
-                  <strong className="splash-connector-title">{c.name}</strong>
-                  <span className="splash-connector-desc">{c.desc}</span>
-                </div>
-              </div>
-
-              <div className="splash-connector-footer">
-                <span className="splash-status-dot-text">
-                  <span className={`splash-dot-indicator ${isConnected ? 'is-active' : ''}`} />
-                  {isConnected ? 'Connected' : needsAuth ? 'Sign in' : 'Ready'}
-                </span>
-
-                <button
-                  type="button"
-                  className="splash-btn-subtle"
-                  disabled={actionBusy === c.id}
-                  onClick={() => handleLogin(c.id)}
-                >
-                  {actionBusy === c.id ? (
-                    'Connecting…'
-                  ) : isConnected ? (
-                    'Reconnect'
-                  ) : (
-                    'Connect'
-                  )}
-                </button>
-              </div>
+      {/* Recommended Section: Cloud OAuth (Composio) */}
+      <div className="splash-card" style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span className="splash-card-title" style={{ margin: 0 }}>Cloud Apps (Composio)</span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: '1px 7px',
+                  borderRadius: 999,
+                  background: 'rgba(168, 85, 247, 0.15)',
+                  color: 'var(--accent, #a855f7)',
+                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                Recommended
+              </span>
             </div>
-          )
-        })}
+            <p className="splash-card-desc" style={{ margin: 0 }}>
+              1-click authorization for Gmail, Google Calendar, Slack, GitHub, Linear, and Notion without managing your own Google Cloud or Slack apps. Free tier includes generous monthly tool executions.
+            </p>
+          </div>
+          <a
+            href="https://dashboard.composio.dev/settings"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontSize: 12,
+              color: 'var(--text-muted, #94a3b8)',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            Get Free Key <Icon name="arrow-up-right" size={12} />
+          </a>
+        </div>
+
+        {!composioStatus?.configured ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+            <input
+              type="password"
+              className="splash-input"
+              style={{ flex: 1, padding: '8px 12px', fontSize: 13 }}
+              placeholder="Paste Composio API Key from dashboard.composio.dev…"
+              value={composioKeyDraft}
+              onChange={(e) => setComposioKeyDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveComposio() }}
+            />
+            <button
+              type="button"
+              className="splash-btn-subtle"
+              disabled={savingComposio || !composioKeyDraft.trim()}
+              onClick={handleSaveComposio}
+              style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}
+            >
+              {savingComposio ? 'Verifying…' : 'Save & Enable'}
+            </button>
+          </div>
+        ) : (
+          <div className="splash-connectors-grid" style={{ marginTop: 10 }}>
+            {RECOMMENDED_COMPOSIO_APPS.map((c) => {
+              const toolkit = composioToolkits.find((t) => t.slug === c.slug)
+              const isConnected = Boolean(toolkit?.connected)
+              const isBusy = actionBusy === `comp:${c.slug}`
+
+              return (
+                <div key={c.slug} className="splash-connector-card">
+                  <div className="splash-connector-head">
+                    <div className="splash-connector-icon">
+                      <ServiceIcon name={c.slug} size={22} />
+                    </div>
+                    <div className="splash-connector-meta">
+                      <strong className="splash-connector-title">{c.name}</strong>
+                      <span className="splash-connector-desc">{c.desc}</span>
+                    </div>
+                  </div>
+
+                  <div className="splash-connector-footer">
+                    <span className="splash-status-dot-text">
+                      <span className={`splash-dot-indicator ${isConnected ? 'is-active' : ''}`} />
+                      {isConnected ? 'Connected' : 'Not connected'}
+                    </span>
+
+                    <button
+                      type="button"
+                      className="splash-btn-subtle"
+                      disabled={isBusy}
+                      onClick={() => handleComposioConnect(c.slug, c.name)}
+                    >
+                      {isBusy ? (
+                        'Connecting…'
+                      ) : isConnected ? (
+                        'Reconnect'
+                      ) : (
+                        'Connect'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Collapsible Advanced / Self-Hosted Section */}
+      <div style={{ marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-muted, #94a3b8)',
+            fontSize: 12.5,
+            fontWeight: 500,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 0',
+          }}
+        >
+          <Icon name={showAdvanced ? 'caret-down' : 'caret-right'} size={12} />
+          <span>Advanced: Self-Hosted &amp; Local MCP Servers (GCP OAuth, Stdio tools)</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="splash-connectors-grid" style={{ marginTop: 10 }}>
+            {ADVANCED_LOCAL_SERVERS.map((c) => {
+              const s = getServerState(c.id)
+              const isConnected = s?.signed_in === true || s?.status === 'running'
+              const needsAuth = s && !isConnected && s.signed_in === false
+
+              return (
+                <div key={c.id} className="splash-connector-card">
+                  <div className="splash-connector-head">
+                    <div className="splash-connector-icon">
+                      <ServiceIcon name={c.id} size={22} />
+                    </div>
+                    <div className="splash-connector-meta">
+                      <strong className="splash-connector-title">{c.name}</strong>
+                      <span className="splash-connector-desc">{c.desc}</span>
+                    </div>
+                  </div>
+
+                  <div className="splash-connector-footer">
+                    <span className="splash-status-dot-text">
+                      <span className={`splash-dot-indicator ${isConnected ? 'is-active' : ''}`} />
+                      {isConnected ? 'Connected' : needsAuth ? 'Sign in' : 'Ready'}
+                    </span>
+
+                    <button
+                      type="button"
+                      className="splash-btn-subtle"
+                      disabled={actionBusy === c.id}
+                      onClick={() => handleLocalLogin(c.id)}
+                    >
+                      {actionBusy === c.id ? (
+                        'Connecting…'
+                      ) : isConnected ? (
+                        'Reconnect'
+                      ) : (
+                        'Connect'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

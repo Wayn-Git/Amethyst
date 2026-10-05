@@ -196,6 +196,7 @@ function General() {
     betaPages, setBetaPages,
     toast,
     refreshCaps, refreshHealth,
+    setView,
   } = useApp()
 
   // Automation & Rhythm settings from backend
@@ -238,13 +239,21 @@ function General() {
 
   // Composio integration
   const [composioStatus, setComposioStatus] = useState(null)
+  const [composioData, setComposioData] = useState(null)
   const [composioKeyDraft, setComposioKeyDraft] = useState('')
   const [savingComposio, setSavingComposio] = useState(false)
   const [showComposioKey, setShowComposioKey] = useState(false)
 
   const loadComposioStatus = useCallback(() => {
     api.composioStatus()
-      .then((status) => setComposioStatus(status))
+      .then((status) => {
+        setComposioStatus(status)
+        if (status?.configured) {
+          api.composioToolkits().then(setComposioData).catch(() => {})
+        } else {
+          setComposioData(null)
+        }
+      })
       .catch(() => {})
   }, [])
 
@@ -276,6 +285,7 @@ function General() {
     try {
       await api.deleteComposioKey()
       setComposioKeyDraft('')
+      setComposioData(null)
       await loadComposioStatus()
       refreshCaps?.()
       refreshHealth?.()
@@ -612,6 +622,93 @@ function General() {
             )}
           </div>
         </div>
+
+        {composioStatus?.configured && (
+          <div className="set-box-row" style={{ alignItems: 'flex-start' }}>
+            <div className="set-row-text">
+              <span className="set-row-title">Free Tier &amp; Usage Quotas</span>
+              <span className="set-row-desc">
+                Composio Free Tier includes 100+ cloud integrations, hosted OAuth, and generous monthly tool execution quotas. Check your Composio dashboard for exact limits, live logs, and active sessions.
+              </span>
+            </div>
+            <div>
+              <a
+                href="https://dashboard.composio.dev/settings"
+                target="_blank"
+                rel="noreferrer"
+                className="set-btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}
+              >
+                <span>Usage &amp; Quotas</span>
+                <Icon name="arrow-up-right" size={13} />
+              </a>
+            </div>
+          </div>
+        )}
+
+        {composioStatus?.configured && (
+          <div className="set-box-row" style={{ alignItems: 'flex-start' }}>
+            <div className="set-row-text">
+              <span className="set-row-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span>Connected Accounts</span>
+                <Badge tone={((composioData?.toolkits || []).filter((t) => t.connected)).length > 0 ? 'ok' : 'dim'}>
+                  {((composioData?.toolkits || []).filter((t) => t.connected)).length} connected
+                </Badge>
+              </span>
+              <span className="set-row-desc">
+                {((composioData?.toolkits || []).filter((t) => t.connected)).length > 0
+                  ? 'Accounts authenticated and ready for your AI assistant.'
+                  : 'No accounts connected yet. Authorize apps in Capabilities > Connectors.'}
+              </span>
+              {((composioData?.toolkits || []).filter((t) => t.connected)).length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {(composioData?.toolkits || [])
+                    .filter((t) => t.connected)
+                    .map((t) => (
+                      <span
+                        key={t.slug}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: 'rgba(34, 197, 94, 0.1)',
+                          color: 'var(--ok, #22c55e)',
+                          border: '1px solid rgba(34, 197, 94, 0.25)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                      >
+                        <span className="status-dot live" style={{ width: 5, height: 5 }} />
+                        {t.name}
+                      </span>
+                    ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <button
+                type="button"
+                className="set-btn-sm"
+                onClick={() => setView?.('capabilities')}
+              >
+                Manage Connectors
+              </button>
+            </div>
+          </div>
+        )}
+
+        {composioStatus?.configured && (
+          <div className="set-box-row" style={{ alignItems: 'flex-start' }}>
+            <div className="set-row-text">
+              <span className="set-row-title">Supported Cloud Toolkits</span>
+              <span className="set-row-desc">
+                Gmail, Google Calendar, Slack, GitHub, Linear, Notion, Jira, Asana, Spotify, and 100+ others via Composio cloud catalog.
+              </span>
+            </div>
+          </div>
+        )}
 
         {composioStatus?.error && (
           <div className="set-box-row" style={{ background: 'var(--bad-dim, rgba(239, 68, 68, 0.08))', borderLeft: '3px solid var(--bad, #ef4444)' }}>
