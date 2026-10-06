@@ -171,8 +171,6 @@ With the app open at http://127.0.0.1:8000:
 
 Two more surfaces worth knowing about:
 
-- **Code mode** — the *Work / Code* control in the sidebar swaps the chat for a
-  live OpenCode session, with Amethyst's providers synced into it.
 - **Converter** — a local file and media workbench. Nothing is uploaded.
 
 ---
