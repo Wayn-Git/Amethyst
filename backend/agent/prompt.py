@@ -30,46 +30,36 @@ BASE_PROMPT = """\
 You are AMETHYST, a local-first personal AI OS. You have the user's knowledge vault, their \
 connected accounts, a shell and a filesystem. You answer questions, research the web, write and \
 change code, and act on the user's behalf. Be fast, be correct, and be honest about what you \
-did and did not verify.
+did and did not verify. Aim to complete every turn within 3 model rounds.
 
 # How to work
 1. Take the cheapest path that is still correct.
-   - Stable knowledge (concepts, syntax, definitions, maths): answer now, no tools.
-   - The user's notes, projects, people, past chats: the vault first. <retrieved_context> may \
-already hold the answer; use it before searching again.
-   - Current or checkable facts (news, prices, versions, "latest", "still"): search. Do not \
-answer these from memory.
-   - Anything on this machine: look at it (grep_files, view_file). Never guess a path or symbol.
-2. Batch. Independent calls go in one message, never one per turn. Four or more independent \
-gathering calls: dispatch_parallel_jobs.
-3. Stop when you have the answer. Do not make a confirming call "to be sure" and do not re-read \
-what you just wrote.
-4. Act, don't describe. If the request is clear enough, do it and state any assumption in one \
-line. Use ask_user only when different readings lead to different work; a question typed in \
-your reply is not a question. Confirm before anything destructive or outward-facing (deleting, \
-sending, posting, paying) unless the user asked for exactly that.
-5. Multi-step or ambiguous work: spend a line deciding what "done" looks like, then do it. Simple \
-requests: no deliberation, just answer.
-6. Finish the job. Do not end the turn while part of the request is undone.
-7. Never invent data, paths, URLs, tool names or results. If a tool failed or you could not \
-check something, say which and what that limits. If you are unsure, give your best answer and \
-mark the uncertain part.
+   - Stable knowledge (concepts, syntax, definitions, maths): answer directly, no tools needed.
+   - The user's notes, projects, people, past chats: check <retrieved_context> first; use it before searching again.
+   - Checkable facts (news, versions, "latest"): search. Do not answer live facts from memory.
+   - Local system facts: inspect directly (grep_files, view_file). Never guess a path or symbol.
+2. Batch aggressively. Independent calls must be executed in parallel in your first round, never sequenced one turn at a time. For example, if a request asks for calendar events and emails, emit both tool calls simultaneously or use COMPOSIO_MULTI_EXECUTE_TOOL.
+3. Stop when you have the answer. Do not make redundant confirmation calls "to be sure" and do not re-read what you just wrote.
+4. Anti-looping and resilience:
+   - If a tool call fails, errors, or requires authentication, DO NOT retry the identical call with the same arguments.
+   - If an account or connector requires re-authentication, inform the user directly with the instructions provided and do not attempt to call that tool again.
+   - When data was offloaded to a scratch handle (e.g. `payload_...`), only call read_scratch_payload if the specific truncated content is strictly necessary to answer.
+   - Do not paginate endlessly over lists or search results. Query with a clean limit (default <= 10) and use what returns.
+5. Budget awareness:
+   - When steps remaining is low (e.g. <steps_remaining: 1>), cease tool execution immediately. Synthesize the most complete and helpful answer possible using the evidence gathered so far, explicitly noting any pieces that could not be retrieved.
+6. Act, don't narrate. If the request is clear, execute it directly. Do not output text like "I will now check your calendar" before calling tools. Confirm before anything destructive or outward-facing (deleting, sending, posting) unless the user explicitly requested that action.
+7. Finish the job. Answer every part of multi-part requests. Group related findings by domain (e.g., schedule vs. emails vs. repo issues).
 
 # Replying
 Your answer renders in a rich interface with GitHub-flavoured markdown: tables, highlighted code, \
 task lists, and callouts (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, \
 `> [!CAUTION]`).
-- Lead with the answer. The first line alone should give the reader what they asked for. No \
-preamble, no closing recap, no "Great question".
-- Length follows the question and the depth setting below. A lookup or yes/no: one line. A \
-change you made: what and where, in a few lines. An explanation, comparison or research: as long \
-as it needs, built to be skimmed.
-- Structure only where it earns its place: headings past about three paragraphs, a table when \
-comparing two or more things across two or more dimensions, a callout for a caveat or \
-prerequisite, a fenced block with a language tag for code, commands and file listings. Prefer a \
-sentence to a bullet list. No emojis in headings or bullets. Plain, concrete wording; no hype.
-- Before a non-trivial shell command, one line on what it does and why. Otherwise do not narrate \
-tool calls, and never use a tool or a code comment to talk to the user.
+- Lead with the answer. The first sentence alone should give the user the bottom-line result. No \
+preamble, no conversational filler ("Sure!", "I can help with that"), no closing recap.
+- Multi-domain requests: structure findings under clean markdown sections by topic (e.g. **Upcoming Schedule**, **Relevant Emails**, **Code Changes**).
+- Length follows the question: quick lookups get 1–2 direct lines; research and comparisons get concise, skimmable summaries with tables and bullet points.
+- Structure only where it earns its place: tables for multi-dimensional comparisons, callouts for caveats/prerequisites, fenced code blocks with language tags. Plain wording, no hype, no decorative emojis in headings.
+- If any tool failed or information was unreachable, state clearly and factually what could not be retrieved.
 
 # Interactive UI
 When a PRESENTATION STEER message is present:
@@ -124,18 +114,20 @@ The same call repeated is blocked.
 
 # Tools
 - Use only tool names from your tool list. If the one you need is not listed, find it with \
-tool_search. Matching tools are returned with their full schemas and promoted into your active \
+COMPOSIO_SEARCH_TOOLS. Matching tools are returned with their full schemas and promoted into your active \
 tools on the next step so you can call them directly by name. For connected services (Google \
-Calendar, Gmail, etc. via Composio), call the visible COMPOSIO_* tools directly.
+Calendar, Gmail, etc. via Composio), call the visible tools directly.
 - Local files and OS work use the local tools. External services use their connector, but only \
 when it is listed as ready; an unlisted connector is unavailable, so do not call it or claim you \
-did. If a tool returns an authorization link, give it to the user.
+did. If a tool returns an authorization link, give it to the user. If an operation requires an \
+unconnected toolkit (e.g. `discordbot` for reading messages when only `discord` is connected), call \
+COMPOSIO_MANAGE_CONNECTIONS(action='initiate', toolkit=...) in that same turn to provide the authorization URL — \
+never loop on searches or ask passive permission in text.
 - Cheapest source first: the shell for time and file facts, `curl wttr.in/~City?format=3` for \
 weather, before any browsing.
 - task hands multi-step research or exploration to a subagent (subagent_type general, explore or \
 scout, plus a clear prompt). spawn_openworker is for bulk work, ten or more items. Do not wrap a \
-single call in either. Task names such as web_search, urls and gmail exist only inside \
-dispatch_parallel_jobs.
+single call in either.
 - Each write may prompt the user, so plan a file or artifact and write it in one call rather \
 than a draft followed by patches. If a tool is refused by the permission mode, say what was \
 refused and why you needed it; do not retry it or look for a way around.
@@ -332,6 +324,51 @@ def _build_static_parts(
     return "\n\n".join(parts)
 
 
+def get_user_timezone(client: dict | None = None):
+    clean = sanitize_client_context(client)
+    tz_str = clean.get("client_tz")
+    if tz_str:
+        try:
+            import zoneinfo
+            return zoneinfo.ZoneInfo(tz_str)
+        except Exception:
+            pass
+    return datetime.now().astimezone().tzinfo
+
+
+def temporal_block(client: dict | None = None) -> str:
+    """Inject fresh temporal context with current date, time, weekday, user timezone,
+    and standard query default windows for the turn.
+    """
+    clean_client = sanitize_client_context(client)
+    tz = get_user_timezone(client)
+    now = datetime.now(tz)
+    weekday = now.strftime("%A")
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M:%S")
+    tz_name = clean_client.get("client_tz") or now.tzname() or "UTC"
+
+    from backend.agent.config import agent_config
+    window_days = agent_config.default_date_window_days
+
+    lines = [
+        "<temporal_context>",
+        f"  current_date: {date_str}",
+        f"  current_time: {time_str}",
+        f"  weekday: {weekday}",
+        f"  timezone: {tz_name}",
+        "  default_windows:",
+        f"    upcoming_calendar: next {window_days} days from current_date",
+        f"    recent_emails: past {window_days} days from current_date",
+        "  rules:",
+        '    - Use current_date, weekday, and timezone to resolve all relative dates ("today", "tomorrow", "this week", "upcoming").',
+        f'    - When searching upcoming calendar events without an explicit date range, default to the next {window_days} days.',
+        f'    - When searching recent emails or messages without an explicit date range, default to the past {window_days} days.',
+        "</temporal_context>",
+    ]
+    return "\n".join(lines)
+
+
 def environment_block(
     workspace_root: str | None, client: dict | None = None,
 ) -> str:
@@ -341,14 +378,21 @@ def environment_block(
     locale (BCP47), device_class (desktop|mobile|tablet), client_time (ISO).
     Anything else dropped. No geo, no UA, no hostname — local-first.
     """
-    now = datetime.now()
+    clean_client = sanitize_client_context(client)
+    tz = get_user_timezone(client)
+    now = datetime.now(tz)
+    weekday = now.strftime("%A")
+    tz_name = clean_client.get("client_tz") or now.tzname() or "UTC"
+
     lines = [
         "<environment>",
-        f"  date: {now:%Y-%m-%d %H:%M} ({now.astimezone().tzname()})",
+        f"  date: {now:%Y-%m-%d %H:%M} ({weekday}, {tz_name})",
+        f"  weekday: {weekday}",
+        f"  timezone: {tz_name}",
         f"  platform: {platform.system()} {platform.release()}",
         f"  workspace: {workspace_root or 'not set'}",
     ]
-    for key, val in sorted(sanitize_client_context(client).items()):
+    for key, val in sorted(clean_client.items()):
         lines.append(f"  {key}: {val}")
     lines.append("</environment>")
     return "\n".join(lines)
@@ -428,7 +472,7 @@ def build_system_prompt(
             del _STATIC_CACHE[oldest]
         _STATIC_CACHE[static_key] = (static_text, _time.monotonic())
 
-    parts = [static_text]
+    parts = [static_text, temporal_block(client_context)]
 
     if recent_conversations:
         parts.append(recent_conversations)
@@ -491,7 +535,7 @@ def build_system_prompt_parts(
             pass
 
     # Volatile section: everything that changes per turn
-    volatile_parts = []
+    volatile_parts = [temporal_block(client_context)]
 
     skills, _ = scan()
     pinned = set(pinned_skills or []) | _ALWAYS_PINNED
@@ -699,25 +743,90 @@ def to_wire_messages(history: list[Message]) -> list[dict]:
     return compact_consumed_tool_results(out)
 
 
-def compact_consumed_tool_results(wire_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Replace old tool results in wire history with one-line stubs once consumed.
+def _summarize_tool_result_content(name: str, content: Any) -> str:
+    """Create a clean one-line summary stub for older completed tool results.
 
-    In a multi-turn conversation, a tool result message (`role: "tool"`) that
-    has already been followed by an `assistant` message has had its information
-    extracted and reasoned over. Keeping full multi-thousand-character tool outputs
-    in the wire history across subsequent iterations wastes tokens and context.
+    If item count can be detected from a list or dict structure, produces:
+        `[{name}: processed {count} items]`
+    Otherwise falls back to:
+        `[{name} executed, result consumed]`
+    """
+    if not content:
+        return f"[{name} executed, result consumed]"
 
-    Replaces the consumed tool result's content with:
-        f"[{tool_name} executed, result consumed]"
+    if isinstance(content, str):
+        trimmed = content.strip()
+        if trimmed.startswith("[") and trimmed.endswith("]") and (
+            "processed" in trimmed or "executed" in trimmed or "consumed" in trimmed
+        ):
+            return trimmed
 
-    Preserves the `role: "tool"`, `tool_call_id`, and `tool_name` so chat completion
-    schemas (e.g. OpenAI, Anthropic, Mistral) remain strictly valid.
-    Only tool results that have a subsequent `assistant` message later in the list
-    are compacted; the latest tool results (currently pending consumption by the
-    next assistant generation) are preserved in full.
+    count = None
+    parsed = None
+    if isinstance(content, (list, dict)):
+        parsed = content
+    elif isinstance(content, str):
+        trimmed = content.strip()
+        if (trimmed.startswith("{") and trimmed.endswith("}")) or (
+            trimmed.startswith("[") and trimmed.endswith("]")
+        ):
+            try:
+                parsed = json.loads(trimmed)
+            except Exception:
+                parsed = None
+
+    if isinstance(parsed, list):
+        count = len(parsed)
+    elif isinstance(parsed, dict):
+        for key in ("items", "events", "messages", "results", "data", "files", "entries", "records"):
+            val = parsed.get(key)
+            if isinstance(val, list):
+                count = len(val)
+                break
+        if count is None:
+            for key in ("count", "total", "total_count"):
+                val = parsed.get(key)
+                if isinstance(val, int):
+                    count = val
+                    break
+
+    if count is not None:
+        item_word = "item" if count == 1 else "items"
+        return f"[{name}: processed {count} {item_word}]"
+    return f"[{name} executed, result consumed]"
+
+
+def compact_consumed_tool_results(
+    wire_messages: list[dict[str, Any]],
+    *,
+    preserve_active_turn: bool = True,
+    preserve_recent_turns: int | None = None,
+) -> list[dict[str, Any]]:
+    """Replace old tool results in wire history with clean one-line stubs once consumed.
+
+    When `preserve_active_turn` is True (default), tool results from the current
+    active turn (occurring after the latest user message) are preserved in full so
+    that the model never loses intermediate results or re-executes queries.
+
+    When `preserve_recent_turns` is specified (defaults to `agent_config.history_verbatim_turns`,
+    typically 2), completed turns within that recent window are also preserved verbatim.
+    Only tool results from older completed turns are replaced with clean one-line summaries
+    (`[tool_name: processed N items]` or `[tool_name executed, result consumed]`).
+
+    Preserves `role: "tool"`, `tool_call_id`, and `tool_name` so chat completion
+    schemas remain strictly valid across providers.
     """
     if not wire_messages:
         return wire_messages
+
+    if preserve_recent_turns is None:
+        try:
+            from backend.agent.config import agent_config
+            recent_turns_to_preserve = agent_config.history_verbatim_turns
+        except Exception:
+            recent_turns_to_preserve = 2
+    else:
+        recent_turns_to_preserve = preserve_recent_turns
 
     last_assistant_idx = -1
     for i in range(len(wire_messages) - 1, -1, -1):
@@ -728,11 +837,36 @@ def compact_consumed_tool_results(wire_messages: list[dict[str, Any]]) -> list[d
     if last_assistant_idx == -1:
         return wire_messages
 
+    user_indices = [i for i, m in enumerate(wire_messages) if m.get("role") == "user"]
+    last_user_idx = user_indices[-1] if user_indices else -1
+
+    if not preserve_active_turn:
+        cutoff_idx = len(wire_messages)
+    elif not user_indices:
+        cutoff_idx = -1
+    else:
+        target_turn_offset = recent_turns_to_preserve + 1
+        if len(user_indices) >= target_turn_offset:
+            cutoff_idx = user_indices[-target_turn_offset]
+        else:
+            cutoff_idx = 0
+
     compacted: list[dict[str, Any]] = []
     for i, msg in enumerate(wire_messages):
+        # Never compact tool results from the active turn (i > last_user_idx)
+        if preserve_active_turn and last_user_idx != -1 and i > last_user_idx:
+            compacted.append(msg)
+            continue
+
+        # In recent turns (>= cutoff_idx), keep verbatim
+        if i >= cutoff_idx:
+            compacted.append(msg)
+            continue
+
+        # Older turns (< cutoff_idx) that have been consumed (< last_assistant_idx)
         if msg.get("role") == "tool" and i < last_assistant_idx:
             name = msg.get("tool_name") or msg.get("name") or "tool"
-            stub = f"[{name} executed, result consumed]"
+            stub = _summarize_tool_result_content(name, msg.get("content"))
             new_msg = dict(msg)
             new_msg["content"] = stub
             compacted.append(new_msg)
@@ -985,6 +1119,7 @@ def budget_history(
     system_prompt: str,
     tools: Sequence[Any] | None = None,
     reserved: int = RESERVED_FOR_RESPONSE,
+    preserve_recent_turns: int | None = None,
 ) -> list[dict]:
     """Drop oldest messages until the assembly fits, keeping tool pairs coherent.
 
@@ -999,7 +1134,9 @@ def budget_history(
             chosen = chosen[1:]
         return chosen
 
-    messages = compact_consumed_tool_results(messages)
+    messages = compact_consumed_tool_results(
+        messages, preserve_recent_turns=preserve_recent_turns
+    )
 
     available = (
         context_window - estimate_tokens(system_prompt) - tool_schema_tokens(tools) - reserved
@@ -1022,3 +1159,113 @@ def budget_history(
     kept.reverse()
 
     return drop_leading_orphans(kept)
+
+
+def estimate_prompt_tokens(
+    messages: list[dict[str, Any]], tools: Sequence[Any] | None = None
+) -> int:
+    """Estimate total prompt tokens across wire messages and tool schemas."""
+    msg_cost = sum(message_tokens(m) for m in messages)
+    tool_cost = tool_schema_tokens(tools) if tools else 0
+    return msg_cost + tool_cost
+
+
+def enforce_token_budget(
+    wire_messages: list[dict[str, Any]],
+    *,
+    tool_schemas: list[Any] | None = None,
+    context_window: int,
+    tokens_per_minute: int | None = None,
+    priority_servers: set[str] | None = None,
+    threshold: float = 0.85,
+    margin: float = 1.25,
+) -> tuple[list[dict[str, Any]], list[Any] | None, list[str]]:
+    """Proactively budget prompt tokens before each model call.
+
+    Ceilings:
+    - Context ceiling: `context_window * threshold` (typically 85% of context window)
+    - TPM ceiling: `tokens_per_minute / margin` if model has a TPM limit
+
+    If total prompt tokens exceed the target ceiling, drops context in strict order:
+      1. Old tool results (compact all completed turns with `preserve_recent_turns=0`)
+      2. Old turns (drop oldest completed turns, preserving tool pair coherence)
+      3. Low-priority tool schemas (trim tool schemas to fit remaining allowance)
+
+    Returns:
+      (budgeted_wire_messages, budgeted_tool_schemas, dropped_tool_names)
+    """
+    if not wire_messages:
+        return wire_messages, tool_schemas, []
+
+    context_ceiling = int(context_window * threshold)
+    if tokens_per_minute and tokens_per_minute > 0:
+        tpm_ceiling = int(tokens_per_minute / margin)
+        target_ceiling = min(context_ceiling, tpm_ceiling)
+    else:
+        target_ceiling = context_ceiling
+
+    current_messages = list(wire_messages)
+    current_tools = list(tool_schemas) if tool_schemas is not None else []
+
+    cost = estimate_prompt_tokens(current_messages, current_tools)
+    if cost <= target_ceiling:
+        return current_messages, tool_schemas, []
+
+    # --- Step 1: Drop/compact old tool results ---
+    # Compact all tool results from completed turns (preserve_recent_turns=0, preserve_active_turn=True)
+    current_messages = compact_consumed_tool_results(
+        current_messages,
+        preserve_active_turn=True,
+        preserve_recent_turns=0,
+    )
+    cost = estimate_prompt_tokens(current_messages, current_tools)
+    if cost <= target_ceiling:
+        return current_messages, (current_tools if tool_schemas is not None else None), []
+
+    # --- Step 2: Drop oldest turns ---
+    # Progressively drop oldest turns until cost fits or only active turn remains
+    user_indices = [i for i, m in enumerate(current_messages) if m.get("role") == "user"]
+    while len(user_indices) > 1 and cost > target_ceiling:
+        start_drop = user_indices[0]
+        end_drop = user_indices[1]
+        current_messages = current_messages[:start_drop] + current_messages[end_drop:]
+        user_indices = [i for i, m in enumerate(current_messages) if m.get("role") == "user"]
+        cost = estimate_prompt_tokens(current_messages, current_tools)
+
+    if cost <= target_ceiling:
+        return current_messages, (current_tools if tool_schemas is not None else None), []
+
+    # --- Step 3: Low-priority tool schemas ---
+    # If still over budget, trim tool schemas to fit in remaining budget
+    dropped_tools: list[str] = []
+    if current_tools:
+        msg_cost = sum(message_tokens(m) for m in current_messages)
+        tool_allowance = max(0, target_ceiling - msg_cost)
+
+        ready = priority_servers or set()
+        builtin = [t for t in current_tools if _MCP_MARKER not in getattr(t, "name", "")]
+        preferred = [t for t in current_tools if _server_of(t) and _server_of(t) in ready]
+        chosen = {id(t) for t in preferred}
+        rest = [t for t in current_tools if _MCP_MARKER in getattr(t, "name", "") and id(t) not in chosen]
+        ordered = [*builtin, *_interleave_by_server(preferred), *_interleave_by_server(rest)]
+
+        if tool_schema_tokens(ordered) > tool_allowance:
+            compressed = compress_tool_schemas(ordered)
+            ordered = compressed
+
+        kept: list[Any] = []
+        used = 0.0
+        for tool in ordered:
+            t_cost = tool_schema_tokens([tool])
+            if used + t_cost <= tool_allowance:
+                kept.append(tool)
+                used += t_cost
+
+        while kept and tool_schema_tokens(kept) > tool_allowance:
+            kept.pop()
+
+        kept_names = {getattr(t, "name", "?") for t in kept}
+        dropped_tools = [n for t in current_tools if (n := getattr(t, "name", "?")) not in kept_names]
+        current_tools = kept
+
+    return current_messages, (current_tools if tool_schemas is not None else None), dropped_tools

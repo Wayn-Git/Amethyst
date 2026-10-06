@@ -56,7 +56,7 @@ def test_tool_result_capping_and_paging_arg_detection():
     # 5. Generic truncate in registry.py adheres to cap
     reg_truncated = truncate(long_content, tool_name="search_web")
     assert len(reg_truncated) <= MAX_RESULT_CHARS
-    assert reg_truncated.endswith("[truncated; call again with offset for more]")
+    assert reg_truncated.endswith("[truncated; call again with offset for more]") or "Full payload stored under handle" in reg_truncated
 
 
 def test_sanitize_composio_content_caps_large_payloads():
@@ -76,7 +76,7 @@ def test_wire_history_compaction_consumed_vs_latest():
         {"role": "tool", "tool_call_id": "call_2", "tool_name": "grep_files", "content": "Match on line 42"},
     ]
 
-    compacted = compact_consumed_tool_results(messages)
+    compacted = compact_consumed_tool_results(messages, preserve_active_turn=False)
 
     # call_1 has been followed by an assistant message: it must be compacted
     assert compacted[2]["role"] == "tool"
@@ -105,6 +105,7 @@ def test_budget_history_applies_compaction():
         context_window=32000,
         system_prompt="system",
         tools=None,
+        preserve_recent_turns=0,
     )
     # The old tool result at index 2 must be compacted in budgeted output
     assert budgeted[2]["content"] == "[search executed, result consumed]"

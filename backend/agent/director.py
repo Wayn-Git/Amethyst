@@ -17,7 +17,7 @@ import os
 import re
 import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +38,7 @@ from backend.agent.prompt import (
     compact_consumed_tool_results,
     compress_tool_schemas,
     dropped_summary,
+    enforce_token_budget,
     environment_block,
     estimate_tokens,
     extract_skill_invocations,
@@ -48,8 +49,11 @@ from backend.agent.prompt import (
     to_wire_messages,
     tool_schema_tokens,
 )
+from backend.agent.config import agent_config
+from backend.agent.defaults import apply_tool_defaults
+from backend.agent.tool_repair import repair_and_validate_tool_call
 from backend.agent.state import AgentState, IllegalTransition
-from backend.agent.tool_selector import select_tools
+from backend.agent.tool_selector import _bare, _server_of, select_tools
 from backend.agent.tool_search import (
     ToolSearchConfig,
     assemble_tool_defs,
@@ -67,6 +71,9 @@ from backend.agent.jev import classify_presentation
 from backend.agent.trace import (
     finish_turn_trace,
     is_trace_enabled,
+    record_cache_hit,
+    record_error,
+    record_provider,
     record_step,
     record_tool_dispatch,
     start_turn_trace,
@@ -81,12 +88,18 @@ from backend.db.repositories import (
 )
 from backend.runtime import availability
 from backend.runtime.chain import AttemptBudget, Link, announcement, build_chain, reason_for
-from backend.runtime.failures import FailureKind, looks_like_quota, should_fall_back, should_retry
+from backend.runtime.failures import (
+    FailureKind,
+    classify_status,
+    looks_like_quota,
+    should_fall_back,
+    should_retry,
+)
 from backend.runtime.http import ProviderError, ProviderHTTPError, ProviderStreamError
-from backend.runtime.registry import resolve
+from backend.runtime.registry import ProviderNotConfigured, resolve
 from backend.runtime.router import AUTO, RouteRequest, route
 from backend.runtime.types import ModelParameters, ModelResponse, ToolCall, ToolSchema
-from backend.tools.base import ToolContext, ToolResult
+from backend.tools.base import RiskLevel, ToolContext, ToolResult, compute_idempotency_key
 from backend.tools.registry import ToolRegistry
 from backend.capabilities import CapabilityService, Kind
 from backend.conversations import summaries as convo_summaries
@@ -168,10 +181,9 @@ CONTINUE_AFTER_TRUNCATION = (
 )
 
 FINAL_STEP_INSTRUCTION = (
-    "This is the last step available for this turn. You cannot call any more"
-    " tools. Answer the user now with what you already have: give the result if"
-    " you have it, and if the work is unfinished, say plainly what you did, what"
-    " you found, and what is left. Do not apologise for the limit."
+    "This is the last step available for this turn. Tools are disabled. "
+    "Answer from what you have. State clearly anything you could not retrieve. "
+    "Do not apologise for the limit."
 )
 
 VISUALIZATION_STEER_INSTRUCTIONS: dict[str, str] = {
@@ -544,6 +556,46 @@ _ALWAYS_PARALLEL = frozenset({
 #: Name prefixes that indicate a read-only MCP tool safe for parallel dispatch.
 #: Checked when a tool is not in _ALWAYS_PARALLEL and not in _PATH_SCOPED.
 _PARALLEL_PREFIXES = ("search_", "read_", "list_", "get_", "fetch_")
+_READ_VERBS = ("search", "find", "read", "list", "get", "fetch", "query", "scan", "check")
+_WRITE_VERBS = (
+    "create", "update", "delete", "send", "reply", "add", "post",
+    "edit", "write", "patch", "remove", "insert", "drop", "apply", "execute", "run",
+)
+
+
+def _is_parallel_read_tool(name: str) -> bool:
+    """True if tool is read-only and safe to run in parallel with other reads."""
+    if name in _NEVER_PARALLEL:
+        return False
+    bare = _bare(name).lower()
+    if bare in _ALWAYS_PARALLEL or name in _ALWAYS_PARALLEL:
+        return True
+    if bare in _PATH_WRITERS or name in _PATH_WRITERS or bare in _NEVER_PARALLEL:
+        return False
+    tokens = [t for t in re.split(r"[_\-]", bare) if t]
+    if any(t in _WRITE_VERBS for t in tokens):
+        return False
+    if any(bare.startswith(p) for p in _PARALLEL_PREFIXES):
+        return True
+    if any(t in _READ_VERBS for t in tokens):
+        return True
+    return False
+
+
+def _is_composio_call(call: ToolCall, registry: ToolRegistry) -> bool:
+    """True if a call targets Composio (excluding meta discovery tools)."""
+    b = _bare(call.name)
+    if b in ("COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_MULTI_EXECUTE_TOOL"):
+        return False
+    tool = registry.get(call.name)
+    if tool and getattr(tool, "server_name", None) == "composio":
+        return True
+    if _server_of(call.name) == "composio":
+        return True
+    from backend.mcp.composio_service import ALL_FAST_LANE_SLUGS
+    if call.name in ALL_FAST_LANE_SLUGS or b in ALL_FAST_LANE_SLUGS:
+        return True
+    return False
 
 # Filesystem tools that mutate state — path overlap forces sequential.
 _PATH_WRITERS = frozenset({"edit_file", "write_file", "create_file"})
@@ -617,9 +669,7 @@ def _plan_tool_segments(
         is_writer = call.name in _PATH_WRITERS
 
         if not scoped and call.name not in _ALWAYS_PARALLEL and call.name not in _PATH_SCOPED:
-            # MCP tools with read-only prefixes are safe to parallelize.
-            # Unknown tools without a recognized prefix stay sequential.
-            if not any(call.name.startswith(p) for p in _PARALLEL_PREFIXES):
+            if not _is_parallel_read_tool(call.name):
                 _close_parallel()
                 if segments and segments[-1][0] == "sequential":
                     segments[-1][1].append(call)
@@ -665,6 +715,19 @@ def _fingerprint(call: ToolCall) -> str:
         rendered = repr(call.arguments)
     digest = hashlib.sha256(rendered.encode("utf-8", "replace")).hexdigest()[:16]
     return f"{call.name}:{digest}"
+
+
+def execution_cache_key(tool_name: str, arguments: Any) -> str:
+    """Stable cache key for in-turn dedupe: (bare_tool_name, sorted_json_args)."""
+    norm_name = _bare(tool_name)
+    if isinstance(arguments, dict):
+        try:
+            args_str = json.dumps(arguments, sort_keys=True, default=str)
+        except Exception:
+            args_str = str(arguments)
+    else:
+        args_str = str(arguments)
+    return f"{norm_name}:{args_str}"
 
 
 def _guard(
@@ -1035,7 +1098,18 @@ class Director:
         # conversation exists; until then this is an object nothing has stored,
         # and a checkpoint against it updates no rows.
         state = AgentState(conversation_id=conversation_id, mode=self.mode)
-        _trace, _watchdog, _trace_token = start_turn_trace(conversation_id, user_message)
+        _trace, _watchdog, _trace_token = start_turn_trace(conversation_id, user_message, turn_id=state.id)
+        cancel_watcher: asyncio.Task | None = None
+        if cancel is not None:
+            async def _watch_cancel_and_abort():
+                try:
+                    await cancel.wait()
+                    for task in list(self._inflight):
+                        if not task.done():
+                            task.cancel()
+                except asyncio.CancelledError:
+                    pass
+            cancel_watcher = asyncio.create_task(_watch_cancel_and_abort())
         try:
             async for event in self._run(
                 state, conversation_id, user_message, cancel, attachments, client_context
@@ -1097,6 +1171,8 @@ class Director:
             )
             raise
         finally:
+            if cancel_watcher and not cancel_watcher.done():
+                cancel_watcher.cancel()
             # However this turn ended, it does not get to leave a tool call
             # nobody answered behind it. See `close_open_tool_calls`.
             #
@@ -1115,15 +1191,13 @@ class Director:
             # leave through an exception or a closed generator, which is exactly
             # the case a reader cannot tell from a turn still thinking.
             if not state.terminal:
-                # The error must land with the phase: a row of phase='failed'
-                # and error=NULL has no reason attached, and the interface can
-                # only fall back to "The turn ended without a result". The
-                # GeneratorExit path is the common producer -- the reader
-                # hung up, the handler re-raises without touching
-                # state.error, and the row opened at `_open` is left here.
-                if not state.error:
-                    state.error = "the turn ended without a result"
-                self._checkpoint(state, "failed")
+                if cancel is not None and cancel.is_set():
+                    state.error = "the turn was cancelled"
+                    self._checkpoint(state, "cancelled")
+                else:
+                    if not state.error:
+                        state.error = "the turn ended without a result"
+                    self._checkpoint(state, "failed")
             try:
                 await self.runs.flush_async()
             except Exception:
@@ -1132,7 +1206,7 @@ class Director:
                 forget_ownership()
             except Exception:
                 pass
-            finish_turn_trace(_trace, _watchdog, _trace_token)
+            finish_turn_trace(_trace, _watchdog, _trace_token, state=state)
 
     async def _run(
         self,
@@ -1188,7 +1262,11 @@ class Director:
         # it saves a model call (0.5-2s) per turn.
         # Fast synchronous intent routing (< 0.02ms)
         history_raw = self.messages.history(conversation_id)
-        max_iters_configured = self.guards.max_iterations or 40
+        max_iters_configured = (
+            self.guards.max_iterations
+            if (self.guards.max_iterations is not None and self.guards.max_iterations > 0)
+            else agent_config.max_iterations
+        )
         intent_route, need_remote_jev, need_widget_extract = route_intent_fast(
             user_message,
             history_raw=history_raw,
@@ -1463,6 +1541,8 @@ class Director:
                 except Exception:
                     log.debug("failed to persist fallback model to conversation", exc_info=True)
                 break
+            except ProviderNotConfigured:
+                raise
             except Exception as exc:
                 last_error = exc
                 failed = chain[state.active]
@@ -1526,6 +1606,8 @@ class Director:
             # Plan mode's enforcement half. The schemas are withheld below; this
             # is what refuses a mutating tool named anyway.
             read_only=planning,
+            turn_id=state.id,
+            extra={"state": state, "user_message": user_message},
         )
         # The one piece of turn state deliberately left off `state`:
         # `time.monotonic()` counts from an arbitrary point in *this* process, so
@@ -1560,12 +1642,29 @@ class Director:
         self._tool_search_catalog = None  # for bridge tool dispatch in _execute()
         self._promoted_tools: dict[str, ToolSchema] = {}  # promoted from tool_search for live invocation
 
-        base_max_iters = 1000 if (self.guards.max_iterations is None or self.guards.max_iterations <= 0) else self.guards.max_iterations
-        effective_budget = intent_route.step_budget
-        max_continuations = self.guards.max_continuations or 0
+        base_max_iters = (
+            agent_config.max_iterations
+            if (self.guards.max_iterations is None or self.guards.max_iterations <= 0)
+            else self.guards.max_iterations
+        )
+        effective_budget = (
+            intent_route.step_budget
+            if intent_route.lane in ("chat", "widget")
+            else agent_config.default_step_budget
+        )
+        effective_budget = min(base_max_iters, effective_budget)
+        max_continuations = self.guards.max_continuations if self.guards.max_continuations is not None else agent_config.max_continuations
         max_iters = min(base_max_iters, effective_budget + max_continuations)
-        wall_clock_cap = min(self.guards.max_seconds, 45.0) if self.guards.max_seconds > 0 else 45.0
-        hard_timeout = max(self.guards.max_seconds, 60.0) if self.guards.max_seconds > 0 else 60.0
+        wall_clock_cap = (
+            min(self.guards.max_seconds, agent_config.wall_clock_cap)
+            if self.guards.max_seconds > 0
+            else agent_config.wall_clock_cap
+        )
+        hard_timeout = (
+            max(self.guards.max_seconds, agent_config.hard_timeout)
+            if self.guards.max_seconds > 0
+            else agent_config.hard_timeout
+        )
         final_step_attempted = False
 
         for iteration in range(max_iters):
@@ -1577,6 +1676,10 @@ class Director:
             elapsed = time.monotonic() - started
             if (self.guards.max_seconds > 0 and elapsed > self.guards.max_seconds) or elapsed > hard_timeout:
                 state.error = "time limit reached"
+                async for ev in self._guaranteed_final_answer(
+                    conversation_id, model, system_base or "", said, state, "time limit reached", chain=chain
+                ):
+                    yield ev
                 self._checkpoint(state, "stopped", budget=budget)
                 yield _guard("time limit reached", said, iteration, state.tool_calls_made, started)
                 break
@@ -1782,8 +1885,8 @@ class Director:
                     # enough" looks like from the outside.
                     if not state.warned_about_cap:
                         state.warned_about_cap = True
-                        if hit_wall_clock or intent_route.lane != "chat":
-                            cap_desc = f"{int(wall_clock_cap)}s" if hit_wall_clock else f"{max_iters}-step"
+                        if (hit_wall_clock or (hit_step_limit and effective_budget > 1)) and (state.tool_calls_made > 0 or intent_route.lane != "chat"):
+                            cap_desc = f"{int(wall_clock_cap)}s" if hit_wall_clock else f"{effective_budget}-step"
                             yield Event(
                                 "warning",
                                 {
@@ -1894,6 +1997,16 @@ class Director:
                     wire.append({"role": "system", "content": state.presentation_steer})
                 if final_step:
                     wire.append({"role": "system", "content": FINAL_STEP_INSTRUCTION})
+                else:
+                    task_step = iteration - state.continuations
+                    steps_remaining = max(0, effective_budget - task_step - 1)
+                    if wire and wire[0]["role"] == "system":
+                        wire[0]["content"] = f"{wire[0]['content']}\n\n[steps remaining: {steps_remaining}]"
+                    else:
+                        wire.append({
+                            "role": "system",
+                            "content": f"steps remaining: {steps_remaining}",
+                        })
                 if state.failed_calls:
                     # Every round trip, not only the final step: the model
                     # decides whether to retry, work around it or report it at
@@ -1934,21 +2047,26 @@ class Director:
                 # small client on the same free tier does implicitly. The skip
                 # below now only fires when the system prompt *alone* is over
                 # budget, which trimming cannot help.
-                if model.capabilities.tokens_per_minute and tool_schemas is not None:
-                    tool_schemas, tpm_dropped = fit_tools_to_budget(
-                        tool_schemas,
-                        system_prompt=system_prompt,
-                        token_budget=model.capabilities.tokens_per_minute,
-                        margin=TPM_SAFETY_MARGIN,
-                        priority_servers=ready_servers,
-                    )
-                    if tpm_dropped and not state.warned_about_tools:
-                        state.warned_about_tools = True
-                        yield Event("warning", {"message": dropped_summary(tpm_dropped)})
+                wire, tool_schemas, budget_dropped = enforce_token_budget(
+                    wire,
+                    tool_schemas=tool_schemas,
+                    context_window=model.capabilities.context_window,
+                    tokens_per_minute=model.capabilities.tokens_per_minute,
+                    priority_servers=ready_servers,
+                    threshold=agent_config.token_budget_threshold,
+                    margin=agent_config.tpm_safety_margin,
+                )
+                if budget_dropped and not state.warned_about_tools:
+                    state.warned_about_tools = True
+                    yield Event("warning", {"message": dropped_summary(budget_dropped)})
+
                 if model.capabilities.tokens_per_minute:
                     baseline = round(
-                        (estimate_tokens(system_prompt) + tool_schema_tokens(tool_schemas))
-                        * TPM_SAFETY_MARGIN
+                        (
+                            sum(message_tokens(m) for m in wire)
+                            + (tool_schema_tokens(tool_schemas) if tool_schemas else 0)
+                        )
+                        * agent_config.tpm_safety_margin
                     )
                     if baseline > model.capabilities.tokens_per_minute:
                         kind = FailureKind.NON_RETRYABLE_RATE_LIMIT
@@ -2033,6 +2151,16 @@ class Director:
                     model.client.session_id = conversation_id
                 if hasattr(model.client, "_build_payload"):
                     model.client._cache_system = True
+                effective_params = self.params
+                if final_step:
+                    if isinstance(self.params, ModelParameters):
+                        effective_params = replace(self.params, tool_choice="none")
+                    elif isinstance(self.params, dict):
+                        effective_params = dict(self.params)
+                        effective_params["tool_choice"] = "none"
+                    else:
+                        effective_params = ModelParameters(tool_choice="none")
+
                 try:
                     if (
                         self.stream
@@ -2042,7 +2170,7 @@ class Director:
                         # Deltas go out as they arrive so the interface can render
                         # progressively; tool calls are only actionable once assembled.
                         async for chunk in _stream_until_cancelled(
-                            model.client.stream(wire, tools=tool_schemas, params=self.params),
+                            model.client.stream(wire, tools=tool_schemas, params=effective_params),
                             cancel,
                         ):
                             if chunk.type == "text" and chunk.text:
@@ -2078,7 +2206,7 @@ class Director:
                             )
                     else:
                         response = await _race_cancel(
-                            model.client.complete(wire, tools=tool_schemas, params=self.params),
+                            model.client.complete(wire, tools=tool_schemas, params=effective_params),
                             cancel,
                         )
                 except Stopped:
@@ -2100,7 +2228,19 @@ class Director:
                     # A failure that was never classified is a bad request as
                     # far as anything downstream is concerned: it stops rather
                     # than spending another provider on a guess.
-                    kind = getattr(exc, "kind", FailureKind.NON_RETRYABLE)
+                    kind = getattr(exc, "kind", None)
+                    if kind is None:
+                        exc_str = f"{type(exc).__name__} {exc}".lower()
+                        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or "timeout" in exc_str:
+                            kind = FailureKind.UNREACHABLE
+                        elif isinstance(exc, (ConnectionError, OSError)) or "connection" in exc_str or "connect" in exc_str:
+                            kind = FailureKind.UNREACHABLE
+                        else:
+                            status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+                            if status_code:
+                                kind = classify_status(status_code, str(exc))
+                            else:
+                                kind = FailureKind.NON_RETRYABLE
 
                     # An answer that was already being written is picked up
                     # again rather than abandoned.
@@ -2305,34 +2445,14 @@ class Director:
                     elif sandboxed_ui_env and FENCE not in partial:
                         partial = f"{sandboxed_ui_env}\n\n{partial}".strip()
 
+                    if not partial:
+                        fallback = self._summarise(conversation_id, said)
+                        if fallback and not fallback.startswith("I could not produce an answer"):
+                            partial = fallback
+
                     if partial:
                         # There is an answer. Deliver it, and do not call it a
                         # failure.
-                        #
-                        # This used to end on an `error` frame with
-                        # `[model error] ...` appended to the transcript under
-                        # the text -- so a turn that streamed a *complete*
-                        # answer and then had its stream fall over on the way
-                        # out showed the whole answer and a red card saying it
-                        # had failed. Which is the one thing the reader
-                        # believes: the work is done and the interface says it
-                        # is broken.
-                        #
-                        # A stream that dies after the content has arrived is a
-                        # transport failure, not a turn failure, and what
-                        # decides that is what is in hand rather than how the
-                        # connection ended.
-                        #
-                        # `stopped`, not `completed`, and a `guard` frame
-                        # rather than `done`. Both halves matter. `guard` is
-                        # the frame this codebase already has for "it ended
-                        # early, here is what it is worth" -- the interface
-                        # draws it as a neutral note rather than the red card.
-                        # And `AgentState.resumable` is `carried and phase !=
-                        # "completed"`, so `stopped` is what keeps the pickup
-                        # offer alive on reload (ADR-0021) for an answer that
-                        # really was cut short. Calling it `completed` would
-                        # have quietly deleted that.
                         state.carried = partial
                         state.error = message
                         self._persist(conversation_id, "assistant", partial)
@@ -2341,6 +2461,8 @@ class Director:
                             yield Event("step_done", {"number": state.step_open})
                             state.step_open = None
                         self._checkpoint(state, "stopped", budget=budget)
+                        yield Event("assistant_delta", {"content": partial})
+                        yield Event("done", {"text": partial})
                         yield _guard(
                             f"{message} What it had written is above",
                             [partial],
@@ -2526,6 +2648,13 @@ class Director:
                     log.warning("post-turn memory/summary background task failed: %s", exc)
                 return
 
+            if response.tool_calls and agent_config.enable_tool_repair:
+                for c in response.tool_calls:
+                    c, val_err = repair_and_validate_tool_call(c, self.registry)
+                    if val_err:
+                        setattr(c, "_validation_error", val_err)
+                    setattr(c, "_repaired", True)
+
             if planning:
                 submitted = next(
                     (c for c in response.tool_calls if c.name == PLAN_TOOL_NAME), None
@@ -2579,6 +2708,9 @@ class Director:
             # concurrently (fastest path). Sequential segments run one-by-one
             # (safe for tools that mutate shared state or need user interaction).
             calls = list(response.tool_calls)
+            for c in calls:
+                if isinstance(c.arguments, dict):
+                    c.arguments = apply_tool_defaults(c.name, c.arguments, user_prompt=user_message)
             # Separate step notifications (instant) from real dispatches
             step_calls = [c for c in calls if c.name == STEP_TOOL_NAME]
             dispatch_calls = [c for c in calls if c.name != STEP_TOOL_NAME]
@@ -2609,6 +2741,34 @@ class Director:
 
             for seg_type, seg_calls in segments:
                 if seg_type == "parallel":
+                    # Check if multiple calls in this segment target Composio
+                    mcp_mgr = getattr(self.registry, "mcp_manager", None)
+                    composio_calls: list[ToolCall] = []
+                    if mcp_mgr and hasattr(mcp_mgr, "execute_composio_batch"):
+                        composio_calls = [
+                            c for c in seg_calls
+                            if _is_composio_call(c, self.registry)
+                            and not getattr(c, "_validation_error", None)
+                        ]
+
+                    batch_future: asyncio.Future | None = None
+                    if len(composio_calls) >= 2:
+                        batch_future = asyncio.get_running_loop().create_future()
+
+                        async def _run_batch(calls=composio_calls, fut=batch_future):
+                            try:
+                                res = await mcp_mgr.execute_composio_batch(calls)
+                                if not fut.done():
+                                    fut.set_result(res)
+                            except Exception as ex:
+                                if not fut.done():
+                                    fut.set_exception(ex)
+
+                        self._spawn(_run_batch())
+
+                    seg_tasks: list[asyncio.Task] = []
+                    batch_inflight_reads: dict[str, asyncio.Task] = {}
+                    batch_inflight_writes: dict[str, asyncio.Task] = {}
                     # Launch all calls in this segment concurrently
                     for call in seg_calls:
                         if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
@@ -2654,12 +2814,115 @@ class Director:
                             already_open=live_artifacts.opened(call),
                         ):
                             yield event
-                        task = self._spawn(self._execute(call, context))
+
+                        from backend.agent.read_cache import read_cache
+
+                        cache_key = execution_cache_key(call.name, call.arguments)
+                        read_cached = read_cache.get(call.name, call.arguments)
+                        val_err = getattr(call, "_validation_error", None)
+
+                        tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+                        is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
+                        idem_key = compute_idempotency_key(state.id, call.name, call.arguments if isinstance(call.arguments, dict) else {})
+                        if not val_err and is_write and idem_key in state.idempotency_cache:
+                            record_cache_hit()
+                            cached_data = state.idempotency_cache[idem_key]
+                            cached_res = ToolResult(
+                                content=cached_data.get("content", ""),
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif not val_err and is_write and idem_key in batch_inflight_writes:
+                            record_cache_hit()
+                            shared_write_task = batch_inflight_writes[idem_key]
+
+                            async def _await_shared_write(t=shared_write_task):
+                                return await t
+
+                            task = self._spawn(_await_shared_write())
+                        elif not val_err and not is_write and cache_key in state.execution_cache:
+                            record_cache_hit()
+                            cached_data = state.execution_cache[cache_key]
+                            cached_content = cached_data.get("content", "")
+                            note = "[already fetched this turn: using cached result]\n"
+                            content = note + cached_content if not cached_content.startswith(note) else cached_content
+                            cached_res = ToolResult(
+                                content=content,
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif not val_err and not is_write and cache_key in batch_inflight_reads:
+                            record_cache_hit()
+                            shared_read_task = batch_inflight_reads[cache_key]
+
+                            async def _await_shared_read(t=shared_read_task):
+                                res = await t
+                                note = "[already fetched this turn: using cached result]\n"
+                                content = note + res.content if not res.content.startswith(note) else res.content
+                                return ToolResult(
+                                    content=content,
+                                    artifacts=res.artifacts,
+                                    is_error=res.is_error,
+                                    recoverable=res.recoverable,
+                                )
+
+                            task = self._spawn(_await_shared_read())
+                        elif not val_err and not is_write and read_cached is not None:
+                            record_cache_hit()
+                            cached_res = ToolResult(
+                                content=read_cached.content,
+                                artifacts=read_cached.artifacts,
+                                is_error=read_cached.is_error,
+                                recoverable=read_cached.recoverable,
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif batch_future is not None and call in composio_calls:
+                            c_idx = composio_calls.index(call)
+
+                            async def _await_batch_item(idx=c_idx, fut=batch_future, tool_name=call.name):
+                                try:
+                                    res_list = await asyncio.wait_for(fut, timeout=agent_config.tool_timeout_seconds)
+                                    return res_list[idx]
+                                except (TimeoutError, asyncio.TimeoutError):
+                                    return ToolResult.error(
+                                        f"'{tool_name}' timed out after {int(agent_config.tool_timeout_seconds)}s and was stopped."
+                                    )
+
+                            task = self._spawn(_await_batch_item())
+                            if not val_err:
+                                if is_write:
+                                    batch_inflight_writes[idem_key] = task
+                                else:
+                                    batch_inflight_reads[cache_key] = task
+                        else:
+                            task = self._spawn(self._execute(call, context))
+                            if not val_err:
+                                if is_write:
+                                    batch_inflight_writes[idem_key] = task
+                                else:
+                                    batch_inflight_reads[cache_key] = task
+
                         dispatch_tasks.append((call, task))
+                        seg_tasks.append(task)
 
                     # Drain events from parallel tasks
-                    parallel_tasks = [t for _, t in dispatch_tasks if t is not None]
-                    pending = [t for t in parallel_tasks if not t.done()]
+                    pending = [t for t in seg_tasks if not t.done()]
                     if pending:
                         # One token per task, and only *that* token ends its
                         # wait. Counting "a sentinel arrived" instead is what
@@ -2721,6 +2984,10 @@ class Director:
                     for call in seg_calls:
                         if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
                             state.error = "tool call limit reached"
+                            async for ev in self._guaranteed_final_answer(
+                                conversation_id, model, system_base or "", said, state, "tool call limit reached", chain=chain
+                            ):
+                                yield ev
                             self._checkpoint(state, "stopped", budget=budget)
                             yield _guard(
                                 "tool call limit reached", said, iteration, state.tool_calls_made, started
@@ -2762,8 +3029,62 @@ class Director:
                             already_open=live_artifacts.opened(call),
                         ):
                             yield event
-                        # Execute sequentially and drain events inline
-                        task = self._spawn(self._execute(call, context))
+                        from backend.agent.read_cache import read_cache
+
+                        cache_key = execution_cache_key(call.name, call.arguments)
+                        read_cached = read_cache.get(call.name, call.arguments)
+                        val_err = getattr(call, "_validation_error", None)
+
+                        tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+                        is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
+                        idem_key = compute_idempotency_key(state.id, call.name, call.arguments if isinstance(call.arguments, dict) else {})
+                        if not val_err and is_write and idem_key in state.idempotency_cache:
+                            record_cache_hit()
+                            cached_data = state.idempotency_cache[idem_key]
+                            cached_res = ToolResult(
+                                content=cached_data.get("content", ""),
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif not val_err and cache_key in state.execution_cache:
+                            record_cache_hit()
+                            cached_data = state.execution_cache[cache_key]
+                            cached_content = cached_data.get("content", "")
+                            note = "[already fetched this turn: using cached result]\n"
+                            content = note + cached_content if not cached_content.startswith(note) else cached_content
+                            cached_res = ToolResult(
+                                content=content,
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif not val_err and read_cached is not None:
+                            record_cache_hit()
+                            cached_res = ToolResult(
+                                content=read_cached.content,
+                                artifacts=read_cached.artifacts,
+                                is_error=read_cached.is_error,
+                                recoverable=read_cached.recoverable,
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        else:
+                            # Execute sequentially and drain events inline
+                            task = self._spawn(self._execute(call, context))
                         dispatch_tasks.append((call, task))
                         token = object()
                         def _seq_done(_result, s=token):
@@ -2841,6 +3162,15 @@ class Director:
                 else:
                     result = task.result()
                     if result and result.content:
+                        from backend.agent.projection import project_tool_result_content
+                        result.content = project_tool_result_content(
+                            result.content, tool_name=call.name, arguments=call.arguments
+                        )
+                        from backend.agent.scratch_store import scratch_store
+                        compacted, handle = scratch_store.compact_payload(
+                            result.content, tool_name=call.name
+                        )
+                        result.content = compacted
                         from backend.mcp.composio_sanitizer import cap_tool_result_content
                         result.content = cap_tool_result_content(
                             result.content, tool_name=call.name, arguments=call.arguments
@@ -2849,6 +3179,38 @@ class Director:
                             m = re.search(rf"```{re.escape(FENCE)}\s*\n(.*?)\n```", result.content, re.DOTALL)
                             if m:
                                 state.sandboxed_ui_envelope = f"```{FENCE}\n{m.group(1).strip()}\n```"
+
+                    from backend.agent.read_cache import read_cache
+
+                    tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+                    is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
+                    idem_key = compute_idempotency_key(state.id, call.name, call.arguments if isinstance(call.arguments, dict) else {})
+                    if is_write and result and not result.is_error:
+                        state.idempotency_cache[idem_key] = {
+                            "content": result.content,
+                            "artifacts": getattr(result, "artifacts", []),
+                            "is_error": result.is_error,
+                            "recoverable": result.recoverable,
+                        }
+
+                    if result and not result.is_error:
+                        cache_key = execution_cache_key(call.name, call.arguments)
+                        if cache_key not in state.execution_cache:
+                            state.execution_cache[cache_key] = {
+                                "content": result.content,
+                                "artifacts": getattr(result, "artifacts", []),
+                                "is_error": result.is_error,
+                                "recoverable": result.recoverable,
+                            }
+                        read_cache.set(
+                            call.name,
+                            call.arguments,
+                            result.content,
+                            artifacts=getattr(result, "artifacts", []),
+                            is_error=result.is_error,
+                            recoverable=result.recoverable,
+                        )
+                    read_cache.invalidate_for_tool(call.name)
 
                 answered = self._persist(
                     conversation_id,
@@ -2898,6 +3260,10 @@ class Director:
                     return
         else:
             state.error = "iteration limit reached"
+            async for ev in self._guaranteed_final_answer(
+                conversation_id, model, system_base or "", said, state, "round budget reached", chain=chain
+            ):
+                yield ev
             self._checkpoint(state, "stopped", budget=budget)
             yield _guard(
                 "iteration limit reached",
@@ -2908,6 +3274,95 @@ class Director:
             )
 
         self.conversations.touch(conversation_id)
+
+    async def _guaranteed_final_answer(
+        self,
+        conversation_id: str,
+        model: ResolvedModel | None,
+        system_prompt: str,
+        said: list[str],
+        state: AgentState,
+        terminal_reason: str,
+        *,
+        chain: list[Link] | None = None,
+    ) -> AsyncIterator[Event]:
+        """Execute one final model call with tools=None to guarantee a synthesized answer."""
+        spoken = "".join(said).strip()
+        if spoken:
+            return
+
+        instruction = (
+            f"This turn has reached its limit ({terminal_reason}). Tools are disabled. "
+            "Answer from what you have. State clearly anything you could not retrieve."
+        )
+        prompt_text = system_prompt or "You are Amethyst, a personal AI assistant."
+
+        try:
+            history_messages = self.messages.history(conversation_id)
+            wire_history = to_wire_messages(history_messages)
+        except Exception:
+            wire_history = []
+
+        wire = [
+            {"role": "system", "content": prompt_text},
+            *wire_history,
+            {"role": "system", "content": instruction},
+        ]
+
+        candidates: list[ResolvedModel] = []
+        if agent_config.fast_summary_provider and agent_config.fast_summary_model:
+            try:
+                fast_m = await asyncio.to_thread(
+                    resolve,
+                    agent_config.fast_summary_provider,
+                    agent_config.fast_summary_model,
+                )
+                candidates.append(fast_m)
+            except Exception as f_err:
+                log.debug("Fast summary model could not be resolved: %s", f_err)
+
+        if model is not None and model not in candidates:
+            candidates.append(model)
+
+        for cand in candidates:
+            try:
+                final_resp = await cand.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
+                text = (final_resp.text or "").strip()
+                if text:
+                    said.append(text)
+                    self._persist(conversation_id, "assistant", text)
+                    yield Event("assistant_delta", {"content": text})
+                    yield Event("done", {"text": text})
+                    return
+            except Exception as exc:
+                log.warning("Final answer synthesis call failed on %s: %s", getattr(cand, "name", "candidate"), exc)
+
+        # Fallback chain for synthesis: try remaining healthy links if primary failed
+        if chain:
+            start_idx = getattr(state, "active", 0) + 1
+            for idx in range(start_idx, len(chain)):
+                link = chain[idx]
+                if availability.is_circuit_open(link.provider):
+                    continue
+                try:
+                    fb_model = await asyncio.to_thread(resolve, link.provider, link.model)
+                    final_resp = await fb_model.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
+                    text = (final_resp.text or "").strip()
+                    if text:
+                        said.append(text)
+                        self._persist(conversation_id, "assistant", text)
+                        yield Event("assistant_delta", {"content": text})
+                        yield Event("done", {"text": text})
+                        return
+                except Exception as fb_exc:
+                    log.warning("Fallback synthesis failed on %s: %s", link, fb_exc)
+
+        fallback = self._summarise(conversation_id, said)
+        if fallback and not said:
+            said.append(fallback)
+            self._persist(conversation_id, "assistant", fallback)
+            yield Event("assistant_delta", {"content": fallback})
+            yield Event("done", {"text": fallback})
 
     #: How many tool results a fallback summary names before it stops listing.
     SUMMARY_TOOL_LIMIT = 8
@@ -3431,7 +3886,9 @@ class Director:
         would rule out providers that would have answered fine.
         """
         tools = self.registry.schemas(read_only=self.mode == "plan") if self.registry else []
+        tier = agent_config.tool_round_tier if tools else agent_config.summary_round_tier
         return RouteRequest(
+            tier=tier,
             context_tokens=estimate_tokens(user_message) + tool_schema_tokens(tools),
             tool_count=len(tools),
             needs_tools=bool(tools),
@@ -3546,7 +4003,37 @@ class Director:
         """
         _t_disp0 = time.perf_counter()
         _is_bridge = False
-        try:
+        val_err = getattr(call, "_validation_error", None)
+        if val_err:
+            return ToolResult.error(val_err)
+        if agent_config.enable_tool_repair and not getattr(call, "_repaired", False):
+            call, val_err = repair_and_validate_tool_call(call, self.registry)
+            if val_err:
+                return ToolResult.error(val_err)
+        if isinstance(call.arguments, dict):
+            user_msg = context.extra.get("user_message") if hasattr(context, "extra") and isinstance(context.extra, dict) else None
+            call.arguments = apply_tool_defaults(call.name, call.arguments, user_prompt=user_msg)
+        tool = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+        tool_timeout = getattr(tool, "timeout", None) if tool else None
+        timeout = tool_timeout if tool_timeout is not None and tool_timeout > 0 else agent_config.tool_timeout_seconds
+
+        idem_key = getattr(context, "idempotency_key", None) or compute_idempotency_key(
+            context.turn_id, call.name, call.arguments if isinstance(call.arguments, dict) else {}
+        )
+        call_context = context.clone_for_call(call.id, idempotency_key=idem_key)
+        is_write = not (tool and tool.risk is RiskLevel.LOW)
+        state_ref = context.extra.get("state") if hasattr(context, "extra") and isinstance(context.extra, dict) else None
+        if is_write and state_ref and idem_key in state_ref.idempotency_cache:
+            cached_data = state_ref.idempotency_cache[idem_key]
+            return ToolResult(
+                content=cached_data.get("content", ""),
+                artifacts=cached_data.get("artifacts", []),
+                is_error=cached_data.get("is_error", False),
+                recoverable=cached_data.get("recoverable", True),
+            )
+
+        async def _run_dispatch() -> ToolResult:
+            nonlocal _is_bridge
             # --- Bridge tool dispatch (progressive tool disclosure) ---
             catalog = getattr(self, "_tool_search_catalog", None)
             if call.name == "tool_search" and catalog is not None:
@@ -3599,7 +4086,7 @@ class Director:
                     elif isinstance(calls, dict):
                         calls = [calls]
                     results = await dispatch_tool_call(
-                        calls, catalog, self.registry, context
+                        calls, catalog, self.registry, call_context
                     )
                     return ToolResult.ok(json.dumps(results, indent=2))
                 except Exception as exc:
@@ -3607,7 +4094,15 @@ class Director:
 
             # --- Normal dispatch ---
             try:
-                return await self.registry.dispatch(call.name, call.arguments, context)
+                res = await self.registry.dispatch(call.name, call.arguments, call_context)
+                if is_write and state_ref and not res.is_error:
+                    state_ref.idempotency_cache[idem_key] = {
+                        "content": res.content,
+                        "artifacts": getattr(res, "artifacts", []),
+                        "is_error": res.is_error,
+                        "recoverable": res.recoverable,
+                    }
+                return res
             except asyncio.CancelledError:
                 raise
             except BaseException as exc:
@@ -3618,6 +4113,20 @@ class Director:
                     " tool and tell the user which part of the task it cost.",
                     recoverable=True,
                 )
+
+        try:
+            if timeout and timeout > 0:
+                return await asyncio.wait_for(_run_dispatch(), timeout=timeout)
+            return await _run_dispatch()
+        except asyncio.CancelledError:
+            raise
+        except (TimeoutError, asyncio.TimeoutError):
+            log.warning("tool %s timed out after %.1fs", call.name, timeout)
+            return ToolResult.error(
+                f"'{call.name}' timed out after {int(timeout)}s and was stopped."
+                " Other tools and tasks will continue. Report this timeout to the user"
+                " rather than retrying the same call unchanged."
+            )
         finally:
             record_tool_dispatch(
                 call.name,
