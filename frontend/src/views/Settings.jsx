@@ -15,6 +15,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { safeStorage } from '../lib/storage.js'
 import * as syncClient from '../lib/sync/client.js'
 import PairingApprovalModal from '../components/PairingApprovalModal.jsx'
+import { showBoardUINotification } from '../lib/boardui-notifications.js'
 
 /* ==========================================================================
    NAVIGATION SECTIONS & THEME DEFINITIONS
@@ -35,16 +36,14 @@ const SECTIONS = [
 
 const THEME_CHOICES = [
   { id: 'system', label: 'System', hint: 'Follows the OS' },
-  { id: 'apple', label: 'Apple', hint: 'Clean gallery & Action Blue' },
-  { id: 'anthropic', label: 'Anthropic', hint: 'Editorial ivory & obsidian' },
-  { id: 'cohere', label: 'Cohere', hint: 'Dark navy & forest emerald' },
-  { id: 'sunshine', label: 'Sunshine', hint: 'Solar warm cream & radiant amber' },
-  { id: 'stripe', label: 'Stripe', hint: 'Midnight graphite & electric indigo' },
-  { id: 'graphite', label: 'Graphite', hint: 'Neutral dark' },
-  { id: 'ink', label: 'Ink', hint: 'Cool dark' },
-  { id: 'nocturne', label: 'Nocturne', hint: 'Near black' },
-  { id: 'paper', label: 'Paper', hint: 'Light' },
-  { id: 'sand', label: 'Sand', hint: 'Warm light' },
+  { id: 'graphite', label: 'Graphite', hint: 'Neutral dark slate' },
+  { id: 'ink', label: 'Ink', hint: 'Deep blue-black indigo' },
+  { id: 'nocturne', label: 'Nocturne', hint: 'Near black cobalt cyan' },
+  { id: 'nvidia', label: 'NVIDIA', hint: 'True black neon green' },
+  { id: 'paper', label: 'Paper', hint: 'Pristine gallery white' },
+  { id: 'sand', label: 'Sand', hint: 'Warm parchment linen' },
+  { id: 'claude', label: 'Claude', hint: 'Warm ivory cinnabar' },
+  { id: 'cursor', label: 'Cursor', hint: 'Minimal porcelain cobalt' },
 ]
 
 const VENDOR_PRESETS = [
@@ -543,6 +542,23 @@ function General() {
               ) : (
                 <Badge tone="dim">Not configured</Badge>
               )}
+              {composioStatus?.configured && composioStatus?.key_mode && (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    background: 'rgba(168, 85, 247, 0.15)',
+                    color: 'var(--accent, #a855f7)',
+                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                  }}
+                >
+                  {composioStatus.key_mode === 'consumer' ? 'Consumer Key' : `${composioStatus.key_mode} key`}
+                </span>
+              )}
             </span>
             <span className="set-row-desc">
               Connect external apps (Slack, GitHub, Notion, Linear, Gmail, and 100+ others) with local-first privacy and on-demand tool search.
@@ -885,6 +901,57 @@ function General() {
           </div>
           <Switch on={notifyOnDone} onChange={handleNotificationToggle} tone="default" />
         </div>
+
+        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          <div className="set-row-left">
+            <div className="set-row-icon-box">
+              <Icon name="spark" size={16} />
+            </div>
+            <div className="set-row-text">
+              <span className="set-row-title">BoardUI Notification System</span>
+              <span className="set-row-desc">
+                Interactive preview of BoardUI Notification states with timed auto-dismiss countdown, avatars, status icons, and actions.
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 40 }}>
+            <button
+              type="button"
+              className="set-btn-sm"
+              onClick={() => showBoardUINotification("information")}
+            >
+              Information
+            </button>
+            <button
+              type="button"
+              className="set-btn-sm"
+              onClick={() => showBoardUINotification("success")}
+            >
+              Success
+            </button>
+            <button
+              type="button"
+              className="set-btn-sm"
+              onClick={() => showBoardUINotification("error")}
+            >
+              Error
+            </button>
+            <button
+              type="button"
+              className="set-btn-sm"
+              onClick={() => showBoardUINotification("avatar")}
+            >
+              With avatar
+            </button>
+            <button
+              type="button"
+              className="set-btn-sm"
+              onClick={() => showBoardUINotification("actions")}
+            >
+              With buttons
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1024,14 +1091,14 @@ function Appearance() {
                   ) : (
                     <>
                       <div className="theme-mockup-sidebar">
-                        <div className="theme-bar" style={{ width: '70%', height: 4, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#a1a1aa' : '#52525b' }} />
-                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
-                        <div className="theme-bar" style={{ width: '60%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '70%', height: 4, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#a1a1aa' : '#52525b' }} />
+                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '60%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
                       </div>
                       <div className="theme-mockup-content">
-                        <div className="theme-bar" style={{ width: '45%', height: 4, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#71717a' : '#71717a' }} />
-                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
-                        <div className="theme-bar" style={{ width: '70%', height: 3, background: ['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '45%', height: 4, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#71717a' : '#71717a' }} />
+                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
+                        <div className="theme-bar" style={{ width: '70%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
                         <div style={{ marginTop: 'auto' }}>
                           <div
                             className="theme-bar"
@@ -1039,17 +1106,15 @@ function Appearance() {
                               width: '40%',
                               height: 7,
                               background: {
-                                apple: '#0066cc',
-                                anthropic: '#d97757',
-                                cohere: '#10b981',
-                                sunshine: '#fa520f',
-                                stripe: '#635bff',
-                                graphite: '#c084fc',
-                                ink: '#8a6dfc',
-                                nocturne: '#6b8cff',
-                                paper: '#7132f5',
-                                sand: '#8b5a2b',
-                              }[choice.id] || (['paper', 'sand', 'apple', 'anthropic', 'sunshine'].includes(choice.id) ? '#e4e4e7' : '#27272a'),
+                                graphite: '#a78bfa',
+                                ink: '#818cf8',
+                                nocturne: '#38bdf8',
+                                nvidia: '#76b900',
+                                paper: '#7c3aed',
+                                sand: '#d97706',
+                                claude: '#d97706',
+                                cursor: '#2563eb',
+                              }[choice.id] || (['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#e4e4e7' : '#27272a'),
                               borderRadius: 3,
                             }}
                           />

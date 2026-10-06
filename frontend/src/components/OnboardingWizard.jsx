@@ -164,8 +164,11 @@ function StepAppearance({ theme, setTheme, accentColor, setAccentColor, textSize
     { id: 'graphite', label: 'Graphite' },
     { id: 'ink', label: 'Ink' },
     { id: 'nocturne', label: 'Nocturne' },
+    { id: 'nvidia', label: 'NVIDIA' },
     { id: 'paper', label: 'Paper' },
     { id: 'sand', label: 'Sand' },
+    { id: 'claude', label: 'Claude' },
+    { id: 'cursor', label: 'Cursor' },
   ]
 
   const activeAccent = ACCENT_PRESETS.find((a) => a.hex.toLowerCase() === (accentColor || '#3b82f6').toLowerCase())?.label || 'Blue'

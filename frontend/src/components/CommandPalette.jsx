@@ -22,16 +22,14 @@ import { peek, put } from './damon/searchCache.js'
 import { ChevronRight } from 'lucide-react'
 
 const THEMES = [
-  { id: 'apple', icon: 'sun', label: 'Switch to Apple', hint: 'clean museum gallery & Action Blue' },
-  { id: 'anthropic', icon: 'sun', label: 'Switch to Anthropic', hint: 'warm editorial ivory & deep charcoal' },
-  { id: 'cohere', icon: 'cpu', label: 'Switch to Cohere', hint: 'deep dark navy & forest emerald' },
-  { id: 'sunshine', icon: 'sun', label: 'Switch to Sunshine', hint: 'solar warm cream & radiant amber' },
-  { id: 'stripe', icon: 'cpu', label: 'Switch to Stripe', hint: 'midnight graphite & electric indigo' },
-  { id: 'paper', icon: 'sun', label: 'Switch to Paper', hint: 'warm light palette' },
-  { id: 'sand', icon: 'sun', label: 'Switch to Sand', hint: 'warm parchment light' },
-  { id: 'graphite', icon: 'cpu', label: 'Switch to Graphite', hint: 'neutral dark palette' },
-  { id: 'ink', icon: 'cpu', label: 'Switch to Ink', hint: 'deepest dark palette' },
-  { id: 'nocturne', icon: 'cpu', label: 'Switch to Nocturne', hint: 'cool blue dark palette' },
+  { id: 'graphite', icon: 'cpu', label: 'Switch to Graphite', hint: 'neutral obsidian slate (dark)' },
+  { id: 'ink', icon: 'cpu', label: 'Switch to Ink', hint: 'deep blue-black indigo (dark)' },
+  { id: 'nocturne', icon: 'cpu', label: 'Switch to Nocturne', hint: 'pitch black cobalt cyan (dark)' },
+  { id: 'nvidia', icon: 'cpu', label: 'Switch to NVIDIA', hint: 'true black neon green (dark)' },
+  { id: 'paper', icon: 'sun', label: 'Switch to Paper', hint: 'pristine gallery white (light)' },
+  { id: 'sand', icon: 'sun', label: 'Switch to Sand', hint: 'warm parchment linen (light)' },
+  { id: 'claude', icon: 'sun', label: 'Switch to Claude', hint: 'warm ivory cinnabar (light)' },
+  { id: 'cursor', icon: 'sun', label: 'Switch to Cursor', hint: 'minimal porcelain cobalt (light)' },
   { id: 'system', icon: 'sliders', label: 'Follow the system theme', hint: 'light or dark, as the machine is set' },
 ]
 

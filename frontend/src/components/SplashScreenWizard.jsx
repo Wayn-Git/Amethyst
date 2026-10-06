@@ -276,12 +276,15 @@ const ACCENT_PRESETS = [
 ]
 
 const THEMES = [
+  { id: 'system', label: 'System' },
   { id: 'graphite', label: 'Graphite' },
   { id: 'ink', label: 'Ink' },
   { id: 'nocturne', label: 'Nocturne' },
+  { id: 'nvidia', label: 'NVIDIA' },
   { id: 'paper', label: 'Paper' },
   { id: 'sand', label: 'Sand' },
-  { id: 'system', label: 'System' },
+  { id: 'claude', label: 'Claude' },
+  { id: 'cursor', label: 'Cursor' },
 ]
 
 const slideVariants = {
