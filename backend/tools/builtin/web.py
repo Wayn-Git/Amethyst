@@ -150,6 +150,8 @@ async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
 
     limit = max(1, min(int(args.get("limit") or 6), 15))
     depth = args.get("depth")
+    provider = args.get("provider") or args.get("preferred")
+    options = {"preferred": provider} if provider else None
 
     # 1. Route through the modern ResearchEngine (query planning, authority ranking,
     # syndication deduplication, stable reference IDs, verification matrix)
@@ -162,6 +164,7 @@ async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
             depth=depth,
             limit_per_query=limit,
             explicit_queries=clean_queries if len(clean_queries) > 1 else None,
+            options=options,
         )
         if evidence and "No results found" not in evidence:
             return ToolResult.ok(evidence)
@@ -170,14 +173,14 @@ async def search_web(args: dict[str, Any], _: ToolContext) -> ToolResult:
 
     # 2. Fall back to search service (parallel if multiple queries)
     if clean_queries and len(clean_queries) > 1:
-        tasks = [_search_via_service(q, limit) for q in clean_queries]
+        tasks = [_search_via_service(q, limit, options=options) for q in clean_queries]
         results_lists = await asyncio.gather(*tasks)
         hits = []
         for rl in results_lists:
             if rl:
                 hits.extend(rl)
     else:
-        hits = await _search_via_service(query, limit)
+        hits = await _search_via_service(query, limit, options=options)
 
     # 3. Fall back to no-key scrapers
     if not hits:
@@ -247,12 +250,20 @@ async def extract_page(args: dict[str, Any], _: ToolContext) -> ToolResult:
     return ToolResult.ok("\n".join(lines))
 
 
-async def _search_via_service(query: str, limit: int) -> list[str] | None:
+async def _search_via_service(
+    query: str,
+    limit: int,
+    options: dict[str, Any] | None = None,
+) -> list[str] | None:
     """Try the optimized search service. Returns None on any failure."""
     try:
         from backend.web.search_service import search_web as optimized_search
-
-        results = await optimized_search(query, limit=limit)
+        import inspect
+        sig = inspect.signature(optimized_search)
+        if "options" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            results = await optimized_search(query, limit=limit, options=options)
+        else:
+            results = await optimized_search(query, limit=limit)
         if not results:
             return None
         hits = []
@@ -269,26 +280,66 @@ async def _search_via_service(query: str, limit: int) -> list[str] | None:
         return None
 
 
+async def _fetch_via_firecrawl_rest(url: str) -> ToolResult | None:
+    """Try Firecrawl direct REST API scrape for clean markdown. Returns None if unavailable or unconfigured."""
+    import os
+    from backend.secrets import get_secret
+    from backend.web.circuit_breaker import get_circuit_breaker
+
+    key = None
+    try:
+        key = get_secret("amethyst/firecrawl")
+    except Exception:
+        pass
+    if not key:
+        key = os.environ.get("FIRECRAWL_API_KEY")
+    if not key:
+        return None
+
+    cb = get_circuit_breaker()
+    if not cb.is_available("firecrawl"):
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "url": url,
+        "formats": ["markdown"],
+        "onlyMainContent": True,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            resp = await client.post("https://api.firecrawl.dev/v2/scrape", json=body, headers=headers)
+        if resp.status_code == 200:
+            cb.record_success("firecrawl")
+            data = resp.json()
+            markdown = ""
+            if isinstance(data, dict):
+                d = data.get("data")
+                if isinstance(d, dict):
+                    markdown = d.get("markdown") or d.get("content") or ""
+                elif isinstance(data.get("markdown"), str):
+                    markdown = data.get("markdown") or ""
+            if markdown:
+                return ToolResult.ok(markdown)
+            return None
+        elif resp.status_code in (401, 402, 429) or resp.status_code >= 500:
+            cb.record_failure("firecrawl", status_code=resp.status_code, error=resp.text)
+            return None
+    except Exception as exc:
+        cb.record_failure("firecrawl", error=str(exc))
+        log.debug("firecrawl rest scrape failed for %s: %s", url, exc)
+        return None
+    return None
+
+
 async def fetch_url(args: dict[str, Any], _: ToolContext) -> ToolResult:
     url = (args.get("url") or "").strip()
     if not url:
         return ToolResult.error("fetch_url needs a url")
 
-    # Try Firecrawl first when the MCP connector is connected — it produces
-    # cleaner markdown than raw HTML stripping.
-    firecrawl_result = await _fetch_via_firecrawl(url)
-    if firecrawl_result is not None:
-        return firecrawl_result
-
-    # Fall back to the built-in reader with SSRF checking at every redirect hop.
-    try:
-        page = await fetch_readable(url)
-    except UnsafeURL as exc:
-        return ToolResult.error(str(exc))
-    except FetchError as exc:
-        return ToolResult.error(str(exc))
-
-    # If a query is provided, perform targeted passage extraction to save tokens
     query = (
         args.get("query")
         or args.get("topic")
@@ -297,6 +348,42 @@ async def fetch_url(args: dict[str, Any], _: ToolContext) -> ToolResult:
         or args.get("q")
         or ""
     ).strip()
+
+    # 1. Try Firecrawl REST API scrape if configured with API key
+    firecrawl_rest_result = await _fetch_via_firecrawl_rest(url)
+    if firecrawl_rest_result is not None:
+        if query and not firecrawl_rest_result.is_error:
+            from backend.web.extractor import extract_relevant_passages
+            passages = extract_relevant_passages(firecrawl_rest_result.content, query=query, max_passages=3)
+            if passages:
+                lines = [f"### Passages from [{url}]({url}) matching '{query}':\n"]
+                for heading, text, _ in passages:
+                    lines.append(f"#### {heading}\n{text}\n")
+                return ToolResult.ok("\n".join(lines))
+        return firecrawl_rest_result
+
+    # 2. Try Firecrawl MCP connector scrape if connected — it produces cleaner markdown than raw HTML stripping
+    firecrawl_result = await _fetch_via_firecrawl(url)
+    if firecrawl_result is not None:
+        if query and not firecrawl_result.is_error:
+            from backend.web.extractor import extract_relevant_passages
+            passages = extract_relevant_passages(firecrawl_result.content, query=query, max_passages=3)
+            if passages:
+                lines = [f"### Passages from [{url}]({url}) matching '{query}':\n"]
+                for heading, text, _ in passages:
+                    lines.append(f"#### {heading}\n{text}\n")
+                return ToolResult.ok("\n".join(lines))
+        return firecrawl_result
+
+    # 3. Fall back to the built-in reader with SSRF checking at every redirect hop
+    try:
+        page = await fetch_readable(url)
+    except UnsafeURL as exc:
+        return ToolResult.error(str(exc))
+    except FetchError as exc:
+        return ToolResult.error(str(exc))
+
+    # If a query is provided, perform targeted passage extraction to save tokens
     if query and page.text:
         from backend.web.extractor import extract_relevant_passages
         passages = extract_relevant_passages(page.text, query=query, max_passages=3)
@@ -353,6 +440,10 @@ def tools() -> list[Tool]:
                     "type": "string",
                     "enum": ["simple", "current", "research", "deep"],
                     "description": "Optional search depth strategy (auto-detected by default)",
+                },
+                "provider": {
+                    "type": "string",
+                    "description": "Optional search provider preference (e.g. 'langsearch', 'exa', 'firecrawl', 'tavily')",
                 },
             },
         },

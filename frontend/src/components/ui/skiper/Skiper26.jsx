@@ -22,15 +22,11 @@ function getThemeTransitionCSS() {
       filter: blur(2px);
     }
     ::view-transition-old(root),
-    [data-theme='graphite']::view-transition-old(root),
-    [data-theme='ink']::view-transition-old(root),
-    [data-theme='nocturne']::view-transition-old(root) {
+    [data-theme-mode='dark']::view-transition-old(root) {
       animation: none;
       z-index: -1;
     }
-    [data-theme='graphite']::view-transition-new(root),
-    [data-theme='ink']::view-transition-new(root),
-    [data-theme='nocturne']::view-transition-new(root) {
+    [data-theme-mode='dark']::view-transition-new(root) {
       animation-name: reveal-dark-bottom-center-blur;
       filter: blur(2px);
     }
@@ -63,7 +59,7 @@ function getThemeTransitionCSS() {
   `
 }
 
-const DARK_THEMES = ['graphite', 'ink', 'nocturne', 'cohere', 'stripe']
+const DARK_THEMES = ['graphite', 'ink', 'nocturne', 'nvidia']
 
 export function useSkiperThemeToggle({ theme, setTheme }) {
   const isDark = theme === 'system'

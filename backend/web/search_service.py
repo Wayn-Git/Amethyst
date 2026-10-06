@@ -366,17 +366,28 @@ def _merge_rank_dedup(
     return merged
 
 
-async def search_web(query: str, limit: int = 8, offset: int = 0) -> list[dict[str, Any]]:
+async def search_web(
+    query: str,
+    limit: int = 8,
+    offset: int = 0,
+    options: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """One page of a ranked, cached pool. `offset` pages without re-fetching.
 
     The pool is cached by query alone (not by limit/offset), so scrolling is
     free: every page after the first is a slice of results already in memory.
     """
-    pool = await _cached(f"webpool:{query.strip().lower()}", lambda: _build_web_pool(query))
+    cache_key = f"webpool:{query.strip().lower()}"
+    if options and options.get("preferred"):
+        cache_key += f":{options.get('preferred')}"
+    pool = await _cached(cache_key, lambda: _build_web_pool(query, options=options))
     return pool[offset : offset + limit] if offset < len(pool) else []
 
 
-async def _build_web_pool(query: str) -> list[dict[str, Any]]:
+async def _build_web_pool(
+    query: str,
+    options: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """Ask every engine at once, then merge, dedup and rank what answers.
 
     This used to be a chain, then a race that kept the *first* honest answer and
@@ -396,7 +407,18 @@ async def _build_web_pool(query: str) -> list[dict[str, Any]]:
     passes, so merging it in would drown genuine results under encyclopaedia
     articles. It is used only when nothing else cleared the gate.
     """
-    engines = {"api": _search_api, "bing": _search_bing, "duckduckgo": _search_ddg_lite}
+    async def _call_api(q: str, n: int) -> list[dict[str, Any]]:
+        import inspect
+        sig = inspect.signature(_search_api)
+        if "options" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            return await _search_api(q, n, options=options)
+        return await _search_api(q, n)
+
+    engines = {
+        "api": _call_api,
+        "bing": _search_bing,
+        "duckduckgo": _search_ddg_lite,
+    }
     tasks = {
         asyncio.create_task(engine(query, _WEB_POOL_FETCH)): name
         for name, engine in engines.items()
@@ -491,33 +513,63 @@ _RACE_BUDGET = 2.5
 #: three functions.
 _SEARCH_APIS = (
     {
+        "name": "langsearch",
+        "ref": "amethyst/langsearch",
+        "env": "LANGSEARCH_API_KEY",
+        "url": "https://api.langsearch.com/v1/web-search",
+        "headers": lambda key: {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        "body": lambda q, n: {
+            "query": q,
+            "count": max(1, min(n, 50)),
+            "freshness": "noLimit",
+            "contents": {"text": {"maxCharacters": 3500}},
+        },
+        "rows": lambda d: ((d.get("data") or {}).get("webPages") or {}).get("value") or [],
+        "fields": ("name", "url", "snippet"),
+    },
+    {
+        "name": "exa",
+        "ref": "amethyst/exa",
+        "env": "EXA_API_KEY",
+        "url": "https://api.exa.ai/search",
+        "headers": lambda key: {"x-api-key": key, "Content-Type": "application/json"},
+        "body": lambda q, n: {
+            "query": q,
+            "numResults": max(1, min(n, 25)),
+            "type": "auto",
+            "contents": {"highlights": True, "text": {"maxCharacters": 2500}},
+        },
+        "rows": lambda d: d.get("results") or [],
+        "fields": ("title", "url", "text"),
+    },
+    {
+        "name": "firecrawl",
+        "ref": "amethyst/firecrawl",
+        "env": "FIRECRAWL_API_KEY",
+        "url": "https://api.firecrawl.dev/v2/search",
+        "headers": lambda key: {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        "body": lambda q, n: {
+            "query": q,
+            "limit": max(1, min(n, 10)),
+            "scrapeOptions": {"formats": ["markdown"]},
+        },
+        "rows": lambda d: d.get("data") or [],
+        "fields": ("title", "url", "description"),
+    },
+    {
         "name": "tavily",
         "ref": "amethyst-mcp/tavily.api_key",
         "env": "TAVILY_API_KEY",
         "url": "https://api.tavily.com/search",
-        "headers": lambda key: {"Authorization": f"Bearer {key}"},
-        "body": lambda q, n: {"query": q, "max_results": n, "include_answer": False,
-                              "search_depth": "basic"},
+        "headers": lambda key: {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        "body": lambda q, n: {
+            "query": q,
+            "max_results": max(1, min(n, 20)),
+            "include_answer": False,
+            "search_depth": "basic",
+        },
         "rows": lambda d: d.get("results") or [],
         "fields": ("title", "url", "content"),
-    },
-    {
-        "name": "brave",
-        "ref": "amethyst/brave-search",
-        "url": "https://api.search.brave.com/res/v1/web/search",
-        "headers": lambda key: {"X-Subscription-Token": key, "Accept": "application/json"},
-        "query": lambda q, n: {"q": q, "count": n},
-        "rows": lambda d: ((d.get("web") or {}).get("results")) or [],
-        "fields": ("title", "url", "description"),
-    },
-    {
-        "name": "serper",
-        "ref": "amethyst/serper",
-        "url": "https://google.serper.dev/search",
-        "headers": lambda key: {"X-API-KEY": key, "Content-Type": "application/json"},
-        "body": lambda q, n: {"q": q, "num": n},
-        "rows": lambda d: d.get("organic") or [],
-        "fields": ("title", "link", "snippet"),
     },
 )
 
@@ -525,22 +577,29 @@ _SEARCH_APIS = (
 def search_api_catalogue() -> list[dict[str, str]]:
     """The keyed search APIs, for a settings screen to offer.
 
-    Names and where to get a key, not the request machinery. Exists because
-    until there was a way to set one of these from the interface, the only
-    documented route was editing the keychain by hand -- so almost nobody had a
-    search provider, and almost every search fell through to Wikipedia.
+    Names and where to get a key, not the request machinery.
     """
-    # Presentation only. The keychain ref comes from `_SEARCH_APIS`, which is
-    # what actually makes the request -- two lists of refs would drift, and a
-    # settings screen writing a key to a ref nothing reads is the worst version
-    # of this feature.
     shown = {
-        "tavily": ("Tavily", "https://tavily.com",
-                   "Free tier, no card. Shared with the Tavily connector."),
-        "brave": ("Brave Search", "https://brave.com/search/api/",
-                  "Free tier, no card."),
-        "serper": ("Serper (Google)", "https://serper.dev",
-                   "Google results. Free credits to start."),
+        "langsearch": (
+            "LangSearch",
+            "https://langsearch.com/dashboard",
+            "Default general search. Fast hybrid search with full webpage text. Free plan.",
+        ),
+        "exa": (
+            "Exa",
+            "https://dashboard.exa.ai",
+            "Semantic & neural search for research and source discovery. Free credits to start.",
+        ),
+        "firecrawl": (
+            "Firecrawl",
+            "https://firecrawl.dev",
+            "Web crawling, deep documentation, and clean markdown extraction.",
+        ),
+        "tavily": (
+            "Tavily",
+            "https://tavily.com",
+            "Fact-checking, claim verification, and research workflows. Free tier.",
+        ),
     }
     out = []
     for api in _SEARCH_APIS:
@@ -564,35 +623,40 @@ def configured_search_api() -> str | None:
     which is microseconds and happens once per search.
     """
     import os
-
     from backend.secrets import get_secret
+    from backend.web.circuit_breaker import get_circuit_breaker
+
+    cb = get_circuit_breaker()
+    # 1. Prefer an active and healthy provider
     for api in _SEARCH_APIS:
+        name = str(api["name"])
+        try:
+            has_key = bool(get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])))
+            if has_key and cb.is_available(name):
+                return name
+        except Exception:
+            continue
+
+    # 2. If all configured providers are temporarily in cooldown, still return the configured one
+    for api in _SEARCH_APIS:
+        name = str(api["name"])
         try:
             if get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])):
-                return str(api["name"])
+                return name
         except Exception:
             continue
     return None
 
 
-async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
-    """A real search API, when there is a key for one.
-
-    The free scrapers below are a good answer to "no key, no account, no cost"
-    and a bad answer to "this network is blocked" -- which, increasingly, is
-    every network. On the machine this was written for, DuckDuckGo resolves to
-    an ISP holding page with 443 closed and Bing answers every query with
-    results for its first word only. Neither is a bug anything here can fix,
-    and an engine that is *allowed* to answer beats two that are not.
-
-    Called over REST rather than through an MCP server on purpose: this is a
-    fixed query against a fixed endpoint with no decision in it, and standing
-    up an MCP session with a tool schema and a model to make it would be the
-    expensive way to send one POST.
-
-    No key is not an error. It loses the race in the time a keychain read takes.
-    """
+async def _search_api(
+    query: str,
+    limit: int,
+    options: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """A real search API, using task-aware routing, circuit breaker, and intelligent fallback."""
     from backend.secrets import get_secret
+    from backend.web.circuit_breaker import get_circuit_breaker
+    from backend.web.router import route_search_task
 
     q = query.strip()
     if not q:
@@ -600,13 +664,29 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
     limit = max(1, min(limit, 20))
 
     import os
-    for api in _SEARCH_APIS:
+    cb = get_circuit_breaker()
+    pref = options.get("preferred") if options else None
+    primary, fallbacks = route_search_task(q, preferred=pref, options=options)
+    candidate_names = [primary] + [f for f in fallbacks if f != primary]
+    for a in _SEARCH_APIS:
+        if a["name"] not in candidate_names:
+            candidate_names.append(a["name"])
+
+    for prov_name in candidate_names:
+        if not cb.is_available(prov_name):
+            continue
+
+        api = next((a for a in _SEARCH_APIS if a["name"] == prov_name), None)
+        if not api:
+            continue
+
         try:
             key = get_secret(api["ref"]) or (os.environ.get(api["env"]) if "env" in api else None)
         except Exception:
             key = None
         if not key:
             continue
+
         try:
             client = await _pool_client()
             if "body" in api:
@@ -620,10 +700,12 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
                     headers=api["headers"](key), timeout=8.0,
                 )
             if resp.status_code != 200:
+                cb.record_failure(prov_name, status_code=resp.status_code, error_msg=getattr(resp, "text", ""))
                 logger.warning("%s search returned %s", api["name"], resp.status_code)
                 continue
             payload = resp.json()
         except Exception as exc:
+            cb.record_failure(prov_name, status_code=500, error_msg=str(exc))
             logger.warning("%s search failed for %s: %s", api["name"], query, exc)
             continue
 
@@ -631,16 +713,34 @@ async def _search_api(query: str, limit: int) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         for row in api["rows"](payload)[:limit]:
             url = str(row.get(url_key) or "")
-            title = _clean_html(row.get(title_key))
+            title = _clean_html(row.get(title_key) or row.get("title") or row.get("name"))
             if not url or not title:
                 continue
-            results.append({
+            highlights = row.get("highlights")
+            snippet_candidate = (
+                row.get(snippet_key)
+                or (highlights[0] if isinstance(highlights, list) and highlights else None)
+                or row.get("text")
+                or row.get("description")
+                or row.get("markdown")
+                or row.get("content")
+                or ""
+            )
+            raw_text = str(row.get("text") or row.get("markdown") or (highlights[0] if isinstance(highlights, list) and highlights else "") or "")
+            pub_date = row.get("datePublished") or row.get("publishedDate") or row.get("published_date")
+            item: dict[str, Any] = {
                 "title": title,
                 "url": url,
-                "snippet": _clean_html(row.get(snippet_key))[:400],
+                "snippet": _clean_html(str(snippet_candidate))[:400],
                 "domain": _extract_domain(url),
-            })
+            }
+            if raw_text:
+                item["text"] = raw_text[:4000]
+            if pub_date:
+                item["published_date"] = pub_date
+            results.append(item)
         if results:
+            cb.record_success(prov_name)
             return results
     return []
 

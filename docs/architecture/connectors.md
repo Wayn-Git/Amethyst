@@ -272,3 +272,48 @@ discovered by a failed tool call. A shared AMETHYST client id
 (`AMETHYST_DEFAULT_GOOGLE_*`) would make setup zero for the owner and change
 nothing for anyone else — the 100-test-user cap and the seven-day grant are
 properties of the app, not of who registered it.
+
+## Ownership: Local vs. Composio Split
+
+Built 2026-10-05. Amethyst supports two distinct connector backends:
+1. **Local MCP Servers**: Managed processes (`stdio`, `npx`, `uvx`, local HTTP/SSE) configured in `mcp.yaml`. Best for system primitives, privacy-sensitive local automation, or self-hosted developer tools (Playwright, Chrome DevTools, Memory, Exa/Tavily, local Google Workspace).
+2. **Cloud Connectors (Composio)**: Hosted cloud OAuth for SaaS applications (Slack, GitHub, Linear, Notion, Gmail, Google Calendar, Jira, Asana, Spotify). Avoids the 7-day test grant expiry and CASA security audit hurdles of self-hosted OAuth by providing managed OAuth apps and token lifecycles out of the box.
+
+### The Deduplication & Precedence Rule
+
+When both local MCP and Composio offer access to the same service (e.g. Gmail or Google Calendar), the agent must not see two paths to the same provider, which produces conflicting sign-in states and redundant schemas.
+
+The ownership mapping is defined in `backend/mcp/provider_ownership.py`:
+- `gmail` &rarr; `google-workspace`, `google-gmail`
+- `googlecalendar` &rarr; `google-workspace`, `google-calendar`
+- `github` &rarr; `github`
+- `spotify` &rarr; `spotify`
+
+**Precedence rules:**
+1. **Active Local Provider Wins**: If a local provider is configured and actively signed in (`is_provider_overridden_by_local(toolkit_slug)` returns `True`), the corresponding Composio toolkit is:
+   - Withheld from agent schemas (`registry.schemas()`)
+   - Suppressed from prompt guidance (`guidance.ready_connectors_block()`)
+   - Hidden from the Cloud Connectors UI (`ConnectorsTab.jsx`)
+2. **Composio Fallback**: If the local provider is absent or not signed in, Composio owns the provider if an account is connected on Composio.
+3. **Dedicated Ownership**: Connectors unique to Composio (Slack, Linear, Notion) or unique to local MCP (Playwright, DevTools, Memory) are unaffected by deduplication.
+
+### Honest UI State Contract
+
+1. **When Composio is Unconfigured**:
+   - The Connectors tab renders a single honest banner explaining that Composio is not configured with direct links to Settings and `dashboard.composio.dev/settings`.
+   - Never render per-provider rows, switches, or fake green "Active" dots.
+2. **When Composio is Configured**:
+   - Each toolkit queries active accounts via `composio_service.get_connections()` (wrapping `client.connected_accounts.list(statuses=['ACTIVE'])` with a 5-second TTL cache).
+   - `Connected` (green dot) is rendered **only** when an active connected account exists.
+   - Disconnected toolkits render `Not connected` with a prominent `Connect` button.
+   - Clicking `Connect` calls `POST /api/composio/toolkits/{toolkit}/connect`, launches hosted OAuth in a new browser tab via `window.open(redirect_url, '_blank')`, and polls until authorization completes.
+
+### Instructional Dispatch Guard for Cloud Tools
+
+Composio tools follow the naming format `<TOOLKIT>_<ACTION>__mcp__composio`.
+
+1. **Schema Filtering**: In `backend/tools/registry.py`, `registry.schemas()` extracts the toolkit slug and withholds any tool whose toolkit is overridden by a local provider or lacks an active connection in `composio_service.get_connections()`.
+2. **Instructional Rejection**: If the model invokes an unauthenticated or overridden cloud tool from memory, `registry.dispatch()` intercepts the call and returns an instructional error from `guidance.composio_sign_in_instruction(toolkit)`:
+   > `'composio:<toolkit>' is not connected to any account, so none of its tools can work yet. This is not an outage and not a bug: it is an authentication step only the user can complete. Tell them to open Skills & connectors (Cmd/Ctrl+4), Connectors tab, find the '<toolkit>' row under Cloud Connectors, and press Connect. Do not retry this tool. Finish everything else the request needs and say plainly which part is waiting on that connection.
+3. **No Retries**: The prompt strictly instructs the agent not to retry the failed tool call, preventing infinite loops or wasted turn iterations.
+

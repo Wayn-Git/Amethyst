@@ -80,6 +80,7 @@ class SearchResult:
     is_duplicate_of: str | None = None
     syndicated_urls: list[str] = field(default_factory=list)
     image_url: str | None = None
+    text: str | None = None
 
     @property
     def composite_score(self) -> float:
@@ -91,7 +92,7 @@ class SearchResult:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "ref_id": self.ref_id,
             "title": self.title,
             "url": self.url,
@@ -107,6 +108,9 @@ class SearchResult:
             "syndicated_urls": list(self.syndicated_urls),
             "image_url": self.image_url,
         }
+        if self.text is not None:
+            d["text"] = self.text
+        return d
 
     def format_citation(self) -> str:
         """Compact citation string for prompt/rendering, e.g. [turn0search1] Title (domain)."""

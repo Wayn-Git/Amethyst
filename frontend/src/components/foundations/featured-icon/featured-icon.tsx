@@ -20,7 +20,7 @@ const styles = sortCx({
             xl: "size-14",
         },
         colors: {
-            brand: "bg-purple-500/15 text-purple-400 border border-purple-500/25",
+            brand: "bg-accent-500/15 text-accent-500 border border-accent-500/25",
             gray: "bg-white/10 text-neutral-300 border border-white/15",
             error: "bg-red-500/15 text-red-400 border border-red-500/25",
             warning: "bg-amber-500/15 text-amber-400 border border-amber-500/25",

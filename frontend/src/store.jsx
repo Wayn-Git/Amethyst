@@ -146,7 +146,9 @@ const HEALTH_INTERVAL = 8000
    be set to. 'system' is still selectable and still follows the machine; it is
    just no longer the answer nobody chose. The chosen value is written to the
    document element so the stylesheet -- not JavaScript -- owns every colour. */
-const THEMES = ['system', 'apple', 'anthropic', 'cohere', 'sunshine', 'stripe', 'graphite', 'ink', 'nocturne', 'paper', 'sand']
+export const THEMES = ['system', 'graphite', 'ink', 'nocturne', 'nvidia', 'paper', 'sand', 'claude', 'cursor']
+export const DARK_THEMES = ['graphite', 'ink', 'nocturne', 'nvidia']
+export const LIGHT_THEMES = ['paper', 'sand', 'claude', 'cursor']
 
 /* The panel has to stay wide enough to hold a line of code and narrow enough to
    leave a conversation beside it. A stored value from a wider monitor is
@@ -169,11 +171,12 @@ function applyTheme(theme) {
     ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'graphite' : 'paper')
     : theme
   root.setAttribute('data-theme', resolved)
-  // Dark-family themes: graphite, ink, nocturne, cohere, stripe. Light-family: apple, anthropic, sunshine, paper, sand.
-  const isDark = ['graphite', 'ink', 'nocturne', 'cohere', 'stripe'].includes(resolved)
+  const isDark = DARK_THEMES.includes(resolved)
+  root.setAttribute('data-theme-mode', isDark ? 'dark' : 'light')
   root.style.colorScheme = isDark ? 'dark' : 'light'
   root.classList.toggle('dark', isDark)
   root.classList.toggle('dark-mode', isDark)
+  root.classList.toggle('light', !isDark)
   const tag = document.querySelector('meta[name="theme-color"]')
   if (tag) {
     const canvas = getComputedStyle(root).getPropertyValue('--canvas').trim()
@@ -189,14 +192,16 @@ function applyAccentColor(hex) {
   const styleTag = document.getElementById('custom-accent-style')
   if (styleTag) styleTag.remove()
 
+  const accentKeys = [
+    '--accent', '--accent-hover', '--accent-line', '--accent-soft', '--accent-wash',
+    '--ember', '--focus-ring', '--color-brand', '--primary',
+    '--color-accent-50', '--color-accent-100', '--color-accent-200', '--color-accent-300',
+    '--color-accent-400', '--color-accent-500', '--color-accent-600', '--color-accent-700',
+    '--color-accent-800', '--color-accent-900', '--color-accent-950'
+  ]
+
   if (!hex || typeof hex !== 'string') {
-    root.style.removeProperty('--accent')
-    root.style.removeProperty('--accent-hover')
-    root.style.removeProperty('--accent-line')
-    root.style.removeProperty('--accent-soft')
-    root.style.removeProperty('--accent-wash')
-    root.style.removeProperty('--ember')
-    root.style.removeProperty('--focus-ring')
+    accentKeys.forEach((key) => root.style.removeProperty(key))
     return
   }
 
@@ -213,6 +218,21 @@ function applyAccentColor(hex) {
   root.style.setProperty('--accent-wash', washHex)
   root.style.setProperty('--ember', validHex)
   root.style.setProperty('--focus-ring', ringHex)
+
+  // Tailwind / BoardUI 11-step ramp
+  root.style.setProperty('--color-accent-50', `color-mix(in srgb, ${validHex} 6%, white)`)
+  root.style.setProperty('--color-accent-100', `color-mix(in srgb, ${validHex} 12%, white)`)
+  root.style.setProperty('--color-accent-200', `color-mix(in srgb, ${validHex} 24%, white)`)
+  root.style.setProperty('--color-accent-300', `color-mix(in srgb, ${validHex} 45%, white)`)
+  root.style.setProperty('--color-accent-400', `color-mix(in srgb, ${validHex} 70%, white)`)
+  root.style.setProperty('--color-accent-500', validHex)
+  root.style.setProperty('--color-accent-600', `color-mix(in srgb, ${validHex} 85%, black)`)
+  root.style.setProperty('--color-accent-700', `color-mix(in srgb, ${validHex} 70%, black)`)
+  root.style.setProperty('--color-accent-800', `color-mix(in srgb, ${validHex} 52%, black)`)
+  root.style.setProperty('--color-accent-900', `color-mix(in srgb, ${validHex} 36%, black)`)
+  root.style.setProperty('--color-accent-950', `color-mix(in srgb, ${validHex} 20%, black)`)
+  root.style.setProperty('--color-brand', validHex)
+  root.style.setProperty('--primary', validHex)
 }
 applyAccentColor(loadPrefs().accentColor)
 

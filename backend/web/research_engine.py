@@ -32,12 +32,20 @@ from backend.web.verification import evaluate_claims, format_verification_summar
 
 log = logging.getLogger(__name__)
 
-SearchFn = Callable[[str, int], Coroutine[Any, Any, list[dict[str, Any]]]]
+SearchFn = Callable[..., Coroutine[Any, Any, list[dict[str, Any]]]]
 
 
-async def _default_search_fn(query: str, limit: int) -> list[dict[str, Any]]:
+async def _default_search_fn(
+    query: str,
+    limit: int,
+    options: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """Default search execution through Amethyst's optimized multi-engine search service."""
     from backend.web.search_service import search_web
+    import inspect
+    sig = inspect.signature(search_web)
+    if "options" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        return await search_web(query, limit=limit, options=options)
     return await search_web(query, limit=limit)
 
 
@@ -285,6 +293,7 @@ class ResearchEngine:
         depth: str | None = None,
         limit_per_query: int = 6,
         explicit_queries: list[str] | None = None,
+        options: dict[str, Any] | None = None,
     ) -> tuple[str, SourceRegistry, ResearchTrace]:
         """Execute a full research task according to modern AI search principles."""
         started_at = time.monotonic()
@@ -306,15 +315,11 @@ class ResearchEngine:
 
         # 3. Fast path: Simple search (only if not multiple explicit queries)
         if (not explicit_queries or len(plan.queries) <= 1) and (
-            plan.depth == ResearchDepth.SIMPLE or len(plan.queries) == 1
+            plan.depth == ResearchDepth.SIMPLE
         ):
             q = plan.queries[0]
             trace.queries_executed.append(q)
-            try:
-                raw_hits = await self.search_fn(q, limit_per_query)
-            except Exception as exc:
-                log.warning("search failed for query %r: %s", q, exc)
-                raw_hits = []
+            raw_hits = await self._safe_search(q, limit_per_query, options=options)
 
             trace.results_retrieved_count = len(raw_hits)
             normalized = []
@@ -336,6 +341,7 @@ class ResearchEngine:
                     relevance=h.get("score", 0.8),
                     authority_tier=tier,
                     raw_source=h.get("source", "search"),
+                    text=h.get("text"),
                 )
                 registry.register(item)
                 normalized.append(item)
@@ -384,7 +390,7 @@ class ResearchEngine:
             img_q = _formulate_image_query(query, plan.entities)
             image_task = self._safe_image_search(img_q, limit=12)
 
-        search_tasks = [self._safe_search(q, limit_per_query) for q in plan.queries]
+        search_tasks = [self._safe_search(q, limit_per_query, options=options) for q in plan.queries]
         for q in plan.queries:
             trace.queries_executed.append(q)
 
@@ -429,7 +435,7 @@ class ResearchEngine:
                 f"{primary_ent} {month_year}",
                 f"{primary_ent} latest announcement {month_year}",
             ]
-            second_tasks = [self._safe_search(sq, limit_per_query) for sq in second_queries]
+            second_tasks = [self._safe_search(sq, limit_per_query, options=options) for sq in second_queries]
             for sq in second_queries:
                 trace.queries_executed.append(sq)
             second_results = await asyncio.gather(*second_tasks)
@@ -458,12 +464,22 @@ class ResearchEngine:
                 relevance=h.get("score", 0.75),
                 authority_tier=tier,
                 raw_source=h.get("source", "search"),
+                text=h.get("text"),
             )
             unfiltered_results.append(res)
 
         # 6. Deduplication & Clustering
         clustered = deduplicate_and_cluster(unfiltered_results)
         trace.results_deduped_count = len(clustered)
+
+        if not clustered:
+            trace.duration_seconds = time.monotonic() - started_at
+            self.last_trace = trace
+            out = (
+                f"No results found for query {query!r}. "
+                "All search engines returned nothing or are unavailable."
+            )
+            return out, registry, trace
 
         # Register in SourceRegistry
         for s in clustered:
@@ -485,18 +501,39 @@ class ResearchEngine:
             ][:2]
 
             for target in inspect_candidates:
-                trace.pages_inspected.append(target.url)
-                extracted_items = await inspect_and_extract(
-                    target,
-                    query=query,
-                    entities=plan.entities,
-                    max_passages=2,
-                )
-                for item in extracted_items:
-                    registry.add_evidence(item)
-                    trace.evidence_extracted.append(item.to_dict())
-                    # Estimated token savings: ~25000 tokens of full page vs ~300 tokens of passage
-                    tokens_saved += 2000
+                if target.text:
+                    from backend.web.extractor import extract_relevant_passages
+                    from backend.web.models import EvidenceItem
+                    passages = extract_relevant_passages(target.text, query=query, max_passages=2)
+                    if not passages:
+                        passages = [("Overview", target.text[:600], 0.7)]
+                    for heading, text, score in passages:
+                        item = EvidenceItem(
+                            ref_id=target.ref_id,
+                            url=target.url,
+                            domain=target.domain,
+                            title=target.title,
+                            passage=text,
+                            section_heading=heading,
+                            authority_tier=target.authority_tier,
+                            published_date=target.published_date,
+                            relevance_score=score,
+                        )
+                        registry.add_evidence(item)
+                        trace.evidence_extracted.append(item.to_dict())
+                        tokens_saved += 2000
+                else:
+                    trace.pages_inspected.append(target.url)
+                    extracted_items = await inspect_and_extract(
+                        target,
+                        query=query,
+                        entities=plan.entities,
+                        max_passages=2,
+                    )
+                    for item in extracted_items:
+                        registry.add_evidence(item)
+                        trace.evidence_extracted.append(item.to_dict())
+                        tokens_saved += 2000
 
         trace.estimated_tokens_saved = tokens_saved
 
@@ -700,8 +737,17 @@ class ResearchEngine:
         final_evidence_text = "\n\n".join(output_sections)
         return final_evidence_text, registry, trace
 
-    async def _safe_search(self, query: str, limit: int) -> list[dict[str, Any]]:
+    async def _safe_search(
+        self,
+        query: str,
+        limit: int,
+        options: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         try:
+            import inspect
+            sig = inspect.signature(self.search_fn)
+            if "options" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+                return await self.search_fn(query, limit, options=options)
             return await self.search_fn(query, limit)
         except Exception as exc:
             log.warning("Safe search failed for %r: %s", query, exc)

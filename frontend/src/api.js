@@ -366,6 +366,9 @@ export const api = {
   composioToolkits: () => j('/composio/toolkits'),
   toggleComposioToolkit: (toolkit, enabled) =>
     j('/composio/toolkits/toggle', json('POST', { toolkit, enabled })),
+  connectComposioToolkit: (slug) =>
+    j(`/composio/toolkits/${encodeURIComponent(slug)}/connect`, json('POST')),
+  composioConnections: () => j('/composio/connections'),
 
 
   conversations: () => j('/conversations'),
