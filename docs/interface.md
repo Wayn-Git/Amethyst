@@ -53,10 +53,12 @@ said what it meant without a tooltip: an amber dot beside a connector is either
 "starting" or "needs sign-in", and the dot cannot tell you which. The colour
 rule above still holds; it is carried by the word now, which can also be read.
 
-**Type.** Space Grotesk names things, Archivo carries prose because it holds at
-12px, IBM Plex Mono sets anything the machine reports — paths, tool names, key
-hints, counts — because numbers that change should sit still. None of the three
-is the face reached for on autopilot, and each was picked for a job.
+**Type.** Two families, and the split is by what is being said. `--font-sans`
+(declared as `--font-openai-sans`, falling back to Inter — the loaded face) sets
+everything a person reads; `--font-mono` sets everything the *machine* reports —
+paths, tool names, key hints, counts — because numbers that change should sit
+still. Sizes come from the `--text-*` scale, all multiplied by `--text-scale`,
+so Settings → text size moves the whole interface rather than a subset of it.
 
 **Icons.** One family (Phosphor) drawn on a 24px grid, at one weight. The marks
 used to be hand-drawn paths and it showed; a row of icons now lines up because
@@ -89,11 +91,12 @@ main.jsx
         │                    (stays mounted outside <Routes> — unmounting it
         │                     mid-turn would drop the stream)
         ├── Routes ......... every place but chat, one lazy chunk each —
-        │                    Today · Tasks · Mail · Skills & connectors ·
-        │                    Automations · Memory · Library · Activity ·
-        │                    Status · Remote. Settings is in the same list but
-        │                    imported eagerly. Each chunk warms on hover or on
-        │                    the keyboard shortcut reaching it.
+        │                    Today · Tasks · Email · File Converter ·
+        │                    Skills & connectors · Automations · Memory ·
+        │                    Library · Code · Activity · Status · Remote.
+        │                    Settings is in the same list but imported eagerly.
+        │                    Each chunk warms on hover or on the keyboard
+        │                    shortcut reaching it.
         ├── MobileNav ...... the phone's bottom bar
         ├── wb-panel ....... a slot any view fills through a portal — collapses
         │                    when nothing has anything to put there
@@ -101,6 +104,14 @@ main.jsx
         ├── Shortcuts ...... the keyboard reference
         ├── OnboardingWizard / ConfirmDialogHost / Toasts
 ```
+
+`frontend/src/nav.js` is the single list of what pages exist. It used to be four
+hand-maintained ones — `App.jsx`'s keybindings, the rail, the command palette,
+Settings' "Pages" links — and they had already drifted: different labels for the
+same place, Settings missing a link to Email, a beta marker baked into one
+string and not the others. One registry, one place to add a view, and derived
+exports (`forRail`, `forPalette`, `byDigit`) so nothing can disagree about
+whether a page exists.
 
 The rail holds the conversations because that is what a person switches between
 most, and a top bar carrying both navigation and history ends up carrying
@@ -276,6 +287,62 @@ approving those deliberately rather than exempting scheduled work from the gate.
 
 Both decisions, and what is deliberately absent, are argued in
 [architecture/automation.md](architecture/automation.md).
+
+## Code mode
+
+The sidebar carries a **Work / Code** control. Work is the chat; Code is a
+second working surface over a real [OpenCode](https://opencode.ai) session, and
+the two share nothing but the window — a turn running in Work is unaffected by
+opening Code.
+
+Code is not an emulation. `backend/opencode/manager.py` spawns `opencode web` as
+a supervised subprocess on first use and tears it down with the server;
+`backend/opencode/router.py` reverse-proxies `/api/opencode/*` to its port,
+passing `text/event-stream` responses through unbuffered so OpenCode's own
+streaming arrives live instead of in batches. The view itself
+(`frontend/src/views/Code.jsx`) embeds that server's UI in an iframe and lists
+sessions and projects beside it, with Amethyst's providers synced in through
+`POST /api/opencode/sync_amethyst` so the model picker agrees across both.
+
+It has no digit and no place in the `⌘1…9` row: it is a place you switch *into*,
+not one you jump to.
+
+## File Converter
+
+`/converter`, in the rail under utilities, and deliberately local. Ten tools,
+each a chunk of its own under `frontend/src/views/converter/`:
+
+image resize, PDF tools, video tools, OCR, QR generation, unit conversion, time
+zones, colour conversion, code formatting, and text tools.
+
+The rule that shapes it: nothing uploads. The video/audio conversion pipeline
+and the document workbench run against files already on the machine, which is
+why the view takes a path rather than offering a cloud round trip. It is the
+one page whose whole purpose is "do this to my file and give it back", with no
+agent involved.
+
+## Themes
+
+Eight curated palettes plus `system`, chosen in Settings or the `+` menu:
+
+| Dark | Light |
+|---|---|
+| `graphite` · `ink` · `nocturne` · `nvidia` | `paper` · `sand` · `claude` · `cursor` |
+
+`store.jsx` resolves `system` to `graphite` or `paper` from the machine's
+preference and then stamps `<html>` with two attributes — `data-theme` (the
+palette) and `data-theme-mode` (`dark` or `light`). Everything past that is
+stylesheet: no JavaScript repaints a colour, so the first paint is already
+correct and a theme change is one selector swap rather than a walk of the tree.
+The palettes were drawn from `UIInspirations/DesignMDFiles/`, and `theme` is in
+`SYNCED_PREFS`, so the choice follows you between devices.
+
+The accent is separate from the palette. `applyAccentColor(hex)` writes an
+11-step ramp — `--color-accent-50` through `--color-accent-950` — as `color-mix`
+derivatives of one hex, plus `--accent`, `--accent-hover`, `--accent-soft`,
+`--accent-wash`, `--focus-ring` and `--ember`. That is why picking a brand
+colour in Settings retints buttons, links, switches and focus rings together
+instead of leaving three of them behind.
 
 ## Library
 

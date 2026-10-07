@@ -150,5 +150,4 @@ As a local-first application, the system runs everything in a single process to 
 - [skills.md](skills.md), [mcp.md](mcp.md), [mcp-oauth.md](mcp-oauth.md), [scheduling.md](scheduling.md) — subsystem detail
 - [library.md](library.md) — the Library: every path a capture takes in, what it becomes on disk, enrichment, and search
 - [decisions/](decisions/) — ADRs recording the significant choices and their alternatives
-- [../archive/roadmap/implementation-plan.md](../archive/roadmap/implementation-plan.md) — the build order from an empty repository, kept as a record
-- [../roadmap/ideas.md](../roadmap/ideas.md) — pipeline ideas, split into what shipped and what has not
+- [../README.md](../README.md) — the documentation index
