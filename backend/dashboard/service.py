@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id.startswith("agent.") or widget_id in ("need.approvals", "need.decisions"):
+        from backend.dashboard.director import provide
+
+        return await provide(widget_id)
     if widget_id == "dev.backup":
         from backend.dashboard.git import provide
 

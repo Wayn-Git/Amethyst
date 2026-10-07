@@ -34,3 +34,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - dev.appeal: gated local support cases, Sent/Waiting/Reply evidence, optional exact-domain Gmail watch and stop/delete control; optional free-model unsent follow-ups. Shared audited connector reader extracted from agenda; targeted backend/browser/lint checks pass.
 - dev.recovery: user-authored mirror/clone/export checklist reusing local item review, expiry, stale-row and single-use gates; focused CRUD/backend/browser/lint checks pass.
 - dev.backup: explicit repository settings, local clone/remotes/reachability, credential-free cache and honest local push evidence; bounded read-only Git processes. Disposable Git/backend/browser/lint checks pass; cross-host push time remains unknown without evidence.
+
+- 2026-10-24 agent.feed: Uses existing recent Director traces; bounded to 50; tracing history is process-local.

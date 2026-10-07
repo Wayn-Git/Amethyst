@@ -38,6 +38,7 @@ def test_manifest_schema_disables_invalid_entries_without_crashing():
 def test_registry_contains_shipped_local_widgets(client):
     response = client.get("/api/widgets").json()
     assert {entry["manifest"]["id"] for entry in response["widgets"]} == {
+        "agent.feed",
         "lib.inbox",
         "lib.dupes",
         "lib.recent",
@@ -62,7 +63,7 @@ def test_registry_contains_shipped_local_widgets(client):
     }
     assert all(
         all(
-            source["type"] in ("local", "library", "composio", "llm", "git")
+            source["type"] in ("local", "library", "composio", "llm", "git", "director")
             for source in (
                 entry["manifest"]["source"]
                 if isinstance(entry["manifest"]["source"], list)

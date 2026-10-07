@@ -90,8 +90,21 @@ def developer_manifest(widget_id, title, source="local"):
     return value
 
 
+def director_manifest(widget_id, title, actions=()):
+    value = manifest(widget_id, title, ["m", "l"])
+    value.update(
+        group="needs-you" if widget_id.startswith("need.") else "agent",
+        source={"type": "director"},
+        refresh={"mode": "poll", "interval_s": 10},
+        empty="No activity.",
+        actions=[dict(id=a, label=a.title(), gate=True) for a in actions],
+    )
+    return value
+
+
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    director_manifest("agent.feed", "Activity feed"),
     developer_manifest("dev.appeal", "Support cases"),
     developer_manifest("dev.recovery", "Recovery checklist"),
     developer_manifest("dev.backup", "Backup status", "git"),
