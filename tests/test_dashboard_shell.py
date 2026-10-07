@@ -109,6 +109,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "task.focus",
         "task.habits",
         "task.goals",
+        "task.kanban",
         "task.today",
         "task.backlog",
         "task.deadlines",

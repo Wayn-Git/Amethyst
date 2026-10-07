@@ -411,6 +411,13 @@ MANIFESTS = [
         "tier": "v2",
         "actions": [dict(id=a, label=a.title(), gate=True) for a in ("add", "progress")],
     },
+    {
+        **task_manifest("task.kanban", "Mini kanban per project"),
+        "tier": "v2",
+        "actions": [
+            dict(id=a, label=a.title(), gate=True) for a in ("project", "configure", "move")
+        ],
+    },
     task_manifest("task.today", "Today list"),
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),

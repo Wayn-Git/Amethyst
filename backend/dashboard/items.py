@@ -332,6 +332,10 @@ def apply(conn, widget_id, action, body):
         from backend.dashboard.goals import apply as apply_goal
 
         return apply_goal(conn, action, body)
+    if widget_id == "task.kanban":
+        from backend.dashboard.kanban import apply as apply_board
+
+        return apply_board(conn, action, body)
     if widget_id == "task.focus":
         from backend.dashboard.focus import apply as apply_focus
 

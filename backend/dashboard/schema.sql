@@ -194,3 +194,13 @@ CREATE TABLE IF NOT EXISTS dashboard_goal_tasks (
     task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     PRIMARY KEY(goal_id,task_id)
 );
+
+-- Projects reuse local task lists; cards keep placement only, never task copies.
+CREATE TABLE IF NOT EXISTS dashboard_kanban_boards (
+    list_id INTEGER PRIMARY KEY REFERENCES task_lists(id) ON DELETE CASCADE,
+    columns_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS dashboard_kanban_cards (
+    task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    column_id TEXT NOT NULL
+);
