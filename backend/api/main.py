@@ -148,6 +148,10 @@ async def _unattended_director(callback):
         # most of the work. The interactive default stays where it is; unattended
         # work is exactly where nobody is there to say "carry on".
         guards=Guards(max_iterations=AUTOMATION_MAX_ITERATIONS),
+        # Nobody is there to wire up an app on demand, so the connection gate's
+        # offer of "connect it and I will retry" must be refused from here: the
+        # call fails with its guidance, like every other unattended gap.
+        interactive=False,
     )
 
 
@@ -432,7 +436,7 @@ SUSPENSION_GRACE_SECONDS = 120.0
 #: `acting` and the rest are deliberately not here: a background run working
 #: with no one watching has no prompt in flight and no streaming turn, and
 #: sweeping on that would end every automation the moment it started.
-SUSPENDED_PHASES = frozenset({"awaiting_approval", "awaiting_input"})
+SUSPENDED_PHASES = frozenset({"awaiting_approval", "awaiting_input", "awaiting_connection"})
 
 
 def _sweep_abandoned_suspensions() -> None:
@@ -452,6 +456,8 @@ def _sweep_abandoned_suspensions() -> None:
     from datetime import datetime, timedelta
 
     from backend.agent import questions
+
+    from backend.mcp.connection_gate import gate as _connection_gate
 
     # Local naive, in the same format `repositories._now` writes: every
     # timestamp in this schema is local naive and compared as a string, and a
@@ -474,6 +480,11 @@ def _sweep_abandoned_suspensions() -> None:
         ):
             continue
         if questions.outstanding(conversation_id):
+            continue
+        if any(
+            wait["conversation_id"] == conversation_id
+            for wait in _connection_gate.snapshot()
+        ):
             continue
         if state.updated_at >= cutoff:
             continue
@@ -3497,13 +3508,17 @@ def _waiting_on(conversation_id: str) -> str | None:
     that is alive and producing nothing. The distinction is the reason a
     heartbeat is a frame rather than just bytes on the wire -- one reads as
     "still working" and the other as "waiting on you", and ten seconds of
-    silence produces both. Silence cannot say which, so the two things that
-    can hold a turn open -- the permission gate and a clarifying question --
-    are read off the places that already record them.
+    silence produces both. Silence cannot say which, so the things that can
+    hold a turn open -- the permission gate, a clarifying question, and an app
+    card -- are read off the places that already record them.
     """
     for entry in list(_pending.values()):
         if entry["payload"].conversation_id == conversation_id:
             return "approval"
+    from backend.mcp.connection_gate import gate
+
+    if any(wait["conversation_id"] == conversation_id for wait in gate.snapshot()):
+        return "connection"
     from backend.agent import questions
 
     return "answer" if questions.outstanding(conversation_id) else None
@@ -3873,6 +3888,67 @@ def _resolve_once(future: asyncio.Future, value: Any) -> None:
     """Resolve a confirmation future unless something already did."""
     if not future.done():
         future.set_result(value)
+
+
+# ---------------------------------------------------------- connector waits
+#
+# The connection gate's interface. A tool call that failed for want of a
+# connected app parks the turn on one of these; the card the interface renders
+# from the `connection_required` event answers here.
+
+
+def _connector_wait_is_zombie(wait: dict[str, Any]) -> bool:
+    """True when the turn behind a pending connection wait has already ended.
+
+    Same question `_confirmation_is_zombie` asks of a prompt, one indirection
+    over: the gate's snapshot is already payload-shaped, so the run row is the
+    authority here too. Read-only, for the same reason -- a wait the endpoint
+    cannot classify stays visible until its own timeout retires it.
+    """
+    conversation_id = wait.get("conversation_id")
+    if not conversation_id:
+        return False
+    try:
+        state = AgentRunRepository().latest(conversation_id)
+    except Exception:
+        return False
+    return state is not None and state.terminal
+
+
+@app.get("/api/connector-waits")
+async def list_connector_waits() -> list[dict[str, Any]]:
+    from backend.mcp.connection_gate import gate
+
+    # Async rather than a threadpool worker, so the snapshot cannot race a
+    # turn minting a wait mid-iteration.
+    return [wait for wait in gate.snapshot() if not _connector_wait_is_zombie(wait)]
+
+
+class ConnectorWaitDecision(BaseModel):
+    action: str  # "resume" | "dismiss"
+
+
+@app.post("/api/connector-waits/{wait_id}")
+async def decide_connector_wait(wait_id: str, body: ConnectorWaitDecision) -> dict[str, str]:
+    from backend.mcp.connection_gate import gate
+
+    action = body.action.strip().lower()
+    if action not in ("resume", "dismiss"):
+        raise HTTPException(422, "action must be 'resume' or 'dismiss'")
+    wait = next((w for w in gate.snapshot() if w.get("id") == wait_id), None)
+    if wait is None:
+        # An unknown wait is usually one that just resolved itself -- the user
+        # connected the app from the connectors screen a beat before pressing
+        # the card's button. Gone is a settled answer, not an error to retry.
+        raise HTTPException(404, "no such pending connection wait")
+    if _connector_wait_is_zombie(wait):
+        raise HTTPException(410, "the turn that asked for this has ended")
+    # The snapshot showed the wait, so it is open: resolving in place is safe
+    # because this endpoint is async -- it runs on the same loop the future was
+    # created on, with no thread boundary in between.
+    if not gate.resolve(wait_id, action):
+        raise HTTPException(409, "the connection wait was already settled")
+    return {"status": "recorded", "action": action}
 
 
 # ------------------------------------------------------------- automations
