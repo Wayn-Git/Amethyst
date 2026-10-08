@@ -256,11 +256,10 @@ class OpenAICompatClient:
             payload["stop"] = p.stop
         if p.seed is not None:
             payload["seed"] = p.seed
-        # Provider quirk, absorbed here so the loop never learns about it: some
-        # reasoning models reject reasoning_effort when function tools are present.
-        # Non-reasoning models reject reasoning_effort outright.
+        # Gateways and non-reasoning models reject reasoning_effort
+        is_gateway = any(gw in (self.base_url or "") for gw in ("kilo.ai", "opencode.ai", "openrouter.ai"))
         if p.reasoning_effort and p.reasoning_effort != "none":
-            if is_reasoning_model(self.model) and not tools:
+            if is_reasoning_model(self.model) and not tools and not is_gateway:
                 payload["reasoning_effort"] = p.reasoning_effort
         return payload
 

@@ -305,3 +305,25 @@ async def test_a_turn_that_produced_nothing_is_still_an_error(db, workspace, str
     events, _ = await run(workspace)
 
     assert [e.type for e in events][-1] == "error"
+
+
+def test_connect_timeout_and_payload_sanitization():
+    from backend.runtime.http import CONNECT_TIMEOUT
+    from backend.runtime.providers.openai_compat import OpenAICompatClient
+    from backend.runtime.types import ModelParameters
+
+    assert CONNECT_TIMEOUT >= 15.0
+
+    # Test payload sanitization: non-reasoning or gateway models should not receive reasoning_effort
+    client = OpenAICompatClient(
+        base_url="https://opencode.ai/inference/openai/v1",
+        api_key="test-key",
+        model="stepfun/step-3.7-flash:free",
+    )
+    payload = client._build_payload(
+        messages=[{"role": "user", "content": "hi"}],
+        tools=None,
+        params=ModelParameters(reasoning_effort="high"),
+    )
+    assert "reasoning_effort" not in payload
+
