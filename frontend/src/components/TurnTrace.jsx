@@ -471,12 +471,18 @@ function ArtifactCard({ call, onOpen }) {
 }
 
 export default function TurnTrace({ events, live, reasoning, running, ms, onOpenArtifact }) {
-  const documents = (events || [])
+  const cleanLive = (live?.name === 'ask_user' || live?.name === 'ask_question') ? null : live
+  const cleanEvents = (events || []).filter((e) => {
+    const callName = (e.call || e).name
+    return callName !== 'ask_user' && callName !== 'ask_question'
+  })
+
+  const documents = cleanEvents
     .filter((e) => e.type === 'tool' && String((e.call || e).name).split('__mcp__')[0] === 'create_artifact')
     .map((e) => e.call || e)
 
-  const hasTools = (events || []).some((e) => e.type === 'tool' || e.call)
-  if (!hasTools && !running && !live && documents.length === 0) {
+  const hasTools = cleanEvents.some((e) => e.type === 'tool' || e.call)
+  if (!hasTools && !running && !cleanLive && documents.length === 0) {
     return null
   }
 
@@ -486,8 +492,8 @@ export default function TurnTrace({ events, live, reasoning, running, ms, onOpen
         <ArtifactCard key={`doc${i}`} call={call} onOpen={onOpenArtifact} />
       ))}
       <AgentRun
-        events={events}
-        live={live}
+        events={cleanEvents}
+        live={cleanLive}
         reasoning={reasoning}
         running={running}
         ms={ms}

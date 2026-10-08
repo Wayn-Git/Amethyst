@@ -1,939 +1,1250 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { createContext, useContext, useState, useMemo, useCallback, useRef, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import * as React from "react";
 import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  CornerDownLeft,
-} from "lucide-react"
-import { cn } from "cn"
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Cancel01Icon,
+  Edit03Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import { cn } from "@/lib/utils";
+
+export type QuestionType = "single" | "multiple";
 
 export type QuestionOptionInput = {
-  value: string
-  label: React.ReactNode
-  hint?: React.ReactNode
-  description?: React.ReactNode
-}
+  value: string;
+  label: React.ReactNode;
+  description?: React.ReactNode;
+};
 
 export type QuestionInput = {
-  id: string
-  type: "single" | "multiple"
-  prompt: React.ReactNode
-  header?: string
-  options: QuestionOptionInput[]
-  required?: boolean
-}
+  id: string;
+  type: QuestionType;
+  prompt: React.ReactNode;
+  header?: string;
+  options: QuestionOptionInput[];
+  required?: boolean;
+};
+
+export const QUESTION_OTHER_VALUE = "__other__";
+export const QUESTION_NO_PREFERENCE_VALUE = "__no_preference__";
+export const QUESTION_NO_PREFERENCE_LABEL = "[No Preference]";
+
+export type RegisteredQuestion = {
+  id: string;
+  type: QuestionType;
+  prompt: React.ReactNode;
+  header?: string;
+  required?: boolean;
+  index: number;
+  options?: QuestionOptionInput[];
+};
+
+type QuestionScope = {
+  id: string;
+  type: QuestionType;
+};
 
 export type QuestionSubmissionAnswer = {
-  value: string
-  label: React.ReactNode
-}
+  value: string;
+  label: React.ReactNode;
+};
+
+const NO_PREFERENCE_ANSWER: QuestionSubmissionAnswer = {
+  value: QUESTION_NO_PREFERENCE_VALUE,
+  label: QUESTION_NO_PREFERENCE_LABEL,
+};
+
+export type SingleQuestionAnswerState = {
+  type: "single";
+  value: string;
+  other?: string;
+};
+
+export type MultipleQuestionAnswerState = {
+  type: "multiple";
+  value: string[];
+  other?: string;
+};
+
+export type QuestionAnswerState =
+  | SingleQuestionAnswerState
+  | MultipleQuestionAnswerState;
 
 export type QuestionsSubmission = Array<
   | {
-      questionId: string
-      prompt: React.ReactNode
-      type: "single"
-      status: "answered"
-      answer: QuestionSubmissionAnswer
+      questionId: string;
+      prompt: React.ReactNode;
+      type: "single";
+      status: "answered";
+      answer: QuestionSubmissionAnswer;
     }
   | {
-      questionId: string
-      prompt: React.ReactNode
-      type: "single"
-      status: "skipped"
-      answer: QuestionSubmissionAnswer
+      questionId: string;
+      prompt: React.ReactNode;
+      type: "single";
+      status: "skipped";
+      answer: QuestionSubmissionAnswer;
     }
   | {
-      questionId: string
-      prompt: React.ReactNode
-      type: "multiple"
-      status: "answered"
-      answer: QuestionSubmissionAnswer[]
+      questionId: string;
+      prompt: React.ReactNode;
+      type: "multiple";
+      status: "answered";
+      answer: QuestionSubmissionAnswer[];
     }
   | {
-      questionId: string
-      prompt: React.ReactNode
-      type: "multiple"
-      status: "skipped"
-      answer: QuestionSubmissionAnswer[]
+      questionId: string;
+      prompt: React.ReactNode;
+      type: "multiple";
+      status: "skipped";
+      answer: QuestionSubmissionAnswer[];
     }
->
+>;
 
-export const QUESTION_OTHER_VALUE = "__other__"
-export const QUESTION_NO_PREFERENCE_VALUE = "__no_preference__"
-export const QUESTION_NO_PREFERENCE_LABEL = "[No Preference]"
+function isQuestionAnswered(
+  question: RegisteredQuestion,
+  answer: QuestionAnswerState | undefined,
+): boolean {
+  if (!answer || answer.type !== question.type) return false;
 
-type AnswerState = Record<
-  string,
-  | { value: string; label: React.ReactNode; customText?: string }
-  | Array<{ value: string; label: React.ReactNode; customText?: string }>
->
-
-interface QuestionsContextType {
-  items: QuestionInput[]
-  index: number
-  setIndex: (idx: number | ((prev: number) => number)) => void
-  answers: AnswerState
-  otherInputs: Record<string, string>
-  setOtherInput: (questionId: string, text: string) => void
-  selectOption: (questionId: string, option: { value: string; label: React.ReactNode }) => void
-  isAnswered: (questionId: string) => boolean
-  canSubmit: boolean
-  canGoNext: boolean
-  canGoPrev: boolean
-  next: () => void
-  prev: () => void
-  skip: () => void
-  submit: () => void
-  dismiss: () => void
-  autoAdvance: boolean
-  activeQuestion: QuestionInput | undefined
-}
-
-const QuestionsContext = createContext<QuestionsContextType | null>(null)
-
-export function useQuestions() {
-  const ctx = useContext(QuestionsContext)
-  if (!ctx) {
-    throw new Error("Questions components must be used within a <Questions> root provider")
+  if (question.type === "single") {
+    if (answer.value === QUESTION_OTHER_VALUE) {
+      return Boolean(answer.other?.trim());
+    }
+    return Boolean(answer.value);
   }
-  return ctx
+
+  return answer.value.length > 0 || Boolean(answer.other?.trim());
 }
 
-export interface QuestionsProps extends React.HTMLAttributes<HTMLDivElement> {
-  items: QuestionInput[]
-  autoAdvance?: boolean
-  onSubmit?: (submission: QuestionsSubmission) => void
-  onSkip?: (questionId: string) => void
-  onDismiss?: () => void
-  children: React.ReactNode
+function isBlockedByRequired(
+  question: RegisteredQuestion | undefined,
+  answers: Record<string, QuestionAnswerState>,
+): boolean {
+  return Boolean(
+    question?.required && !isQuestionAnswered(question, answers[question.id]),
+  );
 }
 
-export function Questions({
-  items = [],
+function isOtherAnswer(
+  answer: QuestionAnswerState | undefined,
+  type: QuestionType,
+): boolean {
+  if (!answer || answer.type !== type) return false;
+  if (type === "single") return answer.value === QUESTION_OTHER_VALUE;
+  return (
+    answer.value.includes(QUESTION_OTHER_VALUE) || Boolean(answer.other?.trim())
+  );
+}
+
+function canSubmitQuestions(
+  questions: RegisteredQuestion[],
+  answers: Record<string, QuestionAnswerState>,
+): boolean {
+  if (questions.length === 0) return false;
+  return !questions.some(
+    (question) =>
+      question.required && !isQuestionAnswered(question, answers[question.id]),
+  );
+}
+
+function optionLabel(
+  question: RegisteredQuestion,
+  value: string,
+  other?: string,
+): React.ReactNode {
+  if (value === QUESTION_OTHER_VALUE) {
+    return other?.trim() || "Other";
+  }
+  return question.options?.find((option) => option.value === value)?.label ?? value;
+}
+
+function skippedSubmission(
+  question: RegisteredQuestion,
+): QuestionsSubmission[number] {
+  return question.type === "single"
+    ? {
+        questionId: question.id,
+        prompt: question.prompt,
+        type: "single",
+        status: "skipped",
+        answer: NO_PREFERENCE_ANSWER,
+      }
+    : {
+        questionId: question.id,
+        prompt: question.prompt,
+        type: "multiple",
+        status: "skipped",
+        answer: [NO_PREFERENCE_ANSWER],
+      };
+}
+
+function buildSubmission(
+  questions: RegisteredQuestion[],
+  answers: Record<string, QuestionAnswerState>,
+): QuestionsSubmission {
+  return questions.map((question) => {
+    const answer = answers[question.id];
+    if (!isQuestionAnswered(question, answer)) {
+      return skippedSubmission(question);
+    }
+
+    if (question.type === "single" && answer?.type === "single") {
+      return {
+        questionId: question.id,
+        prompt: question.prompt,
+        type: "single",
+        status: "answered",
+        answer: {
+          value: answer.value,
+          label: optionLabel(question, answer.value, answer.other),
+        },
+      };
+    }
+
+    if (question.type === "multiple" && answer?.type === "multiple") {
+      const submissionAnswers = answer.value.map((value) => ({
+        value,
+        label: optionLabel(question, value, answer.other),
+      }));
+
+      if (answer.other?.trim() && !answer.value.includes(QUESTION_OTHER_VALUE)) {
+        submissionAnswers.push({
+          value: QUESTION_OTHER_VALUE,
+          label: answer.other.trim(),
+        });
+      }
+
+      return {
+        questionId: question.id,
+        prompt: question.prompt,
+        type: "multiple",
+        status: "answered",
+        answer: submissionAnswers,
+      };
+    }
+
+    return skippedSubmission(question);
+  });
+}
+
+function createQuestionsFromItems(items: QuestionInput[]): RegisteredQuestion[] {
+  return items.map((item, index) => ({
+    id: item.id,
+    type: item.type,
+    prompt: item.prompt,
+    header: item.header,
+    required: item.required ?? false,
+    index,
+    options: item.options,
+  }));
+}
+
+type QuestionsRootContextValue = {
+  questions: RegisteredQuestion[];
+  index: number;
+  answers: Record<string, QuestionAnswerState>;
+  selectSingle: (
+    questionId: string,
+    value: string,
+    other?: string,
+    options?: { autoAdvance?: boolean },
+  ) => void;
+  toggleMultiple: (questionId: string, value: string) => void;
+  setMultipleOther: (questionId: string, other: string) => void;
+  clearAnswer: (questionId: string) => void;
+  skip: () => void;
+  submit: () => void;
+  goNext: () => void;
+  goPrev: () => void;
+  carouselApi: CarouselApi | null;
+  setCarouselApi: (api: CarouselApi | undefined) => void;
+  onDismiss?: () => void;
+};
+
+const QuestionsRootContext =
+  React.createContext<QuestionsRootContextValue | null>(null);
+
+const QuestionContext = React.createContext<QuestionScope | null>(null);
+
+function useQuestionsRoot(component: string): QuestionsRootContextValue {
+  const ctx = React.useContext(QuestionsRootContext);
+  if (!ctx) {
+    throw new Error(`${component} must be used within Questions`);
+  }
+  return ctx;
+}
+
+function useQuestion(component: string): QuestionScope {
+  const ctx = React.useContext(QuestionContext);
+  if (!ctx) {
+    throw new Error(`${component} must be used within Question`);
+  }
+  return ctx;
+}
+
+export type QuestionsProps = Omit<React.ComponentProps<typeof Card>, "onSubmit"> & {
+  items: QuestionInput[];
+  autoAdvance?: boolean;
+  onSubmit?: (submission: QuestionsSubmission) => void;
+  onSkip?: (questionId: string) => void;
+  onDismiss?: () => void;
+};
+
+function Questions({
+  className,
+  items,
   autoAdvance = true,
   onSubmit,
   onSkip,
   onDismiss,
-  className,
   children,
   ...props
 }: QuestionsProps) {
-  const [index, setIndex] = useState(0)
-  const [answers, setAnswers] = useState<AnswerState>({})
-  const [otherInputs, setOtherInputs] = useState<Record<string, string>>({})
-  const containerRef = useRef<HTMLDivElement>(null)
+  const questions = React.useMemo(() => createQuestionsFromItems(items), [items]);
+  const [index, setIndex] = React.useState(0);
+  const [answers, setAnswers] = React.useState<Record<string, QuestionAnswerState>>(
+    {},
+  );
+  const answersRef = React.useRef(answers);
+  const [carouselApi, setCarouselApi] = React.useState<CarouselApi | null>(null);
 
-  const activeQuestion = items[index]
+  const questionCount = questions.length;
+  const clampedIndex =
+    questionCount === 0 ? 0 : Math.min(Math.max(0, index), questionCount - 1);
 
-  const isAnswered = useCallback(
-    (questionId: string) => {
-      const q = items.find((item) => item.id === questionId)
-      if (!q) return false
-      const ans = answers[questionId]
-      if (!ans) return false
-
-      if (q.type === "single") {
-        const item = ans as { value: string; label: React.ReactNode; customText?: string }
-        if (!item || !item.value) return false
-        if (item.value === QUESTION_OTHER_VALUE) {
-          const custom = (otherInputs[questionId] || item.customText || "").trim()
-          return custom.length > 0
-        }
-        return true
-      } else {
-        const list = (ans as Array<{ value: string; label: React.ReactNode; customText?: string }>) || []
-        if (list.length === 0) return false
-        const otherSelected = list.some((i) => i.value === QUESTION_OTHER_VALUE)
-        if (otherSelected) {
-          const custom = (otherInputs[questionId] || "").trim()
-          return custom.length > 0 || list.length > 1
-        }
-        return true
-      }
+  const goToIndex = React.useCallback(
+    (nextIndex: number) => {
+      if (questionCount === 0) return;
+      const target = Math.min(Math.max(0, nextIndex), questionCount - 1);
+      setIndex(target);
+      carouselApi?.scrollTo(target);
     },
-    [items, answers, otherInputs]
-  )
+    [carouselApi, questionCount],
+  );
 
-  const canSubmit = useMemo(() => {
-    return items.every((q) => {
-      if (!q.required) return true
-      return isAnswered(q.id)
-    })
-  }, [items, isAnswered])
+  const clearAnswer = React.useCallback((questionId: string) => {
+    setAnswers((prev) => {
+      if (!(questionId in prev)) return prev;
+      const next = { ...prev };
+      delete next[questionId];
+      answersRef.current = next;
+      return next;
+    });
+  }, []);
 
-  const canGoPrev = index > 0
-  const canGoNext = useMemo(() => {
-    if (index >= items.length - 1) return false
-    if (!activeQuestion) return false
-    if (activeQuestion.required) {
-      return isAnswered(activeQuestion.id)
-    }
-    return true
-  }, [index, items.length, activeQuestion, isAnswered])
-
-  const next = useCallback(() => {
-    if (index < items.length - 1) {
-      setIndex((i) => i + 1)
-    }
-  }, [index, items.length])
-
-  const prev = useCallback(() => {
-    if (index > 0) {
-      setIndex((i) => i - 1)
-    }
-  }, [index])
-
-  const skip = useCallback(() => {
-    if (activeQuestion) {
-      onSkip?.(activeQuestion.id)
-    }
-    if (index < items.length - 1) {
-      setIndex((i) => i + 1)
-    }
-  }, [activeQuestion, onSkip, index, items.length])
-
-  const submit = useCallback(() => {
-    if (!canSubmit) return
-
-    const submission: QuestionsSubmission = items.map((q) => {
-      const answered = isAnswered(q.id)
-      const rawAns = answers[q.id]
-      const otherText = (otherInputs[q.id] || "").trim()
-
-      if (q.type === "single") {
-        if (!answered || !rawAns) {
-          return {
-            questionId: q.id,
-            prompt: q.prompt,
-            type: "single",
-            status: "skipped",
-            answer: {
-              value: QUESTION_NO_PREFERENCE_VALUE,
-              label: QUESTION_NO_PREFERENCE_LABEL,
-            },
-          }
-        }
-        const item = rawAns as { value: string; label: React.ReactNode }
-        const label = item.value === QUESTION_OTHER_VALUE && otherText ? otherText : item.label
-        return {
-          questionId: q.id,
-          prompt: q.prompt,
-          type: "single",
-          status: "answered",
-          answer: {
-            value: item.value === QUESTION_OTHER_VALUE ? otherText : item.value,
-            label,
-          },
-        }
-      } else {
-        const list = (rawAns as Array<{ value: string; label: React.ReactNode }>) || []
-        if (!answered || list.length === 0) {
-          return {
-            questionId: q.id,
-            prompt: q.prompt,
-            type: "multiple",
-            status: "skipped",
-            answer: [
-              {
-                value: QUESTION_NO_PREFERENCE_VALUE,
-                label: QUESTION_NO_PREFERENCE_LABEL,
-              },
-            ],
-          }
-        }
-        const formattedAnswers = list.map((item) => {
-          const label = item.value === QUESTION_OTHER_VALUE && otherText ? otherText : item.label
-          return {
-            value: item.value === QUESTION_OTHER_VALUE ? otherText : item.value,
-            label,
-          }
-        })
-        return {
-          questionId: q.id,
-          prompt: q.prompt,
-          type: "multiple",
-          status: "answered",
-          answer: formattedAnswers,
-        }
-      }
-    })
-
-    onSubmit?.(submission)
-  }, [canSubmit, items, isAnswered, answers, otherInputs, onSubmit])
-
-  const selectOption = useCallback(
-    (questionId: string, option: { value: string; label: React.ReactNode }) => {
-      const q = items.find((item) => item.id === questionId)
-      if (!q) return
-
-      if (q.type === "single") {
-        setAnswers((prev) => ({
+  const selectSingle = React.useCallback(
+    (
+      questionId: string,
+      value: string,
+      other?: string,
+      options?: { autoAdvance?: boolean },
+    ) => {
+      setAnswers((prev) => {
+        const next = {
           ...prev,
-          [questionId]: option,
-        }))
+          [questionId]: {
+            type: "single" as const,
+            value,
+            ...(other ? { other } : {}),
+          },
+        };
+        answersRef.current = next;
+        return next;
+      });
 
-        // Auto-advance for single selection if enabled and not the last question
-        if (autoAdvance && option.value !== QUESTION_OTHER_VALUE && index < items.length - 1) {
-          setTimeout(() => {
-            setIndex((curr) => (curr < items.length - 1 ? curr + 1 : curr))
-          }, 160)
-        }
-      } else {
-        setAnswers((prev) => {
-          const currentList = (prev[questionId] as Array<{ value: string; label: React.ReactNode }>) || []
-          const exists = currentList.some((item) => item.value === option.value)
-          const nextList = exists
-            ? currentList.filter((item) => item.value !== option.value)
-            : [...currentList, option]
-          return {
-            ...prev,
-            [questionId]: nextList,
-          }
-        })
-      }
+      if (options?.autoAdvance === false || !autoAdvance) return;
+
+      const questionIndex = questions.findIndex((q) => q.id === questionId);
+      if (questionIndex < 0 || questionIndex >= questions.length - 1) return;
+      goToIndex(questionIndex + 1);
     },
-    [items, autoAdvance, index]
-  )
+    [autoAdvance, goToIndex, questions],
+  );
 
-  const setOtherInput = useCallback((questionId: string, text: string) => {
-    setOtherInputs((prev) => ({
-      ...prev,
-      [questionId]: text,
-    }))
-  }, [])
+  const toggleMultiple = React.useCallback((questionId: string, value: string) => {
+    setAnswers((prev) => {
+      const existing = prev[questionId];
+      const currentValues =
+        existing?.type === "multiple" ? existing.value : [];
+      const nextValues = currentValues.includes(value)
+        ? currentValues.filter((item) => item !== value)
+        : [...currentValues, value];
 
-  const contextValue = useMemo(
+      return {
+        ...prev,
+        [questionId]: {
+          type: "multiple",
+          value: nextValues,
+          ...(existing?.type === "multiple" && existing.other
+            ? { other: existing.other }
+            : {}),
+        },
+      };
+    });
+  }, []);
+
+  const setMultipleOther = React.useCallback((questionId: string, other: string) => {
+    setAnswers((prev) => {
+      const existing = prev[questionId];
+      const currentValues = existing?.type === "multiple" ? existing.value : [];
+
+      return {
+        ...prev,
+        [questionId]: {
+          type: "multiple",
+          value: currentValues,
+          other,
+        },
+      };
+    });
+  }, []);
+
+  const goNext = React.useCallback(() => {
+    const current = questions[clampedIndex];
+    if (!current || isBlockedByRequired(current, answers)) return;
+    if (clampedIndex < questionCount - 1) goToIndex(clampedIndex + 1);
+  }, [answers, clampedIndex, goToIndex, questionCount, questions]);
+
+  const goPrev = React.useCallback(() => {
+    if (clampedIndex > 0) {
+      goToIndex(clampedIndex - 1);
+    }
+  }, [clampedIndex, goToIndex]);
+
+  const skip = React.useCallback(() => {
+    const current = questions[clampedIndex];
+    if (!current || clampedIndex >= questionCount - 1) return;
+    if (isBlockedByRequired(current, answers)) return;
+    onSkip?.(current.id);
+    goToIndex(clampedIndex + 1);
+  }, [answers, clampedIndex, goToIndex, onSkip, questionCount, questions]);
+
+  const submit = React.useCallback(() => {
+    if (!canSubmitQuestions(questions, answers)) return;
+
+    onSubmit?.(buildSubmission(questions, answers));
+    answersRef.current = {};
+    setAnswers({});
+    goToIndex(0);
+  }, [answers, goToIndex, onSubmit, questions]);
+
+  React.useEffect(() => {
+    if (!carouselApi) return;
+
+    const onSelect = () => {
+      const newIndex = carouselApi.selectedScrollSnap();
+      const oldIndex = carouselApi.previousScrollSnap();
+      if (newIndex === oldIndex) return;
+
+      const oldQuestion = questions[oldIndex];
+      if (
+        newIndex > oldIndex &&
+        isBlockedByRequired(oldQuestion, answersRef.current)
+      ) {
+        carouselApi.scrollTo(oldIndex);
+        return;
+      }
+
+      setIndex(newIndex);
+    };
+
+    carouselApi.on("select", onSelect);
+    return () => {
+      carouselApi.off("select", onSelect);
+    };
+  }, [carouselApi, questions]);
+
+  React.useEffect(() => {
+    if (!carouselApi) return;
+    if (carouselApi.selectedScrollSnap() !== clampedIndex) {
+      carouselApi.scrollTo(clampedIndex);
+    }
+  }, [carouselApi, clampedIndex]);
+
+  const rootValue = React.useMemo<QuestionsRootContextValue>(
     () => ({
-      items,
-      index,
-      setIndex,
+      questions,
+      index: clampedIndex,
       answers,
-      otherInputs,
-      setOtherInput,
-      selectOption,
-      isAnswered,
-      canSubmit,
-      canGoNext,
-      canGoPrev,
-      next,
-      prev,
+      selectSingle,
+      toggleMultiple,
+      setMultipleOther,
+      clearAnswer,
       skip,
       submit,
-      dismiss: () => onDismiss?.(),
-      autoAdvance,
-      activeQuestion,
+      goNext,
+      goPrev,
+      carouselApi,
+      setCarouselApi: (api) => setCarouselApi(api ?? null),
+      onDismiss,
     }),
     [
-      items,
-      index,
       answers,
-      otherInputs,
-      setOtherInput,
-      selectOption,
-      isAnswered,
-      canSubmit,
-      canGoNext,
-      canGoPrev,
-      next,
-      prev,
+      clampedIndex,
+      carouselApi,
+      clearAnswer,
+      goNext,
+      goPrev,
+      onDismiss,
+      questions,
+      selectSingle,
+      setMultipleOther,
       skip,
       submit,
-      onDismiss,
-      autoAdvance,
-      activeQuestion,
-    ]
-  )
-
-  // Keyboard shortcut support: 1-9 to pick, Enter to submit/advance
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Do not intercept if typing in an input or textarea
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      ) {
-        return
-      }
-
-      if (!activeQuestion) return
-
-      const num = parseInt(e.key, 10)
-      if (!isNaN(num) && num >= 1 && num <= activeQuestion.options.length) {
-        e.preventDefault()
-        const opt = activeQuestion.options[num - 1]
-        if (opt) selectOption(activeQuestion.id, opt)
-      } else if (e.key === "Enter") {
-        e.preventDefault()
-        if (index === items.length - 1 && canSubmit) {
-          submit()
-        } else if (canGoNext) {
-          next()
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [activeQuestion, selectOption, index, items.length, canSubmit, canGoNext, submit, next])
+      toggleMultiple,
+    ],
+  );
 
   return (
-    <QuestionsContext.Provider value={contextValue}>
-      <div
-        ref={containerRef}
-        data-slot="questions-card"
+    <QuestionsRootContext.Provider value={rootValue}>
+      <Card
+        data-slot="questions"
         className={cn(
-          "relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121622]/90 backdrop-blur-xl p-5 shadow-2xl transition-all duration-300",
-          "text-white/90 text-sm font-body selection:bg-accent-500/30",
-          className
+          "mx-auto w-full max-w-xl gap-0 rounded-2xl border border-border/80 bg-card text-card-foreground px-1 pt-4 pb-1 shadow-sm",
+          className,
         )}
         {...props}
       >
         {children}
-      </div>
-    </QuestionsContext.Provider>
-  )
+      </Card>
+    </QuestionsRootContext.Provider>
+  );
 }
 
-export function QuestionsHeader({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      data-slot="questions-header"
-      className={cn("flex items-start justify-between gap-3 mb-4 pb-1", className)}
-      {...props}
-    >
-      {children}
-    </div>
-  )
-}
+export type QuestionProps = {
+  id: string;
+  children?: React.ReactNode;
+};
 
-export function QuestionsTitle({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLHeadingElement>) {
-  const { activeQuestion } = useQuestions()
-  const prompt = children ?? activeQuestion?.prompt
+function Question({ id, children }: QuestionProps) {
+  const { questions } = useQuestionsRoot("Question");
+  const registered = questions.find((question) => question.id === id);
+
+  if (!registered) {
+    throw new Error(`Question "${id}" is not in Questions items`);
+  }
+
+  const scope = React.useMemo<QuestionScope>(
+    () => ({ id: registered.id, type: registered.type }),
+    [registered.id, registered.type],
+  );
 
   return (
-    <div className="flex-1 min-w-0">
-      {activeQuestion?.header && (
-        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 mb-2 rounded-full text-[10px] uppercase font-mono tracking-wider font-semibold bg-white/[0.06] text-white/70 border border-white/[0.08]">
-          <span className="size-1.5 rounded-full bg-accent-500 animate-pulse" />
-          <span>{activeQuestion.header}</span>
-        </div>
-      )}
-      <h3
-        data-slot="questions-title"
-        className={cn(
-          "font-heading text-base sm:text-[17px] font-semibold text-white/95 leading-snug tracking-tight",
-          className
-        )}
-        {...props}
-      >
-        {prompt}
-      </h3>
-    </div>
-  )
-}
-
-export function QuestionsDismiss({
-  className,
-  onClick,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { dismiss } = useQuestions()
-
-  return (
-    <button
-      type="button"
-      data-slot="questions-dismiss"
-      onClick={(e) => {
-        onClick?.(e)
-        dismiss()
-      }}
-      aria-label="Dismiss questions"
-      className={cn(
-        "shrink-0 size-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white/90 hover:bg-white/[0.08] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-500",
-        className
-      )}
-      {...props}
-    >
-      <X className="size-4" />
-    </button>
-  )
-}
-
-export function QuestionsCarousel({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      data-slot="questions-carousel"
-      className={cn("relative w-full overflow-hidden", className)}
-      {...props}
-    >
-      {children}
-    </div>
-  )
-}
-
-export function QuestionsCarouselPagination({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  const { items } = useQuestions()
-  if (items.length <= 1) return null
-
-  return (
-    <div
-      data-slot="questions-carousel-pagination"
-      className={cn("inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-full px-2 py-1 shrink-0", className)}
-      {...props}
-    >
-      {children}
-    </div>
-  )
-}
-
-export function QuestionsCarouselPrev({
-  className,
-  children,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { prev, canGoPrev } = useQuestions()
-
-  return (
-    <button
-      type="button"
-      data-slot="questions-carousel-prev"
-      onClick={prev}
-      disabled={!canGoPrev}
-      aria-label="Previous question"
-      className={cn(
-        "size-5 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 disabled:pointer-events-none focus:outline-none",
-        className
-      )}
-      {...props}
-    >
-      {children ?? <ChevronLeft className="size-3.5" />}
-    </button>
-  )
-}
-
-export function QuestionsCarouselIndex({
-  format = "of",
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement> & { format?: "of" | "slash" }) {
-  const { index, items } = useQuestions()
-  const display = format === "slash" ? `${index + 1}/${items.length}` : `${index + 1} of ${items.length}`
-
-  return (
-    <span
-      data-slot="questions-carousel-index"
-      className={cn("text-[11px] font-mono tabular-nums text-white/70 px-1 select-none", className)}
-      {...props}
-    >
-      {display}
-    </span>
-  )
-}
-
-export function QuestionsCarouselNext({
-  className,
-  children,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { next, canGoNext } = useQuestions()
-
-  return (
-    <button
-      type="button"
-      data-slot="questions-carousel-next"
-      onClick={next}
-      disabled={!canGoNext}
-      aria-label="Next question"
-      className={cn(
-        "size-5 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 disabled:pointer-events-none focus:outline-none",
-        className
-      )}
-      {...props}
-    >
-      {children ?? <ChevronRight className="size-3.5" />}
-    </button>
-  )
-}
-
-export function QuestionsCarouselContent({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      data-slot="questions-carousel-content"
-      className={cn("relative w-full my-2", className)}
-      {...props}
-    >
-      {children}
-    </div>
-  )
-}
-
-export function QuestionsCarouselItem({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div data-slot="questions-carousel-item" className={cn("w-full", className)} {...props}>
-      {children}
-    </div>
-  )
-}
-
-const QuestionScopeContext = createContext<{ id: string } | null>(null)
-
-export function useQuestionScope() {
-  const ctx = useContext(QuestionScopeContext)
-  if (!ctx) throw new Error("QuestionOption components must be inside a <Question id='...'> component")
-  return ctx
-}
-
-export function Question({
-  id,
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & { id: string }) {
-  const { index, items } = useQuestions()
-  const active = items[index]?.id === id
-
-  if (!active) return null
-
-  return (
-    <QuestionScopeContext.Provider value={{ id }}>
-      <div
-        data-slot="question"
-        className={cn("w-full space-y-2 transition-all duration-200", className)}
-        {...props}
-      >
+    <QuestionContext.Provider value={scope}>
+      <CardContent data-slot="question" className="w-full p-2">
         {children}
-      </div>
-    </QuestionScopeContext.Provider>
-  )
+      </CardContent>
+    </QuestionContext.Provider>
+  );
 }
 
-export function QuestionOptions({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+const questionOptionsListClassName = cn(
+  "flex w-full flex-col",
+  "[--question-options-gap:--spacing(0)] gap-[length:var(--question-options-gap)]",
+  "[&>*:not(:last-child)]:relative",
+  "[&>*:not(:last-child)]:after:pointer-events-none",
+  "[&>*:not(:last-child)]:after:absolute",
+  "[&>*:not(:last-child)]:after:top-[calc(100%+var(--question-options-gap)/2)]",
+  "[&>*:not(:last-child)]:after:-translate-y-1/2",
+  "[&>*:not(:last-child)]:after:right-2.5",
+  "[&>*:not(:last-child)]:after:left-2.5",
+  "[&>*:not(:last-child)]:after:z-10",
+  "[&>*:not(:last-child)]:after:h-px",
+  "[&>*:not(:last-child)]:after:bg-border/20",
+  "[&>*:not(:last-child)]:after:content-['']",
+);
+
+const questionRowClassName =
+  "group/row flex min-h-11 w-full items-center gap-2.5 rounded-lg bg-transparent px-2.5 py-1.5 text-left transition-all hover:bg-muted/70";
+
+const questionOptionRowClassName = cn(questionRowClassName, "active:scale-99");
+
+export type QuestionOptionsProps = React.HTMLAttributes<HTMLDivElement>;
+
+function QuestionOptions({ className, children, ...props }: QuestionOptionsProps) {
+  const question = useQuestion("QuestionOptions");
+
   return (
     <div
       data-slot="question-options"
-      className={cn("flex flex-col gap-2 py-1", className)}
+      role={question.type === "single" ? "listbox" : "group"}
+      className={cn(questionOptionsListClassName, className)}
       {...props}
     >
-      {React.Children.map(children, (child, idx) => {
-        if (React.isValidElement(child)) {
-          const isOption = (child.type as any)?.name === "QuestionOption" || Boolean((child.props as any)?.value)
-          if (!isOption) return child
-          return React.cloneElement(child, {
-            optionIndex: (child.props as { optionIndex?: number }).optionIndex ?? idx,
-          } as Record<string, unknown>)
-        }
-        return child
+      {React.Children.map(children, (child, optionIndex) => {
+        if (!React.isValidElement(child)) return child;
+        if (child.type !== QuestionOption) return child;
+        return React.cloneElement(
+          child as React.ReactElement<{ optionIndex?: number }>,
+          { optionIndex },
+        );
       })}
     </div>
-  )
+  );
 }
 
-export interface QuestionOptionProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  value: string
-  optionIndex?: number
-  children: React.ReactNode
-}
+export type QuestionOptionProps = Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "value"
+> & {
+  value: string;
+  optionIndex?: number;
+  description?: React.ReactNode;
+  children?: React.ReactNode;
+};
 
-export function QuestionOption({
+function QuestionOption({
   value,
-  optionIndex,
+  optionIndex = 0,
+  description,
   className,
-  onClick,
   children,
+  onClick,
   ...props
 }: QuestionOptionProps) {
-  const { id } = useQuestionScope()
-  const { items, answers, selectOption } = useQuestions()
+  const question = useQuestion("QuestionOption");
+  const root = useQuestionsRoot("QuestionOption");
+  const answer = root.answers[question.id];
+  const displayIndex = optionIndex + 1;
 
-  const q = items.find((item) => item.id === id)
-  const isMulti = q?.type === "multiple"
+  const isSelected =
+    question.type === "single"
+      ? answer?.type === "single" && answer.value === value
+      : answer?.type === "multiple" && answer.value.includes(value);
 
-  const ans = answers[id]
-  const isSelected = isMulti
-    ? ((ans as Array<{ value: string }>) || []).some((item) => item.value === value)
-    : (ans as { value: string })?.value === value
+  const handleSelect = () => {
+    if (question.type === "single") {
+      if (isSelected) {
+        root.clearAnswer(question.id);
+        return;
+      }
+      root.selectSingle(question.id, value);
+      return;
+    }
+    root.toggleMultiple(question.id, value);
+  };
 
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    onClick?.(e)
-    selectOption(id, { value, label: children })
+  if (question.type === "multiple") {
+    return (
+      <label
+        data-slot="question-option"
+        data-selected={isSelected ? "true" : "false"}
+        className={cn(
+          questionOptionRowClassName,
+          "cursor-pointer",
+          isSelected && "bg-muted",
+          className,
+        )}
+      >
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={handleSelect}
+          className="mx-1.25 size-4.5 shadow-none transition-colors group-hover/row:data-[state=unchecked]:border-ring/50 cursor-pointer"
+        />
+        <div className="flex min-w-0 flex-1 flex-col text-left" data-slot="question-option-text">
+          <span
+            data-slot="question-option-label"
+            className={cn(
+              "truncate text-sm text-foreground transition-all group-hover/row:text-primary",
+              isSelected && "text-primary font-medium",
+            )}
+          >
+            {children}
+          </span>
+          {description && (
+            <span data-slot="question-option-desc" className="truncate text-xs text-muted-foreground mt-0.5">
+              {description}
+            </span>
+          )}
+        </div>
+      </label>
+    );
   }
 
   return (
     <button
       type="button"
+      role="option"
+      aria-selected={isSelected}
+      data-selected={isSelected ? "true" : "false"}
       data-slot="question-option"
-      role={isMulti ? "checkbox" : "radio"}
-      aria-checked={isSelected}
-      onClick={handleClick}
       className={cn(
-        "group relative flex w-full items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-left border transition-all duration-200",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/50",
-        isSelected
-          ? "border-accent-500/60 bg-accent-500/15 shadow-[0_0_16px_var(--accent-soft)] text-white"
-          : "border-white/[0.07] bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06] text-white/80 hover:text-white",
-        className
+        questionOptionRowClassName,
+        "cursor-pointer",
+        isSelected && "bg-muted",
+        className,
       )}
+      onClick={(event) => {
+        onClick?.(event);
+        handleSelect();
+      }}
       {...props}
     >
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* Selection indicator: Checkbox for multiple, badge or ring for single */}
-        {isMulti ? (
-          <div
-            className={cn(
-              "size-4 rounded-md border flex items-center justify-center shrink-0 transition-colors",
-              isSelected
-                ? "border-accent-500 bg-accent-600 text-white"
-                : "border-white/30 bg-white/5 group-hover:border-white/50"
-            )}
-          >
-            {isSelected && <Check className="size-3 stroke-[2.5]" />}
-          </div>
-        ) : (
-          <div
-            className={cn(
-              "size-4 rounded-full border flex items-center justify-center shrink-0 transition-colors",
-              isSelected
-                ? "border-accent-500 bg-transparent"
-                : "border-white/30 group-hover:border-white/50"
-            )}
-          >
-            {isSelected && <div className="size-2 rounded-full bg-accent-500 shadow-[0_0_6px_var(--accent)]" />}
-          </div>
+      <span
+        data-slot="question-option-badge"
+        className={cn(
+          "relative flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/60 border border-border/40 transition-all group-hover/row:bg-accent/15 group-hover/row:border-accent/30",
+          isSelected && "bg-accent text-accent-foreground border-accent font-semibold",
         )}
-
-        <span className="text-[13.5px] font-medium leading-relaxed truncate">{children}</span>
-      </div>
-
-      {/* Index badge */}
-      {typeof optionIndex === "number" && (
+      >
         <span
           className={cn(
-            "text-[10px] font-mono px-1.5 py-0.5 rounded-md border transition-colors shrink-0",
-            isSelected
-              ? "border-accent-500/40 bg-accent-500/10 text-accent-300"
-              : "border-white/10 bg-white/[0.03] text-white/40 group-hover:text-white/60"
+            "text-xs font-mono transition-all text-muted-foreground group-hover/row:text-foreground",
+            isSelected && "text-accent-foreground font-semibold",
           )}
         >
-          {optionIndex + 1}
+          {displayIndex}
         </span>
-      )}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col text-left" data-slot="question-option-text">
+        <span
+          data-slot="question-option-label"
+          className={cn(
+            "truncate text-sm text-foreground transition-all group-hover/row:text-primary",
+            isSelected && "text-primary font-medium",
+          )}
+        >
+          {children}
+        </span>
+        {description && (
+          <span data-slot="question-option-desc" className="truncate text-xs text-muted-foreground mt-0.5">
+            {description}
+          </span>
+        )}
+      </div>
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        strokeWidth={2.0}
+        data-slot="question-option-arrow"
+        className={cn(
+          "size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100",
+          isSelected && "opacity-100 text-accent",
+        )}
+      />
     </button>
-  )
+  );
 }
 
-export function QuestionOther({
-  placeholder = "Other...",
+export type QuestionOtherProps = Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "value" | "onChange"
+>;
+
+function QuestionOther({
   className,
+  placeholder = "Other...",
   onKeyDown,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
-  const { id } = useQuestionScope()
-  const { items, answers, selectOption, otherInputs, setOtherInput } = useQuestions()
+}: QuestionOtherProps) {
+  const question = useQuestion("QuestionOther");
+  const root = useQuestionsRoot("QuestionOther");
+  const answer = root.answers[question.id];
 
-  const q = items.find((item) => item.id === id)
-  const isMulti = q?.type === "multiple"
+  const otherValue =
+    answer?.type === "single" || answer?.type === "multiple"
+      ? (answer.other ?? "")
+      : "";
 
-  const ans = answers[id]
-  const isSelected = isMulti
-    ? ((ans as Array<{ value: string }>) || []).some((item) => item.value === QUESTION_OTHER_VALUE)
-    : (ans as { value: string })?.value === QUESTION_OTHER_VALUE
+  const isOtherSelected = isOtherAnswer(answer, question.type);
 
-  const currentText = otherInputs[id] || ""
-
-  const handleFocus = () => {
-    if (!isSelected) {
-      selectOption(id, { value: QUESTION_OTHER_VALUE, label: currentText || "Other" })
+  const handleOtherToggle = () => {
+    if (question.type === "single") {
+      if (otherValue.trim()) {
+        root.selectSingle(
+          question.id,
+          QUESTION_OTHER_VALUE,
+          otherValue.trim(),
+          { autoAdvance: false },
+        );
+      }
+      return;
     }
-  }
+    root.toggleMultiple(question.id, QUESTION_OTHER_VALUE);
+  };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    setOtherInput(id, val)
-    selectOption(id, { value: QUESTION_OTHER_VALUE, label: val || "Other" })
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.value;
+    if (question.type === "single") {
+      if (!next.trim()) {
+        root.clearAnswer(question.id);
+        return;
+      }
+      root.selectSingle(question.id, QUESTION_OTHER_VALUE, next, {
+        autoAdvance: false,
+      });
+      return;
+    }
+    root.setMultipleOther(question.id, next);
+    if (next.trim() && !isOtherSelected) {
+      root.toggleMultiple(question.id, QUESTION_OTHER_VALUE);
+    }
+  };
+
+  if (question.type === "multiple") {
+    return (
+      <label
+        data-slot="question-other"
+        className={cn(questionRowClassName, "cursor-text", className)}
+      >
+        <Checkbox
+          checked={isOtherSelected}
+          onCheckedChange={handleOtherToggle}
+          className="mx-1.25 size-4.5 shadow-none transition-colors group-hover/row:data-[state=unchecked]:border-ring/50"
+        />
+        <input
+          type="text"
+          value={otherValue}
+          placeholder={placeholder}
+          onChange={handleChange}
+          onKeyDown={onKeyDown}
+          className="text-foreground h-full min-w-0 flex-1 truncate text-sm transition-all outline-none placeholder:text-muted-foreground/60 bg-transparent border-none focus:outline-none"
+          {...props}
+        />
+      </label>
+    );
   }
 
   return (
     <div
       data-slot="question-other"
       className={cn(
-        "group relative flex w-full items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-200",
-        isSelected
-          ? "border-accent-500/60 bg-accent-500/10"
-          : "border-white/[0.07] bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]",
-        className
+        questionRowClassName,
+        "cursor-text",
+        isOtherSelected && "bg-muted",
+        className,
       )}
     >
-      {isMulti ? (
-        <div
-          onClick={() => selectOption(id, { value: QUESTION_OTHER_VALUE, label: currentText || "Other" })}
+      <span
+        data-slot="question-other-badge"
+        className={cn(
+          "relative flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/60 border border-border/40 transition-all group-hover/row:bg-accent/15 group-hover/row:border-accent/30",
+          isOtherSelected && "bg-accent text-accent-foreground border-accent",
+        )}
+      >
+        <HugeiconsIcon
+          icon={Edit03Icon}
+          strokeWidth={2.0}
           className={cn(
-            "size-4 rounded-md border flex items-center justify-center shrink-0 cursor-pointer transition-colors",
-            isSelected
-              ? "border-accent-500 bg-accent-600 text-white"
-              : "border-white/30 bg-white/5"
+            "size-3.5 text-muted-foreground transition-all group-hover/row:text-foreground",
+            isOtherSelected && "text-accent-foreground",
           )}
-        >
-          {isSelected && <Check className="size-3 stroke-[2.5]" />}
-        </div>
-      ) : (
-        <div
-          onClick={() => selectOption(id, { value: QUESTION_OTHER_VALUE, label: currentText || "Other" })}
-          className={cn(
-            "size-4 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors",
-            isSelected
-              ? "border-accent-500 bg-transparent"
-              : "border-white/30"
-          )}
-        >
-          {isSelected && <div className="size-2 rounded-full bg-accent-500" />}
-        </div>
-      )}
-
+        />
+      </span>
       <input
         type="text"
+        data-slot="question-other-input"
+        value={otherValue}
         placeholder={placeholder}
-        value={currentText}
-        onFocus={handleFocus}
         onChange={handleChange}
         onKeyDown={onKeyDown}
-        className="w-full bg-transparent text-[13px] text-white placeholder:text-white/30 focus:outline-none"
+        className={cn(
+          "text-foreground h-full min-w-0 flex-1 truncate text-sm transition-all outline-none placeholder:text-muted-foreground/60 bg-transparent border-none focus:outline-none",
+          isOtherSelected && "text-foreground font-medium",
+        )}
         {...props}
       />
     </div>
-  )
+  );
 }
 
-export function QuestionsFooter({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export type QuestionsTitleProps = React.ComponentProps<typeof CardTitle>;
+
+function QuestionsTitle({ className, children, ...props }: QuestionsTitleProps) {
+  const root = useQuestionsRoot("QuestionsTitle");
+  const current = root.questions[root.index];
+
   return (
-    <div
+    <div className="flex flex-1 flex-col gap-1 min-w-0">
+      {current?.header && (
+        <span
+          data-slot="questions-header-tag"
+          className="inline-flex items-center gap-1.5 self-start text-[11px] font-medium tracking-wide uppercase text-muted-foreground"
+        >
+          <span className="size-1.5 rounded-full bg-accent" />
+          {current.header}
+        </span>
+      )}
+      <CardTitle
+        data-slot="questions-title"
+        className={cn("text-sm font-medium leading-snug text-foreground", className)}
+        {...props}
+      >
+        {children ?? current?.prompt}
+      </CardTitle>
+    </div>
+  );
+}
+
+export type QuestionsDismissProps = React.ComponentProps<typeof Button>;
+
+function QuestionsDismiss({ className, onClick, ...props }: QuestionsDismissProps) {
+  const root = useQuestionsRoot("QuestionsDismiss");
+
+  return (
+    <Button
+      type="button"
+      size="icon-xs"
+      variant="ghost"
+      data-slot="questions-dismiss"
+      className={cn(
+        "cursor-pointer rounded-full bg-transparent text-[13px] text-muted-foreground hover:bg-muted active:scale-97",
+        className,
+      )}
+      onClick={(event) => {
+        onClick?.(event);
+        root.onDismiss?.();
+      }}
+      {...props}
+    >
+      <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2.0} className="size-3.5" />
+    </Button>
+  );
+}
+
+export type QuestionsHeaderProps = React.ComponentProps<typeof CardHeader>;
+
+function QuestionsHeader({ className, ...props }: QuestionsHeaderProps) {
+  return (
+    <CardHeader
+      data-slot="questions-header"
+      className={cn(
+        "flex w-full flex-row items-center justify-between gap-2.5 px-3 pt-1 pb-2",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export type QuestionsFooterProps = React.ComponentProps<typeof CardFooter>;
+
+function QuestionsFooter({ className, ...props }: QuestionsFooterProps) {
+  return (
+    <CardFooter
       data-slot="questions-footer"
-      className={cn("flex items-center justify-between gap-3 pt-3 mt-3 border-t border-white/[0.08]", className)}
+      className={cn(
+        "flex items-center justify-end gap-2 border-none bg-transparent px-3 pt-1 pb-2",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export type QuestionsSkipProps = React.ComponentProps<typeof Button>;
+
+function QuestionsSkip({ className, disabled, onClick, ...props }: QuestionsSkipProps) {
+  const { questions, index, answers, skip } = useQuestionsRoot("QuestionsSkip");
+  const current = questions[index];
+  const canSkip =
+    index < questions.length - 1 &&
+    Boolean(current) &&
+    !isBlockedByRequired(current, answers);
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      data-slot="questions-skip"
+      disabled={disabled ?? !canSkip}
+      className={cn(
+        "text-muted-foreground hover:text-foreground active:scale-99 cursor-pointer",
+        className,
+      )}
+      onClick={(event) => {
+        onClick?.(event);
+        skip();
+      }}
+      {...props}
+    >
+      Skip
+    </Button>
+  );
+}
+
+export type QuestionsSubmitProps = React.ComponentProps<typeof Button> & {
+  showOnLastQuestion?: boolean;
+  disableUntilLastQuestion?: boolean;
+};
+
+function QuestionsSubmit({
+  className,
+  disabled,
+  onClick,
+  children = "Submit",
+  showOnLastQuestion = false,
+  disableUntilLastQuestion = false,
+  ...props
+}: QuestionsSubmitProps) {
+  const { questions, index, answers, submit } = useQuestionsRoot("QuestionsSubmit");
+  const canSubmit = canSubmitQuestions(questions, answers);
+  const onLastQuestion = index >= questions.length - 1;
+
+  if (showOnLastQuestion && !onLastQuestion) {
+    return null;
+  }
+
+  const isDisabled =
+    disabled ??
+    (!canSubmit || (disableUntilLastQuestion && !onLastQuestion));
+
+  return (
+    <Button
+      type="button"
+      variant="default"
+      size="sm"
+      data-slot="questions-submit"
+      disabled={isDisabled}
+      className={cn("active:scale-99 cursor-pointer font-medium", className)}
+      onClick={(event) => {
+        onClick?.(event);
+        submit();
+      }}
       {...props}
     >
       {children}
-    </div>
-  )
+    </Button>
+  );
 }
 
-export function QuestionsSkip({
-  disabled,
+function useCarouselViewportHeight(
+  wrapRef: React.RefObject<HTMLDivElement | null>,
+  carouselApi: CarouselApi | null,
+  activeIndex: number,
+) {
+  React.useLayoutEffect(() => {
+    const vp = wrapRef.current?.querySelector<HTMLElement>(
+      "[data-slot=carousel-content]",
+    );
+    if (!vp) return;
+    const clear = () => {
+      vp.style.height = "";
+      vp.style.transition = "";
+    };
+    if (!carouselApi) return clear();
+    vp.style.transition = "height 300ms ease-out";
+    const sync = () => {
+      const h = carouselApi.slideNodes()[activeIndex]?.offsetHeight ?? 0;
+      vp.style.height = h > 0 ? `${h}px` : "";
+    };
+    sync();
+    const slide = carouselApi.slideNodes()[activeIndex];
+    if (!slide) return clear;
+    const ro = new ResizeObserver(sync);
+    ro.observe(slide);
+    return () => {
+      ro.disconnect();
+      clear();
+    };
+  }, [wrapRef, carouselApi, activeIndex]);
+}
+
+export type QuestionsCarouselProps = React.ComponentProps<typeof Carousel>;
+
+function QuestionsCarousel({
+  setApi: setApiProp,
   className,
-  onClick,
   children,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { skip, activeQuestion, isAnswered } = useQuestions()
-  const isRequired = Boolean(activeQuestion?.required)
-  const isDisabled = disabled ?? isRequired
+}: QuestionsCarouselProps) {
+  const { setCarouselApi } = useQuestionsRoot("QuestionsCarousel");
 
   return (
-    <button
-      type="button"
-      data-slot="questions-skip"
-      disabled={isDisabled}
-      onClick={(e) => {
-        onClick?.(e)
-        skip()
+    <Carousel
+      data-slot="questions-carousel"
+      className={className}
+      setApi={(api) => {
+        setCarouselApi(api);
+        setApiProp?.(api);
       }}
-      className={cn(
-        "text-xs font-medium text-white/50 hover:text-white/90 px-3 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors disabled:opacity-30 disabled:pointer-events-none focus:outline-none",
-        className
-      )}
+      opts={{ watchDrag: false }}
       {...props}
     >
-      {children ?? "Skip"}
-    </button>
-  )
+      {children}
+    </Carousel>
+  );
 }
 
-export interface QuestionsSubmitProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  showOnLastQuestion?: boolean
-  disableUntilLastQuestion?: boolean
-}
+export type QuestionsCarouselContentProps = React.ComponentProps<
+  typeof CarouselContent
+>;
 
-export function QuestionsSubmit({
-  showOnLastQuestion = false,
-  disableUntilLastQuestion = false,
-  disabled,
+function QuestionsCarouselContent({
   className,
-  onClick,
+  ...props
+}: QuestionsCarouselContentProps) {
+  const root = useQuestionsRoot("QuestionsCarouselContent");
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  useCarouselViewportHeight(wrapRef, root.carouselApi, root.index);
+
+  return (
+    <div ref={wrapRef} className="contents">
+      <CarouselContent
+        data-slot="questions-carousel-content"
+        className={className}
+        {...props}
+      />
+    </div>
+  );
+}
+
+export type QuestionsCarouselItemProps = React.ComponentProps<
+  typeof CarouselItem
+>;
+
+function QuestionsCarouselItem({
+  className,
   children,
   ...props
-}: QuestionsSubmitProps) {
-  const { submit, canSubmit, index, items, next } = useQuestions()
-  const isLast = index >= items.length - 1
+}: QuestionsCarouselItemProps) {
+  return (
+    <CarouselItem
+      data-slot="questions-carousel-item"
+      className={cn("w-full self-start p-0 pl-0", className)}
+      {...props}
+    >
+      {children}
+    </CarouselItem>
+  );
+}
 
-  if (showOnLastQuestion && !isLast) {
-    return null
-  }
+export type QuestionsCarouselPaginationProps = React.HTMLAttributes<HTMLDivElement>;
 
-  const isLocked = disableUntilLastQuestion ? !isLast || !canSubmit : !canSubmit
-  const isDisabled = disabled ?? isLocked
+function QuestionsCarouselPagination({
+  className,
+  ...props
+}: QuestionsCarouselPaginationProps) {
+  return (
+    <div
+      data-slot="questions-carousel-pagination"
+      className={cn("flex items-center gap-0.5", className)}
+      {...props}
+    />
+  );
+}
 
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    onClick?.(e)
-    if (isLast) {
-      submit()
-    } else {
-      next()
-    }
-  }
+const carouselNavClassName =
+  "flex size-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-0 transition-all hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-97 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50";
+
+export type QuestionsCarouselNavButtonProps =
+  React.ButtonHTMLAttributes<HTMLButtonElement>;
+
+function QuestionsCarouselPrev({
+  className,
+  children,
+  ...props
+}: QuestionsCarouselNavButtonProps) {
+  const { index, goPrev } = useQuestionsRoot("QuestionsCarouselPrev");
 
   return (
     <button
       type="button"
-      data-slot="questions-submit"
-      disabled={isDisabled}
-      onClick={handleClick}
+      data-slot="questions-carousel-prev"
+      disabled={index <= 0}
+      className={cn(carouselNavClassName, className)}
+      onClick={() => goPrev()}
+      {...props}
+    >
+      {children ?? (
+        <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} className="size-4" />
+      )}
+    </button>
+  );
+}
+
+function QuestionsCarouselNext({
+  className,
+  children,
+  ...props
+}: QuestionsCarouselNavButtonProps) {
+  const { questions, index, answers, goNext } =
+    useQuestionsRoot("QuestionsCarouselNext");
+  const current = questions[index];
+  const canGoNext =
+    index < questions.length - 1 &&
+    Boolean(current) &&
+    !isBlockedByRequired(current, answers);
+
+  return (
+    <button
+      type="button"
+      data-slot="questions-carousel-next"
+      disabled={!canGoNext}
+      className={cn(carouselNavClassName, className)}
+      onClick={() => goNext()}
+      {...props}
+    >
+      {children ?? (
+        <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-4" />
+      )}
+    </button>
+  );
+}
+
+export type QuestionsCarouselIndexProps = React.HTMLAttributes<HTMLSpanElement> & {
+  format?: "of" | "slash";
+};
+
+function QuestionsCarouselIndex({
+  className,
+  format = "of",
+  ...props
+}: QuestionsCarouselIndexProps) {
+  const { questions, index } = useQuestionsRoot("QuestionsCarouselIndex");
+  const count = questions.length;
+  const current = count === 0 ? 0 : index + 1;
+
+  return (
+    <span
+      data-slot="questions-carousel-index"
       className={cn(
-        "inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-200 shadow-md",
-        "bg-accent-600 hover:bg-accent-500 text-white",
-        "disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none",
-        "active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500",
-        className
+        "text-xs leading-none font-mono text-muted-foreground tabular-nums px-1",
+        className,
       )}
       {...props}
     >
-      <span>{children ?? (isLast ? "Send answer" : "Next")}</span>
-      <CornerDownLeft className="size-3 opacity-70" />
-    </button>
-  )
+      {format === "slash" ? `${current}/${count}` : `${current} of ${count}`}
+    </span>
+  );
 }
+
+export {
+  Questions,
+  Question,
+  QuestionOptions,
+  QuestionOption,
+  QuestionOther,
+  QuestionsTitle,
+  QuestionsDismiss,
+  QuestionsHeader,
+  QuestionsFooter,
+  QuestionsSkip,
+  QuestionsSubmit,
+  QuestionsCarousel,
+  QuestionsCarouselContent,
+  QuestionsCarouselItem,
+  QuestionsCarouselPagination,
+  QuestionsCarouselPrev,
+  QuestionsCarouselNext,
+  QuestionsCarouselIndex,
+};

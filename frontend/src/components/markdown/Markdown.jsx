@@ -7,6 +7,17 @@ import { CodeBlock as ArcCodeBlock } from '../arc/code-block/code-block'
 import { TreeView } from '../arc/tree-view/tree-view'
 import { JsonViewer } from '../arc/json-viewer/json-viewer'
 import { isAsciiTree, parseAsciiTree } from '../arc/tree-view/tree-parser'
+import {
+  Image as NexusImage,
+  ImagePreview,
+  ImageLightbox,
+  ImageLightboxOverlay,
+  ImageLightboxPreview,
+  ImageLightboxClose,
+  ImageActions,
+  ImageActionGroup,
+  ImageAction,
+} from '../nexus-ui/image.tsx'
 
 /* Model output, rendered to React elements rather than HTML.
  *
@@ -100,7 +111,6 @@ function isAllowedImageHref(href) {
  * hover elevation, count badge on overflow, and click-to-enlarge lightbox modal.
  * No dark gradient text overlays blocking the images. */
 function ImageGallery({ items }) {
-  const [activeItem, setActiveItem] = useState(null)
   if (!items || items.length === 0) return null
 
   const isSingle = items.length === 1
@@ -117,79 +127,110 @@ function ImageGallery({ items }) {
           const resolvedSrc = resolveMediaUrl(item.href)
 
           return (
-            <figure
-              key={idx}
-              className="md-image-card"
-              role="button"
-              tabIndex={0}
-              title={`Click to enlarge: ${label}`}
-              onClick={() => setActiveItem({ ...item, href: resolvedSrc })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setActiveItem({ ...item, href: resolvedSrc })
-                }
-              }}
-            >
-              <div className="md-image-thumb-wrap">
-                <img
-                  src={resolvedSrc}
-                  alt={label}
-                  loading="lazy"
-                  className="md-image-thumb"
-                  onError={(e) => {
-                    const card = e.currentTarget.closest('.md-image-card')
-                    if (card) card.style.display = 'none'
-                  }}
-                />
-                {isLast && (
-                  <div className="md-image-count-badge" title={`${totalCount} images total`}>
-                    <Icon name="camera" size={13} />
-                    <span>{totalCount}</span>
-                  </div>
-                )}
-              </div>
+            <figure key={idx} className="md-image-card">
+              <NexusImage src={resolvedSrc} alt={label} className="w-full">
+                <div className="md-image-thumb-wrap">
+                  <ImagePreview className="md-image-thumb" />
+                  {isLast && (
+                    <div className="md-image-count-badge" title={`${totalCount} images total`}>
+                      <Icon name="camera" size={13} />
+                      <span>{totalCount}</span>
+                    </div>
+                  )}
+                </div>
+                <ImageActions align="block-end">
+                  <ImageActionGroup>
+                    <ImageAction
+                      tooltip="Copy link"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        copyText(resolvedSrc)
+                      }}
+                    >
+                      <Icon name="copy" size={13} />
+                    </ImageAction>
+                    <ImageAction tooltip="Enlarge">
+                      <Icon name="zoom-in" size={13} />
+                    </ImageAction>
+                  </ImageActionGroup>
+                </ImageActions>
+                <ImageLightbox>
+                  <ImageLightboxOverlay />
+                  <ImageLightboxPreview>
+                    <ImageLightboxClose />
+                    <div className="md-lightbox-caption">
+                      <span>{label}</span>
+                      {resolvedSrc && (
+                        <a
+                          href={resolvedSrc}
+                          target="_blank"
+                          rel="noreferrer noopener nofollow"
+                          className="md-lightbox-link"
+                        >
+                          Open original ↗
+                        </a>
+                      )}
+                    </div>
+                  </ImageLightboxPreview>
+                </ImageLightbox>
+              </NexusImage>
             </figure>
           )
         })}
       </div>
-
-      {activeItem && (
-        <LightboxModal item={activeItem} onClose={() => setActiveItem(null)} />
-      )}
     </div>
   )
 }
 
 function ImageRef({ alt, href }) {
-  const [failed, setFailed] = useState(false)
-  const [open, setOpen] = useState(false)
   const label = alt || 'Visual context'
-  if (!isAllowedImageHref(href || '') || failed) {
+  if (!isAllowedImageHref(href || '')) {
     return <span className="md-image-fallback" title={href}>{label}</span>
   }
   const resolvedSrc = resolveMediaUrl(href)
   return (
-    <>
-      <figure
-        className="md-image-card md-image-card--inline"
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen(true)}
-        title={`Click to enlarge: ${label}`}
-      >
+    <figure className="md-image-card md-image-card--inline">
+      <NexusImage src={resolvedSrc} alt={label} className="w-full">
         <div className="md-image-thumb-wrap">
-          <img
-            src={resolvedSrc}
-            alt={label}
-            loading="lazy"
-            className="md-image-thumb"
-            onError={() => setFailed(true)}
-          />
+          <ImagePreview className="md-image-thumb" />
         </div>
-      </figure>
-      {open && <LightboxModal item={{ href: resolvedSrc, alt: label }} onClose={() => setOpen(false)} />}
-    </>
+        <ImageActions align="block-end">
+          <ImageActionGroup>
+            <ImageAction
+              tooltip="Copy link"
+              onClick={(e) => {
+                e.stopPropagation()
+                copyText(resolvedSrc)
+              }}
+            >
+              <Icon name="copy" size={13} />
+            </ImageAction>
+            <ImageAction tooltip="Enlarge">
+              <Icon name="zoom-in" size={13} />
+            </ImageAction>
+          </ImageActionGroup>
+        </ImageActions>
+        <ImageLightbox>
+          <ImageLightboxOverlay />
+          <ImageLightboxPreview>
+            <ImageLightboxClose />
+            <div className="md-lightbox-caption">
+              <span>{label}</span>
+              {resolvedSrc && (
+                <a
+                  href={resolvedSrc}
+                  target="_blank"
+                  rel="noreferrer noopener nofollow"
+                  className="md-lightbox-link"
+                >
+                  Open original ↗
+                </a>
+              )}
+            </div>
+          </ImageLightboxPreview>
+        </ImageLightbox>
+      </NexusImage>
+    </figure>
   )
 }
 
@@ -722,6 +763,7 @@ function List({ block, keyBase }) {
 function TableBlock({ head, rows }) {
   const [copied, setCopied] = useState(false)
   const colCount = head.length
+  const rowCount = rows.length
 
   const handleCopy = useCallback(async () => {
     const headerLine = `| ${head.join(' | ')} |`
@@ -736,48 +778,54 @@ function TableBlock({ head, rows }) {
   return (
     <div className="md-table-wrap" tabIndex={0} role="region" aria-label="Table">
       <div className="md-table-topbar">
+        <div className="md-table-meta">
+          <span className="md-table-count">{rowCount} {rowCount === 1 ? 'row' : 'rows'}</span>
+        </div>
         <button
           type="button"
           className={`md-table-copy-btn${copied === 'copied' ? ' is-copied' : ''}`}
           onClick={handleCopy}
-          title={copied === 'copied' ? 'Copied table' : 'Copy table'}
+          title={copied === 'copied' ? 'Copied markdown table' : 'Copy markdown table'}
           aria-label="Copy table"
         >
-          <Icon name={copied === 'copied' ? 'check' : 'copy'} size={13} />
+          <Icon name={copied === 'copied' ? 'check' : 'copy'} size={12} />
+          <span>{copied === 'copied' ? 'Copied' : 'Copy'}</span>
         </button>
       </div>
-      <table className="md-table">
-        <thead>
-          <tr>
-            {head.map((c, x) => (
-              <th key={x} scope="col">
-                {text(c)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((rawRow, y) => {
-            const row = Array.isArray(rawRow) ? rawRow : []
-            return (
-              <tr key={y}>
-                {row.map((c, x) => {
-                  const isFirst = x === 0
-                  const isLast = x === colCount - 1
-                  return (
-                    <td
-                      key={x}
-                      className={isFirst ? 'md-table-cell--first' : isLast ? 'md-table-cell--last' : undefined}
-                    >
-                      {text(c)}
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <div className="md-table-scroll">
+        <table className="md-table">
+          <thead>
+            <tr>
+              {head.map((c, x) => (
+                <th key={x} scope="col">
+                  {text(c)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((rawRow, y) => {
+              const row = Array.isArray(rawRow) ? rawRow : []
+              return (
+                <tr key={y}>
+                  {row.map((c, x) => {
+                    const isFirst = x === 0
+                    const isLast = x === colCount - 1
+                    return (
+                      <td
+                        key={x}
+                        className={isFirst ? 'md-table-cell--first' : isLast ? 'md-table-cell--last' : undefined}
+                      >
+                        {text(c)}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -797,13 +845,15 @@ function block(node, key, extra = {}) {
       return <hr key={key} className="md-hr" />
 
     case 'callout': {
-      const kind = CALLOUTS[node.kind]
+      const kind = CALLOUTS[node.kind] || CALLOUTS.note
       return (
         <div key={key} className={`md-callout md-callout--${node.kind}`}>
-          <p className="md-callout-head">
-            <Icon name={kind.icon} size={14} weight="fill" />
-            {kind.label}
-          </p>
+          <div className="md-callout-head">
+            <span className="md-callout-badge">
+              <Icon name={kind.icon} size={13} weight="fill" />
+              <span>{kind.label}</span>
+            </span>
+          </div>
           <div className="md-callout-body">{text(node.text)}</div>
         </div>
       )
