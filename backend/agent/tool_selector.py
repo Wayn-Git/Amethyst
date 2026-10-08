@@ -339,6 +339,11 @@ def select_tools(
         for server in chosen_servers:
             wanted.update(getattr(t, "name", "") for t in by_server[server])
 
+        # Media guard: If the request is for images and did not ask for shell commands,
+        # remove run_shell_command so models call search_images instead of scraping with curl/python.
+        if "search_images" in wanted and not _matches(haystack, CATEGORIES.get("shell", {}).get("words", ())):
+            wanted.discard("run_shell_command")
+
         kept = [s for s in schemas if getattr(s, "name", "") in wanted]
         # Nothing matched at all: the request is too vague to narrow safely, so
         # do not narrow. Better to spend tokens than to answer without the tool.

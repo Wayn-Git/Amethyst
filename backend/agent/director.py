@@ -1898,7 +1898,7 @@ class Director:
                     # handover that was always the right answer.
                     can_resume = (
                         (bool(streamed_text or state.carried)
-                         or isinstance(exc, ProviderStreamError))
+                         or isinstance(exc, (ProviderStreamError, ProviderHTTPError)))
                         and should_retry(kind)
                         and state.resumes < self.guards.max_resumes
                     )
