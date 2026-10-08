@@ -121,11 +121,12 @@
      Used at weight 400 for body, 500 for nav/labels/headings, 600 only for largest headings.
      Signature: -0.03em tracking at display sizes; +0.011em at 28px; -0.01em at 22px and below.
      Font features: 'calt' and 'liga' enable contextual alternates and ligatures. */
-  --font-openai-sans: 'OpenAI Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: var(--font-openai-sans);
-  --font-body: var(--font-openai-sans);
+  --font-openai-sans: 'Satoshi', 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Satoshi', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Satoshi', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-serif: var(--font-openai-sans);
-  --font-sans: var(--font-openai-sans);
+  --font-sans: 'Satoshi', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-chat-prose: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* ---- Type Scale Tokens ----------------------------------------------- */
