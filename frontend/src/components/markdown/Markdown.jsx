@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '../Icon.jsx'
 import { copyText } from '../../api.js'
 import { parseBlocks, parseInline, SAFE_PROTOCOL } from './parse.js'
@@ -7,17 +8,6 @@ import { CodeBlock as ArcCodeBlock } from '../arc/code-block/code-block'
 import { TreeView } from '../arc/tree-view/tree-view'
 import { JsonViewer } from '../arc/json-viewer/json-viewer'
 import { isAsciiTree, parseAsciiTree } from '../arc/tree-view/tree-parser'
-import {
-  Image as NexusImage,
-  ImagePreview,
-  ImageLightbox,
-  ImageLightboxOverlay,
-  ImageLightboxPreview,
-  ImageLightboxClose,
-  ImageActions,
-  ImageActionGroup,
-  ImageAction,
-} from '../nexus-ui/image.tsx'
 
 /* Model output, rendered to React elements rather than HTML.
  *
@@ -35,56 +25,6 @@ import {
 /* Extract the domain from a URL for display in source pills. */
 function domain(url) {
   try { return new URL(String(url)).host.replace(/^www\./, '') } catch { return '' }
-}
-
-/* Lightbox modal with smooth frosted backdrop for full-size visual inspection. */
-function LightboxModal({ item, onClose }) {
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const label = item.alt || 'Visual context'
-
-  return (
-    <div
-      className="md-lightbox-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={label}
-      onClick={onClose}
-    >
-      <button
-        type="button"
-        className="md-lightbox-close"
-        onClick={onClose}
-        aria-label="Close image preview"
-      >
-        <Icon name="x" size={16} />
-      </button>
-      <div className="md-lightbox-content" onClick={(e) => e.stopPropagation()}>
-        <img
-          src={item.href}
-          alt={label}
-          className="md-lightbox-img"
-        />
-        <div className="md-lightbox-caption">
-          <span>{label}</span>
-          {item.href && (
-            <a
-              href={item.href}
-              target="_blank"
-              rel="noreferrer noopener nofollow"
-              className="md-lightbox-link"
-            >
-              Open original ↗
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export function resolveMediaUrl(href) {
@@ -107,130 +47,344 @@ function isAllowedImageHref(href) {
   return false
 }
 
-/* OpenAI-style visual context gallery: clean 16:9 thumbnail strip with subtle borders,
- * hover elevation, count badge on overflow, and click-to-enlarge lightbox modal.
- * No dark gradient text overlays blocking the images. */
+/* Fullscreen Lightbox Carousel with keyboard and click navigation */
+function ImageLightboxCarousel({ items, initialIndex = 0, onClose }) {
+  const [index, setIndex] = useState(initialIndex)
+
+  useEffect(() => {
+    setIndex(initialIndex)
+  }, [initialIndex])
+
+  const total = items.length
+  const current = items[index] || items[0]
+  const label = current?.alt || 'Visual context'
+  const resolvedSrc = resolveMediaUrl(current?.href)
+
+  const handlePrev = useCallback(() => {
+    setIndex((i) => (i - 1 + total) % total)
+  }, [total])
+
+  const handleNext = useCallback(() => {
+    setIndex((i) => (i + 1) % total)
+  }, [total])
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowLeft') handlePrev()
+      else if (e.key === 'ArrowRight') handleNext()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, handlePrev, handleNext])
+
+  if (!current || typeof document === 'undefined') return null
+
+  return createPortal(
+    <div
+      className="md-lightbox-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        className="md-lightbox-close"
+        onClick={onClose}
+        aria-label="Close image preview"
+      >
+        <Icon name="x" size={16} />
+      </button>
+
+      {total > 1 && (
+        <>
+          <button
+            type="button"
+            className="md-lightbox-nav md-lightbox-nav--prev"
+            onClick={(e) => { e.stopPropagation(); handlePrev() }}
+            aria-label="Previous image"
+          >
+            <Icon name="caret-left" size={22} />
+          </button>
+          <button
+            type="button"
+            className="md-lightbox-nav md-lightbox-nav--next"
+            onClick={(e) => { e.stopPropagation(); handleNext() }}
+            aria-label="Next image"
+          >
+            <Icon name="caret-right" size={22} />
+          </button>
+        </>
+      )}
+
+      <div className="md-lightbox-content" onClick={(e) => e.stopPropagation()}>
+        <img
+          src={resolvedSrc}
+          alt={label}
+          className="md-lightbox-img"
+        />
+
+        <div className="md-lightbox-caption">
+          {total > 1 && (
+            <span className="md-lightbox-counter tabular-nums">
+              {index + 1} / {total}
+            </span>
+          )}
+          <span className="md-lightbox-title" title={label}>{label}</span>
+          {resolvedSrc && (
+            <a
+              href={resolvedSrc}
+              target="_blank"
+              rel="noreferrer noopener nofollow"
+              className="md-lightbox-link"
+            >
+              Open original ↗
+            </a>
+          )}
+        </div>
+
+        {total > 1 && (
+          <div className="md-lightbox-thumbs">
+            {items.map((it, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className={`md-lightbox-thumb-btn${idx === index ? ' is-active' : ''}`}
+                onClick={() => setIndex(idx)}
+                aria-label={`Jump to image ${idx + 1}`}
+              >
+                <img src={resolveMediaUrl(it.href)} alt="" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+/* Visual context gallery: horizontal scrollable strip with navigation buttons,
+ * hover elevation, and full carousel lightbox modal. */
 function ImageGallery({ items }) {
   if (!items || items.length === 0) return null
 
+  const [lightboxIndex, setLightboxIndex] = useState(null)
   const isSingle = items.length === 1
-  const displayCount = isSingle ? 1 : Math.min(items.length, 3)
-  const displayItems = items.slice(0, displayCount)
-  const totalCount = items.length
+  const scrollRef = useRef(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 8)
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8)
+  }, [])
+
+  useEffect(() => {
+    if (isSingle) return
+    checkScroll()
+    const el = scrollRef.current
+    if (!el) return
+    el.addEventListener('scroll', checkScroll, { passive: true })
+    window.addEventListener('resize', checkScroll)
+    return () => {
+      el.removeEventListener('scroll', checkScroll)
+      window.removeEventListener('resize', checkScroll)
+    }
+  }, [checkScroll, isSingle, items])
+
+  const handleScroll = (dir) => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollBy({ left: dir * 280, behavior: 'smooth' })
+  }
 
   return (
     <div className={`md-gallery-container${isSingle ? ' is-single' : ''}`}>
-      <div className={isSingle ? 'md-image-single' : `md-image-gallery md-image-gallery--count-${displayCount}`}>
-        {displayItems.map((item, idx) => {
-          const label = item.alt || 'Visual context'
-          const isLast = idx === displayItems.length - 1 && totalCount > displayItems.length
-          const resolvedSrc = resolveMediaUrl(item.href)
+      {isSingle ? (
+        <figure className="md-image-card md-image-card--single">
+          <div
+            className="md-image-single-wrap"
+            onClick={() => setLightboxIndex(0)}
+          >
+            <img
+              src={resolveMediaUrl(items[0].href)}
+              alt={items[0].alt || 'Visual context'}
+              className="md-image-single-img"
+              loading="lazy"
+            />
+            <div className="md-image-overlay-actions">
+              <button
+                type="button"
+                className="md-image-action-btn"
+                title="Copy image link"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  copyText(resolveMediaUrl(items[0].href))
+                }}
+              >
+                <Icon name="copy" size={13} />
+              </button>
+              <button
+                type="button"
+                className="md-image-action-btn"
+                title="Enlarge"
+                onClick={() => setLightboxIndex(0)}
+              >
+                <Icon name="zoom-in" size={13} />
+              </button>
+            </div>
+          </div>
+          {items[0].alt && (
+            <figcaption className="md-image-single-caption">
+              {items[0].alt}
+            </figcaption>
+          )}
+        </figure>
+      ) : (
+        <div className="md-gallery-carousel-wrap">
+          {canScrollLeft && (
+            <button
+              type="button"
+              className="md-gallery-scroll-btn md-gallery-scroll-btn--left"
+              onClick={() => handleScroll(-1)}
+              aria-label="Scroll left"
+            >
+              <Icon name="caret-left" size={14} />
+            </button>
+          )}
 
-          return (
-            <figure key={idx} className="md-image-card">
-              <NexusImage src={resolvedSrc} alt={label} className="w-full">
-                <div className="md-image-thumb-wrap">
-                  <ImagePreview className="md-image-thumb" />
-                  {isLast && (
-                    <div className="md-image-count-badge" title={`${totalCount} images total`}>
-                      <Icon name="camera" size={13} />
-                      <span>{totalCount}</span>
+          <div className="md-image-strip" ref={scrollRef}>
+            {items.map((item, idx) => {
+              const label = item.alt || `Image ${idx + 1}`
+              const resolvedSrc = resolveMediaUrl(item.href)
+
+              return (
+                <figure
+                  key={idx}
+                  className="md-image-card md-image-card--strip"
+                  onClick={() => setLightboxIndex(idx)}
+                >
+                  <div className="md-image-thumb-wrap">
+                    <img
+                      src={resolvedSrc}
+                      alt={label}
+                      className="md-image-thumb-img"
+                      loading="lazy"
+                    />
+                    <div className="md-image-overlay-actions">
+                      <button
+                        type="button"
+                        className="md-image-action-btn"
+                        title="Copy image link"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          copyText(resolvedSrc)
+                        }}
+                      >
+                        <Icon name="copy" size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="md-image-action-btn"
+                        title="Enlarge"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setLightboxIndex(idx)
+                        }}
+                      >
+                        <Icon name="zoom-in" size={13} />
+                      </button>
                     </div>
+                    <div className="md-image-index-badge">
+                      {idx + 1}/{items.length}
+                    </div>
+                  </div>
+                  {item.alt && (
+                    <figcaption className="md-image-strip-caption">
+                      {item.alt}
+                    </figcaption>
                   )}
-                </div>
-                <ImageActions align="block-end">
-                  <ImageActionGroup>
-                    <ImageAction
-                      tooltip="Copy link"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        copyText(resolvedSrc)
-                      }}
-                    >
-                      <Icon name="copy" size={13} />
-                    </ImageAction>
-                    <ImageAction tooltip="Enlarge">
-                      <Icon name="zoom-in" size={13} />
-                    </ImageAction>
-                  </ImageActionGroup>
-                </ImageActions>
-                <ImageLightbox>
-                  <ImageLightboxOverlay />
-                  <ImageLightboxPreview>
-                    <ImageLightboxClose />
-                    <div className="md-lightbox-caption">
-                      <span>{label}</span>
-                      {resolvedSrc && (
-                        <a
-                          href={resolvedSrc}
-                          target="_blank"
-                          rel="noreferrer noopener nofollow"
-                          className="md-lightbox-link"
-                        >
-                          Open original ↗
-                        </a>
-                      )}
-                    </div>
-                  </ImageLightboxPreview>
-                </ImageLightbox>
-              </NexusImage>
-            </figure>
-          )
-        })}
-      </div>
+                </figure>
+              )
+            })}
+          </div>
+
+          {canScrollRight && (
+            <button
+              type="button"
+              className="md-gallery-scroll-btn md-gallery-scroll-btn--right"
+              onClick={() => handleScroll(1)}
+              aria-label="Scroll right"
+            >
+              <Icon name="caret-right" size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {lightboxIndex !== null && (
+        <ImageLightboxCarousel
+          items={items}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </div>
   )
 }
 
 function ImageRef({ alt, href }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const label = alt || 'Visual context'
   if (!isAllowedImageHref(href || '')) {
     return <span className="md-image-fallback" title={href}>{label}</span>
   }
   const resolvedSrc = resolveMediaUrl(href)
   return (
-    <figure className="md-image-card md-image-card--inline">
-      <NexusImage src={resolvedSrc} alt={label} className="w-full">
+    <>
+      <figure
+        className="md-image-card md-image-card--inline"
+        onClick={() => setLightboxOpen(true)}
+      >
         <div className="md-image-thumb-wrap">
-          <ImagePreview className="md-image-thumb" />
-        </div>
-        <ImageActions align="block-end">
-          <ImageActionGroup>
-            <ImageAction
-              tooltip="Copy link"
+          <img src={resolvedSrc} alt={label} className="md-image-thumb-img" loading="lazy" />
+          <div className="md-image-overlay-actions">
+            <button
+              type="button"
+              className="md-image-action-btn"
+              title="Copy link"
               onClick={(e) => {
                 e.stopPropagation()
                 copyText(resolvedSrc)
               }}
             >
               <Icon name="copy" size={13} />
-            </ImageAction>
-            <ImageAction tooltip="Enlarge">
+            </button>
+            <button
+              type="button"
+              className="md-image-action-btn"
+              title="Enlarge"
+              onClick={() => setLightboxOpen(true)}
+            >
               <Icon name="zoom-in" size={13} />
-            </ImageAction>
-          </ImageActionGroup>
-        </ImageActions>
-        <ImageLightbox>
-          <ImageLightboxOverlay />
-          <ImageLightboxPreview>
-            <ImageLightboxClose />
-            <div className="md-lightbox-caption">
-              <span>{label}</span>
-              {resolvedSrc && (
-                <a
-                  href={resolvedSrc}
-                  target="_blank"
-                  rel="noreferrer noopener nofollow"
-                  className="md-lightbox-link"
-                >
-                  Open original ↗
-                </a>
-              )}
-            </div>
-          </ImageLightboxPreview>
-        </ImageLightbox>
-      </NexusImage>
-    </figure>
+            </button>
+          </div>
+        </div>
+        {alt && <figcaption className="md-image-single-caption">{alt}</figcaption>}
+      </figure>
+
+      {lightboxOpen && (
+        <ImageLightboxCarousel
+          items={[{ alt, href }]}
+          initialIndex={0}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+    </>
   )
 }
 
