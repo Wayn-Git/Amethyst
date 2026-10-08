@@ -655,6 +655,8 @@ async def _lifespan(_: FastAPI):
 
             await asyncio.to_thread(importlib.import_module, "backend.mcp.manager")
             await _registry_for(None, reconcile_deadline=BOOT_STARTUP_SECONDS)
+            global _connectors_warm
+            _connectors_warm = True
             log.info("connectors started in %.1fs", time.monotonic() - began)
         except Exception:
             log.exception("the boot-time connector start failed")
@@ -1016,7 +1018,7 @@ HEARTBEAT_SECONDS = 10.0
 # on a sign-in) are the right ceilings for a connector and the wrong ones for
 # somebody who has just pressed Enter -- see `MCPManager._settle`. Anything
 # slower keeps starting in the background and is there for the next turn.
-TURN_STARTUP_SECONDS = 8.0
+TURN_STARTUP_SECONDS = 1.0
 # Warm connectors (confirmed alive at least once) need much less time — just
 # enough to check they're still responsive, not to wait for cold start.
 CONNECTOR_WARM_DEADLINE = 0.5
@@ -2914,6 +2916,44 @@ def _fallback_transform(text: str, action: str, instruction: str = "") -> str:
     return f"{polished} (Refined for clarity and flow)"
 
 
+def _clean_ai_transform_output(raw: str, original: str) -> str:
+    """Clean model output to return only the surgical replacement text."""
+    ans = (raw or "").strip()
+    if not ans:
+        return original
+
+    # Strip markdown code fences if wrapped
+    if ans.startswith("```") and ans.endswith("```"):
+        lines = ans.split("\n")
+        if len(lines) >= 3:
+            ans = "\n".join(lines[1:-1]).strip()
+        else:
+            ans = ans.strip("`").strip()
+
+    # Strip conversational lead-ins (e.g., "Here's the refined text:", "Revised:", etc.)
+    ans = re.sub(
+        r"^(?:here(?:’|')?s|here is|revised|improved|polished|corrected)[^\n]*:?\s*\n+",
+        "",
+        ans,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    # Strip alternatives or trailing notes
+    if "\n\n*(optional" in ans.lower() or "\n\n*(note" in ans.lower() or "\n\noption 2" in ans.lower():
+        ans = re.split(r"\n\n\*(?:optional|note|alternative)|\n\noption 2", ans, flags=re.IGNORECASE)[0].strip()
+
+    # If wrapped in bold quotes **"..."** or quotes "..."
+    m_bold_quote = re.match(r'^\*\*["“\']([\s\S]+?)["”\']\*\*$', ans)
+    if m_bold_quote:
+        ans = m_bold_quote.group(1).strip()
+    elif (ans.startswith('"') and ans.endswith('"')) or (ans.startswith('“') and ans.endswith('”')):
+        ans = ans[1:-1].strip()
+    elif ans.startswith('**') and ans.endswith('**') and not (original.startswith('**') and original.endswith('**')):
+        ans = ans[2:-2].strip()
+
+    return ans if ans else original
+
+
 @app.post("/api/ai/transform")
 async def ai_transform_text(body: AiTransformRequest) -> dict[str, Any]:
     """Perform targeted AI transformation on a selected passage of text."""
@@ -2926,17 +2966,20 @@ async def ai_transform_text(body: AiTransformRequest) -> dict[str, Any]:
 
     action_instructions = {
         "rewrite": "Rewrite the text to improve clarity, flow, and expression while preserving all core facts.",
+        "improve": "Rewrite and polish the text to improve clarity, vocabulary, conciseness, and flow while preserving all key facts.",
         "shorten": "Make the text significantly more concise, removing filler and redundancy while keeping all key points.",
         "expand": "Expand the text with explanatory detail, examples, and depth while maintaining the author's voice.",
         "fix_grammar": "Correct all grammar, spelling, punctuation, and typos without altering the meaning.",
+        "grammar": "Correct all grammar, spelling, punctuation, and typos without altering the meaning.",
         "professional": "Rewrite the text with an authoritative, polished, and professional tone.",
         "casual": "Rewrite the text with an approachable, conversational, and direct tone.",
     }
     instruction = body.instruction or action_instructions.get(body.action, "Improve the text.")
 
     system_prompt = (
-        "You are an expert text editor. Your task is to transform ONLY the provided text according to "
-        "the instruction. Return ONLY the transformed text without preamble, pleasantries, or explanations."
+        "You are a precise, surgical text transformation engine. Your task is to transform ONLY the provided text according to "
+        "the instruction. Return ONLY the transformed text replacement. NEVER include introductory remarks, commentary, explanations, "
+        "or alternative options. Do NOT wrap your answer in quotation marks."
     )
     user_prompt = f"Instruction: {instruction}\n\nText:\n{text}"
 
@@ -2957,9 +3000,9 @@ async def ai_transform_text(body: AiTransformRequest) -> dict[str, Any]:
                     timeout=15.0,
                 )
                 if resp.text:
-                    ans = resp.text.strip()
-                    if ans:
-                        return {"result": ans, "transformed": ans}
+                    cleaned = _clean_ai_transform_output(resp.text, text)
+                    if cleaned:
+                        return {"result": cleaned, "transformed": cleaned}
             except Exception:
                 continue
 

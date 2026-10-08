@@ -125,7 +125,7 @@ class SearchService:
 
         if semantic and store.vector_available(self.conn):
             try:
-                vector = await asyncio.wait_for(self.embedder.embed_one(query), timeout=2.5)
+                vector = await asyncio.wait_for(self.embedder.embed_one(query), timeout=1.0)
                 vector_hits = store.search_vectors(self.conn, vector, candidates)
                 if vector_hits:
                     rankings.append(vector_hits)

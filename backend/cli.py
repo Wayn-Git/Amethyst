@@ -963,12 +963,20 @@ def cmd_serve(args: argparse.Namespace) -> int:
         import webbrowser
 
         webbrowser.open(url)
+    uvicorn_kwargs = {
+        "host": args.host,
+        "port": args.port,
+        "reload": args.reload,
+        "log_level": args.log_level,
+    }
+    if args.reload:
+        uvicorn_kwargs["reload_dirs"] = [str(root / "backend")]
+        uvicorn_kwargs["reload_excludes"] = [
+            ".venv", "frontend", "storage", "*.db", "*.sqlite", "logs", "*.log", "tests", "*.tmp"
+        ]
     uvicorn.run(
         "backend.api.main:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-        log_level=args.log_level,
+        **uvicorn_kwargs,
     )
     return 0
 
