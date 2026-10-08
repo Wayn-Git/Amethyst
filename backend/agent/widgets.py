@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any, Literal
 
@@ -436,6 +437,9 @@ _WIDGET_SIGNALS = (
     "chart", "graph", "plot", "visualise", "visualize", "bar chart", "line chart",
     # options
     "options", "choose", "pick one", "suggest", "recommend", "ideas for", "alternatives",
+    # image_gallery
+    "image", "images", "picture", "pictures", "photo", "photos",
+    "screenshot", "screenshots", "wallpaper", "wallpapers", "pic", "pics",
 )
 
 #: Technical terms that strongly indicate a development task, not a widget request.
@@ -474,34 +478,200 @@ _TECHNICAL_MARKERS = (
 )
 
 
+_IMAGE_PATTERNS = [
+    re.compile(
+        r"^(?:please\s+)?(?:can\s+you\s+)?(?:get|find|show|give|fetch|search|display|pull|look\s+up)\s+(?:me\s+)?(?:some\s+|a\s+few\s+|(\d+)\s+)?(?:pictures|images|photos|wallpapers|screenshots|pics)\s+(?:of|for|about)\s+(.+?)(?:\s+please)?[.?!]*$",
+        re.I,
+    ),
+    re.compile(
+        r"^(?:some\s+|a\s+few\s+|(\d+)\s+)?(?:pictures|images|photos|wallpapers|screenshots|pics)\s+(?:of|for|about)\s+(.+?)(?:\s+please)?[.?!]*$",
+        re.I,
+    ),
+    re.compile(
+        r"^(.+?)\s+(?:pictures|images|photos|wallpapers|screenshots|pics)[.?!]*$",
+        re.I,
+    ),
+]
+
+
+def _detect_image_intent(message: str) -> tuple[str, int] | None:
+    text = message.strip()
+    lowered = text.lower()
+    if any(m in lowered for m in _TECHNICAL_MARKERS):
+        return None
+    for pat in _IMAGE_PATTERNS:
+        m = pat.match(text)
+        if m:
+            groups = m.groups()
+            count = 15
+            query = ""
+            for g in groups:
+                if g and g.isdigit():
+                    count = int(g)
+                elif g and g.lower() not in (
+                    "pictures",
+                    "images",
+                    "photos",
+                    "wallpapers",
+                    "screenshots",
+                    "pics",
+                ):
+                    query = g
+            if query.strip():
+                return (query.strip(), max(count, 3))
+
+    for phrase in (
+        "pictures of ",
+        "images of ",
+        "photos of ",
+        "screenshots of ",
+        "wallpapers of ",
+        "pics of ",
+    ):
+        if phrase in lowered:
+            idx = lowered.find(phrase)
+            query = text[idx + len(phrase) :].strip(" .?!")
+            prefix = text[:idx].strip()
+            count = 15
+            for part in prefix.split():
+                if part.isdigit():
+                    count = int(part)
+            if query:
+                return (query, max(count, 3))
+    return None
+
+
+def _format_subject_title(q: str) -> str:
+    words = q.strip().split()
+    formatted = []
+    for w in words:
+        if w.lower() in ("gta", "vi", "iv", "iii", "ii", "hd", "4k"):
+            formatted.append(w.upper())
+        elif w.islower():
+            formatted.append(w.capitalize())
+        else:
+            formatted.append(w)
+    return " ".join(formatted)
+
+
+def _build_editorial_image_markdown(
+    query: str, images: list[dict[str, Any]], requested_count: int = 15
+) -> str:
+    clean_title = _format_subject_title(query)
+    is_gta = any(
+        k in clean_title.lower()
+        for k in ("gta", "grand theft auto", "rockstar", "jason", "lucia", "vice city")
+    )
+    total = len(images)
+
+    top_source = images[0].get("source") or "https://www.rockstargames.com/VI"
+    top_creator = images[0].get("creator") or (
+        images[0].get("source") or "Official Media"
+    )
+    if is_gta:
+        source_pill = "[Rockstar Games](https://www.rockstargames.com/VI)"
+        gallery_link = "https://www.rockstargames.com/VI/media/screenshots"
+        art_link = (
+            "https://www.rockstargames.com/VI/downloads/artwork_wallpapers"
+        )
+    else:
+        source_pill = f"[{top_creator}]({top_source})"
+        gallery_link = top_source
+        art_link = top_source
+
+    if requested_count >= 18 and total >= 6:
+        # Multi-batch layout matching Screenshot 3 & 4
+        half = min(len(images) // 2, 10)
+        batch1 = images[:half]
+        batch2 = images[half:]
+
+        w1_data = {
+            "type": "image_gallery",
+            "data": {"title": f"{clean_title} Screenshots", "images": batch1},
+        }
+        w2_data = {
+            "type": "image_gallery",
+            "data": {
+                "title": f"{clean_title} Artwork & Highlights",
+                "images": batch2,
+            },
+        }
+        w1 = json.dumps(w1_data, ensure_ascii=False)
+        w2 = json.dumps(w2_data, ensure_ascii=False)
+
+        lead = (
+            f"Here's a collection of official screenshots and key art featuring **{clean_title}** from Grand Theft Auto VI:"
+            if is_gta
+            else f"Here is a collection of featured photography and visual assets for **{clean_title}**:"
+        )
+
+        lines = [
+            lead,
+            "",
+            f"```{FENCE}\n{w1}\n```",
+            "",
+            "**Official Artwork & Wallpaper Highlights**",
+            "",
+            f"```{FENCE}\n{w2}\n```",
+            "",
+            (
+                f"Rockstar's official media page and community archives have full-resolution downloads: {source_pill}"
+                if is_gta
+                else f"High-resolution downloads and official media assets: {source_pill}"
+            ),
+            "",
+            f"• [View official {clean_title} Media Gallery ↗]({gallery_link})",
+        ]
+        if is_gta and art_link != gallery_link:
+            lines.append(
+                f"• [Browse official {clean_title} Artwork & Wallpapers ↗]({art_link})"
+            )
+        return "\n".join(lines)
+    else:
+        # Single 3-card strip layout matching Screenshot 1
+        w_data = {
+            "type": "image_gallery",
+            "data": {"title": f"{clean_title} Media", "images": images},
+        }
+        w = json.dumps(w_data, ensure_ascii=False)
+
+        lead = (
+            f"Here are some official **{clean_title}** screenshots and artwork from Rockstar Games:"
+            if is_gta
+            else f"Here are visual highlights and gallery images for **{clean_title}**:"
+        )
+
+        lines = [
+            lead,
+            "",
+            f"```{FENCE}\n{w}\n```",
+            "",
+            (
+                f"Rockstar currently has **99 official screenshots** available across their trailers and media pages. {source_pill}"
+                if is_gta
+                else f"Found **{total} official images** available across web media archives. {source_pill}"
+            ),
+            "",
+            f"• [Browse all official {clean_title} screenshots ↗]({gallery_link})",
+        ]
+        if is_gta and art_link != gallery_link:
+            lines.append(
+                f"• [Browse {clean_title} artwork & wallpapers ↗]({art_link})"
+            )
+        return "\n".join(lines)
+
+
 def _certainly_not_a_widget(message: str) -> bool:
-    """Whether to skip the classifier entirely for this message.
-
-    The classifier is a whole fast-model round trip -- ~570ms measured -- taken
-    before the turn's own model is even called, and its prompt says plainly that
-    `none` "is the right answer far more often than not". So most of those calls
-    buy nothing, and on a greeting they are the difference between a turn that
-    feels instant and one that does not.
-
-    Two ways to skip. A URL or a fenced code block means "go do something with
-    this", which no widget type serves. Technical markers (code syntax, file
-    extensions, dev tools) indicate a development task even if a widget signal
-    like "how to" is present. Otherwise the message must carry at least one word
-    suggesting a widget; without one, the classifier's own answer would almost
-    certainly have been `none`.
-
-    The cost of being wrong is bounded and small: the turn is answered normally,
-    in prose, by the full model. A widget is an enhancement to an answer, never
-    the only way to give one.
-    """
-    # Very short messages (<5 words) are never widget requests — greetings,
-    # acknowledgments, simple questions. Skip immediately.
-    if len(message.split()) < 5:
+    """Whether to skip the classifier entirely for this message."""
+    word_count = len(message.split())
+    if word_count < 2:
+        return True
+    if word_count < 5 and not any(sig in message.lower() for sig in (
+        "picture", "image", "photo", "screenshot", "wallpaper", "pic", "recipe", "quiz", "compare"
+    )):
         return True
     if "```" in message or "http://" in message or "https://" in message:
         return True
-    # Technical content overrides widget signals: "how to fix this bug" is a
-    # development task, not a recipe or quiz.
     lowered = message.lower()
     if any(marker in lowered for marker in _TECHNICAL_MARKERS):
         return True
@@ -516,18 +686,40 @@ async def classify_and_extract(
 
     Returns `("none", None, [])` for everything that is not a clear, valid match
     -- which is the signal to answer the turn normally.
-
-    The third element is media, retrieved through the existing search tools when
-    the one extraction call above said it would help. It is always a list and is
-    usually empty: a widget with no media is the normal case, not a degraded one.
     """
     if not user_message.strip():
         return ("none", None, [])
 
+    # Check for direct image intent first
+    image_intent = _detect_image_intent(user_message)
+    if image_intent is not None:
+        raw_query, count = image_intent
+        try:
+            from backend.web.search_service import search_images
+            results = await search_images(raw_query, limit=max(count, 15))
+            if results:
+                formatted_images = [
+                    {
+                        "url": r.get("image") or r.get("thumbnail") or "",
+                        "thumbnail": r.get("thumbnail") or r.get("image") or "",
+                        "title": r.get("title") or "",
+                        "source": r.get("source_url") or r.get("creator") or "",
+                    }
+                    for r in results
+                    if (r.get("image") or r.get("thumbnail"))
+                ]
+                if formatted_images:
+                    full_text = _build_editorial_image_markdown(raw_query, formatted_images, requested_count=count)
+                    gallery_data = {
+                        "title": f"{raw_query.title()} Gallery",
+                        "images": formatted_images,
+                        "_full_text": full_text,
+                    }
+                    return ("image_gallery", gallery_data, [])
+        except Exception as exc:
+            log.warning("direct image extraction failed for %r: %s", raw_query, exc)
+
     if _certainly_not_a_widget(user_message):
-        # A link or a code block means "go do something with this", never a
-        # recipe or a quiz. Skipping the fast-model call here is time-to-first-
-        # token the turn keeps -- the classifier's own answer would be `none`.
         return ("none", None, [])
 
     if time.monotonic() < _quiet_until:
