@@ -2196,13 +2196,17 @@ class Director:
                 # and blocking the terminal event on it would keep an interface's
                 # composer disabled for the length of one. An interface that
                 # stops reading at `done` simply skips it.
-                async for event in self._remember(
-                    conversation_id, user_message, answer, chain[state.active]
-                ):
-                    yield event
-                # Conversation summary refresh: deterministic SQLite write, no
-                # LLM, no embed. Keeps recent-conversations block fresh.
-                await asyncio.to_thread(self._refresh_summary, conversation_id)
+                # Must never raise to outer loop and mark a completed turn as failed.
+                try:
+                    async for event in self._remember(
+                        conversation_id, user_message, answer, chain[state.active]
+                    ):
+                        yield event
+                    # Conversation summary refresh: deterministic SQLite write, no
+                    # LLM, no embed. Keeps recent-conversations block fresh.
+                    await asyncio.to_thread(self._refresh_summary, conversation_id)
+                except Exception as exc:
+                    log.warning("post-turn memory/summary background task failed: %s", exc)
                 return
 
             if planning:
@@ -2725,7 +2729,7 @@ class Director:
             from backend.memory import MemoryService
 
             return await asyncio.wait_for(
-                MemoryService().recall(user_message, conversation_id), timeout=1.2
+                MemoryService().recall(user_message, conversation_id), timeout=0.4
             )
         except Exception as exc:
             log.debug("memory recall unavailable for this turn: %s", exc)
@@ -2858,7 +2862,7 @@ class Director:
             if Indexer().stats()["chunks"] == 0:
                 return None, []
             context, hits = await asyncio.wait_for(
-                SearchService().context_and_hits(user_message), timeout=1.2
+                SearchService().context_and_hits(user_message), timeout=0.4
             )
             # The chunk id alone is not a durable reference: the indexer removes
             # and re-inserts a chunk whose text changed, so the label -- the path
