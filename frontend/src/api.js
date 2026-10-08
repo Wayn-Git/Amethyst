@@ -189,6 +189,24 @@ if (API_ORIGIN && typeof document !== 'undefined') {
  *  booting while React is still parsing. */
 export const backendReady = wakeBackend()
 
+let probing = false
+async function verifyOrWake() {
+  if (probing) return
+  probing = true
+  try {
+    const isAlive = await ping(2000)
+    if (!isAlive) {
+      const retryAlive = await ping(3000)
+      if (!retryAlive) {
+        if (state.phase === 'ready') publish({ verified: false })
+        wakeBackend()
+      }
+    }
+  } finally {
+    probing = false
+  }
+}
+
 async function j(url, opts) {
   let res
   const base = getBase()
@@ -203,12 +221,8 @@ async function j(url, opts) {
       ...opts,
     })
   } catch (err) {
-    // `fetch` rejects with a bare "Failed to fetch" for a container that has
-    // gone back to sleep, a CORS origin that was never allowed, and a laptop
-    // with no wifi alike. The interface showed that string verbatim, which
-    // named none of them. Say where it was trying to reach, and put the backend
-    // back into waking so the boot frame comes up rather than a dead page.
-    if (state.phase === 'ready') { publish({ verified: false }); wakeBackend() }
+    // Only wake the backend if ping explicitly confirms it did not answer.
+    verifyOrWake()
     const where = getApiOrigin() || API_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : '')
     throw new Error(`Could not reach ${where} — ${err.message || 'the request failed'}`)
   }
@@ -487,8 +501,7 @@ export const api = {
       })
     } catch (err) {
       if (err instanceof TypeError) {
-        publish({ phase: 'down', verified: false, attempts: 1, error: err.message })
-        wakeBackend()
+        verifyOrWake()
       }
       throw err
     }
