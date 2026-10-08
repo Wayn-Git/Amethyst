@@ -60,7 +60,28 @@ def _reasoning_of(payload: dict) -> str | None:
     return None
 
 
-__all__ = ["OpenAICompatClient", "ProviderHTTPError", "ProviderStreamError", "initialize"]
+__all__ = ["OpenAICompatClient", "ProviderHTTPError", "ProviderStreamError", "initialize", "normalize_model_name"]
+
+
+def normalize_model_name(provider_or_url: str, model: str) -> str:
+    """Normalize user-friendly or legacy model aliases for specific providers."""
+    if not model:
+        return model
+    m = model.strip()
+    target = (provider_or_url or "").lower()
+    if "opencode" in target or "zen" in target:
+        lower = m.lower()
+        if lower in ("mimo2.4", "mimo", "mimo-2.4", "minimax", "minimax-mimo"):
+            return "minimax-m2.7"
+        if lower in ("kimi", "k2.6", "kimi2.6"):
+            return "kimi-k2.6"
+        if lower in ("glm", "glm5", "glm-5"):
+            return "glm-5.1"
+    if "kilo" in target:
+        lower = m.lower()
+        if lower in ("mimo", "mimo2.4", "minimax"):
+            return "minimax/minimax-01"
+    return m
 
 
 def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -194,7 +215,7 @@ class OpenAICompatClient:
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.model = model
+        self.model = normalize_model_name(f"{self.base_url} {model}", model)
         self.timeout = timeout
         #: Retries after the first attempt. The fallback chain
         #: owns one budget for the whole turn and hands each link its share, so
@@ -515,6 +536,7 @@ def initialize(
     if not resolved_model:
         raise ValueError(f"no model specified for provider '{config.name}'")
     base_url = config.base_url or DEFAULT_BASE_URL
+    resolved_model = normalize_model_name(f"{config.name} {base_url}", resolved_model)
     api_key = resolve_api_key(ref=config.api_key_ref, env=config.api_key_env)
     client = OpenAICompatClient(
         base_url=base_url, api_key=api_key, model=resolved_model, max_retries=max_retries

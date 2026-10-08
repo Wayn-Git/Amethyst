@@ -162,6 +162,8 @@ export const opencode = {
             // Only keep Amethyst default kilo models or top free models
             const isCurated =
               mId === 'stepfun/step-3.7-flash:free' ||
+              lowerId.includes('mimo') ||
+              lowerId.includes('minimax') ||
               lowerId.includes('gemini-3') ||
               lowerId.includes('qwen') ||
               lowerId.includes('deepseek')
