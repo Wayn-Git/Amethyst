@@ -28,7 +28,7 @@ import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import ComposioConnectCard, { extractComposioAuth } from '../components/ComposioConnectCard.jsx'
-import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
+import { parseWidgetEnvelope, parseContentBlocks } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
 import TerminalDrawer from '../components/TerminalDrawer.jsx'
@@ -298,16 +298,19 @@ function historyToItems(rows) {
       // the message table has no column for one. This is what rebuilds it when
       // the conversation is reopened; `null` for every ordinary answer.
       const widget = parseWidgetEnvelope(m.content ?? '')
+      const blocks = parseContentBlocks(m.content ?? '')
       return {
         id: nextId(),
         rowId: m.id,
         kind: 'assistant',
         text: widget ? '' : (m.content ?? ''),
         widget,
+        blocks,
         pinned: Boolean(m.pinned),
         callsRaw: Array.isArray(m.tool_calls) ? m.tool_calls : [],
       }
     }
+
     if (m.role === 'tool') {
       if (m.tool_name === 'ask_user' || m.tool_name === 'ask_question') {
         return null
@@ -767,6 +770,9 @@ const Msg = memo(function Msg({
       )
     }
 
+    const blocks = item.blocks || (item.text ? parseContentBlocks(item.text) : [])
+    const hasWidgetBlock = blocks.some((b) => b.type === 'widget')
+
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
         {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
@@ -777,33 +783,74 @@ const Msg = memo(function Msg({
             onOpenArtifact={onOpenArtifact}
           />
         )}
-        {item.widget && <div className="msg-body"><WidgetRenderer widget={item.widget} /></div>}
-        {!item.widget && item.text && (
-          <ResponseArtifactBox
-            text={item.text}
-            item={item}
-            minimalToolbar={minimalToolbar}
-            conversationId={conversationId}
-            isEditing={isEditing}
-            onStartEdit={onStartEdit}
-            onCancelEdit={onCancelEdit}
-            onSaveEdit={onSaveEdit}
-            onOpenFullScreen={onOpenFullScreen}
-            onRegenerate={onRegenerate}
-            onPin={onPin}
-            onExportDocx={onExportDocx}
-            onViewSources={() => onViewSources?.(item)}
-            onBranchInNewChat={onBranchInNewChat}
-            onFollowUp={(followUpText) => {
-              setInput(followUpText)
-              textareaRef.current?.focus()
-            }}
-            onRefer={onRefer}
-            onAskQuote={onAskQuote}
-          />
+        {hasWidgetBlock ? (
+          blocks.map((block, idx) =>
+            block.type === 'widget' ? (
+              <div key={idx} className="msg-body">
+                <WidgetRenderer widget={block.widget} />
+              </div>
+            ) : (
+              <ResponseArtifactBox
+                key={idx}
+                text={block.content}
+                item={item}
+                minimalToolbar={minimalToolbar}
+                conversationId={conversationId}
+                isEditing={isEditing}
+                onStartEdit={onStartEdit}
+                onCancelEdit={onCancelEdit}
+                onSaveEdit={onSaveEdit}
+                onOpenFullScreen={onOpenFullScreen}
+                onRegenerate={onRegenerate}
+                onPin={onPin}
+                onExportDocx={onExportDocx}
+                onViewSources={() => onViewSources?.(item)}
+                onBranchInNewChat={onBranchInNewChat}
+                onFollowUp={(followUpText) => {
+                  setInput(followUpText)
+                  textareaRef.current?.focus()
+                }}
+                onRefer={onRefer}
+                onAskQuote={onAskQuote}
+              />
+            )
+          )
+        ) : (
+          <>
+            {item.widget && (
+              <div className="msg-body">
+                <WidgetRenderer widget={item.widget} />
+              </div>
+            )}
+            {!item.widget && item.text && (
+              <ResponseArtifactBox
+                text={item.text}
+                item={item}
+                minimalToolbar={minimalToolbar}
+                conversationId={conversationId}
+                isEditing={isEditing}
+                onStartEdit={onStartEdit}
+                onCancelEdit={onCancelEdit}
+                onSaveEdit={onSaveEdit}
+                onOpenFullScreen={onOpenFullScreen}
+                onRegenerate={onRegenerate}
+                onPin={onPin}
+                onExportDocx={onExportDocx}
+                onViewSources={() => onViewSources?.(item)}
+                onBranchInNewChat={onBranchInNewChat}
+                onFollowUp={(followUpText) => {
+                  setInput(followUpText)
+                  textareaRef.current?.focus()
+                }}
+                onRefer={onRefer}
+                onAskQuote={onAskQuote}
+              />
+            )}
+          </>
         )}
       </div>
     )
+
   }
   const timeStr = item.created_at || item.timestamp
     ? new Date(item.created_at || item.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
