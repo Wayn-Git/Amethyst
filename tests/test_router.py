@@ -590,7 +590,7 @@ def test_a_conversation_can_be_created_on_auto(client, amethyst_home):
     assert created.status_code == 200
 
 
-def test_a_preset_without_an_endpoint_is_refused_until_one_is_given(client, amethyst_home):
+def test_a_preset_without_an_endpoint_is_refused_until_one_is_given(client, amethyst_home, monkeypatch):
     """A gateway listed with no confirmed URL must not quietly post to OpenAI.
 
     The guard used to be "has a preset", which is the wrong question: a preset
@@ -601,14 +601,23 @@ def test_a_preset_without_an_endpoint_is_refused_until_one_is_given(client, amet
 
     Mutation check: restore `and not preset` on the base-URL check.
     """
-    refused = client.post("/api/providers", json={"name": "opencode-zen", "api_key": "sk-x"})
+    from backend.provider_catalogue import ProviderPreset
+    import backend.provider_catalogue as catalogue
+
+    # A preset that deliberately omits the endpoint must be refused until one is supplied
+    mock_presets = dict(catalogue.PRESETS_BY_SLUG)
+    mock_presets["test-gateway-custom"] = ProviderPreset(
+        slug="test-gateway-custom", label="Test Gateway", base_url=None
+    )
+    monkeypatch.setattr(catalogue, "PRESETS_BY_SLUG", mock_presets)
+    refused = client.post("/api/providers", json={"name": "test-gateway-custom", "api_key": "sk-x"})
     assert refused.status_code == 400
     assert "base URL" in refused.json()["detail"]
 
     ok = client.post(
         "/api/providers",
         json={
-            "name": "opencode-zen",
+            "name": "test-gateway-custom",
             "base_url": "https://example.invalid/v1",
             "default_model": "zen-1",
             "api_key": "sk-x",
@@ -616,6 +625,18 @@ def test_a_preset_without_an_endpoint_is_refused_until_one_is_given(client, amet
     )
     assert ok.status_code == 200
     assert ok.json()["ready"] is True
+
+
+def test_opencode_zen_preset_has_canonical_endpoint(client, amethyst_home):
+    from backend.provider_catalogue import preset
+    from backend.runtime.providers.openai_compat import normalize_model_name
+
+    p = preset("opencode-zen")
+    assert p is not None
+    assert p.base_url == "https://opencode.ai/inference/openai/v1"
+    assert p.default_model == "kimi-k2.6"
+    assert normalize_model_name("opencode-zen", "mimo2.4") == "minimax-m2.7"
+
 
 
 def test_a_native_adapter_still_needs_no_base_url(client, amethyst_home):
