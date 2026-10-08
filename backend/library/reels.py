@@ -292,8 +292,8 @@ class ReelCapture:
                 log.debug("music detection failed for item %s: %s", item_id, exc)
 
             visual_text: str | None = None
-            # If there was no spoken audio, extract visual text from video frames
-            if not speech_text:
+            # Extract visual text from video frames (both for videos with speech and silent videos)
+            try:
                 from backend.media.vision import extract_frames
                 from backend.runtime.vision import extract_visual_text
 
@@ -307,6 +307,8 @@ class ReelCapture:
                     log.warning("visual extraction failed for library item %s: %s", item_id, exc)
                 finally:
                     shutil.rmtree(frames_dir, ignore_errors=True)
+            except Exception as exc:
+                log.debug("frame extraction setup failed for item %s: %s", item_id, exc)
 
         except Exception as exc:
             log.warning("video processing failed for library item %s: %s", item_id, exc)
@@ -373,14 +375,13 @@ class ReelCapture:
             if detected_music.get("detail"):
                 music_line += f" by {detected_music['detail']}"
 
-        extracted = speech_text or visual_text
-        if extracted or music_line:
+        if speech_text or visual_text or music_line:
             source_parts = []
             if reel.has_text:
                 source_parts.append("caption")
             if speech_text:
                 source_parts.append("transcript")
-            elif visual_text:
+            if visual_text:
                 source_parts.append("visual content")
             if music_line:
                 source_parts.append("detected music")
@@ -389,14 +390,16 @@ class ReelCapture:
             text_pieces = []
             if reel.has_text:
                 text_pieces.append(reel.caption)
-            if extracted:
-                text_pieces.append(extracted)
+            if speech_text:
+                text_pieces.append(f"## Transcript\n\n{speech_text}")
+            if visual_text:
+                text_pieces.append(f"## Visual Content\n\n{visual_text}")
             if music_line:
                 text_pieces.append(music_line)
 
             new_text = "\n\n".join(text_pieces)
             await self.library.replace_text(item_id, new_text, text_source=source)
-            return music_note if (not extracted and not reel.has_text and detected_music and is_music_intent) else ""
+            return music_note if (not speech_text and not visual_text and not reel.has_text and detected_music and is_music_intent) else ""
 
         if not reel.has_text:
             return (
@@ -416,7 +419,7 @@ class ReelCapture:
 
         slide_images: list[bytes] = []
         async with httpx.AsyncClient(timeout=30.0) as client:
-            for s_url in reel.slide_urls[:5]:
+            for s_url in reel.slide_urls[:10]:
                 try:
                     resp = await client.get(s_url, headers={"User-Agent": "Mozilla/5.0"})
                     if resp.status_code == 200 and resp.content:
@@ -431,7 +434,7 @@ class ReelCapture:
             visual_text = await extract_visual_text(slide_images)
             if visual_text:
                 source = "caption and slide analysis" if reel.has_text else "slide analysis"
-                new_text = f"{reel.caption}\n\n{visual_text}" if reel.has_text else visual_text
+                new_text = f"{reel.caption}\n\n## Slide Analysis\n\n{visual_text}" if reel.has_text else visual_text
                 await self.library.replace_text(item_id, new_text, text_source=source)
         except Exception as exc:
             log.warning("slide visual extraction failed for library item %s: %s", item_id, exc)
