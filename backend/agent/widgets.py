@@ -541,6 +541,14 @@ def _detect_image_intent(message: str) -> tuple[str, int] | None:
     return None
 
 
+def _clean_image_query(query: str) -> str:
+    q = query.strip()
+    q = re.sub(r"\bfrmo\b", "from", q, flags=re.I)
+    q = re.sub(r"\bgta6\b", "gta 6", q, flags=re.I)
+    q = re.sub(r"\bmc\b", "minecraft", q, flags=re.I)
+    return q
+
+
 def _format_subject_title(q: str) -> str:
     words = q.strip().split()
     formatted = []
@@ -557,12 +565,24 @@ def _format_subject_title(q: str) -> str:
 def _build_editorial_image_markdown(
     query: str, images: list[dict[str, Any]], requested_count: int = 15
 ) -> str:
-    clean_title = _format_subject_title(query)
+    cleaned = _clean_image_query(query)
+    clean_title = _format_subject_title(cleaned)
     is_gta = any(
-        k in clean_title.lower()
+        k in cleaned.lower()
         for k in ("gta", "grand theft auto", "rockstar", "jason", "lucia", "vice city")
     )
     total = len(images)
+
+    # If query is like "Jason from GTA 6", extract main character name for natural prose
+    char_match = re.search(
+        r"^(.+?)\s+(?:from|in)\s+(?:gta|grand theft auto)\s*(\d*|vi)?$",
+        cleaned,
+        flags=re.I,
+    )
+    if char_match and char_match.group(1):
+        subject_name = _format_subject_title(char_match.group(1))
+    else:
+        subject_name = clean_title
 
     top_source = images[0].get("source") or "https://www.rockstargames.com/VI"
     top_creator = images[0].get("creator") or (
@@ -587,12 +607,12 @@ def _build_editorial_image_markdown(
 
         w1_data = {
             "type": "image_gallery",
-            "data": {"title": f"{clean_title} Screenshots", "images": batch1},
+            "data": {"title": f"{subject_name} Screenshots", "images": batch1},
         }
         w2_data = {
             "type": "image_gallery",
             "data": {
-                "title": f"{clean_title} Artwork & Highlights",
+                "title": f"{subject_name} Artwork & Highlights",
                 "images": batch2,
             },
         }
@@ -600,9 +620,9 @@ def _build_editorial_image_markdown(
         w2 = json.dumps(w2_data, ensure_ascii=False)
 
         lead = (
-            f"Here's a collection of official screenshots and key art featuring **{clean_title}** from Grand Theft Auto VI:"
+            f"Here's a collection of official screenshots and key art featuring **{subject_name}** from Grand Theft Auto VI:"
             if is_gta
-            else f"Here is a collection of featured photography and visual assets for **{clean_title}**:"
+            else f"Here is a collection of featured visual assets and artwork for **{clean_title}**:"
         )
 
         lines = [
@@ -620,25 +640,25 @@ def _build_editorial_image_markdown(
                 else f"High-resolution downloads and official media assets: {source_pill}"
             ),
             "",
-            f"• [View official {clean_title} Media Gallery ↗]({gallery_link})",
+            f"• [View official {subject_name} Media Gallery ↗]({gallery_link})",
         ]
         if is_gta and art_link != gallery_link:
             lines.append(
-                f"• [Browse official {clean_title} Artwork & Wallpapers ↗]({art_link})"
+                f"• [Browse official {subject_name} Artwork & Wallpapers ↗]({art_link})"
             )
         return "\n".join(lines)
     else:
         # Single 3-card strip layout matching Screenshot 1
         w_data = {
             "type": "image_gallery",
-            "data": {"title": f"{clean_title} Media", "images": images},
+            "data": {"title": f"{subject_name} Media", "images": images},
         }
         w = json.dumps(w_data, ensure_ascii=False)
 
         lead = (
-            f"Here are some official **{clean_title}** screenshots and artwork from Rockstar Games:"
+            f"Here are some official **{subject_name}** screenshots and artwork from Rockstar Games:"
             if is_gta
-            else f"Here are visual highlights and gallery images for **{clean_title}**:"
+            else f"Here are featured visual highlights and gallery images for **{clean_title}**:"
         )
 
         lines = [
@@ -652,11 +672,11 @@ def _build_editorial_image_markdown(
                 else f"Found **{total} official images** available across web media archives. {source_pill}"
             ),
             "",
-            f"• [Browse all official {clean_title} screenshots ↗]({gallery_link})",
+            f"• [Browse all official {subject_name} screenshots ↗]({gallery_link})",
         ]
         if is_gta and art_link != gallery_link:
             lines.append(
-                f"• [Browse {clean_title} artwork & wallpapers ↗]({art_link})"
+                f"• [Browse {subject_name} artwork & wallpapers ↗]({art_link})"
             )
         return "\n".join(lines)
 
@@ -709,9 +729,12 @@ async def classify_and_extract(
                     if (r.get("image") or r.get("thumbnail"))
                 ]
                 if formatted_images:
-                    full_text = _build_editorial_image_markdown(raw_query, formatted_images, requested_count=count)
+                    if count and count > 0:
+                        formatted_images = formatted_images[:count]
+                    clean_q = _clean_image_query(raw_query)
+                    full_text = _build_editorial_image_markdown(clean_q, formatted_images, requested_count=count)
                     gallery_data = {
-                        "title": f"{raw_query.title()} Gallery",
+                        "title": f"{_format_subject_title(clean_q)} Gallery",
                         "images": formatted_images,
                         "_full_text": full_text,
                     }
