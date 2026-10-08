@@ -129,8 +129,8 @@ CATEGORIES: dict[str, dict[str, Any]] = {
         "words": ("social", "instagram", "post", "feed", "dm", "follower", "reel"),
     },
     "media": {
-        "tools": ("upload_image",),
-        "words": ("image", "photo", "picture", "screenshot", "upload", "thumbnail"),
+        "tools": ("search_images", "upload_image"),
+        "words": ("image", "photo", "picture", "screenshot", "upload", "thumbnail", "gallery"),
     },
     "jobs": {
         "tools": ("collect_jobs", "dispatch_parallel_jobs"),
@@ -229,6 +229,11 @@ _TASK_INTENTS: list[tuple[str, tuple[str, ...]]] = [
     ("research ", ("research_web", "search_web", "extract_page")),
     ("google ", ("search_web",)),
     ("look up online", ("search_web", "research_web", "fetch_url")),
+    ("search images", ("search_images",)),
+    ("find images", ("search_images",)),
+    ("pictures of", ("search_images",)),
+    ("images of", ("search_images",)),
+    ("photos of", ("search_images",)),
     ("fetch url", ("fetch_url", "extract_page")),
     ("extract page", ("extract_page", "fetch_url")),
     ("open url", ("fetch_url", "open_url")),
