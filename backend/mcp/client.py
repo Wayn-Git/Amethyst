@@ -66,18 +66,43 @@ _TRANSPORT_FAILURES = (
     "connection aborted",
     "session closed",
     "session is closed",
+    "session terminated",
+    "session not found",
+    "session expired",
+    "session invalid",
+    "invalid session",
     "server disconnected",
     "eof occurred",
     "peer closed",
     "process exited",
     "process has exited",
+    "stream closed",
+    "stream is closed",
+    "stream disconnected",
+    "stream terminated",
 )
 
 
 def _is_transport_failure(exc: BaseException) -> bool:
     """Whether this failure means the session died, rather than the call failing."""
-    text = f"{type(exc).__name__}: {exc}".lower()
-    return any(marker in text for marker in _TRANSPORT_FAILURES)
+    candidates = [exc]
+    if isinstance(exc, BaseExceptionGroup):
+        candidates.extend(exc.exceptions)
+
+    for e in candidates:
+        text = f"{type(e).__name__}: {e}".lower()
+        if any(marker in text for marker in _TRANSPORT_FAILURES):
+            return True
+        if type(e).__name__ == "MCPError":
+            code = getattr(e, "code", None)
+            msg = str(getattr(e, "message", e)).lower()
+            if "session" in msg and any(
+                w in msg for w in ("terminate", "close", "not found", "expire", "invalid", "dead", "drop")
+            ):
+                return True
+            if code in (-32600, -32001) and any(w in msg for w in ("session", "not found")):
+                return True
+    return False
 
 
 _AUTH_FAILURES = (

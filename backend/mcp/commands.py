@@ -1281,15 +1281,16 @@ def _identity_of(url: str, field: str, token: str) -> str | None:
         response = httpx2.get(
             url,
             headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-            timeout=5.0,
+            timeout=1.5,
         )
         if response.status_code != 200:
-            # Not cached: a 401 here usually means a token about to be
-            # refreshed, and remembering it would outlive the reason for it.
+            # Cache failure for 60s to avoid repeated blocking HTTP calls on turn startup
+            _IDENTITY_CACHE[key] = (None, _time.monotonic() + 60.0)
             return None
         answer = response.json().get(field)
     except Exception as exc:  # identity is a nicety; never fail a listing over it
         log.debug("identity lookup for %s failed: %s", url, exc)
+        _IDENTITY_CACHE[key] = (None, _time.monotonic() + 60.0)
         return None
     _IDENTITY_CACHE[key] = (answer, _time.monotonic() + IDENTITY_TTL_SECONDS)
     return answer
@@ -1337,13 +1338,14 @@ def identity_valid(name: str) -> bool | None:
         response = httpx2.get(
             entry.identity_url,
             headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-            timeout=5.0,
+            timeout=1.5,
         )
         valid = response.status_code == 200
     except Exception as exc:
         log.debug("validity lookup for %s failed: %s", name, exc)
+        _VALIDITY_CACHE[name] = (False, now + 60.0)
         return None  # unreachable is not invalid; the next poll tries again
-    _VALIDITY_CACHE[name] = (valid, now + VALIDITY_TTL_SECONDS)
+    _VALIDITY_CACHE[name] = (valid, now + (VALIDITY_TTL_SECONDS if valid else 60.0))
     return valid
 
 
