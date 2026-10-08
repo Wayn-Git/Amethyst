@@ -182,7 +182,7 @@ export default function LibraryDetailModal({
     }
   }, [hasNext, onNavigate, items, currentIndex])
 
-  // Keyboard navigation
+  // Keyboard navigation: left/right to move through items, escape to close
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
@@ -237,16 +237,7 @@ export default function LibraryDetailModal({
   )
   const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item?.kind === 'video' && app !== 'youtube')
 
-  // Media embed resolution
-  const instagramEmbedUrl = useMemo(() => {
-    if (!item?.url) return null
-    const m = item.url.match(/(?:instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+))/)
-    if (m && m[1]) {
-      return `https://www.instagram.com/p/${m[1]}/embed/`
-    }
-    return null
-  }, [item?.url])
-
+  // YouTube embed detection
   const youtubeEmbedUrl = useMemo(() => {
     if (!item?.url) return null
     const m = item.url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
@@ -256,8 +247,10 @@ export default function LibraryDetailModal({
     return null
   }, [item?.url])
 
-  const hasLocalVideo = Boolean(item?.media_path)
-  const isPlayable = Boolean(hasLocalVideo || youtubeEmbedUrl || instagramEmbedUrl)
+  // Direct MP4 video playback (local or Instagram reel or video kind)
+  // Clean direct streaming without any ugly Instagram chrome
+  const isDirectVideo = item?.kind === 'video' || (app === 'instagram' && (item?.url || '').includes('/reel/')) || Boolean(item?.media_path)
+  const isPlayable = Boolean(isDirectVideo || youtubeEmbedUrl)
 
   // Single clean source attribution
   const sourceInfo = useMemo(() => {
@@ -469,25 +462,28 @@ export default function LibraryDetailModal({
         className="lib-page-detail"
         role="region"
         aria-label={item.title || 'Library item detail'}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       >
         {/* ========================================================
             TOP NAVIGATION BAR
             ======================================================== */}
         <header className="lib-page-header">
           <div className="lib-page-header-left">
-            <button
+            {/* Prominent Back to Library button */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
               className="lib-page-back-btn"
               onClick={onClose}
-              title="Return to Library (Esc)"
+              title="Back to Library (Esc)"
             >
-              <Icon name="chevron-left" size={14} />
+              <Icon name="arrow-left" size={15} />
               <span>Library</span>
-            </button>
+            </motion.button>
 
             <span className="lib-page-source-pill">
               {sourceInfo.showFavicon && favicon ? (
@@ -510,10 +506,9 @@ export default function LibraryDetailModal({
           <div className="lib-page-header-right">
             {items && items.length > 0 && currentIndex !== -1 && (
               <div className="lib-page-pager">
-                <span className="lib-page-pager-text">
-                  {currentIndex + 1} of {items.length}
-                </span>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.88 }}
                   type="button"
                   className="lib-page-pager-btn"
                   onClick={handlePrev}
@@ -521,9 +516,14 @@ export default function LibraryDetailModal({
                   title="Previous item (←)"
                   aria-label="Previous item"
                 >
-                  <Icon name="chevron-left" size={13} />
-                </button>
-                <button
+                  <Icon name="chevron-left" size={14} />
+                </motion.button>
+                <span className="lib-page-pager-text">
+                  {currentIndex + 1} of {items.length}
+                </span>
+                <motion.button
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.88 }}
                   type="button"
                   className="lib-page-pager-btn"
                   onClick={handleNext}
@@ -531,8 +531,8 @@ export default function LibraryDetailModal({
                   title="Next item (→)"
                   aria-label="Next item"
                 >
-                  <Icon name="chevron-right" size={13} />
-                </button>
+                  <Icon name="chevron-right" size={14} />
+                </motion.button>
               </div>
             )}
 
@@ -570,21 +570,30 @@ export default function LibraryDetailModal({
         </header>
 
         {/* ========================================================
-            TWO-COLUMN MAIN BODY
+            TWO-COLUMN MAIN BODY (Animated on item change)
             ======================================================== */}
         <div className="lib-page-body">
           {/* ----------------- LEFT COLUMN: MEDIA CENTER ----------------- */}
-          <div className="lib-page-media-col">
+          <motion.div
+            key={`media-${item.id}`}
+            className="lib-page-media-col"
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
             <div className={`lib-page-media-viewport ${isVertical ? 'lib-page-media-viewport--portrait' : ''}`}>
+              {/* Direct Playable Video (pure MP4 stream - zero Instagram iframes) */}
               {isPlaying ? (
                 <div className="lib-page-player-box">
-                  {hasLocalVideo ? (
+                  {isDirectVideo ? (
                     <video
                       src={api.mediaUrl(item.id)}
                       controls
                       autoPlay
                       playsInline
+                      loop
                       className="lib-page-video-elem"
+                      poster={hasThumbnail ? api.thumbnailUrl(item.id) : undefined}
                     />
                   ) : youtubeEmbedUrl ? (
                     <iframe
@@ -593,14 +602,6 @@ export default function LibraryDetailModal({
                       className="lib-page-iframe-elem"
                       allowFullScreen
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    />
-                  ) : instagramEmbedUrl ? (
-                    <iframe
-                      src={instagramEmbedUrl}
-                      title={item.title || 'Instagram Post'}
-                      className="lib-page-iframe-elem lib-page-iframe-elem--instagram"
-                      allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                      scrolling="no"
                     />
                   ) : hasThumbnail ? (
                     <img
@@ -634,28 +635,66 @@ export default function LibraryDetailModal({
 
                   {/* Play Overlay Button for Videos & Reels */}
                   {isPlayable && (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.92 }}
                       type="button"
                       className="lib-page-play-badge"
                       onClick={(e) => {
                         e.stopPropagation()
                         setIsPlaying(true)
                       }}
-                      title="Play media directly"
+                      title="Play video directly"
                     >
                       <div className="lib-page-play-circle">
                         <Icon name="play" size={26} />
                       </div>
-                    </button>
+                    </motion.button>
                   )}
                 </div>
+              )}
+
+              {/* Side Floating Carousel Arrows on the Media Frame */}
+              {hasPrev && (
+                <motion.button
+                  whileHover={{ scale: 1.12, backgroundColor: 'rgba(0,0,0,0.85)' }}
+                  whileTap={{ scale: 0.92 }}
+                  type="button"
+                  className="lib-page-side-arrow lib-page-side-arrow--prev"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handlePrev()
+                  }}
+                  title="Previous item (←)"
+                  aria-label="Previous item"
+                >
+                  <Icon name="chevron-left" size={18} />
+                </motion.button>
+              )}
+              {hasNext && (
+                <motion.button
+                  whileHover={{ scale: 1.12, backgroundColor: 'rgba(0,0,0,0.85)' }}
+                  whileTap={{ scale: 0.92 }}
+                  type="button"
+                  className="lib-page-side-arrow lib-page-side-arrow--next"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleNext()
+                  }}
+                  title="Next item (→)"
+                  aria-label="Next item"
+                >
+                  <Icon name="chevron-right" size={18} />
+                </motion.button>
               )}
             </div>
 
             {/* Controls Below Media Frame: Full view + Source */}
             <div className="lib-page-media-actions">
               {isPlayable && isPlaying && (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
                   type="button"
                   className="lib-page-pill-btn"
                   onClick={() => setIsPlaying(false)}
@@ -663,11 +702,13 @@ export default function LibraryDetailModal({
                 >
                   <Icon name="spark" size={12} />
                   <span>Cover view</span>
-                </button>
+                </motion.button>
               )}
 
               {hasThumbnail && (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
                   type="button"
                   className="lib-page-pill-btn"
                   onClick={() => setShowLightbox(true)}
@@ -675,11 +716,13 @@ export default function LibraryDetailModal({
                 >
                   <Icon name="maximize" size={12} />
                   <span>Full view</span>
-                </button>
+                </motion.button>
               )}
 
               {item.url && (
-                <a
+                <motion.a
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
@@ -688,13 +731,19 @@ export default function LibraryDetailModal({
                 >
                   <Icon name="arrow-up-right" size={12} />
                   <span>Source</span>
-                </a>
+                </motion.a>
               )}
             </div>
-          </div>
+          </motion.div>
 
           {/* ----------------- RIGHT COLUMN: INTELLIGENCE & CURATION ----------------- */}
-          <div className="lib-page-content-col">
+          <motion.div
+            key={`content-${item.id}`}
+            className="lib-page-content-col"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+          >
             <div className="lib-page-content-scroll">
               {/* 1. Main Title */}
               <h1 className="lib-page-heading">{item.title || 'Untitled Resource'}</h1>
@@ -730,8 +779,10 @@ export default function LibraryDetailModal({
                   {[1, 2, 3, 4, 5].map((star) => {
                     const isFilled = (hoveredStar ?? rating ?? 0) >= star
                     return (
-                      <button
+                      <motion.button
                         key={star}
+                        whileHover={{ scale: 1.25 }}
+                        whileTap={{ scale: 0.85 }}
                         type="button"
                         className="lib-page-star-btn"
                         onMouseEnter={() => setHoveredStar(star)}
@@ -748,7 +799,7 @@ export default function LibraryDetailModal({
                             transition: 'color 120ms ease, transform 120ms ease',
                           }}
                         />
-                      </button>
+                      </motion.button>
                     )
                   })}
                 </div>
@@ -805,7 +856,9 @@ export default function LibraryDetailModal({
                     </div>
 
                     <div className="lib-synthesis-actions">
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.92 }}
                         type="button"
                         className="lib-synthesis-action-btn"
                         onClick={handleCopySummary}
@@ -813,8 +866,10 @@ export default function LibraryDetailModal({
                       >
                         <Icon name={copiedSummary ? 'check' : 'copy'} size={12} />
                         <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
-                      </button>
-                      <button
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.92 }}
                         type="button"
                         className="lib-synthesis-action-btn"
                         onClick={handleEnrich}
@@ -823,7 +878,7 @@ export default function LibraryDetailModal({
                       >
                         <Icon name="refresh" size={12} />
                         <span>Regenerate</span>
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
 
@@ -1102,7 +1157,7 @@ export default function LibraryDetailModal({
                 />
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* ========================================================
@@ -1110,7 +1165,9 @@ export default function LibraryDetailModal({
             ======================================================== */}
         <footer className="lib-page-footer">
           <div className="lib-page-footer-left">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
               className="lib-page-dock-btn"
               disabled={Boolean(busyAction)}
@@ -1119,8 +1176,10 @@ export default function LibraryDetailModal({
             >
               <Icon name="refresh" size={13} />
               <span>Re-index</span>
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
               className="lib-page-dock-btn"
               disabled={Boolean(busyAction)}
@@ -1129,11 +1188,13 @@ export default function LibraryDetailModal({
             >
               <Icon name="spark" size={13} />
               <span>Re-analyze</span>
-            </button>
+            </motion.button>
           </div>
 
           <div className="lib-page-footer-right">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
               className="lib-page-dock-btn lib-page-dock-btn--danger"
               onClick={() => {
@@ -1146,7 +1207,7 @@ export default function LibraryDetailModal({
             >
               <Icon name="trash" size={13} />
               <span>Delete</span>
-            </button>
+            </motion.button>
           </div>
         </footer>
       </motion.div>

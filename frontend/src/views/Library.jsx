@@ -503,10 +503,30 @@ export default function Library() {
   const isProcessingCount = items.filter((it) => it.isProcessing).length
 
   return (
-    <div className="view lib-view" ref={rootRef}>
-      <div className="lib-view-inner">
-        {/* Modern Minimalist Page Header with Unified Action Center */}
-        <header className="lib-header" data-enter>
+    <div className={`view lib-view ${activeModalItem ? 'lib-view--detail-open' : ''}`} ref={rootRef}>
+      <AnimatePresence mode="wait">
+        {activeModalItem ? (
+          <LibraryDetailModal
+            key="detail-studio"
+            item={activeModalItem}
+            items={displayedItems}
+            onNavigate={(nextItem) => setActiveModalItem(nextItem)}
+            onClose={() => setActiveModalItem(null)}
+            onUpdate={handleItemUpdate}
+            onDelete={handleDelete}
+            toast={toast}
+          />
+        ) : (
+          <motion.div
+            key="grid-canvas"
+            className="lib-view-inner"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+          >
+            {/* Modern Minimalist Page Header with Unified Action Center */}
+            <header className="lib-header" data-enter>
           <div className="lib-header-left">
             <div className="lib-header-title-row">
               <h1 className="lib-header-title">Library</h1>
@@ -718,29 +738,16 @@ export default function Library() {
           toast={toast}
         />
 
-        {/* Export to Spotify Playlist Modal */}
-        <ExportPlaylistModal
-          open={showExportModal}
-          items={exportItems}
-          onClose={() => setShowExportModal(false)}
-          toast={toast}
-        />
-
-        {/* Item Inspection & Reader View (Full-Page Studio) */}
-        <AnimatePresence>
-          {activeModalItem && (
-            <LibraryDetailModal
-              item={activeModalItem}
-              items={displayedItems}
-              onNavigate={(nextItem) => setActiveModalItem(nextItem)}
-              onClose={() => setActiveModalItem(null)}
-              onUpdate={handleItemUpdate}
-              onDelete={handleDelete}
+            {/* Export to Spotify Playlist Modal */}
+            <ExportPlaylistModal
+              open={showExportModal}
+              items={exportItems}
+              onClose={() => setShowExportModal(false)}
               toast={toast}
             />
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

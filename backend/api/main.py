@@ -6532,23 +6532,52 @@ async def library_thumbnail(item_id: int) -> FileResponse:
 
 @app.get("/api/library/{item_id}/media")
 def library_media(item_id: int) -> FileResponse:
-    """Stream raw media content."""
+    """Stream raw media content, downloading on-demand if needed."""
     import mimetypes
+    from pathlib import Path
 
     from backend.library.store import LibraryStore
 
     with get_connection() as conn:
         row = LibraryStore(conn).get(item_id)
     
-    if row is None or not row["media_path"]:
-        raise HTTPException(404, "there is no media for that item")
+    if row is None:
+        raise HTTPException(404, f"no library item {item_id}")
         
-    path = Path(row["media_path"])
-    if not path.is_file():
-        raise HTTPException(404, "the media is missing from disk")
+    path = Path(row["media_path"]) if row["media_path"] else None
+    if path and path.is_file():
+        mime_type, _ = mimetypes.guess_type(str(path))
+        return FileResponse(path, media_type=mime_type or "video/mp4")
         
-    mime_type, _ = mimetypes.guess_type(str(path))
-    return FileResponse(path, media_type=mime_type or "application/octet-stream")
+    # On-demand download for videos / reels (pure MP4 like videodropper / savefromins)
+    url = row["url"]
+    if url:
+        try:
+            import yt_dlp
+            from backend.library.store import media_path
+            from backend.config import load_instagram
+            settings = load_instagram()
+            target = media_path(item_id, ".mp4")
+            ydl_opts = {
+                "outtmpl": str(target),
+                "format": "mp4/best[ext=mp4]/best",
+                "quiet": True,
+                "socket_timeout": 30,
+            }
+            if settings.cookies_from_browser:
+                ydl_opts["cookiesfrombrowser"] = (settings.cookies_from_browser,)
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            if target.is_file() and target.stat().st_size > 1000:
+                with get_connection() as conn:
+                    conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
+                    conn.commit()
+                mime_type, _ = mimetypes.guess_type(str(target))
+                return FileResponse(target, media_type=mime_type or "video/mp4")
+        except Exception:
+            pass
+
+    raise HTTPException(404, "there is no media for that item")
 
 
 @app.get("/api/media/local")

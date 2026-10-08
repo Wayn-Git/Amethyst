@@ -1463,16 +1463,20 @@ export default function Chat() {
       // The turn answered with UI instead of prose. It streamed no deltas, so
       // there is nothing in the buffer to flush into -- the item is pushed
       // whole, the way a tool result is.
-      case 'widget':
+      case 'widget': {
         pushAssistant()
+        const textContent = evt.text || ''
+        const blocks = textContent ? parseContentBlocks(textContent) : []
         setItems((prev) => [...prev, {
           id: nextId(),
           kind: 'assistant',
-          text: '',
+          text: textContent,
           widget: evt.widget,
+          blocks: blocks.length > 0 ? blocks : undefined,
           callsRaw: [],
         }])
         break
+      }
       case 'tool_call':
         pushAssistant()
         if (evt.name !== 'ask_user' && evt.name !== 'ask_question') {
@@ -1578,6 +1582,24 @@ export default function Chat() {
         })))
         break
       case 'done':
+        if (evt.text) {
+          setItems((prev) => {
+            const last = prev[prev.length - 1]
+            if (last && last.kind === 'assistant' && (!last.text || !last.blocks?.length)) {
+              const blocks = parseContentBlocks(evt.text)
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...last,
+                  text: evt.text,
+                  blocks: blocks.length > 0 ? blocks : last.blocks,
+                  widget: last.widget || parseWidgetEnvelope(evt.text),
+                },
+              ]
+            }
+            return prev
+          })
+        }
         // `execution_logs.duration_ms` has held this since logging shipped and
         // nothing ever read it. Asked immediately or not at all.
         if (evt.duration_ms != null) {

@@ -1116,7 +1116,8 @@ class Director:
                             "type": widget_type,
                             "data": widget_data,
                             "media": widget_media,
-                        }
+                        },
+                        "text": delivered_text,
                     },
                 )
                 yield Event("status", {"state": "completed"})
