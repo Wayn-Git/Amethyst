@@ -46607,15 +46607,44 @@ a.text-reveal-wrap {
   width: 100%;
   max-width: 100%;
   color: var(--text);
-  font-family: var(--font-body);
-  font-size: var(--text-body);
-  line-height: var(--text-body-lh, 1.62);
-  letter-spacing: var(--text-body-ls, -0.16px);
+  font-family: var(--font-chat-prose, 'Inter', system-ui, sans-serif);
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: -0.011em;
   font-feature-settings: 'calt' on, 'liga' on;
   overflow-x: visible;
   overflow-wrap: break-word;
   word-break: normal;
   transition: all 0.25s ease;
+}
+
+.chat-assistant-prose .md {
+  gap: 16px;
+}
+
+.chat-assistant-prose .md-p,
+.chat-assistant-prose p {
+  font-family: var(--font-chat-prose, 'Inter', system-ui, sans-serif);
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: -0.011em;
+  margin: 0;
+}
+
+.chat-assistant-prose .md-list {
+  gap: 8px;
+}
+
+.chat-assistant-prose .md-list li {
+  font-family: var(--font-chat-prose, 'Inter', system-ui, sans-serif);
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: -0.011em;
+}
+
+.chat-assistant-prose .md-h {
+  font-family: var(--font-display, 'Satoshi', 'Plus Jakarta Sans', system-ui, sans-serif);
+  letter-spacing: -0.02em;
 }
 
 .chat-assistant-prose.is-ai-updated,
