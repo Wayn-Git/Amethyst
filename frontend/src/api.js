@@ -369,6 +369,11 @@ export const api = {
   connectComposioToolkit: (slug) =>
     j(`/composio/toolkits/${encodeURIComponent(slug)}/connect`, json('POST')),
   composioConnections: () => j('/composio/connections'),
+  composioFallbackStatus: () => j('/composio/fallback/status'),
+  switchComposioFallback: (provider, target, reason) =>
+    j('/composio/fallback/switch', json('POST', { provider, target, reason })),
+  resetComposioFallback: (provider) =>
+    j('/composio/fallback/reset', json('POST', { provider })),
 
 
   conversations: () => j('/conversations'),

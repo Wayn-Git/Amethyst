@@ -1181,9 +1181,20 @@ function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, on
 }
 
 /* Composio Cloud Connector Row with "Powered by Composio" pill */
-function ComposioPluginRow({ item, isConfigured, busy, onConnect, onToggle, index = 0 }) {
+function ComposioPluginRow({
+  item,
+  isConfigured,
+  busy,
+  onConnect,
+  onToggle,
+  onFallbackSwitch,
+  index = 0,
+}) {
+  const isDirect = Boolean(item.no_auth)
   const isConnected = Boolean(item.connected)
   const isEnabled = Boolean(item.enabled)
+  const isRunning = isDirect ? isEnabled : isConnected
+
   return (
     <motion.div
       layout="position"
@@ -1196,7 +1207,7 @@ function ComposioPluginRow({ item, isConfigured, busy, onConnect, onToggle, inde
         damping: 30,
         delay: Math.min(index * 0.02, 0.16),
       }}
-      className={`plugin-row${isConnected ? ' is-running' : ''}`}
+      className={`plugin-row${isRunning ? ' is-running' : ''}`}
     >
       <div className="plugin-row-icon">
         <ServiceIcon name={item.slug} size={38} />
@@ -1220,7 +1231,45 @@ function ComposioPluginRow({ item, isConfigured, busy, onConnect, onToggle, inde
           >
             Powered by Composio
           </span>
-          {isConnected ? (
+          {isDirect ? (
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 600,
+                padding: '1px 6px',
+                borderRadius: '999px',
+                background: 'rgba(34, 197, 94, 0.12)',
+                color: 'var(--ok, #22c55e)',
+                border: '1px solid rgba(34, 197, 94, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              Direct Tool
+            </span>
+          ) : (
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 500,
+                padding: '1px 6px',
+                borderRadius: '999px',
+                background: 'rgba(59, 130, 246, 0.12)',
+                color: 'var(--info, #3b82f6)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              OAuth Required
+            </span>
+          )}
+          {isDirect ? (
+            <span className="conn-status conn-status--live">
+              <span className={`status-dot ${isEnabled ? 'live' : ''}`} />
+              {isEnabled ? 'Active' : 'Disabled'}
+            </span>
+          ) : isConnected ? (
             <span className="conn-status conn-status--live">
               <span className="status-dot live" />
               Connected
@@ -1237,7 +1286,22 @@ function ComposioPluginRow({ item, isConfigured, busy, onConnect, onToggle, inde
 
       <div className="plugin-row-actions" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {!isConnected ? (
+          {isDirect ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isEnabled}
+              className={`plugin-toggle-switch ${isEnabled ? 'is-on' : ''}`}
+              disabled={Boolean(busy)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggle && onToggle(item, !isEnabled)
+              }}
+              title={isEnabled ? `Disable ${item.name} tool` : `Enable ${item.name} tool`}
+            >
+              <span className="plugin-toggle-thumb" />
+            </button>
+          ) : !isConnected ? (
             <button
               type="button"
               className="conn-btn"
@@ -1288,6 +1352,32 @@ function ComposioPluginRow({ item, isConfigured, busy, onConnect, onToggle, inde
               title={isEnabled ? `Disable ${item.name} tools` : `Enable ${item.name} tools`}
             >
               <span className="plugin-toggle-thumb" />
+            </button>
+          )}
+
+          {item.has_local_alternative && (
+            <button
+              type="button"
+              className="conn-btn conn-btn--ghost"
+              disabled={Boolean(busy)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onFallbackSwitch && onFallbackSwitch(item, 'local')
+              }}
+              style={{
+                fontSize: '11px',
+                padding: '4px 8px',
+                borderRadius: '5px',
+                color: 'var(--text-secondary)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+              title={`Switch ${item.name} to direct local integration`}
+            >
+              <Icon name="refresh-cw" size={11} />
+              Use Local
             </button>
           )}
         </div>
@@ -1809,6 +1899,39 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
     [composioStatus, refresh, toast]
   )
 
+  /* Composio fallback switch handler */
+  const handleFallbackSwitch = useCallback(
+    async (item, target) => {
+      const slug = item.slug || item
+      const name = item.name || slug
+      const confirmed = await confirm({
+        title: `Switch ${name} to ${target === 'local' ? 'Local Integration' : 'Composio'}?`,
+        description:
+          target === 'local'
+            ? `Amethyst will use its direct local integration for ${name} instead of Composio. You can configure local credentials in the ${name} connector row.`
+            : `Amethyst will switch back to Composio cloud connection for ${name}.`,
+        confirmLabel: 'Switch Provider',
+        tone: 'default',
+      })
+      if (!confirmed) return
+
+      setBusy((b) => ({ ...b, [`fallback:${slug}`]: true }))
+      try {
+        await api.switchComposioFallback(slug, target)
+        toast(
+          `Switched ${name} to ${target === 'local' ? 'direct local integration' : 'Composio'}`,
+          'ok',
+        )
+        await refresh()
+      } catch (err) {
+        toast(err.message || `Failed to switch integration for ${name}`, 'bad')
+      } finally {
+        setBusy((b) => ({ ...b, [`fallback:${slug}`]: false }))
+      }
+    },
+    [confirm, refresh, toast]
+  )
+
   // Refresh Composio toolkits when window regains focus (e.g. after returning from OAuth tab)
   useEffect(() => {
     const onFocus = () => {
@@ -2056,15 +2179,32 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       }
       if (filter === 'all') return true
       if (filter === 'installed') return Boolean(item.connected)
-      if (filter === 'agent-tools') return false
+      if (filter === 'agent-tools') return Boolean(item.no_auth)
       if (filter === 'connectors') return true
-      if (filter === 'Popular') return ['slack', 'github', 'gmail', 'notion'].includes(item.slug)
-      if (filter === 'Productivity') return ['linear', 'notion', 'googlecalendar', 'asana'].includes(item.slug)
-      if (filter === 'Developer Tools') return ['github', 'jira'].includes(item.slug)
-      if (filter === 'Communication & Media' || filter === 'Communication') return ['slack', 'gmail', 'spotify'].includes(item.slug)
+      if (filter === 'Popular')
+        return ['slack', 'github', 'gmail', 'notion', 'web_scraper', 'calculator'].includes(item.slug)
+      if (filter === 'Productivity')
+        return ['linear', 'notion', 'googlecalendar', 'asana'].includes(item.slug)
+      if (filter === 'Developer Tools')
+        return ['github', 'jira', 'sql'].includes(item.slug)
+      if (filter === 'Communication & Media' || filter === 'Communication')
+        return ['slack', 'gmail', 'spotify'].includes(item.slug)
       return item.category === filter
     })
   }, [composioStatus?.configured, composioToolkits, q, filter])
+
+  const { directComposioTools, connectedComposioServices } = useMemo(() => {
+    const direct = []
+    const connected = []
+    for (const item of filteredComposioToolkits) {
+      if (item.no_auth) {
+        direct.push(item)
+      } else {
+        connected.push(item)
+      }
+    }
+    return { directComposioTools: direct, connectedComposioServices: connected }
+  }, [filteredComposioToolkits])
 
   // Installed connectors list for the top chips row
   const installedList = useMemo(() => {
@@ -2413,48 +2553,97 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                       </section>
                     )
                   ) : (
-                    filteredComposioToolkits.length > 0 && (
-                      <section data-enter className="plugin-section">
-                        <div className="plugin-section-head">
-                          <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <h2 className="plugin-section-title">Cloud Connectors</h2>
-                            <span
-                              style={{
-                                fontSize: '11px',
-                                fontWeight: 500,
-                                padding: '2px 8px',
-                                borderRadius: '999px',
-                                background: 'rgba(168, 85, 247, 0.12)',
-                                color: 'var(--accent, #a855f7)',
-                                border: '1px solid rgba(168, 85, 247, 0.25)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                letterSpacing: '0.02em',
-                              }}
-                            >
-                              Powered by Composio
-                            </span>
-                            <span className="plugin-section-badge">
-                              {filteredComposioToolkits.filter((t) => t.connected).length}/{filteredComposioToolkits.length} connected
-                            </span>
+                    <>
+                      {/* Direct Tools: Work immediately without user OAuth configuration */}
+                      {directComposioTools.length > 0 && (
+                        <section data-enter className="plugin-section">
+                          <div className="plugin-section-head">
+                            <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <h2 className="plugin-section-title">Direct Cloud Tools</h2>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 500,
+                                  padding: '2px 8px',
+                                  borderRadius: '999px',
+                                  background: 'rgba(34, 197, 94, 0.12)',
+                                  color: 'var(--ok, #22c55e)',
+                                  border: '1px solid rgba(34, 197, 94, 0.25)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  letterSpacing: '0.02em',
+                                }}
+                              >
+                                No User OAuth Required
+                              </span>
+                              <span className="plugin-section-badge">
+                                {directComposioTools.filter((t) => t.enabled).length}/{directComposioTools.length} enabled
+                              </span>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="plugin-grid">
-                          {filteredComposioToolkits.map((item, idx) => (
-                            <ComposioPluginRow
-                              key={item.slug}
-                              index={idx}
-                              item={item}
-                              isConfigured={true}
-                              busy={busy[`composio:${item.slug}`]}
-                              onConnect={() => handleComposioConnect(item)}
-                              onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    )
+                          <div className="plugin-grid">
+                            {directComposioTools.map((item, idx) => (
+                              <ComposioPluginRow
+                                key={item.slug}
+                                index={idx}
+                                item={item}
+                                isConfigured={true}
+                                busy={busy[`composio:${item.slug}`] || busy[`fallback:${item.slug}`]}
+                                onConnect={() => handleComposioConnect(item)}
+                                onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
+                                onFallbackSwitch={handleFallbackSwitch}
+                              />
+                            ))}
+                          </div>
+                        </section>
+                      )}
+
+                      {/* Connected Services: Require third-party OAuth setup */}
+                      {connectedComposioServices.length > 0 && (
+                        <section data-enter className="plugin-section">
+                          <div className="plugin-section-head">
+                            <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <h2 className="plugin-section-title">Connected Cloud Services</h2>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 500,
+                                  padding: '2px 8px',
+                                  borderRadius: '999px',
+                                  background: 'rgba(168, 85, 247, 0.12)',
+                                  color: 'var(--accent, #a855f7)',
+                                  border: '1px solid rgba(168, 85, 247, 0.25)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  letterSpacing: '0.02em',
+                                }}
+                              >
+                                OAuth Setup Required
+                              </span>
+                              <span className="plugin-section-badge">
+                                {connectedComposioServices.filter((t) => t.connected).length}/{connectedComposioServices.length} connected
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="plugin-grid">
+                            {connectedComposioServices.map((item, idx) => (
+                              <ComposioPluginRow
+                                key={item.slug}
+                                index={idx}
+                                item={item}
+                                isConfigured={true}
+                                busy={busy[`composio:${item.slug}`] || busy[`fallback:${item.slug}`]}
+                                onConnect={() => handleComposioConnect(item)}
+                                onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
+                                onFallbackSwitch={handleFallbackSwitch}
+                              />
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    </>
                   )}
 
                   {/* 3. USER CONNECTORS & INTEGRATIONS SECTION (Grouped) */}

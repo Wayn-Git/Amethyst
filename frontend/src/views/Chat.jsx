@@ -22,7 +22,6 @@ import ContextPopover from '../components/ContextPopover.jsx'
 import GuardMenu from '../components/GuardMenu.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
 import { LoaderIcon } from '../components/OnboardingWizard.jsx'
-import { Notification, NotificationStack } from '../components/application/notifications'
 import { BlurredText } from '../components/arc/streaming-text/blurred-text'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
@@ -38,6 +37,26 @@ import { MOD_LABEL } from '../keys.js'
 import { motion } from 'framer-motion'
 import { Blobatar } from "@blobatar/react"
 import "blobatar/motion.css"
+import {
+  Questions,
+  QuestionsHeader,
+  QuestionsTitle,
+  QuestionsDismiss,
+  QuestionsCarousel,
+  QuestionsCarouselContent,
+  QuestionsCarouselItem,
+  QuestionsCarouselPagination,
+  QuestionsCarouselPrev,
+  QuestionsCarouselIndex,
+  QuestionsCarouselNext,
+  Question,
+  QuestionOptions,
+  QuestionOption,
+  QuestionOther,
+  QuestionsFooter,
+  QuestionsSkip,
+  QuestionsSubmit,
+} from '../components/nexus-ui/questions.tsx'
 
 /* The composer is the interface. Everything else — which skills are live, which
    connectors it may reach, what it remembers, where it may work — hangs off the
@@ -116,7 +135,10 @@ function buildRendered(items) {
   for (let i = 0; i < items.length; i++) {
     const it = items[i]
     if (it.kind !== 'assistant') { out.push(it); continue }
-    const toolCalls = (it.callsRaw || []).map((c) => ({
+    const toolCalls = (it.callsRaw || []).filter((c) => {
+      const n = c.function?.name ?? c.name
+      return n !== 'ask_user' && n !== 'ask_question'
+    }).map((c) => ({
       name: c.function?.name ?? c.name,
       arguments: c.function?.arguments ?? c.arguments,
       status: 'done',
@@ -124,6 +146,10 @@ function buildRendered(items) {
     let j = i + 1
     while (j < items.length && items[j].kind === 'tool') {
       const t = items[j]
+      if (t.name === 'ask_user' || t.name === 'ask_question') {
+        j++
+        continue
+      }
       const slot = toolCalls.find((c) => c.name === t.name && c.content === undefined)
       if (slot) {
         slot.content = t.content
@@ -169,8 +195,8 @@ function foldTraces(items) {
   const isMachinery = (it) => (
     it.kind === 'reasoning'
     || it.kind === 'cost'
-    || it.kind === 'tool'
-    || (it.kind === 'assistant' && (it.toolCalls?.length ?? 0) > 0)
+    || (it.kind === 'tool' && it.name !== 'ask_user' && it.name !== 'ask_question')
+    || (it.kind === 'assistant' && ((it.toolCalls || []).filter((c) => c.name !== 'ask_user' && c.name !== 'ask_question').length > 0))
   )
   /* A note is not machinery, but it does not end a run of it either. The
      provider-fallback lines -- "groq failed, answering with nvidia instead" --
@@ -212,10 +238,16 @@ function foldTraces(items) {
         // stretches of reasoning we happened to see.
         ms = it.durationMs || ms
       } else if (it.kind === 'tool') {
-        events.push({ type: 'tool', call: { name: it.name, arguments: it.arguments, content: it.content, status: it.isError ? 'error' : 'done' } })
+        if (it.name !== 'ask_user' && it.name !== 'ask_question') {
+          events.push({ type: 'tool', call: { name: it.name, arguments: it.arguments, content: it.content, status: it.isError ? 'error' : 'done' } })
+        }
       } else {
         if (it.text?.trim()) events.push({ type: 'thought', text: it.text.trim() })
-        for (const c of it.toolCalls) events.push({ type: 'tool', call: c })
+        for (const c of (it.toolCalls || [])) {
+          if (c.name !== 'ask_user' && c.name !== 'ask_question') {
+            events.push({ type: 'tool', call: c })
+          }
+        }
       }
       j += 1
     }
@@ -229,7 +261,11 @@ function foldTraces(items) {
     if (next && next.kind === 'assistant' && next.text && next.toolCalls?.length) {
       list = list.slice()
       list[j] = { ...next, toolCalls: [] }
-      for (const c of next.toolCalls) events.push({ type: 'tool', call: c })
+      for (const c of (next.toolCalls || [])) {
+        if (c.name !== 'ask_user' && c.name !== 'ask_question') {
+          events.push({ type: 'tool', call: c })
+        }
+      }
     }
 
     for (const aside of asides) out.push(aside)
@@ -273,6 +309,9 @@ function historyToItems(rows) {
       }
     }
     if (m.role === 'tool') {
+      if (m.tool_name === 'ask_user' || m.tool_name === 'ask_question') {
+        return null
+      }
       return {
         id: nextId(),
         kind: 'tool',
@@ -461,92 +500,41 @@ const OTHER = '\u0000other'
    in the transcript and not a new message the user has to compose. */
 function QuestionCard({ item, onAnswer, onDismiss, disabled }) {
   const questions = item.questions ?? []
-  const [index, setIndex] = useState(0)
-  // One entry per question. A multi-select question holds a list; a
-  // single-select holds one label or the sentinel for "Something else".
-  const [picked, setPicked] = useState(() => questions.map((q) => (q.multi_select ? [] : '')))
-  const [other, setOther] = useState(() => questions.map(() => ''))
-  const [cursor, setCursor] = useState(0)
-  const [busy, setBusy] = useState(false)
-  const boxRef = useRef(null)
 
-  const current = questions[index]
-  const total = questions.length
-  const last = index >= total - 1
+  const questionInputs = useMemo(() => {
+    const list = item.questions ?? []
+    return list.map((q, idx) => ({
+      id: q.id || `q-${idx}`,
+      type: q.multi_select ? 'multiple' : 'single',
+      prompt: q.question,
+      header: q.header,
+      required: q.required ?? true,
+      options: (q.options || []).map((o, oIdx) => ({
+        value: o.value || o.label || `opt-${oIdx}`,
+        label: o.label,
+        description: o.description,
+      })),
+    }))
+  }, [item.questions])
 
-  const rows = useMemo(
-    () => [...(current?.options ?? []).map((o) => o.label), OTHER],
-    [current],
-  )
-
-  // Focus follows the question, so the keys below work the moment it appears
-  // and again on every step.
-  useEffect(() => {
-    if (!item.settled) boxRef.current?.focus()
-    setCursor(0)
-  }, [index, item.settled])
-
-  if (!current) return null
-
-  const multi = Boolean(current.multi_select)
-  const choice = picked[index]
-  const chose = (label) => (multi ? (choice ?? []).includes(label) : choice === label)
-  const wantsOther = multi ? (choice ?? []).includes(OTHER) : choice === OTHER
-  const answered = wantsOther
-    ? Boolean(other[index].trim()) || (multi && (choice ?? []).length > 1)
-    : multi
-      ? (choice ?? []).length > 0
-      : Boolean(choice)
-
-  const pick = (label) => setPicked((prev) => prev.map((value, i) => {
-    if (i !== index) return value
-    if (!multi) return label
-    const list = value ?? []
-    return list.includes(label) ? list.filter((x) => x !== label) : [...list, label]
-  }))
-
-  /* What the model reads back. A multi-select answer is joined rather than sent
-     as a list because the tool result is prose the model parses by reading, and
-     "A, B" says what a JSON array would say with none of the ceremony. */
-  const resolve = () => picked.map((value, i) => {
-    const written = other[i].trim()
-    if (!multi && value === OTHER) return written
-    const list = Array.isArray(value) ? value : [value]
-    return list.map((x) => (x === OTHER ? written : x)).filter(Boolean).join(', ')
-  })
-
-  const advance = () => {
-    if (!answered) return
-    if (last) settle()
-    else setIndex(index + 1)
-  }
-
-  const settle = async () => {
-    setBusy(true)
-    try {
-      await onAnswer(item.askId, resolve())
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const onKeyDown = (e) => {
-    if (disabled || busy) return
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      const step = e.key === 'ArrowDown' ? 1 : -1
-      setCursor((c) => (c + step + rows.length) % rows.length)
-      return
-    }
-    if (e.key === ' ' || (e.key === 'Enter' && !answered)) {
-      e.preventDefault()
-      pick(rows[cursor])
-      return
-    }
-    if (e.key === 'Enter') { e.preventDefault(); advance(); return }
-    const digit = Number(e.key)
-    if (digit >= 1 && digit <= rows.length) { e.preventDefault(); pick(rows[digit - 1]) }
-  }
+  const handleSubmit = useCallback(async (submission) => {
+    const answersList = submission.map((entry) => {
+      if (entry.status === 'skipped') {
+        return '[No Preference]'
+      }
+      if (entry.type === 'single') {
+        return typeof entry.answer?.label === 'string'
+          ? entry.answer.label
+          : String(entry.answer?.value ?? '')
+      }
+      const list = entry.answer || []
+      return list
+        .map((a) => (typeof a.label === 'string' ? a.label : String(a.value ?? '')))
+        .filter(Boolean)
+        .join(', ')
+    })
+    await onAnswer(item.askId, answersList)
+  }, [onAnswer, item.askId])
 
   if (item.settled) {
     return (
@@ -565,108 +553,69 @@ function QuestionCard({ item, onAnswer, onDismiss, disabled }) {
     )
   }
 
+  if (questionInputs.length === 0) return null
+
+  const isMulti = questionInputs.length > 1
+
   return (
-    <div
-      className="plan-card question-card"
-      ref={boxRef}
-      tabIndex={-1}
-      onKeyDown={onKeyDown}
-      role="group"
-      aria-label={current.question}
-    >
-      <div className="plan-head">
-        {current.header
-          ? <span className="question-chip">{current.header}</span>
-          : <><Icon name="info" size={13} /><span>A quick question</span></>}
-        {total > 1 && <span className="plan-count">{index + 1} of {total}</span>}
-      </div>
+    <div className="w-full my-4 flex justify-center">
+      <Questions
+        items={questionInputs}
+        onSubmit={handleSubmit}
+        onDismiss={() => onDismiss?.(item.askId)}
+        className="w-full max-w-xl"
+      >
+        <QuestionsHeader>
+          <QuestionsTitle />
+          <div className="flex items-center gap-1 shrink-0">
+            {isMulti && (
+              <QuestionsCarouselPagination>
+                <QuestionsCarouselPrev />
+                <QuestionsCarouselIndex format="of" />
+                <QuestionsCarouselNext />
+              </QuestionsCarouselPagination>
+            )}
+            <QuestionsDismiss />
+          </div>
+        </QuestionsHeader>
 
-      <p className="question-text">{current.question}</p>
-      {multi && <p className="question-note">Pick as many as apply.</p>}
-
-      <div className="question-options" role={multi ? 'group' : 'radiogroup'}>
-        {rows.map((label, n) => {
-          const option = (current.options ?? []).find((o) => o.label === label)
-          return (
-            <button
-              type="button"
-              key={label}
-              className={`question-option${chose(label) ? ' is-picked' : ''}${cursor === n ? ' is-cursor' : ''}`}
-              onClick={() => { setCursor(n); pick(label) }}
-              onMouseEnter={() => setCursor(n)}
-              disabled={disabled || busy}
-              role={multi ? 'checkbox' : 'radio'}
-              aria-checked={chose(label)}
-            >
-              <span className={`question-mark${multi ? ' is-box' : ''}`} aria-hidden="true" />
-              <span className="question-option-body">
-                <span className="question-option-label">
-                  {label === OTHER ? 'Something else' : label}
-                </span>
-                {option?.description && (
-                  <span className="question-option-hint">{option.description}</span>
-                )}
-              </span>
-              <span className="question-key" aria-hidden="true">{n + 1}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {wantsOther && (
-        <input
-          className="question-other"
-          autoFocus
-          placeholder="In your own words"
-          value={other[index]}
-          disabled={disabled || busy}
-          onChange={(e) => setOther((prev) => prev.map((o, i) => (i === index ? e.target.value : o)))}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key !== 'Enter' || !answered) return
-            e.preventDefault()
-            advance()
-          }}
-        />
-      )}
-
-      <div className="plan-actions">
-        {index > 0 && (
-          <button
-            type="button"
-            className="btn btn--ghost btn--small"
-            onClick={() => setIndex(index - 1)}
-            disabled={disabled || busy}
-          >
-            Back
-          </button>
+        {isMulti ? (
+          <QuestionsCarousel>
+            <QuestionsCarouselContent>
+              {questionInputs.map((q) => (
+                <QuestionsCarouselItem key={q.id}>
+                  <Question id={q.id}>
+                    <QuestionOptions>
+                      {q.options.map((opt) => (
+                        <QuestionOption key={opt.value} value={opt.value} description={opt.description}>
+                          {opt.label}
+                        </QuestionOption>
+                      ))}
+                      <QuestionOther placeholder="Something else / In your own words..." />
+                    </QuestionOptions>
+                  </Question>
+                </QuestionsCarouselItem>
+              ))}
+            </QuestionsCarouselContent>
+          </QuestionsCarousel>
+        ) : (
+          <Question id={questionInputs[0].id}>
+            <QuestionOptions>
+              {questionInputs[0].options.map((opt) => (
+                <QuestionOption key={opt.value} value={opt.value} description={opt.description}>
+                  {opt.label}
+                </QuestionOption>
+              ))}
+              <QuestionOther placeholder="Something else / In your own words..." />
+            </QuestionOptions>
+          </Question>
         )}
-        {/* Declining is a decision the turn can act on, not an escape hatch:
-            it goes to the model as "dismissed", which tells it to pick an
-            assumption and say which one. Without it the only ways out of a
-            question nobody wants to answer were to answer it anyway or to
-            leave the turn suspended until the timeout. */}
-        <button
-          type="button"
-          className="btn btn--ghost btn--small"
-          onClick={() => onDismiss?.(item.askId)}
-          disabled={disabled || busy}
-        >
-          Skip
-        </button>
-        <button
-          type="button"
-          className="btn btn--primary btn--small"
-          onClick={advance}
-          disabled={disabled || busy || !answered}
-        >
-          {last ? 'Send answer' : 'Next'}
-        </button>
-        <span className="plan-hint">
-          <kbd className="kbd">1</kbd>–<kbd className="kbd">{rows.length}</kbd> to pick,{' '}
-          <kbd className="kbd">↵</kbd> to {last ? 'send' : 'continue'}. The turn is waiting.
-        </span>
-      </div>
+
+        <QuestionsFooter>
+          {isMulti && <QuestionsSkip />}
+          <QuestionsSubmit disabled={disabled} disableUntilLastQuestion={isMulti} />
+        </QuestionsFooter>
+      </Questions>
     </div>
   )
 }
@@ -725,6 +674,7 @@ const Msg = memo(function Msg({
   item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, busy, onOpenArtifact,
   onResume, setInput, textareaRef, minimalToolbar = false,
   conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
+  onRefer, onAskQuote,
 }) {
   const msgRef = useRef(null)
   const role = item.kind
@@ -844,6 +794,12 @@ const Msg = memo(function Msg({
             onExportDocx={onExportDocx}
             onViewSources={() => onViewSources?.(item)}
             onBranchInNewChat={onBranchInNewChat}
+            onFollowUp={(followUpText) => {
+              setInput(followUpText)
+              textareaRef.current?.focus()
+            }}
+            onRefer={onRefer}
+            onAskQuote={onAskQuote}
           />
         )}
       </div>
@@ -1000,9 +956,10 @@ export default function Chat() {
   const [liveReasoning, setLiveReasoning] = useState('')
   const [pending, setPending] = useState([])
   const [elsewhere, setElsewhere] = useState([])
-  const [input, setInput] = useState('')
   const [activeTag, setActiveTag] = useState(null)
   const [uploadingCount, setUploadingCount] = useState(0)
+  const [input, setInput] = useState('')
+  const [quotedReference, setQuotedReference] = useState(null)
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours()
@@ -1469,18 +1426,22 @@ export default function Chat() {
         break
       case 'tool_call':
         pushAssistant()
-        setTool({ name: evt.name, arguments: evt.arguments ?? {}, status: 'running' })
+        if (evt.name !== 'ask_user' && evt.name !== 'ask_question') {
+          setTool({ name: evt.name, arguments: evt.arguments ?? {}, status: 'running' })
+        }
         break
       case 'tool_result': {
         const t = liveRef.current.tool
-        setItems((prev) => [...prev, {
-          id: nextId(),
-          kind: 'tool',
-          name: t?.name ?? evt.name,
-          arguments: t?.arguments ?? {},
-          content: evt.content ?? '',
-          isError: Boolean(evt.is_error),
-        }])
+        if (evt.name !== 'ask_user' && evt.name !== 'ask_question' && t?.name !== 'ask_user' && t?.name !== 'ask_question') {
+          setItems((prev) => [...prev, {
+            id: nextId(),
+            kind: 'tool',
+            name: t?.name ?? evt.name,
+            arguments: t?.arguments ?? {},
+            content: evt.content ?? '',
+            isError: Boolean(evt.is_error),
+          }])
+        }
         setTool(null)
         break
       }
@@ -1749,8 +1710,17 @@ export default function Chat() {
     } catch (err) {
       // An abort after the answer landed is this interface letting go of a
       // stream it no longer needs, not a turn someone interrupted.
-      if (err.name === 'AbortError') { if (!settledRef.current) pushNote('warning', 'Stopped.') }
-      else pushNote('error', err.message)
+      if (err.name === 'AbortError') {
+        if (!settledRef.current) pushNote('warning', 'Stopped.')
+      } else {
+        let errMsg = err.message || ''
+        if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('input stream')) {
+          errMsg = 'The model stream was interrupted by the provider. Please try again.'
+          pushNote('error', errMsg, { resumable: true })
+        } else {
+          pushNote('error', errMsg)
+        }
+      }
       /* Whatever went wrong has now been said once. Without this the `finally`
          below added "The turn ended without a result" underneath it, so a
          single dropped connection printed two red rows that described the same
@@ -1897,7 +1867,8 @@ export default function Chat() {
       typed = `@${activeTag.name} ${typed}`.trim()
     }
     const sending = overrideFiles !== undefined ? overrideFiles : attachments
-    if ((!typed && sending.length === 0) || turnState !== 'idle') return
+    const hasQuote = Boolean(quotedReference?.text)
+    if ((!typed && sending.length === 0 && !hasQuote) || turnState !== 'idle') return
     // A new turn: whatever the last one wrote is no longer new.
     setFreshArtifact(null)
     /* Only the files the model cannot be shown. An image now travels as a
@@ -1910,6 +1881,16 @@ export default function Chat() {
     const attached = unviewable.length
       ? `\n\nAttached files (read them with view_file):\n${unviewable.map((f) => `- ${f.path}`).join('\n')}`
       : ''
+
+    let promptWithQuote = typed
+    if (quotedReference?.text) {
+      const qBlock = `> ${quotedReference.text.trim().split('\n').join('\n> ')}`
+      if (quotedReference.isQuestion) {
+        promptWithQuote = `Regarding this excerpt:\n${qBlock}\n\n${typed || 'Can you explain this in detail?'}`
+      } else {
+        promptWithQuote = `${qBlock}\n\n${typed}`
+      }
+    }
 
     // Auto-enable mentioned plugins
     if (caps.connectors) {
@@ -1937,15 +1918,16 @@ export default function Chat() {
       }
     }
 
-    const message = `${typed}${attached}`
+    const message = `${promptWithQuote}${attached}`
     if (!message.trim()) return
     if (overrideText === undefined) {
       setInput('')
       setActiveTag(null)
       setAttachments([])
+      setQuotedReference(null)
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
     }
-    setLastSent(typed)
+    setLastSent(typed || promptWithQuote)
     setAcItems([])
     let cid = activeId
     try {
@@ -2015,6 +1997,32 @@ export default function Chat() {
       toast(`Export error: ${err.message}`, 'bad')
     }
   }, [toast])
+
+  const handleQuoteRefer = useCallback((text) => {
+    if (!text) return
+    setQuotedReference({ text: text.trim(), isQuestion: false })
+    textareaRef.current?.focus()
+  }, [])
+
+  const handleAskQuote = useCallback((text) => {
+    if (!text) return
+    setQuotedReference({ text: text.trim(), isQuestion: true })
+    textareaRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const handleReferQuoteEvent = (e) => {
+      const text = e.detail?.text
+      if (!text) return
+      if (e.detail?.isQuestion) {
+        handleAskQuote(text)
+      } else {
+        handleQuoteRefer(text)
+      }
+    }
+    window.addEventListener('amethyst-refer-quote', handleReferQuoteEvent)
+    return () => window.removeEventListener('amethyst-refer-quote', handleReferQuoteEvent)
+  }, [handleQuoteRefer, handleAskQuote])
 
   // Queue context/messages while a turn is actively executing (matches Queue ↵ in screenshot)
   const handleQueue = useCallback(() => {
@@ -2446,64 +2454,6 @@ export default function Chat() {
     () => Object.entries(health?.connector_errors ?? {}).filter(([name]) => !awaitingSignIn.includes(name)),
     [health?.connector_errors, awaitingSignIn],
   )
-  // A banner's signature is its content: dismissing "gmail: refused" hides that
-  // exact sentence, and a later "gmail: timed out" is a new one that shows.
-  const errorSig = `err:${connectorErrors.map(([n, e]) => `${n}=${e}`).join('|')}`
-  const signInSig = `signin:${[...awaitingSignIn].sort().join(',')}`
-
-  const notificationItems = useMemo(() => {
-    const list = []
-
-    if (elsewhere.length > 0) {
-      list.push({
-        id: 'suspended-turn',
-        tone: 'amber',
-        title: 'Tool call suspended',
-        description: elsewhere.length === 1
-          ? 'A tool call in another conversation is waiting for an answer. That turn stays suspended until it is answered.'
-          : `${elsewhere.length} tool calls in other conversations are waiting for an answer. That turn stays suspended until it is answered.`,
-        action: {
-          label: 'Open it',
-          onClick: () => selectConversation(elsewhere[0].conversation_id),
-        },
-        dismissible: false,
-      })
-    }
-
-    if (connectorErrors.length > 0 && !dismissedBanners.has(errorSig)) {
-      list.push({
-        id: errorSig,
-        tone: 'bad',
-        title: 'MCP Connector Failure',
-        description: `${connectorErrors.map(([name, err]) => `${name}: ${String(err).slice(0, 90)}`).join(' · ')} — tools are not reaching the agent.`,
-        action: {
-          label: 'Open connectors',
-          onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
-        },
-        onClose: () => dismissBanner(errorSig),
-        dismissible: true,
-      })
-    }
-
-    if (awaitingSignIn.length > 0 && !dismissedBanners.has(signInSig)) {
-      list.push({
-        id: signInSig,
-        tone: 'amber',
-        title: 'MCP Sign-in Required',
-        description: awaitingSignIn.length === 1
-          ? `${awaitingSignIn[0]} is switched on but not signed in. Tools stay out of reach until signed in.`
-          : `${awaitingSignIn.join(', ')} are switched on but not signed in. Tools stay out of reach until signed in.`,
-        action: {
-          label: 'Sign in',
-          onClick: () => { setCapabilitiesTab('connectors'); setView('capabilities') },
-        },
-        onClose: () => dismissBanner(signInSig),
-        dismissible: true,
-      })
-    }
-
-    return list
-  }, [elsewhere, connectorErrors, dismissedBanners, errorSig, awaitingSignIn, signInSig, selectConversation, setCapabilitiesTab, setView, dismissBanner])
 
   const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'Auto'
     // How many connectors are actually switched on for the next message. Rides on
@@ -2777,6 +2727,29 @@ export default function Chat() {
           onRemove={(file) => setAttachments((list) => list.filter((f) => f.path !== file.path))}
         />
 
+        {quotedReference && (
+          <div className="composer-quote-banner" role="region" aria-label="Quoted text">
+            <div className="composer-quote-main">
+              <div className="composer-quote-header">
+                <Icon name={quotedReference.isQuestion ? 'info' : 'quote'} size={12} className="composer-quote-icon" />
+                <span>{quotedReference.isQuestion ? 'Explain snippet' : 'Quoted selection'}</span>
+              </div>
+              <div className="composer-quote-snippet">
+                &ldquo;{quotedReference.text}&rdquo;
+              </div>
+            </div>
+            <button
+              type="button"
+              className="composer-quote-remove"
+              onClick={() => setQuotedReference(null)}
+              title="Remove quote"
+              aria-label="Remove quote"
+            >
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+        )}
+
         {isEmpty ? (
           <div className="hero-composer-single-row">
             {/* Left + Button */}
@@ -2925,9 +2898,9 @@ export default function Chat() {
               ) : (
                 <button
                   type="button"
-                  className={`hero-composer-send-btn${input.trim() || attachments.length > 0 ? ' is-active' : ' is-idle'}`}
+                  className={`hero-composer-send-btn${input.trim() || attachments.length > 0 || quotedReference ? ' is-active' : ' is-idle'}`}
                   onClick={() => send()}
-                  disabled={!input.trim() && attachments.length === 0}
+                  disabled={!input.trim() && attachments.length === 0 && !quotedReference}
                   title="Send — Enter"
                   aria-label="Send"
                 >
@@ -3121,7 +3094,7 @@ export default function Chat() {
                     type="button"
                     className="composer-send-circle"
                     onClick={() => send()}
-                    disabled={!input.trim() && attachments.length === 0}
+                    disabled={!input.trim() && attachments.length === 0 && !quotedReference}
                     title="Send — Enter"
                     aria-label="Send"
                   >
@@ -3270,11 +3243,6 @@ export default function Chat() {
       />
 
       <div className="chat-main">
-        {notificationItems.length > 0 && (
-          <div className={`chat-notification-region${isEmpty ? ' chat-notification-region--hero' : ''}`}>
-            <NotificationStack items={notificationItems} />
-          </div>
-        )}
 
         {isEmpty && (
           <div className="home-top-mode-bar">
@@ -3466,6 +3434,8 @@ export default function Chat() {
                       onExportDocx={handleExportDocx}
                       onBranchInNewChat={handleBranchInNewChat}
                       onViewSources={handleViewSources}
+                      onRefer={handleQuoteRefer}
+                      onAskQuote={handleAskQuote}
                     />
                   </div>
                 ))}
