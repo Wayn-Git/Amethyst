@@ -8,7 +8,9 @@ import { JsonViewer } from './arc/json-viewer/json-viewer'
 import { CodeBlock } from './arc/code-block/code-block'
 import { BlurredText } from './arc/streaming-text/blurred-text'
 import { AgentRun } from './arc/agent-run/agent-run'
+import ToolChipsTrace from './ToolChipsTrace.jsx'
 import ComposioConnectCard, { extractComposioAuth } from './ComposioConnectCard.jsx'
+import { useApp } from '../store.jsx'
 
 /* What the agent did, represented as the Worked pill and expandable tool execution tree.
    Matches the user's reference screenshots with high visual fidelity:
@@ -471,6 +473,7 @@ function ArtifactCard({ call, onOpen }) {
 }
 
 export default function TurnTrace({ events, live, reasoning, running, ms, onOpenArtifact }) {
+  const { thinkingStyle } = useApp()
   const cleanLive = (live?.name === 'ask_user' || live?.name === 'ask_question') ? null : live
   const cleanEvents = (events || []).filter((e) => {
     const callName = (e.call || e).name
@@ -491,14 +494,25 @@ export default function TurnTrace({ events, live, reasoning, running, ms, onOpen
       {documents.map((call, i) => (
         <ArtifactCard key={`doc${i}`} call={call} onOpen={onOpenArtifact} />
       ))}
-      <AgentRun
-        events={cleanEvents}
-        live={cleanLive}
-        reasoning={reasoning}
-        running={running}
-        ms={ms}
-        onOpenArtifact={onOpenArtifact}
-      />
+      {thinkingStyle === 'chips' ? (
+        <ToolChipsTrace
+          events={cleanEvents}
+          live={cleanLive}
+          reasoning={reasoning}
+          running={running}
+          ms={ms}
+          onOpenArtifact={onOpenArtifact}
+        />
+      ) : (
+        <AgentRun
+          events={cleanEvents}
+          live={cleanLive}
+          reasoning={reasoning}
+          running={running}
+          ms={ms}
+          onOpenArtifact={onOpenArtifact}
+        />
+      )}
     </div>
   )
 }

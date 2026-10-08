@@ -82,6 +82,7 @@ const SYNCED_PREFS = new Set([
   'theme', 'accentColor', 'defaultGuard', 'defaultEffort', 'sendWith',
   'archiveChats', 'confirmDestructive', 'shellConfirm', 'fileConfirm',
   'netConfirm', 'showUsage', 'notifyOnDone', 'draftProvider', 'draftModel',
+  'thinkingStyle',
 ])
 
 function savePrefs(patch) {
@@ -412,6 +413,13 @@ export function AppProvider({ children }) {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-glass', value)
     }
+  }, [])
+
+  const [thinkingStyle, setThinkingStyleRaw] = useState(prefs.thinkingStyle || 'cards')
+  const setThinkingStyle = useCallback((value) => {
+    const v = value === 'chips' ? 'chips' : 'cards'
+    setThinkingStyleRaw(v)
+    savePrefs({ thinkingStyle: v })
   }, [])
 
   const [shellConfirm, setShellConfirmRaw] = useState(prefs.shellConfirm !== false)
@@ -834,6 +842,9 @@ export function AppProvider({ children }) {
       setAccentColorRaw(changed.accentColor)
       applyAccentColor(changed.accentColor)
     }
+    if (changed.thinkingStyle !== undefined) {
+      setThinkingStyleRaw(changed.thinkingStyle)
+    }
   }, [])
   useSync(server.phase !== 'ready' || isPhone, onSyncedPrefs)
 
@@ -852,6 +863,9 @@ export function AppProvider({ children }) {
       if (adopted.accentColor !== undefined) {
         setAccentColorRaw(adopted.accentColor)
         applyAccentColor(adopted.accentColor)
+      }
+      if (adopted.thinkingStyle !== undefined) {
+        setThinkingStyleRaw(adopted.thinkingStyle)
       }
     })
     return () => { cancelled = true }
@@ -1086,6 +1100,7 @@ export function AppProvider({ children }) {
     textSize, setTextSize,
     density, setDensity,
     agentLoader, setAgentLoader,
+    thinkingStyle, setThinkingStyle,
     autoHideTopBar, setAutoHideTopBar,
     defaultGuard, setDefaultGuard,
     guard: defaultGuard, setGuard: setDefaultGuard,
@@ -1120,6 +1135,7 @@ export function AppProvider({ children }) {
     textSize, setTextSize,
     density, setDensity,
     agentLoader, setAgentLoader,
+    thinkingStyle, setThinkingStyle,
     autoHideTopBar, setAutoHideTopBar,
     defaultGuard, setDefaultGuard,
     defaultEffort, setDefaultEffort,
