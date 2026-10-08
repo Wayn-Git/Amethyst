@@ -14,17 +14,35 @@ from backend.retrieval.search import SearchService
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
 
 
+import asyncio
+import logging
+
+log = logging.getLogger(__name__)
+
+
 async def search_documents(args: dict[str, Any], _: ToolContext) -> ToolResult:
     query = (args.get("query") or "").strip()
     if not query:
         return ToolResult.error("search_documents needs a query")
 
     service = SearchService()
-    hits = await service.search(
-        query,
-        limit=int(args.get("limit") or 6),
-        path_glob=args.get("path_filter"),
-    )
+    try:
+        hits = await asyncio.wait_for(
+            service.search(
+                query,
+                limit=int(args.get("limit") or 6),
+                path_glob=args.get("path_filter"),
+            ),
+            timeout=4.0,
+        )
+    except TimeoutError:
+        log.warning("search_documents vector search timed out after 4s; falling back to keywords")
+        hits = await service.search(
+            query,
+            limit=int(args.get("limit") or 6),
+            path_glob=args.get("path_filter"),
+            semantic=False,
+        )
     if not hits:
         stats = _stats()
         if stats["chunks"] == 0:

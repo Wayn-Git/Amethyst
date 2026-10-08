@@ -359,3 +359,22 @@ def test_writing_a_deck_without_python_pptx_says_so_by_name(tmp_path, monkeypatc
     sentence = doc.missing_writer(".pptx")
     assert sentence is not None and "python-pptx" in sentence
     assert "Reading a deck works without it" in sentence
+
+
+@pytest.mark.asyncio
+async def test_search_documents_timeout_falls_back_to_keywords(monkeypatch):
+    import asyncio
+    from backend.tools.builtin.documents import search_documents
+    from backend.retrieval.search import SearchHit, SearchService
+    from backend.tools.base import ToolContext
+
+    async def slow_search(self, query, **kwargs):
+        if kwargs.get("semantic", True):
+            await asyncio.sleep(10)  # simulate slow vector embedding
+        return [SearchHit(chunk_id=1, path="notes.md", heading_path=None, content="keyword content", score=1.0)]
+
+    monkeypatch.setattr(SearchService, "search", slow_search)
+    res = await search_documents({"query": "keyword"}, ToolContext())
+    assert not res.is_error
+    assert "keyword content" in res.content
+
