@@ -784,8 +784,9 @@ const Msg = memo(function Msg({
           />
         )}
         {hasWidgetBlock ? (
-          blocks.map((block, idx) =>
-            block.type === 'widget' ? (
+          blocks.map((block, idx) => {
+            const isLastTextBlock = !blocks.slice(idx + 1).some((b) => b.type !== 'widget')
+            return block.type === 'widget' ? (
               <div key={idx} className="msg-body">
                 <WidgetRenderer widget={block.widget} />
               </div>
@@ -795,6 +796,7 @@ const Msg = memo(function Msg({
                 text={block.content}
                 item={item}
                 minimalToolbar={minimalToolbar}
+                hideToolbar={!isLastTextBlock}
                 conversationId={conversationId}
                 isEditing={isEditing}
                 onStartEdit={onStartEdit}
@@ -814,7 +816,7 @@ const Msg = memo(function Msg({
                 onAskQuote={onAskQuote}
               />
             )
-          )
+          })
         ) : (
           <>
             {item.widget && (

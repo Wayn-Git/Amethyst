@@ -54,7 +54,7 @@ from backend.agent.tool_search import (
     dispatch_tool_search,
 )
 from backend.agent.context_compressor import ContextCompressor
-from backend.agent.widgets import classify_and_extract, to_envelope
+from backend.agent.widgets import classify_and_extract, to_envelope, FENCE
 from backend.runtime.variant_store import depth_instruction
 from backend.security.confirmation import guard_instruction
 from backend.db.repositories import (
@@ -1102,16 +1102,11 @@ class Director:
             widget_started = time.monotonic()
             widget_type, widget_data, widget_media = await classify_and_extract(user_message)
             if widget_type != "none" and widget_data is not None:
-                # Persisted as the assistant's own message, fenced, because the
-                # message table has no widget column and the transcript is what
-                # rebuilds the conversation when it is reopened. Media travels
-                # in it as metadata -- titles, URLs, thumbnails -- so reopening
-                # shows the same gallery without searching for it again.
+                full_text = widget_data.pop("_full_text", None)
                 envelope = to_envelope(widget_type, widget_data, widget_media)
-                self._persist(conversation_id, "assistant", envelope)
+                delivered_text = full_text or envelope
+                self._persist(conversation_id, "assistant", delivered_text)
                 self.conversations.touch(conversation_id)
-                # `preparing` does not go straight to `completed`; the call above
-                # was this turn's reasoning, so it is recorded as such.
                 self._checkpoint(state, "reasoning")
                 self._checkpoint(state, "completed")
                 yield Event(
@@ -1128,7 +1123,7 @@ class Director:
                 yield Event(
                     "done",
                     {
-                        "text": envelope,
+                        "text": delivered_text,
                         "iterations": 1,
                         **_cost(1, 0, widget_started),
                     },
@@ -2170,6 +2165,35 @@ class Director:
                 else:
                     delivered = answer
 
+                gallery_imgs = getattr(state, "gallery_images", None)
+                if gallery_imgs and FENCE not in delivered:
+                    formatted_imgs = [
+                        {
+                            "url": r.get("image") or r.get("thumbnail") or r.get("url") or "",
+                            "thumbnail": r.get("thumbnail") or r.get("image") or r.get("url") or "",
+                            "title": r.get("title") or "",
+                            "source": r.get("source_url") or r.get("creator") or r.get("source") or "",
+                        }
+                        for r in gallery_imgs
+                        if (r.get("image") or r.get("thumbnail") or r.get("url"))
+                    ]
+                    if formatted_imgs:
+                        w_json = json.dumps(
+                            {"type": "image_gallery", "data": {"title": "Image Gallery", "images": formatted_imgs}},
+                            ensure_ascii=False,
+                        )
+                        w_block = f"\n\n```{FENCE}\n{w_json}\n```\n\n"
+                        import re
+                        md_img_pat = re.compile(r"(!\[.*?\]\(.*?\)\s*)+")
+                        if md_img_pat.search(delivered):
+                            delivered = md_img_pat.sub(w_block, delivered, count=1)
+                        else:
+                            parts = delivered.split("\n\n", 1)
+                            if len(parts) == 2:
+                                delivered = f"{parts[0]}{w_block}{parts[1]}"
+                            else:
+                                delivered = f"{delivered}{w_block}"
+
                 self._persist(conversation_id, "assistant", delivered)
                 self.conversations.touch(conversation_id)
                 if state.step_open is not None:
@@ -2505,6 +2529,13 @@ class Director:
                     "tool_result",
                     {"name": call.name, "content": result.content, "is_error": result.is_error},
                 )
+                if call.name == "search_images" and not result.is_error:
+                    try:
+                        raw_data = json.loads(result.content)
+                        if isinstance(raw_data, list) and raw_data:
+                            state.gallery_images = raw_data
+                    except Exception:
+                        pass
                 if result.is_error:
                     failed_tool = self.registry.get(call.name)
                     failure = {

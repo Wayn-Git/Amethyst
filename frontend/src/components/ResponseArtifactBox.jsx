@@ -28,6 +28,7 @@ export default function ResponseArtifactBox({
   text,
   item,
   minimalToolbar = false,
+  hideToolbar = false,
   conversationId,
   isEditing,
   onStartEdit,
@@ -335,7 +336,8 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
       </div>
 
       {/* Action Toolbar */}
-      {minimalToolbar ? (
+      {!hideToolbar && (
+        minimalToolbar ? (
         <div className="chat-assistant-toolbar chat-assistant-toolbar--minimal" role="toolbar" aria-label="Step actions">
           <button
             type="button"
@@ -610,7 +612,8 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
             )}
           </div>
         </div>
-      )}
+      )
+    )}
 
       {/* Collapsible Sources Accordion */}
       {hasSources && (

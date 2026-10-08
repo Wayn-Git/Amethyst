@@ -726,11 +726,13 @@ export default function Library() {
           toast={toast}
         />
 
-        {/* Item Inspection & Reader Modal */}
+        {/* Item Inspection & Reader View (Full-Page Studio) */}
         <AnimatePresence>
           {activeModalItem && (
             <LibraryDetailModal
               item={activeModalItem}
+              items={displayedItems}
+              onNavigate={(nextItem) => setActiveModalItem(nextItem)}
               onClose={() => setActiveModalItem(null)}
               onUpdate={handleItemUpdate}
               onDelete={handleDelete}

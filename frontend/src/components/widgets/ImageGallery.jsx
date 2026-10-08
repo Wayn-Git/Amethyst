@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '../Icon.jsx'
 
-function extractDomain(url, fallback) {
+export function extractDomain(url, fallback) {
   if (fallback) return fallback
   try {
     const parsed = new URL(url)
@@ -11,7 +12,7 @@ function extractDomain(url, fallback) {
   }
 }
 
-function Lightbox({ images, initialIndex, onClose }) {
+export function Lightbox({ images, initialIndex, onClose }) {
   const [index, setIndex] = useState(initialIndex)
   const [favorites, setFavorites] = useState(() => new Set())
   const current = images[index] || images[0]
@@ -42,7 +43,7 @@ function Lightbox({ images, initialIndex, onClose }) {
     })
   }
 
-  return (
+  const modalNode = (
     <div
       className="chatgpt-lightbox-modal"
       role="dialog"
@@ -142,9 +143,11 @@ function Lightbox({ images, initialIndex, onClose }) {
       </div>
     </div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode
 }
 
-function ImageCard({ item, index, total, onOpen, onToggleFav, isFav }) {
+export function ImageCard({ item, index, total, onOpen, onToggleFav, isFav }) {
   const [error, setError] = useState(false)
   const isLastSlot = index === 2 && total > 3
 
@@ -200,8 +203,18 @@ function ImageCard({ item, index, total, onOpen, onToggleFav, isFav }) {
   )
 }
 
-export default function ImageGallery({ data }) {
-  const images = Array.isArray(data?.images) ? data.images : []
+export default function ImageGallery({ data, items }) {
+  const images = Array.isArray(data?.images)
+    ? data.images
+    : Array.isArray(items)
+    ? items.map((it) => ({
+        url: it.href || it.url,
+        thumbnail: it.thumbnail || it.href || it.url,
+        title: it.alt || it.title || '',
+        source: extractDomain(it.href || it.url),
+      }))
+    : []
+
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [favorites, setFavorites] = useState(() => new Set())
   const [toastMessage, setToastMessage] = useState(null)

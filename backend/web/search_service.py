@@ -1304,24 +1304,27 @@ async def _search_images_live(query: str, limit: int) -> list[dict[str, Any]]:
     try:
         client = await _pool_client()
         resp = await client.get(
-            f"https://www.bing.com/images/search?q={quote(q)}&form=HDRSC2&first=1",
+            f"https://www.bing.com/images/async?q={quote(q)}&first=1&count=35&mmasync=1",
             headers=headers,
             timeout=10.0,
         )
         if resp.status_code == 200:
-            matches = re.findall(r'class="iusc"[^>]+m="([^"]+)"', resp.text)
+            raw_blocks = re.findall(r'\sm=[\'\"](\{[^\'\"]+\})[\'\"]', resp.text)
+            if not raw_blocks:
+                raw_blocks = re.findall(r'class="iusc"[^>]+m="([^"]+)"', resp.text)
+
             candidates: list[tuple[float, dict[str, Any]]] = []
             seen_urls = set()
 
-            for raw_m in matches:
+            for raw_m in raw_blocks:
                 try:
                     data = json.loads(html.unescape(raw_m))
                     img_url = data.get("murl")
-                    thumb_url = data.get("turl")
+                    thumb_url = data.get("turl") or img_url
                     page_url = data.get("purl") or img_url
                     title = data.get("t") or data.get("desc") or "Image"
 
-                    if not img_url or not thumb_url or img_url in seen_urls:
+                    if not img_url or img_url in seen_urls:
                         continue
                     seen_urls.add(img_url)
 
