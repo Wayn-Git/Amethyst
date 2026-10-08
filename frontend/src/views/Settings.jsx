@@ -968,6 +968,7 @@ function Appearance() {
     textSize, setTextSize,
     density, setDensity,
     agentLoader, setAgentLoader,
+    thinkingStyle, setThinkingStyle,
     autoHideTopBar, setAutoHideTopBar,
     glassMaterial, setGlassMaterial,
     spotlightAnimation, setSpotlightAnimation,
@@ -984,6 +985,7 @@ function Appearance() {
     setTextSize?.(100)
     setDensity?.('comfortable')
     setAgentLoader?.('pixels')
+    setThinkingStyle?.('cards')
     setGlassMaterial?.('full')
     setSpotlightAnimation?.('spring')
     setAutoHideTopBar?.(false)
@@ -1298,6 +1300,37 @@ function Appearance() {
                 {a.label}
               </button>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Thinking & Tool Execution Style */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Thinking &amp; Tools</span>
+      </div>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Thinking trace style</span>
+            <span className="set-row-desc">
+              Choose between detailed execution cards or compact tool chips with collapsible inline diffs.
+            </span>
+          </div>
+          <div className="set-seg-ctrl">
+            <button
+              type="button"
+              className={`set-seg-btn${(thinkingStyle || 'cards') === 'cards' ? ' is-active' : ''}`}
+              onClick={() => setThinkingStyle?.('cards')}
+            >
+              Cards
+            </button>
+            <button
+              type="button"
+              className={`set-seg-btn${thinkingStyle === 'chips' ? ' is-active' : ''}`}
+              onClick={() => setThinkingStyle?.('chips')}
+            >
+              Tool Chips
+            </button>
           </div>
         </div>
       </div>
