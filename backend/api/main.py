@@ -2124,6 +2124,10 @@ async def ping_provider(name: str) -> dict[str, Any]:
     }
 
 
+_PROVIDER_MODELS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_PROVIDER_MODELS_CACHE_TTL = 300.0  # 5 minutes
+
+
 @app.get("/api/providers/{name}/models")
 async def provider_models(name: str) -> dict[str, Any]:
     """The models this provider's own API lists right now, for the picker.
@@ -2140,6 +2144,11 @@ async def provider_models(name: str) -> dict[str, Any]:
     tier anyway. Never raises -- an endpoint that will not answer returns an
     empty list with a reason, and the picker keeps its free-text field.
     """
+    now = time.monotonic()
+    cached = _PROVIDER_MODELS_CACHE.get(name)
+    if cached and now < cached[0]:
+        return cached[1]
+
     from backend.config import load_providers
     from backend.secrets import resolve_api_key
 
@@ -2164,7 +2173,7 @@ async def provider_models(name: str) -> dict[str, Any]:
     try:
         import httpx
 
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=6.0) as client:
             try:
                 response = await client.get(f"{base}/models", headers=headers(key))
                 response.raise_for_status()
@@ -2177,6 +2186,8 @@ async def provider_models(name: str) -> dict[str, Any]:
                     raise
             payload = response.json()
     except Exception as exc:
+        if cached:
+            return cached[1]
         return {"name": name, "models": [], "reason": f"{type(exc).__name__}: {exc}"}
 
     models = parse(payload)
@@ -2188,7 +2199,11 @@ async def provider_models(name: str) -> dict[str, Any]:
             provider_caps = m.get("_provider_reasoning")
             m["capabilities"] = capabilities_for(m.get("id", ""), provider_caps)
 
-    return {"name": name, "models": models, "reason": ""}
+    result = {"name": name, "models": models, "reason": ""}
+    if models:
+        _PROVIDER_MODELS_CACHE[name] = (now + _PROVIDER_MODELS_CACHE_TTL, result)
+    return result
+
 
 
 #: The OpenAI-shaped `/models` parser, which belongs to the adapter that owns

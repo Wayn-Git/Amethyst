@@ -85,6 +85,8 @@ function fmtContext(bytes) {
   return `${k}K context`
 }
 
+const _memoryModelMap = {}
+
 export default function ModelMenu({
   provider,
   model,
@@ -96,9 +98,10 @@ export default function ModelMenu({
   const ref = useRef(null)
   const [selectedProvider, setSelectedProvider] = useState('all')
   const [query, setQuery] = useState('')
-  const [modelMap, setModelMap] = useState({})
-  const [loading, setLoading] = useState(true)
+  const [modelMap, setModelMap] = useState(() => ({ ..._memoryModelMap }))
+  const [loading, setLoading] = useState(() => Object.keys(_memoryModelMap).length === 0)
   const [recentModels, setRecentModels] = useState(readRecentModels)
+
 
   const providers = health?.providers ?? []
   const defaults = health?.provider_defaults ?? {}
@@ -149,9 +152,11 @@ export default function ModelMenu({
       )
 
       if (live) {
-        setModelMap(results)
+        Object.assign(_memoryModelMap, results)
+        setModelMap((prev) => ({ ...prev, ...results }))
         setLoading(false)
       }
+
     }
 
     if (providers.length > 0) {
