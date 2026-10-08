@@ -687,7 +687,19 @@ export function AppProvider({ children }) {
       return false
     }
     const rows = await refreshConvs()
-    if (id === activeId) setActiveId(rows.find((c) => c.id !== id)?.id ?? null)
+    if (id === activeId) {
+      const nextId = rows.find((c) => c.id !== id)?.id ?? null
+      if (nextId) {
+        if (chatRef.current?.selectConversation) {
+          chatRef.current.selectConversation(nextId)
+        } else {
+          setActiveId(nextId)
+        }
+      } else {
+        setActiveId(null)
+        chatRef.current?.startFresh?.()
+      }
+    }
     toast(doArchive ? 'Conversation archived' : 'Conversation deleted', 'info')
     return true
   }, [activeId, refreshConvs, setActiveId, toast])

@@ -1,20 +1,33 @@
 import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp } from "@untitledui/icons";
-import { Notification, type NotificationTone, type NotificationType } from "./notification";
+import {
+    Notification,
+    type NotificationTone,
+    type NotificationType,
+    type NotificationStatus,
+    type NotificationAvatar,
+    type NotificationAction,
+} from "./notification";
 import { cx } from "@/lib/utils/cx";
 
 export interface NotificationItem {
     id: string;
     title: ReactNode;
     description?: ReactNode;
+    status?: NotificationStatus;
     tone?: NotificationTone;
     type?: NotificationType;
+    avatar?: NotificationAvatar;
+    timestamp?: ReactNode;
+    actions?: NotificationAction[];
     action?: {
         label: string;
         onClick: () => void;
     };
     onClose?: () => void;
+    onDismiss?: () => void;
+    autoDismissDuration?: number;
     dismissible?: boolean;
 }
 
@@ -84,12 +97,18 @@ export const NotificationStack = ({
                             className="w-full relative z-10"
                         >
                             <Notification
+                                status={item.status}
                                 tone={item.tone}
                                 type={item.type}
                                 title={item.title}
                                 description={item.description}
+                                avatar={item.avatar}
+                                timestamp={item.timestamp}
+                                actions={item.actions}
                                 action={item.action}
                                 onClose={item.onClose}
+                                onDismiss={item.onDismiss || item.onClose}
+                                autoDismissDuration={item.autoDismissDuration}
                                 dismissible={item.dismissible}
                                 className="w-full"
                             />
