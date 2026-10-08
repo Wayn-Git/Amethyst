@@ -47,6 +47,9 @@ CAPABILITY_MAP: dict[str, str] = {
     "web_search__mcp__tavily": "search_web",
     "research": "research_web",
     "deep_search": "research_web",
+    "images": "search_images",
+    "image_search": "search_images",
+    "find_images": "search_images",
 
     # Web fetch / scrape capabilities
     "fetch": "fetch_url",
@@ -618,6 +621,7 @@ def build_default_registry(
         desktop,
         documents,
         filesystem,
+        image_search,
         library,
         mail,
         memory,
@@ -641,7 +645,9 @@ def build_default_registry(
     registry.register_all(documents.tools())
     registry.register_all(library.tools())
     registry.register_all(web.tools())
+    registry.register_all(image_search.tools())
     registry.register_all(convert.tools())
+
     registry.register_all(authoring.tools())
     registry.register_all(browser.tools())
     registry.register_all(social.tools())

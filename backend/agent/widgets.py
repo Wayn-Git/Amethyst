@@ -213,6 +213,25 @@ class Options(Strict):
     options: list[Option]
 
 
+class ImageItem(Strict):
+    url: str
+    title: str = ""
+    thumbnail: str = ""
+    source: str = ""
+
+
+class ImageGallery(Strict):
+    title: str
+    images: list[ImageItem]
+    layout: Literal["carousel", "grid"] = "carousel"
+
+
+class DataTable(Strict):
+    title: str
+    columns: list[str]
+    rows: list[list[Any]]
+
+
 #: Type name -> schema. The keys are also the vocabulary the prompt allows and
 #: the tags the interface dispatches on, so there is one list of widget types in
 #: the system rather than three that drift.
@@ -225,7 +244,10 @@ WIDGET_MODELS: dict[str, type[BaseModel]] = {
     "translation": Translation,
     "chart": Chart,
     "options": Options,
+    "image_gallery": ImageGallery,
+    "data_table": DataTable,
 }
+
 
 
 # ---------------------------------------------------------------- the prompt
