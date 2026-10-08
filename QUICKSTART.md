@@ -1,228 +1,206 @@
-# 🚀 AMETHYST Quick Start Guide
+# Amethyst Quick Start
 
-Welcome to **AMETHYST** (Personal Operating System with Knowledge)! This guide will get you up and running in **less than 2 minutes**.
+This gets you running in about two minutes. For what the system *is*, start at
+[README.md](README.md); for every integration in detail, [docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md);
+for the full doc index, [docs/README.md](docs/README.md).
 
 ---
 
-## ⚡ 1-Minute Automated Start (Recommended)
+## 1. Start it
 
-AMETHYST includes automated startup scripts:
-- **macOS / Linux / WSL2**: Run `./run.sh`
-- **Windows**: Run `run.bat` *(in Command Prompt or PowerShell, or double-click it)*
-
-*(Note: If your operating system hides file extensions, `run.sh` and `run.bat` may both appear simply as `run`. Choose `run.bat` for Windows and `run.sh` for Unix/Mac/Linux).*
+**macOS / Linux / WSL2:**
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Wayn-Git/Amethyst.git
 cd Amethyst
-
-# 2. Run the startup script (macOS/Linux/WSL)
 ./run.sh
-
-# Or on Windows:
-run.bat
 ```
 
-The script automatically sets up `.venv`, installs dependencies, initializes the database, builds the frontend, and opens the app in your browser at:
-👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
+**Windows** (Command Prompt or PowerShell): `run.bat` instead of `./run.sh`.
 
----
+The script creates `.venv`, installs dependencies, initializes the database,
+builds the frontend, and opens **http://127.0.0.1:8000**.
 
-## 🧙‍♂️ Interactive Setup Wizard (API Keys, OAuth & Connectors)
+> If your file explorer hides extensions, `run.sh` and `run.bat` both display as
+> `run`. `run.sh` is for macOS/Linux/WSL2, `run.bat` for Windows.
 
-If you or a friend want a guided interactive setup for your AI models, app connectors (Google, Microsoft, GitHub), Cloudflare embeddings, and the Library:
+### Prerequisites
 
-```bash
-./run.sh --setup
-# Or on Windows:
-run.bat --setup
-```
-
-For detailed manual instructions for every integration, see the **[Complete Configuration & Connectivity Guide](docs/CONFIGURATION_GUIDE.md)**.
-
----
-
-## 📋 Prerequisites
-
-Before running, ensure your machine has:
-- **Python 3.11+** (`python3 --version`)
-- **Node.js 18+** & **npm** (`node -v && npm -v`)
+- **Python 3.11+** — `python3 --version`
+- **Node.js 18+** and npm — `node -v && npm -v`
 
 <details>
-<summary><b>Need to install prerequisites? (Click to expand)</b></summary>
+<summary>Install commands by platform</summary>
 
-### macOS
 ```bash
+# macOS
 brew install python@3.12 node
-```
 
-### Ubuntu / Debian
-```bash
-sudo apt update
-sudo apt install -y python3 python3-venv python3-pip nodejs npm
-```
+# Ubuntu / Debian
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip nodejs npm
 
-### Fedora
-```bash
+# Fedora
 sudo dnf install -y python3 python3-pip nodejs npm
 ```
 
-### Windows
-- Download Python: [python.org](https://www.python.org/downloads/) (check "Add python.exe to PATH")
-- Download Node.js: [nodejs.org](https://nodejs.org/)
+Windows: [python.org](https://www.python.org/downloads/) (check "Add python.exe
+to PATH") and [nodejs.org](https://nodejs.org/).
 
 </details>
 
----
+### Alternatives
 
-## 🐳 Option 2: Docker Compose
-
-If you have Docker installed, you don't need Python or Node on your host:
+<details>
+<summary><b>Docker Compose</b> — no Python or Node on the host</summary>
 
 ```bash
 docker compose up
 ```
 
-Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)**. Your data is stored locally in `./data/amethyst`.
+Open http://127.0.0.1:8000. Data lives in `./data/amethyst`.
 
----
+</details>
 
-## 🛠️ Option 3: Manual Installation
-
-If you prefer installing step-by-step:
+<details>
+<summary><b>Manual install</b> — step by step</summary>
 
 ```bash
-# 1. Create and activate a virtual environment
 python3 -m venv .venv
-source .venv/bin/activate       # On Windows: .venv\Scripts\activate
-
-# 2. Install Python dependencies
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 3. Start everything
 amethyst serve --open
 ```
 
-`amethyst serve` is the whole thing. It prepares the database on first run,
-builds the web interface if there is not one yet, and starts every background
+`amethyst serve` is the whole product in one process: it prepares the database
+on first run, builds the interface if there is none, and starts every background
 service — automations, reminders, the journal, both job lanes, the relay poll,
-the browser watcher and your MCP connectors — inside the one process. It then
+the browser watcher and your MCP connectors — inside that one process. It then
 prints which optional pieces are configured and which are not, so a phone that
 will not pair tells you the relay is missing rather than leaving you guessing.
 
-Useful variations: `--no-build` skips the interface build, `--rebuild` forces
-one, `--port 8001` moves it, `--reload` restarts it on source changes, and
-`--host 127.0.0.1` keeps it off the LAN. For the Vite dev server alongside the
-API, use `./run.sh --dev`.
+Flags: `--no-build` skips the interface build, `--rebuild` forces one,
+`--port 8001` moves it, `--reload` restarts on source changes, `--host
+127.0.0.1` keeps it off the LAN, `--open` opens a browser once it is up.
+
+</details>
 
 ---
 
-## 🧠 Setting Up AI Models (2 Minutes)
+## 2. Setup wizard
 
-AMETHYST works with **100% free local models** as well as **cloud providers** (Anthropic Claude, OpenAI, Groq, Gemini).
-
-### Method A: 100% Free & Local (Ollama - No API Keys)
-1. Download and install [Ollama](https://ollama.ai/).
-2. Pull any model (for example, Llama 3.2 or Qwen 2.5):
-   ```bash
-   ollama run llama3.2
-   ```
-3. AMETHYST connects to Ollama automatically! Simply pick it from the model selector in the chat.
-
-### Method B: Cloud Providers (OpenAI, Anthropic, Groq)
-Copy `.env.example` to `.env` (the startup script does this automatically):
 ```bash
-cp .env.example .env
+./run.sh --setup      # Windows: run.bat --setup
 ```
-Add your API key(s) to `.env`:
+
+Interactive, for API keys, OAuth apps (Google, Microsoft), the Cloudflare relay,
+and Library capture. Manual instructions for everything it covers are in
+[docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md).
+
+---
+
+## 3. Models
+
+### Option A — free and local, no API key
+
+1. Install [Ollama](https://ollama.ai/).
+2. Pull a model: `ollama run llama3.2`
+3. Ollama providers appear in the chat model selector automatically.
+
+### Option B — cloud
+
+```bash
+cp .env.example .env      # ./run.sh does this automatically
+```
+
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 GROQ_API_KEY=gsk_...
 ```
-*Or* configure them via the web UI in **Settings → Models**, or via the CLI:
+
+Keys in `.env` are read at process start — restart after editing. Or configure
+in **Settings → Models**, or through the CLI:
+
 ```bash
 amethyst secrets set amethyst/anthropic
 amethyst secrets set amethyst/openai
 amethyst secrets set amethyst/groq
 ```
 
+`amethyst doctor` names exactly which providers are up.
+
 ---
 
-## 🧰 Useful Commands
+## Commands
 
-| Command | Description |
+| Command | What it does |
 |---|---|
-| `./run.sh` / `run.bat` | Builds frontend (if needed), initializes DB, and serves on port 8000 |
-| `./run.sh --setup` / `run.bat --setup` | Interactive setup wizard for API keys, OAuth, Cloudflare & connectors |
-| `./run.sh --dev` | Starts backend with hot-reload + Vite dev server concurrently |
-| `./run.sh --doctor` / `run.bat --doctor` | Runs system diagnostics (checks models, DB, tools, connectors) |
-| `./run.sh --build` | Rebuilds the frontend bundle |
-| `amethyst serve` | Starts everything: database, interface, and every background service |
+| `./run.sh` / `run.bat` | Build the frontend if needed, initialize the DB, serve on :8000 |
+| `./run.sh --setup` | Interactive configuration wizard |
+| `./run.sh --dev` | Backend with hot reload + Vite dev server concurrently |
+| `./run.sh --doctor` | System diagnostics: models, DB, tools, connectors |
+| `./run.sh --build` | Rebuild the frontend bundle |
+| `./run.sh --port 8001` | Serve on a different port |
+| `amethyst serve` | Everything: database, interface, every background service |
 | `amethyst serve --reload` | The same, restarting on source changes |
-| `amethyst doctor` | Checks what is working and what is missing |
-| `amethyst chat "Hello"` | Run a chat turn directly from your terminal |
-| `amethyst device --pair` | Prints a pairing secret for another machine; **Settings → Devices** shows it as a QR code |
-| `amethyst device` | Lists paired devices |
-| `amethyst device --revoke <id>` | Disconnects one |
+| `amethyst doctor` | What is working, what is missing |
+| `amethyst chat "Hello"` | One turn straight from the terminal |
+| `amethyst device --pair` | A pairing code for another machine; **Settings → Devices** shows it as a QR code |
+| `amethyst device` | List paired devices |
+| `amethyst device --revoke <id>` | Disconnect one |
+| `amethyst share-token --new` | The token a phone posts a link with |
 
 ---
 
-## ❓ Frequently Asked Questions & Troubleshooting
+## Your first five minutes
 
-### Q: Why do I see two `run` files in the repository root?
-There is **`run.sh`** (for macOS, Linux, and WSL2) and **`run.bat`** (for Windows Command Prompt / PowerShell). If your file explorer has "Hide extensions for known file types" turned on, they might both display as "run". Run `run.bat` on Windows and `./run.sh` on Mac/Linux.
+With the app open at http://127.0.0.1:8000:
 
-### Q: How do I configure OAuth (Google Workspace, Microsoft To Do, etc.)?
-1. **Microsoft To Do**: Zero configuration! Click **Add** → **Connect** in **Connectors & Skills** (`/capabilities`) and approve with your Microsoft account via device code.
-2. **Google Workspace**: Create an OAuth desktop client in Google Cloud Console, add the Client ID/Secret in `.env` or run `./run.sh --setup`, then click **Connect**.
-See [docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md) for step-by-step instructions.
+1. **Pick a model** — the selector beside the composer lists every configured
+   provider. Ollama models appear automatically if Ollama is running.
+2. **Send one line** — try `summarise ~/Documents` or `what meetings do I have
+   this week?`. The agent decides which tools to use.
+3. **Approve carefully** — anything that writes or runs asks first, naming the
+   *operation* (`write_file`, `run_shell_command:read-only`), not just the tool.
+   Approving a read-only command never approves a destructive one.
+4. **Press `?`** — every keyboard binding in the app, on one screen. `⌘K` is
+   the command palette.
+5. **If a page is missing from the rail** — Settings (`⌘,`) → **Beta pages**
+   controls Mail and Automations. They are marked beta; if either is not where
+   you expect it, that switch is why.
 
-### Q: How does the Cloudflare Worker Relay work for Instagram and Library capture?
-The relay in `relay/` is a free Cloudflare Worker that stays awake on the edge. When you or someone else sends/comments a reel on Instagram or shares a link from a phone, the relay holds it until your machine pulls it, transcribes the audio, and saves it into your Library. See [docs/CONFIGURATION_GUIDE.md#4-cloudflare-worker-relay](docs/CONFIGURATION_GUIDE.md#4-cloudflare-worker-relay).
+Two more surfaces worth knowing about:
 
-### Q: The page is blank when opening http://127.0.0.1:8000?
-Run `./run.sh --build` (or `cd frontend && npm install && npm run build`). AMETHYST serves the SPA from `frontend/dist`.
-
-### Q: How do I test if everything is functioning?
-Run `./run.sh --doctor` or `run.bat --doctor`. It validates the database, model providers, tools, and skills.
-
-### Q: Can I run frontend and backend separately with live hot-reloading?
-Yes! Simply run:
-```bash
-./run.sh --dev
-```
-This starts the backend on port `8000` and the Vite dev server on `http://127.0.0.1:5173`.
+- **Code mode** — the *Work / Code* control in the sidebar swaps the chat for a
+  live OpenCode session, with Amethyst's providers synced into it.
+- **Converter** — a local file and media workbench. Nothing is uploaded.
 
 ---
 
-## 📱 Using Amethyst From Your Phone
+## Using it from your phone
 
 Your computer keeps your files and runs your work. Your phone attaches to it,
 watches what it publishes, and can send it more. Everything between the two is
 sealed — the relay carrying it cannot read any of it.
 
-**On your computer:** open **Settings → Devices** and press **Pair a device**.
-A QR code appears, good for five minutes, once.
+**On your computer:** **Settings → Devices** → **Pair a device**. A QR code
+appears, good for five minutes, once.
 
-**On your phone:** open Amethyst and point the camera at the code. That is the
-whole flow — the code carries the relay address as well as the secret, so there
-is nothing to type and nothing to configure.
+**On your phone:** open Amethyst and point the camera at the code. The code
+carries the relay address as well as the secret, so there is nothing to type.
 
-Two things make this smoother if you set them up:
+Two things make it smoother:
 
 - **A relay.** Pairing completes through it, so without one nothing can answer
   your phone. `amethyst serve` says so at startup if it is missing. See
   [relay/README.md](relay/README.md).
 - **Where your phone opens Amethyst** (Settings → Devices). Set this and the QR
-  code becomes an ordinary `https` link that your phone's own camera app opens
-  by itself. Leave it blank and the code still works — it just has to be scanned
-  from the pairing screen inside the app.
+  code becomes an ordinary `https` link your own camera app opens. Leave it
+  blank and it still works — it just has to be scanned from the pairing screen
+  inside the app.
 
-To disconnect a phone, press **Revoke** beside it. Anything it had queued is
-cancelled in the same breath, and it stops being recognised within one poll.
-Pair it again the same way.
+**Revoke** beside a device disconnects it, cancels anything it had queued, and
+stops it being recognised within one poll.
 
 > Opening Amethyst on a phone always shows the pairing screen or the remote
 > control, never the desktop interface — that layout needs a screen a phone does
@@ -230,46 +208,64 @@ Pair it again the same way.
 
 ---
 
-## 🗺️ Your First Five Minutes
+## Troubleshooting
 
-Now that the app is open at http://127.0.0.1:8000, here is the fastest path to a useful answer:
+**The page is blank at http://127.0.0.1:8000**
+Run `./run.sh --build` (or `cd frontend && npm install && npm run build`).
+Amethyst serves the SPA from `frontend/dist`.
 
-1. **Pick a model** — the model selector beside the composer lists every configured provider. Ollama models appear automatically if Ollama is running.
-2. **Send one line** — try `summarise ~/Documents` or `what meetings do I have this week?`. The agent decides which tools to use.
-3. **Approve carefully** — anything that writes or runs asks first, naming the *operation* (`write_file`, `run_shell_command:read-only`), not just the tool. Approving a read-only command never approves a destructive one.
-4. **Press `?`** — every keyboard binding in the app, one screen.
-5. **Turn on beta pages** — Settings (`⌘,`) → **Beta pages** adds Mail and Automations to the rail.
+**`Error: address already in use`**
+Another Amethyst — or something else — is on port 8000:
 
-### Q: `Error: address already in use` or the port is taken?
-Another AMETHYST (or something else) is on port 8000:
 ```bash
 ./run.sh --port 8001
 ```
-Or stop the old one first (`Ctrl+C` in its terminal).
 
-### Q: The model replies "not configured" or no provider appears?
-- Ollama: check it is running (`curl http://127.0.0.1:11434`) and you pulled a model (`ollama run llama3.2`).
-- Cloud: the key did not reach the process — keys in `.env` are read at start, so restart after editing. `amethyst doctor` says exactly which providers are up.
+or stop the old one first (`Ctrl+C` in its terminal). A second `amethyst serve`
+does not start a second copy against the same database; it raises the window of
+the one already running.
 
-### Q: The turn just stopped — is that a bug?
-A permission prompt suspends the turn until answered; check for an amber prompt above the composer, or another conversation holding it (announced as a line above the transcript). `Escape` denies, `Enter` allows, `R` arms "remember this decision".
+**The model replies "not configured", or no provider appears**
+- Ollama: check it is up (`curl http://127.0.0.1:11434`) and pull a model
+  (`ollama run llama3.2`).
+- Cloud: keys in `.env` are read at start, so restart after editing.
+  `amethyst doctor` names which providers are up.
+
+**The turn just stopped**
+A permission prompt suspends the turn until it is answered. Look for an amber
+prompt above the composer, or another conversation holding it (announced as a
+line above the transcript). `Escape` denies, `Enter` allows, `R` arms "remember
+this decision".
+
+**OAuth connectors (Google Workspace, Microsoft To Do)**
+- **Microsoft To Do** is zero-config: **Add → Connect** in **Connectors &
+  Skills** (`/capabilities`), approve with a device code.
+- **Google Workspace** needs an OAuth desktop client from the Google Cloud
+  Console; put the Client ID/Secret in `.env` or run `./run.sh --setup`, then
+  **Connect**.
+
+**The Cloudflare relay**
+The Worker in `relay/` stays awake on the edge. When someone sends or comments
+on a reel, or shares a link from a phone, it holds the delivery until your
+machine pulls it, transcribes it, and files it in the Library. Deploying it is
+in [relay/README.md](relay/README.md) and
+[docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md).
+
+**Frontend and backend with hot reload, separately**
+
+```bash
+./run.sh --dev
+```
+
+Backend on :8000, Vite on http://127.0.0.1:5173, which proxies `/api` to :8000.
 
 ---
 
-## 🚀 New Features
+## Where to next
 
-### Enterprise-Grade Reliability
-
-Amethyst's backend is fortified against edge cases, resource leaks, and concurrency issues:
-- **One instance, guaranteed** — `amethyst serve` asks the port before it binds and hands you the URL of the server that is already running instead of starting a second one against the same SQLite file.
-- **Leak-free streaming** — FastAPI's `BackgroundTasks` guarantee cleanup of SSE (Server-Sent Events) connections, preventing memory leaks when clients disconnect ungracefully.
-- **Orphan process prevention** — Explicit process group reaping ensures that background PTY processes spawned by the terminal manager are killed instantly on shutdown.
-- **Strict dependency isolation** — Dynamic skill loading employs robust directory existence validation and YAML mapping verification, preventing malformed skills from crashing the system.
-
-### Premium UI/UX & Motion Design
-
-The interface is built to look and feel stunning:
-- **Glassmorphism & Glow** — Soft gradients, blurred backdrops (`backdrop-filter`), and dynamic drop-shadows bring the interface to life.
-- **Fluid Motion** — Smooth page transitions (`view-swap`), slide-in sidebars, and refined popover animations make interactions feel purposeful and fast.
-- **Responsive Empty States** — Skeleton loaders and carefully crafted empty views provide a polished experience even when there is no data to show.
-- **Robust Error Boundaries** — Graceful fallbacks and toast notifications catch unhandled promise rejections and backend warnings without breaking the flow.
+| | |
+|---|---|
+| [docs/README.md](docs/README.md) | Full documentation index |
+| [docs/CONFIGURATION_GUIDE.md](docs/CONFIGURATION_GUIDE.md) | Every integration, step by step |
+| [docs/interface.md](docs/interface.md) | The views and keyboard bindings |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup for development and the rules of the codebase |

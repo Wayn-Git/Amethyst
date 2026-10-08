@@ -96,7 +96,7 @@ class Embedder:
                 url,
                 headers={"Content-Type": "application/json"},
                 payload={"model": self.model, "input": batch},
-                timeout=120.0,
+                timeout=5.0,
                 # A refused connection means nothing is listening, which no
                 # amount of backoff fixes.
                 max_retries=0,
@@ -150,7 +150,8 @@ class Embedder:
             f"{base_url.rstrip('/')}/embeddings",
             headers=headers,
             payload={"model": self.model, "input": batch},
-            timeout=120.0,
+            timeout=5.0,
+            max_retries=0,
         )
         rows = sorted(data.get("data") or [], key=lambda r: r.get("index", 0))
         if not rows:

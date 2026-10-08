@@ -49,7 +49,14 @@
     --radius-xl: calc(var(--radius) * 1.4);
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+    --color-bg-inset: var(--canvas-deep, rgba(0, 0, 0, 0.25));
+    --color-inset: var(--canvas-deep, rgba(0, 0, 0, 0.25));
+    --color-ink: var(--text, #f1f5f9);
+    --color-ink-2: var(--text-dim, #94a3b8);
+    --color-ink-3: var(--text-faint, #64748b);
+    --color-hover: rgba(var(--tint, 255 255 255) / 0.06);
+    --color-hover-2: rgba(var(--tint, 255 255 255) / 0.1);
+    --color-line: var(--hairline, rgba(255, 255, 255, 0.08));
     --animate-marquee: marquee var(--duration) infinite linear;
     --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
   @keyframes marquee {

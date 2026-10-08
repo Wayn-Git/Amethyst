@@ -142,7 +142,15 @@ def ready_connectors_block() -> str | None:
                     from backend.mcp.provider_ownership import is_provider_overridden_by_local
 
                     conns = composio_service.get_connections() if composio_service.is_configured() else {}
-                    for tk in sorted(conns.keys()):
+                    from backend.mcp.composio_service import is_no_auth_toolkit
+
+                    active_tks = set(conns.keys())
+                    if composio_service.is_configured():
+                        for tk in composio_service.get_enabled_toolkits():
+                            if is_no_auth_toolkit(tk):
+                                active_tks.add(tk)
+
+                    for tk in sorted(active_tks):
                         if not is_provider_overridden_by_local(tk):
                             purpose = _COMPOSIO_PURPOSES.get(tk, "cloud app integration")
                             lines.append(f"  - composio:{tk} — {purpose}")
@@ -197,6 +205,13 @@ _COMPOSIO_PURPOSES: dict[str, str] = {
     "jira": "create and update issues in Atlassian Jira",
     "asana": "manage tasks, projects, and team workflows",
     "spotify": "control playback, search music, and manage playlists",
+    "web_scraper": "scrape webpage content and clean text",
+    "calculator": "evaluate mathematical expressions and numeric calculations",
+    "weather": "current weather forecasts and conditions",
+    "hackernews": "stories, comments, and top items on Hacker News",
+    "wikipedia": "encyclopedic summaries and Wikipedia articles",
+    "duckduckgo": "privacy-first web search and links",
+    "sql": "query structured databases and inspect tables",
 }
 
 
@@ -210,6 +225,34 @@ def composio_sign_in_instruction(toolkit: str) -> str:
         f" Tell them to open {CONNECTORS_SCREEN}, find '{name.capitalize()}' under Cloud Connectors and press"
         " Connect. Do not retry this tool. Finish everything else the request needs and"
         " say plainly which part is waiting on that connection."
+    )
+
+
+def composio_fallback_instruction(
+    toolkit: str, failure_type: str, local_server: str | None = None
+) -> str:
+    """Told to the model when a Composio tool fails and a direct local alternative is available."""
+    name = toolkit.lower()
+    reason_map = {
+        "credits_exhausted": "Composio credits or API quota have run out",
+        "plan_expired": "the Composio plan or subscription has expired",
+        "service_unavailable": "the Composio cloud gateway is currently unavailable or returned a server error",
+    }
+    reason_text = reason_map.get(failure_type, "Composio service encountered a fatal failure")
+
+    if local_server:
+        return (
+            f"The Composio '{name}' integration failed because {reason_text}."
+            f" Amethyst supports a direct local integration ('{local_server}') as a fallback."
+            f" Tell the user that Composio failed ({reason_text}), and that they can switch to direct local integration in {CONNECTORS_SCREEN}."
+            f" If '{local_server}' is not yet configured or signed in, explain that they can configure it there without needing Composio."
+            " Do not retry this tool in this turn."
+        )
+
+    return (
+        f"The Composio '{name}' integration failed because {reason_text}."
+        f" Tell the user that Composio failed ({reason_text}) and to verify their Composio account settings."
+        " Do not retry this tool in this turn."
     )
 
 

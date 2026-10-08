@@ -33,34 +33,55 @@ export function formatModelDisplayName(modelStr) {
   return clean.split(':')[0] || 'AI Synthesis'
 }
 
-export function extractTranscript(content, excerpt) {
+export function extractTranscript(content, excerpt, textSource) {
   if (!content && !excerpt) return null
   const src = content || excerpt
   const marker = '## Transcript'
   const idx = src.indexOf(marker)
   if (idx !== -1) {
     let t = src.slice(idx + marker.length)
+    const nextHeaderIdx = t.search(/\n## /)
     const footerIdx = t.indexOf('---')
-    if (footerIdx !== -1) {
-      t = t.slice(0, footerIdx)
-    }
-    return t.trim()
+    let cut = t.length
+    if (nextHeaderIdx !== -1) cut = Math.min(cut, nextHeaderIdx)
+    if (footerIdx !== -1) cut = Math.min(cut, footerIdx)
+    return t.slice(0, cut).trim()
   }
-  if (content && content.includes('\n\n')) {
-    const parts = content.split('\n\n')
-    const filtered = parts.filter(p => (
-      !p.startsWith('# ') &&
-      !p.startsWith('Tags:') &&
-      !p.startsWith('## Mentioned') &&
-      !p.startsWith('---') &&
-      !p.startsWith('- ')
-    ))
-    if (filtered.length > 1) {
-      return filtered.slice(1).join('\n\n').trim()
+  if (textSource && textSource.includes('transcript')) {
+    if (content && content.includes('\n\n')) {
+      const parts = content.split('\n\n')
+      const filtered = parts.filter(p => (
+        !p.startsWith('# ') &&
+        !p.startsWith('Tags:') &&
+        !p.startsWith('## Mentioned') &&
+        !p.startsWith('## Slide') &&
+        !p.startsWith('## Visual') &&
+        !p.startsWith('## Caption') &&
+        !p.startsWith('---') &&
+        !p.startsWith('- ')
+      ))
+      if (filtered.length > 1) {
+        return filtered.slice(1).join('\n\n').trim()
+      }
     }
   }
-  if (excerpt && !excerpt.startsWith('# ') && !excerpt.startsWith('Tags:') && excerpt.length > 20) {
-    return excerpt.trim()
+  return null
+}
+
+export function extractVisualContent(content) {
+  if (!content) return null
+  const markers = ['## Slide Analysis', '## Visual Content']
+  for (const marker of markers) {
+    const idx = content.indexOf(marker)
+    if (idx !== -1) {
+      let t = content.slice(idx + marker.length)
+      const nextHeaderIdx = t.search(/\n## /)
+      const footerIdx = t.indexOf('---')
+      let cut = t.length
+      if (nextHeaderIdx !== -1) cut = Math.min(cut, nextHeaderIdx)
+      if (footerIdx !== -1) cut = Math.min(cut, footerIdx)
+      return t.slice(0, cut).trim()
+    }
   }
   return null
 }
@@ -125,6 +146,7 @@ export default function LibraryDetailModal({
   const [copiedSummary, setCopiedSummary] = useState(false)
   const [enrichError, setEnrichError] = useState(null)
   const [showTranscript, setShowTranscript] = useState(false)
+  const [showVisualContent, setShowVisualContent] = useState(false)
 
   // Sync state if item changes
   useEffect(() => {
@@ -134,14 +156,27 @@ export default function LibraryDetailModal({
       setRating(item.rating || null)
       setEnrichError(null)
       setShowTranscript(false)
+      setShowVisualContent(false)
     }
   }, [item])
 
-  const transcript = useMemo(() => extractTranscript(item?.content, item?.excerpt || item?.capture_note), [item?.content, item?.excerpt, item?.capture_note])
+  const transcript = useMemo(
+    () => extractTranscript(item?.content, item?.excerpt || item?.capture_note, item?.text_source),
+    [item?.content, item?.excerpt, item?.capture_note, item?.text_source]
+  )
   const transcriptWordCount = useMemo(() => {
     if (!transcript) return 0
     return transcript.trim().split(/\s+/).length
   }, [transcript])
+
+  const visualContent = useMemo(
+    () => extractVisualContent(item?.content),
+    [item?.content]
+  )
+  const visualWordCount = useMemo(() => {
+    if (!visualContent) return 0
+    return visualContent.trim().split(/\s+/).length
+  }, [visualContent])
 
   const activeRatingTier = useMemo(() => getRatingTier(rating), [rating])
   const previewRatingTier = useMemo(() => getRatingTier(hoveredStar), [hoveredStar])
@@ -768,6 +803,48 @@ export default function LibraryDetailModal({
                       <div className="lib-transcript-badge">
                         <Icon name="spark" size={10} />
                         <span>Transcribed verbatim from reel audio via Groq Whisper Large v3</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* 8. Slide & Visual On-Screen Content Analysis Drawer */}
+            {visualContent && (
+              <div className="lib-detail-section">
+                <button
+                  type="button"
+                  className="lib-transcript-toggle"
+                  onClick={() => setShowVisualContent((prev) => !prev)}
+                  aria-expanded={showVisualContent}
+                  title={showVisualContent ? 'Hide visual content' : 'Show extracted visual text & slide analysis'}
+                >
+                  <div className="lib-transcript-toggle-left">
+                    <Icon name="spark" size={12} />
+                    <span>Slide & Visual On-Screen Content</span>
+                    {visualWordCount > 0 && (
+                      <span className="lib-transcript-count-pill">{visualWordCount} words</span>
+                    )}
+                  </div>
+                  <div className={`lib-transcript-toggle-chevron ${showVisualContent ? 'lib-transcript-toggle-chevron--open' : ''}`}>
+                    <Icon name="chevron-down" size={12} />
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {showVisualContent && (
+                    <motion.div
+                      className="lib-transcript-box"
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{visualContent}</p>
+                      <div className="lib-transcript-badge">
+                        <Icon name="brain" size={10} />
+                        <span>Extracted from video frames and carousel slides via Vision AI</span>
                       </div>
                     </motion.div>
                   )}

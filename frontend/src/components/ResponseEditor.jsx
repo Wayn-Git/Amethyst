@@ -331,13 +331,41 @@ export default function ResponseEditor({
     const after = content.slice(end)
 
     if (type === 'bold') {
-      const isBold = sel.startsWith('**') && sel.endsWith('**')
-      const replaced = isBold ? sel.slice(2, -2) : `**${sel || 'bold text'}**`
-      handleTextChange(before + replaced + after)
+      if (sel.startsWith('**') && sel.endsWith('**')) {
+        const clean = sel.replace(/^\*+|\*+$/g, '')
+        handleTextChange(before + clean + after)
+        return
+      }
+      if (before.endsWith('**') && after.startsWith('**')) {
+        handleTextChange(before.slice(0, -2) + sel + after.slice(2))
+        return
+      }
+      const clean = sel.replace(/^\*+|\*+$/g, '') || 'bold text'
+      handleTextChange(before + `**${clean}**` + after)
     } else if (type === 'italic') {
-      const isItalic = sel.startsWith('*') && sel.endsWith('*')
-      const replaced = isItalic ? sel.slice(1, -1) : `*${sel || 'italic text'}*`
-      handleTextChange(before + replaced + after)
+      if (sel.startsWith('*') && sel.endsWith('*')) {
+        const clean = sel.replace(/^\*+|\*+$/g, '')
+        handleTextChange(before + clean + after)
+        return
+      }
+      if (before.endsWith('*') && after.startsWith('*') && !before.endsWith('**') && !after.startsWith('**')) {
+        handleTextChange(before.slice(0, -1) + sel + after.slice(1))
+        return
+      }
+      const clean = sel.replace(/^\*+|\*+$/g, '') || 'italic text'
+      handleTextChange(before + `*${clean}*` + after)
+    } else if (type === 'code') {
+      if (sel.startsWith('`') && sel.endsWith('`')) {
+        const clean = sel.replace(/^`+|`+$/g, '')
+        handleTextChange(before + clean + after)
+        return
+      }
+      if (before.endsWith('`') && after.startsWith('`')) {
+        handleTextChange(before.slice(0, -1) + sel + after.slice(1))
+        return
+      }
+      const clean = sel.replace(/^`+|`+$/g, '') || 'code'
+      handleTextChange(before + `\`${clean}\`` + after)
     } else if (type === 'link') {
       const url = window.prompt('Enter link destination URL:', 'https://')
       if (url) {

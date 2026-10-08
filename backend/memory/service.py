@@ -229,7 +229,7 @@ class MemoryService:
             return []
         try:
             # Race budget: slow embedder must degrade, never block TTFT.
-            vector = await asyncio.wait_for(embedder.embed_one(query), timeout=2.5)
+            vector = await asyncio.wait_for(embedder.embed_one(query), timeout=1.0)
         except Exception as exc:
             log.debug("memory semantic recall unavailable: %s", exc)
             return []

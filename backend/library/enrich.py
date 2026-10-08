@@ -480,6 +480,49 @@ KNOWN_TOOL_URLS = {
     "spotify": "https://spotify.com",
     "netflix": "https://netflix.com",
     "youtube": "https://youtube.com",
+    # Modern UI libraries & design engineering tools
+    "skiperui": "https://skiper-ui.com",
+    "skiper-ui": "https://skiper-ui.com",
+    "skiper": "https://skiper-ui.com",
+    "cultui": "https://cult-ui.com",
+    "cult-ui": "https://cult-ui.com",
+    "cult": "https://cult-ui.com",
+    "watermelonui": "https://ui.watermelon.sh",
+    "watermelon-ui": "https://ui.watermelon.sh",
+    "watermelon": "https://ui.watermelon.sh",
+    "motionprimitives": "https://motion-primitives.com",
+    "motion-primitives": "https://motion-primitives.com",
+    "shadcn": "https://ui.shadcn.com",
+    "shadcnui": "https://ui.shadcn.com",
+    "shadcn/ui": "https://ui.shadcn.com",
+    "21stdev": "https://21st.dev",
+    "21st.dev": "https://21st.dev",
+    "magicui": "https://magicui.design",
+    "magic-ui": "https://magicui.design",
+    "aceternity": "https://ui.aceternity.com",
+    "aceternityui": "https://ui.aceternity.com",
+    "aceternity-ui": "https://ui.aceternity.com",
+    "layers": "https://layers.so",
+    "designmd": "https://design.md",
+    "design.md": "https://design.md",
+    "craftwork": "https://craftwork.com",
+    "opendot": "https://opendot.app",
+    "open dot": "https://opendot.app",
+    "rednote": "https://rednote.ai",
+    "dotsocr": "https://rednote.ai",
+    "dots.ocr": "https://rednote.ai",
+    "lucide": "https://lucide.dev",
+    "heroicons": "https://heroicons.com",
+    "radix": "https://radix-ui.com",
+    "radixui": "https://radix-ui.com",
+    "chakra": "https://chakra-ui.com",
+    "chakraui": "https://chakra-ui.com",
+    "mantine": "https://mantine.dev",
+    "daisyui": "https://daisyui.com",
+    "heroui": "https://heroui.com",
+    "tremor": "https://tremor.so",
+    "animata": "https://animata.design",
+    "originui": "https://originui.com",
 }
 
 
@@ -708,6 +751,99 @@ async def enrich_text(
     return Enrichment(note=f"none of the configured providers answered ({tried}). {reason}")
 
 
+async def _verify_single_url(url: str, client: Any) -> bool:
+    if not url or not url.startswith("http"):
+        return False
+    try:
+        from backend.mcp.ssrf import check_url_async
+        await check_url_async(url)
+    except Exception:
+        return False
+    try:
+        r = await client.head(url, follow_redirects=True, timeout=2.5, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code < 400:
+            return True
+        r = await client.get(url, follow_redirects=True, timeout=2.5, headers={"User-Agent": "Mozilla/5.0"})
+        return r.status_code < 400
+    except Exception:
+        return False
+
+
+async def _resolve_working_resource_url(res: dict, client: Any) -> dict:
+    item = dict(res)
+    name = item.get("name", "").strip()
+    raw_url = item.get("url", "").strip()
+    kind = item.get("type", "other")
+
+    clean_name = re.sub(r"[^a-z0-9]", "", name.lower())
+    if clean_name in KNOWN_TOOL_URLS:
+        item["url"] = KNOWN_TOOL_URLS[clean_name]
+        return item
+
+    if raw_url:
+        clean_raw = re.sub(r"[^a-z0-9]", "", raw_url.lower())
+        if clean_raw in KNOWN_TOOL_URLS:
+            item["url"] = KNOWN_TOOL_URLS[clean_raw]
+            return item
+
+    # If raw_url is provided and not a generic domain / search page, verify it
+    if raw_url and not any(raw_url.startswith(s) for s in ("https://www.google.com/search", "https://github.com/search")):
+        is_generic_root = raw_url.rstrip("/") in ("https://github.com", "https://google.com", "http://github.com", "https://motion.dev")
+        if not is_generic_root:
+            if await _verify_single_url(raw_url, client):
+                item["url"] = raw_url
+                return item
+
+    # Try common domain candidate patterns for tools/products
+    if kind in ("tool", "product", "link", "code", "library", "framework") or not raw_url:
+        slug = re.sub(r"\s+", "-", name.strip().lower())
+        slug_clean = re.sub(r"[^a-z0-9\-]", "", slug)
+        if slug_clean:
+            candidates = [
+                f"https://{slug_clean}.com",
+                f"https://{slug_clean}.dev",
+                f"https://{slug_clean}.io",
+                f"https://ui.{slug_clean}.sh",
+                f"https://{slug_clean}.org",
+                f"https://{slug_clean}.app",
+            ]
+            for cand in candidates:
+                if await _verify_single_url(cand, client):
+                    item["url"] = cand
+                    return item
+
+        # Search GitHub for developer/code tools
+        try:
+            from backend.web.search_service import search_github
+            gh_results = await search_github(name, limit=1)
+            if gh_results and gh_results[0].get("url"):
+                gh_url = gh_results[0]["url"]
+                if await _verify_single_url(gh_url, client):
+                    item["url"] = gh_url
+                    return item
+        except Exception:
+            pass
+
+    return item
+
+
+async def resolve_and_verify_resource_urls(resources: tuple[dict, ...] | list[dict]) -> tuple[dict, ...]:
+    if not resources:
+        return ()
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            tasks = [_resolve_working_resource_url(r, client) for r in resources]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            return tuple(
+                r if isinstance(r, dict) else orig
+                for r, orig in zip(results, resources)
+            )
+    except Exception as exc:
+        log.debug("resource URL resolution failed: %s", exc)
+        return tuple(resources)
+
+
 async def _ask(
     client, messages: list[dict], provider: str | None, model: str | None, source_text: str = ""
 ) -> Enrichment:
@@ -734,10 +870,12 @@ async def _ask(
         return Enrichment(
             note="the model did not answer in the expected format", provider=provider, model=model
         )
+    verified_resources = await resolve_and_verify_resource_urls(parsed.resources)
     return Enrichment(
+        category=parsed.category,
         summary=parsed.summary,
         tags=parsed.tags,
-        resources=parsed.resources,
+        resources=verified_resources,
         provider=provider,
         model=model,
     )

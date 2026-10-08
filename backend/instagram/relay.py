@@ -1,8 +1,9 @@
 """Taking what the relay caught while this machine was off.
 
-`docs/archive/superpowers/specs/2026-09-04-instagram-relay-design.md` has the
-why. The short version: a closed laptop is a *down* webhook endpoint, and Meta
-responds to a down endpoint by retrying and then disabling the subscription.
+`docs/architecture/instagram.md`, section "The relay, and why the obvious
+deployment is wrong", has the why. The short version: a closed laptop is a
+*down* webhook endpoint, and Meta responds to a down endpoint by retrying and
+then disabling the subscription.
 So a small always-on Worker answers Meta's 200 and holds the delivery in a free
 SQLite queue, and this module is the half that goes and gets it.
 

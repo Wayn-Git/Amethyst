@@ -902,12 +902,63 @@ class LibraryService:
                 log.warning("could not read library text for %s: %s", item_id, exc)
 
         text_source = row["text_source"] or ("page" if row["url"] else "none")
+
+        # If this is a reel/video/carousel and has not had visual content extracted yet,
+        # try re-extracting slides or frames so enrichment has full visual context
+        if row["url"] and is_reel_url(row["url"]) and text_source in ("caption", "none"):
+            from backend.config import load_instagram
+            from backend.media.reel import fetch_reel
+            ig_settings = load_instagram()
+            try:
+                reel = await fetch_reel(row["url"], None, cookies_from_browser=ig_settings.cookies_from_browser or None)
+                if reel.slide_urls:
+                    from backend.library.reels import ReelCapture
+                    rc = ReelCapture(self, settings=ig_settings)
+                    await rc._process_slides(item_id, reel)
+                    # Re-read updated row and body
+                    updated_row = self.store.get(item_id)
+                    if updated_row and updated_row["text_path"]:
+                        body, heading = enrichment.body_of(
+                            Path(updated_row["text_path"]).read_text(encoding="utf-8")
+                        )
+                        text_source = updated_row["text_source"] or "slide analysis"
+                        row = updated_row
+            except Exception as exc:
+                log.debug("re-extraction of visual content during enrich skipped/failed: %s", exc)
+        elif row["media_path"] and Path(row["media_path"]).is_file() and "visual content" not in text_source:
+            try:
+                import tempfile
+                from backend.media.vision import extract_frames
+                from backend.runtime.vision import extract_visual_text
+                frames_dir = Path(tempfile.mkdtemp(prefix="amethyst-vision-enrich-"))
+                try:
+                    frames = await extract_frames(Path(row["media_path"]), frames_dir)
+                    if frames:
+                        vtext = await extract_visual_text([f.read_bytes() for f in frames])
+                        if vtext:
+                            new_body = f"{body}\n\n## Visual Content\n\n{vtext}" if body else vtext
+                            new_source = f"{text_source} and visual content" if text_source not in ("none", "") else "visual content"
+                            await self.replace_text(item_id, new_body, text_source=new_source)
+                            updated_row = self.store.get(item_id)
+                            if updated_row and updated_row["text_path"]:
+                                body, heading = enrichment.body_of(Path(updated_row["text_path"]).read_text(encoding="utf-8"))
+                                text_source = updated_row["text_source"]
+                                row = updated_row
+                finally:
+                    shutil.rmtree(frames_dir, ignore_errors=True)
+            except Exception as exc:
+                log.debug("frame re-extraction during enrich failed: %s", exc)
+
         if text_source == "transcript":
             heading = "Transcript"
         elif text_source == "caption":
             heading = "Caption"
         elif text_source == "caption and transcript":
             heading = "Caption and Transcript"
+        elif "slide analysis" in text_source:
+            heading = "Slide Analysis"
+        elif "visual content" in text_source:
+            heading = "Visual Content"
         elif text_source in ("video description", "description"):
             heading = "Description"
 

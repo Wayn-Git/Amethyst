@@ -2724,7 +2724,9 @@ class Director:
         try:
             from backend.memory import MemoryService
 
-            return await MemoryService().recall(user_message, conversation_id)
+            return await asyncio.wait_for(
+                MemoryService().recall(user_message, conversation_id), timeout=1.2
+            )
         except Exception as exc:
             log.debug("memory recall unavailable for this turn: %s", exc)
             return []
@@ -2855,7 +2857,9 @@ class Director:
 
             if Indexer().stats()["chunks"] == 0:
                 return None, []
-            context, hits = await SearchService().context_and_hits(user_message)
+            context, hits = await asyncio.wait_for(
+                SearchService().context_and_hits(user_message), timeout=1.2
+            )
             # The chunk id alone is not a durable reference: the indexer removes
             # and re-inserts a chunk whose text changed, so the label -- the path
             # and heading a reader would use to find it again -- rides along.

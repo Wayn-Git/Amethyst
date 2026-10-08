@@ -186,3 +186,95 @@ def test_api_composio_connections_and_toolkits(monkeypatch):
     assert resp.json()["redirect_url"] == "https://connect.composio.dev/gmail"
 
 
+def test_sanitize_composio_key():
+    from backend.mcp.composio_service import sanitize_composio_key
+
+    assert sanitize_composio_key("  uak_abc123  ") == "uak_abc123"
+    assert sanitize_composio_key('"uak_abc123"') == "uak_abc123"
+    assert sanitize_composio_key("'uak_abc123'") == "uak_abc123"
+    assert sanitize_composio_key('export COMPOSIO_API_KEY="uak_abc123"') == "uak_abc123"
+    assert sanitize_composio_key("COMPOSIO_USER_API_KEY=uak_abc123") == "uak_abc123"
+    assert sanitize_composio_key("Bearer uak_abc123") == "uak_abc123"
+    assert sanitize_composio_key("") == ""
+    assert sanitize_composio_key(None) == ""
+
+
+def test_validate_api_key_user_key_initialization(monkeypatch):
+    service = ComposioService()
+
+    recorded_kwargs = []
+
+    class DummyClient:
+        class toolkits:
+            @staticmethod
+            def list():
+                return []
+
+    def mock_composio(**kwargs):
+        recorded_kwargs.append(kwargs)
+        return DummyClient()
+
+    monkeypatch.setattr("composio.Composio", mock_composio)
+
+    valid, err = service.validate_api_key(' "uak_secret_12345" ')
+    assert valid is True
+    assert err is None
+    assert len(recorded_kwargs) == 1
+    assert recorded_kwargs[0] == {"disable_api_key": True, "user_api_key": "uak_secret_12345"}
+
+
+def test_validate_api_key_fallback_on_401(monkeypatch):
+    service = ComposioService()
+
+    attempts = []
+
+    class DummyClient:
+        class toolkits:
+            @staticmethod
+            def list():
+                return []
+
+    def mock_composio(**kwargs):
+        attempts.append(kwargs)
+        if "api_key" in kwargs:
+            from composio_client import APIStatusError
+            import httpx
+            req = httpx.Request("GET", "https://backend.composio.dev/api/v3.1/toolkits")
+            resp = httpx.Response(401, request=req, json={"error": {"message": "Invalid API key"}})
+            raise APIStatusError("401 Unauthorized", response=resp, body={"error": {"message": "Invalid API key"}})
+        return DummyClient()
+
+    monkeypatch.setattr("composio.Composio", mock_composio)
+
+    # Key without uak_ prefix: first attempts api_key, gets 401, then falls back to user_api_key
+    valid, err = service.validate_api_key("custom_key_without_prefix")
+    assert valid is True
+    assert err is None
+    assert len(attempts) == 2
+    assert attempts[0] == {"api_key": "custom_key_without_prefix"}
+    assert attempts[1] == {"disable_api_key": True, "user_api_key": "custom_key_without_prefix"}
+
+
+def test_get_mcp_config_preserves_user_api_key_header():
+    service = ComposioService()
+    service.set_api_key("uak_test_user_key")
+
+    mock_mcp = MagicMock()
+    mock_mcp.url = "https://mcp.composio.dev/session_123"
+    mock_mcp.headers = {"x-user-api-key": "uak_test_user_key"}
+
+    mock_session = MagicMock()
+    mock_session.session_id = "session_123"
+    mock_session.mcp = mock_mcp
+
+    mock_composio = MagicMock()
+    mock_composio.sessions.create.return_value = mock_session
+
+    with patch.object(service, "_get_client", return_value=mock_composio):
+        config = service.get_mcp_config()
+        assert config is not None
+        # Does NOT add conflicting x-api-key header
+        assert config["headers"] == {"x-user-api-key": "uak_test_user_key"}
+
+
+

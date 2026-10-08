@@ -34,10 +34,10 @@ export interface ConfirmationModalProps {
 }
 
 const toneMap = {
-    danger: { color: "error" as const, icon: AlertCircle, confirmColor: "error" as const },
-    warning: { color: "warning" as const, icon: AlertTriangle, confirmColor: "warning" as const },
+    danger: { color: "error" as const, icon: AlertCircle, confirmColor: "primary-destructive" as const },
+    warning: { color: "warning" as const, icon: AlertTriangle, confirmColor: "primary" as const },
     default: { color: "brand" as const, icon: InfoCircle, confirmColor: "primary" as const },
-    success: { color: "success" as const, icon: CheckCircle, confirmColor: "success" as const },
+    success: { color: "success" as const, icon: CheckCircle, confirmColor: "primary" as const },
 };
 
 /**
@@ -108,7 +108,7 @@ export const ConfirmationModal = ({
                             </Button>
                             <Button
                                 size="md"
-                                color={tone === "danger" ? "error" : "primary"}
+                                color={tone === "danger" ? "primary-destructive" : config.confirmColor || "primary"}
                                 onClick={onConfirm}
                                 isLoading={isLoading}
                                 className="w-full sm:w-auto"

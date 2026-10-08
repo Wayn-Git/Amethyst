@@ -24,7 +24,8 @@ import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 import MobileNav from './components/MobileNav.jsx'
-import { Toaster } from './components/application/notifications'
+import { Toaster, Notification, NotificationViewport } from './components/application/notifications'
+import { useBoardUINotifications } from './lib/boardui-notifications.js'
 
 /* The workbench.
 
@@ -413,7 +414,24 @@ function RailScrim({ onClose }) {
 }
 
 function Toasts() {
-  return <Toaster />
+  const { notifications, dismissNotification } = useBoardUINotifications()
+
+  return (
+    <>
+      <Toaster />
+      <NotificationViewport position="top-right">
+        {notifications.map((notification) => (
+          <Notification
+            key={notification.id}
+            {...notification}
+            autoDismissDuration={notification.autoDismissDuration ?? 3500}
+            introDelay={0}
+            onDismiss={() => dismissNotification(notification.id)}
+          />
+        ))}
+      </NotificationViewport>
+    </>
+  )
 }
 
 /* The escape hatch, and why it is sticky.
@@ -670,7 +688,7 @@ export default function App() {
     )
   }
 
-  if (server.phase !== 'ready' || !server.verified) {
+  if (server.phase !== 'ready') {
     if (paired) return <><RemoteOnly />{approvalModal}</>
     // Offered immediately rather than after the wake gives up: a paired phone
     // knows what it is, and an unpaired one asking to be paired is not a

@@ -125,6 +125,27 @@ export const styles = sortCx({
                 "*:data-icon:text-fg-error-secondary hover:*:data-icon:text-fg-error-primary",
             ].join(" "),
         },
+        error: {
+            root: [
+                "bg-error-solid text-white shadow-xs-skeuomorphic ring-1 ring-transparent outline-error ring-inset hover:bg-error-solid_hover data-loading:bg-error-solid_hover",
+                "before:absolute before:inset-px before:border before:border-white/12 before:mask-b-from-0%",
+                "*:data-icon:text-white/60 hover:*:data-icon:text-white/70",
+            ].join(" "),
+        },
+        danger: {
+            root: [
+                "bg-error-solid text-white shadow-xs-skeuomorphic ring-1 ring-transparent outline-error ring-inset hover:bg-error-solid_hover data-loading:bg-error-solid_hover",
+                "before:absolute before:inset-px before:border before:border-white/12 before:mask-b-from-0%",
+                "*:data-icon:text-white/60 hover:*:data-icon:text-white/70",
+            ].join(" "),
+        },
+        destructive: {
+            root: [
+                "bg-error-solid text-white shadow-xs-skeuomorphic ring-1 ring-transparent outline-error ring-inset hover:bg-error-solid_hover data-loading:bg-error-solid_hover",
+                "before:absolute before:inset-px before:border before:border-white/12 before:mask-b-from-0%",
+                "*:data-icon:text-white/60 hover:*:data-icon:text-white/70",
+            ].join(" "),
+        },
     },
 });
 
@@ -231,6 +252,12 @@ export const Button: {
         </>
     );
 
+    const colorStyle =
+        (color && (styles.colors as Record<string, { root: string }>)[color]) ||
+        (color === "error" || color === "danger" || color === "destructive" || color === "primary-destructive"
+            ? styles.colors["primary-destructive"]
+            : styles.colors.primary);
+
     const commonProps = {
         "data-loading": loading ? true : undefined,
         "data-icon-only": isIcon ? true : undefined,
@@ -238,9 +265,9 @@ export const Button: {
         isDisabled: disabled,
         className: cx(
             styles.common.root,
-            styles.sizes[size].root,
-            styles.colors[color].root,
-            isLinkType && styles.sizes[size].linkRoot,
+            styles.sizes[size]?.root || styles.sizes.md.root,
+            colorStyle.root,
+            isLinkType && styles.sizes[size]?.linkRoot,
             (loading || (href && (disabled || loading))) && "pointer-events-none",
             // If in `loading` state, hide everything except the loading icon (and text if `showTextWhileLoading` is true).
             loading && (showTextWhileLoading ? "[&>*:not([data-icon=loading]):not([data-text])]:hidden" : "[&>*:not([data-icon=loading])]:invisible"),

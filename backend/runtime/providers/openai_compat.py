@@ -499,6 +499,16 @@ def _context_window(model: str, declared: int | None = None) -> int:
     return 128_000
 
 
+def is_vision_model(model_name: str) -> bool:
+    """True if model name signals vision or multimodal capabilities."""
+    lowered = model_name.lower()
+    vision_markers = (
+        "vision", "vl", "pixtral", "ocr", "4o", "gemini", "claude",
+        "multimodal", "llava", "omni", "kosmos", "fuyu", "deplot",
+    )
+    return any(marker in lowered for marker in vision_markers)
+
+
 def initialize(
     config: ProviderConfig, model: str | None = None, *, max_retries: int = MAX_RETRIES
 ) -> ResolvedModel:
@@ -517,7 +527,7 @@ def initialize(
         capabilities=Capabilities(
             tools=True,
             streaming=True,
-            vision="gpt-4o" in resolved_model.lower() or "vision" in resolved_model.lower(),
+            vision=is_vision_model(resolved_model),
             reasoning=is_reasoning_model(resolved_model),
             context_window=_context_window(resolved_model, config.context_window),
             max_tools=config.max_tools,

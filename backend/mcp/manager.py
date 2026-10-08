@@ -131,11 +131,20 @@ _TRANSPORT_FAILURES = (
     "connection aborted",
     "session closed",
     "session is closed",
+    "session terminated",
+    "session not found",
+    "session expired",
+    "session invalid",
+    "invalid session",
     "server disconnected",
     "eof occurred",
     "peer closed",
     "process exited",
     "process has exited",
+    "stream closed",
+    "stream is closed",
+    "stream disconnected",
+    "stream terminated",
 )
 
 
@@ -146,8 +155,24 @@ def _is_transport_failure(exc: BaseException) -> bool:
     while a dead session makes every later call in the turn fail identically
     until something reconnects.
     """
-    text = f"{type(exc).__name__}: {exc}".lower()
-    return any(marker in text for marker in _TRANSPORT_FAILURES)
+    candidates = [exc]
+    if isinstance(exc, BaseExceptionGroup):
+        candidates.extend(exc.exceptions)
+
+    for e in candidates:
+        text = f"{type(e).__name__}: {e}".lower()
+        if any(marker in text for marker in _TRANSPORT_FAILURES):
+            return True
+        if type(e).__name__ == "MCPError":
+            code = getattr(e, "code", None)
+            msg = str(getattr(e, "message", e)).lower()
+            if "session" in msg and any(
+                w in msg for w in ("terminate", "close", "not found", "expire", "invalid", "dead", "drop")
+            ):
+                return True
+            if code in (-32600, -32001) and any(w in msg for w in ("session", "not found")):
+                return True
+    return False
 
 
 class _ServerLock:
@@ -750,6 +775,7 @@ class MCPManager:
             not force
             and live is not None
             and live.connected
+            and not self.probed_dead(config.name)
             and self.registered_tool_count(config.name) > 0
         ):
             # Already at `ready`. Deliberately *not* `is_ready`, which stays true
@@ -962,7 +988,7 @@ class MCPManager:
                     )
                 try:
                     self.forget_error(server_name)
-                    await self.connect_server(config, interactive=False)
+                    await self.connect_server(config, interactive=False, force=True)
                     revived = self.connections.get(server_name)
                     if revived is None:
                         raise MCPConnectionError("reconnect produced no connection")
@@ -1205,15 +1231,15 @@ class MCPManager:
         for name, config in configured.items():
             connection = self.connections.get(name)
             connected = bool(connection and connection.connected)
-            if connected and self.probed_dead(name):
-                # Answered the probe with silence. Drop it now so the branch
-                # below sees a disconnected server and rebuilds it, instead of
-                # "already connected" leaving the dead session in place.
-                pending_disconnect.append(name)
+            is_dead = connected and self.probed_dead(name)
+            if is_dead:
+                # Answered the probe with silence. Mark as disconnected so
+                # the connect branch can rebuild it if enabled, or the disconnect
+                # branch can clean it up if disabled.
                 connected = False
 
             if not config.enabled or service.switched_off(Kind.CONNECTOR, name):
-                if connected:
+                if connected or is_dead:
                     results[name] = 0
                     pending_disconnect.append(name)
                 continue
@@ -1240,17 +1266,19 @@ class MCPManager:
         # every turn under the registry lock.
         async def connect_one(config: ServerConfig) -> None:
             try:
-                await self.connect_server(config, interactive=False)
+                force = self.probed_dead(config.name)
+                await self.connect_server(config, interactive=False, force=force)
             except Exception:
                 # Recorded on the connection itself by `_connect_server_locked`;
                 # the read-back below is what this pass reports.
                 pass
 
-        if pending_disconnect or pending_connect:
+        disconnect_targets = set(pending_disconnect) - {c.name for c in pending_connect}
+        if disconnect_targets or pending_connect:
             await self._settle(
                 [
                     asyncio.ensure_future(self.disconnect_server(name))
-                    for name in pending_disconnect
+                    for name in disconnect_targets
                 ]
                 + [
                     asyncio.ensure_future(connect_one(config))

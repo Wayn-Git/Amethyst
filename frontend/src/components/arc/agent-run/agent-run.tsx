@@ -15,7 +15,11 @@ import {
   ChevronRight,
   ShieldAlert,
   Loader2,
-  Sparkles
+  Sparkles,
+  Calendar,
+  Globe,
+  Folder,
+  Sliders
 } from "lucide-react";
 import { CodeBlock } from "../code-block/code-block";
 import { JsonViewer } from "../json-viewer/json-viewer";
@@ -84,27 +88,104 @@ function getToolIcon(name: string) {
   if (n.includes("edit") || n.includes("write") || n.includes("patch")) {
     return FileCode;
   }
+  if (n.includes("calendar") || n.includes("schedule") || n.includes("event") || n.includes("slot") || n.includes("upcoming")) {
+    return Calendar;
+  }
   if (n.includes("view") || n.includes("read") || n.includes("file")) {
     return FileText;
   }
   if (n.includes("search") || n.includes("grep") || n.includes("find")) {
     return Search;
   }
+  if (n.includes("fetch") || n.includes("url") || n.includes("web") || n.includes("crawl") || n.includes("browser")) {
+    return Globe;
+  }
+  if (n.includes("list") || n.includes("folder") || n.includes("dir")) {
+    return Folder;
+  }
   if (n.includes("thought") || n.includes("think") || n.includes("reason")) {
     return Brain;
+  }
+  if (n.includes("manage") || n.includes("config") || n.includes("setting")) {
+    return Sliders;
   }
   return Sparkles;
 }
 
+interface ToolCategoryMeta {
+  color: string;
+  bg: string;
+  border: string;
+}
+
+function getToolCategoryMeta(name: string): ToolCategoryMeta {
+  const n = (name || "").toLowerCase();
+  if (n.includes("calendar") || n.includes("schedule") || n.includes("event") || n.includes("upcoming") || n.includes("slot")) {
+    return {
+      color: "var(--confirm, #f59e0b)",
+      bg: "color-mix(in srgb, var(--confirm) 12%, transparent)",
+      border: "color-mix(in srgb, var(--confirm) 28%, transparent)",
+    };
+  }
+  if (n.includes("folder") || n.includes("dir") || n.includes("list_files") || n.includes("list_dir") || n.includes("list task") || n.includes("list_task")) {
+    return {
+      color: "#38bdf8",
+      bg: "rgba(56, 189, 248, 0.12)",
+      border: "rgba(56, 189, 248, 0.28)",
+    };
+  }
+  if (n.includes("shell") || n.includes("bash") || n.includes("term") || n.includes("exec") || n.includes("command")) {
+    return {
+      color: "var(--live, #10b981)",
+      bg: "var(--live-soft, rgba(16, 185, 129, 0.12))",
+      border: "var(--live-line, rgba(16, 185, 129, 0.28))",
+    };
+  }
+  if (n.includes("search") || n.includes("grep") || n.includes("find")) {
+    return {
+      color: "#818cf8",
+      bg: "rgba(129, 140, 248, 0.12)",
+      border: "rgba(129, 140, 248, 0.28)",
+    };
+  }
+  if (n.includes("fetch") || n.includes("url") || n.includes("web") || n.includes("crawl") || n.includes("browser") || n.includes("globe")) {
+    return {
+      color: "#2dd4bf",
+      bg: "rgba(45, 212, 191, 0.12)",
+      border: "rgba(45, 212, 191, 0.28)",
+    };
+  }
+  if (n.includes("edit") || n.includes("write") || n.includes("patch") || n.includes("doc")) {
+    return {
+      color: "#fb923c",
+      bg: "rgba(251, 146, 60, 0.12)",
+      border: "rgba(251, 146, 60, 0.28)",
+    };
+  }
+  if (n.includes("task") || n.includes("subagent") || n.includes("spark")) {
+    return {
+      color: "var(--accent, #7132f5)",
+      bg: "var(--accent-soft, rgba(113, 50, 245, 0.12))",
+      border: "var(--accent-line, rgba(113, 50, 245, 0.28))",
+    };
+  }
+  return {
+    color: "var(--text-dim, #94a3b8)",
+    bg: "rgba(var(--tint) / 0.05)",
+    border: "var(--hairline, rgba(255, 255, 255, 0.08))",
+  };
+}
+
 function getToolLabel(name: string) {
   const n = (name || "").toLowerCase();
-  if (n.includes("shell") || n.includes("bash")) return "Terminal";
+  if (n.includes("shell") || n.includes("bash") || n.includes("term")) return "Terminal";
   if (n.includes("write")) return "Write File";
   if (n.includes("edit")) return "Edit File";
   if (n.includes("view") || n.includes("read")) return "Read File";
   if (n.includes("search") || n.includes("grep")) return "Search Files";
   if (n.includes("fetch") || n.includes("url")) return "Fetch Page";
-  return name ? name.replace(/_/g, " ") : "Tool";
+  if (n.includes("list_files") || n.includes("list_dir")) return "List Files";
+  return name ? name.split(/[_-\s]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Tool";
 }
 
 function getToolSubject(args: any) {
@@ -260,7 +341,7 @@ export const AgentRun: FC<AgentRunProps> = ({
   const steps = useMemo<AgentRunStep[]>(() => {
     if (propSteps && propSteps.length > 0) return propSteps;
     if (!events || events.length === 0) {
-      if (live) {
+      if (live && live.name !== "ask_user" && live.name !== "ask_question") {
         return [
           {
             id: "live-0",
@@ -300,6 +381,9 @@ export const AgentRun: FC<AgentRunProps> = ({
       }
 
       const call = ev.call || ev;
+      if (call.name === "ask_user" || call.name === "ask_question") {
+        continue;
+      }
       const isErr = call.status === "error" || call.isError;
       const args = parseArgs(call.arguments);
       const subject = getToolSubject(args);
@@ -323,7 +407,7 @@ export const AgentRun: FC<AgentRunProps> = ({
       currentThought = undefined;
     }
 
-    if (live) {
+    if (live && live.name !== "ask_user" && live.name !== "ask_question") {
       out.push({
         id: "live-step",
         title: getToolLabel(live.name),
@@ -403,7 +487,7 @@ export const AgentRun: FC<AgentRunProps> = ({
         aria-expanded={isOpen}
       >
         <span className={styles.status} data-phase={running ? "running" : "done"}>
-          <span className={styles.dot} aria-hidden="true" />
+          {running && <Loader2 size={13} className={styles.spin} style={{ color: "var(--accent, #7132f5)" }} />}
           <span className={styles.summaryTitle}>{running ? "Working" : "Worked"}</span>
         </span>
         {stats && (
@@ -442,6 +526,7 @@ export const AgentRun: FC<AgentRunProps> = ({
             <ol aria-label="Steps" className={styles.timeline}>
               {steps.map((step, idx) => {
                 const IconComponent = getToolIcon(step.tool?.name || step.title || "");
+                const meta = getToolCategoryMeta(step.tool?.name || step.title || "");
                 const isStepOpen = openSteps[step.id] ?? (step.status === "running" || idx === steps.length - 1);
                 const isLive = step.status === "running";
                 const isLast = idx === steps.length - 1;
@@ -454,20 +539,23 @@ export const AgentRun: FC<AgentRunProps> = ({
                   >
                     {/* Vertical Rail: circular node + connecting track */}
                     <div className={styles.rail} aria-hidden="true">
-                      <span className={styles.node}>
+                      <span
+                        className={styles.node}
+                        style={
+                          isLive || step.status === "error"
+                            ? undefined
+                            : { color: meta.color, background: meta.bg, borderColor: meta.border }
+                        }
+                      >
                         {isLive ? (
                           <Loader2 size={13} className={styles.spin} />
                         ) : step.status === "error" ? (
                           <AlertCircle size={13} style={{ color: "var(--danger, #ef4444)" }} />
                         ) : (
-                          <IconComponent size={13} />
+                          <IconComponent size={13} strokeWidth={2} />
                         )}
                       </span>
-                      {!isLast && (
-                        <span className={styles.track}>
-                          <span className={styles.fill} />
-                        </span>
-                      )}
+                      {!isLast && <span className={styles.track} />}
                     </div>
 
                     {/* Step Main Body */}
@@ -481,12 +569,12 @@ export const AgentRun: FC<AgentRunProps> = ({
                         <span className={styles.stepTitleBlock}>
                           <span className={styles.stepTitle}>{step.title}</span>
                           {step.subject && (
-                            <code className={styles.stepSubject}>
+                            <code className={styles.stepSubject} title={step.subject}>
                               {step.subject.length > 70 ? `${step.subject.slice(0, 70)}…` : step.subject}
                             </code>
                           )}
                           {!isStepOpen && step.thought && (
-                            <span className={styles.stepSnippet}>
+                            <span className={styles.stepSnippet} title={step.thought}>
                               {step.thought.split("\n")[0]}
                             </span>
                           )}

@@ -990,6 +990,16 @@ CREATE TABLE IF NOT EXISTS composio_state (
     user_id          TEXT NOT NULL,
     enabled_toolkits TEXT NOT NULL DEFAULT '[]',
     mcp_url          TEXT NOT NULL,
+    key_mode         TEXT NOT NULL DEFAULT 'project',
     updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Provider fallback state: tracks whether a provider's active target has switched
+-- from Composio to a direct/local MCP integration (e.g. upon credit exhaustion).
+CREATE TABLE IF NOT EXISTS provider_fallbacks (
+    provider        TEXT PRIMARY KEY,
+    active_target   TEXT NOT NULL DEFAULT 'composio',
+    failure_reason  TEXT,
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

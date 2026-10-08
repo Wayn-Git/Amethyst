@@ -1,10 +1,28 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { ThumbsUp, ThumbsDown } from 'lucide-react'
 import Icon from './Icon.jsx'
 import Markdown from './markdown/Markdown.jsx'
 import ResponseEditor from './ResponseEditor.jsx'
-import SelectionActionMenu from './SelectionActionMenu.jsx'
+import SelectionActionMenu, { cleanAiTransformOutput } from './SelectionActionMenu.jsx'
+import { extractSourcesFromMessage } from './SourcesSidePanel.jsx'
 import { replaceSelectedInMarkdown } from './markdown/parse.js'
 import { api, copyText } from '../api.js'
+
+function extractFollowUps(item, text) {
+  if (Array.isArray(item?.followUps) && item.followUps.length > 0) return item.followUps
+  if (Array.isArray(item?.suggestions) && item.suggestions.length > 0) return item.suggestions
+
+  if (typeof text !== 'string') return []
+  const followUpMatch = text.match(/(?:(?:###\s*|(?:\*\*))?(?:Follow-up[s]?|Suggested questions|Next steps)(?:\*\*)?:?\s*\n)([\s\S]+?)$/i)
+  if (followUpMatch) {
+    const lines = followUpMatch[1]
+      .split('\n')
+      .map((l) => l.replace(/^[-*•\d.]+\s*/, '').trim())
+      .filter((l) => l.length > 5 && l.length < 120 && (l.endsWith('?') || !l.includes('.')))
+    if (lines.length > 0) return lines.slice(0, 3)
+  }
+  return []
+}
 
 export default function ResponseArtifactBox({
   text,
@@ -21,10 +39,15 @@ export default function ResponseArtifactBox({
   onExportDocx,
   onViewSources,
   onBranchInNewChat,
+  onFollowUp,
+  onRefer,
+  onAskQuote,
 }) {
   const [versionMenuOpen, setVersionMenuOpen] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [sourcesOpen, setSourcesOpen] = useState(false)
+  const [vote, setVote] = useState(null)
   const [artifact, setArtifact] = useState(null)
   const [copied, setCopied] = useState(false)
   const [justUpdated, setJustUpdated] = useState(false)
@@ -34,6 +57,9 @@ export default function ResponseArtifactBox({
   const versionRef = useRef(null)
   const exportRef = useRef(null)
   const moreRef = useRef(null)
+
+  const sources = useMemo(() => extractSourcesFromMessage(item), [item])
+  const followUps = useMemo(() => extractFollowUps(item, text), [item, text])
 
   // Load artifact metadata and version history
   useEffect(() => {
@@ -70,16 +96,66 @@ export default function ResponseArtifactBox({
     setTimeout(() => setCopied(false), 1500)
   }
 
+// Helper to toggle markdown formatting (bold, italic, code, strike) without stacking asterisks
+function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
+  if (!fullMarkdown || !selectedText) return fullMarkdown
+
+  const clean = selectedText.replace(/^[*_`~]+|[*_`~]+$/g, '').trim()
+  if (!clean) return fullMarkdown
+
+  const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escaped = escapeRegExp(clean)
+
+  if (formatType === 'bold') {
+    const anyBoldPattern = new RegExp(`(\\*{2,}|_{2,})\\s*${escaped}\\s*(\\*{2,}|_{2,})`)
+    if (anyBoldPattern.test(fullMarkdown)) {
+      return fullMarkdown.replace(anyBoldPattern, clean)
+    }
+    return replaceSelectedInMarkdown(fullMarkdown, selectedText, `**${clean}**`)
+  }
+
+  if (formatType === 'italic') {
+    const italicPattern = new RegExp(`(?<!\\*)\\*(?!\\*)\\s*${escaped}\\s*(?<!\\*)\\*(?!\\*)|(?<!_)\\b_(?!_)\\s*${escaped}\\s*(?<!_)\\b_(?!_)`)
+    if (italicPattern.test(fullMarkdown)) {
+      return fullMarkdown.replace(italicPattern, clean)
+    }
+    return replaceSelectedInMarkdown(fullMarkdown, selectedText, `*${clean}*`)
+  }
+
+  if (formatType === 'code') {
+    const codePattern = new RegExp(`\`+\\s*${escaped}\\s*\`+`)
+    if (codePattern.test(fullMarkdown)) {
+      return fullMarkdown.replace(codePattern, clean)
+    }
+    return replaceSelectedInMarkdown(fullMarkdown, selectedText, `\`${clean}\``)
+  }
+
+  if (formatType === 'strike') {
+    const strikePattern = new RegExp(`~{2,}\\s*${escaped}\\s*~{2,}`)
+    if (strikePattern.test(fullMarkdown)) {
+      return fullMarkdown.replace(strikePattern, clean)
+    }
+    return replaceSelectedInMarkdown(fullMarkdown, selectedText, `~~${clean}~~`)
+  }
+
+  return fullMarkdown
+}
+
   // Handle AI Transformation requested from floating selection menu
-  const handleApplyAiChanges = useCallback(async (selectedText, promptText) => {
-    if (!selectedText || !promptText) return
+  const handleApplyAiChanges = useCallback(async (selectedText, promptOrResult, isAlreadyTransformed = false) => {
+    if (!selectedText || !promptOrResult) return
     try {
-      const res = await api.aiTransform({
-        text: selectedText,
-        instruction: promptText,
-        action: 'rewrite',
-      })
-      const transformed = res.result || res.transformed
+      let transformed = ''
+      if (isAlreadyTransformed) {
+        transformed = cleanAiTransformOutput(promptOrResult, selectedText)
+      } else {
+        const res = await api.aiTransform({
+          text: selectedText,
+          instruction: promptOrResult,
+          action: 'improve',
+        })
+        transformed = cleanAiTransformOutput(res.result || res.transformed, selectedText)
+      }
       if (transformed && transformed !== selectedText) {
         const updatedFullText = replaceSelectedInMarkdown(text, selectedText, transformed)
         if (updatedFullText !== text && onSaveEdit) {
@@ -87,7 +163,6 @@ export default function ResponseArtifactBox({
           setTimeout(() => setJustUpdated(false), 1200)
           await onSaveEdit(item, updatedFullText)
         }
-        // Reload artifact versions
         if (conversationId && item.rowId) {
           const fresh = await api.messageArtifact(conversationId, item.rowId)
           if (fresh) setArtifact(fresh)
@@ -98,43 +173,38 @@ export default function ResponseArtifactBox({
     }
   }, [text, item, onSaveEdit, conversationId])
 
-  // Handle format actions (Bold, Italic, Links, Block formatting) from selection menu
+  // Handle format actions (Bold, Italic, Code, Links, Block formatting) from selection menu
   const handleFormat = useCallback(async (type, selectedText) => {
     if (!selectedText) return
-    let replaced = selectedText
-    if (type === 'bold') {
-      const isBold = selectedText.startsWith('**') && selectedText.endsWith('**')
-      replaced = isBold ? selectedText.slice(2, -2) : `**${selectedText}**`
-    } else if (type === 'italic') {
-      const isItalic = selectedText.startsWith('*') && selectedText.endsWith('*')
-      replaced = isItalic ? selectedText.slice(1, -1) : `*${selectedText}*`
+    let updated = text
+
+    if (['bold', 'italic', 'code', 'strike'].includes(type)) {
+      updated = toggleMarkdownFormat(text, selectedText, type)
     } else if (type === 'link') {
       const url = window.prompt('Enter link destination URL:', 'https://')
       if (!url) return
-      replaced = `[${selectedText}](${url})`
+      updated = replaceSelectedInMarkdown(text, selectedText, `[${selectedText}](${url})`)
     } else if (type === 'h1') {
-      replaced = `\n# ${selectedText.replace(/^#+\s*/, '')}\n`
+      updated = replaceSelectedInMarkdown(text, selectedText, `\n# ${selectedText.replace(/^#+\s*/, '')}\n`)
     } else if (type === 'h2') {
-      replaced = `\n## ${selectedText.replace(/^#+\s*/, '')}\n`
+      updated = replaceSelectedInMarkdown(text, selectedText, `\n## ${selectedText.replace(/^#+\s*/, '')}\n`)
     } else if (type === 'h3') {
-      replaced = `\n### ${selectedText.replace(/^#+\s*/, '')}\n`
+      updated = replaceSelectedInMarkdown(text, selectedText, `\n### ${selectedText.replace(/^#+\s*/, '')}\n`)
     } else if (type === 'ol') {
-      replaced = `\n1. ${selectedText}\n`
+      updated = replaceSelectedInMarkdown(text, selectedText, `\n1. ${selectedText}\n`)
     } else if (type === 'ul') {
-      replaced = `\n- ${selectedText}\n`
+      updated = replaceSelectedInMarkdown(text, selectedText, `\n- ${selectedText}\n`)
     } else if (type === 'check') {
-      replaced = `\n- [ ] ${selectedText}\n`
+      updated = replaceSelectedInMarkdown(text, selectedText, `\n- [ ] ${selectedText}\n`)
     } else if (type === 'p') {
-      replaced = selectedText.replace(/^(\#{1,6}\s+|-\s+\[[\sx]\]\s+|-\s+|\d+\.\s+)/i, '')
+      const cleanP = selectedText.replace(/^(\#{1,6}\s+|-\s+\[[\sx]\]\s+|-\s+|\d+\.\s+)/i, '')
+      updated = replaceSelectedInMarkdown(text, selectedText, cleanP)
     }
 
-    if (replaced !== selectedText && onSaveEdit) {
-      const updated = replaceSelectedInMarkdown(text, selectedText, replaced)
-      if (updated !== text) {
-        setJustUpdated(true)
-        setTimeout(() => setJustUpdated(false), 1200)
-        await onSaveEdit(item, updated)
-      }
+    if (updated !== text && onSaveEdit) {
+      setJustUpdated(true)
+      setTimeout(() => setJustUpdated(false), 1200)
+      await onSaveEdit(item, updated)
     }
   }, [text, item, onSaveEdit])
 
@@ -221,10 +291,7 @@ export default function ResponseArtifactBox({
     return isToday ? `Today, ${timeStr}` : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`
   }
 
-  const hasSources = Boolean(
-    item.sources?.length ||
-    (item.toolCalls && item.toolCalls.some((c) => c.name?.includes('search') || c.name?.includes('web')))
-  )
+  const hasSources = sources.length > 0
 
   // If in edit mode, render the response editor
   if (isEditing) {
@@ -249,15 +316,17 @@ export default function ResponseArtifactBox({
 
   return (
     <div className="chat-assistant-response">
-      {/* Floating selection bubble menu for AI transformations & formatting */}
+      {/* Floating selection capsule for AI transformations & formatting */}
       <SelectionActionMenu
         containerRef={docRef}
         onFormat={handleFormat}
         onApplyChanges={handleApplyAiChanges}
         allowFormatting={true}
+        onRefer={onRefer}
+        onAskQuote={onAskQuote}
       />
 
-      {/* Seamless Modern Prose Body (no card border, matching ChatGPT) */}
+      {/* Modern Prose Body */}
       <div
         className={`chat-assistant-prose${justUpdated ? ' is-ai-updated' : ''}`}
         ref={docRef}
@@ -265,7 +334,7 @@ export default function ResponseArtifactBox({
         <Markdown text={text} />
       </div>
 
-      {/* Bottom Action Toolbar: subtle hover copy for intermediate steps, full action suite for final response */}
+      {/* Action Toolbar */}
       {minimalToolbar ? (
         <div className="chat-assistant-toolbar chat-assistant-toolbar--minimal" role="toolbar" aria-label="Step actions">
           <button
@@ -304,7 +373,66 @@ export default function ResponseArtifactBox({
             </button>
           )}
 
-          {/* Version History Pill & Undo/Redo (when versions exist) */}
+          {/* Regenerate */}
+          {onRegenerate && (
+            <button
+              type="button"
+              className="resp-action-btn"
+              title="Regenerate"
+              aria-label="Regenerate response"
+              onClick={onRegenerate}
+            >
+              <Icon name="refresh" size={15} />
+            </button>
+          )}
+
+          {/* Thumbs up */}
+          <button
+            type="button"
+            className={`resp-action-btn${vote === 'up' ? ' is-active text-emerald-500' : ''}`}
+            title="Good response"
+            aria-label="Thumbs up"
+            onClick={() => setVote((v) => (v === 'up' ? null : 'up'))}
+          >
+            <ThumbsUp size={14} strokeWidth={vote === 'up' ? 2.4 : 1.8} />
+          </button>
+
+          {/* Thumbs down */}
+          <button
+            type="button"
+            className={`resp-action-btn${vote === 'down' ? ' is-active text-rose-500' : ''}`}
+            title="Bad response"
+            aria-label="Thumbs down"
+            onClick={() => setVote((v) => (v === 'down' ? null : 'down'))}
+          >
+            <ThumbsDown size={14} strokeWidth={vote === 'down' ? 2.4 : 1.8} />
+          </button>
+
+          {/* Sources Toggle Button with avatar stack */}
+          {hasSources && (
+            <button
+              type="button"
+              className={`resp-sources-toggle-btn${sourcesOpen ? ' is-active' : ''}`}
+              onClick={() => setSourcesOpen((o) => !o)}
+              title={`${sources.length} sources (Click to view)`}
+              aria-expanded={sourcesOpen}
+            >
+              <span className="flex -space-x-1.5 overflow-hidden">
+                {sources.slice(0, 3).map((s, idx) => (
+                  <img
+                    key={idx}
+                    src={`https://www.google.com/s2/favicons?domain=${s.domain}&sz=32`}
+                    alt=""
+                    className="size-3.5 rounded-full ring-1 ring-white dark:ring-[#101114] bg-neutral-200 dark:bg-neutral-700"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                ))}
+              </span>
+              <span className="font-mono text-[11px]">{sources.length} {sources.length === 1 ? 'source' : 'sources'}</span>
+            </button>
+          )}
+
+          {/* Version History Pill & Undo/Redo */}
           {artifact?.versions?.length > 1 && (
             <div className="resp-version-group" ref={versionRef}>
               <button
@@ -370,19 +498,6 @@ export default function ResponseArtifactBox({
             </div>
           )}
 
-          {/* Regenerate */}
-          {onRegenerate && (
-            <button
-              type="button"
-              className="resp-action-btn"
-              title="Regenerate"
-              aria-label="Regenerate response"
-              onClick={onRegenerate}
-            >
-              <Icon name="refresh" size={15} />
-            </button>
-          )}
-
           {/* Share & Export */}
           <div className="resp-menu-anchor" ref={exportRef}>
             <button
@@ -427,19 +542,6 @@ export default function ResponseArtifactBox({
               onClick={onOpenFullScreen}
             >
               <Icon name="expand" size={15} />
-            </button>
-          )}
-
-          {/* View Sources */}
-          {hasSources && (
-            <button
-              type="button"
-              className="resp-action-btn"
-              title="View sources"
-              aria-label="View sources"
-              onClick={() => onViewSources?.(item)}
-            >
-              <Icon name="book" size={15} />
             </button>
           )}
 
@@ -491,8 +593,88 @@ export default function ResponseArtifactBox({
                     <span>{item.pinned ? 'Unpin message' : 'Pin message'}</span>
                   </button>
                 )}
+
+                {onViewSources && hasSources && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      onViewSources?.(item)
+                    }}
+                  >
+                    <Icon name="book" size={14} />
+                    <span>Open in sources panel</span>
+                  </button>
+                )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible Sources Accordion */}
+      {hasSources && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+          style={{
+            gridTemplateRows: sourcesOpen ? '1fr' : '0fr',
+            opacity: sourcesOpen ? 1 : 0,
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="resp-sources-container">
+              {sources.map((source, i) => (
+                <a
+                  key={source.url || i}
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="resp-source-item group"
+                >
+                  <img
+                    src={`https://www.google.com/s2/favicons?domain=${source.domain}&sz=32`}
+                    alt=""
+                    className="resp-source-favicon"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                  <span className="resp-source-title">{source.title}</span>
+                  <span className="resp-source-domain">{source.domain}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Follow-ups Section */}
+      {followUps.length > 0 && (
+        <div className="mt-3.5 pt-2.5 border-t border-neutral-200/50 dark:border-white/[0.06]">
+          <p className="text-[12px] font-medium text-neutral-500 dark:text-neutral-400 mb-1">Follow-ups</p>
+          <div className="flex flex-col gap-0.5">
+            {followUps.map((promptText, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onFollowUp?.(promptText, i)}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12.5px] text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-white/[0.05] transition-colors cursor-pointer group"
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="shrink-0 text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors"
+                >
+                  <path d="M9 10l-5 5 5 5" />
+                  <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+                </svg>
+                <span className="truncate">{promptText}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}

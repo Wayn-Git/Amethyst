@@ -309,7 +309,17 @@ class ToolRegistry:
             if tk:
                 if is_provider_overridden_by_local(tk):
                     continue
-                if tk not in composio_conns:
+                from backend.mcp.composio_service import is_no_auth_toolkit
+
+                if is_no_auth_toolkit(tk):
+                    try:
+                        from backend.mcp.composio_service import composio_service
+
+                        if not composio_service.is_configured():
+                            continue
+                    except Exception:
+                        continue
+                elif tk not in composio_conns:
                     continue
 
             offered.append(t)
@@ -402,9 +412,13 @@ class ToolRegistry:
                 pass
 
             try:
-                from backend.mcp.composio_service import composio_service
+                from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
 
-                if not composio_service.is_configured() or tk not in composio_service.get_connections():
+                if not composio_service.is_configured():
+                    return ToolResult.error(
+                        f"Composio API key is not configured. Please configure your Composio key in settings to use '{tk}'."
+                    )
+                if not is_no_auth_toolkit(tk) and tk not in composio_service.get_connections():
                     return ToolResult.error(composio_sign_in_instruction(tk))
             except Exception:
                 return ToolResult.error(composio_sign_in_instruction(tk))
@@ -466,6 +480,21 @@ class ToolRegistry:
             )
         except Exception as exc:  # errors are data, never exceptions (see ai-runtime.md)
             result = ToolResult.error(f"{name} failed: {type(exc).__name__}: {exc}")
+
+        if tk and result.is_error:
+            try:
+                from backend.mcp.provider_ownership import detect_fallback_trigger, PROVIDER_MAPPING
+
+                trigger = detect_fallback_trigger(result.content)
+                if trigger:
+                    from backend.mcp.guidance import composio_fallback_instruction
+
+                    local_servers = sorted(list(PROVIDER_MAPPING.get(tk.lower(), set())))
+                    primary_local = local_servers[0] if local_servers else None
+                    fallback_msg = composio_fallback_instruction(tk, trigger, primary_local)
+                    result.content = f"{result.content}\n\n{fallback_msg}"
+            except Exception as exc:
+                log.debug("Failed to append fallback instruction: %s", exc)
 
         result.content = truncate(result.content)
         # Anything that can change the machine invalidates every cached read:
