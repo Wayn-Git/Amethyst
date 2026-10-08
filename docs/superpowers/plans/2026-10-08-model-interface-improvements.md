@@ -40,18 +40,18 @@
 - Consumes: `director.py:_run_turn_inner`, `director.py:_remember`, `director.py:_retrieve`
 - Produces: Fail-safe post-turn memory extraction and fast-timeout retrieval.
 
-- [ ] **Step 1: Write unit test verifying post-turn error does not fail turn**
+- [x] **Step 1: Write unit test verifying post-turn error does not fail turn**
 Test that an exception in `_remember` after `done` event does not yield an `error` event.
 
-- [ ] **Step 2: Run test to verify failure or baseline**
+- [x] **Step 2: Run test to verify failure or baseline**
 Run: `pytest tests/ -k test_director`
 
-- [ ] **Step 3: Modify `director.py` to isolate post-turn execution**
+- [x] **Step 3: Modify `director.py` to isolate post-turn execution**
 In `director.py` lines 2195-2206:
 Wrap `_remember` iteration and `_refresh_summary` in `try...except Exception as exc: log.warning(...)` so exceptions after `done` cannot escape to `_run_turn` outer exception handler.
 In `director.py:_retrieve`: Reduce retrieval timeout from 1.2s to 0.4s to prevent note search stalls.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 Run: `pytest tests/ -k test_director`
 
 ---
@@ -66,14 +66,14 @@ Run: `pytest tests/ -k test_director`
 - Consumes: Fontshare CDN for Satoshi, Google Fonts for Plus Jakarta Sans & Inter
 - Produces: `--font-sans`, `--font-display`, `--font-chat-prose` tokens
 
-- [ ] **Step 1: Update `frontend/index.html` font links**
+- [x] **Step 1: Update `frontend/index.html` font links**
 Include Satoshi font stylesheet from Fontshare and ensure Plus Jakarta Sans and Inter are loaded.
 
-- [ ] **Step 2: Update CSS font tokens in `frontend/src/index.css`**
+- [x] **Step 2: Update CSS font tokens in `frontend/src/index.css`**
 Set `--font-sans`, `--font-display`, and `--font-body` to prioritize `'Satoshi', 'Plus Jakarta Sans', system-ui, sans-serif`.
 Define `--font-chat-prose: 'Inter', system-ui, -apple-system, sans-serif;`.
 
-- [ ] **Step 3: Verify build**
+- [x] **Step 3: Verify build**
 Run: `npm --prefix frontend run build`
 
 ---
@@ -88,7 +88,7 @@ Run: `npm --prefix frontend run build`
 - Consumes: `--font-chat-prose`
 - Produces: Enhanced `.chat-assistant-prose`, `.md-p`, `.md-list`, headings styling
 
-- [ ] **Step 1: Update `.chat-assistant-prose` and Markdown styles in `frontend/src/index.css`**
+- [x] **Step 1: Update `.chat-assistant-prose` and Markdown styles in `frontend/src/index.css`**
 Set `.chat-assistant-prose`:
 - `font-family: var(--font-chat-prose);`
 - `font-size: 16px;`
@@ -96,7 +96,7 @@ Set `.chat-assistant-prose`:
 - `letter-spacing: -0.011em;`
 Adjust `.md-p` and list item margin-bottom to 16px to match natural reading rhythm.
 
-- [ ] **Step 2: Verify responsive rendering and typography hierarchy**
+- [x] **Step 2: Verify responsive rendering and typography hierarchy**
 Check styling rules in `index.css` to ensure no conflicting font overrides.
 
 ---
@@ -111,14 +111,14 @@ Check styling rules in `index.css` to ensure no conflicting font overrides.
 - Consumes: Markdown AST image arrays
 - Produces: Horizontal snap-scroll image gallery and full modal carousel with prev/next/arrow keys
 
-- [ ] **Step 1: Update `ImageGallery` in `Markdown.jsx`**
+- [x] **Step 1: Update `ImageGallery` in `Markdown.jsx`**
 Allow rendering all images (removing `slice(0, 3)` limit). If `items.length > 1`, render horizontal scrollable container with smooth scrolling, navigation buttons, and counter badge.
 
-- [ ] **Step 2: Upgrade `ImageLightbox` in `Markdown.jsx` to a carousel**
+- [x] **Step 2: Upgrade `ImageLightbox` in `Markdown.jsx` to a carousel**
 Add `currentIndex`, `onPrev`, `onNext`, and keyboard event listener (`ArrowLeft`, `ArrowRight`, `Escape`).
 Render active image with counter (`i + 1 of N`), prev/next chevron buttons, and thumbnail track.
 
-- [ ] **Step 3: Add CSS for gallery strip and lightbox carousel in `frontend/src/index.css`**
+- [x] **Step 3: Add CSS for gallery strip and lightbox carousel in `frontend/src/index.css`**
 Add styles for `.md-gallery-scroll`, `.md-lightbox-nav`, and `.md-lightbox-counter`.
 
 ---
@@ -136,20 +136,20 @@ Add styles for `.md-gallery-scroll`, `.md-lightbox-nav`, and `.md-lightbox-count
 - Consumes: `UIInspirations/components/tool-chips.md`, `UIInspirations/components/thinking.md`
 - Produces: `settings.thinkingStyle` ('cards' | 'chips') and `ToolChipsTrace` component
 
-- [ ] **Step 1: Add `thinkingStyle` state to `frontend/src/store.jsx`**
+- [x] **Step 1: Add `thinkingStyle` state to `frontend/src/store.jsx`**
 Default to `'cards'`. Persist to `localStorage.getItem('amethyst:thinking-style')`.
 Add `setThinkingStyle` action and expose via store.
 
-- [ ] **Step 2: Add Appearance UI in `frontend/src/views/Settings.jsx`**
+- [x] **Step 2: Add Appearance UI in `frontend/src/views/Settings.jsx`**
 In the Appearance view, add a segmented control or dropdown for "Thinking & Tool Display":
 - `Cards (Detailed)`
 - `Tool Chips (Compact)`
 
-- [ ] **Step 3: Create `frontend/src/components/ToolChipsTrace.jsx`**
+- [x] **Step 3: Create `frontend/src/components/ToolChipsTrace.jsx`**
 Adapt `UIInspirations/components/tool-chips.md` and `UIInspirations/components/thinking.md` to accept dynamic `events`, `reasoning`, and `live` props from Amethyst turns.
 
-- [ ] **Step 4: Update `frontend/src/components/TurnTrace.jsx`**
+- [x] **Step 4: Update `frontend/src/components/TurnTrace.jsx`**
 Read `thinkingStyle` from store. If `'chips'`, render `ToolChipsTrace`; otherwise render existing `AgentRun`.
 
-- [ ] **Step 5: Verify build and test all modes**
+- [x] **Step 5: Verify build and test all modes**
 Run: `npm --prefix frontend run build`
