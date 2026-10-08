@@ -17537,287 +17537,330 @@ a.text-reveal-wrap {
   .media-lightbox { padding: 20px; }
 }
 
-/* ---- image gallery widget ------------------------------------------- */
+/* ---- ChatGPT-style image strip & lightbox --------------------------- */
 
-.image-gallery-widget {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-}
-
-.image-gallery-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.gallery-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--text-sm, 13px);
-  color: var(--text);
-  font-weight: 500;
-}
-
-.gallery-count {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  background: var(--surface-2);
-  color: var(--text-dim);
-  padding: 1px 6px;
-  border-radius: var(--radius-tags, 9999px);
-  border: 1px solid var(--hairline);
-}
-
-.gallery-header-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.gallery-view-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-sm, 6px);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: all var(--press, 120ms) var(--ease-out);
-}
-
-.gallery-view-btn:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.gallery-view-btn.is-active {
-  background: var(--surface-2);
-  color: var(--accent);
-  border-color: var(--accent-line, var(--border));
-}
-
-.carousel-wrapper {
+.chatgpt-gallery-root {
   position: relative;
-  display: flex;
-  align-items: center;
   width: 100%;
+  margin: 10px 0 16px;
 }
 
-.carousel-container {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  scroll-snap-type: x mandatory;
-  padding: 4px 2px 8px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-  width: 100%;
-}
-
-.carousel-item {
-  flex: 0 0 200px;
-  scroll-snap-align: start;
-}
-
-.grid-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-  width: 100%;
-}
-
-.carousel-btn {
+.chatgpt-fav-toast {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 5;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--canvas);
-  border: 1px solid var(--border);
-  color: var(--text);
+  top: -38px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 24, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: var(--radius-tags, 9999px);
+  font-size: 12px;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: transform var(--press, 120ms) var(--ease-out), background var(--press, 120ms);
+  gap: 6px;
+  z-index: 20;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-.carousel-btn:hover {
-  background: var(--surface-2);
-  transform: translateY(-50%) scale(1.08);
-}
-
-.carousel-btn.is-prev { left: -12px; }
-.carousel-btn.is-next { right: -12px; }
-
-.gallery-card {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-cards, 6px);
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform var(--press, 120ms) var(--ease-out), border-color var(--press, 120ms);
-}
-
-.gallery-card:hover {
-  border-color: var(--accent-line, var(--text-dim));
-  transform: translateY(-2px);
-}
-
-.gallery-card-thumb {
-  position: relative;
+.chatgpt-image-strip {
+  display: grid;
+  gap: 8px;
   width: 100%;
-  height: 120px;
-  background: var(--surface-2);
-  overflow: hidden;
 }
 
-.gallery-card-thumb img {
+.chatgpt-image-strip.cols-1 {
+  grid-template-columns: 1fr;
+  max-width: 480px;
+}
+
+.chatgpt-image-strip.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.chatgpt-image-strip.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.chatgpt-image-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  background: var(--surface-2, #18191e);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 140ms var(--ease-out), filter 140ms ease;
+}
+
+.chatgpt-image-card:hover {
+  transform: scale(1.02);
+  filter: brightness(1.04);
+}
+
+.chatgpt-card-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 200ms var(--ease-out);
+  display: block;
 }
 
-.gallery-card:hover .gallery-card-thumb img {
-  transform: scale(1.04);
-}
-
-.gallery-card-fallback {
+.chatgpt-card-fallback {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-faint);
+  background: var(--surface-2);
 }
 
-.gallery-card-caption {
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.gallery-card-title {
-  font-size: 12px;
+/* Bottom-right total counter pill on the 3rd card */
+.chatgpt-count-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  border-radius: var(--radius-tags, 9999px);
+  padding: 3px 8px;
+  font-size: 11px;
   font-weight: 500;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
-}
-
-.gallery-card-source {
+  font-family: var(--font-sans);
   display: flex;
   align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  letter-spacing: 0.02em;
 }
 
-.source-domain {
-  font-size: 10.5px;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
+/* Card Bookmark hover button */
+.chatgpt-card-favorite {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 120ms ease, transform 120ms ease, background 120ms ease;
+  z-index: 2;
+}
+
+.chatgpt-image-card:hover .chatgpt-card-favorite,
+.chatgpt-card-favorite.is-saved {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.chatgpt-card-favorite:hover {
+  background: rgba(0, 0, 0, 0.85);
+  transform: scale(1.08);
+}
+
+.chatgpt-card-favorite.is-saved {
+  color: var(--accent, #7132f5);
+}
+
+/* ---- ChatGPT Lightbox Modal ----------------------------------------- */
+
+.chatgpt-lightbox-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #000000;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  user-select: none;
 }
 
-.lightbox-nav-btn {
+.chatgpt-lightbox-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  color: #ffffff;
+  z-index: 10;
+}
+
+.chatgpt-lightbox-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: transparent;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.chatgpt-lightbox-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.chatgpt-lightbox-btn.is-favorited {
+  color: var(--accent, #7132f5);
+}
+
+.chatgpt-lightbox-counter {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: var(--font-sans);
+  letter-spacing: 0.02em;
+}
+
+.chatgpt-lightbox-stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  width: 100%;
+  padding: 10px 48px;
+}
+
+.chatgpt-lightbox-main-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 82vw;
+  max-height: 76vh;
+}
+
+.chatgpt-lightbox-main-img {
+  max-width: 100%;
+  max-height: 76vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
+}
+
+.chatgpt-lightbox-nav {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 210;
-  transition: background 120ms ease;
+  z-index: 10;
+  transition: background 120ms ease, transform 120ms ease;
 }
 
-.lightbox-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+.chatgpt-lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-50%) scale(1.06);
 }
 
-.lightbox-nav-btn.is-prev { left: 24px; }
-.lightbox-nav-btn.is-next { right: 24px; }
+.chatgpt-lightbox-nav.is-prev {
+  left: 20px;
+}
 
-.lightbox-content {
+.chatgpt-lightbox-nav.is-next {
+  right: 20px;
+}
+
+/* Slivers of next image peeking on right */
+.chatgpt-lightbox-peek {
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 90px;
+  height: 60vh;
+  border-radius: 8px 0 0 8px;
+  overflow: hidden;
+  opacity: 0.45;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+  z-index: 2;
+}
+
+.chatgpt-lightbox-peek:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .chatgpt-lightbox-peek {
+    display: none;
+  }
+}
+
+.chatgpt-lightbox-peek img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chatgpt-lightbox-footer {
+  padding: 16px 24px 24px;
+  z-index: 10;
+  max-width: min(840px, 85vw);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  max-width: 90vw;
+  gap: 4px;
 }
 
-.lightbox-image {
-  max-width: 85vw;
-  max-height: 75vh;
-  object-fit: contain;
-  border-radius: var(--radius-cards, 6px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-}
-
-.lightbox-caption {
-  display: flex;
-  flex-direction: column;
+.chatgpt-lightbox-domain {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #fff;
-}
-
-.lightbox-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.lightbox-title {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.lightbox-counter {
   font-size: 12px;
-  opacity: 0.7;
+  color: rgba(255, 255, 255, 0.6);
   font-family: var(--font-mono);
 }
 
-.lightbox-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #fff;
-  opacity: 0.8;
-  font-size: 12px;
-  text-decoration: none;
+.chatgpt-lightbox-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1.4;
 }
 
-.lightbox-link:hover {
-  opacity: 1;
+.chatgpt-lightbox-link {
+  color: #ffffff;
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chatgpt-lightbox-link:hover {
   text-decoration: underline;
 }
+
 
 /* ---- data table widget ----------------------------------------------- */
 

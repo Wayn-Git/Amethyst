@@ -1,8 +1,19 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import Icon from '../Icon.jsx'
+
+function extractDomain(url, fallback) {
+  if (fallback) return fallback
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.replace(/^www\./, '')
+  } catch {
+    return fallback || ''
+  }
+}
 
 function Lightbox({ images, initialIndex, onClose }) {
   const [index, setIndex] = useState(initialIndex)
+  const [favorites, setFavorites] = useState(() => new Set())
   const current = images[index] || images[0]
 
   useEffect(() => {
@@ -17,90 +28,129 @@ function Lightbox({ images, initialIndex, onClose }) {
 
   if (!current) return null
 
+  const domain = extractDomain(current.url, current.source)
+  const isFav = favorites.has(current.url)
+  const nextItem = images.length > 1 ? images[(index + 1) % images.length] : null
+
+  const toggleFavorite = (e) => {
+    e.stopPropagation()
+    setFavorites((prev) => {
+      const next = new Set(prev)
+      if (next.has(current.url)) next.delete(current.url)
+      else next.add(current.url)
+      return next
+    })
+  }
+
   return (
     <div
-      className="media-lightbox"
+      className="chatgpt-lightbox-modal"
       role="dialog"
       aria-modal="true"
       aria-label={current.title || 'Image view'}
       onClick={onClose}
     >
-      <button
-        type="button"
-        className="media-close"
-        onClick={onClose}
-        aria-label="Close"
-      >
-        <Icon name="x" size={18} />
-      </button>
+      {/* Top Bar */}
+      <div className="chatgpt-lightbox-topbar" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="chatgpt-lightbox-btn"
+          onClick={onClose}
+          aria-label="Close"
+          title="Close (Esc)"
+        >
+          <Icon name="x" size={20} />
+        </button>
 
-      {images.length > 1 && (
-        <>
+        <span className="chatgpt-lightbox-counter">
+          {index + 1} / {images.length}
+        </span>
+
+        <button
+          type="button"
+          className={`chatgpt-lightbox-btn${isFav ? ' is-favorited' : ''}`}
+          onClick={toggleFavorite}
+          aria-label={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
+          title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
+        >
+          <Icon name="bookmark" size={20} />
+        </button>
+      </div>
+
+      {/* Main Stage */}
+      <div className="chatgpt-lightbox-stage" onClick={(e) => e.stopPropagation()}>
+        {images.length > 1 && (
           <button
             type="button"
-            className="lightbox-nav-btn is-prev"
-            onClick={(e) => {
-              e.stopPropagation()
-              setIndex((i) => (i > 0 ? i - 1 : images.length - 1))
-            }}
+            className="chatgpt-lightbox-nav is-prev"
+            onClick={() => setIndex((i) => (i > 0 ? i - 1 : images.length - 1))}
             aria-label="Previous image"
           >
-            <Icon name="back" size={20} />
+            <Icon name="back" size={22} />
           </button>
+        )}
+
+        <div className="chatgpt-lightbox-main-wrapper">
+          <img
+            src={current.url || current.thumbnail}
+            alt={current.title || ''}
+            className="chatgpt-lightbox-main-img"
+          />
+        </div>
+
+        {images.length > 1 && (
           <button
             type="button"
-            className="lightbox-nav-btn is-next"
-            onClick={(e) => {
-              e.stopPropagation()
-              setIndex((i) => (i < images.length - 1 ? i + 1 : 0))
-            }}
+            className="chatgpt-lightbox-nav is-next"
+            onClick={() => setIndex((i) => (i < images.length - 1 ? i + 1 : 0))}
             aria-label="Next image"
           >
-            <Icon name="arrow-right" size={20} />
+            <Icon name="caret-right" size={22} />
           </button>
-        </>
-      )}
+        )}
 
-      <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-        <img
-          src={current.url || current.thumbnail}
-          alt={current.title || ''}
-          className="lightbox-image"
-        />
-        <figcaption className="lightbox-caption">
-          <div className="lightbox-title-row">
-            <span className="lightbox-title">{current.title}</span>
-            {images.length > 1 && (
-              <span className="lightbox-counter">
-                {index + 1} / {images.length}
-              </span>
-            )}
+        {/* Peek of next image on the right edge */}
+        {nextItem && images.length > 2 && (
+          <div
+            className="chatgpt-lightbox-peek"
+            onClick={() => setIndex((i) => (i < images.length - 1 ? i + 1 : 0))}
+            title="Next image"
+          >
+            <img src={nextItem.thumbnail || nextItem.url} alt="" />
           </div>
-          {current.source && (
-            <div className="lightbox-source">
-              <a
-                href={current.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="lightbox-link"
-              >
-                <span>{current.source}</span>
-                <Icon name="external-link" size={12} />
-              </a>
-            </div>
-          )}
-        </figcaption>
+        )}
+      </div>
+
+      {/* Bottom Metadata Overlay */}
+      <div className="chatgpt-lightbox-footer" onClick={(e) => e.stopPropagation()}>
+        {domain && (
+          <div className="chatgpt-lightbox-domain">
+            <Icon name="globe" size={13} />
+            <span>{domain}</span>
+          </div>
+        )}
+        <div className="chatgpt-lightbox-title">
+          <a
+            href={current.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="chatgpt-lightbox-link"
+          >
+            {current.title || 'View Source'}
+          </a>
+        </div>
       </div>
     </div>
   )
 }
 
-function ImageCard({ item, index, onOpen }) {
+function ImageCard({ item, index, total, onOpen, onToggleFav, isFav }) {
   const [error, setError] = useState(false)
+  const isLastSlot = index === 2 && total > 3
 
   return (
-    <figure
-      className="gallery-card"
+    <div
+      className="chatgpt-image-card"
       onClick={() => onOpen(index)}
       role="button"
       tabIndex={0}
@@ -111,115 +161,104 @@ function ImageCard({ item, index, onOpen }) {
         }
       }}
     >
-      <div className="gallery-card-thumb">
-        {!error ? (
-          <img
-            src={item.thumbnail || item.url}
-            alt={item.title || ''}
-            loading="lazy"
-            onError={() => setError(true)}
-          />
-        ) : (
-          <div className="gallery-card-fallback">
-            <Icon name="image" size={24} />
-          </div>
-        )}
-      </div>
-      <figcaption className="gallery-card-caption">
-        <div className="gallery-card-title" title={item.title}>
-          {item.title || 'Image'}
+      {!error ? (
+        <img
+          src={item.thumbnail || item.url}
+          alt={item.title || ''}
+          className="chatgpt-card-image"
+          loading="lazy"
+          onError={() => setError(true)}
+        />
+      ) : (
+        <div className="chatgpt-card-fallback">
+          <Icon name="image" size={28} />
         </div>
-        {item.source && (
-          <div className="gallery-card-source">
-            <span className="source-domain">{item.source}</span>
-          </div>
-        )}
-      </figcaption>
-    </figure>
+      )}
+
+      {/* Card Bookmark / Favorite Hover Button */}
+      <button
+        type="button"
+        className={`chatgpt-card-favorite${isFav ? ' is-saved' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleFav(item.url)
+        }}
+        aria-label={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
+        title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
+      >
+        <Icon name="bookmark" size={15} />
+      </button>
+
+      {/* Count Badge on the 3rd card when more images exist */}
+      {isLastSlot && (
+        <div className="chatgpt-count-badge">
+          <Icon name="layers" size={13} />
+          <span>{total}</span>
+        </div>
+      )}
+    </div>
   )
 }
 
 export default function ImageGallery({ data }) {
   const images = Array.isArray(data?.images) ? data.images : []
-  const [layout, setLayout] = useState(data?.layout === 'grid' ? 'grid' : 'carousel')
   const [lightboxIndex, setLightboxIndex] = useState(null)
-  const carouselRef = useRef(null)
+  const [favorites, setFavorites] = useState(() => new Set())
+  const [toastMessage, setToastMessage] = useState(null)
 
   if (!images.length) return null
 
-  const scroll = (direction) => {
-    if (!carouselRef.current) return
-    const offset = carouselRef.current.clientWidth * 0.75
-    carouselRef.current.scrollBy({
-      left: direction === 'left' ? -offset : offset,
-      behavior: 'smooth',
+  // In chat messages, show up to 3 cards in the horizontal strip
+  const visibleCards = images.slice(0, 3)
+  const columnsCount = visibleCards.length
+
+  const handleToggleFav = (url) => {
+    setFavorites((prev) => {
+      const next = new Set(prev)
+      const willAdd = !next.has(url)
+      if (willAdd) {
+        next.add(url)
+        setToastMessage('Added to Favorites')
+      } else {
+        next.delete(url)
+        setToastMessage('Removed from Favorites')
+      }
+      setTimeout(() => setToastMessage(null), 2500)
+      return next
     })
   }
 
   return (
-    <div className="image-gallery-widget">
-      <div className="image-gallery-header">
-        <div className="gallery-header-left">
-          <Icon name="image" size={16} />
-          <span className="gallery-title">{data.title || 'Image Gallery'}</span>
-          <span className="gallery-count">{images.length}</span>
+    <div className="chatgpt-gallery-root">
+      {toastMessage && (
+        <div className="chatgpt-fav-toast">
+          <Icon name="bookmark" size={14} />
+          <span>{toastMessage}</span>
         </div>
-        <div className="gallery-header-right">
-          <button
-            type="button"
-            className={`gallery-view-btn${layout === 'carousel' ? ' is-active' : ''}`}
-            onClick={() => setLayout('carousel')}
-            title="Carousel view"
-            aria-label="Carousel view"
-          >
-            <Icon name="rows" size={14} />
-          </button>
-          <button
-            type="button"
-            className={`gallery-view-btn${layout === 'grid' ? ' is-active' : ''}`}
-            onClick={() => setLayout('grid')}
-            title="Grid view"
-            aria-label="Grid view"
-          >
-            <Icon name="grid" size={14} />
-          </button>
-        </div>
-      </div>
+      )}
 
-      <div className="image-gallery-body">
-        {layout === 'carousel' ? (
-          <div className="carousel-wrapper">
-            <button
-              type="button"
-              className="carousel-btn is-prev"
-              onClick={() => scroll('left')}
-              aria-label="Previous images"
-            >
-              <Icon name="back" size={16} />
-            </button>
-            <div className="carousel-container" ref={carouselRef}>
-              {images.map((img, idx) => (
-                <div key={idx} className="carousel-item">
-                  <ImageCard item={img} index={idx} onOpen={setLightboxIndex} />
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="carousel-btn is-next"
-              onClick={() => scroll('right')}
-              aria-label="Next images"
-            >
-              <Icon name="arrow-right" size={16} />
-            </button>
-          </div>
-        ) : (
-          <div className="grid-container">
-            {images.map((img, idx) => (
-              <ImageCard key={idx} item={img} index={idx} onOpen={setLightboxIndex} />
-            ))}
-          </div>
-        )}
+      <div
+        className={`chatgpt-image-strip cols-${columnsCount}`}
+        style={{
+          gridTemplateColumns:
+            columnsCount === 1
+              ? '1fr'
+              : columnsCount === 2
+              ? 'repeat(2, 1fr)'
+              : 'repeat(3, minmax(0, 1fr))',
+        }}
+      >
+        {visibleCards.map((img, idx) => (
+          <ImageCard
+            key={idx}
+            item={img}
+            index={idx}
+            total={images.length}
+            onOpen={setLightboxIndex}
+            onToggleFav={handleToggleFav}
+            isFav={favorites.has(img.url)}
+          />
+        ))}
       </div>
 
       {lightboxIndex !== null && (
