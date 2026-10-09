@@ -91,3 +91,30 @@ request, with a `guard` frame.
 - **A full stream replay is logged.** `started == False` replays the whole
   request; unlogged, a turn could cost four times the tokens and wall clock with
   no trace.
+
+## Disconnect kills the turn (decided)
+
+**The contract: a client that hangs up cancels the turn.** Starlette drops the
+streaming task when the SSE response closes, `Director.run`'s `BaseException`
+handler records `the turn was interrupted: CancelledError`, and the row lands
+`phase='failed'` carrying the partial answer. 52 of 66 failed runs in the live
+database are exactly this.
+
+The interface used to describe a different system — two comments claimed
+aborting the read "leaves the loop running", and the watchdog told users the
+turn "may still be running; reload to reconnect". There is no re-attach
+endpoint: a reload reads the transcript, it never reopens the stream. The
+comments and the watchdog message now say what the server actually does, and
+the backstop in `Director.run`'s `finally` writes a synthetic
+`error = "turn ended without a result"` so no row can end up
+`phase='failed'` with `error IS NULL`.
+
+**Why not detach instead** (the promise the old copy implied): running the
+director as a detached task with SSE as a mere observer needs a subscription
+registry, event replay on reconnect, and token bounds on work that outlives
+every reader — a new subsystem, out of Phase 01's scope
+(`docs/plans/amethyst-v2/01-triage-fixes.md`, Task 6). Explicit **Stop** stays
+the graceful path (`POST …/turn/stop` → guard frame, partial kept); the
+cancellation path stays the last-resort reporter. If detach is ever built,
+this section is the seam it replaces — the run row already carries what a
+replay needs for final state (`phase`, `error`, `carried`).
