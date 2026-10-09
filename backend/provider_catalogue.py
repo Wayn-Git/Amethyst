@@ -184,13 +184,14 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
     ProviderPreset(
         slug="opencode-zen",
         core=True,
+        free=True,
         strengths=frozenset({"fast", "reasoning"}),
         label="OpenCode Zen",
         base_url="https://opencode.ai/zen/v1",
-        default_model="kimi-k2.6",
+        default_model="mimo-v2.6-flash-free",
         keys_url="https://opencode.ai/console",
         docs_url="https://opencode.ai/v2/docs/console/inference",
-        note="Gateway. OpenCode Console inference endpoint covering kimi-k2.6, glm-5.1, minimax-m2.7.",
+        note="Gateway. OpenCode inference endpoint covering free tier (mimo-v2.6-flash-free, big-pickle, space-bunny-free) and premium models.",
     ),
     ProviderPreset(
         slug="nous",
