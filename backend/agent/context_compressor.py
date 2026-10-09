@@ -17,8 +17,12 @@ from backend.agent.context_engine import ContextEngine
 
 log = logging.getLogger(__name__)
 
-# Default model for summarization. Configurable via settings.
-_DEFAULT_COMPRESSION_MODEL = "mistralai/mistral-7b-instruct-v0.3"
+# Default model for summarization. Empty means "route to the fast tier at call
+# time". The old value, "mistralai/mistral-7b-instruct-v0.3", parsed to a
+# provider that is not in providers.yaml, so every summary attempt failed in
+# resolve() before any request was made -- compression silently degraded to
+# the deterministic fallback forever.
+_DEFAULT_COMPRESSION_MODEL = ""
 
 # Anti-thrash: cooldown after failed compression (seconds).
 _COOLDOWN_BASE = 60.0
@@ -29,6 +33,11 @@ _INEFFECTIVE_THRESHOLD = 2
 
 # Recovery window after breaker trips.
 _RECOVERY_SECONDS = 300.0
+
+# Hard cap on the auxiliary summarizer. A summarizer that never answers must
+# not hold the turn: the caller already falls back to the deterministic
+# summary when this raises.
+_SUMMARY_TIMEOUT_SECONDS = 60
 
 
 def _estimate_tokens(text: str) -> int:
@@ -359,15 +368,27 @@ class ContextCompressor(ContextEngine):
 
         try:
             import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # We're inside an async context; use a thread to avoid blocking
+
+            try:
+                running = asyncio.get_running_loop()
+            except RuntimeError:
+                running = None
+
+            if running is not None and running.is_running():
+                # Inside the turn's async context: run the sync call on a
+                # worker thread so the loop (and its SSE heartbeats) keep
+                # moving while the summarizer waits on the network.
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     future = pool.submit(self._call_summary_llm, prompt)
-                    summary = future.result(timeout=60)
+                    summary = future.result(timeout=_SUMMARY_TIMEOUT_SECONDS)
             else:
-                summary = loop.run_until_complete(self._call_summary_llm(prompt))
+                # Sync context: the call is synchronous already. The old
+                # `loop.run_until_complete(self._call_summary_llm(...))`
+                # passed a plain function where a coroutine was expected and
+                # raised every time.
+                summary = self._call_summary_llm(prompt)
         except Exception as exc:
             log.warning("summary LLM call failed: %s", exc)
             return None
@@ -376,37 +397,70 @@ class ContextCompressor(ContextEngine):
             self._previous_summary = summary
         return summary
 
+    def _summary_target(self):
+        """(provider, model) for the summarizer: explicit config, else fast tier."""
+        from backend.runtime.registry import resolve
+
+        provider, model = self._parse_model(self.compression_model)
+        if provider:
+            try:
+                resolve(provider, model)
+                return provider, model
+            except Exception as exc:
+                log.debug(
+                    "configured compression model %s unusable (%s); "
+                    "falling back to the fast tier",
+                    self.compression_model,
+                    exc,
+                )
+
+        # Fast tier: always configured on a working install (the tier exists
+        # precisely so background work has somewhere cheap to go). No head
+        # means no model is configured at all -- a real state on a fresh
+        # machine -- and the caller degrades to the deterministic summary.
+        from backend.runtime.router import route_for_tier
+
+        head = route_for_tier("fast").head
+        if head is None:
+            return None
+        return head.provider, head.model
+
     def _call_summary_llm(self, prompt: str) -> str | None:
         """Call the summary model. Runs in a thread (sync context)."""
         try:
             from backend.runtime.registry import resolve
+            from backend.runtime.types import ModelParameters
 
-            # Use the configured compression model
-            provider, model = self._parse_model(self.compression_model)
+            target = self._summary_target()
+            if target is None:
+                log.warning("no model available for summarization")
+                return None
+            provider, model = target
             resolved = resolve(provider, model)
             if resolved is None:
-                log.warning("could not resolve compression model %s", self.compression_model)
+                log.warning("could not resolve compression model %s/%s", provider, model)
                 return None
 
-            # Make a synchronous completion call
-            import httpx
-
-            # Build the request based on provider type
             client = resolved.client
             messages = [{"role": "user", "content": prompt}]
 
-            # Use the client's complete method if available
             if hasattr(client, "complete"):
                 import asyncio
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                try:
-                    response = loop.run_until_complete(
-                        client.complete(messages, params={"max_tokens": self.max_tokens})
+
+                # This runs on a worker thread (or a sync caller), never on
+                # the turn's loop -- asyncio.run creates and closes its own.
+                # The argument shape must match every other call site
+                # (workers/llm.py:165): (messages, system, ModelParameters).
+                # The old `params={"max_tokens": ...}` dict raised
+                # AttributeError on every attempt, swallowed one frame up.
+                response = asyncio.run(
+                    client.complete(
+                        messages,
+                        None,
+                        ModelParameters(max_tokens=self.max_tokens),
                     )
-                    return response.text
-                finally:
-                    loop.close()
+                )
+                return response.text
 
             log.warning("compression model client has no complete() method")
             return None
