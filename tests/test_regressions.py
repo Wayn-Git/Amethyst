@@ -1830,21 +1830,32 @@ async def test_stopping_a_turn_ends_the_loop_and_the_tool_call(db, monkeypatch):
     )
 
 
-def test_the_api_can_stop_a_turn_it_is_streaming(api, db):
-    """Nothing can interrupt a turn without a route to ask through."""
+async def test_the_api_can_stop_a_turn_it_is_streaming(api, db):
+    """Nothing can interrupt a turn without a route to ask through.
+
+    Async because the endpoint is: a sync `def stop_turn` runs in a threadpool
+    and `Event.set` off the loop does not wake the waiter promptly -- Stop
+    could sit unread (Phase 01, Task 5).
+    """
     import asyncio
+    import inspect
 
     from backend.db.repositories import ConversationRepository
 
+    assert inspect.iscoroutinefunction(api.stop_turn), (
+        "stop_turn must be async: a sync endpoint sets the cancel Event from "
+        "a threadpool thread"
+    )
+
     cid = ConversationRepository().create("f", "f")
     with pytest.raises(Exception) as unknown:
-        api.stop_turn(cid)
+        await api.stop_turn(cid)
     assert "404" in str(unknown.value) or "no turn" in str(unknown.value)
 
     cancel = asyncio.Event()
     api._active_turns[cid] = cancel
     try:
-        assert api.stop_turn(cid) == {"status": "stopping"}
+        assert await api.stop_turn(cid) == {"status": "stopping"}
         assert cancel.is_set()
     finally:
         api._active_turns.pop(cid, None)

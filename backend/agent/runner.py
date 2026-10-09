@@ -374,15 +374,21 @@ class SubagentRunner:
             except Exception:
                 pass
 
-        # Last resort: use the first available provider
+        # Last resort: use the first available provider.
+        #
+        # configured_providers() returns dict[str, ProviderConfig] -- indexing
+        # it with [0] raised KeyError, which a bare `except Exception: pass`
+        # swallowed, so this path always returned None and subagents died
+        # with "No model available". Keep the log: a silent failure here is
+        # how that bug survived.
         try:
             from backend.config import configured_providers
             providers = configured_providers()
             if providers:
-                first = providers[0]
+                first = next(iter(providers.values()))
                 return resolve(first.name, first.default_model)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning("subagent model fallback failed: %s", exc)
 
         return None
 
@@ -444,7 +450,8 @@ class SubagentRunner:
             extra={"subagent": True},
         )
 
+        args = self.registry.normalize_arguments(tool, call.arguments)
         try:
-            return await tool.handler(call.arguments, ctx)
+            return await tool.handler(args, ctx)
         except Exception as exc:
             return ToolResult.error(f"Tool execution failed: {exc}")

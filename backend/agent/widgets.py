@@ -437,9 +437,8 @@ _WIDGET_SIGNALS = (
     "chart", "graph", "plot", "visualise", "visualize", "bar chart", "line chart",
     # options
     "options", "choose", "pick one", "suggest", "recommend", "ideas for", "alternatives",
-    # image_gallery
-    "image", "images", "picture", "pictures", "photo", "photos",
-    "screenshot", "screenshots", "wallpaper", "wallpapers", "pic", "pics",
+    # image_gallery (strictly opt-in via @images or /images)
+    "@images", "@image", "/images", "/image",
 )
 
 #: Technical terms that strongly indicate a development task, not a widget request.
@@ -478,67 +477,55 @@ _TECHNICAL_MARKERS = (
 )
 
 
-_IMAGE_PATTERNS = [
-    re.compile(
-        r"^(?:please\s+)?(?:can\s+you\s+)?(?:get|find|show|give|fetch|search|display|pull|look\s+up)\s+(?:me\s+)?(?:some\s+|a\s+few\s+|(\d+)\s+)?(?:pictures|images|photos|wallpapers|screenshots|pics)\s+(?:of|for|about)\s+(.+?)(?:\s+please)?[.?!]*$",
-        re.I,
-    ),
-    re.compile(
-        r"^(?:some\s+|a\s+few\s+|(\d+)\s+)?(?:pictures|images|photos|wallpapers|screenshots|pics)\s+(?:of|for|about)\s+(.+?)(?:\s+please)?[.?!]*$",
-        re.I,
-    ),
-    re.compile(
-        r"^(.+?)\s+(?:pictures|images|photos|wallpapers|screenshots|pics)[.?!]*$",
-        re.I,
-    ),
-]
-
-
 def _detect_image_intent(message: str) -> tuple[str, int] | None:
     text = message.strip()
     lowered = text.lower()
     if any(m in lowered for m in _TECHNICAL_MARKERS):
         return None
-    for pat in _IMAGE_PATTERNS:
-        m = pat.match(text)
-        if m:
-            groups = m.groups()
-            count = 15
-            query = ""
-            for g in groups:
-                if g and g.isdigit():
-                    count = int(g)
-                elif g and g.lower() not in (
-                    "pictures",
-                    "images",
-                    "photos",
-                    "wallpapers",
-                    "screenshots",
-                    "pics",
-                ):
-                    query = g
-            if query.strip():
-                return (query.strip(), max(count, 3))
+    # Strictly require explicit @images, @image, /images, or /image
+    has_tag = any(tag in lowered for tag in ("@images", "@image", "/images", "/image"))
+    if not has_tag:
+        return None
 
-    for phrase in (
-        "pictures of ",
-        "images of ",
-        "photos of ",
-        "screenshots of ",
-        "wallpapers of ",
-        "pics of ",
-    ):
-        if phrase in lowered:
-            idx = lowered.find(phrase)
-            query = text[idx + len(phrase) :].strip(" .?!")
-            prefix = text[:idx].strip()
-            count = 15
-            for part in prefix.split():
-                if part.isdigit():
-                    count = int(part)
-            if query:
-                return (query, max(count, 3))
-    return None
+    # Strip the tag
+    cleaned = re.sub(r"[@/](?:images|image)\b", "", text, flags=re.I).strip(" :,-")
+
+    count = 15
+    count_match = re.search(r"\b(\d+)\b", cleaned)
+    if count_match:
+        try:
+            val = int(count_match.group(1))
+            if 1 <= val <= 100:
+                count = val
+                cleaned = cleaned[:count_match.start()] + " " + cleaned[count_match.end():]
+        except ValueError:
+            pass
+
+    # Strip common filler request prefixes/words
+    cleaned = re.sub(
+        r"^(?:please\s+)?(?:can\s+you\s+)?(?:get|find|show|give|fetch|display|pull|look\s+up)\s+(?:me\s+)?",
+        "",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = re.sub(
+        r"\b(?:pictures|images|photos|wallpapers|screenshots|pics)\s+(?:of|for|about)\s+",
+        "",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = re.sub(
+        r"\b(?:pictures|images|photos|wallpapers|screenshots|pics)\b",
+        "",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = re.sub(r"\b(?:some|a\s+few)\b", "", cleaned, flags=re.I)
+    query = re.sub(r"\s+", " ", cleaned).strip(" .?!:,-")
+
+    if not query:
+        return None
+    return (query, max(count, 3))
 
 
 def _clean_image_query(query: str) -> str:
@@ -687,7 +674,7 @@ def _certainly_not_a_widget(message: str) -> bool:
     if word_count < 2:
         return True
     if word_count < 5 and not any(sig in message.lower() for sig in (
-        "picture", "image", "photo", "screenshot", "wallpaper", "pic", "recipe", "quiz", "compare"
+        "@images", "@image", "/images", "/image", "recipe", "quiz", "compare"
     )):
         return True
     if "```" in message or "http://" in message or "https://" in message:

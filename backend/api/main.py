@@ -689,13 +689,6 @@ async def _lifespan(_: FastAPI):
     with contextlib.suppress(Exception):
         await TerminalManager.get().shutdown()
     await close_clients()
-    with contextlib.suppress(Exception):
-        from backend.opencode.manager import get_manager as _get_oc_manager
-        from backend.opencode.router import _close_client as _close_oc_proxy
-        _oc = _get_oc_manager()
-        if _oc.is_running:
-            await _oc.stop()
-        await _close_oc_proxy()
 
 
 #: What answers a caller that is not this machine.
@@ -922,9 +915,6 @@ app.include_router(remote_router)
 
 from backend.converter import router as converter_router
 app.include_router(converter_router)
-
-from backend.opencode.router import router as opencode_router
-app.include_router(opencode_router)
 
 
 @app.post("/api/pair/claim")
@@ -3260,7 +3250,7 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
 
 
 @app.post("/api/conversations/{conversation_id}/turn/stop")
-def stop_turn(conversation_id: str) -> dict[str, str]:
+async def stop_turn(conversation_id: str) -> dict[str, str]:
     """Interrupt the turn streaming for this conversation.
 
     The loop stops before its next model call, cancels whatever tool call is in

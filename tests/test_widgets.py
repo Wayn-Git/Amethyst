@@ -676,3 +676,42 @@ async def test_search_images_tool(monkeypatch):
     assert "amethyst:widget" in res.content
     assert "image_gallery" in res.content
 
+
+@pytest.mark.asyncio
+async def test_image_gallery_only_for_explicit_tag(monkeypatch):
+    from backend.agent import widgets
+
+    async def mock_search_images(query, limit=12):
+        return [
+            {
+                "url": "https://example.com/img.jpg",
+                "thumbnail": "https://example.com/thumb.jpg",
+                "title": "Test Image",
+                "source": "example.com",
+            }
+        ]
+
+    monkeypatch.setattr("backend.web.search_service.search_images", mock_search_images)
+
+    # General queries mentioning images/pictures MUST NOT trigger image gallery widget
+    for general in (
+        "Seperate images",
+        "Get me 10 images of jason and lucia from gta 6 seperately",
+        "pictures of cute cats",
+        "show me screenshots",
+    ):
+        res = await widgets.classify_and_extract(general)
+        assert res == ("none", None, []), f"Unexpected widget for {general}: {res}"
+
+    # Explicit @images / /images tags DO trigger image gallery widget
+    for tagged in (
+        "@images jason and lucia",
+        "jason and lucia @images",
+        "/images nature",
+        "@image cars",
+    ):
+        res = await widgets.classify_and_extract(tagged)
+        assert res[0] == "image_gallery", f"Expected image_gallery for {tagged}, got {res}"
+        assert res[1] is not None
+
+
