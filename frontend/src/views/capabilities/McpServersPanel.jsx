@@ -362,12 +362,16 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
     <div className="mcp-panel-root">
       {/* Header bar */}
       <div className="mcp-panel-header">
-        <div>
-          <h3 className="mcp-panel-title">Custom MCP Servers</h3>
-          <p className="mcp-panel-desc">
-            Local stdio command tools or remote HTTP/SSE endpoints connected via Model Context Protocol.
-          </p>
-        </div>
+        {!embedded ? (
+          <div>
+            <h3 className="mcp-panel-title">Custom MCP Servers</h3>
+            <p className="mcp-panel-desc">
+              Local stdio command tools or remote HTTP/SSE endpoints connected via Model Context Protocol.
+            </p>
+          </div>
+        ) : (
+          <div />
+        )}
         <div className="mcp-panel-actions">
           <button
             type="button"
