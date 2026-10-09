@@ -31,6 +31,7 @@ from typing import Any
 from backend.config import ProviderConfig, configured_providers
 from backend.provider_catalogue import preset
 from backend.runtime import availability
+from backend.runtime.failures import FailureKind, classify_status
 from backend.runtime.registry import resolve
 from backend.runtime.router import route_for_tier
 from backend.runtime.types import ModelParameters
@@ -169,7 +170,16 @@ async def ask(
             # Recorded so the next worker routes around it, the same way an
             # interactive turn's failure does. A worker that fails silently
             # teaches the router nothing.
-            availability.record_failure(provider, "unreachable", str(exc))
+            #
+            # The kind must be a FailureKind: record_failure() gates on
+            # `kind not in (UNREACHABLE, UPSTREAM_UNHEALTHY,
+            # NON_RETRYABLE_RATE_LIMIT)` and a plain "unreachable" string
+            # failed that check, so this call used to be a silent no-op.
+            kind = FailureKind.UNREACHABLE
+            status = getattr(exc, "status", None)
+            if isinstance(status, int):
+                kind = classify_status(status, str(exc))
+            availability.record_failure(provider, kind, str(exc))
             tried.append(f"{provider}: {type(exc).__name__}")
             continue
         availability.record_success(provider)

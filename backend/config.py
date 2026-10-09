@@ -493,9 +493,9 @@ def set_tier(
 #: too low cuts multi-step work short and too high lets a stuck loop burn a long
 #: time before the wall-clock guard stops it. The default matches
 #: `Guards.max_iterations`.
-DEFAULT_MAX_ITERATIONS = 16
+DEFAULT_MAX_ITERATIONS = 32
 MIN_MAX_ITERATIONS = 4
-MAX_MAX_ITERATIONS = 40
+MAX_MAX_ITERATIONS = 200
 _MAX_ITERATIONS_SETTING = "max_iterations"
 
 
@@ -535,6 +535,8 @@ def save_max_iterations(value: int) -> int:
 
 
 def _clamp_iterations(value: int) -> int:
+    if value <= 0:
+        return 0  # 0 indicates uncapped / no iteration limit
     return max(MIN_MAX_ITERATIONS, min(MAX_MAX_ITERATIONS, value))
 
 

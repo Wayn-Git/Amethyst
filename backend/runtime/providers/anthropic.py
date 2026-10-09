@@ -419,6 +419,9 @@ def initialize(
     if not resolved_model:
         raise ValueError(f"no model specified for provider '{config.name}'")
     api_key = resolve_api_key(ref=config.api_key_ref, env=config.api_key_env or "ANTHROPIC_API_KEY")
+    if not api_key and (config.api_key_ref or config.api_key_env):
+        from backend.runtime.registry import ProviderNotConfigured
+        raise ProviderNotConfigured(f"No API key configured for provider '{config.name}'. Set {config.api_key_env or 'ANTHROPIC_API_KEY'} or add a key in Settings.")
     client = AnthropicClient(
         api_key=api_key,
         model=resolved_model,
