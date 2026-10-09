@@ -259,3 +259,84 @@ async def test_a_pdf_cannot_be_edited_in_place(db, workspace):
     )
     assert result.is_error
     assert "fixed layout" in result.content and "create_document" in result.content
+
+
+async def test_schema_aware_argument_coercion():
+    from backend.tools.base import Tool, ToolResult, RiskLevel
+    from backend.tools.registry import ToolRegistry
+    from backend.agent.tool_search import dispatch_tool_call, CatalogEntry
+
+    received_args = {}
+
+    async def dummy_handler(args, ctx):
+        nonlocal received_args
+        received_args = dict(args)
+        return ToolResult.ok("success")
+
+    tool = Tool(
+        name="test_coercion_tool",
+        description="A tool for testing coercion",
+        parameters={
+            "type": "object",
+            "properties": {
+                "pageId": {"type": "integer"},
+                "timeout": {"type": "number"},
+                "waitForStableDom": {"type": "boolean"},
+                "formats": {"type": "array"},
+                "options": {"type": "object"},
+            },
+            "required": ["pageId"],
+        },
+        handler=dummy_handler,
+        risk=RiskLevel.LOW,
+    )
+
+    reg = ToolRegistry()
+    reg.register(tool)
+
+    # 1. Test direct dispatch coercion
+    res = await reg.dispatch(
+        "test_coercion_tool",
+        {
+            "pageId": "42",
+            "timeout": "5.5",
+            "waitForStableDom": "false",
+            "formats": '["json", "markdown"]',
+            "options": '{"retries": 3}',
+        },
+    )
+    assert not res.is_error
+    assert received_args["pageId"] == 42
+    assert isinstance(received_args["pageId"], int)
+    assert received_args["timeout"] == 5.5
+    assert isinstance(received_args["timeout"], float)
+    assert received_args["waitForStableDom"] is False
+    assert received_args["formats"] == ["json", "markdown"]
+    assert received_args["options"] == {"retries": 3}
+
+    # 2. Test deferred dispatch_tool_call coercion
+    catalog_entry = CatalogEntry(
+        name="test_coercion_tool",
+        description="A tool for testing coercion",
+        schema={"function": {"parameters": tool.parameters}},
+        source="mcp",
+        source_name="test",
+    )
+
+    deferred_calls = [
+        {
+            "name": "test_coercion_tool",
+            "arguments": {
+                "pageId": "99",
+                "waitForStableDom": "true",
+                "formats": "csv",
+            },
+        }
+    ]
+    results = await dispatch_tool_call(deferred_calls, [catalog_entry], reg, None)
+    assert len(results) == 1
+    assert not results[0]["result"]["is_error"]
+    assert received_args["pageId"] == 99
+    assert received_args["waitForStableDom"] is True
+    assert received_args["formats"] == ["csv"]
+

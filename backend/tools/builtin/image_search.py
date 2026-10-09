@@ -8,7 +8,7 @@ from typing import Any
 
 from backend.agent.widgets import to_envelope
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult
-from backend.web.search_service import search_images as search_images_service
+from backend.web import search_service
 
 log = logging.getLogger(__name__)
 
@@ -25,18 +25,15 @@ async def search_images(args: dict[str, Any], _: ToolContext) -> ToolResult:
         layout = "carousel"
 
     try:
-        results = await search_images_service(query, limit=limit)
+        results = await search_service.search_images(query, limit=limit)
     except Exception as exc:
         log.warning("Image search failed for %r: %s", query, exc)
         return ToolResult.error(f"Image search failed: {exc}")
 
-    if not results:
-        return ToolResult.ok(f"No images found for {query!r}.")
-
     images: list[dict[str, Any]] = []
-    text_lines: list[str] = [f"Found {len(results)} images for **{query}**:"]
+    text_lines: list[str] = []
 
-    for r in results:
+    for r in (results or []):
         img_url = r.get("url") or ""
         if not img_url:
             continue
@@ -50,6 +47,16 @@ async def search_images(args: dict[str, Any], _: ToolContext) -> ToolResult:
             "source": source,
         })
         text_lines.append(f"- [{title}]({img_url}) (Source: {source})")
+
+    if not images:
+        return ToolResult.ok(
+            f"No images found for {query!r}.\n"
+            "[Circuit Breaker Directive: 0 image results returned. DO NOT retry search variations of this query. "
+            "If you need assets or images from a specific page or brand, navigate directly to or fetch the primary source URL "
+            "(e.g. using browser evaluate or fetch_url) to extract media from the DOM payload rather than looping search queries.]"
+        )
+
+    text_lines.insert(0, f"Found {len(images)} images for **{query}**:")
 
     gallery_payload = {
         "title": f"Images: {query}",
