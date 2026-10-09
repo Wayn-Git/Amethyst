@@ -33,7 +33,7 @@ export default function Capabilities() {
 
   return (
     <div className="view" ref={rootRef}>
-      <div className="view-inner view-inner--wide">
+      <div className={`view-inner ${capabilitiesTab === 'connectors' ? 'view-inner--fluid' : 'view-inner--wide'}`}>
         {/* Tab switcher and unified action bar */}
         <div className="clean-cap-topbar" data-enter>
           <div className="clean-cap-switch cap-tabs" role="tablist" aria-label="Skills or connectors">

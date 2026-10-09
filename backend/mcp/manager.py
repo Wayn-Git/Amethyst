@@ -27,7 +27,7 @@ from backend.mcp.config import ServerConfig, load_servers
 from backend.mcp.risk import classify
 from backend.mcp.status import AuthoritativeMCPStatus, HealthStatus, MCPState
 from backend.tools.base import Tool, ToolContext, ToolResult, ToolSource
-from backend.tools.registry import ToolRegistry, mcp_tool_key
+from backend.tools.registry import ToolRegistry, extract_composio_toolkit, mcp_tool_key
 
 log = logging.getLogger(__name__)
 
@@ -453,6 +453,7 @@ class MCPManager:
 
     def __init__(self, registry: ToolRegistry, *, open_browser: bool = True):
         self.registry = registry
+        self.registry.mcp_manager = self
         self.open_browser = open_browser
         self.connections: dict[str, MCPConnection] = {}
         self.errors: dict[str, str] = {}
@@ -1125,8 +1126,10 @@ class MCPManager:
                 if config.name == "composio":
                     if "COMPOSIO_SEARCH_TOOLS" in discovered.name:
                         desc = (
-                            f"[{config.name}] Required arguments: queries: [{{'use_case': '...'}}]. "
-                            "You may also pass use_case='...' or a bare search string.\n\n"
+                            f"[{config.name}] WHAT IT DOES: Searches and discovers available external integrations and tool schemas matching a high-level goal or query.\n"
+                            "WHEN TO USE: When a requested user action requires an external app or tool not currently loaded in the turn's active tool list.\n"
+                            "WHEN NOT TO USE: Do not use if the required tool is already present in your active tool list. Do not query repeatedly for tools that returned no results.\n"
+                            'EXAMPLE: {"queries": [{"use_case": "search spotify playlists"}]}\n\n'
                             + (discovered.description or "")
                         )
                         if isinstance(params, dict):
@@ -1137,8 +1140,10 @@ class MCPManager:
                             params["properties"] = props
                     elif "COMPOSIO_MULTI_EXECUTE_TOOL" in discovered.name:
                         desc = (
-                            f"[{config.name}] Required arguments: tools: [{{'tool_slug': '...', 'arguments': {{...}}}}]. "
-                            "sync_response_to_workbench is optional and defaults to false.\n\n"
+                            f"[{config.name}] WHAT IT DOES: Executes multiple independent external tool actions concurrently in a single round-trip.\n"
+                            "WHEN TO USE: Running multiple independent external read/fetch operations simultaneously (e.g. Calendar and Gmail) to save round-trips.\n"
+                            "WHEN NOT TO USE: Do not use for sequential operations where one tool depends on the output of another tool.\n"
+                            'EXAMPLE: {"tools": [{"tool_slug": "GOOGLECALENDAR_FIND_EVENT", "arguments": {"time_min": "2026-10-20T00:00:00Z"}}, {"tool_slug": "GMAIL_FETCH_EMAILS", "arguments": {"query": "is:unread"}}]}\n\n'
                             + (discovered.description or "")
                         )
                         if isinstance(params, dict):
@@ -1210,29 +1215,45 @@ class MCPManager:
                     arguments = normalize_composio_search_tools_args(arguments)
                 elif "COMPOSIO_REMOTE_WORKBENCH" in tool_name:
                     arguments = normalize_composio_remote_workbench_args(arguments)
+                elif "COMPOSIO_GET_TOOL_SCHEMAS" in tool_name:
+                    from backend.mcp.composio_service import get_cached_pinned_schema
+                    requested_slugs = arguments.get("tools") or arguments.get("tool_slugs") or []
+                    if isinstance(requested_slugs, str):
+                        requested_slugs = [requested_slugs]
+                    cached_schemas = []
+                    uncached = []
+                    for s in requested_slugs:
+                        s_name = s.get("tool_slug") if isinstance(s, dict) else s
+                        cs = get_cached_pinned_schema(str(s_name))
+                        if cs:
+                            cached_schemas.append(cs)
+                        else:
+                            uncached.append(s)
+                    if cached_schemas and not uncached:
+                        return ToolResult.ok(json.dumps({"tools": cached_schemas, "schemas": cached_schemas}))
             try:
                 raw = await connection.call(tool_name, arguments)
-            except OAuthRequired:
-                # Was a CLI command. The user is in a browser; sending them to a
-                # terminal for a button that is two clicks away is the interface
-                # telling on itself.
-                self.errors[server_name] = f"Authentication required for {server_name}"
+            except OAuthRequired as exc:
+                service = guidance.extract_service_name(tool_name, server_name=server_name, arguments=arguments)
+                self.errors[server_name] = f"Authentication required for {service}"
                 await self.disconnect_server(server_name)
                 self._hold_off(server_name)
                 self._log_connector_event(server_name, "auth_failed", error="OAuthRequired")
                 guidance.forget()
-                return ToolResult.error(guidance.sign_in_instruction(server_name))
+                auth_link = getattr(exc, "auth_url", None)
+                return ToolResult.error(guidance.auth_failure_instruction(service, instructions=auth_link))
             except TimeoutError:
                 return ToolResult.error(f"'{tool_name}' on '{server_name}' timed out.")
             except Exception as exc:
                 if _is_auth_failure(exc):
+                    service = guidance.extract_service_name(tool_name, server_name=server_name, arguments=arguments)
                     log.warning("%s failed authentication during %s: %s", server_name, tool_name, exc)
                     self.errors[server_name] = f"Authentication failed: {exc}"
                     await self.disconnect_server(server_name)
                     self._hold_off(server_name)
                     self._log_connector_event(server_name, "auth_failed", error=str(exc))
                     guidance.forget()
-                    return ToolResult.error(guidance.sign_in_instruction(server_name))
+                    return ToolResult.error(guidance.auth_failure_instruction(service))
 
                 if not _is_transport_failure(exc):
                     # `_is_transport_failure` matches wordings that have been
@@ -1310,15 +1331,26 @@ class MCPManager:
                 from backend.mcp.composio_sanitizer import sanitize_composio_tool_result
 
                 result = sanitize_composio_tool_result(result, tool_name=tool_name, arguments=arguments)
+                if "COMPOSIO_GET_TOOL_SCHEMAS" in tool_name:
+                    from backend.mcp.composio_service import cache_resolved_schema
+                    try:
+                        parsed_raw = json.loads(result.content) if isinstance(result.content, str) else result.content
+                        tools_list = parsed_raw.get("tools") or parsed_raw.get("schemas") or []
+                        for t_item in tools_list:
+                            if isinstance(t_item, dict) and t_item.get("slug"):
+                                cache_resolved_schema(t_item["slug"], t_item)
+                    except Exception:
+                        pass
 
             if result.is_error and is_auth_failure_text(result.content):
+                service = guidance.extract_service_name(tool_name, server_name=server_name, arguments=arguments)
                 log.warning("%s returned an authentication error in tool result: %s", server_name, result.content)
-                self.errors[server_name] = f"Authentication error: {result.content}"
+                self.errors[server_name] = f"Authentication error for {service}: {result.content}"
                 await self.disconnect_server(server_name)
                 self._hold_off(server_name)
                 self._log_connector_event(server_name, "auth_failed", error=result.content)
                 guidance.forget()
-                return ToolResult.error(guidance.sign_in_instruction(server_name))
+                return ToolResult.error(guidance.auth_failure_instruction(service))
 
             connection.breaker.record_success()
             return result
@@ -1338,7 +1370,7 @@ class MCPManager:
                 return 0
             connections = composio_service.get_connections()
             connected_toolkits = [
-                tk for tk in FAST_LANE_CONFIG if tk in connections
+                tk for tk in FAST_LANE_CONFIG if (not connections or tk in connections)
             ]
             if not connected_toolkits:
                 return 0
@@ -1351,25 +1383,38 @@ class MCPManager:
                 for tool_def in fast_tools:
                     slug = tool_def["slug"]
                     key = mcp_tool_key(slug, config.name)
-                    if self.registry.get(key):
-                        continue
+                    handler = self._make_composio_fast_lane_handler(config.name, slug)
                     cached = cached_by_name.get(key)
-                    if cached is not None:
-                        self.registry.register(cached)
-                        tools_for_cache.append(cached)
-                    else:
-                        tool = Tool(
-                            name=key,
+                    if not self.registry.get(key):
+                        if cached is not None:
+                            self.registry.register(cached)
+                            tools_for_cache.append(cached)
+                        else:
+                            tool = Tool(
+                                name=key,
+                                description=f"[{config.name}:{tk}] {tool_def['description']}",
+                                parameters=tool_def["parameters"],
+                                handler=handler,
+                                risk=classify(slug, {}),
+                                source=ToolSource.MCP,
+                                server_name=config.name,
+                            )
+                            self.registry.register(tool)
+                            tools_for_cache.append(tool)
+                        registered += 1
+                    if not self.registry.get(slug):
+                        direct_tool = Tool(
+                            name=slug,
                             description=f"[{config.name}:{tk}] {tool_def['description']}",
                             parameters=tool_def["parameters"],
-                            handler=self._make_composio_fast_lane_handler(config.name, slug),
+                            handler=handler,
                             risk=classify(slug, {}),
                             source=ToolSource.MCP,
                             server_name=config.name,
                         )
-                        self.registry.register(tool)
-                        tools_for_cache.append(tool)
-                    registered += 1
+                        self.registry.register(direct_tool)
+                        tools_for_cache.append(direct_tool)
+                        registered += 1
         except Exception as exc:
             log.warning("Could not register Composio fast-lane tools: %s", exc)
         return registered
@@ -1390,26 +1435,33 @@ class MCPManager:
             }
             try:
                 raw = await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", exec_args)
-            except OAuthRequired:
-                self.errors[server_name] = f"Authentication required for {server_name}"
-                await self.disconnect_server(server_name)
-                self._hold_off(server_name)
-                guidance.forget()
-                return ToolResult.error(guidance.sign_in_instruction(server_name))
+            except OAuthRequired as exc:
+                service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                from backend.mcp.composio_service import composio_service
+                composio_service.mark_reauth_required(tk, reason="OAuthRequired")
+                auth_link = getattr(exc, "auth_url", None)
+                return ToolResult.error(guidance.auth_failure_instruction(service, instructions=auth_link))
             except TimeoutError:
                 return ToolResult.error(f"'{slug}' on '{server_name}' timed out.")
             except Exception as exc:
                 if _is_auth_failure(exc):
-                    log.warning("%s failed authentication during %s: %s", server_name, slug, exc)
-                    self.errors[server_name] = f"Authentication failed: {exc}"
-                    await self.disconnect_server(server_name)
-                    self._hold_off(server_name)
-                    guidance.forget()
-                    return ToolResult.error(guidance.sign_in_instruction(server_name))
+                    service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    log.warning("Composio %s (%s) failed authentication: %s", tk, slug, exc)
+                    from backend.mcp.composio_service import composio_service
+                    composio_service.mark_reauth_required(tk, reason=str(exc))
+                    return ToolResult.error(guidance.auth_failure_instruction(service))
                 return ToolResult.error(f"'{slug}' on '{server_name}' failed: {exc}")
 
             norm = normalize_result(raw)
             if norm.is_error:
+                if is_auth_failure_text(norm.content):
+                    service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    from backend.mcp.composio_service import composio_service
+                    composio_service.mark_reauth_required(tk, reason=norm.content)
+                    return ToolResult.error(guidance.auth_failure_instruction(service))
                 return norm
 
             # Unpack response from COMPOSIO_MULTI_EXECUTE_TOOL payload
@@ -1423,6 +1475,13 @@ class MCPManager:
                         if isinstance(resp_obj, dict):
                             if not resp_obj.get("successful", True):
                                 err_msg = resp_obj.get("error") or resp_obj.get("data", {}).get("message") or f"{slug} failed"
+                                if is_auth_failure_text(str(err_msg)):
+                                    service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                                    log.warning("Composio %s (%s) returned auth error: %s", tk, slug, err_msg)
+                                    from backend.mcp.composio_service import composio_service
+                                    composio_service.mark_reauth_required(tk, reason=str(err_msg))
+                                    return ToolResult.error(guidance.auth_failure_instruction(service))
                                 return ToolResult.error(str(err_msg))
                             inner_data = resp_obj.get("data")
                             if inner_data is not None:
@@ -1437,6 +1496,118 @@ class MCPManager:
             return norm
 
         return handler
+
+    async def execute_composio_batch(self, calls: list[Any]) -> list[ToolResult]:
+        """Execute a batch of Composio tool calls in a single COMPOSIO_MULTI_EXECUTE_TOOL request."""
+        server_name = "composio"
+        connection = self.connections.get(server_name)
+        if connection is None or not connection.connected:
+            err = ToolResult.error(guidance.not_connected_instruction(server_name))
+            return [err for _ in calls]
+
+        tools_payload = []
+        for c in calls:
+            c_name = getattr(c, "name", "")
+            slug = c_name.split("__mcp__")[0]
+            args = getattr(c, "arguments", {})
+            if not isinstance(args, dict):
+                args = {}
+            tools_payload.append({"tool_slug": slug, "arguments": args})
+
+        exec_args = {"tools": tools_payload}
+
+        try:
+            raw = await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", exec_args)
+        except OAuthRequired as exc:
+            auth_link = getattr(exc, "auth_url", None)
+            from backend.mcp.composio_service import composio_service
+            results = []
+            for c in calls:
+                c_name = getattr(c, "name", "")
+                slug = c_name.split("__mcp__")[0]
+                service = guidance.extract_service_name(slug, server_name=server_name)
+                tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                composio_service.mark_reauth_required(tk, reason="OAuthRequired")
+                results.append(ToolResult.error(guidance.auth_failure_instruction(service, instructions=auth_link)))
+            return results
+        except TimeoutError:
+            timeout_err = ToolResult.error("Composio batch execution timed out.")
+            return [timeout_err for _ in calls]
+        except Exception as exc:
+            if _is_auth_failure(exc):
+                from backend.mcp.composio_service import composio_service
+                results = []
+                for c in calls:
+                    c_name = getattr(c, "name", "")
+                    slug = c_name.split("__mcp__")[0]
+                    service = guidance.extract_service_name(slug, server_name=server_name)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    composio_service.mark_reauth_required(tk, reason=str(exc))
+                    results.append(ToolResult.error(guidance.auth_failure_instruction(service)))
+                return results
+            batch_err = ToolResult.error(f"Composio batch execution failed: {exc}")
+            return [batch_err for _ in calls]
+
+        norm = normalize_result(raw)
+        if norm.is_error:
+            if is_auth_failure_text(norm.content):
+                from backend.mcp.composio_service import composio_service
+                results = []
+                for c in calls:
+                    c_name = getattr(c, "name", "")
+                    slug = c_name.split("__mcp__")[0]
+                    service = guidance.extract_service_name(slug, server_name=server_name)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    composio_service.mark_reauth_required(tk, reason=norm.content)
+                    results.append(ToolResult.error(guidance.auth_failure_instruction(service)))
+                return results
+            return [norm for _ in calls]
+
+        results_list: list[ToolResult] = []
+        try:
+            data = json.loads(norm.content) if isinstance(norm.content, str) else norm.content
+            if isinstance(data, dict):
+                results = data.get("data", {}).get("results") or data.get("results")
+                if isinstance(results, list):
+                    for idx, c in enumerate(calls):
+                        c_name = getattr(c, "name", "")
+                        slug = c_name.split("__mcp__")[0]
+                        if idx < len(results):
+                            res_item = results[idx]
+                            resp_obj = res_item.get("response", {}) if isinstance(res_item, dict) else {}
+                            if isinstance(resp_obj, dict):
+                                if not resp_obj.get("successful", True):
+                                    err_msg = (
+                                        resp_obj.get("error")
+                                        or resp_obj.get("data", {}).get("message")
+                                        or f"{slug} failed"
+                                    )
+                                    if is_auth_failure_text(str(err_msg)):
+                                        service = guidance.extract_service_name(slug, server_name=server_name)
+                                        tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                                        from backend.mcp.composio_service import composio_service
+                                        composio_service.mark_reauth_required(tk, reason=str(err_msg))
+                                        results_list.append(ToolResult.error(guidance.auth_failure_instruction(service)))
+                                    else:
+                                        results_list.append(ToolResult.error(str(err_msg)))
+                                else:
+                                    inner_data = resp_obj.get("data")
+                                    results_list.append(
+                                        ToolResult.ok(
+                                            json.dumps(inner_data, indent=2)
+                                            if isinstance(inner_data, (dict, list))
+                                            else str(inner_data)
+                                        )
+                                    )
+                            else:
+                                results_list.append(ToolResult.ok(str(res_item)))
+        except Exception as exc:
+            log.debug("Composio batch result unpacking failed: %s", exc)
+
+        while len(results_list) < len(calls):
+            results_list.append(norm)
+
+        return results_list
 
     # --------------------------------------------------------------- lifecycle
 
