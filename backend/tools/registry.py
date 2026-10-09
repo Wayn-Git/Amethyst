@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 from backend.db.repositories import ExecutionLogRepository
 from backend.runtime.types import ToolSchema
@@ -72,12 +75,16 @@ CAPABILITY_MAP: dict[str, str] = {
     "cmd": "run_shell_command",
 
     # File capabilities
+    "read": "view_file",
     "read_file": "view_file",
     "cat": "view_file",
     "show_file": "view_file",
+    "edit": "edit_file",
     "modify_file": "edit_file",
+    "write": "write_file",
     "create_file": "write_file",
     "make_file": "write_file",
+    "glob": "list_files",
     "find_file": "list_files",
     "search_files": "grep_files",
     "grep": "grep_files",
@@ -211,7 +218,104 @@ class ToolRegistry:
         return None
 
     @staticmethod
+    def coerce_property_value(prop_schema: dict[str, Any], val: Any) -> Any:
+        """Coerce a value to match the expected JSON schema property type."""
+        if not isinstance(prop_schema, dict) or val is None:
+            return val
+        expected_type = prop_schema.get("type")
+        if isinstance(expected_type, list):
+            types = [t for t in expected_type if t != "null"]
+            expected_type = types[0] if types else None
+        if not expected_type:
+            return val
+
+        if expected_type in ("integer", "int"):
+            if isinstance(val, bool):
+                return 1 if val else 0
+            if isinstance(val, (int, float)):
+                return int(val)
+            if isinstance(val, str):
+                s = val.strip()
+                try:
+                    return int(s)
+                except ValueError:
+                    try:
+                        return int(float(s))
+                    except ValueError:
+                        return val
+
+        elif expected_type in ("number", "float"):
+            if isinstance(val, bool):
+                return 1.0 if val else 0.0
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                try:
+                    return float(val.strip())
+                except ValueError:
+                    return val
+
+        elif expected_type in ("boolean", "bool"):
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, str):
+                s = val.strip().lower()
+                if s in ("true", "1", "yes", "t", "y"):
+                    return True
+                if s in ("false", "0", "no", "f", "n"):
+                    return False
+            if isinstance(val, (int, float)):
+                return bool(val)
+
+        elif expected_type in ("array", "list"):
+            if isinstance(val, list):
+                return val
+            if isinstance(val, str):
+                s = val.strip()
+                if (s.startswith("[") and s.endswith("]")) or (s.startswith("(") and s.endswith(")")):
+                    try:
+                        parsed = json.loads(s)
+                        if isinstance(parsed, list):
+                            return parsed
+                    except Exception:
+                        pass
+                if "," in s:
+                    return [part.strip() for part in s.split(",") if part.strip()]
+                return [s] if s else []
+            if isinstance(val, (dict, int, float, bool)):
+                return [val]
+
+        elif expected_type in ("object", "dict"):
+            if isinstance(val, dict):
+                return val
+            if isinstance(val, str):
+                s = val.strip()
+                if s.startswith("{") and s.endswith("}"):
+                    try:
+                        parsed = json.loads(s)
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except Exception:
+                        pass
+
+        elif expected_type in ("string", "str"):
+            if isinstance(val, (int, float, bool)):
+                return str(val)
+            if isinstance(val, (dict, list)):
+                try:
+                    return json.dumps(val)
+                except Exception:
+                    return str(val)
+
+        return val
+
+    @staticmethod
     def normalize_arguments(tool: Tool, arguments: dict[str, Any]) -> dict[str, Any]:
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except Exception:
+                return {}
         if not isinstance(arguments, dict):
             return {}
         args = dict(arguments)
@@ -237,14 +341,35 @@ class ToolRegistry:
                     break
 
         # File path normalization
-        if "path" in props and "path" not in args and "file_path" in args:
-            args["path"] = args["file_path"]
+        if "path" in props and "path" not in args:
+            for syn in ("file_path", "filePath", "filename", "file"):
+                if syn in args:
+                    args["path"] = args[syn]
+                    break
+        elif "filePath" in props and "filePath" not in args and "path" in args:
+            args["filePath"] = args["path"]
         elif "file_path" in props and "file_path" not in args and "path" in args:
             args["file_path"] = args["path"]
 
         # Command normalization
-        if "command" in props and "command" not in args and "cmd" in args:
-            args["command"] = args["cmd"]
+        if "command" in props and "command" not in args:
+            for syn in ("cmd", "bash", "shell", "script"):
+                if syn in args:
+                    args["command"] = args[syn]
+                    break
+
+        # Edit string normalization
+        if "old_string" in props and "old_string" not in args and "oldString" in args:
+            args["old_string"] = args["oldString"]
+        if "new_string" in props and "new_string" not in args and "newString" in args:
+            args["new_string"] = args["newString"]
+        if "replace_all" in props and "replace_all" not in args and "replaceAll" in args:
+            args["replace_all"] = args["replaceAll"]
+
+        # Schema-aware type coercion
+        for prop_name, prop_def in props.items():
+            if prop_name in args and isinstance(prop_def, dict):
+                args[prop_name] = ToolRegistry.coerce_property_value(prop_def, args[prop_name])
 
         return args
 

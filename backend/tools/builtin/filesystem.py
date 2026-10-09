@@ -149,7 +149,8 @@ def _resolve(context: ToolContext, raw: str) -> tuple[Path, bool]:
 
 
 async def view_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    path, _ = _resolve(ctx, args["path"])
+    path_arg = args.get("path") or args.get("filePath") or args.get("file_path") or ""
+    path, _ = _resolve(ctx, path_arg)
     if not path.exists():
         return ToolResult.error(f"no such file: {path}")
     if path.is_dir():
@@ -260,7 +261,8 @@ async def view_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
 
 
 async def list_files(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    path, _ = _resolve(ctx, args.get("path") or ".")
+    path_arg = args.get("path") or args.get("filePath") or args.get("dirPath") or args.get("file_path") or "."
+    path, _ = _resolve(ctx, path_arg)
     if not path.exists():
         return ToolResult.error(f"no such directory: {path}")
     if not path.is_dir():
@@ -320,7 +322,8 @@ def _skip_note(skipped: int) -> str:
 
 
 async def grep_files(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    root, _ = _resolve(ctx, args.get("path") or ".")
+    path_arg = args.get("path") or args.get("filePath") or args.get("file_path") or "."
+    root, _ = _resolve(ctx, path_arg)
     try:
         re.compile(args["pattern"])
     except re.error as exc:
@@ -456,7 +459,8 @@ def _invalidate_index(path: Path) -> None:
 
 
 async def write_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    path, escaped = _resolve(ctx, args["path"])
+    path_arg = args.get("path") or args.get("filePath") or args.get("file_path") or ""
+    path, escaped = _resolve(ctx, path_arg)
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         path.write_text(args.get("content") or "")
@@ -518,7 +522,8 @@ async def create_artifact(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     if result.is_error:
         return result
 
-    path, _ = _resolve(ctx, args["path"])
+    path_arg = args.get("path") or args.get("filePath") or args.get("file_path") or ""
+    path, _ = _resolve(ctx, path_arg)
     media_type, language = artifact_type(path)
     title = (args.get("title") or "").strip() or path.name
     # Reported back to the model in its own terms. It has no panel to look at,
@@ -539,10 +544,13 @@ async def create_artifact(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
 
 
 async def edit_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    path, _ = _resolve(ctx, args["path"])
+    path_arg = args.get("path") or args.get("filePath") or args.get("file_path") or ""
+    path, _ = _resolve(ctx, path_arg)
     if not path.exists():
         return ToolResult.error(f"no such file: {path}")
-    old, new = args["old_string"], args["new_string"]
+    old = args.get("old_string") if "old_string" in args else args.get("oldString", "")
+    new = args.get("new_string") if "new_string" in args else args.get("newString", "")
+    replace_all = args.get("replace_all") if "replace_all" in args else args.get("replaceAll", False)
     try:
         text = path.read_text()
     except OSError as exc:
@@ -551,13 +559,13 @@ async def edit_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     count = text.count(old)
     if count == 0:
         return ToolResult.error(f"old_string not found in {path}")
-    if count > 1 and not args.get("replace_all"):
+    if count > 1 and not replace_all:
         return ToolResult.error(
             f"old_string appears {count} times in {path}; pass replace_all or use a longer,"
             " unique string"
         )
     path.write_text(
-        text.replace(old, new) if args.get("replace_all") else text.replace(old, new, 1)
+        text.replace(old, new) if replace_all else text.replace(old, new, 1)
     )
     _invalidate_index(path)
     return ToolResult.ok(
@@ -566,7 +574,8 @@ async def edit_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
 
 
 async def delete_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    path, _ = _resolve(ctx, args["path"])
+    path_arg = args.get("path") or args.get("filePath") or args.get("file_path") or ""
+    path, _ = _resolve(ctx, path_arg)
     if not path.exists():
         return ToolResult.error(f"no such file: {path}")
     if path.is_dir():
