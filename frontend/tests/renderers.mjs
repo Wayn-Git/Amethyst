@@ -233,6 +233,13 @@ test('itinerary asks for a map only when a stop has coordinates', () => {
   assert.match(textOf(html), /Somewhere/)
 })
 
+test('itinerary marks stops as interactive and renders filter controls', () => {
+  const html = render('itinerary', ITINERARY)
+  assert.match(html, /itinerary-stop-interactive/)
+  assert.match(html, /data-stop-name="Fushimi Inari"/)
+  assert.match(html, /itinerary-map-filter-btn/)
+})
+
 /* ------------------------------------------------------------- translation */
 
 test('translation shows both sides and labels them', () => {
