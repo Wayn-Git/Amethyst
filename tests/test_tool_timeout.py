@@ -239,3 +239,87 @@ async def test_global_tool_timeout_seconds_configuration(monkeypatch):
     assert len(tool_results) == 1
     assert tool_results[0].data["is_error"] is True
     assert "timed out" in tool_results[0].data["content"]
+
+
+class _ManualGate:
+    """A confirmation callback that parks each request on a future the test
+    resolves by request id, and never answers on its own."""
+
+    def __init__(self):
+        self.futures = {}
+
+    async def __call__(self, request):
+        fut = asyncio.get_running_loop().create_future()
+        self.futures[request.id] = fut
+        return await fut
+
+    def resolve(self, request_id: str, allowed: bool) -> None:
+        fut = self.futures.get(request_id)
+        if fut is not None and not fut.done():
+            fut.set_result(allowed)
+
+
+@pytest.mark.asyncio
+async def test_an_approval_answered_after_the_tool_timeout_survives(monkeypatch):
+    """The permission gate promises an answer on human time; the tool timeout
+    used to cut the call short the moment a user took longer than
+    `tool_timeout_seconds` to click Approve, and the turn carried on with
+    "'tool' timed out and was stopped" instead of the result. The window must
+    re-arm while a gate is live on the call."""
+    from backend.db.repositories import ConversationRepository
+
+    monkeypatch.setattr(agent_config, "tool_timeout_seconds", 0.3)
+
+    conv_repo = ConversationRepository()
+    cid = conv_repo.create("mock", "mock-model")
+
+    gate = _ManualGate()
+    registry = ToolRegistry(ConfirmationService(callback=gate))
+
+    async def write(args, ctx):
+        return ToolResult.ok("written")
+
+    registry.register(
+        Tool(
+            name="slow_approval_tool",
+            description="asks, then writes",
+            parameters={"type": "object", "properties": {}},
+            handler=write,
+            risk=RiskLevel.MEDIUM,
+        )
+    )
+
+    responses = [
+        ModelResponse(
+            text=None,
+            tool_calls=[ToolCall(id="tc_gate", name="slow_approval_tool", arguments={})],
+        ),
+        ModelResponse(text="done."),
+    ]
+    resolved_model = ResolvedModel(
+        provider="mock",
+        model="mock-model",
+        client=MockModelClient(responses),
+        capabilities=Capabilities(streaming=False),
+    )
+    monkeypatch.setattr("backend.agent.director.resolve", lambda *a, **k: resolved_model)
+    monkeypatch.setattr(
+        "backend.agent.director.build_chain",
+        lambda *a, **k: [Link("mock", "mock-model")],
+    )
+
+    events: list = []
+    async for event in Director(registry, stream=False, memory=False).run(cid, "note"):
+        events.append(event)
+        if event.type == "confirmation_required":
+            # The user takes longer than the tool window to answer.
+            await asyncio.sleep(0.6)
+            gate.resolve(event.data["request_id"], True)
+
+    tool_results = [e for e in events if e.type == "tool_result"]
+    assert len(tool_results) == 1, [e.type for e in events]
+    assert tool_results[0].data["is_error"] is False, tool_results[0].data
+    assert tool_results[0].data.get("content", "").endswith("written"), tool_results[0].data
+    kinds = [e.type for e in events]
+    assert "confirmation_required" in kinds
+    assert not [e for e in events if e.type == "tool_result" and "timed out" in str(e.data)]

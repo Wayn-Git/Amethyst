@@ -157,7 +157,7 @@ def tools() -> list[Tool]:
     description = (
         "WHAT IT DOES: Executes a command in a bash subshell and returns stdout, stderr, and the return exit code.\n"
         "WHEN TO USE: Running tests (pytest), linting, build tools, package managers (pip, uv, npm), git status/diff, or system operations after changing code.\n"
-        "WHEN NOT TO USE: Do not use for file reading or editing (use view_file, grep_files, edit_file). Do not use for interactive commands that require terminal input. Never commit or push without explicit user consent. Never inspect sqlite database files directly through shell.\n"
+        "WHEN NOT TO USE: Do not use for file reading or editing (use view_file, grep_files, edit_file). Do not use for interactive commands that require terminal input. Never commit or push without explicit user consent. Never inspect sqlite database files directly through shell — to query conversations use list_conversations or search_conversations instead of opening amethyst.db with sqlite3.\n"
         'EXAMPLE: {"command": "./.venv/bin/pytest tests/test_agent.py -v", "execution_mode": "sandbox"}'
     )
     if sandbox_note:
