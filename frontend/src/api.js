@@ -544,8 +544,10 @@ export const api = {
     }
   },
 
-  // Stops the turn on the server. Aborting the browser's read only closes the
-  // response: the loop behind it keeps calling models and tools.
+  // The graceful stop: the loop ends on its own guard frame and the partial
+  // answer is kept. Closing the browser's read also ends the turn -- Starlette
+  // cancels the streaming task on disconnect -- but through the interruption
+  // path, with no guard frame.
   stopTurn: (id) => j(`/conversations/${id}/turn/stop`, json('POST', {})),
 
   // A turn suspended on a clarifying question. `answerQuestion` is what

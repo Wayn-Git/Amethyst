@@ -1755,7 +1755,7 @@ export default function Chat() {
       }
       watchdog = setTimeout(() => {
         if (turnTokenRef.current !== token || settledRef.current) return
-        pushNote('error', `No response from the server for ${SILENCE_LIMIT_MS / 1000}s. The turn may still be running; reload to reconnect.`)
+        pushNote('error', `No response from the server for ${SILENCE_LIMIT_MS / 1000}s. The connection is closed and the turn stops with it; reload to see where it got.`)
         settledRef.current = true
         setTurnState('idle')
         setStopping(false)
@@ -2122,7 +2122,9 @@ export default function Chat() {
     setStopping(true)
     try {
       // The server stops the loop; the stream then ends with a guard frame of
-      // its own accord. Aborting the read here would leave it running.
+      // its own accord. Aborting the read would end the turn too, but through
+      // the cancellation path: Starlette drops the task on disconnect, so no
+      // guard frame arrives and the row lands interrupted.
       await api.stopTurn(activeId)
     } catch (err) {
       toast(err.message, 'bad')
@@ -2316,10 +2318,20 @@ export default function Chat() {
       }, 160)
     } else if (prefix === '@') {
       const available = caps.connectors || []
-      const matches = available.filter((c) => 
+      const pluginMatches = available.filter((c) => 
         (c.name.toLowerCase().includes(query) || (c.title && c.title.toLowerCase().includes(query)))
-      )
-      setAcItems(matches.slice(0, 6).map(it => ({ ...it, acType: 'plugin' })))
+      ).map(it => ({ ...it, acType: 'plugin' }))
+      const toolMatches = [
+        {
+          name: 'images',
+          title: 'images',
+          description: 'Search & display inline image gallery',
+          acType: 'tool',
+          icon: 'image',
+        },
+      ].filter(t => t.name.toLowerCase().includes(query) || t.title.toLowerCase().includes(query))
+      const allMatches = [...toolMatches, ...pluginMatches]
+      setAcItems(allMatches.slice(0, 6))
       setAcIndex(0)
     }
   }, [caps.connectors])
@@ -2645,10 +2657,14 @@ export default function Chat() {
               onMouseEnter={() => setAcIndex(i)}
               onClick={() => acceptAc(item)}
             >
-              {item.acType === 'plugin' ? (
+              {item.acType === 'plugin' || item.acType === 'tool' ? (
                  <>
                    <span className="ac-name">
-                     <ServiceIcon name={item.name} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     {item.acType === 'tool' ? (
+                       <Icon name={item.icon || 'image'} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     ) : (
+                       <ServiceIcon name={item.name} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     )}
                      @{item.title || item.name}
                    </span>
                    <span className="ac-desc">{item.description}</span>
