@@ -369,6 +369,14 @@ GOOD = {
         "columns": ["Model", "Price"],
         "rows": [["Model S", "$80,000"], ["Taycan", "$90,000"]],
     },
+    "sandboxed_ui": {
+        "title": "Interactive Tool",
+        "initial_height": 400,
+        "html": "<button>Click me</button>",
+        "css": "button { color: red; }",
+        "js": "console.log('init');",
+        "scripts": ["https://cdn.jsdelivr.net/npm/chart.js"],
+    },
 }
 
 
@@ -713,5 +721,48 @@ async def test_image_gallery_only_for_explicit_tag(monkeypatch):
         res = await widgets.classify_and_extract(tagged)
         assert res[0] == "image_gallery", f"Expected image_gallery for {tagged}, got {res}"
         assert res[1] is not None
+
+
+@pytest.mark.asyncio
+async def test_coastal_trip_itinerary_extraction():
+    from backend.agent import widgets
+
+    kind, data, media = await widgets.classify_and_extract("plan a coastil trip from SF to LA")
+    assert kind == "itinerary"
+    assert data is not None
+    assert "_full_text" in data
+    assert "The ultimate California coastal road trip" in data["_full_text"]
+    assert "amethyst:widget" in data["_full_text"]
+    assert "Check Highway 1 before departure" in data["_full_text"]
+
+    assert len(data.get("hero_images", [])) >= 3
+    assert data.get("distance_miles") == "About 450–500 miles"
+    assert data.get("driving_time") == "9–11 hours of driving in total"
+    assert len(data.get("days", [])) == 4
+
+    day1 = data["days"][0]
+    assert "San Francisco" in day1["title"]
+    assert len(day1["stops"]) >= 3
+    for stop in day1["stops"]:
+        assert stop.get("latitude") is not None
+        assert stop.get("longitude") is not None
+
+
+def test_visualization_steer_instructions_coverage():
+    from backend.agent.director import VISUALIZATION_STEER_INSTRUCTIONS
+
+    assert "itinerary" in VISUALIZATION_STEER_INSTRUCTIONS
+    assert "amethyst:widget" in VISUALIZATION_STEER_INSTRUCTIONS["itinerary"]
+    assert "comparison" in VISUALIZATION_STEER_INSTRUCTIONS
+    assert "amethyst:widget" in VISUALIZATION_STEER_INSTRUCTIONS["comparison"]
+    assert "recipe" in VISUALIZATION_STEER_INSTRUCTIONS
+    assert "amethyst:widget" in VISUALIZATION_STEER_INSTRUCTIONS["recipe"]
+    assert "step_guide" in VISUALIZATION_STEER_INSTRUCTIONS
+    assert "amethyst:widget" in VISUALIZATION_STEER_INSTRUCTIONS["step_guide"]
+    assert "quiz" in VISUALIZATION_STEER_INSTRUCTIONS
+    assert "amethyst:widget" in VISUALIZATION_STEER_INSTRUCTIONS["quiz"]
+    assert "generate_sandboxed_ui" in VISUALIZATION_STEER_INSTRUCTIONS["calculator"]
+    assert "generate_sandboxed_ui" in VISUALIZATION_STEER_INSTRUCTIONS["simulation"]
+
 
 
