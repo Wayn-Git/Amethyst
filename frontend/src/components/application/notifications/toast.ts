@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import { toast as sonnerToast } from "sonner";
 
+export type ToastTone = "ok" | "bad" | "amber" | "info" | "good" | "default" | "error" | "success" | "warning";
+
 export interface ToastPayload {
     title?: ReactNode;
     description?: ReactNode;
     message?: string;
-    tone?: "ok" | "bad" | "amber" | "info" | "good" | "default";
+    tone?: ToastTone;
     action?: {
         label: string;
         onClick: () => void;
@@ -55,8 +57,6 @@ function parseContent(input: string | ToastPayload): { title: ReactNode; descrip
     return { title: text };
 }
 
-export type ToastTone = "ok" | "bad" | "amber" | "info" | "good" | "default" | "error" | "success" | "warning";
-
 export type ToastOptions = ToastTone | { tone?: ToastTone; type?: string; duration?: number; action?: { label: string; onClick: () => void } };
 
 function showNotification(
@@ -67,7 +67,7 @@ function showNotification(
 
     if (typeof payload === "object" && payload !== null && payload.tone) {
         const t = payload.tone;
-        effectiveTone = t === "error" ? "bad" : t === "success" ? "good" : t === "warning" ? "amber" : t;
+        effectiveTone = (t === "error" ? "bad" : t === "success" ? "good" : t === "warning" ? "amber" : t) as "ok" | "bad" | "amber" | "info" | "good" | "default";
     } else if (typeof toneOrOpts === "string") {
         if (toneOrOpts === "error") effectiveTone = "bad";
         else if (toneOrOpts === "success") effectiveTone = "good";

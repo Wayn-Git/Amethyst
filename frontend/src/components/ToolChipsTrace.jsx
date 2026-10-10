@@ -13,8 +13,24 @@ function tail(path) {
   return parts[parts.length - 1] || String(path || '')
 }
 
+function formatToolLabel(name) {
+  let clean = String(name || '').split('__mcp__')[0]
+  clean = clean.replace(/^composio_/, '')
+  clean = clean.replace(/_/g, ' ')
+  return clean.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 function extractToolMeta(name, args = {}) {
   const n = String(name || '').toLowerCase()
+  if (n === 'tool_call' && args?.calls && Array.isArray(args.calls) && args.calls.length > 0) {
+    if (args.calls.length === 1) {
+      const first = args.calls[0]
+      return extractToolMeta(first?.name || 'tool', safeArgs(first?.arguments))
+    }
+    const names = args.calls.map((c) => formatToolLabel(c?.name || 'tool')).join(', ')
+    return { icon: 'spark', label: 'Batch Tools', chip: names.slice(0, 35), mono: false, type: 'other' }
+  }
+
   if (n.includes('bash') || n.includes('shell') || n.includes('command')) {
     const cmd = args.command || args.CommandLine || args.cmd || ''
     return { icon: 'term', label: 'Run', chip: cmd || 'command', mono: true, type: 'bash' }
@@ -31,7 +47,25 @@ function extractToolMeta(name, args = {}) {
     const q = args.query || args.Query || args.pattern || ''
     return { icon: 'search', label: 'Search', chip: q ? `"${q}"` : 'query', mono: false, type: 'search' }
   }
-  return { icon: 'spark', label: name.replace(/_/g, ' '), chip: Object.values(args)[0] ? String(Object.values(args)[0]).slice(0, 30) : '', mono: false, type: 'other' }
+  if (n.includes('browser') || n.includes('playwright') || n.includes('devtools') || n.includes('click') || n.includes('scrape') || n.includes('navigate') || n.includes('fetch')) {
+    const target = args.url || args.selector || args.text || args.action || args.key || ''
+    return { icon: 'globe', label: formatToolLabel(name), chip: target ? String(target).slice(0, 30) : '', mono: false, type: 'browser' }
+  }
+
+  // Format chip safely: never produce "[object Object]"
+  let chipStr = ''
+  const firstVal = Object.values(args)[0]
+  if (typeof firstVal === 'string') {
+    chipStr = firstVal
+  } else if (typeof firstVal === 'number' || typeof firstVal === 'boolean') {
+    chipStr = String(firstVal)
+  } else if (Array.isArray(firstVal)) {
+    chipStr = firstVal.map((v) => (typeof v === 'object' ? (v?.name || 'item') : String(v))).join(', ')
+  } else if (typeof firstVal === 'object' && firstVal !== null) {
+    chipStr = Object.keys(firstVal).join(', ')
+  }
+
+  return { icon: 'spark', label: formatToolLabel(name), chip: chipStr.slice(0, 30), mono: false, type: 'other' }
 }
 
 function parseDiffSummary(item) {
@@ -100,8 +134,48 @@ export default function ToolChipsTrace({
       if (!call || (!call.name && !ev.name)) continue
       const name = call.name || ev.name
       const args = safeArgs(call.arguments || ev.arguments)
-      const meta = extractToolMeta(name, args)
       const isError = call.status === 'error' || call.isError || ev.isError
+
+      if (name === 'tool_call' && args?.calls && Array.isArray(args.calls) && args.calls.length > 0) {
+        let results = []
+        try {
+          if (typeof call.content === 'string') {
+            results = JSON.parse(call.content)
+          } else if (Array.isArray(call.content)) {
+            results = call.content
+          }
+        } catch {
+          results = []
+        }
+
+        args.calls.forEach((subCall, subIdx) => {
+          const subName = subCall?.name || 'tool'
+          const subArgs = safeArgs(subCall?.arguments)
+          const subMeta = extractToolMeta(subName, subArgs)
+          const matchingResult = Array.isArray(results)
+            ? results.find((r) => r?.name === subName) || results[subIdx]
+            : null
+          const subContent = matchingResult?.result?.content ?? matchingResult?.content ?? (subIdx === 0 ? call.content : undefined)
+          const subIsError = matchingResult?.result?.is_error ?? matchingResult?.is_error ?? isError
+
+          list.push({
+            id: `tool-${i}-${subIdx}`,
+            name: subName,
+            icon: subMeta.icon,
+            label: subMeta.label,
+            chip: subMeta.chip,
+            mono: subMeta.mono,
+            arguments: subArgs,
+            content: subContent,
+            isError: subIsError,
+            durationMs: call.durationMs ?? call.duration_ms ?? call.elapsed_ms,
+            fullPath: subMeta.fullPath,
+          })
+        })
+        continue
+      }
+
+      const meta = extractToolMeta(name, args)
 
       list.push({
         id: `tool-${i}`,
@@ -120,17 +194,35 @@ export default function ToolChipsTrace({
 
     if (live) {
       const args = safeArgs(live.arguments)
-      const meta = extractToolMeta(live.name, args)
-      list.push({
-        id: 'live',
-        name: live.name,
-        icon: meta.icon,
-        label: meta.label,
-        chip: meta.chip,
-        mono: meta.mono,
-        arguments: args,
-        isLive: true,
-      })
+      if (live.name === 'tool_call' && args?.calls && Array.isArray(args.calls) && args.calls.length > 0) {
+        args.calls.forEach((subCall, subIdx) => {
+          const subName = subCall?.name || 'tool'
+          const subArgs = safeArgs(subCall?.arguments)
+          const subMeta = extractToolMeta(subName, subArgs)
+          list.push({
+            id: `live-${subIdx}`,
+            name: subName,
+            icon: subMeta.icon,
+            label: subMeta.label,
+            chip: subMeta.chip,
+            mono: subMeta.mono,
+            arguments: subArgs,
+            isLive: true,
+          })
+        })
+      } else {
+        const meta = extractToolMeta(live.name, args)
+        list.push({
+          id: 'live',
+          name: live.name,
+          icon: meta.icon,
+          label: meta.label,
+          chip: meta.chip,
+          mono: meta.mono,
+          arguments: args,
+          isLive: true,
+        })
+      }
     }
 
     return list

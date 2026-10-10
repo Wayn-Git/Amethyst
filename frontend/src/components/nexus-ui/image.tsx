@@ -3,7 +3,7 @@
 import * as React from "react"
 import { createContext, useContext, useState, useMemo, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion"
 import {
   X,
   Maximize2,
@@ -89,7 +89,7 @@ export function Image({
     if (uint8Array) {
       try {
         const u8 = uint8Array instanceof Uint8Array ? uint8Array : new Uint8Array(uint8Array)
-        const blob = new Blob([u8], { type: mediaType })
+        const blob = new Blob([u8 as unknown as BlobPart], { type: mediaType })
         return URL.createObjectURL(blob)
       } catch {
         return null
@@ -259,7 +259,7 @@ export function ImageLightboxOverlay({
   className,
   onClick,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: HTMLMotionProps<"div">) {
   const { setIsOpen } = useImageContext()
 
   return (
@@ -289,7 +289,7 @@ export function ImageLightboxPreview({
   children,
   onInteractOutside,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & {
+}: HTMLMotionProps<"div"> & {
   src?: string
   alt?: string
   onInteractOutside?: (event: unknown) => void
@@ -458,7 +458,7 @@ export function ImageLightboxPreview({
   // Separate ImageLightboxClose from custom captions for clean positioning
   let closeButton: React.ReactNode = null
   const otherChildren: React.ReactNode[] = []
-  React.Children.forEach(children, (child) => {
+  React.Children.forEach(children as React.ReactNode, (child) => {
     if (React.isValidElement(child) && ((child.type as any) === ImageLightboxClose || (child.type as any)?.displayName === "ImageLightboxClose")) {
       closeButton = child
     } else {
