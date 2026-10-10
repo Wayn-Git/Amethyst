@@ -49,7 +49,7 @@ const THEME_CHOICES = [
 const VENDOR_PRESETS = [
   { slug: 'kilocode', name: 'Kilo Code', base_url: 'https://api.kilo.ai/api/gateway', default_model: 'stepfun/step-3.7-flash:free', hint: 'Generous multi-model inference gateway' },
   { slug: 'nvidia', name: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', default_model: 'nvidia/llama-3.1-nemotron-70b-instruct', hint: 'Generous free tier enterprise microservices' },
-  { slug: 'opencode-zen', name: 'OpenCode Zen', base_url: 'https://opencode.ai/inference/openai/v1', default_model: 'kimi-k2.6', hint: 'OpenCode Console inference (kimi-k2.6, glm-5.1, minimax-m2.7)' },
+  { slug: 'opencode-zen', name: 'OpenCode Zen', base_url: 'https://opencode.ai/zen/v1', default_model: 'kimi-k2.6', hint: 'OpenCode Console inference (kimi-k2.6, glm-5.1, minimax-m2.7)' },
   { slug: 'google', name: 'Google Gemini', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', default_model: 'gemini-2.0-flash', hint: 'Free tier 1M context Gemini 2.0 Flash' },
   { slug: 'groq', name: 'Groq', base_url: 'https://api.groq.com/openai/v1', default_model: 'llama-3.3-70b-versatile', hint: 'Ultra-low latency Llama 3.3 70B (free tier)' },
   { slug: 'openrouter', name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', default_model: 'meta-llama/llama-3.3-70b-instruct:free', hint: 'Unified access including generous free models' },
@@ -968,6 +968,7 @@ function Appearance() {
     textSize, setTextSize,
     density, setDensity,
     agentLoader, setAgentLoader,
+    thinkingStyle, setThinkingStyle,
     autoHideTopBar, setAutoHideTopBar,
     glassMaterial, setGlassMaterial,
     spotlightAnimation, setSpotlightAnimation,
@@ -984,6 +985,7 @@ function Appearance() {
     setTextSize?.(100)
     setDensity?.('comfortable')
     setAgentLoader?.('pixels')
+    setThinkingStyle?.('cards')
     setGlassMaterial?.('full')
     setSpotlightAnimation?.('spring')
     setAutoHideTopBar?.(false)
@@ -1298,6 +1300,37 @@ function Appearance() {
                 {a.label}
               </button>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Thinking & Tool Execution Style */}
+      <div style={{ marginBottom: 12 }}>
+        <span className="set-section-label" style={{ margin: 0 }}>Thinking &amp; Tools</span>
+      </div>
+      <div className="set-box" style={{ marginBottom: 24 }}>
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Thinking trace style</span>
+            <span className="set-row-desc">
+              Choose between detailed execution cards or compact tool chips with collapsible inline diffs.
+            </span>
+          </div>
+          <div className="set-seg-ctrl">
+            <button
+              type="button"
+              className={`set-seg-btn${(thinkingStyle || 'cards') === 'cards' ? ' is-active' : ''}`}
+              onClick={() => setThinkingStyle?.('cards')}
+            >
+              Cards
+            </button>
+            <button
+              type="button"
+              className={`set-seg-btn${thinkingStyle === 'chips' ? ' is-active' : ''}`}
+              onClick={() => setThinkingStyle?.('chips')}
+            >
+              Tool Chips
+            </button>
           </div>
         </div>
       </div>

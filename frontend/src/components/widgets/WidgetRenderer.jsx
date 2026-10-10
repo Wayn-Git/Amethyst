@@ -8,6 +8,8 @@ import Quiz from './Quiz.jsx'
 import Recipe from './Recipe.jsx'
 import StepGuide from './StepGuide.jsx'
 import Translation from './Translation.jsx'
+import ImageGallery from './ImageGallery.jsx'
+import DataTable from './DataTable.jsx'
 
 /* Widget type -> renderer.
  *
@@ -24,6 +26,8 @@ const RENDERERS = {
   translation: Translation,
   chart: Chart,
   options: Options,
+  image_gallery: ImageGallery,
+  data_table: DataTable,
 }
 
 /* The frame's furniture. Every widget is titled and labelled the same way, so
@@ -38,6 +42,8 @@ const FURNITURE = {
   translation: { icon: 'page', label: 'Translation' },
   chart: { icon: 'dash', label: 'Chart' },
   options: { icon: 'logs', label: 'Options' },
+  image_gallery: { icon: 'image', label: 'Gallery' },
+  data_table: { icon: 'grid', label: 'Table' },
 }
 
 /* What has to be present for a widget to be worth drawing.
@@ -55,7 +61,10 @@ const CONTENT = {
   translation: (d) => d.translation,
   chart: (d) => d.series?.length,
   options: (d) => d.options?.length,
+  image_gallery: (d) => d.images?.length,
+  data_table: (d) => d.columns?.length || d.rows?.length,
 }
+
 
 /** What to call this widget in its header.
  *
@@ -76,10 +85,15 @@ export default function WidgetRenderer({ widget }) {
   if (!Renderer || !widget?.data) return null
   if (!CONTENT[widget.type](widget.data)) return null
 
+  if (widget.type === 'image_gallery') {
+    return <Renderer data={widget.data} />
+  }
+
   const { icon, label } = FURNITURE[widget.type]
 
   return (
     <div className="widget-frame">
+
       {/* The header is the part that says "this is a thing the assistant made",
           as distinct from the message it is sitting in. It stays put while the
           body below it changes underneath -- a quiz moves through its questions

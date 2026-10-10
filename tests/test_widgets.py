@@ -352,7 +352,25 @@ GOOD = {
         "selection_mode": "single",
         "options": [{"title": "A", "description": "the first"}],
     },
+    "image_gallery": {
+        "title": "Supercars",
+        "images": [
+            {
+                "url": "https://example.com/p1.jpg",
+                "title": "P1",
+                "thumbnail": "https://example.com/p1_thumb.jpg",
+                "source": "car.com",
+            }
+        ],
+        "layout": "carousel",
+    },
+    "data_table": {
+        "title": "Comparison",
+        "columns": ["Model", "Price"],
+        "rows": [["Model S", "$80,000"], ["Taycan", "$90,000"]],
+    },
 }
+
 
 
 def test_every_widget_type_has_a_schema_and_a_fixture():
@@ -606,3 +624,94 @@ async def test_a_link_or_code_skips_the_classifier_call(monkeypatch):
     )
     for message in skipped:
         assert await widgets.classify_and_extract(message) == ("none", None, [])
+
+
+@pytest.mark.asyncio
+async def test_image_gallery_schema_and_envelope():
+    from backend.agent.widgets import WIDGET_MODELS, parse_envelope, to_envelope
+    assert "image_gallery" in WIDGET_MODELS
+    assert "data_table" in WIDGET_MODELS
+
+    gallery_data = {
+        "title": "Supercars",
+        "images": [
+            {
+                "url": "https://example.com/car1.jpg",
+                "title": "McLaren P1",
+                "thumbnail": "https://example.com/thumb1.jpg",
+                "source": "caranddriver.com",
+            }
+        ],
+        "layout": "carousel",
+    }
+    envelope = to_envelope("image_gallery", gallery_data)
+    parsed = parse_envelope(envelope)
+    assert parsed is not None
+    assert parsed["type"] == "image_gallery"
+    assert parsed["data"]["title"] == "Supercars"
+    assert len(parsed["data"]["images"]) == 1
+    assert parsed["data"]["images"][0]["url"] == "https://example.com/car1.jpg"
+
+
+@pytest.mark.asyncio
+async def test_search_images_tool(monkeypatch):
+    from backend.tools.base import ToolContext
+    from backend.tools.builtin.image_search import search_images
+
+    async def mock_search_images(query, limit=12):
+        return [
+            {
+                "url": "https://example.com/ferrari.jpg",
+                "thumbnail": "https://example.com/ferrari_thumb.jpg",
+                "title": "Ferrari F40 in Red",
+                "source": "autocar.co.uk",
+            }
+        ]
+
+    monkeypatch.setattr("backend.web.search_service.search_images", mock_search_images)
+    ctx = ToolContext(conversation_id="c1")
+    res = await search_images({"query": "Ferrari F40", "limit": 4}, ctx)
+    assert not res.is_error
+    assert "Ferrari F40" in res.content
+    assert "amethyst:widget" in res.content
+    assert "image_gallery" in res.content
+
+
+@pytest.mark.asyncio
+async def test_image_gallery_only_for_explicit_tag(monkeypatch):
+    from backend.agent import widgets
+
+    async def mock_search_images(query, limit=12):
+        return [
+            {
+                "url": "https://example.com/img.jpg",
+                "thumbnail": "https://example.com/thumb.jpg",
+                "title": "Test Image",
+                "source": "example.com",
+            }
+        ]
+
+    monkeypatch.setattr("backend.web.search_service.search_images", mock_search_images)
+
+    # General queries mentioning images/pictures MUST NOT trigger image gallery widget
+    for general in (
+        "Seperate images",
+        "Get me 10 images of jason and lucia from gta 6 seperately",
+        "pictures of cute cats",
+        "show me screenshots",
+    ):
+        res = await widgets.classify_and_extract(general)
+        assert res == ("none", None, []), f"Unexpected widget for {general}: {res}"
+
+    # Explicit @images / /images tags DO trigger image gallery widget
+    for tagged in (
+        "@images jason and lucia",
+        "jason and lucia @images",
+        "/images nature",
+        "@image cars",
+    ):
+        res = await widgets.classify_and_extract(tagged)
+        assert res[0] == "image_gallery", f"Expected image_gallery for {tagged}, got {res}"
+        assert res[1] is not None
+
+

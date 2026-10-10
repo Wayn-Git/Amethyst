@@ -203,6 +203,25 @@ async def test_loop_terminates_on_plain_text(db, patched_resolve):
     assert roles == ["user", "assistant"]
 
 
+async def test_post_turn_memory_failure_does_not_fail_turn(db, patched_resolve, monkeypatch):
+    patched_resolve([ModelResponse(text="complete answer")])
+    cid = ConversationRepository().create("fake", "fake-1")
+
+    async def flaky_remember(*args, **kwargs):
+        raise RuntimeError("input stream disconnected")
+        yield  # make it an async generator
+
+    director = Director(echo_registry(), memory=True)
+    monkeypatch.setattr(director, "_remember", flaky_remember)
+
+    events = await collect(director, cid, "hi")
+    assert events[-1].type == "done"
+    assert not any(e.type == "error" for e in events)
+    history = MessageRepository().history(cid)
+    assert not any("[error]" in (m.content or "") for m in history)
+
+
+
 async def test_loop_executes_a_tool_then_finishes(db, patched_resolve):
     patched_resolve(
         [

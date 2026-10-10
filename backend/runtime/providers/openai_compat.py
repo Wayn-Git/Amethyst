@@ -11,8 +11,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from backend.config import ProviderConfig
@@ -60,7 +62,109 @@ def _reasoning_of(payload: dict) -> str | None:
     return None
 
 
-__all__ = ["OpenAICompatClient", "ProviderHTTPError", "ProviderStreamError", "initialize"]
+#: OpenCode CLI header mimicking its Bun/AI-SDK environment
+OPENCODE_USER_AGENT = "opencode/1.18.35 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"
+
+
+def _generate_opencode_id(prefix: str, descending: bool = True) -> str:
+    """Generate an OpenCode-compatible ID with descending timestamp encoding."""
+    now_ms = int(time.time() * 1000)
+    counter = 1
+    val = now_ms * 0x1000 + counter
+    val = (~val) if descending else val
+    hex_str = "".join(f"{(val >> (40 - 8 * w)) & 0xff:02x}" for w in range(6))
+    chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    rand = "".join(chars[b % 62] for b in os.urandom(14))
+    return f"{prefix}{hex_str}{rand}"
+
+
+#: Core tools required by OpenCode's server gate to allow free-tier models
+OPENCODE_CORE_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "read",
+            "description": "Read a file or directory from the local filesystem.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filePath": {"type": "string", "description": "The path to the file to read"}
+                },
+                "required": ["filePath"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit",
+            "description": "Performs exact string replacements in files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filePath": {"type": "string", "description": "The path to the file to modify"},
+                    "oldString": {"type": "string", "description": "The text to replace"},
+                    "newString": {"type": "string", "description": "The text to replace it with"},
+                },
+                "required": ["filePath", "oldString", "newString"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bash",
+            "description": "Execute a bash command.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "The command to execute"}
+                },
+                "required": ["command"],
+            },
+        },
+    },
+]
+
+
+__all__ = ["OpenAICompatClient", "ProviderHTTPError", "ProviderStreamError", "auth_headers_for_config", "initialize", "normalize_model_name"]
+
+
+def normalize_model_name(provider_or_url: str, model: str) -> str:
+    """Normalize user-friendly or legacy model aliases for specific providers."""
+    if not model:
+        return model
+    m = model.strip()
+    target = (provider_or_url or "").lower()
+    if "opencode" in target or "zen" in target:
+        lower = m.lower()
+        if lower in ("mimo", "mimo-flash", "mimo-v2.6-flash", "mimo-v2.6", "mimo-free", "mimo2.6"):
+            return "mimo-v2.6-flash-free"
+        if lower in ("mimo2.4", "mimo-2.4", "minimax", "minimax-mimo"):
+            return "minimax-m3"
+        if lower in ("big-pickle", "big pickle", "pickle"):
+            return "big-pickle"
+        if lower in ("space-bunny", "space bunny", "spacebunny"):
+            return "space-bunny-free"
+        if lower in ("muse-spark", "muse spark", "muse-spark-free"):
+            return "muse-spark-1.3-contributor-free"
+        if lower in ("nemotron-lightning", "nemotron", "nemotron-free"):
+            return "nemotron-3.5-lightning-free"
+        if lower in ("jev-free", "jev"):
+            return "jev-1.13-free"
+        if lower in ("longcat", "longcat-free"):
+            return "longcat-2.5-preview-free"
+        if lower in ("kimi", "k2.7", "kimi2.7"):
+            return "kimi-k2.7-code"
+        if lower in ("k2.6", "kimi2.6"):
+            return "kimi-k2.6"
+        if lower in ("glm", "glm5", "glm-5"):
+            return "glm-5.3"
+    if "kilo" in target:
+        lower = m.lower()
+        if lower in ("mimo", "mimo2.4", "minimax"):
+            return "minimax/minimax-01"
+    return m
 
 
 def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -194,7 +298,7 @@ class OpenAICompatClient:
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.model = model
+        self.model = normalize_model_name(f"{self.base_url} {model}", model)
         self.timeout = timeout
         #: Retries after the first attempt. The fallback chain
         #: owns one budget for the whole turn and hands each link its share, so
@@ -205,6 +309,8 @@ class OpenAICompatClient:
         #: the director so repeated turns to the same conversation hit the
         #: cached prefix instead of re-processing system+tools from scratch.
         self.session_id: str | None = None
+        self.is_opencode = "opencode.ai" in (self.base_url or "").lower() or "zen" in (self.base_url or "").lower()
+        self._opencode_session_id: str | None = None
 
     @property
     def _url(self) -> str:
@@ -214,7 +320,15 @@ class OpenAICompatClient:
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        if self.session_id:
+        if self.is_opencode:
+            headers["User-Agent"] = OPENCODE_USER_AGENT
+            headers["x-opencode-client"] = "cli"
+            if not self._opencode_session_id:
+                self._opencode_session_id = _generate_opencode_id("ses_")
+            headers["x-opencode-session"] = self._opencode_session_id
+            headers["x-opencode-session-id"] = self._opencode_session_id
+            headers["x-opencode-request"] = _generate_opencode_id("msg_")
+        elif self.session_id:
             headers["X-Session-Id"] = self.session_id
             headers["x-session-affinity"] = self.session_id
         return headers
@@ -228,10 +342,12 @@ class OpenAICompatClient:
         stream: bool = False,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"model": self.model, "messages": _to_openai_messages(messages)}
-        if stream:
+        if stream or self.is_opencode:
             payload["stream"] = True
+
+        rendered_tools: list[dict[str, Any]] = []
         if tools:
-            payload["tools"] = [
+            rendered_tools = [
                 {
                     "type": "function",
                     "function": {
@@ -242,6 +358,21 @@ class OpenAICompatClient:
                 }
                 for t in tools
             ]
+
+        if self.is_opencode:
+            # OpenCode's server gate requires read, edit, and bash core tools to be in payload["tools"]
+            existing_names = {
+                t.get("function", {}).get("name")
+                for t in rendered_tools
+                if isinstance(t, dict) and "function" in t
+            }
+            for core_tool in OPENCODE_CORE_TOOLS:
+                if core_tool["function"]["name"] not in existing_names:
+                    rendered_tools.append(core_tool)
+
+        if rendered_tools:
+            payload["tools"] = rendered_tools
+
         p = params or ModelParameters()
         if p.temperature is not None:
             payload["temperature"] = p.temperature
@@ -256,11 +387,10 @@ class OpenAICompatClient:
             payload["stop"] = p.stop
         if p.seed is not None:
             payload["seed"] = p.seed
-        # Provider quirk, absorbed here so the loop never learns about it: some
-        # reasoning models reject reasoning_effort when function tools are present.
-        # Non-reasoning models reject reasoning_effort outright.
+        # Gateways and non-reasoning models reject reasoning_effort
+        is_gateway = any(gw in (self.base_url or "") for gw in ("kilo.ai", "opencode.ai", "openrouter.ai"))
         if p.reasoning_effort and p.reasoning_effort != "none":
-            if is_reasoning_model(self.model) and not tools:
+            if is_reasoning_model(self.model) and not tools and not is_gateway:
                 payload["reasoning_effort"] = p.reasoning_effort
         return payload
 
@@ -270,6 +400,17 @@ class OpenAICompatClient:
         tools: list[ToolSchema] | None = None,
         params: ModelParameters | None = None,
     ) -> ModelResponse:
+        if self.is_opencode:
+            # OpenCode's gate rejects non-streaming completions with 403 FreeTierError.
+            # Consume stream to assemble the complete ModelResponse.
+            last_resp: ModelResponse | None = None
+            async for ev in self.stream(messages, tools, params):
+                if ev.type == "done" and ev.response:
+                    last_resp = ev.response
+            if last_resp is not None:
+                return last_resp
+            return ModelResponse(text=None)
+
         data = await post_json(
             self._url,
             headers=self._headers(),
@@ -451,8 +592,9 @@ class OpenAICompatClient:
             # because `reasoning_parts` was non-empty, and the loop then burned
             # both continuations before ending the turn on an empty bubble.
             # Thinking is not a reply.
-            yield StreamEvent(type="done", response=await self.complete(messages, tools, params))
-            return
+            if not self.is_opencode:
+                yield StreamEvent(type="done", response=await self.complete(messages, tools, params))
+                return
 
         yield StreamEvent(
             type="done",
@@ -516,7 +658,12 @@ def initialize(
     if not resolved_model:
         raise ValueError(f"no model specified for provider '{config.name}'")
     base_url = config.base_url or DEFAULT_BASE_URL
+    resolved_model = normalize_model_name(f"{config.name} {base_url}", resolved_model)
     api_key = resolve_api_key(ref=config.api_key_ref, env=config.api_key_env)
+    is_local = any(h in base_url.lower() for h in ("localhost", "127.0.0.1", "0.0.0.0", "lmstudio", "ollama", "192.168.", "10.", "172.16."))
+    if not api_key and not is_local and (config.api_key_ref or config.api_key_env):
+        from backend.runtime.registry import ProviderNotConfigured
+        raise ProviderNotConfigured(f"No API key configured for provider '{config.name}'. Add an API key in Settings.")
     client = OpenAICompatClient(
         base_url=base_url, api_key=api_key, model=resolved_model, max_retries=max_retries
     )
@@ -596,3 +743,16 @@ def _is_zero(value: Any) -> bool:
         return float(value) == 0.0
     except (TypeError, ValueError):
         return False
+
+
+def auth_headers_for_config(config: ProviderConfig) -> Callable[[str], dict[str, str]]:
+    base = (config.base_url or "").lower()
+    name = (config.name or "").lower()
+    if "opencode" in base or "zen" in base or "opencode" in name:
+        return lambda key: {
+            "Authorization": f"Bearer {key}" if key else "",
+            "User-Agent": OPENCODE_USER_AGENT,
+            "x-opencode-client": "cli",
+        }
+    return lambda key: {"Authorization": f"Bearer {key}"} if key else {}
+

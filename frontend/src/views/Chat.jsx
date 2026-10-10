@@ -28,7 +28,7 @@ import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import ComposioConnectCard, { extractComposioAuth } from '../components/ComposioConnectCard.jsx'
-import { parseWidgetEnvelope } from '../components/widgets/envelope.js'
+import { parseWidgetEnvelope, parseContentBlocks } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
 import TerminalDrawer from '../components/TerminalDrawer.jsx'
@@ -298,16 +298,19 @@ function historyToItems(rows) {
       // the message table has no column for one. This is what rebuilds it when
       // the conversation is reopened; `null` for every ordinary answer.
       const widget = parseWidgetEnvelope(m.content ?? '')
+      const blocks = parseContentBlocks(m.content ?? '')
       return {
         id: nextId(),
         rowId: m.id,
         kind: 'assistant',
         text: widget ? '' : (m.content ?? ''),
         widget,
+        blocks,
         pinned: Boolean(m.pinned),
         callsRaw: Array.isArray(m.tool_calls) ? m.tool_calls : [],
       }
     }
+
     if (m.role === 'tool') {
       if (m.tool_name === 'ask_user' || m.tool_name === 'ask_question') {
         return null
@@ -767,6 +770,9 @@ const Msg = memo(function Msg({
       )
     }
 
+    const blocks = item.blocks || (item.text ? parseContentBlocks(item.text) : [])
+    const hasWidgetBlock = blocks.some((b) => b.type === 'widget')
+
     return (
       <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
         {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
@@ -777,33 +783,76 @@ const Msg = memo(function Msg({
             onOpenArtifact={onOpenArtifact}
           />
         )}
-        {item.widget && <div className="msg-body"><WidgetRenderer widget={item.widget} /></div>}
-        {!item.widget && item.text && (
-          <ResponseArtifactBox
-            text={item.text}
-            item={item}
-            minimalToolbar={minimalToolbar}
-            conversationId={conversationId}
-            isEditing={isEditing}
-            onStartEdit={onStartEdit}
-            onCancelEdit={onCancelEdit}
-            onSaveEdit={onSaveEdit}
-            onOpenFullScreen={onOpenFullScreen}
-            onRegenerate={onRegenerate}
-            onPin={onPin}
-            onExportDocx={onExportDocx}
-            onViewSources={() => onViewSources?.(item)}
-            onBranchInNewChat={onBranchInNewChat}
-            onFollowUp={(followUpText) => {
-              setInput(followUpText)
-              textareaRef.current?.focus()
-            }}
-            onRefer={onRefer}
-            onAskQuote={onAskQuote}
-          />
+        {hasWidgetBlock ? (
+          blocks.map((block, idx) => {
+            const isLastTextBlock = !blocks.slice(idx + 1).some((b) => b.type !== 'widget')
+            return block.type === 'widget' ? (
+              <div key={idx} className="msg-body">
+                <WidgetRenderer widget={block.widget} />
+              </div>
+            ) : (
+              <ResponseArtifactBox
+                key={idx}
+                text={block.content}
+                item={item}
+                minimalToolbar={minimalToolbar}
+                hideToolbar={!isLastTextBlock}
+                conversationId={conversationId}
+                isEditing={isEditing}
+                onStartEdit={onStartEdit}
+                onCancelEdit={onCancelEdit}
+                onSaveEdit={onSaveEdit}
+                onOpenFullScreen={onOpenFullScreen}
+                onRegenerate={onRegenerate}
+                onPin={onPin}
+                onExportDocx={onExportDocx}
+                onViewSources={() => onViewSources?.(item)}
+                onBranchInNewChat={onBranchInNewChat}
+                onFollowUp={(followUpText) => {
+                  setInput(followUpText)
+                  textareaRef.current?.focus()
+                }}
+                onRefer={onRefer}
+                onAskQuote={onAskQuote}
+              />
+            )
+          })
+        ) : (
+          <>
+            {item.widget && (
+              <div className="msg-body">
+                <WidgetRenderer widget={item.widget} />
+              </div>
+            )}
+            {!item.widget && item.text && (
+              <ResponseArtifactBox
+                text={item.text}
+                item={item}
+                minimalToolbar={minimalToolbar}
+                conversationId={conversationId}
+                isEditing={isEditing}
+                onStartEdit={onStartEdit}
+                onCancelEdit={onCancelEdit}
+                onSaveEdit={onSaveEdit}
+                onOpenFullScreen={onOpenFullScreen}
+                onRegenerate={onRegenerate}
+                onPin={onPin}
+                onExportDocx={onExportDocx}
+                onViewSources={() => onViewSources?.(item)}
+                onBranchInNewChat={onBranchInNewChat}
+                onFollowUp={(followUpText) => {
+                  setInput(followUpText)
+                  textareaRef.current?.focus()
+                }}
+                onRefer={onRefer}
+                onAskQuote={onAskQuote}
+              />
+            )}
+          </>
         )}
       </div>
     )
+
   }
   const timeStr = item.created_at || item.timestamp
     ? new Date(item.created_at || item.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -1414,16 +1463,20 @@ export default function Chat() {
       // The turn answered with UI instead of prose. It streamed no deltas, so
       // there is nothing in the buffer to flush into -- the item is pushed
       // whole, the way a tool result is.
-      case 'widget':
+      case 'widget': {
         pushAssistant()
+        const textContent = evt.text || ''
+        const blocks = textContent ? parseContentBlocks(textContent) : []
         setItems((prev) => [...prev, {
           id: nextId(),
           kind: 'assistant',
-          text: '',
+          text: textContent,
           widget: evt.widget,
+          blocks: blocks.length > 0 ? blocks : undefined,
           callsRaw: [],
         }])
         break
+      }
       case 'tool_call':
         pushAssistant()
         if (evt.name !== 'ask_user' && evt.name !== 'ask_question') {
@@ -1529,6 +1582,24 @@ export default function Chat() {
         })))
         break
       case 'done':
+        if (evt.text) {
+          setItems((prev) => {
+            const last = prev[prev.length - 1]
+            if (last && last.kind === 'assistant' && (!last.text || !last.blocks?.length)) {
+              const blocks = parseContentBlocks(evt.text)
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...last,
+                  text: evt.text,
+                  blocks: blocks.length > 0 ? blocks : last.blocks,
+                  widget: last.widget || parseWidgetEnvelope(evt.text),
+                },
+              ]
+            }
+            return prev
+          })
+        }
         // `execution_logs.duration_ms` has held this since logging shipped and
         // nothing ever read it. Asked immediately or not at all.
         if (evt.duration_ms != null) {
@@ -1684,7 +1755,7 @@ export default function Chat() {
       }
       watchdog = setTimeout(() => {
         if (turnTokenRef.current !== token || settledRef.current) return
-        pushNote('error', `No response from the server for ${SILENCE_LIMIT_MS / 1000}s. The turn may still be running; reload to reconnect.`)
+        pushNote('error', `No response from the server for ${SILENCE_LIMIT_MS / 1000}s. The connection is closed and the turn stops with it; reload to see where it got.`)
         settledRef.current = true
         setTurnState('idle')
         setStopping(false)
@@ -2051,7 +2122,9 @@ export default function Chat() {
     setStopping(true)
     try {
       // The server stops the loop; the stream then ends with a guard frame of
-      // its own accord. Aborting the read here would leave it running.
+      // its own accord. Aborting the read would end the turn too, but through
+      // the cancellation path: Starlette drops the task on disconnect, so no
+      // guard frame arrives and the row lands interrupted.
       await api.stopTurn(activeId)
     } catch (err) {
       toast(err.message, 'bad')
@@ -2245,10 +2318,20 @@ export default function Chat() {
       }, 160)
     } else if (prefix === '@') {
       const available = caps.connectors || []
-      const matches = available.filter((c) => 
+      const pluginMatches = available.filter((c) => 
         (c.name.toLowerCase().includes(query) || (c.title && c.title.toLowerCase().includes(query)))
-      )
-      setAcItems(matches.slice(0, 6).map(it => ({ ...it, acType: 'plugin' })))
+      ).map(it => ({ ...it, acType: 'plugin' }))
+      const toolMatches = [
+        {
+          name: 'images',
+          title: 'images',
+          description: 'Search & display inline image gallery',
+          acType: 'tool',
+          icon: 'image',
+        },
+      ].filter(t => t.name.toLowerCase().includes(query) || t.title.toLowerCase().includes(query))
+      const allMatches = [...toolMatches, ...pluginMatches]
+      setAcItems(allMatches.slice(0, 6))
       setAcIndex(0)
     }
   }, [caps.connectors])
@@ -2574,10 +2657,14 @@ export default function Chat() {
               onMouseEnter={() => setAcIndex(i)}
               onClick={() => acceptAc(item)}
             >
-              {item.acType === 'plugin' ? (
+              {item.acType === 'plugin' || item.acType === 'tool' ? (
                  <>
                    <span className="ac-name">
-                     <ServiceIcon name={item.name} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     {item.acType === 'tool' ? (
+                       <Icon name={item.icon || 'image'} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     ) : (
+                       <ServiceIcon name={item.name} size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                     )}
                      @{item.title || item.name}
                    </span>
                    <span className="ac-desc">{item.description}</span>

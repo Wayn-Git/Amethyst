@@ -78,6 +78,21 @@ def test_it_fails_open_rather_than_hiding_tools():
     assert select_tools([], "anything") == ([], 0)
 
 
+def test_image_request_requires_images_tag():
+    all_schemas = _schemas() + [_S("search_images")]
+    # Without @images tag: search_images is withheld, core tools like run_shell_command remain
+    kept, _ = select_tools(all_schemas, "get me 20 pictures of jason")
+    names = _names(kept)
+    assert "search_images" not in names
+    assert "run_shell_command" in names
+
+    # With @images tag: search_images is offered
+    kept, _ = select_tools(all_schemas, "get me 20 pictures of jason @images")
+    names = _names(kept)
+    assert "search_images" in names
+    assert "run_shell_command" in names
+
+
 # ------------------------------------------------- system prompt is built once
 
 

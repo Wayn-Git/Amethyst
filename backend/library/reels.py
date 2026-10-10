@@ -162,7 +162,11 @@ class ReelCapture:
             try:
                 notes_out = [captured.item.get("capture_note") or ""]
                 thumb_url = reel.thumbnail_url or (reel.slide_urls[0] if reel.slide_urls else None)
-                notes_out.append(await self._add_thumbnail(item_id, thumb_url, reel.video_path))
+                notes_out.append(
+                    await self._add_thumbnail(
+                        item_id, thumb_url, reel.video_path, fallback_urls=reel.slide_urls
+                    )
+                )
                 notes_out.append(
                     await self._process_content(
                         item_id, reel, settings, is_music_intent=is_music_intent
@@ -194,11 +198,18 @@ class ReelCapture:
         from backend.library.service import as_dict
         return type(captured)(as_dict(self.library.store.get(item_id)))
 
-    async def _add_thumbnail(self, item_id: int, url: str | None, video_path: Path | None = None) -> str:
+    async def _add_thumbnail(
+        self,
+        item_id: int,
+        url: str | None,
+        video_path: Path | None = None,
+        fallback_urls: list[str] | None = None,
+    ) -> str:
         target = thumbnail_path(item_id)
-        if url:
+        candidate_urls = [u for u in [url, *(fallback_urls or [])] if u]
+        for candidate in candidate_urls:
             try:
-                await self._download(url, target, max_bytes=MAX_THUMBNAIL_BYTES)
+                await self._download(candidate, target, max_bytes=MAX_THUMBNAIL_BYTES)
                 if target.is_file() and target.stat().st_size > 500:
                     self.library.store.update(item_id, thumbnail_path=str(target))
                     return ""
@@ -206,12 +217,13 @@ class ReelCapture:
                 log.debug("thumbnail download failed for %s: %s", item_id, exc)
 
         # Fallback: extract frame from downloaded video with ffmpeg
-        if video_path and Path(video_path).is_file():
+        vp = video_path or media_path(item_id, ".mp4")
+        if vp and Path(vp).is_file():
             from backend.media.audio import _run, ffmpeg_missing
             if not ffmpeg_missing():
                 try:
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    code, _ = await _run(["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(video_path), "-vframes", "1", "-q:v", "3", str(target)])
+                    code, _ = await _run(["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(vp), "-vframes", "1", "-q:v", "3", str(target)])
                     if code == 0 and target.is_file() and target.stat().st_size > 500:
                         self.library.store.update(item_id, thumbnail_path=str(target))
                         return ""

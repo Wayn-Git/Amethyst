@@ -308,14 +308,33 @@ async def dispatch_tool_call(
     registry,
     context,
 ) -> list[dict[str, Any]]:
-    """Validate and re-dispatch deferred tool calls to the real handlers."""
+    """Validate, coerce types, and re-dispatch deferred tool calls."""
     catalog_by_name = {e.name: e for e in catalog}
     results = []
+    from backend.tools.registry import ToolRegistry
+
     for call in calls:
+        if isinstance(call, str):
+            try:
+                call = json.loads(call)
+            except Exception:
+                continue
+        if not isinstance(call, dict):
+            continue
+
         name = call.get("name", "")
         arguments = call.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except Exception:
+                pass
+        if not isinstance(arguments, dict):
+            arguments = {}
+
         entry = catalog_by_name.get(name)
-        if entry is None:
+        tool = registry.resolve_tool(name) if hasattr(registry, "resolve_tool") else registry.get(name)
+        if entry is None and tool is None:
             results.append({
                 "name": name,
                 "result": {
@@ -324,9 +343,21 @@ async def dispatch_tool_call(
                 },
             })
             continue
+
+        params = {}
+        if entry:
+            params = entry.schema.get("function", {}).get("parameters", {})
+        elif tool and isinstance(tool.parameters, dict):
+            params = tool.parameters
+
+        # Coerce argument types based on schema properties
+        props = params.get("properties", {}) if isinstance(params, dict) else {}
+        for prop_name, prop_def in props.items():
+            if prop_name in arguments and isinstance(prop_def, dict):
+                arguments[prop_name] = ToolRegistry.coerce_property_value(prop_def, arguments[prop_name])
+
         # Validate required parameters
-        params = entry.schema.get("function", {}).get("parameters", {})
-        required = params.get("required", [])
+        required = params.get("required", []) if isinstance(params, dict) else []
         missing = [r for r in required if r not in arguments]
         if missing:
             results.append({
@@ -337,19 +368,23 @@ async def dispatch_tool_call(
                 },
             })
             continue
-        # Dispatch to the real handler
-        tool = registry.get(name)
-        if tool is None:
-            results.append({
-                "name": name,
-                "result": {
-                    "content": f"Tool '{name}' is registered but not available.",
-                    "is_error": True,
-                },
-            })
-            continue
+
+        # Dispatch through registry to benefit from permissions, logs, caching, and fallbacks
         try:
-            result = await tool.handler(arguments, context)
+            if hasattr(registry, "dispatch"):
+                result = await registry.dispatch(name, arguments, context)
+            elif tool:
+                result = await tool.handler(arguments, context)
+            else:
+                results.append({
+                    "name": name,
+                    "result": {
+                        "content": f"Tool '{name}' is registered but not available.",
+                        "is_error": True,
+                    },
+                })
+                continue
+
             results.append({
                 "name": name,
                 "result": {

@@ -51,7 +51,10 @@ def model_lister(config: ProviderConfig):
     """
     adapter_key = config.provider or config.name
     module = PROVIDER_REGISTRY_MODULES.get(adapter_key, openai_compat)
-    headers = getattr(module, "auth_headers", None) or _bearer
+    if hasattr(module, "auth_headers_for_config"):
+        headers = module.auth_headers_for_config(config)
+    else:
+        headers = getattr(module, "auth_headers", None) or _bearer
     parse = getattr(module, "list_models", None) or openai_compat.list_models
     return headers, parse
 

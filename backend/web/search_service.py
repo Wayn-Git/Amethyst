@@ -1189,12 +1189,12 @@ def _score_image_candidate(
     if any(junk in low_title for junk in _IMAGE_JUNK_TITLES if junk not in query_lower):
         return None
 
-    # 3. Filter tiny dimensions or extreme aspect ratios (e.g. banners, ultra-tall strips)
+    # 3. Filter tiny dimensions or extreme aspect ratios (reject ultra-tall sprites/cutouts)
     if width and height:
-        if width < 300 or height < 200:
-            return None
         ar = width / height
-        if ar > 2.8 or ar < 0.45:
+        if ar < 0.75 or ar > 2.8:
+            return None
+        if width < 300 or height < 200:
             return None
 
     # 4. Check image URL parameters and path artifacts if provided
@@ -1227,11 +1227,25 @@ def _score_image_candidate(
     if any(auth in domain for auth in _IMAGE_AUTHORITATIVE_DOMAINS):
         score += 35.0
 
-    for tok in query_tokens:
-        if tok in low_title:
-            score += 15.0
-        elif tok in purl_low:
-            score += 8.0
+    if query_tokens:
+        matched_tokens = sum(
+            1 for tok in query_tokens if tok in low_title or tok in purl_low
+        )
+        if len(query_tokens) >= 2:
+            if matched_tokens == 0:
+                return None
+            ratio = matched_tokens / len(query_tokens)
+            if ratio < 0.5:
+                return None
+            if ratio >= 1.0:
+                score += 45.0
+            else:
+                score += ratio * 20.0
+        else:
+            if matched_tokens:
+                score += 25.0
+            else:
+                score -= 20.0
 
     # Distinctive model/code token check (e.g. f80, m4, ps5, rtx)
     for tok in query_tokens:
@@ -1243,10 +1257,13 @@ def _score_image_candidate(
 
     # Favor standard high-res landscape / editorial dimensions
     if width and height:
-        if width >= 800 and height >= 450:
-            score += 15.0
-        if 1.3 <= (width / height) <= 1.9:
+        ar = width / height
+        if 1.2 <= ar <= 2.2:
+            score += 25.0
+        elif 0.85 <= ar < 1.2:
             score += 5.0
+        if width >= 800 and height >= 450:
+            score += 20.0
 
     # URL path & filename semantic inspection
     if img_filename:
@@ -1277,8 +1294,11 @@ async def _search_images_live(query: str, limit: int) -> list[dict[str, Any]]:
     Applies query cleanup, relevance prioritization, domain authority scoring,
     and duplicate filtering.
     """
-    # Clean query: strip image keywords/prefixes
+    # Clean query: strip image keywords/prefixes and normalize common typos
     q = query.strip()
+    q = re.sub(r"\bfrmo\b", "from", q, flags=re.IGNORECASE)
+    q = re.sub(r"\bgta6\b", "gta 6", q, flags=re.IGNORECASE)
+    q = re.sub(r"\bmc\b", "minecraft", q, flags=re.IGNORECASE)
     q = re.sub(r"^(?:>\s*images?|images?|img)\s+", "", q, flags=re.IGNORECASE).strip()
     if not q:
         return []
@@ -1300,36 +1320,55 @@ async def _search_images_live(query: str, limit: int) -> list[dict[str, Any]]:
     ]
     query_lower = q.lower()
 
+    # Optimized search query for engine (removes prepositions that dilute Bing Image ranking)
+    bing_query = re.sub(r"\b(?:from|in|at|for|about|with)\b", " ", q, flags=re.IGNORECASE)
+    bing_query = " ".join(bing_query.split())
+
     # 1. Primary: High-Relevance Bing Image Search
     try:
         client = await _pool_client()
         resp = await client.get(
-            f"https://www.bing.com/images/search?q={quote(q)}&form=HDRSC2&first=1",
+            f"https://www.bing.com/images/async?q={quote(bing_query)}&first=1&count=40&mmasync=1",
             headers=headers,
             timeout=10.0,
         )
         if resp.status_code == 200:
-            matches = re.findall(r'class="iusc"[^>]+m="([^"]+)"', resp.text)
+            tag_blocks = re.findall(r'<a[^>]+class=[\'\"]iusc[\'\"][^>]+>', resp.text)
+            if not tag_blocks:
+                tag_blocks = re.findall(r'\sm=[\'\"](\{[^\'\"]+\})[\'\"]', resp.text)
+
             candidates: list[tuple[float, dict[str, Any]]] = []
             seen_urls = set()
 
-            for raw_m in matches:
+            for raw_tag in tag_blocks:
                 try:
-                    data = json.loads(html.unescape(raw_m))
+                    m_json = re.search(r'\sm=[\'\"](\{[^\'\"]+\})[\'\"]', raw_tag)
+                    if m_json:
+                        data = json.loads(html.unescape(m_json.group(1)))
+                    else:
+                        data = json.loads(html.unescape(raw_tag))
+
                     img_url = data.get("murl")
-                    thumb_url = data.get("turl")
+                    thumb_url = data.get("turl") or img_url
                     page_url = data.get("purl") or img_url
                     title = data.get("t") or data.get("desc") or "Image"
 
-                    if not img_url or not thumb_url or img_url in seen_urls:
+                    if not img_url or img_url in seen_urls:
                         continue
                     seen_urls.add(img_url)
 
                     domain = urlparse(page_url).netloc.replace("www.", "").lower()
-                    raw_w = data.get("width")
-                    raw_h = data.get("height")
-                    width = int(raw_w) if raw_w and str(raw_w).isdigit() else None
-                    height = int(raw_h) if raw_h and str(raw_h).isdigit() else None
+                    
+                    # Extract real dimensions from Bing anchor attributes
+                    m_expw = re.search(r"[?&;]expw=(\d+)", raw_tag)
+                    m_exph = re.search(r"[?&;]exph=(\d+)", raw_tag)
+                    if not m_expw:
+                        m_expw = re.search(r"width:(\d+)px", raw_tag)
+                    if not m_exph:
+                        m_exph = re.search(r"height:(\d+)px", raw_tag)
+
+                    width = int(m_expw.group(1)) if m_expw else None
+                    height = int(m_exph.group(1)) if m_exph else None
 
                     cand_score = _score_image_candidate(
                         domain=domain,

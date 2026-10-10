@@ -381,7 +381,14 @@ async def fetch_url(args: dict[str, Any], _: ToolContext) -> ToolResult:
     except UnsafeURL as exc:
         return ToolResult.error(str(exc))
     except FetchError as exc:
-        return ToolResult.error(str(exc))
+        err_msg = str(exc)
+        if "403" in err_msg or "404" in err_msg or "forbidden" in err_msg.lower() or "not found" in err_msg.lower():
+            err_msg += (
+                "\n[Circuit Breaker Directive: This page returned 403/404 or is blocked. "
+                "DO NOT retry variations of this URL path or repeated scrapes on this domain. "
+                "Immediately switch to an alternative domain or use browser evaluation tools if available.]"
+            )
+        return ToolResult.error(err_msg)
 
     # If a query is provided, perform targeted passage extraction to save tokens
     if query and page.text:

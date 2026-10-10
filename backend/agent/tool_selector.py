@@ -130,7 +130,7 @@ CATEGORIES: dict[str, dict[str, Any]] = {
     },
     "media": {
         "tools": ("upload_image",),
-        "words": ("image", "photo", "picture", "screenshot", "upload", "thumbnail"),
+        "words": ("upload image", "upload photo"),
     },
     "jobs": {
         "tools": ("collect_jobs", "dispatch_parallel_jobs"),
@@ -229,6 +229,9 @@ _TASK_INTENTS: list[tuple[str, tuple[str, ...]]] = [
     ("research ", ("research_web", "search_web", "extract_page")),
     ("google ", ("search_web",)),
     ("look up online", ("search_web", "research_web", "fetch_url")),
+    ("@images", ("search_images",)),
+    ("@image", ("search_images",)),
+    ("/images", ("search_images",)),
     ("fetch url", ("fetch_url", "extract_page")),
     ("extract page", ("extract_page", "fetch_url")),
     ("open url", ("fetch_url", "open_url")),
@@ -334,11 +337,19 @@ def select_tools(
         for server in chosen_servers:
             wanted.update(getattr(t, "name", "") for t in by_server[server])
 
+        # search_images is strictly opt-in: only offered when @images, @image, or /images is requested
+        has_images_tag = any(tag in haystack for tag in ("@images", "@image", "/images", "/image"))
+        if has_images_tag:
+            wanted.add("search_images")
+        else:
+            wanted.discard("search_images")
+
         kept = [s for s in schemas if getattr(s, "name", "") in wanted]
         # Nothing matched at all: the request is too vague to narrow safely, so
         # do not narrow. Better to spend tokens than to answer without the tool.
         if not kept:
             return schemas, 0
+
         return kept, len(schemas) - len(kept)
     except Exception:  # noqa: BLE001 - selection must never take the turn down
         return schemas, 0

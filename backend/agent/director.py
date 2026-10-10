@@ -40,6 +40,7 @@ from backend.agent.prompt import (
     estimate_tokens,
     extract_skill_invocations,
     fit_tools_to_budget,
+    message_tokens,
     to_wire_message,
     to_wire_messages,
     tool_schema_tokens,
@@ -54,7 +55,7 @@ from backend.agent.tool_search import (
     dispatch_tool_search,
 )
 from backend.agent.context_compressor import ContextCompressor
-from backend.agent.widgets import classify_and_extract, to_envelope
+from backend.agent.widgets import classify_and_extract, to_envelope, FENCE
 from backend.runtime.variant_store import depth_instruction
 from backend.security.confirmation import guard_instruction
 from backend.db.repositories import (
@@ -94,25 +95,16 @@ DRAIN_TIMEOUT_SECONDS = 10.0
 
 @dataclass
 class Guards:
-    # Raised from 16 and 40. The real backstop on a turn is `max_seconds`,
-    # which bounds it in the only unit anybody waiting actually feels; the step
-    # counts existed to stop a loop spinning, and at 16 they were stopping
-    # ordinary work instead. A search-read-edit-verify task spends four steps
-    # per file it touches, so three files hit the old ceiling and the turn
-    # answered from half a job with its tools taken away on the last step.
-    max_iterations: int = 24
-    max_tool_calls: int = 60
-    max_seconds: float = 600.0
-    max_repeated_calls: int = 3
+    # 0 or <= 0 indicates uncapped / no limits for iterations, tool calls, or duration.
+    max_iterations: int = 40
+    max_tool_calls: int = 120
+    max_seconds: float = 0.0  # 0.0 = uncapped duration (no timeout)
+    max_repeated_calls: int = 4
     # How many times a turn may be restarted after the model ended it without
-    # actually answering -- an empty reply, or one the provider cut off. Bounded
-    # so a model that only ever returns nothing cannot spin.
-    max_continuations: int = 2
+    # actually answering -- an empty reply, or one the provider cut off.
+    max_continuations: int = 3
     # How many times one answer may be picked up again after the stream carrying
-    # it failed halfway. Four resumes before fallback moves to the next provider.
-    # Reset per iteration (state.begin_iteration), so this is per model call, not
-    # per 24-iteration turn. Two proved too small: a single 3-blip burst in one
-    # call forced a handover/error while healthy providers sat unused.
+    # it failed halfway. 4 resumes prevents free provider drops from failing the turn.
     max_resumes: int = 4
 
 
@@ -1039,6 +1031,14 @@ class Director:
             # leave through an exception or a closed generator, which is exactly
             # the case a reader cannot tell from a turn still thinking.
             if not state.terminal:
+                # The error must land with the phase: a row of phase='failed'
+                # and error=NULL has no reason attached, and the interface can
+                # only fall back to "The turn ended without a result". The
+                # GeneratorExit path is the common producer -- the reader
+                # hung up, the handler re-raises without touching
+                # state.error, and the row opened at `_open` is left here.
+                if not state.error:
+                    state.error = "the turn ended without a result"
                 self._checkpoint(state, "failed")
 
     async def _run(
@@ -1102,16 +1102,11 @@ class Director:
             widget_started = time.monotonic()
             widget_type, widget_data, widget_media = await classify_and_extract(user_message)
             if widget_type != "none" and widget_data is not None:
-                # Persisted as the assistant's own message, fenced, because the
-                # message table has no widget column and the transcript is what
-                # rebuilds the conversation when it is reopened. Media travels
-                # in it as metadata -- titles, URLs, thumbnails -- so reopening
-                # shows the same gallery without searching for it again.
+                full_text = widget_data.pop("_full_text", None)
                 envelope = to_envelope(widget_type, widget_data, widget_media)
-                self._persist(conversation_id, "assistant", envelope)
+                delivered_text = full_text or envelope
+                self._persist(conversation_id, "assistant", delivered_text)
                 self.conversations.touch(conversation_id)
-                # `preparing` does not go straight to `completed`; the call above
-                # was this turn's reasoning, so it is recorded as such.
                 self._checkpoint(state, "reasoning")
                 self._checkpoint(state, "completed")
                 yield Event(
@@ -1121,14 +1116,15 @@ class Director:
                             "type": widget_type,
                             "data": widget_data,
                             "media": widget_media,
-                        }
+                        },
+                        "text": delivered_text,
                     },
                 )
                 yield Event("status", {"state": "completed"})
                 yield Event(
                     "done",
                     {
-                        "text": envelope,
+                        "text": delivered_text,
                         "iterations": 1,
                         **_cost(1, 0, widget_started),
                     },
@@ -1285,26 +1281,28 @@ class Director:
         # P0 timing: prefetch_ms measures gate to first model call.
         _prefetch_started = time.monotonic()
         trivial = self._is_trivial_turn(user_message, attachments)
-        if trivial:
-            retrieved, recalled = await _none(), await _empty()
-            # Recent summaries still cheap (single SQLite read, no embed) and
-            # keep greetings continuity ("still on the load balancer?").
+        should_retrieve = self.retrieval and self._should_retrieve(user_message, attachments)
+        should_recall = self.memory
+        if trivial or (not should_retrieve and not should_recall):
+            retrieved = await self._retrieve(user_message) if should_retrieve else await _none()
+            recalled = await self._recall(conversation_id, user_message) if should_recall else await _empty()
             recent_conversations = await self._recent(conversation_id)
-            log.debug("turn prefetch trivial skip in %.0fms", (time.monotonic() - _prefetch_started) * 1000)
+            log.debug("turn prefetch trivial/direct skip in %.0fms", (time.monotonic() - _prefetch_started) * 1000)
         else:
-            if self.retrieval:
-                yield Event("status", {"state": "retrieving"})
-            elif self.memory:
-                yield Event("status", {"state": "recalling"})
-            # Two independent best-effort lookups, run together: an embedder round
-            # trip awaited before the memory service added its own latency to the
-            # head of every turn for no ordering reason at all. Recent summaries
-            # ride along: single SQLite read, no embedding, no model call.
-            retrieved, recalled, recent_conversations = await asyncio.gather(
-                self._retrieve(user_message) if self.retrieval else _none(),
-                self._recall(conversation_id, user_message) if self.memory else _empty(),
-                self._recent(conversation_id),
+            prefetch_fut = asyncio.ensure_future(
+                asyncio.gather(
+                    self._retrieve(user_message) if should_retrieve else _none(),
+                    self._recall(conversation_id, user_message) if should_recall else _empty(),
+                    self._recent(conversation_id),
+                )
             )
+            done, _ = await asyncio.wait({prefetch_fut}, timeout=0.05)
+            if not done:
+                if should_retrieve:
+                    yield Event("status", {"state": "retrieving"})
+                elif should_recall:
+                    yield Event("status", {"state": "recalling"})
+            retrieved, recalled, recent_conversations = await prefetch_fut
             log.debug(
                 "turn prefetch retrieve+recall in %.0fms (trivial=%s, memories=%d)",
                 (time.monotonic() - _prefetch_started) * 1000, trivial, len(recalled or []),
@@ -1371,23 +1369,23 @@ class Director:
         _cached_tool_hash: str | None = None
         self._tool_search_catalog = None  # for bridge tool dispatch in _execute()
 
-        for iteration in range(self.guards.max_iterations):
+        max_iters = 1000 if (self.guards.max_iterations is None or self.guards.max_iterations <= 0) else self.guards.max_iterations
+        for iteration in range(max_iters):
             if cancel is not None and cancel.is_set():
                 self._checkpoint(state, "cancelled", budget=budget)
                 yield _guard("stopped by the user", said, iteration, state.tool_calls_made, started)
                 break
-            if time.monotonic() - started > self.guards.max_seconds:
+            if self.guards.max_seconds > 0 and (time.monotonic() - started > self.guards.max_seconds):
                 state.error = "time limit reached"
                 self._checkpoint(state, "stopped", budget=budget)
                 yield _guard("time limit reached", said, iteration, state.tool_calls_made, started)
                 break
 
-            # The last iteration is spent forcing an answer, not another tool
+            # The last iteration is spent forcing an answer if bounded, not another tool
             # call: withholding the schemas below turns "iteration limit
             # reached" -- a dead end with nothing to show -- into a real
-            # wrap-up of whatever the turn has. The hard guard in the `else`
-            # branch stays as a backstop for the case a provider ignores it.
-            final_step = iteration == self.guards.max_iterations - 1
+            # wrap-up of whatever the turn has.
+            final_step = (iteration == max_iters - 1) if (self.guards.max_iterations and self.guards.max_iterations > 0) else False
 
             # Clears what belongs to one answer rather than to the turn:
             # `state.carried`, `state.resumes`, `state.blind_noted`. It was the
@@ -1523,6 +1521,11 @@ class Director:
                                     system_prompt, tool_schemas, user_message
                                 )
                             self._tool_search_catalog = None
+                        has_images_tag = any(
+                            tag in user_message.lower() for tag in ("@images", "@image", "/images", "/image")
+                        )
+                        if not has_images_tag and tool_schemas is not None:
+                            tool_schemas = [s for s in tool_schemas if getattr(s, "name", "") != "search_images"]
                         _cached_tool_schemas = tool_schemas
                         _cached_tool_hash = _tool_hash_key
                     else:
@@ -1562,7 +1565,7 @@ class Director:
                             "warning",
                             {
                                 "message": (
-                                    f"this turn reached its {self.guards.max_iterations}-step"
+                                    f"this turn reached its {max_iters}-step"
                                     " limit, so the answer below is written from what it had"
                                     " rather than by using more tools"
                                 )
@@ -1590,10 +1593,19 @@ class Director:
                     # context window, use an auxiliary LLM to summarize middle
                     # turns before budgeting. This preserves more information
                     # than drop-oldest.
+                    #
+                    # The argument is what the whole request would carry --
+                    # system prompt + tool schemas + history. It used to pass
+                    # only the first two, a near-constant that never grows
+                    # with the conversation, so `should_compress` never fired
+                    # and only drop-oldest ran: long chats silently lost
+                    # their middle.
                     if (
                         self._context_engine is not None
                         and self._context_engine.should_compress(
-                            estimate_tokens(system_prompt) + tool_schema_tokens(tool_schemas)
+                            estimate_tokens(system_prompt)
+                            + tool_schema_tokens(tool_schemas)
+                            + sum(message_tokens(m) for m in history)
                         )
                     ):
                         history = self._context_engine.compress(history)
@@ -1896,11 +1908,11 @@ class Director:
                     # that is merely unreachable never opened anything, and
                     # re-asking it just pays its timeout twice before the
                     # handover that was always the right answer.
+                    effective_max_resumes = 20 if (self.guards.max_resumes is None or self.guards.max_resumes <= 0) else self.guards.max_resumes
                     can_resume = (
-                        (bool(streamed_text or state.carried)
-                         or isinstance(exc, ProviderStreamError))
-                        and should_retry(kind)
-                        and state.resumes < self.guards.max_resumes
+                        bool(streamed_text or state.carried)
+                        and (should_retry(kind) or kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE))
+                        and state.resumes < effective_max_resumes
                     )
                     if can_resume:
                         state.resumes += 1
@@ -1920,10 +1932,11 @@ class Director:
                             chain[state.active].provider,
                             kind,
                             state.resumes,
-                            self.guards.max_resumes,
+                            effective_max_resumes,
                         )
                         self._checkpoint(state, budget=budget)
                         yield Event("status", {"state": "resuming"})
+                        await asyncio.sleep(min(0.5 * state.resumes, 2.0))
                         continue
 
                     # A retryable failure exhausted its allowance before it
@@ -2066,6 +2079,24 @@ class Director:
                         )
                         return
 
+                    # If stream dropped and this is an intermittent interruption, attempt auto-recovery
+                    if (
+                        ("input stream" in str(raw_message).lower()
+                         or "stream" in str(message).lower()
+                         or "connection" in str(raw_message).lower())
+                        and state.resumes < effective_max_resumes
+                    ):
+                        state.resumes += 1
+                        log.info(
+                            "%s stream interrupted; auto-recovering attempt %d/%d",
+                            chain[state.active].provider,
+                            state.resumes,
+                            effective_max_resumes,
+                        )
+                        yield Event("status", {"state": "resuming"})
+                        await asyncio.sleep(min(1.0 * state.resumes, 3.0))
+                        continue
+
                     # Nothing was produced, so this really is a failed turn.
                     clean_msg = (
                         "The model stream was interrupted by the provider. Please try again."
@@ -2078,7 +2109,7 @@ class Director:
                     state.error = clean_msg
                     self._checkpoint(state, "failed", budget=budget)
                     yield Event("status", {"state": "failed"})
-                    yield Event("error", {"message": clean_msg, "resumable": False})
+                    yield Event("error", {"message": clean_msg, "resumable": True})
                     return
 
                 availability.record_success(chain[state.active].provider)
@@ -2170,6 +2201,35 @@ class Director:
                 else:
                     delivered = answer
 
+                gallery_imgs = getattr(state, "gallery_images", None)
+                if gallery_imgs and FENCE not in delivered:
+                    formatted_imgs = [
+                        {
+                            "url": r.get("image") or r.get("thumbnail") or r.get("url") or "",
+                            "thumbnail": r.get("thumbnail") or r.get("image") or r.get("url") or "",
+                            "title": r.get("title") or "",
+                            "source": r.get("source_url") or r.get("creator") or r.get("source") or "",
+                        }
+                        for r in gallery_imgs
+                        if (r.get("image") or r.get("thumbnail") or r.get("url"))
+                    ]
+                    if formatted_imgs:
+                        w_json = json.dumps(
+                            {"type": "image_gallery", "data": {"title": "Image Gallery", "images": formatted_imgs}},
+                            ensure_ascii=False,
+                        )
+                        w_block = f"\n\n```{FENCE}\n{w_json}\n```\n\n"
+                        import re
+                        md_img_pat = re.compile(r"(!\[.*?\]\(.*?\)\s*)+")
+                        if md_img_pat.search(delivered):
+                            delivered = md_img_pat.sub(w_block, delivered, count=1)
+                        else:
+                            parts = delivered.split("\n\n", 1)
+                            if len(parts) == 2:
+                                delivered = f"{parts[0]}{w_block}{parts[1]}"
+                            else:
+                                delivered = f"{delivered}{w_block}"
+
                 self._persist(conversation_id, "assistant", delivered)
                 self.conversations.touch(conversation_id)
                 if state.step_open is not None:
@@ -2196,13 +2256,17 @@ class Director:
                 # and blocking the terminal event on it would keep an interface's
                 # composer disabled for the length of one. An interface that
                 # stops reading at `done` simply skips it.
-                async for event in self._remember(
-                    conversation_id, user_message, answer, chain[state.active]
-                ):
-                    yield event
-                # Conversation summary refresh: deterministic SQLite write, no
-                # LLM, no embed. Keeps recent-conversations block fresh.
-                await asyncio.to_thread(self._refresh_summary, conversation_id)
+                # Must never raise to outer loop and mark a completed turn as failed.
+                try:
+                    async for event in self._remember(
+                        conversation_id, user_message, answer, chain[state.active]
+                    ):
+                        yield event
+                    # Conversation summary refresh: deterministic SQLite write, no
+                    # LLM, no embed. Keeps recent-conversations block fresh.
+                    await asyncio.to_thread(self._refresh_summary, conversation_id)
+                except Exception as exc:
+                    log.warning("post-turn memory/summary background task failed: %s", exc)
                 return
 
             if planning:
@@ -2290,7 +2354,7 @@ class Director:
                 if seg_type == "parallel":
                     # Launch all calls in this segment concurrently
                     for call in seg_calls:
-                        if state.tool_calls_made >= self.guards.max_tool_calls:
+                        if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
                             state.error = "tool call limit reached"
                             self._checkpoint(state, "stopped", budget=budget)
                             yield _guard(
@@ -2303,9 +2367,17 @@ class Director:
                         fingerprint = _fingerprint(call)
                         seen = state.call_fingerprints.get(fingerprint, 0) + 1
                         state.call_fingerprints[fingerprint] = seen
-                        if seen > self.guards.max_repeated_calls:
+                        if self.guards.max_repeated_calls > 0 and seen > self.guards.max_repeated_calls:
                             dispatch_tasks.append((call, None))
                             continue
+
+                        display_tool_name = call.name
+                        if call.name == "tool_call" and isinstance(call.arguments, dict):
+                            sub_calls = call.arguments.get("calls", [])
+                            if isinstance(sub_calls, list) and sub_calls:
+                                names = [c.get("name") for c in sub_calls if isinstance(c, dict) and c.get("name")]
+                                if names:
+                                    display_tool_name = ", ".join(names)
 
                         tool = self.registry.get(call.name)
                         server = getattr(tool, "server_name", None)
@@ -2313,7 +2385,7 @@ class Director:
                             "status",
                             {
                                 "state": "connector" if server else "tool",
-                                "tool": call.name,
+                                "tool": display_tool_name,
                                 "server": server,
                             },
                         )
@@ -2381,7 +2453,7 @@ class Director:
                 else:
                     # Sequential segment: execute one-by-one
                     for call in seg_calls:
-                        if state.tool_calls_made >= self.guards.max_tool_calls:
+                        if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
                             state.error = "tool call limit reached"
                             self._checkpoint(state, "stopped", budget=budget)
                             yield _guard(
@@ -2394,9 +2466,17 @@ class Director:
                         fingerprint = _fingerprint(call)
                         seen = state.call_fingerprints.get(fingerprint, 0) + 1
                         state.call_fingerprints[fingerprint] = seen
-                        if seen > self.guards.max_repeated_calls:
+                        if self.guards.max_repeated_calls > 0 and seen > self.guards.max_repeated_calls:
                             dispatch_tasks.append((call, None))
                             continue
+
+                        display_tool_name = call.name
+                        if call.name == "tool_call" and isinstance(call.arguments, dict):
+                            sub_calls = call.arguments.get("calls", [])
+                            if isinstance(sub_calls, list) and sub_calls:
+                                names = [c.get("name") for c in sub_calls if isinstance(c, dict) and c.get("name")]
+                                if names:
+                                    display_tool_name = ", ".join(names)
 
                         tool = self.registry.get(call.name)
                         server = getattr(tool, "server_name", None)
@@ -2404,7 +2484,7 @@ class Director:
                             "status",
                             {
                                 "state": "connector" if server else "tool",
-                                "tool": call.name,
+                                "tool": display_tool_name,
                                 "server": server,
                             },
                         )
@@ -2501,6 +2581,13 @@ class Director:
                     "tool_result",
                     {"name": call.name, "content": result.content, "is_error": result.is_error},
                 )
+                if call.name == "search_images" and not result.is_error:
+                    try:
+                        raw_data = json.loads(result.content)
+                        if isinstance(raw_data, list) and raw_data:
+                            state.gallery_images = raw_data
+                    except Exception:
+                        pass
                 if result.is_error:
                     failed_tool = self.registry.get(call.name)
                     failure = {
@@ -2531,7 +2618,7 @@ class Director:
             yield _guard(
                 "iteration limit reached",
                 said,
-                self.guards.max_iterations - 1,
+                max_iters - 1,
                 state.tool_calls_made,
                 started,
             )
@@ -2687,6 +2774,27 @@ class Director:
             return True
         return False
 
+    def _should_retrieve(self, user_message: str, attachments: list | None = None) -> bool:
+        """Heuristic: does this prompt target vault note retrieval?
+
+        Direct code tasks, command executions, component building, and math/edits
+        do not need vault document retrieval unless notes/vault/documents are explicitly mentioned.
+        Skipping unneeded retrieval saves ~400ms TTFT per turn.
+        """
+        if not self.retrieval or not user_message.strip():
+            return False
+        text = user_message.strip().lower()
+        if any(k in text for k in ("note", "notes", "vault", "doc", "docs", "document", "documents", "readme", "spec", "journal", "briefing")):
+            return True
+        code_task_starters = (
+            "write ", "create ", "build ", "fix ", "debug ", "refactor ", "implement ",
+            "run ", "exec ", "npm ", "git ", "pip ", "cd ", "mkdir ", "touch ", "rm ",
+            "add unit test", "add test", "update component", "edit file", "make a ", "make "
+        )
+        if text.startswith(code_task_starters):
+            return False
+        return True
+
     async def _recent(self, conversation_id: str) -> str | None:
         """Recent-conversation summaries for continuity, precomputed.
 
@@ -2725,7 +2833,7 @@ class Director:
             from backend.memory import MemoryService
 
             return await asyncio.wait_for(
-                MemoryService().recall(user_message, conversation_id), timeout=1.2
+                MemoryService().recall(user_message, conversation_id), timeout=0.4
             )
         except Exception as exc:
             log.debug("memory recall unavailable for this turn: %s", exc)
@@ -2858,7 +2966,7 @@ class Director:
             if Indexer().stats()["chunks"] == 0:
                 return None, []
             context, hits = await asyncio.wait_for(
-                SearchService().context_and_hits(user_message), timeout=1.2
+                SearchService().context_and_hits(user_message), timeout=0.4
             )
             # The chunk id alone is not a durable reference: the indexer removes
             # and re-inserts a chunk whose text changed, so the label -- the path

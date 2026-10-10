@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '../Icon.jsx'
 import { copyText } from '../../api.js'
 import { parseBlocks, parseInline, SAFE_PROTOCOL } from './parse.js'
@@ -7,17 +8,7 @@ import { CodeBlock as ArcCodeBlock } from '../arc/code-block/code-block'
 import { TreeView } from '../arc/tree-view/tree-view'
 import { JsonViewer } from '../arc/json-viewer/json-viewer'
 import { isAsciiTree, parseAsciiTree } from '../arc/tree-view/tree-parser'
-import {
-  Image as NexusImage,
-  ImagePreview,
-  ImageLightbox,
-  ImageLightboxOverlay,
-  ImageLightboxPreview,
-  ImageLightboxClose,
-  ImageActions,
-  ImageActionGroup,
-  ImageAction,
-} from '../nexus-ui/image.tsx'
+import ImageGalleryWidget from '../widgets/ImageGallery.jsx'
 
 /* Model output, rendered to React elements rather than HTML.
  *
@@ -35,56 +26,6 @@ import {
 /* Extract the domain from a URL for display in source pills. */
 function domain(url) {
   try { return new URL(String(url)).host.replace(/^www\./, '') } catch { return '' }
-}
-
-/* Lightbox modal with smooth frosted backdrop for full-size visual inspection. */
-function LightboxModal({ item, onClose }) {
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const label = item.alt || 'Visual context'
-
-  return (
-    <div
-      className="md-lightbox-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={label}
-      onClick={onClose}
-    >
-      <button
-        type="button"
-        className="md-lightbox-close"
-        onClick={onClose}
-        aria-label="Close image preview"
-      >
-        <Icon name="x" size={16} />
-      </button>
-      <div className="md-lightbox-content" onClick={(e) => e.stopPropagation()}>
-        <img
-          src={item.href}
-          alt={label}
-          className="md-lightbox-img"
-        />
-        <div className="md-lightbox-caption">
-          <span>{label}</span>
-          {item.href && (
-            <a
-              href={item.href}
-              target="_blank"
-              rel="noreferrer noopener nofollow"
-              className="md-lightbox-link"
-            >
-              Open original ↗
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export function resolveMediaUrl(href) {
@@ -107,131 +48,14 @@ function isAllowedImageHref(href) {
   return false
 }
 
-/* OpenAI-style visual context gallery: clean 16:9 thumbnail strip with subtle borders,
- * hover elevation, count badge on overflow, and click-to-enlarge lightbox modal.
- * No dark gradient text overlays blocking the images. */
-function ImageGallery({ items }) {
-  if (!items || items.length === 0) return null
 
-  const isSingle = items.length === 1
-  const displayCount = isSingle ? 1 : Math.min(items.length, 3)
-  const displayItems = items.slice(0, displayCount)
-  const totalCount = items.length
 
-  return (
-    <div className={`md-gallery-container${isSingle ? ' is-single' : ''}`}>
-      <div className={isSingle ? 'md-image-single' : `md-image-gallery md-image-gallery--count-${displayCount}`}>
-        {displayItems.map((item, idx) => {
-          const label = item.alt || 'Visual context'
-          const isLast = idx === displayItems.length - 1 && totalCount > displayItems.length
-          const resolvedSrc = resolveMediaUrl(item.href)
-
-          return (
-            <figure key={idx} className="md-image-card">
-              <NexusImage src={resolvedSrc} alt={label} className="w-full">
-                <div className="md-image-thumb-wrap">
-                  <ImagePreview className="md-image-thumb" />
-                  {isLast && (
-                    <div className="md-image-count-badge" title={`${totalCount} images total`}>
-                      <Icon name="camera" size={13} />
-                      <span>{totalCount}</span>
-                    </div>
-                  )}
-                </div>
-                <ImageActions align="block-end">
-                  <ImageActionGroup>
-                    <ImageAction
-                      tooltip="Copy link"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        copyText(resolvedSrc)
-                      }}
-                    >
-                      <Icon name="copy" size={13} />
-                    </ImageAction>
-                    <ImageAction tooltip="Enlarge">
-                      <Icon name="zoom-in" size={13} />
-                    </ImageAction>
-                  </ImageActionGroup>
-                </ImageActions>
-                <ImageLightbox>
-                  <ImageLightboxOverlay />
-                  <ImageLightboxPreview>
-                    <ImageLightboxClose />
-                    <div className="md-lightbox-caption">
-                      <span>{label}</span>
-                      {resolvedSrc && (
-                        <a
-                          href={resolvedSrc}
-                          target="_blank"
-                          rel="noreferrer noopener nofollow"
-                          className="md-lightbox-link"
-                        >
-                          Open original ↗
-                        </a>
-                      )}
-                    </div>
-                  </ImageLightboxPreview>
-                </ImageLightbox>
-              </NexusImage>
-            </figure>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 function ImageRef({ alt, href }) {
-  const label = alt || 'Visual context'
   if (!isAllowedImageHref(href || '')) {
-    return <span className="md-image-fallback" title={href}>{label}</span>
+    return <span className="md-image-fallback" title={href}>{alt || 'Visual context'}</span>
   }
-  const resolvedSrc = resolveMediaUrl(href)
-  return (
-    <figure className="md-image-card md-image-card--inline">
-      <NexusImage src={resolvedSrc} alt={label} className="w-full">
-        <div className="md-image-thumb-wrap">
-          <ImagePreview className="md-image-thumb" />
-        </div>
-        <ImageActions align="block-end">
-          <ImageActionGroup>
-            <ImageAction
-              tooltip="Copy link"
-              onClick={(e) => {
-                e.stopPropagation()
-                copyText(resolvedSrc)
-              }}
-            >
-              <Icon name="copy" size={13} />
-            </ImageAction>
-            <ImageAction tooltip="Enlarge">
-              <Icon name="zoom-in" size={13} />
-            </ImageAction>
-          </ImageActionGroup>
-        </ImageActions>
-        <ImageLightbox>
-          <ImageLightboxOverlay />
-          <ImageLightboxPreview>
-            <ImageLightboxClose />
-            <div className="md-lightbox-caption">
-              <span>{label}</span>
-              {resolvedSrc && (
-                <a
-                  href={resolvedSrc}
-                  target="_blank"
-                  rel="noreferrer noopener nofollow"
-                  className="md-lightbox-link"
-                >
-                  Open original ↗
-                </a>
-              )}
-            </div>
-          </ImageLightboxPreview>
-        </ImageLightbox>
-      </NexusImage>
-    </figure>
-  )
+  return <ImageGalleryWidget items={[{ href, alt }]} />
 }
 
 function SourcePill({ href, children }) {
@@ -867,7 +691,7 @@ function block(node, key, extra = {}) {
       return <List key={key} block={node} keyBase={key} />
 
     case 'gallery':
-      return <ImageGallery key={key} items={node.items} />
+      return <ImageGalleryWidget key={key} items={node.items} />
 
     case 'article_carousel':
       return <ArticleCarousel key={key} items={node.items} galleryImages={extra.galleryImages || []} />

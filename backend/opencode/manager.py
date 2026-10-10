@@ -34,7 +34,7 @@ _DEFAULT_BINARY_PATHS = [
     os.path.expandvars(r"%LOCALAPPDATA%\Programs\opencode\opencode.exe") if os.name == "nt" else "",
 ]
 
-_STARTUP_TIMEOUT = 30  # seconds to wait for opencode to become healthy
+_STARTUP_TIMEOUT = 10  # seconds to wait for opencode to become healthy
 _SHUTDOWN_TIMEOUT = 5  # seconds between SIGTERM and SIGKILL
 
 

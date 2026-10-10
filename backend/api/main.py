@@ -689,13 +689,6 @@ async def _lifespan(_: FastAPI):
     with contextlib.suppress(Exception):
         await TerminalManager.get().shutdown()
     await close_clients()
-    with contextlib.suppress(Exception):
-        from backend.opencode.manager import get_manager as _get_oc_manager
-        from backend.opencode.router import _close_client as _close_oc_proxy
-        _oc = _get_oc_manager()
-        if _oc.is_running:
-            await _oc.stop()
-        await _close_oc_proxy()
 
 
 #: What answers a caller that is not this machine.
@@ -922,9 +915,6 @@ app.include_router(remote_router)
 
 from backend.converter import router as converter_router
 app.include_router(converter_router)
-
-from backend.opencode.router import router as opencode_router
-app.include_router(opencode_router)
 
 
 @app.post("/api/pair/claim")
@@ -2124,6 +2114,10 @@ async def ping_provider(name: str) -> dict[str, Any]:
     }
 
 
+_PROVIDER_MODELS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_PROVIDER_MODELS_CACHE_TTL = 300.0  # 5 minutes
+
+
 @app.get("/api/providers/{name}/models")
 async def provider_models(name: str) -> dict[str, Any]:
     """The models this provider's own API lists right now, for the picker.
@@ -2140,6 +2134,11 @@ async def provider_models(name: str) -> dict[str, Any]:
     tier anyway. Never raises -- an endpoint that will not answer returns an
     empty list with a reason, and the picker keeps its free-text field.
     """
+    now = time.monotonic()
+    cached = _PROVIDER_MODELS_CACHE.get(name)
+    if cached and now < cached[0]:
+        return cached[1]
+
     from backend.config import load_providers
     from backend.secrets import resolve_api_key
 
@@ -2164,7 +2163,7 @@ async def provider_models(name: str) -> dict[str, Any]:
     try:
         import httpx
 
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=6.0) as client:
             try:
                 response = await client.get(f"{base}/models", headers=headers(key))
                 response.raise_for_status()
@@ -2177,6 +2176,8 @@ async def provider_models(name: str) -> dict[str, Any]:
                     raise
             payload = response.json()
     except Exception as exc:
+        if cached:
+            return cached[1]
         return {"name": name, "models": [], "reason": f"{type(exc).__name__}: {exc}"}
 
     models = parse(payload)
@@ -2188,7 +2189,11 @@ async def provider_models(name: str) -> dict[str, Any]:
             provider_caps = m.get("_provider_reasoning")
             m["capabilities"] = capabilities_for(m.get("id", ""), provider_caps)
 
-    return {"name": name, "models": models, "reason": ""}
+    result = {"name": name, "models": models, "reason": ""}
+    if models:
+        _PROVIDER_MODELS_CACHE[name] = (now + _PROVIDER_MODELS_CACHE_TTL, result)
+    return result
+
 
 
 #: The OpenAI-shaped `/models` parser, which belongs to the adapter that owns
@@ -3245,7 +3250,7 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
 
 
 @app.post("/api/conversations/{conversation_id}/turn/stop")
-def stop_turn(conversation_id: str) -> dict[str, str]:
+async def stop_turn(conversation_id: str) -> dict[str, str]:
     """Interrupt the turn streaming for this conversation.
 
     The loop stops before its next model call, cancels whatever tool call is in
@@ -6517,23 +6522,52 @@ async def library_thumbnail(item_id: int) -> FileResponse:
 
 @app.get("/api/library/{item_id}/media")
 def library_media(item_id: int) -> FileResponse:
-    """Stream raw media content."""
+    """Stream raw media content, downloading on-demand if needed."""
     import mimetypes
+    from pathlib import Path
 
     from backend.library.store import LibraryStore
 
     with get_connection() as conn:
         row = LibraryStore(conn).get(item_id)
     
-    if row is None or not row["media_path"]:
-        raise HTTPException(404, "there is no media for that item")
+    if row is None:
+        raise HTTPException(404, f"no library item {item_id}")
         
-    path = Path(row["media_path"])
-    if not path.is_file():
-        raise HTTPException(404, "the media is missing from disk")
+    path = Path(row["media_path"]) if row["media_path"] else None
+    if path and path.is_file():
+        mime_type, _ = mimetypes.guess_type(str(path))
+        return FileResponse(path, media_type=mime_type or "video/mp4")
         
-    mime_type, _ = mimetypes.guess_type(str(path))
-    return FileResponse(path, media_type=mime_type or "application/octet-stream")
+    # On-demand download for videos / reels (pure MP4 like videodropper / savefromins)
+    url = row["url"]
+    if url:
+        try:
+            import yt_dlp
+            from backend.library.store import media_path
+            from backend.config import load_instagram
+            settings = load_instagram()
+            target = media_path(item_id, ".mp4")
+            ydl_opts = {
+                "outtmpl": str(target),
+                "format": "mp4/best[ext=mp4]/best",
+                "quiet": True,
+                "socket_timeout": 30,
+            }
+            if settings.cookies_from_browser:
+                ydl_opts["cookiesfrombrowser"] = (settings.cookies_from_browser,)
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            if target.is_file() and target.stat().st_size > 1000:
+                with get_connection() as conn:
+                    conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
+                    conn.commit()
+                mime_type, _ = mimetypes.guess_type(str(target))
+                return FileResponse(target, media_type=mime_type or "video/mp4")
+        except Exception:
+            pass
+
+    raise HTTPException(404, "there is no media for that item")
 
 
 @app.get("/api/media/local")
