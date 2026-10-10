@@ -161,12 +161,18 @@ def _to_anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str | None, 
                 blocks.append({"type": "text", "text": m["content"]})
             for tc in m["tool_calls"]:
                 fn = tc.get("function", tc)
+                raw_args = fn.get("arguments") or {}
+                if isinstance(raw_args, str):
+                    try:
+                        raw_args = json.loads(raw_args)
+                    except Exception:
+                        raw_args = {"raw": raw_args}
                 blocks.append(
                     {
                         "type": "tool_use",
                         "id": tc.get("id"),
                         "name": fn.get("name"),
-                        "input": fn.get("arguments") or {},
+                        "input": raw_args,
                     }
                 )
             out.append({"role": "assistant", "content": blocks})
@@ -200,7 +206,7 @@ class AnthropicClient:
         api_key: str | None,
         model: str,
         base_url: str,
-        timeout: float = 120.0,
+        timeout: float = 300.0,
         max_retries: int = MAX_RETRIES,
         max_output_tokens: int | None = None,
     ):
@@ -281,6 +287,8 @@ class AnthropicClient:
             ),
             timeout=self.timeout,
             max_retries=self.max_retries,
+            provider="anthropic",
+            client_instance=self,
         )
         _total_ms = (time.perf_counter() - _t0) * 1000.0
         text_parts: list[str] = []
@@ -346,6 +354,8 @@ class AnthropicClient:
             payload=payload,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            provider="anthropic",
+            client_instance=self,
         ):
             try:
                 event = json.loads(raw)
@@ -458,6 +468,7 @@ def initialize(
         api_key=api_key,
         model=resolved_model,
         base_url=config.base_url or DEFAULT_BASE_URL,
+        timeout=config.timeout or 300.0,
         max_retries=max_retries,
         max_output_tokens=config.extra.get("max_output_tokens"),
     )

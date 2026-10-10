@@ -266,6 +266,11 @@ class ToolRegistry:
         if clean_name in self._tools:
             return self._tools[clean_name]
 
+        # Explicit capability aliases (e.g. OpenCode CLI core tools: read, edit, write, bash)
+        target = CAPABILITY_MAP.get(clean_name.lower())
+        if target and target in self._tools:
+            return self._tools[target]
+
         # Auto-repair and fuzzy matching applies ONLY to read-only tools (Task 5).
         # Write tools (send/delete/create/update) must never be fuzzy-matched.
         if is_write_action(clean_name):
@@ -633,6 +638,8 @@ class ToolRegistry:
         name: str,
         arguments: dict[str, Any],
         context: ToolContext | None = None,
+        *,
+        _connection_retry: bool = False,
     ) -> ToolResult:
         ctx = context or ToolContext()
         tool = self.resolve_tool(name)
@@ -720,7 +727,11 @@ class ToolRegistry:
 
                 if composio_service.is_reauth_required(tk):
                     service = extract_service_name(tool)
-                    return ToolResult.error(auth_failure_instruction(service))
+                    return await self._suspend_for_connection(
+                        name, arguments, context,
+                        ToolResult.error(auth_failure_instruction(service)),
+                        tk, service, _connection_retry,
+                    )
 
                 if not composio_service.is_configured():
                     return ToolResult.error(
@@ -731,7 +742,12 @@ class ToolRegistry:
                     and not is_no_auth_toolkit(tk)
                     and tk not in composio_service.get_connections()
                 ):
-                    return ToolResult.error(composio_sign_in_instruction(tk))
+                    service = extract_service_name(tool)
+                    return await self._suspend_for_connection(
+                        name, arguments, context,
+                        ToolResult.error(composio_sign_in_instruction(tk)),
+                        tk, service, _connection_retry,
+                    )
             except Exception:
                 return ToolResult.error(composio_sign_in_instruction(tk))
         else:
@@ -833,6 +849,15 @@ class ToolRegistry:
                     except Exception:
                         pass
                 result.content = auth_failure_instruction(service)
+            elif tk:
+                # The call ran and its credentials died inside it. Same offer as
+                # the pre-call branch above: an interactive turn can wire the app
+                # up and get the whole call run again, because nothing harmful
+                # happened on the way out -- the auth wall hit first.
+                result = await self._suspend_for_connection(
+                    name, arguments, context, result, tk,
+                    None, _connection_retry,
+                )
 
         if tk and result.is_error:
             try:
@@ -872,6 +897,75 @@ class ToolRegistry:
             duration_ms=int((time.monotonic() - started) * 1000),
         )
         return result
+
+    async def _suspend_for_connection(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        context: ToolContext | None,
+        original: ToolResult,
+        toolkit: str,
+        service: str | None,
+        retried: bool,
+    ) -> ToolResult:
+        """Park an interactive call on the app connection it is missing.
+
+        The permission gate answers a card with yes or no; this is its
+        connection counterpart. The call is a setup gap away from working: name
+        the app, publish the wait for the interface to render, suspend until the
+        toolkit is connected -- and then run the whole call again, check and all,
+        since a resume means the conditions changed. One offer per call, and the
+        contract is the same one the suspension model already honours: if the
+        interface does not answer, the turn times out, the original error lands
+        in the transcript and the model relays it as it always has.
+
+        An unattended run, a subagent or a context without a conversation gets
+        the original result untouched; nothing here is allowed to wait on a
+        person who is not part of the call.
+        """
+        interactive = (
+            context is not None
+            and context.events is not None
+            and bool(context.conversation_id)
+            and (context.extra or {}).get("interactive") is True
+        )
+        if not interactive or retried:
+            return original
+        if service is None:
+            from backend.mcp.guidance import extract_service_name
+
+            service = extract_service_name(toolkit)
+        from backend.mcp.connection_gate import wait_for_connection
+        from backend.tools.base import clear_gate_suspension, mark_gate_suspension
+
+        # Composio's wait id is minted inside `wait_for_connection`, but the
+        # marker must be live before the await begins: the window re-arm in
+        # `_execute` has to see a suspended call as suspended from the first
+        # instant its timeout expires. A stable id of our own is enough -
+        # one gate per call.
+        suspension_id = f"connection:{toolkit}"
+        mark_gate_suspension(context, suspension_id, "connection")
+        try:
+            outcome = await wait_for_connection(
+                toolkit=toolkit,
+                service=service,
+                conversation_id=context.conversation_id,
+                events=context.events,
+            )
+        finally:
+            clear_gate_suspension(context, suspension_id)
+        if outcome != "resume":
+            return original
+        # The failure marked the toolkit expired. The user just wired it back up
+        # via the card, and the mark would fail-fast the recheck before the call
+        # ever ran -- so retire it and let the result speak for itself.
+        try:
+            from backend.mcp.composio_service import composio_service
+
+            composio_service.clear_reauth_required(toolkit)
+        except Exception:
+            pass
+        return await self.dispatch(name, arguments, context, _connection_retry=True)
 
 
 def _refusal_reason(outcome: ConfirmationOutcome) -> str:
