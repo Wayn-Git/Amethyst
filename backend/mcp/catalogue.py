@@ -581,6 +581,101 @@ CATALOGUE: list[CatalogueEntry] = [
         requires="Node.js (npx)",
         homepage="https://thesvg.org",
     ),
+    # ------------------------------------------------------------- cua-driver
+    CatalogueEntry(
+        id="cua-driver",
+        title="CUA Driver (Desktop Automation)",
+        description=(
+            "Cross-platform background computer-use automation. Control native applications,"
+            " windows, pointer, keyboard, clipboard, and inspect accessibility trees."
+        ),
+        category="Development",
+        auth=AuthKind.NONE,
+        transport=Transport.STDIO,
+        command="cua-driver",
+        args=["mcp"],
+        requires="cua-driver binary installed (~/.local/bin/cua-driver)",
+        homepage="https://github.com/trycua/cua",
+    ),
+    # ----------------------------------------------------------------- shadcn
+    CatalogueEntry(
+        id="shadcn",
+        title="shadcn/ui Component Registry",
+        description=(
+            "Search, inspect, and add accessible, customizable UI components and design systems"
+            " from the official shadcn/ui registry."
+        ),
+        category="Creativity",
+        auth=AuthKind.NONE,
+        transport=Transport.STDIO,
+        command="npx",
+        args=["-y", "shadcn@latest", "mcp"],
+        requires="Node.js (npx)",
+        homepage="https://ui.shadcn.com",
+    ),
+    # ------------------------------------------------------ magicuidesign-mcp
+    CatalogueEntry(
+        id="magicuidesign-mcp",
+        title="Magic UI Registry",
+        description=(
+            "Browse, inspect, and install high-quality animated React and Tailwind components,"
+            " landing page templates, and special visual effects from Magic UI."
+        ),
+        category="Creativity",
+        auth=AuthKind.NONE,
+        transport=Transport.STDIO,
+        command="npx",
+        args=["-y", "@magicuidesign/mcp@latest"],
+        requires="Node.js (npx)",
+        homepage="https://magicui.design",
+    ),
+    # ------------------------------------------------------------- untitledui
+    CatalogueEntry(
+        id="untitledui",
+        title="Untitled UI Registry",
+        description=(
+            "Search icons, component bundles, page templates, and design system primitives"
+            " from Untitled UI."
+        ),
+        category="Creativity",
+        auth=AuthKind.NONE,
+        transport=Transport.STREAMABLE_HTTP,
+        url="https://www.untitledui.com/react/api/mcp",
+        homepage="https://untitledui.com",
+    ),
+    # ----------------------------------------------------------- vengeance-ui
+    CatalogueEntry(
+        id="vengeance-ui",
+        title="Vengeance UI",
+        description=(
+            "Explore component categories, code snippets, and install commands from the"
+            " local Vengeance UI design system registry."
+        ),
+        category="Creativity",
+        auth=AuthKind.NONE,
+        transport=Transport.STDIO,
+        command="node",
+        args=["/home/wayne/.gemini/antigravity/servers/vengeanceui/packages/mcp/dist/index.js"],
+        requires="Node.js",
+        homepage="https://github.com/wayn-wayn/amethyst",
+    ),
+    # ------------------------------------------------------------- obsidianui
+    CatalogueEntry(
+        id="obsidianui",
+        title="Obsidian UI",
+        description=(
+            "Access Obsidian UI components, layout templates, and themes through"
+            " local MCP server."
+        ),
+        category="Creativity",
+        auth=AuthKind.NONE,
+        transport=Transport.STDIO,
+        command="npm",
+        args=["run", "mcp"],
+        env={"PWD": "/home/wayne/.gemini/antigravity/servers/obsidianui"},
+        requires="Node.js (npm)",
+        homepage="https://obsidian.md",
+    ),
 ]
 
 CATALOGUE_BY_ID = {entry.id: entry for entry in CATALOGUE}
