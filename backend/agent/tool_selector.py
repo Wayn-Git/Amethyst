@@ -353,22 +353,25 @@ def select_tools(
 
         wanted: set[str] = set(CORE)
 
+        # Tools that are hard-denied for this lane — never returned even on fail-open.
+        lane_denied: set[str] = set()
+
         # Lane-specific tuning
         has_code_signals = any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash", "fix", "code", "directory"))
         if lane == "widget":
             wanted.add("generate_sandboxed_ui")
         elif lane in ("chat", "connector") and not has_code_signals:
             # Pure chat or connector turns do not need heavy code-editing or local terminal execution
-            wanted.difference_update({
-                "edit_file", "write_file", "delete_file", "run_shell_command",
-                "patch_file_with_search", "apply_file_diff", "grep_files",
-            })
+            _heavy = {"edit_file", "write_file", "delete_file", "run_shell_command",
+                      "patch_file_with_search", "apply_file_diff", "grep_files"}
+            wanted.difference_update(_heavy)
+            lane_denied.update(_heavy)
         elif lane == "research" and not has_code_signals:
             # Research turns focus on search / reading / web / docs
-            wanted.difference_update({
-                "edit_file", "write_file", "delete_file", "run_shell_command",
-                "patch_file_with_search", "apply_file_diff",
-            })
+            _heavy = {"edit_file", "write_file", "delete_file", "run_shell_command",
+                      "patch_file_with_search", "apply_file_diff"}
+            wanted.difference_update(_heavy)
+            lane_denied.update(_heavy)
 
         # Phase 1: Toolkit intent matching for connected services (0ms regex matching)
         for tk_name, tk_words in TOOLKIT_INTENT_WORDS.items():
@@ -467,7 +470,21 @@ def select_tools(
         kept = [s for s in schemas if _match_tool_name(s)]
 
         if not kept:
-            return schemas, 0
+            # Fail-open: return schemas that are not lane-denied and not from a category
+            # that this lane explicitly excludes.  Pure fail-open (return schemas, 0) would
+            # bypass the lane restrictions set above, so we filter here.
+            blocked_cat_tools: set[str] = set()
+            for cat_name, cat_cfg in CATEGORIES.items():
+                if cat_name not in allowed_cats:
+                    blocked_cat_tools.update(cat_cfg["tools"])
+
+            def _is_denied(s: Any) -> bool:
+                raw = getattr(s, "name", "")
+                b = _bare(raw)
+                return b in lane_denied or raw in lane_denied or b in blocked_cat_tools or raw in blocked_cat_tools
+
+            allowed = [s for s in schemas if not _is_denied(s)]
+            return allowed, len(schemas) - len(allowed)
 
         # Cap to target ~10-15 tools if the selected set grew too large
         if len(kept) > 15:

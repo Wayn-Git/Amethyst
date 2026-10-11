@@ -161,6 +161,8 @@ class ProviderConfig:
     #: Whether to allow parallel tool calls in OpenAI-compatible requests.
     #: None preserves the provider's default; True/False explicitly controls it.
     parallel_tool_calls: bool | None = None
+    #: Request timeout in seconds for this provider (read / idle timeout).
+    timeout: float | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -185,6 +187,14 @@ def _positive_int(value: Any) -> int | None:
     """
     try:
         number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _positive_float(value: Any) -> float | None:
+    try:
+        number = float(value)
     except (TypeError, ValueError):
         return None
     return number if number > 0 else None
@@ -358,6 +368,7 @@ def load_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
             "tokens_per_minute",
             "enabled",
             "strengths",
+            "timeout",
         }
         cfg = ProviderConfig(
             name=entry["name"],
@@ -369,6 +380,7 @@ def load_providers(path: Path | None = None) -> dict[str, ProviderConfig]:
             context_window=_positive_int(entry.get("context_window")),
             max_tools=_positive_int(entry.get("max_tools")),
             tokens_per_minute=_positive_int(entry.get("tokens_per_minute")),
+            timeout=_positive_float(entry.get("timeout")),
             # Absent means enabled. Only an explicit `false` switches a provider
             # off, so a file written before this field existed reads as it did.
             enabled=entry.get("enabled") is not False,
