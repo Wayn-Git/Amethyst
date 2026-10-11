@@ -218,13 +218,13 @@ class LibraryStore:
         self.recover_stale_items()
 
     def recover_stale_items(self, max_age_seconds: int = 180) -> list[int]:
-        """Reset items left in 'enriching' or 'processing' by a killed or interrupted process."""
+        """Reset items left in 'enriching', 'processing' or 'received' by a killed or interrupted process."""
         try:
             cutoff = (datetime.now() - timedelta(seconds=max_age_seconds)).strftime("%Y-%m-%d %H:%M:%S")
             rows = self.conn.execute(
                 """
                 SELECT id FROM library_items
-                WHERE status IN ('enriching', 'processing')
+                WHERE status IN ('enriching', 'processing', 'received')
                   AND (updated_at IS NULL OR updated_at < ?)
                 """,
                 (cutoff,),

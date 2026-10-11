@@ -75,9 +75,10 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
     setRelaySyncing(true)
     try {
       const result = await api.syncInstagramRelay()
+      const total = (result.pulled || 0) + (result.jobs || 0)
       toast(
         result.synced
-          ? `Synced ${result.pulled} items`
+          ? `Synced ${total} item${total === 1 ? '' : 's'}`
           : result.error || 'Could not reach relay',
         result.synced ? 'ok' : 'bad'
       )

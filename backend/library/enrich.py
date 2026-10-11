@@ -416,14 +416,23 @@ def normalize_url(raw: str) -> str:
             host = parsed.netloc.split(":")[0].lower()
             parts = host.split(".")
             if len(parts) >= 2 and len(parts[-1]) >= 2 and not parts[-1].isdigit():
-                if any(sh in host for sh in ("instagram.com", "threads.net", "threads.com", "tiktok.com", "x.com", "twitter.com")):
+                if any(sh in host for sh in ("instagram.com", "instagr.am", "threads.net", "threads.com", "tiktok.com", "x.com", "twitter.com")):
                     from urllib.parse import parse_qsl, urlencode, urlunparse
+                    tracking_params = {
+                        "igsh", "xtok", "mdxt", "cplk", "vrfl", "dlrf", "psln",
+                        "fbclid", "gclid", "dpr", "ref", "ref_src", "source", "obrf",
+                        "t", "s", "si", "feature", "context", "mibextid", "sender_device"
+                    }
                     clean_query = [
                         (k, v)
                         for k, v in parse_qsl(parsed.query, keep_blank_values=True)
-                        if not k.startswith("utm_") and k not in ("igsh", "obrf", "t", "s", "ref_src")
+                        if not k.startswith("utm_") and k.lower() not in tracking_params
                     ]
-                    cleaned = parsed._replace(query=urlencode(clean_query))
+                    path = parsed.path
+                    if "instagram.com" in host or "instagr.am" in host:
+                        path = re.sub(r"^/share/p/", "/p/", path)
+                        path = re.sub(r"^/share/reel/", "/reel/", path)
+                    cleaned = parsed._replace(path=path, query=urlencode(clean_query) if clean_query else "")
                     return urlunparse(cleaned)
                 return url
     except Exception:

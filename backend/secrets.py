@@ -20,6 +20,7 @@ without it names the variable.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -98,7 +99,7 @@ class _FileStore:
 
 
 _ABSENT_CACHE: dict[tuple[str, str], float] = {}
-_ABSENT_TTL = 300.0  # 5 minutes negative cache for absent keys
+_ABSENT_TTL = 10.0  # 10s negative cache for absent keys
 
 
 def _store():
@@ -146,6 +147,21 @@ def get_secret(ref: str) -> str | None:
             except Exception:
                 pass
 
+        # If file store didn't have it, check OS keyring fallback
+        if isinstance(store, _FileStore):
+            try:
+                kr = _keyring()
+                k_val = kr.get_password(service, username)
+                if not k_val and service in ("amethyst", "psok"):
+                    alt_s = "psok" if service == "amethyst" else "amethyst"
+                    k_val = kr.get_password(alt_s, username)
+                if k_val:
+                    with contextlib.suppress(Exception):
+                        store.set_password(service, username, k_val)
+                    return k_val
+            except Exception:
+                pass
+
         _ABSENT_CACHE[(service, username)] = now + _ABSENT_TTL
         if service in ("amethyst", "psok"):
             alt_s = "psok" if service == "amethyst" else "amethyst"
@@ -160,14 +176,20 @@ def set_secret(ref: str, value: str) -> None:
     service, _, username = ref.partition("/")
     if not username:
         service, username = SERVICE, ref
+    store = _store()
     try:
-        _store().set_password(service, username, value)
+        store.set_password(service, username, value)
     except CredentialError:
         raise
     except Exception as exc:
         # `NoKeyringError` here used to escape as a 500 with a traceback, which
         # is how adding a key to a deployed instance failed without saying why.
         raise CredentialError(_NO_STORE) from exc
+    else:
+        # When file store is active on a host with keyring, mirror to keyring if possible
+        if isinstance(store, _FileStore):
+            with contextlib.suppress(Exception):
+                _keyring().set_password(service, username, value)
     finally:
         _forget_presence(ref)
 
@@ -176,8 +198,12 @@ def delete_secret(ref: str) -> None:
     service, _, username = ref.partition("/")
     if not username:
         service, username = SERVICE, ref
+    store = _store()
     try:
-        _store().delete_password(service, username)
+        store.delete_password(service, username)
+        if isinstance(store, _FileStore):
+            with contextlib.suppress(Exception):
+                _keyring().delete_password(service, username)
     except Exception:
         pass
     finally:
