@@ -263,12 +263,19 @@
   color: var(--text);
 }
 
-/* ── Categories & View More ── */
+/* ── Categories & Container ── */
+.connector-categories-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2.25rem;
+  width: 100%;
+}
+
 .connector-category-section {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
+  gap: 0.875rem;
+  width: 100%;
 }
 
 .connector-category-header {
@@ -282,18 +289,18 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: calc(14px * var(--text-scale, 1));
+  font-size: calc(14.5px * var(--text-scale, 1));
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
 }
 
 .connector-category-count {
-  font-size: calc(11px * var(--text-scale, 1));
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-dim);
   background: var(--surface-2);
-  padding: 0.1rem 0.45rem;
+  padding: 1px 7px;
   border-radius: var(--radius-tags);
   border: 1px solid var(--hairline);
 }
@@ -328,20 +335,9 @@
 /* ── Marketplace Grid ── */
 .connectors-grid {
   display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 0.875rem;
-}
-
-@media (min-width: 680px) {
-  .connectors-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1040px) {
-  .connectors-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+  width: 100%;
 }
 
 /* ── App Tile ── */
@@ -351,19 +347,23 @@
   justify-content: space-between;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-xl);
-  padding: 1rem;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem 1.125rem;
+  transition: transform 140ms var(--ease-out, ease), border-color 140ms var(--ease-out, ease), box-shadow 140ms var(--ease-out, ease);
   min-height: 140px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .connector-app-tile:hover {
-  border-color: var(--hairline-strong, #ccc);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  border-color: var(--hairline-strong);
+  background: rgb(var(--tint) / 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 .connector-app-tile.is-connected {
   border-color: var(--live-line);
+  background: rgb(var(--tint) / 0.018);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 0 0 1px var(--live-line);
 }
 
 .connector-tile-header {
@@ -458,37 +458,53 @@
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.75rem;
+  padding: 0.35rem 0.85rem;
   font-size: calc(12px * var(--text-scale, 1));
   font-weight: 500;
   border-radius: var(--radius-buttons);
   border: 1px solid var(--hairline);
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
   cursor: pointer;
-  transition: all 0.12s ease;
-  min-width: 72px;
+  transition: transform 140ms var(--ease-out, ease), background 140ms ease, border-color 140ms ease;
+  min-width: 68px;
+  user-select: none;
 }
 
 .connector-action-btn:hover {
-  background: var(--raised);
-  border-color: var(--text-dim);
+  background: var(--surface-3, var(--raised));
+  border-color: var(--hairline-strong);
+}
+
+.connector-action-btn:active {
+  transform: scale(0.97);
 }
 
 .connector-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 .connector-action-btn.is-connect {
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
+}
+
+.connector-action-btn.is-connect:hover {
+  background: var(--accent-wash);
+  color: var(--accent);
+  border-color: var(--accent-soft);
 }
 
 .connector-action-btn.is-add-account {
   background: var(--accent-wash);
   color: var(--accent);
   border-color: var(--accent-soft);
+}
+
+.connector-action-btn.is-add-account:hover {
+  background: var(--accent-soft);
 }
 
 /* ── Multi-Account Pill List ── */

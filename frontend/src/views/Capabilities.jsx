@@ -71,7 +71,7 @@ export default function Capabilities() {
               <Icon name="search" size={14} />
               <input
                 value={query}
-                placeholder={skills ? 'Search skills…' : 'Search connectors…'}
+                placeholder={skills ? 'Search skills…' : 'Search 500+ apps & connectors…'}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape' && query) {
