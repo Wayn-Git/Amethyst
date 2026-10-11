@@ -226,7 +226,9 @@ async def create_calendar_event(args: dict[str, Any], _: ToolContext) -> ToolRes
                     "The user has Google Calendar connected via Composio. "
                     "Do NOT use this local offline tool. "
                     "Please use COMPOSIO_SEARCH_TOOLS (use_case='create calendar event') and "
-                    "COMPOSIO_MULTI_EXECUTE_TOOL to create the event directly on their Google Calendar."
+                    "COMPOSIO_MULTI_EXECUTE_TOOL with format: "
+                    '{"tools": [{"tool_slug": "GOOGLECALENDAR_CREATE_EVENT", "arguments": {...}}]} '
+                    "to create the event directly on their Google Calendar."
                 )
     except Exception:
         pass

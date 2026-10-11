@@ -112,6 +112,74 @@ def normalize_result(result: Any) -> ToolResult:
     )
 
 
+def normalize_composio_multi_execute_args(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Coerce various LLM argument shapes into the required structure for COMPOSIO_MULTI_EXECUTE_TOOL:
+
+    {"tools": [{"tool_slug": str, "arguments": dict[str, Any]}]}
+    """
+    if not isinstance(arguments, dict):
+        return {"tools": []}
+
+    tools_val = arguments.get("tools")
+    if isinstance(tools_val, list):
+        normalized_tools = []
+        for item in tools_val:
+            if isinstance(item, dict):
+                slug = (
+                    item.get("tool_slug")
+                    or item.get("name")
+                    or item.get("tool_name")
+                    or item.get("slug")
+                    or item.get("action")
+                )
+                inner_args = item.get("arguments")
+                if inner_args is None or not isinstance(inner_args, dict):
+                    inner_args = {
+                        k: v
+                        for k, v in item.items()
+                        if k not in ("tool_slug", "name", "tool_name", "slug", "action", "arguments")
+                    }
+                normalized_tools.append({
+                    "tool_slug": str(slug or "").strip(),
+                    "arguments": inner_args,
+                })
+            elif isinstance(item, str):
+                normalized_tools.append({
+                    "tool_slug": item.strip(),
+                    "arguments": (
+                        arguments.get("arguments", {})
+                        if isinstance(arguments.get("arguments"), dict)
+                        else {}
+                    ),
+                })
+        return {"tools": normalized_tools}
+
+    # Top-level without 'tools' key
+    slug = (
+        arguments.get("tool_slug")
+        or arguments.get("name")
+        or arguments.get("tool_name")
+        or arguments.get("slug")
+        or arguments.get("action")
+    )
+    if slug:
+        inner_args = arguments.get("arguments")
+        if inner_args is None or not isinstance(inner_args, dict):
+            inner_args = {
+                k: v
+                for k, v in arguments.items()
+                if k not in ("tool_slug", "name", "tool_name", "slug", "action", "arguments")
+            }
+        return {
+            "tools": [{
+                "tool_slug": str(slug).strip(),
+                "arguments": inner_args,
+            }]
+        }
+
+    return arguments
+
+
 # What a dead transport looks like coming back out of the SDK. Matched on the
 # message because the exception types are anyio's and vary by transport, and
 # because a `TaskGroup` wrapper hides them anyway.
@@ -923,6 +991,8 @@ class MCPManager:
                 # it cannot do -- naming the screen and the button is what makes
                 # this relayable to the person who can.
                 return ToolResult.error(guidance.not_connected_instruction(server_name))
+            if server_name == "composio" and "COMPOSIO_MULTI_EXECUTE_TOOL" in tool_name:
+                arguments = normalize_composio_multi_execute_args(arguments)
             try:
                 raw = await connection.call(tool_name, arguments)
             except OAuthRequired:

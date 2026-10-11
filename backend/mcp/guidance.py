@@ -182,7 +182,10 @@ def ready_connectors_block() -> str | None:
                 "Composio is active and is your DEFAULT tool suite for: " + ", ".join(composio_active) + ".\n"
                 "To interact with these services (e.g. creating/listing Google Calendar events, sending/reading Gmail):\n"
                 "1. Call `COMPOSIO_SEARCH_TOOLS` with queries=[{'use_case': '...'}] to get the live tool schema.\n"
-                "2. Call `COMPOSIO_MULTI_EXECUTE_TOOL` with the discovered tool slug and arguments to execute the action on the user's real account.\n"
+                "2. Call `COMPOSIO_MULTI_EXECUTE_TOOL` using the required array format:\n"
+                "   {\"tools\": [{\"tool_slug\": \"<TOOL_SLUG>\", \"arguments\": { ... }}]}\n"
+                "   Example for Google Calendar:\n"
+                "   {\"tools\": [{\"tool_slug\": \"GOOGLECALENDAR_CREATE_EVENT\", \"arguments\": {\"summary\": \"...\", \"start_datetime\": \"...\"}}]}\n"
                 "3. NEVER use local mock/dummy tools (e.g. create_calendar_event) when Composio has active connections for the requested service.\n"
                 "</composio_instructions>"
             )

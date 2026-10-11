@@ -393,8 +393,7 @@ export const api = {
   startComposioLogin: () => j('/composio/login/start', json('POST')),
   pollComposioLogin: (sessionId) => j(`/composio/login/poll/${encodeURIComponent(sessionId)}`),
 
-  // Connectors (Composio Marketplace & MCP)
-  connectorsCatalog: () => j('/connectors/catalog'),
+  connectorsCatalog: (search) => j(`/connectors/catalog${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   connectorsConnected: () => j('/connectors/connected'),
   connectorsTools: () => j('/connectors/tools'),
   connectorsStatus: (services) => j(`/connectors${services ? `?services=${encodeURIComponent(services)}` : ''}`),

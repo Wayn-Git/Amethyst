@@ -5015,10 +5015,10 @@ async def reset_composio_fallback(payload: dict[str, Any]) -> dict[str, Any]:
 # ── OpenMausBot Connectors (Composio) API ──
 
 @app.get("/api/connectors/catalog")
-async def get_connectors_catalog() -> dict[str, Any]:
+async def get_connectors_catalog(search: str | None = None) -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
 
-    return await asyncio.to_thread(composio_service.list_catalog)
+    return await asyncio.to_thread(composio_service.list_catalog, search=search)
 
 
 @app.get("/api/connectors/connected")
