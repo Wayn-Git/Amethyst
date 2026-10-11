@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amethyst</title>
+  <link rel="stylesheet" href="splash.css">
+</head>
+<body>
+  <div class="splash-card">
+    <button id="splash-close" class="splash-close" title="Close" aria-label="Close">&times;</button>
+    
+    <div class="splash-icon-wrap">
+      <img src="assets/amethyst-gem.svg" alt="Amethyst" class="splash-icon">
+    </div>
+
+    <h1 class="splash-title">Amethyst</h1>
+
+    <div id="splash-loader-section" class="splash-status-wrap">
+      <div class="splash-spinner"></div>
+      <span id="splash-status" class="splash-status">Opening your workspace...</span>
+    </div>
+
+    <div id="splash-error-box" class="splash-error-box">
+      <span id="splash-error-text" class="splash-error-msg"></span>
+      <button id="splash-retry" class="splash-retry-btn">Retry Connection</button>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('splash-status');
+    const loaderSec = document.getElementById('splash-loader-section');
+    const errorBox = document.getElementById('splash-error-box');
+    const errorText = document.getElementById('splash-error-text');
+    const closeBtn = document.getElementById('splash-close');
+    const retryBtn = document.getElementById('splash-retry');
+
+    window.updateStatus = function(text) {
+      if (statusEl) {
+        statusEl.textContent = text;
+      }
+      if (loaderSec) loaderSec.style.display = 'flex';
+      if (errorBox) errorBox.style.display = 'none';
+    };
+
+    window.showError = function(msg) {
+      if (loaderSec) loaderSec.style.display = 'none';
+      if (errorBox) {
+        errorBox.style.display = 'flex';
+        errorText.textContent = msg || 'Trouble connecting to backend engine.';
+      }
+    };
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        if (window.electronSplash?.close) {
+          window.electronSplash.close();
+        } else {
+          window.close();
+        }
+      });
+    }
+
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => {
+        window.updateStatus('Reconnecting to engine...');
+        if (window.electronSplash?.retry) {
+          window.electronSplash.retry();
+        }
+      });
+    }
+  </script>
+</body>
+</html>

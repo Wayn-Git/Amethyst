@@ -1,0 +1,27 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="gemBgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#7132f5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="facet1" x1="16" y1="20" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#6d28d9"/>
+    </linearGradient>
+    <linearGradient id="facet2" x1="32" y1="12" x2="32" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#14151a"/>
+  <rect width="64" height="64" rx="18" fill="url(#gemBgGlow)"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="17.5" stroke="rgba(255,255,255,0.1)"/>
+  
+  <!-- Faceted Amethyst Gem -->
+  <path d="M32 14L46 24L41 46L32 50L23 46L18 24L32 14Z" fill="url(#facet1)"/>
+  <path d="M32 14L41 24H23L32 14Z" fill="#ddd6fe" fill-opacity="0.6"/>
+  <path d="M23 24L32 50L18 24H23Z" fill="#5b21b6" fill-opacity="0.8"/>
+  <path d="M41 24L32 50L46 24H41Z" fill="#7c3aed" fill-opacity="0.9"/>
+  <path d="M23 24L32 28L41 24L32 50L23 24Z" fill="url(#facet2)"/>
+  <circle cx="32" cy="28" r="1.5" fill="#ffffff" fill-opacity="0.9"/>
+</svg>
