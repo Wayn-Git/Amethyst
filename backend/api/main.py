@@ -4680,6 +4680,29 @@ async def delete_composio_key() -> dict[str, Any]:
     return {"ok": True}
 
 
+@app.post("/api/composio/login/start")
+def start_composio_browser_login() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    try:
+        return composio_service.start_browser_login()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/composio/login/poll/{session_id}")
+async def poll_composio_browser_login(session_id: str) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+    from backend.capabilities import CapabilityService, Kind
+
+    res = composio_service.poll_browser_login(session_id)
+    if res.get("status") == "linked" and res.get("configured"):
+        CapabilityService().set_enabled(Kind.CONNECTOR, "composio", True)
+        live_result = await _apply_connector("composio", True)
+        res["live"] = live_result
+    return res
+
+
 @app.get("/api/composio/connections")
 def get_composio_connections() -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
@@ -4691,13 +4714,11 @@ def get_composio_connections() -> dict[str, Any]:
 def connect_composio_toolkit(toolkit: str) -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
 
-    if not composio_service.is_configured():
-        raise HTTPException(status_code=400, detail="Composio API key is not configured")
     try:
         redirect_url = composio_service.initiate_connection(toolkit)
         return {"redirect_url": redirect_url, "toolkit": toolkit}
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        return {"redirect_url": f"https://app.composio.dev/login?toolkit={toolkit}", "toolkit": toolkit}
 
 
 @app.get("/api/composio/toolkits")
@@ -6437,6 +6458,9 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
             )
     except LibraryError as exc:
         raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        log.exception("failed to capture library item: %s", exc)
+        raise HTTPException(500, f"Failed to capture item: {exc}") from exc
     return {**captured.item, "already_logged": captured.already_logged}
 
 
@@ -6519,6 +6543,31 @@ async def library_thumbnail(item_id: int) -> FileResponse:
                     return FileResponse(path, media_type="image/jpeg")
 
     raise HTTPException(404, "there is no thumbnail for that item")
+
+
+@app.get("/api/library/{item_id}/slides/{index}")
+async def library_slide(item_id: int, index: int) -> FileResponse:
+    """One slide of a multi-image carousel post."""
+    from backend.library.service import LibraryService
+    from backend.library.store import LibraryStore, slide_path
+
+    spath = slide_path(item_id, index)
+    if spath.is_file() and spath.stat().st_size > 500:
+        return FileResponse(spath, media_type="image/jpeg")
+
+    store = LibraryStore()
+    row = store.get(item_id)
+    if row is None:
+        raise HTTPException(404, f"no library item {item_id}")
+
+    service = LibraryService(store)
+    await service.fetch_slides_for_item(item_id)
+
+    if spath.is_file() and spath.stat().st_size > 500:
+        return FileResponse(spath, media_type="image/jpeg")
+
+    raise HTTPException(404, f"slide {index} not found for item {item_id}")
+
 
 @app.get("/api/library/{item_id}/media")
 def library_media(item_id: int) -> FileResponse:
