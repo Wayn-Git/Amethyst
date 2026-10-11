@@ -119,12 +119,34 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
   const [loginPolling, setLoginPolling] = useState(false)
   const [apiKeyDraft, setApiKeyDraft] = useState('')
   const [savingKey, setSavingKey] = useState(false)
+  const [expandedCategories, setExpandedCategories] = useState({})
 
   const pollTimers = useRef(new Map())
   const opening = useRef(null)
   const browserPollTimer = useRef(null)
 
   const effectiveSearch = query.trim().toLowerCase()
+
+  useEffect(() => {
+    if (!effectiveSearch || effectiveSearch.length < 2) return
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.connectorsCatalog(effectiveSearch)
+        if (res.cards && res.cards.length > 0) {
+          setCards((prev) => {
+            const map = new Map((prev || []).map((c) => [c.slug, c]))
+            for (const c of res.cards) {
+              map.set(c.slug, { ...map.get(c.slug), ...c })
+            }
+            return Array.from(map.values())
+          })
+        }
+      } catch {
+        // Keep local results on network error
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [effectiveSearch])
 
   const loadConnectedStatus = useCallback(async (force = false) => {
     if (!force && cachedConnectorStatus && Date.now() - cachedConnectorStatusAt < CONNECTOR_STATUS_CACHE_MS) {
@@ -364,6 +386,170 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   const connectedCount = Object.values(status).filter((s) => s.connected || s.accounts?.length).length
 
+  const CATEGORY_ORDER = [
+    'Communication',
+    'Productivity',
+    'Developer Tools',
+    'Web & Data',
+    'CRM & Sales',
+    'Media & Social',
+    'Utilities',
+  ]
+
+  const categorized = visible.reduce((acc, card) => {
+    const cat = card.category || 'Productivity'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(card)
+    return acc
+  }, {})
+
+  const sortedCategories = Object.keys(categorized).sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a)
+    const ib = CATEGORY_ORDER.indexOf(b)
+    if (ia !== -1 && ib !== -1) return ia - ib
+    if (ia !== -1) return -1
+    if (ib !== -1) return 1
+    return a.localeCompare(b)
+  })
+
+  const renderCardTile = (card) => {
+    const serviceStatus = status[card.slug]
+    const accounts = serviceStatus?.accounts || []
+    const connected = Boolean(serviceStatus?.connected || accounts.length)
+    const pending = serviceStatus?.pending
+    const pendingAuth = pendingUrls[card.slug]
+    const addingAccount = aliasSlug === card.slug
+    const busy = busySlug === card.slug
+    const included = card.noAuth === true
+
+    return (
+      <div
+        key={card.slug}
+        className={`connector-app-tile ${connected ? 'is-connected' : ''}`}
+      >
+        <div className="connector-tile-header">
+          <ServiceIcon card={card} />
+          <div className="connector-tile-info">
+            <div className="connector-tile-name">{card.label}</div>
+            <div className="connector-tile-blurb">{card.blurb}</div>
+          </div>
+        </div>
+
+        {/* Accounts List */}
+        {accounts.length > 0 && (
+          <div className="connector-accounts-list">
+            {accounts.map((acc) => (
+              <div key={acc.id} className="connector-account-row">
+                <span className="connector-account-alias">
+                  <Check size={11} className="text-live shrink-0" />
+                  <span>{acc.alias || acc.id}</span>
+                </span>
+                <button
+                  type="button"
+                  className="connector-account-disconnect-btn"
+                  disabled={busy}
+                  onClick={() => {
+                    if (window.confirm(`Disconnect account "${acc.alias || acc.id}" from ${card.label}?`)) {
+                      disconnectAccount(card.slug, acc.id)
+                    }
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Inline Add Account Form */}
+        {addingAccount && (
+          <form
+            className="connector-alias-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              connect(card.slug, aliasDraft.trim())
+            }}
+          >
+            <input
+              className="connector-alias-input"
+              placeholder="Account alias (e.g. Work)"
+              value={aliasDraft}
+              onChange={(e) => setAliasDraft(e.target.value)}
+              autoFocus
+            />
+            <button
+              type="submit"
+              className="connector-btn-primary"
+              disabled={busy || !aliasDraft.trim()}
+            >
+              Continue
+            </button>
+          </form>
+        )}
+
+        {/* Tile Footer */}
+        <div className="connector-tile-footer">
+          <div>
+            {included ? (
+              <span className="connector-status-tag is-included">
+                <ShieldCheck size={12} /> Included
+              </span>
+            ) : connected ? (
+              <span className="connector-status-tag is-active">
+                <span className="connector-live-dot" />
+                <span>Connected</span>
+              </span>
+            ) : pending ? (
+              <span className="connector-status-tag is-pending">
+                <Loader2 size={12} className="animate-spin" /> Pending
+              </span>
+            ) : (
+              <span className="text-xs text-dim">Ready to connect</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {pendingAuth?.url && (
+              <a
+                href={pendingAuth.url}
+                target="_blank"
+                rel="noreferrer"
+                className="connector-action-btn"
+                title="Open authorization link"
+              >
+                <ExternalLink size={12} />
+              </a>
+            )}
+
+            {!included && (
+              <button
+                type="button"
+                className={`connector-action-btn ${accounts.length > 0 ? 'is-add-account' : 'is-connect'}`}
+                disabled={busy}
+                onClick={() => {
+                  if (accounts.length > 0) {
+                    setAliasSlug((prev) => (prev === card.slug ? null : card.slug))
+                    setAliasDraft('')
+                  } else {
+                    connect(card.slug)
+                  }
+                }}
+              >
+                {busy ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : accounts.length > 0 ? (
+                  'Add Account'
+                ) : (
+                  'Connect'
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="connectors-view-root">
       {/* Top Filter and Actions Bar */}
@@ -395,6 +581,28 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             <span>MCP Servers</span>
           </button>
         </div>
+
+        {filter !== 'mcp' && (
+          <div className="connector-search-input-wrap">
+            <Search size={14} className="text-dim shrink-0" />
+            <input
+              type="text"
+              placeholder="Search 500+ apps (Telegram, Slack, GitHub…)"
+              value={query}
+              onChange={(e) => setQuery?.(e.target.value)}
+            />
+            {query && (
+              <button
+                type="button"
+                className="text-dim hover:text-ink cursor-pointer ml-1 p-0.5"
+                onClick={() => setQuery?.('')}
+                aria-label="Clear search"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="connectors-top-actions">
           {configured ? (
@@ -694,141 +902,48 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                   : 'Try searching for another service like Slack, GitHub, or Notion.'}
               </p>
             </div>
+          ) : filter === 'connected' ? (
+            <div className="connectors-grid">
+              {visible.map(renderCardTile)}
+            </div>
           ) : (
-            visible.map((card) => {
-              const serviceStatus = status[card.slug]
-              const accounts = serviceStatus?.accounts || []
-              const connected = Boolean(serviceStatus?.connected || accounts.length)
-              const pending = serviceStatus?.pending
-              const pendingAuth = pendingUrls[card.slug]
-              const addingAccount = aliasSlug === card.slug
-              const busy = busySlug === card.slug
-              const included = card.noAuth === true
+            sortedCategories.map((cat) => {
+              const categoryCards = categorized[cat] || []
+              const isExpanded = Boolean(expandedCategories[cat] || effectiveSearch)
+              const shownCards = isExpanded ? categoryCards : categoryCards.slice(0, 6)
+              const hasMore = categoryCards.length > 6 && !effectiveSearch
 
               return (
-                <div
-                  key={card.slug}
-                  className={`connector-app-tile ${connected ? 'is-connected' : ''}`}
-                >
-                  <div className="connector-tile-header">
-                    <ServiceIcon card={card} />
-                    <div className="connector-tile-info">
-                      <div className="connector-tile-name">{card.label}</div>
-                      <div className="connector-tile-blurb">{card.blurb}</div>
+                <div key={cat} className="connector-category-section">
+                  <div className="connector-category-header">
+                    <div className="connector-category-title">
+                      <span>{cat}</span>
+                      <span className="connector-category-count">{categoryCards.length}</span>
                     </div>
                   </div>
-
-                  {/* Accounts List */}
-                  {accounts.length > 0 && (
-                    <div className="connector-accounts-list">
-                      {accounts.map((acc) => (
-                        <div key={acc.id} className="connector-account-row">
-                          <span className="connector-account-alias">
-                            <Check size={11} className="text-live shrink-0" />
-                            <span>{acc.alias || acc.id}</span>
-                          </span>
-                          <button
-                            type="button"
-                            className="connector-account-disconnect-btn"
-                            disabled={busy}
-                            onClick={() => {
-                              if (window.confirm(`Disconnect account "${acc.alias || acc.id}" from ${card.label}?`)) {
-                                disconnectAccount(card.slug, acc.id)
-                              }
-                            }}
-                          >
-                            Disconnect
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Inline Add Account Form */}
-                  {addingAccount && (
-                    <form
-                      className="connector-alias-form"
-                      onSubmit={(e) => {
-                        e.preventDefault()
-                        connect(card.slug, aliasDraft.trim())
-                      }}
-                    >
-                      <input
-                        className="connector-alias-input"
-                        placeholder="Account alias (e.g. Work)"
-                        value={aliasDraft}
-                        onChange={(e) => setAliasDraft(e.target.value)}
-                        autoFocus
-                      />
+                  <div className="connectors-grid">
+                    {shownCards.map(renderCardTile)}
+                  </div>
+                  {hasMore && (
+                    <div className="connector-view-more-wrap">
                       <button
-                        type="submit"
-                        className="connector-btn-primary"
-                        disabled={busy || !aliasDraft.trim()}
+                        type="button"
+                        className="connector-view-more-btn"
+                        onClick={() =>
+                          setExpandedCategories((prev) => ({
+                            ...prev,
+                            [cat]: !prev[cat],
+                          }))
+                        }
                       >
-                        Continue
+                        <span>
+                          {expandedCategories[cat]
+                            ? 'Show fewer'
+                            : `View ${categoryCards.length - 6} more`}
+                        </span>
                       </button>
-                    </form>
+                    </div>
                   )}
-
-                  {/* Tile Footer */}
-                  <div className="connector-tile-footer">
-                    <div>
-                      {included ? (
-                        <span className="connector-status-tag is-included">
-                          <ShieldCheck size={12} /> Included
-                        </span>
-                      ) : connected ? (
-                        <span className="connector-status-tag is-active">
-                          <span className="connector-live-dot" />
-                          <span>Connected</span>
-                        </span>
-                      ) : pending ? (
-                        <span className="connector-status-tag is-pending">
-                          <Loader2 size={12} className="animate-spin" /> Pending
-                        </span>
-                      ) : (
-                        <span className="text-xs text-dim">Ready to connect</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      {pendingAuth?.url && (
-                        <a
-                          href={pendingAuth.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="connector-action-btn"
-                          title="Open authorization link"
-                        >
-                          <ExternalLink size={12} />
-                        </a>
-                      )}
-
-                      {!included && (
-                        <button
-                          type="button"
-                          className={`connector-action-btn ${accounts.length > 0 ? 'is-add-account' : 'is-connect'}`}
-                          disabled={busy}
-                          onClick={() => {
-                            if (accounts.length > 0) {
-                              setAliasSlug((prev) => (prev === card.slug ? null : card.slug))
-                              setAliasDraft('')
-                            } else {
-                              connect(card.slug)
-                            }
-                          }}
-                        >
-                          {busy ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : accounts.length > 0 ? (
-                            'Add Account'
-                          ) : (
-                            'Connect'
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
                 </div>
               )
             })

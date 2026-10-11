@@ -737,6 +737,47 @@ NON_AUTH_TOOLKITS_CARDS: list[dict[str, Any]] = [
     {"slug": "sql", "label": "SQL Tool", "blurb": "Execute queries and inspect database schemas directly.", "domain": None, "logo": None, "noAuth": True},
 ]
 
+_DOMAIN_MAPPING: dict[str, str] = {
+    "slack": "slack.com",
+    "github": "github.com",
+    "gmail": "gmail.com",
+    "googlecalendar": "calendar.google.com",
+    "googlesheets": "sheets.google.com",
+    "googledocs": "docs.google.com",
+    "googledrive": "drive.google.com",
+    "notion": "notion.so",
+    "linear": "linear.app",
+    "gitlab": "gitlab.com",
+    "bitbucket": "bitbucket.org",
+    "jira": "atlassian.com",
+    "asana": "asana.com",
+    "trello": "trello.com",
+    "sentry": "sentry.io",
+    "posthog": "posthog.com",
+    "discord": "discord.com",
+    "twitter": "x.com",
+    "reddit": "reddit.com",
+    "zapier": "zapier.com",
+    "hubspot": "hubspot.com",
+    "salesforce": "salesforce.com",
+    "dropbox": "dropbox.com",
+    "airtable": "airtable.com",
+    "figma": "figma.com",
+    "stripe": "stripe.com",
+    "telegram": "telegram.org",
+    "whatsapp": "whatsapp.com",
+    "shopify": "shopify.com",
+    "zoom": "zoom.us",
+    "clickup": "clickup.com",
+    "todoist": "todoist.com",
+    "zendesk": "zendesk.com",
+    "intercom": "intercom.com",
+    "supabase": "supabase.com",
+    "vercel": "vercel.com",
+    "cloudflare": "cloudflare.com",
+    "datadog": "datadoghq.com",
+}
+
 
 def _validate_consumer_key(key: str) -> tuple[bool, str | None]:
     """Validate a consumer key against Composio Connect MCP gateway."""
@@ -856,6 +897,7 @@ class ComposioService:
         self._cached_client = None
         self._cached_session = None
         self._connections_cache = None
+        self._catalog_cache = None
 
         target_mode = mode or getattr(self, "_key_mode", None) or self._detect_key_mode(cleaned)
         self._key_mode = target_mode
@@ -953,6 +995,7 @@ class ComposioService:
         self._cached_client = None
         self._cached_session = None
         self._connections_cache = None
+        self._catalog_cache = None
         self._key_mode = None
         conn = get_connection()
         conn.execute("DELETE FROM composio_state WHERE id = 1")
@@ -1561,13 +1604,32 @@ class ComposioService:
             log.warning("Composio browser login poll error for %s: %s", cleaned_id, exc)
             return {"status": "pending", "session_id": cleaned_id, "error": str(exc)}
 
-    def list_catalog(self) -> dict[str, Any]:
+    def _get_fallback_catalog_cards(self) -> list[dict[str, Any]]:
+        """Produce catalog cards for all defined toolkits, complete with category and domains."""
+        cards = []
+        for t in get_toolkits_catalog():
+            slug = t["slug"]
+            domain = _DOMAIN_MAPPING.get(slug)
+            cards.append({
+                "slug": slug,
+                "label": t.get("name") or slug.title(),
+                "blurb": t.get("description") or "",
+                "category": t.get("category") or "Productivity",
+                "logo": f"https://logos.composio.dev/api/{slug}" if not t.get("no_auth") else None,
+                "noAuth": bool(t.get("no_auth")),
+                "domain": domain,
+            })
+        return cards
+
+    def list_catalog(self, search: str | None = None) -> dict[str, Any]:
         """Fetch marketplace catalog of toolkits with logos, falling back to curated cards.
 
         Matches OpenMausBot /api/connectors/catalog contract.
+        Supports optional search to query live toolkits across the Composio marketplace.
         """
         now = time.monotonic()
-        if self._catalog_cache is not None and now < self._catalog_cache[0]:
+        search_query = (search or "").strip().lower()
+        if not search_query and self._catalog_cache is not None and now < self._catalog_cache[0]:
             return self._catalog_cache[1]
 
         cards: list[dict[str, Any]] = []
@@ -1579,8 +1641,12 @@ class ComposioService:
             if headers:
                 try:
                     import httpx
+                    from urllib.parse import quote, urlparse
 
-                    url = "https://backend.composio.dev/api/v3/toolkits?limit=500&sort_by=usage"
+                    if search_query:
+                        url = f"https://backend.composio.dev/api/v3/toolkits?search={quote(search_query)}&limit=100"
+                    else:
+                        url = "https://backend.composio.dev/api/v3/toolkits?limit=500&sort_by=usage"
                     res = httpx.get(url, headers=headers, timeout=12.0)
                     if res.status_code == 200:
                         data = res.json()
@@ -1594,22 +1660,57 @@ class ComposioService:
                                     continue
                                 seen.add(slug)
                                 meta = t.get("meta") or {}
-                                blurb = (meta.get("description") or t.get("description") or "")[:120]
+                                blurb = (meta.get("description") or t.get("description") or "")[:140]
+                                cats = meta.get("categories") or []
+                                cat = (
+                                    cats[0].get("name")
+                                    if (cats and isinstance(cats[0], dict) and cats[0].get("name"))
+                                    else (t.get("category") or "Productivity")
+                                )
+                                app_url = meta.get("app_url") or ""
+                                domain = _DOMAIN_MAPPING.get(slug)
+                                if not domain and app_url:
+                                    try:
+                                        domain = urlparse(app_url).netloc or None
+                                    except Exception:
+                                        pass
                                 cards.append({
                                     "slug": slug,
                                     "label": t.get("name") or slug.title(),
                                     "blurb": blurb,
-                                    "logo": meta.get("logo") or t.get("logo") or None,
+                                    "category": cat.title() if isinstance(cat, str) else "Productivity",
+                                    "logo": meta.get("logo") or t.get("logo") or f"https://logos.composio.dev/api/{slug}",
                                     "noAuth": bool(t.get("no_auth")),
-                                    "domain": None,
+                                    "domain": domain,
                                 })
                             source = "api"
                 except Exception as exc:
                     log.debug("Live toolkits catalog fetch failed: %s; falling back to curated", exc)
 
+        all_local_cards = self._get_fallback_catalog_cards()
         if not cards:
-            cards = [dict(c) for c in CURATED_TOOLKITS_CARDS] + [dict(c) for c in NON_AUTH_TOOLKITS_CARDS]
+            if search_query:
+                cards = [
+                    c for c in all_local_cards
+                    if search_query in c["slug"].lower()
+                    or search_query in c["label"].lower()
+                    or search_query in (c.get("blurb") or "").lower()
+                    or search_query in (c.get("category") or "").lower()
+                ]
+            else:
+                cards = all_local_cards
             source = "curated"
+        else:
+            existing_slugs = {c["slug"] for c in cards}
+            for loc in all_local_cards:
+                if loc["slug"] not in existing_slugs:
+                    if not search_query or (
+                        search_query in loc["slug"].lower()
+                        or search_query in loc["label"].lower()
+                        or search_query in (loc.get("blurb") or "").lower()
+                        or search_query in (loc.get("category") or "").lower()
+                    ):
+                        cards.append(loc)
 
         pagination = {
             "items": len(cards),
@@ -1624,7 +1725,8 @@ class ComposioService:
             "cards": cards,
             "pagination": pagination,
         }
-        self._catalog_cache = (now + 600.0, res_data)
+        if not search_query:
+            self._catalog_cache = (now + 600.0, res_data)
         return res_data
 
     def get_connected_services_state(self, force: bool = False) -> dict[str, Any]:

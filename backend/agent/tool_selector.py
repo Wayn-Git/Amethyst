@@ -372,6 +372,18 @@ def select_tools(
         else:
             wanted.discard("search_images")
 
+        # Withhold offline local tools when equivalent cloud service is active on Composio
+        try:
+            from backend.mcp.composio_service import composio_service
+            from backend.mcp.provider_ownership import is_provider_overridden_by_local
+
+            if composio_service.is_configured():
+                conns = composio_service.get_connections()
+                if "googlecalendar" in conns and not is_provider_overridden_by_local("googlecalendar"):
+                    wanted.discard("create_calendar_event")
+        except Exception:
+            pass
+
         kept = [
             s
             for s in schemas
