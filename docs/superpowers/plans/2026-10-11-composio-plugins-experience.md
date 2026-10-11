@@ -41,7 +41,7 @@
   - `POST /api/composio/login/start`
   - `GET /api/composio/login/poll/{session_id}`
 
-- [ ] **Step 1: Write failing tests in `tests/test_composio_service.py`**
+- [x] **Step 1: Write failing tests in `tests/test_composio_service.py`**
 
 ```python
 def test_composio_browser_login_start_and_poll(monkeypatch):
@@ -91,25 +91,25 @@ def test_composio_browser_login_start_and_poll(monkeypatch):
     assert service.get_api_key() == "uak_test_secret"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_composio_service.py::test_composio_browser_login_start_and_poll -v`  
 Expected: FAIL with AttributeError (`start_browser_login` does not exist)
 
-- [ ] **Step 3: Implement `start_browser_login` and `poll_browser_login` in `backend/mcp/composio_service.py`**
+- [x] **Step 3: Implement `start_browser_login` and `poll_browser_login` in `backend/mcp/composio_service.py`**
 
 Implement HTTP client calls to `https://backend.composio.dev/api/v3/cli/create-session` and `https://backend.composio.dev/api/v3/cli/get-session?id={session_id}`. On `"linked"`, invoke `self.set_api_key(api_key, mode="user")`.
 
-- [ ] **Step 4: Expose endpoints in `backend/api/main.py`**
+- [x] **Step 4: Expose endpoints in `backend/api/main.py`**
 
 Add `POST /api/composio/login/start` and `GET /api/composio/login/poll/{session_id}` with integration to `_apply_connector("composio", True)`.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_composio_service.py -v`  
 Expected: PASS
 
-- [ ] **Step 6: Commit backend browser OAuth endpoints**
+- [x] **Step 6: Commit backend browser OAuth endpoints**
 
 ```bash
 git add backend/mcp/composio_service.py backend/api/main.py tests/test_composio_service.py
@@ -134,7 +134,7 @@ git commit -m "feat(composio): add zero-key browser oauth session endpoints"
   - `api.pollComposioLogin(sessionId): Promise<{ status, configured }>`
   - Updated `ComposioConnectModal` with Google 1-click connect, waiting state, and manual key accordion.
 
-- [ ] **Step 1: Add API client methods in `frontend/src/api.js`**
+- [x] **Step 1: Add API client methods in `frontend/src/api.js`**
 
 Add:
 ```javascript
@@ -142,7 +142,7 @@ startComposioLogin: () => j('/composio/login/start', json('POST')),
 pollComposioLogin: (sessionId) => j(`/composio/login/poll/${encodeURIComponent(sessionId)}`),
 ```
 
-- [ ] **Step 2: Update `ComposioConnectModal.jsx` to lead with Browser OAuth**
+- [x] **Step 2: Update `ComposioConnectModal.jsx` to lead with Browser OAuth**
 
 1. Add state: `loginSession`, `isPolling`, `pollError`, `manualOpen`.
 2. Implement `handleBrowserLogin`:
@@ -154,12 +154,12 @@ pollComposioLogin: (sessionId) => j(`/composio/login/poll/${encodeURIComponent(s
 4. If `isPolling`, render linking state with the 6-character code (`loginSession.code`), animated spinner, and a "Re-open browser login" button.
 5. Place manual API key input inside a collapsible accordion *"Or enter an API key manually"*.
 
-- [ ] **Step 3: Run frontend build to verify syntax and types**
+- [x] **Step 3: Run frontend build to verify syntax and types**
 
 Run: `cd frontend && npm run build`  
 Expected: Build passes cleanly with no syntax or bundling errors.
 
-- [ ] **Step 4: Commit frontend modal updates**
+- [x] **Step 4: Commit frontend modal updates**
 
 ```bash
 git add frontend/src/api.js frontend/src/views/capabilities/ComposioConnectModal.jsx
@@ -182,7 +182,7 @@ git commit -m "feat(ui): add 1-click browser oauth to Composio connect modal"
   - Local & System Connectors section positioned at the bottom.
   - Auto-launch of Browser OAuth modal when clicking "Connect" on unconfigured toolkits.
 
-- [ ] **Step 1: Implement category grouping and expansion in `ConnectorsTab.jsx`**
+- [x] **Step 1: Implement category grouping and expansion in `ConnectorsTab.jsx`**
 
 1. Group `filteredComposioToolkits` by `item.category || 'Utilities'`.
 2. Add `expandedCategories` state: `const [expandedCats, setExpandedCats] = useState({})`.
@@ -193,7 +193,7 @@ git commit -m "feat(ui): add 1-click browser oauth to Composio connect modal"
 4. Slice items: `const displayedItems = isExpanded ? items : items.slice(0, 4)`.
 5. Render a clean "View N more" / "Show fewer" toggle button when `items.length > 4 && !q`.
 
-- [ ] **Step 2: Reorder section layout in `ConnectorsTab.jsx`**
+- [x] **Step 2: Reorder section layout in `ConnectorsTab.jsx`**
 
 1. Move **Plugins by Composio** to be Section 1 (at the top, right below the search/filters).
 2. Move **Local & System Connectors** (Agent Core Tools + User Connectors) to Section 2 (at the bottom).
@@ -208,19 +208,19 @@ git commit -m "feat(ui): add 1-click browser oauth to Composio connect modal"
    ```
 4. Wire unconfigured app clicks: when `!composioStatus?.configured`, clicking any Composio app's "Connect" opens the new 1-click Google OAuth flow directly.
 
-- [ ] **Step 3: Add CSS styling for category groups and expansion pills**
+- [x] **Step 3: Add CSS styling for category groups and expansion pills**
 
 Ensure styles adhere strictly to `AGENTS.md`:
 - Class `.plugin-category-section` with clean hierarchy.
 - Class `.plugin-view-more-btn` styled with capsule `--radius-buttons`, `--surface-2`, `--hairline`, hover micro-animation (<140ms).
 - Clear divider `.local-connectors-divider` separating cloud plugins from local MCP.
 
-- [ ] **Step 4: Run frontend build to verify compilation**
+- [x] **Step 4: Run frontend build to verify compilation**
 
 Run: `cd frontend && npm run build`  
 Expected: PASS
 
-- [ ] **Step 5: Commit ConnectorsTab reorganization**
+- [x] **Step 5: Commit ConnectorsTab reorganization**
 
 ```bash
 git add frontend/src/views/capabilities/ConnectorsTab.jsx frontend/src/index.css
@@ -236,17 +236,17 @@ git commit -m "feat(ui): elevate composio plugins to top with category view-more
 - Test: `tests/test_connector_ownership.py`
 - Build: `frontend/`
 
-- [ ] **Step 1: Run full backend test suite for Composio & Connectors**
+- [x] **Step 1: Run full backend test suite for Composio & Connectors**
 
 Run: `uv run pytest tests/test_composio_service.py tests/test_connector_ownership.py -v`  
 Expected: All tests PASS with 0 errors.
 
-- [ ] **Step 2: Run frontend production build**
+- [x] **Step 2: Run frontend production build**
 
 Run: `cd frontend && npm run build`  
 Expected: Build succeeds without warnings or errors.
 
-- [ ] **Step 3: Verification with interactive smoke test**
+- [x] **Step 3: Verification with interactive smoke test**
 
 1. Check that opening Connectors tab shows Composio at the top.
 2. Check that categories (Communication, Productivity, etc.) display top 4 cards and "View more" button.
@@ -254,7 +254,7 @@ Expected: Build succeeds without warnings or errors.
 4. Check that clicking "Connect Composio" opens the 1-click Browser OAuth modal.
 5. Check that local MCP servers and tools appear cleanly formatted in the bottom section.
 
-- [ ] **Step 4: Commit documentation and mark completion**
+- [x] **Step 4: Commit documentation and mark completion**
 
 ```bash
 git add docs/superpowers/plans/2026-10-11-composio-plugins-experience.md
