@@ -35,6 +35,7 @@ export const NAV = [
   // Settings > Devices are how you reach it, which is also where you are when
   // you need it.
   { id: 'remote', path: '/remote', label: 'Remote', icon: 'link' },
+  { id: 'install', path: '/install', label: 'Install App', icon: 'download', settings: true },
   { id: 'settings', path: '/settings', label: 'Settings', icon: 'sliders' },
 ]
 

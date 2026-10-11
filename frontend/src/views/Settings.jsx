@@ -3964,6 +3964,15 @@ function About() {
             <Icon name="play" size={12} />
             <span>Launch Wizard</span>
           </button>
+          <button
+            type="button"
+            className="set-btn-sm"
+            onClick={() => setView('install')}
+            style={{ minWidth: 140, display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8 }}
+          >
+            <Icon name="download" size={12} />
+            <span>Install App</span>
+          </button>
         </div>
       </div>
 
