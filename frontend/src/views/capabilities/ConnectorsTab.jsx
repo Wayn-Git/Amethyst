@@ -8,6 +8,7 @@ import { api, copyText } from '../../api.js'
 import { Skeleton as BoneyardSkeleton, configureBoneyard } from 'boneyard-js/react'
 import { useConfirm } from '../../components/ui/ConfirmDialog.jsx'
 import NewConnectorModal from './NewConnectorModal.jsx'
+import ComposioConnectModal from './ComposioConnectModal.jsx'
 
 configureBoneyard({
   color: 'rgba(255, 255, 255, 0.04)',
@@ -19,28 +20,26 @@ configureBoneyard({
 })
 
 function ConnectorsCatalogSkeleton({ filter = 'all' }) {
-  const showAgentTools = filter === 'all' || filter === 'agent-tools'
   const showPopular = filter === 'all' || filter === 'Popular' || filter === 'installed'
   const showSecondary = filter === 'all' || filter === 'Productivity'
+  const showAgentTools = filter === 'all' || filter === 'agent-tools'
 
   return (
     <div className="conn-catalog-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
-      {showAgentTools && (
+      {showPopular && (
         <section className="plugin-section">
           <div className="plugin-section-head">
             <div className="plugin-section-title-wrap">
-              <div className="boneyard-bone" style={{ width: 136, height: 18, borderRadius: 5 }} />
+              <div className="boneyard-bone" style={{ width: 140, height: 18, borderRadius: 5 }} />
               <div className="boneyard-bone" style={{ width: 22, height: 18, borderRadius: 10 }} />
             </div>
           </div>
           <div className="plugin-grid">
             {[
-              { titleW: 150, badgeW: 55, descW: '82%', actW: 68 },
-              { titleW: 125, badgeW: 55, descW: '75%', actW: 68 },
-              { titleW: 135, badgeW: 50, descW: '88%', actW: 68 },
-              { titleW: 110, badgeW: 58, descW: '78%', actW: 68 },
-              { titleW: 165, badgeW: 52, descW: '84%', actW: 68 },
-              { titleW: 140, badgeW: 55, descW: '80%', actW: 68 },
+              { titleW: 115, badgeW: 75, descW: '80%', actW: 72 },
+              { titleW: 140, badgeW: 75, descW: '72%', actW: 72 },
+              { titleW: 130, badgeW: 75, descW: '85%', actW: 72 },
+              { titleW: 110, badgeW: 75, descW: '68%', actW: 72 },
             ].map((c, i) => (
               <div key={i} className="plugin-row">
                 <div className="plugin-row-icon">
@@ -1208,6 +1207,12 @@ function ComposioPluginRow({
         delay: Math.min(index * 0.02, 0.16),
       }}
       className={`plugin-row${isRunning ? ' is-running' : ''}`}
+      style={{ cursor: !isDirect && !isConnected ? 'pointer' : 'default' }}
+      onClick={() => {
+        if (!isDirect && !isConnected && onConnect) {
+          onConnect(item)
+        }
+      }}
     >
       <div className="plugin-row-icon">
         <ServiceIcon name={item.slug} size={38} />
@@ -1641,10 +1646,12 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
   const [tools, setTools] = useState([])
   const [composioStatus, setComposioStatus] = useState(null)
   const [composioToolkits, setComposioToolkits] = useState([])
+  const [showComposioModal, setShowComposioModal] = useState(false)
   const [busy, setBusy] = useState({})
   const [open, setOpen] = useState(null)
   const [pendingConnect, setPendingConnect] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [expandedCats, setExpandedCats] = useState({})
   const [loaded, setLoaded] = useState(false)
   const announced = useRef(new Set())
   const settled = useRef(new Set())
@@ -1826,7 +1833,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
   const handleComposioToggle = useCallback(
     async (item, nextEnabled) => {
       if (!composioStatus?.configured) {
-        toast('Configure your Composio API key in Settings > General to enable cloud connectors', 'amber')
+        setShowComposioModal(true)
         return
       }
       const slug = item.slug || item
@@ -1851,21 +1858,21 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
     [composioStatus, refresh, toast]
   )
 
-  /* Composio connect handler (launches hosted OAuth) */
+  /* Composio connect handler (launches hosted OAuth / login page) */
   const handleComposioConnect = useCallback(
     async (item) => {
-      if (!composioStatus?.configured) {
-        toast('Configure your Composio API key in Settings > General first', 'amber')
-        return
-      }
       const slug = item.slug || item
       const name = item.name || slug
+      if (!composioStatus?.configured) {
+        setShowComposioModal(true)
+        return
+      }
       setBusy((b) => ({ ...b, [`composio:${slug}`]: true }))
       try {
         const res = await api.connectComposioToolkit(slug)
         if (res?.redirect_url) {
           window.open(res.redirect_url, '_blank')
-          toast(`Opened ${name} authorization page in a new tab`, 'ok')
+          toast(`Opened ${name} authorization in a new tab`, 'ok')
           let attempts = 0
           const pollInterval = setInterval(async () => {
             attempts++
@@ -1888,15 +1895,17 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             }
           }, 3000)
         } else {
-          toast(`Failed to start connection for ${name}`, 'bad')
+          window.open(`https://app.composio.dev/login?toolkit=${slug}`, '_blank')
+          toast(`Opened ${name} login page`, 'ok')
         }
       } catch (err) {
-        toast(err.message || `Failed to connect ${name}`, 'bad')
+        window.open(`https://app.composio.dev/login?toolkit=${slug}`, '_blank')
+        toast(`Opened ${name} login page`, 'ok')
       } finally {
         setBusy((b) => ({ ...b, [`composio:${slug}`]: false }))
       }
     },
-    [composioStatus, refresh, toast]
+    [refresh, toast]
   )
 
   /* Composio fallback switch handler */
@@ -2165,7 +2174,6 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
   }, [servers, catalogue, configuredSet, q, filter])
 
   const filteredComposioToolkits = useMemo(() => {
-    if (!composioStatus?.configured) return []
     if (!composioToolkits || composioToolkits.length === 0) return []
     return composioToolkits.filter((item) => {
       if (item.overridden_by_local) return false
@@ -2193,17 +2201,14 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
     })
   }, [composioStatus?.configured, composioToolkits, q, filter])
 
-  const { directComposioTools, connectedComposioServices } = useMemo(() => {
-    const direct = []
-    const connected = []
+  const composioCategories = useMemo(() => {
+    const map = {}
     for (const item of filteredComposioToolkits) {
-      if (item.no_auth) {
-        direct.push(item)
-      } else {
-        connected.push(item)
-      }
+      const cat = item.category || 'Utilities'
+      if (!map[cat]) map[cat] = []
+      map[cat].push(item)
     }
-    return { directComposioTools: direct, connectedComposioServices: connected }
+    return map
   }, [filteredComposioToolkits])
 
   // Installed connectors list for the top chips row
@@ -2410,283 +2415,207 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             >
               {loaded ? (
                 <>
-                  {/* 1. AGENT CORE TOOLS SECTION */}
-                  {agentTools.length > 0 && (
+                  {/* 1. PLUGINS BY COMPOSIO SECTION (HERO / TOP) */}
+                  {filteredComposioToolkits.length > 0 && (
                     <section data-enter className="plugin-section">
                       <div className="plugin-section-head">
-                        <div className="plugin-section-title-wrap">
-                          <h2 className="plugin-section-title">Agent Core Tools</h2>
-                          <span className="plugin-section-badge">{agentTools.length}</span>
-                        </div>
-                      </div>
-
-                      <div className="plugin-grid">
-                        {agentTools.map((item, idx) => (
-                          <PluginRow
-                            key={item.name || item.id}
-                            index={idx}
-                            item={item}
-                            isConfigured={item.isConfigured}
-                            live={live[item.name || item.id]}
-                            busy={busy[item.name || item.id]}
-                            onOpen={() => setOpen(item.name || item.id)}
-                            onToggle={(nextOn) => handleToggle(item, nextOn)}
-                            onAdd={() => addFromCatalogue(item)}
-                            onAct={(action, options) => act(item, action, options)}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  )}
-
-                  {/* 2. COMPOSIO CLOUD CONNECTORS SECTION */}
-                  {!composioStatus?.configured ? (
-                    (filter === 'all' || filter === 'connectors') && !q && (
-                      <section data-enter className="plugin-section">
-                        <div className="plugin-section-head">
-                          <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <h2 className="plugin-section-title">Cloud Connectors</h2>
+                        <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <h2 className="plugin-section-title">Plugins by Composio</h2>
+                          <span className="plugin-section-badge">
+                            {filteredComposioToolkits.length}
+                          </span>
+                          {composioStatus?.configured ? (
                             <span
                               style={{
                                 fontSize: '11px',
                                 fontWeight: 500,
                                 padding: '2px 8px',
                                 borderRadius: '999px',
-                                background: 'rgba(168, 85, 247, 0.12)',
-                                color: 'var(--accent, #a855f7)',
-                                border: '1px solid rgba(168, 85, 247, 0.25)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                letterSpacing: '0.02em',
-                              }}
-                            >
-                              Powered by Composio
-                            </span>
-                            <span className="conn-status" style={{ opacity: 0.65 }}>
-                              Not configured
-                            </span>
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.02)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                            borderRadius: '12px',
-                            padding: '20px 24px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div
-                              style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: '8px',
-                                background: 'rgba(168, 85, 247, 0.15)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--accent, #a855f7)',
-                                flexShrink: 0,
-                              }}
-                            >
-                              <Icon name="cloud" size={20} />
-                            </div>
-                            <div>
-                              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                Composio — not configured
-                              </h3>
-                              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                Zero-setup cloud OAuth for Slack, GitHub, Linear, Notion, Gmail, Google Calendar & more
-                              </span>
-                            </div>
-                          </div>
-
-                          <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                            Composio handles cloud OAuth for Slack, GitHub, Linear, Notion, Gmail, Google Calendar, and more without managing your own Google / Slack / GitHub developer apps. Add an API key in Settings &gt; General to enable one-click connections.
-                          </p>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                            <button
-                              type="button"
-                              className="conn-btn conn-btn--primary"
-                              onClick={() => setView('settings')}
-                              style={{
-                                padding: '6px 14px',
-                                fontSize: '13px',
-                                fontWeight: 500,
-                                borderRadius: '6px',
-                                background: 'var(--accent, #a855f7)',
-                                color: '#fff',
-                                border: 'none',
-                                cursor: 'pointer',
+                                background: 'rgba(34, 197, 94, 0.12)',
+                                color: 'var(--live, #22c55e)',
+                                border: '1px solid rgba(34, 197, 94, 0.25)',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 6,
                               }}
                             >
-                              <Icon name="settings" size={14} />
-                              Open Settings
-                            </button>
-                            <a
-                              href="https://dashboard.composio.dev/settings"
-                              target="_blank"
-                              rel="noreferrer"
+                              <span className="status-dot live" style={{ width: 6, height: 6 }} />
+                              Connected
+                            </span>
+                          ) : (
+                            <span
                               style={{
-                                fontSize: '13px',
-                                color: 'var(--text-secondary)',
-                                textDecoration: 'none',
+                                fontSize: '11px',
+                                fontWeight: 500,
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                color: 'var(--text-dim)',
+                                border: '1px solid var(--border)',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: 4,
                               }}
-                              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
                             >
-                              Get API Key <Icon name="external-link" size={12} />
-                            </a>
-                          </div>
+                              Not Connected
+                            </span>
+                          )}
                         </div>
-                      </section>
-                    )
-                  ) : (
-                    <>
-                      {/* Direct Tools: Work immediately without user OAuth configuration */}
-                      {directComposioTools.length > 0 && (
-                        <section data-enter className="plugin-section">
-                          <div className="plugin-section-head">
-                            <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <h2 className="plugin-section-title">Direct Cloud Tools</h2>
-                              <span
-                                style={{
-                                  fontSize: '11px',
-                                  fontWeight: 500,
-                                  padding: '2px 8px',
-                                  borderRadius: '999px',
-                                  background: 'rgba(34, 197, 94, 0.12)',
-                                  color: 'var(--ok, #22c55e)',
-                                  border: '1px solid rgba(34, 197, 94, 0.25)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                No User OAuth Required
-                              </span>
-                              <span className="plugin-section-badge">
-                                {directComposioTools.filter((t) => t.enabled).length}/{directComposioTools.length} enabled
-                              </span>
+
+                        <div className="plugin-section-actions">
+                          {composioStatus?.configured ? (
+                            <button
+                              type="button"
+                              className="btn btn--small btn--ghost"
+                              onClick={() => setShowComposioModal(true)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <Icon name="sliders" size={13} />
+                              Manage Composio
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn--small btn--primary"
+                              onClick={() => setShowComposioModal(true)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <Icon name="cloud" size={13} />
+                              Connect Composio
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Composio Apps Grouped by Category with View More */}
+                      {Object.entries(composioCategories).map(([catName, items]) => {
+                        if (items.length === 0) return null
+                        const isExpanded = Boolean(q) || Boolean(expandedCats[catName])
+                        const displayedItems = isExpanded ? items : items.slice(0, 4)
+                        const hasMore = items.length > 4 && !q
+
+                        return (
+                          <div key={catName} className="plugin-cat-group">
+                            <div className="plugin-cat-header">
+                              <h3 className="plugin-cat-title">{catName}</h3>
+                              <span className="plugin-cat-count">{items.length}</span>
                             </div>
-                          </div>
 
-                          <div className="plugin-grid">
-                            {directComposioTools.map((item, idx) => (
-                              <ComposioPluginRow
-                                key={item.slug}
-                                index={idx}
-                                item={item}
-                                isConfigured={true}
-                                busy={busy[`composio:${item.slug}`] || busy[`fallback:${item.slug}`]}
-                                onConnect={() => handleComposioConnect(item)}
-                                onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
-                                onFallbackSwitch={handleFallbackSwitch}
-                              />
-                            ))}
-                          </div>
-                        </section>
-                      )}
-
-                      {/* Connected Services: Require third-party OAuth setup */}
-                      {connectedComposioServices.length > 0 && (
-                        <section data-enter className="plugin-section">
-                          <div className="plugin-section-head">
-                            <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <h2 className="plugin-section-title">Connected Cloud Services</h2>
-                              <span
-                                style={{
-                                  fontSize: '11px',
-                                  fontWeight: 500,
-                                  padding: '2px 8px',
-                                  borderRadius: '999px',
-                                  background: 'rgba(168, 85, 247, 0.12)',
-                                  color: 'var(--accent, #a855f7)',
-                                  border: '1px solid rgba(168, 85, 247, 0.25)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                OAuth Setup Required
-                              </span>
-                              <span className="plugin-section-badge">
-                                {connectedComposioServices.filter((t) => t.connected).length}/{connectedComposioServices.length} connected
-                              </span>
+                            <div className="plugin-grid">
+                              {displayedItems.map((item, idx) => (
+                                <ComposioPluginRow
+                                  key={item.slug}
+                                  index={idx}
+                                  item={item}
+                                  isConfigured={Boolean(composioStatus?.configured)}
+                                  busy={busy[`composio:${item.slug}`] || busy[`fallback:${item.slug}`]}
+                                  onConnect={() => handleComposioConnect(item)}
+                                  onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
+                                  onFallbackSwitch={handleFallbackSwitch}
+                                />
+                              ))}
                             </div>
-                          </div>
 
-                          <div className="plugin-grid">
-                            {connectedComposioServices.map((item, idx) => (
-                              <ComposioPluginRow
-                                key={item.slug}
-                                index={idx}
-                                item={item}
-                                isConfigured={true}
-                                busy={busy[`composio:${item.slug}`] || busy[`fallback:${item.slug}`]}
-                                onConnect={() => handleComposioConnect(item)}
-                                onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
-                                onFallbackSwitch={handleFallbackSwitch}
-                              />
-                            ))}
+                            {hasMore && (
+                              <div className="plugin-view-more-wrap">
+                                <button
+                                  type="button"
+                                  className="plugin-view-more-btn"
+                                  onClick={() => setExpandedCats((prev) => ({ ...prev, [catName]: !prev[catName] }))}
+                                >
+                                  <span>{isExpanded ? 'Show fewer' : `View ${items.length - 4} more ${catName.toLowerCase()} apps`}</span>
+                                  <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} />
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        </section>
-                      )}
-                    </>
+                        )
+                      })}
+                    </section>
                   )}
 
-                  {/* 3. USER CONNECTORS & INTEGRATIONS SECTION (Grouped) */}
-                  {Object.entries(userConnectors).map(([catName, items]) => {
-                    if (items.length === 0) return null
+                  {/* 2. LOCAL & SYSTEM CONNECTORS SECTION (DISTINCT BOTTOM) */}
+                  {(agentTools.length > 0 || Object.values(userConnectors).some((arr) => arr.length > 0)) && (
+                    <section data-enter className="plugin-section local-connectors-section">
+                      <div className="plugin-section-head">
+                        <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <h2 className="plugin-section-title">Local & System Connectors</h2>
+                          <span className="plugin-section-badge">
+                            {agentTools.length + Object.values(userConnectors).reduce((sum, arr) => sum + arr.length, 0)}
+                          </span>
+                          <span className="plugin-section-pill">
+                            Runs locally on this device
+                          </span>
+                        </div>
+                      </div>
 
-                    return (
-                      <section key={catName} data-enter className="plugin-section">
-                        <div className="plugin-section-head">
-                          <div className="plugin-section-title-wrap">
-                            <h2 className="plugin-section-title">{catName}</h2>
-                            <span className="plugin-section-badge">{items.length}</span>
+                      {/* Agent Core Tools */}
+                      {agentTools.length > 0 && (
+                        <div className="plugin-cat-group">
+                          <div className="plugin-cat-header">
+                            <h3 className="plugin-cat-title">Agent Core Tools</h3>
+                            <span className="plugin-cat-count">{agentTools.length}</span>
+                          </div>
+
+                          <div className="plugin-grid">
+                            {agentTools.map((item, idx) => (
+                              <PluginRow
+                                key={item.name || item.id}
+                                index={idx}
+                                item={item}
+                                isConfigured={item.isConfigured}
+                                live={live[item.name || item.id]}
+                                busy={busy[item.name || item.id]}
+                                onOpen={() => setOpen(item.name || item.id)}
+                                onToggle={(nextOn) => handleToggle(item, nextOn)}
+                                onAdd={() => addFromCatalogue(item)}
+                                onAct={(action, options) => act(item, action, options)}
+                              />
+                            ))}
                           </div>
                         </div>
+                      )}
 
-                        <div className="plugin-grid">
-                          {items.map((item, idx) => (
-                            <PluginRow
-                              key={item.name || item.id}
-                              index={idx}
-                              item={item}
-                              isConfigured={item.isConfigured}
-                              live={live[item.name || item.id]}
-                              busy={busy[item.name || item.id]}
-                              onOpen={() => setOpen(item.name || item.id)}
-                              onToggle={(nextOn) => handleToggle(item, nextOn)}
-                              onAdd={() => addFromCatalogue(item)}
-                              onAct={(action, options) => act(item, action, options)}
-                              onRemove={async () => {
-                                try {
-                                  await api.mcpRemove(item.name || item.id)
-                                  toast(`Removed ${item.title || item.name}`, 'ok')
-                                  refresh()
-                                } catch (e) {
-                                  toast(e.message, 'bad')
-                                }
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    )
-                  })}
+                      {/* User Connectors & Integrations (Grouped by category) */}
+                      {Object.entries(userConnectors).map(([catName, items]) => {
+                        if (items.length === 0) return null
+
+                        return (
+                          <div key={catName} className="plugin-cat-group">
+                            <div className="plugin-cat-header">
+                              <h3 className="plugin-cat-title">{catName}</h3>
+                              <span className="plugin-cat-count">{items.length}</span>
+                            </div>
+
+                            <div className="plugin-grid">
+                              {items.map((item, idx) => (
+                                <PluginRow
+                                  key={item.name || item.id}
+                                  index={idx}
+                                  item={item}
+                                  isConfigured={item.isConfigured}
+                                  live={live[item.name || item.id]}
+                                  busy={busy[item.name || item.id]}
+                                  onOpen={() => setOpen(item.name || item.id)}
+                                  onToggle={(nextOn) => handleToggle(item, nextOn)}
+                                  onAdd={() => addFromCatalogue(item)}
+                                  onAct={(action, options) => act(item, action, options)}
+                                  onRemove={async () => {
+                                    try {
+                                      await api.mcpRemove(item.name || item.id)
+                                      toast(`Removed ${item.title || item.name}`, 'ok')
+                                      refresh()
+                                    } catch (e) {
+                                      toast(e.message, 'bad')
+                                    }
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </section>
+                  )}
                 </>
               ) : null}
             </BoneyardSkeleton>
@@ -2719,7 +2648,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             )}
 
             {/* Empty State */}
-            {loaded && agentTools.length === 0 && filteredComposioToolkits.length === 0 && !(!composioStatus?.configured && (filter === 'all' || filter === 'connectors') && !q) && Object.values(userConnectors).every(arr => arr.length === 0) && (
+            {loaded && agentTools.length === 0 && filteredComposioToolkits.length === 0 && Object.values(userConnectors).every((arr) => arr.length === 0) && (
               <motion.div
                 className="dir-empty"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -2759,6 +2688,21 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
           } else {
             await act(server, 'login', { force: true })
           }
+        }}
+      />
+
+      <ComposioConnectModal
+        open={showComposioModal}
+        onClose={() => setShowComposioModal(false)}
+        composioStatus={composioStatus}
+        onConnected={async () => {
+          const [st, tk] = await Promise.all([
+            api.composioStatus().catch(() => null),
+            api.composioToolkits().catch(() => ({ toolkits: [], enabled: [] })),
+          ])
+          if (st) setComposioStatus(st)
+          if (tk?.toolkits) setComposioToolkits(tk.toolkits)
+          refresh()
         }}
       />
     </>
