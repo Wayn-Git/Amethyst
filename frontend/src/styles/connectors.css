@@ -1,0 +1,1113 @@
+/* ==========================================================================
+   Connectors, Marketplace & MCP Panels Styling
+   Tokens & Aesthetic adhering to AGENTS.md and OpenMausBot UX
+   ========================================================================== */
+
+.connectors-view-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  padding-bottom: 3rem;
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+/* ── Top Header & Sub-Nav Bar ── */
+.connectors-nav-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.connectors-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  padding: 0.25rem;
+  border-radius: var(--radius-buttons);
+}
+
+.connector-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.connector-filter-btn:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+
+.connector-filter-btn.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.connector-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.4rem;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-tags);
+  background: rgba(0, 0, 0, 0.15);
+  color: inherit;
+}
+
+.connectors-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.connector-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-inputs);
+  padding: 0.35rem 0.75rem;
+  min-width: 240px;
+}
+
+.connector-search-input-wrap input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: calc(13px * var(--text-scale, 1));
+  color: var(--text);
+  width: 100%;
+  margin-left: 0.5rem;
+}
+
+.connector-search-input-wrap input::placeholder {
+  color: var(--text-faint);
+}
+
+.connector-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.75rem;
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  gap: 0.375rem;
+}
+
+.connector-btn-ghost:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.connector-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.875rem;
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  gap: 0.375rem;
+}
+
+.connector-btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+/* ── Hero Callout Banner ── */
+.connector-hero-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.125rem 1.25rem;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+.connector-hero-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  flex: 1 1 360px;
+}
+
+.connector-hero-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-cards);
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-soft);
+  flex-shrink: 0;
+}
+
+.connector-hero-title {
+  font-size: calc(14.5px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.connector-hero-desc {
+  font-size: calc(12.5px * var(--text-scale, 1));
+  color: var(--text-dim);
+  margin-top: 0.25rem;
+  line-height: 1.45;
+}
+
+.connector-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+/* ── Live Pulse Indicator ── */
+@keyframes pulse-live {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.35;
+  }
+}
+
+.connector-live-dot {
+  position: relative;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--live);
+  flex-shrink: 0;
+}
+
+.connector-live-dot::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: var(--live);
+  opacity: 0.45;
+  animation: pulse-live 2.4s infinite ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connector-live-dot::after {
+    animation: none;
+  }
+}
+
+/* ── Banner / Status Notice ── */
+.connector-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--r-xl);
+  font-size: calc(13px * var(--text-scale, 1));
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+
+.connector-status-banner.is-warning {
+  background: var(--confirm-soft);
+  border-color: var(--confirm-line);
+  color: var(--confirm);
+}
+
+.connector-status-banner.is-configured {
+  background: var(--accent-wash);
+  border-color: var(--accent-soft);
+  color: var(--text);
+}
+
+/* ── Marketplace Grid ── */
+.connectors-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.875rem;
+}
+
+@media (min-width: 680px) {
+  .connectors-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1040px) {
+  .connectors-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ── App Tile ── */
+.connector-app-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  padding: 1rem;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  min-height: 140px;
+}
+
+.connector-app-tile:hover {
+  border-color: var(--hairline-strong, #ccc);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.connector-app-tile.is-connected {
+  border-color: var(--live-line);
+}
+
+.connector-tile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.connector-service-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--raised);
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--hairline);
+}
+
+.connector-service-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.connector-service-monogram {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-dim);
+}
+
+.connector-tile-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.connector-tile-name {
+  font-weight: 600;
+  font-size: calc(14.5px * var(--text-scale, 1));
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connector-tile-blurb {
+  font-size: calc(12px * var(--text-scale, 1));
+  color: var(--text-dim);
+  margin-top: 0.2rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+.connector-tile-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.875rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--hairline);
+  gap: 0.5rem;
+}
+
+.connector-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: calc(11.5px * var(--text-scale, 1));
+  font-weight: 500;
+}
+
+.connector-status-tag.is-active {
+  color: var(--live);
+}
+
+.connector-status-tag.is-pending {
+  color: var(--confirm);
+}
+
+.connector-status-tag.is-included {
+  color: var(--accent);
+}
+
+.connector-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  min-width: 72px;
+}
+
+.connector-action-btn:hover {
+  background: var(--raised);
+  border-color: var(--text-dim);
+}
+
+.connector-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.connector-action-btn.is-connect {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.connector-action-btn.is-add-account {
+  background: var(--accent-wash);
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+
+/* ── Multi-Account Pill List ── */
+.connector-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.connector-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--canvas-deep, rgba(0,0,0,0.03));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards);
+  padding: 0.3rem 0.5rem;
+  font-size: 11.5px;
+}
+
+.connector-account-alias {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connector-account-disconnect-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+}
+
+.connector-account-disconnect-btn:hover {
+  color: var(--stop);
+  background: var(--stop-soft);
+}
+
+/* ── Inline Alias Form ── */
+.connector-alias-form {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+
+.connector-alias-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards);
+  padding: 0.3rem 0.5rem;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+}
+
+.connector-alias-input:focus {
+  border-color: var(--accent);
+}
+
+/* ── Custom MCP Servers Panel ── */
+.mcp-panel-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.mcp-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+}
+
+.mcp-panel-title {
+  font-size: calc(16px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.mcp-panel-desc {
+  font-size: calc(12.5px * var(--text-scale, 1));
+  color: var(--text-dim);
+  margin: 0.2rem 0 0 0;
+}
+
+.mcp-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mcp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.8rem;
+  font-size: calc(12.5px * var(--text-scale, 1));
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mcp-btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+}
+
+.mcp-btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.mcp-btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--hairline);
+}
+
+.mcp-btn-secondary:hover {
+  background: var(--raised);
+}
+
+.mcp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-cards);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.mcp-icon-btn:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+
+.mcp-servers-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.875rem;
+}
+
+@media (min-width: 768px) {
+  .mcp-servers-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mcp-server-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  padding: 1rem;
+  gap: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.mcp-server-card.is-enabled {
+  border-left: 3px solid var(--live);
+}
+
+.mcp-server-card.is-disabled {
+  opacity: 0.75;
+}
+
+.mcp-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mcp-card-ident {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mcp-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-tags);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mcp-type-badge.is-stdio {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.mcp-type-badge.is-remote {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.mcp-card-name {
+  font-weight: 600;
+  font-size: calc(14px * var(--text-scale, 1));
+  color: var(--text);
+}
+
+.mcp-card-command {
+  font-size: 11.5px;
+  padding: 0.35rem 0.5rem;
+  background: var(--canvas-deep, rgba(0,0,0,0.03));
+  border-radius: var(--radius-cards);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcp-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.mcp-tag {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  background: var(--raised);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.mcp-probe-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-cards);
+  font-size: 11.5px;
+}
+
+.mcp-probe-banner.is-ok {
+  background: var(--live-soft);
+  color: var(--live);
+  border: 1px solid var(--live-line);
+}
+
+.mcp-probe-banner.is-error {
+  background: var(--stop-soft);
+  color: var(--stop);
+  border: 1px solid var(--stop-line);
+}
+
+.mcp-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.mcp-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+}
+
+.mcp-action-link:hover {
+  text-decoration: underline;
+}
+
+.mcp-icon-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.mcp-icon-btn-sm:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.mcp-icon-btn-sm.mcp-danger-hover:hover {
+  background: var(--stop-soft);
+  color: var(--stop);
+}
+
+/* ── Toggle Switch ── */
+.mcp-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 36px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  padding: 2px;
+}
+
+.mcp-switch.is-on {
+  background: var(--live);
+  border-color: var(--live);
+}
+
+.mcp-switch-thumb {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  transition: transform 0.2s ease;
+  transform: translateX(0);
+}
+
+.mcp-switch.is-on .mcp-switch-thumb {
+  transform: translateX(16px);
+}
+
+/* ── Editor Card ── */
+.mcp-editor-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong, #ccc);
+  border-radius: var(--r-xl);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.mcp-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.mcp-editor-title {
+  font-size: calc(15px * var(--text-scale, 1));
+  font-weight: 600;
+  margin: 0;
+}
+
+.mcp-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.875rem;
+}
+
+.mcp-field-label {
+  font-size: calc(12.5px * var(--text-scale, 1));
+  font-weight: 500;
+  color: var(--text);
+}
+
+.mcp-required {
+  color: var(--stop);
+}
+
+.mcp-field-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.mcp-input {
+  background: var(--canvas-deep, var(--surface));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards);
+  padding: 0.45rem 0.65rem;
+  font-size: calc(13px * var(--text-scale, 1));
+  color: var(--text);
+  outline: none;
+}
+
+.mcp-input:focus {
+  border-color: var(--accent);
+}
+
+.mcp-textarea {
+  background: var(--canvas-deep, var(--surface));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards);
+  padding: 0.45rem 0.65rem;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  resize: vertical;
+}
+
+.mcp-textarea:focus {
+  border-color: var(--accent);
+}
+
+.mcp-radio-pills {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mcp-pill-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.mcp-pill-choice.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+/* ── MCP Presets Bar & Chips ── */
+.mcp-presets-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.mcp-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.12s var(--ease-out, ease);
+}
+
+.mcp-preset-chip:hover {
+  background: var(--accent-wash);
+  border-color: var(--accent-soft);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.mcp-empty-presets {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.mcp-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* ── Modal Backdrop ── */
+.mcp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.mcp-modal-card {
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-2xl, 16px);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 540px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
+}
+
+.mcp-modal-desc {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+}
+
+/* ── Notices ── */
+.mcp-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-cards);
+  font-size: 12.5px;
+  margin-bottom: 0.5rem;
+}
+
+.mcp-notice-info {
+  background: var(--accent-wash);
+  color: var(--accent);
+  border: 1px solid var(--accent-soft);
+}
+
+.mcp-notice-error {
+  background: var(--stop-soft);
+  color: var(--stop);
+  border: 1px solid var(--stop-line);
+}
+
+.mcp-notice-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ── Composio Login & Auth Modal Styles ── */
+.connector-auth-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  font-size: calc(12.5px * var(--text-scale, 1));
+  font-weight: 500;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.connector-auth-status-btn:hover {
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+}
+
+.connector-auth-status-btn.is-connected {
+  border-color: var(--live-line, rgba(20, 158, 97, 0.3));
+  background: var(--live-soft, rgba(20, 158, 97, 0.08));
+  color: var(--live-ink, var(--live));
+}
+
+.connector-modal-prompt {
+  padding: 0.5rem 0.75rem;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-soft);
+  color: var(--text);
+  border-radius: var(--radius-cards);
+  font-size: 13px;
+  margin-bottom: 1rem;
+}
+
+.connector-modal-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 1rem;
+  padding-bottom: 0.25rem;
+}
+
+.connector-modal-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: var(--radius-cards);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.connector-modal-tab:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+
+.connector-modal-tab.is-active {
+  color: var(--accent);
+  background: var(--accent-wash);
+  font-weight: 600;
+}
+
+.connector-browser-login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.8rem 1.25rem;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--accent-line, transparent);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out, ease);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.connector-browser-login-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.connector-browser-login-btn:active {
+  transform: translateY(0);
+}
+
+.connector-browser-waiting-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards);
+  gap: 0.75rem;
+}
+
+.connector-code-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--canvas);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius-cards);
+}
+
+.connector-code-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+

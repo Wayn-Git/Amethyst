@@ -50,9 +50,9 @@ DEFAULT_HEADERS = {
     "Sec-Ch-Ua-Platform": '"Windows"',
 }
 MAX_PAGE_BYTES = 2_000_000
-#: The text kept after reduction. Well above a long article, well below the
-#: point where chunking and embedding stop being interactive.
-MAX_TEXT_CHARS = 120_000
+#: The text kept after reduction. Well above a long article or documentation page,
+#: well below the point where scraping explodes model context and rate limit quotas.
+MAX_TEXT_CHARS = 24_000
 MAX_REDIRECTS = 10
 DEFAULT_TIMEOUT = 25.0
 
@@ -222,6 +222,61 @@ async def pinterest_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str]
                 }
     except Exception as exc:
         log.debug("Pinterest oEmbed failed for %s: %s", url, exc)
+    return None
+
+
+THREADS_HOSTS = {"threads.net", "www.threads.net", "threads.com", "www.threads.com"}
+THREADS_OEMBED_URLS = (
+    "https://graph.threads.com/oembed?url={url}",
+    "https://graph.threads.net/oembed?url={url}",
+)
+
+
+def is_threads(url: str) -> bool:
+    """A threads.net or threads.com link."""
+    host = (urlparse(url).hostname or "").lower()
+    return host in THREADS_HOSTS or any(host.endswith(f".{h}") for h in THREADS_HOSTS)
+
+
+async def threads_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:
+    """Fetch post text, author, and embed metadata via Threads' public oEmbed API.
+
+    No authentication required (tokenless up to 1,000 req/hr).
+    """
+    for endpoint in THREADS_OEMBED_URLS:
+        try:
+            target = endpoint.format(url=quote(url, safe=""))
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                resp = await client.get(target, headers=DEFAULT_HEADERS)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_html = data.get("html") or ""
+                # Strip HTML tags to extract raw post text
+                clean_text = re.sub(r"<[^>]+>", " ", raw_html)
+                clean_text = " ".join(clean_text.split())
+                clean_text = re.sub(r"\s*View on Threads\s*", "", clean_text, flags=re.IGNORECASE).strip()
+
+                author = (data.get("author_name") or "").strip()
+                if not author:
+                    m = re.search(r"/@([A-Za-z0-9_.-]+)", url)
+                    if m:
+                        author = m.group(1)
+
+                title = data.get("title") or (f"Thread by @{author}" if author else "Threads Post")
+                if clean_text and len(clean_text) > 10:
+                    first_line = clean_text.splitlines()[0][:90]
+                    title = f"@{author}: {first_line}" if author else first_line
+
+                thumb = (data.get("thumbnail_url") or "").strip() or None
+                return {
+                    "title": title,
+                    "author": author or None,
+                    "site": "threads.net",
+                    "text": clean_text,
+                    "thumbnail_url": thumb,
+                }
+        except Exception as exc:
+            log.debug("Threads oEmbed failed for %s via %s: %s", url, endpoint, exc)
     return None
 
 

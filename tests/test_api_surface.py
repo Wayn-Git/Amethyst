@@ -350,3 +350,27 @@ def test_local_media_endpoint_serves_images(tmp_path):
         res = client.get(f"/api/media/local?path={txt}")
         assert res.status_code == 400
 
+
+def test_secrets_caching_and_canonical_invalidation():
+    from backend.secrets import delete_secret, get_secret, set_secret
+
+    # 1. Querying an absent secret returns None and populates absent cache
+    assert get_secret("test_service") is None
+    assert get_secret("amethyst/test_service") is None
+
+    # 2. Setting with explicit prefix 'amethyst/test_service' invalidates bare lookup
+    set_secret("amethyst/test_service", "secret-value-1")
+    assert get_secret("test_service") == "secret-value-1"
+    assert get_secret("amethyst/test_service") == "secret-value-1"
+
+    # 3. Setting bare ref invalidates prefixed lookup
+    set_secret("test_service", "secret-value-2")
+    assert get_secret("amethyst/test_service") == "secret-value-2"
+    assert get_secret("test_service") == "secret-value-2"
+
+    # 4. Deleting clears both
+    delete_secret("test_service")
+    assert get_secret("test_service") is None
+    assert get_secret("amethyst/test_service") is None
+
+

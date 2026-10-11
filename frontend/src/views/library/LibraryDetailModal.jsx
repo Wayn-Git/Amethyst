@@ -147,6 +147,7 @@ export default function LibraryDetailModal({
   const [showTranscript, setShowTranscript] = useState(false)
   const [showVisualContent, setShowVisualContent] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
 
   // Sync state if item changes
   useEffect(() => {
@@ -158,6 +159,7 @@ export default function LibraryDetailModal({
       setShowTranscript(false)
       setShowVisualContent(false)
       setIsPlaying(false)
+      setCurrentSlideIndex(0)
     }
   }, [item?.id])
 
@@ -181,24 +183,6 @@ export default function LibraryDetailModal({
       onNavigate(items[currentIndex + 1])
     }
   }, [hasNext, onNavigate, items, currentIndex])
-
-  // Keyboard navigation: left/right to move through items, escape to close
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault()
-        handlePrev()
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault()
-        handleNext()
-      } else if (e.key === 'Escape') {
-        onClose?.()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handlePrev, handleNext, onClose])
 
   const transcript = useMemo(
     () => extractTranscript(item?.content, item?.excerpt || item?.capture_note, item?.text_source),
@@ -231,11 +215,49 @@ export default function LibraryDetailModal({
   const hasThumbnail = Boolean(item?.thumbnail_path)
   const app = item?.app || (
     (item?.url || '').includes('instagram.') || (item?.url || '').includes('instagr.am') ? 'instagram' :
+    (item?.url || '').includes('threads.net') || (item?.url || '').includes('threads.com') ? 'threads' :
     (item?.url || '').includes('pinterest.') || (item?.url || '').includes('pin.it') ? 'pinterest' :
     (item?.url || '').includes('youtube.') || (item?.url || '').includes('youtu.be') ? 'youtube' :
     (item?.url || '').includes('tiktok.') ? 'tiktok' : null
   )
   const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item?.kind === 'video' && app !== 'youtube')
+
+  // Extract carousel slides/images if this is a multi-image post
+  const slides = useMemo(() => {
+    if (!item) return []
+    let res = item.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    if (res && Array.isArray(res)) {
+      const slideRes = res.filter(
+        (r) => r && typeof r === 'object' && (r.type === 'slide' || r.type === 'image') && (r.url || r.index !== undefined)
+      )
+      if (slideRes.length > 0) return slideRes
+    }
+    return []
+  }, [item])
+
+  const currentSlideUrl = useMemo(() => {
+    if (slides && slides.length > 0) {
+      const s = slides[currentSlideIndex]
+      if (!s) return null
+      if (s.index !== undefined) {
+        return api.slideUrl(item.id, s.index)
+      }
+      if (s.url) {
+        if (s.url.startsWith('/api/library/')) {
+          const match = s.url.match(/\/slides\/(\d+)/)
+          if (match) return api.slideUrl(item.id, parseInt(match[1], 10))
+        }
+        if (!s.url.includes('cdninstagram.com') && !s.url.includes('fbcdn.net')) {
+          return s.url
+        }
+      }
+      return api.slideUrl(item.id, currentSlideIndex)
+    }
+    return null
+  }, [slides, currentSlideIndex, item?.id])
 
   // YouTube embed detection
   const youtubeEmbedUrl = useMemo(() => {
@@ -248,8 +270,16 @@ export default function LibraryDetailModal({
   }, [item?.url])
 
   // Direct MP4 video playback (local or Instagram reel or video kind)
-  // Clean direct streaming without any ugly Instagram chrome
-  const isDirectVideo = item?.kind === 'video' || (app === 'instagram' && (item?.url || '').includes('/reel/')) || Boolean(item?.media_path)
+  // Multi-image posts are NEVER playable videos; carousel navigation takes precedence
+  const hasSlides = slides && slides.length > 1
+  const hasLocalVideo = Boolean(item?.media_path) && (
+    item.media_path.endsWith('.mp4') || item.media_path.endsWith('.webm') || item.media_path.endsWith('.mov')
+  )
+  const isDirectVideo = !hasSlides && (
+    hasLocalVideo ||
+    (app === 'instagram' && (item?.url || '').includes('/reel/')) ||
+    (item?.kind === 'video')
+  )
   const isPlayable = Boolean(isDirectVideo || youtubeEmbedUrl)
 
   // Single clean source attribution
@@ -265,6 +295,7 @@ export default function LibraryDetailModal({
     }
     const APP_NAMES = {
       instagram: 'Instagram',
+      threads: 'Threads',
       youtube: 'YouTube',
       pinterest: 'Pinterest',
       tiktok: 'TikTok',
@@ -283,6 +314,7 @@ export default function LibraryDetailModal({
         icon: app === 'pinterest' ? 'pin' :
               app === 'youtube' ? 'play' :
               app === 'instagram' ? 'spark' :
+              app === 'threads' ? 'threads' :
               app === 'spotify' ? 'music' :
               app === 'github' ? 'code' :
               app === 'x' ? 'chat' : KIND_ICON[item.kind] || 'link',
@@ -326,6 +358,36 @@ export default function LibraryDetailModal({
       note.includes('error')
     )
   }, [item])
+
+  // Keyboard navigation: left/right to move through slides or items, escape to close
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (slides.length > 1 && (!isPlayable || showLightbox)) {
+          setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))
+        } else {
+          handlePrev()
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (slides.length > 1 && (!isPlayable || showLightbox)) {
+          setCurrentSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))
+        } else {
+          handleNext()
+        }
+      } else if (e.key === 'Escape') {
+        if (showLightbox) {
+          setShowLightbox(false)
+        } else {
+          onClose?.()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handlePrev, handleNext, onClose, slides.length, isPlayable, showLightbox])
 
   if (!item) return null
 
@@ -616,10 +678,21 @@ export default function LibraryDetailModal({
                   className="lib-page-cover-box"
                   onClick={() => {
                     if (isPlayable) setIsPlaying(true)
-                    else if (hasThumbnail) setShowLightbox(true)
+                    else if (hasThumbnail || currentSlideUrl) setShowLightbox(true)
                   }}
                 >
-                  {hasThumbnail ? (
+                  {currentSlideUrl ? (
+                    <img
+                      src={currentSlideUrl}
+                      alt={item.title || (slides.length > 1 ? `Slide ${currentSlideIndex + 1}` : 'Post image')}
+                      className="lib-page-cover-img"
+                      onError={(e) => {
+                        if (hasThumbnail && e.currentTarget.src !== api.thumbnailUrl(item.id)) {
+                          e.currentTarget.src = api.thumbnailUrl(item.id)
+                        }
+                      }}
+                    />
+                  ) : hasThumbnail ? (
                     <img
                       src={api.thumbnailUrl(item.id)}
                       alt={item.title || 'Cover image'}
@@ -636,15 +709,16 @@ export default function LibraryDetailModal({
                   {/* Play Overlay Button for Videos & Reels */}
                   {isPlayable && (
                     <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.92 }}
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.94 }}
                       type="button"
                       className="lib-page-play-badge"
                       onClick={(e) => {
                         e.stopPropagation()
                         setIsPlaying(true)
                       }}
-                      title="Play video directly"
+                      title="Play video"
+                      aria-label="Play video"
                     >
                       <div className="lib-page-play-circle">
                         <Icon name="play" size={26} />
@@ -654,38 +728,41 @@ export default function LibraryDetailModal({
                 </div>
               )}
 
-              {/* Side Floating Carousel Arrows on the Media Frame */}
-              {hasPrev && (
-                <motion.button
-                  whileHover={{ scale: 1.12, backgroundColor: 'rgba(0,0,0,0.85)' }}
-                  whileTap={{ scale: 0.92 }}
-                  type="button"
-                  className="lib-page-side-arrow lib-page-side-arrow--prev"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handlePrev()
-                  }}
-                  title="Previous item (←)"
-                  aria-label="Previous item"
-                >
-                  <Icon name="chevron-left" size={18} />
-                </motion.button>
-              )}
-              {hasNext && (
-                <motion.button
-                  whileHover={{ scale: 1.12, backgroundColor: 'rgba(0,0,0,0.85)' }}
-                  whileTap={{ scale: 0.92 }}
-                  type="button"
-                  className="lib-page-side-arrow lib-page-side-arrow--next"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleNext()
-                  }}
-                  title="Next item (→)"
-                  aria-label="Next item"
-                >
-                  <Icon name="chevron-right" size={18} />
-                </motion.button>
+              {/* Multi-image Carousel Controls: ONLY rendered when post has multiple images, NEVER on videos */}
+              {!isPlayable && slides.length > 1 && (
+                <>
+                  <motion.button
+                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(0,0,0,0.85)' }}
+                    whileTap={{ scale: 0.92 }}
+                    type="button"
+                    className="lib-page-carousel-arrow lib-page-carousel-arrow--prev"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))
+                    }}
+                    title="Previous image"
+                    aria-label="Previous image"
+                  >
+                    <Icon name="chevron-left" size={16} />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(0,0,0,0.85)' }}
+                    whileTap={{ scale: 0.92 }}
+                    type="button"
+                    className="lib-page-carousel-arrow lib-page-carousel-arrow--next"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCurrentSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))
+                    }}
+                    title="Next image"
+                    aria-label="Next image"
+                  >
+                    <Icon name="chevron-right" size={16} />
+                  </motion.button>
+                  <div className="lib-page-slide-indicator">
+                    {currentSlideIndex + 1} / {slides.length}
+                  </div>
+                </>
               )}
             </div>
 
@@ -814,7 +891,8 @@ export default function LibraryDetailModal({
                     onClick={() => handleRating(rating)}
                     title="Clear rating"
                   >
-                    Clear
+                    <Icon name="x" size={10} />
+                    <span>Clear</span>
                   </button>
                 )}
               </div>
@@ -915,7 +993,7 @@ export default function LibraryDetailModal({
                     <div className="lib-synthesis-pending-actions">
                       <button
                         type="button"
-                        className="lib-btn lib-btn--primary lib-btn--glow"
+                        className="lib-btn lib-btn--primary"
                         disabled={Boolean(busyAction)}
                         onClick={handleEnrich}
                       >
@@ -1096,8 +1174,9 @@ export default function LibraryDetailModal({
                         className="lib-page-tag-remove"
                         onClick={() => handleRemoveTag(tag)}
                         title={`Remove #${tag}`}
+                        aria-label={`Remove #${tag}`}
                       >
-                        ×
+                        <Icon name="x" size={9} />
                       </button>
                     </span>
                   ))}
@@ -1142,7 +1221,8 @@ export default function LibraryDetailModal({
                       disabled={savingNotes}
                       onClick={handleSaveNotes}
                     >
-                      {savingNotes ? 'Saving...' : 'Save notes'}
+                      <Icon name="check" size={12} />
+                      <span>{savingNotes ? 'Saving...' : 'Save notes'}</span>
                     </button>
                   )}
                 </div>
@@ -1214,7 +1294,7 @@ export default function LibraryDetailModal({
 
       {/* High-Resolution Lightbox Modal */}
       <AnimatePresence>
-        {showLightbox && hasThumbnail && (
+        {showLightbox && (hasThumbnail || currentSlideUrl) && (
           <div
             className="lib-lightbox-overlay"
             onClick={() => setShowLightbox(false)}
@@ -1228,10 +1308,48 @@ export default function LibraryDetailModal({
               onClick={(e) => e.stopPropagation()}
             >
               <img
-                src={api.thumbnailUrl(item.id)}
-                alt={item.title || 'Full resolution thumbnail'}
+                src={currentSlideUrl || api.thumbnailUrl(item.id)}
+                alt={item.title || (slides.length > 1 ? `Slide ${currentSlideIndex + 1}` : 'Full resolution image')}
                 className="lib-lightbox-img"
+                onError={(e) => {
+                  if (hasThumbnail && e.currentTarget.src !== api.thumbnailUrl(item.id)) {
+                    e.currentTarget.src = api.thumbnailUrl(item.id)
+                  }
+                }}
               />
+
+              {slides.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="lib-lightbox-nav lib-lightbox-nav--prev"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))
+                    }}
+                    title="Previous slide"
+                    aria-label="Previous slide"
+                  >
+                    <Icon name="chevron-left" size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    className="lib-lightbox-nav lib-lightbox-nav--next"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCurrentSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))
+                    }}
+                    title="Next slide"
+                    aria-label="Next slide"
+                  >
+                    <Icon name="chevron-right" size={20} />
+                  </button>
+                  <div className="lib-lightbox-slide-pill">
+                    {currentSlideIndex + 1} / {slides.length}
+                  </div>
+                </>
+              )}
+
               <button
                 type="button"
                 className="lib-lightbox-close"

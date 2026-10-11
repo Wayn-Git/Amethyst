@@ -24,6 +24,7 @@ export const WIDGET_TYPES = [
   'options',
   'image_gallery',
   'data_table',
+  'sandboxed_ui',
 ]
 
 /** The widget in `text`, or null if it does not hold one.

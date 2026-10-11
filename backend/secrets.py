@@ -97,6 +97,10 @@ class _FileStore:
             self._write(data)
 
 
+_ABSENT_CACHE: dict[tuple[str, str], float] = {}
+_ABSENT_TTL = 300.0  # 5 minutes negative cache for absent keys
+
+
 def _store():
     """Where secrets go. The OS keychain unless the environment says otherwise."""
     configured = os.environ.get("AMETHYST_SECRETS_FILE", "").strip()
@@ -115,12 +119,40 @@ _NO_STORE = (
 
 def get_secret(ref: str) -> str | None:
     """Resolve a keychain reference like 'amethyst/openai' to its value."""
+    import time as _time
+
     service, _, username = ref.partition("/")
     if not username:
         service, username = SERVICE, ref
+
+    now = _time.monotonic()
+    if now < _ABSENT_CACHE.get((service, username), 0):
+        return None
+
     try:
-        return _store().get_password(service, username)
+        store = _store()
+        val = store.get_password(service, username)
+        if val:
+            return val
+
+        # Only check legacy psok fallback if service is amethyst or psok,
+        # but do not loop repeatedly if store is an interactive OS keyring
+        if service in ("amethyst", "psok"):
+            alt_s = "psok" if service == "amethyst" else "amethyst"
+            try:
+                val = store.get_password(alt_s, username)
+                if val:
+                    return val
+            except Exception:
+                pass
+
+        _ABSENT_CACHE[(service, username)] = now + _ABSENT_TTL
+        if service in ("amethyst", "psok"):
+            alt_s = "psok" if service == "amethyst" else "amethyst"
+            _ABSENT_CACHE[(alt_s, username)] = now + _ABSENT_TTL
+        return None
     except Exception:
+        _ABSENT_CACHE[(service, username)] = now + _ABSENT_TTL
         return None
 
 
@@ -152,12 +184,22 @@ def delete_secret(ref: str) -> None:
         _forget_presence(ref)
 
 
-def _forget_presence(ref: str) -> None:
+def _forget_presence(ref: str | None = None) -> None:
     """Drop the key-presence cache for this ref, if one is warm.
 
     The cache lives in backend.config (which cannot be imported here at module
     level -- config imports this module). An absent cache is the common case.
     """
+    if ref is None:
+        _ABSENT_CACHE.clear()
+    else:
+        service, _, username = ref.partition("/")
+        if not username:
+            service, username = SERVICE, ref
+        _ABSENT_CACHE.pop((service, username), None)
+        if service in ("amethyst", "psok"):
+            alt_s = "psok" if service == "amethyst" else "amethyst"
+            _ABSENT_CACHE.pop((alt_s, username), None)
     try:
         from backend import config as _config
 

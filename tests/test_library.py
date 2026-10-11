@@ -618,7 +618,7 @@ async def test_a_library_scoped_search_is_not_starved_by_the_vault(db, workspace
     )
 
 
-async def test_youtube_capture_extracts_description_and_sets_text_source(db, monkeypatch):
+async def test_youtube_capture_extracts_description_and_sets_text_source(db, offline, monkeypatch):
     import backend.library.service as svc_mod
 
     monkeypatch.setattr(
@@ -645,7 +645,7 @@ async def test_youtube_capture_extracts_description_and_sets_text_source(db, mon
     assert "This is a detailed video description" in content
 
 
-async def test_pinterest_capture_fetches_oembed_and_tags_app(db, monkeypatch):
+async def test_pinterest_capture_fetches_oembed_and_tags_app(db, offline, monkeypatch):
     import backend.library.service as svc_mod
     import backend.web.reader as reader_mod
 
@@ -689,7 +689,7 @@ async def test_pinterest_capture_fetches_oembed_and_tags_app(db, monkeypatch):
     assert saved_thumbs[0][1] == "https://i.pinimg.com/736x/ab/cd/ef.jpg"
 
 
-async def test_general_website_captures_og_thumbnail_and_app_tag(db, monkeypatch):
+async def test_general_website_captures_og_thumbnail_and_app_tag(db, offline, monkeypatch):
     async def mock_fetch(url):
         return FetchedPage(
             url=url,
@@ -717,7 +717,7 @@ async def test_general_website_captures_og_thumbnail_and_app_tag(db, monkeypatch
     assert saved_thumbs[0][1] == "https://github.blog/wp-content/uploads/2026/header.png"
 
 
-async def test_mobile_share_sheet_url_extraction(db, monkeypatch):
+async def test_mobile_share_sheet_url_extraction(db, offline, monkeypatch):
     from backend.web.reader import is_pinterest
 
     # International domains
@@ -905,6 +905,145 @@ async def test_enrich_resets_status_on_failure(monkeypatch, db, offline, amethys
     row = svc.store.get(item_id)
     assert row["status"] == "ready"
     assert "LLM exploded" in (row["enrichment_note"] or "")
+
+
+@pytest.mark.asyncio
+async def test_threads_capture_and_app_tag(monkeypatch, db, offline, amethyst_home):
+    from backend.library.store import app_tag_for_url
+    from backend.web.reader import is_threads
+
+    assert app_tag_for_url("https://www.threads.net/@user/post/xyz") == "threads"
+    assert app_tag_for_url("https://threads.com/@user/post/xyz") == "threads"
+    assert is_threads("https://www.threads.net/@user/post/xyz")
+    assert is_threads("https://threads.com/@user/post/xyz")
+
+    async def mock_threads_oembed(url):
+        return {
+            "title": "Inspiring thread on AI agents",
+            "author": "tech_lead",
+            "site": "threads.net",
+            "text": "Here is why AI agents represent a major paradigm shift in systems design.",
+            "thumbnail_url": "https://example.com/avatar.jpg",
+        }
+
+    monkeypatch.setattr("backend.library.service.threads_oembed", mock_threads_oembed)
+
+    svc = service()
+    captured = await svc.capture_url("https://www.threads.net/@tech_lead/post/abc123xyz")
+    item = captured.item
+    assert item["app"] == "threads"
+    assert item["author"] == "tech_lead"
+    assert "Inspiring thread on AI agents" in item["title"]
+    assert "thread text" in item["text_source"]
+
+
+async def test_reel_carousel_slides_persisted_and_served(client, monkeypatch):
+    import json
+    from unittest.mock import AsyncMock, MagicMock
+    from backend.library.reels import ReelCapture, Reel
+    from backend.library.store import slide_path, thumbnail_path
+
+    svc = service()
+    dummy_reel = Reel(
+        url="https://www.instagram.com/p/carousel123/",
+        title="Carousel Post Title",
+        caption="A post with multiple photos",
+        author="art_creator",
+        duration=None,
+        thumbnail_url=None,
+        video_path=None,
+        slide_urls=["https://fake-cdn.instagram.com/s1.jpg", "https://fake-cdn.instagram.com/s2.jpg"],
+    )
+
+    rc = ReelCapture(svc)
+    fake_img = b"\xff\xd8\xff\xe0\x00\x10JFIF" + (b"\x00" * 600)
+
+    class MockResp:
+        status_code = 200
+        content = fake_img
+
+    class MockClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, url, headers=None):
+            return MockResp()
+
+    monkeypatch.setattr("httpx.AsyncClient", lambda **kwargs: MockClient())
+    monkeypatch.setattr("backend.runtime.vision.extract_visual_text", AsyncMock(return_value="Slide 1 shows diagram"))
+
+    settings = MagicMock(keep_video=False, enrich=False)
+    captured = await rc._store(dummy_reel, notes=None, requested_kind=None, settings=settings)
+    item_id = captured.item["id"]
+
+    # Multi-slide post without video should be stored as "post"
+    item = svc.store.get(item_id)
+    assert item["kind"] == "post"
+
+    # Manually invoke _process_slides to test slide downloading and persistence
+    await rc._process_slides(item_id, dummy_reel)
+
+    # Check slide files exist on disk
+    s0 = slide_path(item_id, 0)
+    s1 = slide_path(item_id, 1)
+    assert s0.is_file()
+    assert s1.is_file()
+    assert s0.read_bytes() == fake_img
+
+    # Check resources in store
+    refreshed = svc.store.get(item_id)
+    resources = json.loads(refreshed["resources"])
+    slide_res = [r for r in resources if r.get("type") == "slide"]
+    assert len(slide_res) == 2
+    assert slide_res[0]["url"] == f"/api/library/{item_id}/slides/0"
+    assert slide_res[1]["url"] == f"/api/library/{item_id}/slides/1"
+
+    # Check GET /api/library/{item_id}/slides/0 returns 200
+    res0 = client.get(f"/api/library/{item_id}/slides/0")
+    assert res0.status_code == 200
+    assert res0.content == fake_img
+
+    # Check slide out of bounds returns 404
+    res_bad = client.get(f"/api/library/{item_id}/slides/99")
+    assert res_bad.status_code == 404
+
+
+async def test_enrich_sqlite_row_get_fix(monkeypatch):
+    from backend.library.enrich import Enrichment
+    from backend.library.store import LibraryStore
+
+    svc = service()
+    item_id = svc.store.create(
+        kind="article",
+        title="Test Threads Item",
+        url="https://www.threads.net/@user/post/123",
+        notes="A threads post to enrich",
+    )
+    # Store some initial text
+    await svc._store_text(item_id, "Test Threads Item", "This is an insightful thread about software systems.", "")
+
+    async def mock_enrich_text(*args, **kwargs):
+        return Enrichment(
+            summary="A deep dive into software systems design.",
+            tags=("software", "systems"),
+            resources=({"name": "Python", "type": "code", "url": "https://python.org", "detail": ""},),
+            note="",
+            provider="mock",
+            model="mock",
+        )
+
+    monkeypatch.setattr("backend.library.enrich.enrich_text", mock_enrich_text)
+
+    # Calling enrich should succeed without 'sqlite3.Row' object has no attribute 'get'
+    result = await svc.enrich(item_id)
+    assert result["summary"] == "A deep dive into software systems design."
+    assert "threads" in result["tags"]
+    assert "programming" in result["tags"]
+
+
 
 
 

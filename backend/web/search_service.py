@@ -444,7 +444,11 @@ async def _build_web_pool(
                     # failures; this guards a new one that forgets to.
                     continue
                 if results and _relevance(results, query) >= 0.2:
-                    passed[tasks[task]] = results
+                    engine_name = tasks[task]
+                    passed[engine_name] = results
+                    if engine_name == "api" and len(results) >= 3:
+                        pending.clear()
+                        break
     finally:
         # Stragglers are let go, not cancelled -- see the long note this used to
         # carry: the DDG scraper only learns it is blocked by *finishing*, and
@@ -515,6 +519,12 @@ _SEARCH_APIS = (
     {
         "name": "langsearch",
         "ref": "amethyst/langsearch",
+        "refs": (
+            "amethyst/langsearch",
+            "amethyst-mcp/langsearch.api_key",
+            "psok/langsearch",
+            "psok-mcp/langsearch.api_key",
+        ),
         "env": "LANGSEARCH_API_KEY",
         "url": "https://api.langsearch.com/v1/web-search",
         "headers": lambda key: {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
@@ -530,6 +540,12 @@ _SEARCH_APIS = (
     {
         "name": "exa",
         "ref": "amethyst/exa",
+        "refs": (
+            "amethyst/exa",
+            "amethyst-mcp/exa.api_key",
+            "psok-mcp/exa.api_key",
+            "psok/exa",
+        ),
         "env": "EXA_API_KEY",
         "url": "https://api.exa.ai/search",
         "headers": lambda key: {"x-api-key": key, "Content-Type": "application/json"},
@@ -545,6 +561,12 @@ _SEARCH_APIS = (
     {
         "name": "firecrawl",
         "ref": "amethyst/firecrawl",
+        "refs": (
+            "amethyst/firecrawl",
+            "amethyst-mcp/firecrawl.api_key",
+            "psok-mcp/firecrawl.api_key",
+            "psok/firecrawl",
+        ),
         "env": "FIRECRAWL_API_KEY",
         "url": "https://api.firecrawl.dev/v2/search",
         "headers": lambda key: {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
@@ -559,6 +581,12 @@ _SEARCH_APIS = (
     {
         "name": "tavily",
         "ref": "amethyst-mcp/tavily.api_key",
+        "refs": (
+            "amethyst-mcp/tavily.api_key",
+            "amethyst/tavily",
+            "psok-mcp/tavily.api_key",
+            "psok/tavily",
+        ),
         "env": "TAVILY_API_KEY",
         "url": "https://api.tavily.com/search",
         "headers": lambda key: {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
@@ -572,6 +600,25 @@ _SEARCH_APIS = (
         "fields": ("title", "url", "content"),
     },
 )
+
+
+def get_api_key_for_entry(api: dict[str, Any]) -> str | None:
+    """Resolve an API key checking candidate keychain references and environment variables."""
+    from backend.secrets import get_secret
+
+    refs = api.get("refs") or (api["ref"],)
+    for r in refs:
+        try:
+            val = get_secret(r)
+            if val:
+                return val
+        except Exception:
+            pass
+    if api.get("env"):
+        val = os.environ.get(api["env"])
+        if val:
+            return val
+    return None
 
 
 def search_api_catalogue() -> list[dict[str, str]]:
@@ -622,8 +669,6 @@ def configured_search_api() -> str | None:
     on the next query, not after a restart. `get_secret` is a keychain lookup,
     which is microseconds and happens once per search.
     """
-    import os
-    from backend.secrets import get_secret
     from backend.web.circuit_breaker import get_circuit_breaker
 
     cb = get_circuit_breaker()
@@ -631,8 +676,8 @@ def configured_search_api() -> str | None:
     for api in _SEARCH_APIS:
         name = str(api["name"])
         try:
-            has_key = bool(get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])))
-            if has_key and cb.is_available(name):
+            key = get_api_key_for_entry(api)
+            if key and cb.is_available(name):
                 return name
         except Exception:
             continue
@@ -641,7 +686,7 @@ def configured_search_api() -> str | None:
     for api in _SEARCH_APIS:
         name = str(api["name"])
         try:
-            if get_secret(api["ref"]) or (api.get("env") and os.environ.get(api["env"])):
+            if get_api_key_for_entry(api):
                 return name
         except Exception:
             continue
@@ -654,7 +699,6 @@ async def _search_api(
     options: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """A real search API, using task-aware routing, circuit breaker, and intelligent fallback."""
-    from backend.secrets import get_secret
     from backend.web.circuit_breaker import get_circuit_breaker
     from backend.web.router import route_search_task
 
@@ -663,7 +707,6 @@ async def _search_api(
         return []
     limit = max(1, min(limit, 20))
 
-    import os
     cb = get_circuit_breaker()
     pref = options.get("preferred") if options else None
     primary, fallbacks = route_search_task(q, preferred=pref, options=options)
@@ -681,7 +724,7 @@ async def _search_api(
             continue
 
         try:
-            key = get_secret(api["ref"]) or (os.environ.get(api["env"]) if "env" in api else None)
+            key = get_api_key_for_entry(api)
         except Exception:
             key = None
         if not key:

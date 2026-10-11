@@ -9,6 +9,7 @@ import { TreeView } from '../arc/tree-view/tree-view'
 import { JsonViewer } from '../arc/json-viewer/json-viewer'
 import { isAsciiTree, parseAsciiTree } from '../arc/tree-view/tree-parser'
 import ImageGalleryWidget from '../widgets/ImageGallery.jsx'
+import WidgetRenderer from '../widgets/WidgetRenderer.jsx'
 
 /* Model output, rendered to React elements rather than HTML.
  *
@@ -440,6 +441,24 @@ function spans(nodes, keyBase = 't') {
 function CodeBlock({ lang, file, text: code, open }) {
   const [viewMode, setViewMode] = useState('rich') // 'rich' | 'code'
 
+  const isWidgetEnvelope = useMemo(() => {
+    const l = (lang || '').toLowerCase()
+    return l === 'amethyst:widget' || l === 'widget'
+  }, [lang])
+
+  const parsedWidget = useMemo(() => {
+    if (!isWidgetEnvelope || !code) return null
+    try {
+      const parsed = JSON.parse(code.trim())
+      if (parsed && typeof parsed === 'object' && parsed.type && parsed.data) {
+        return parsed
+      }
+    } catch {
+      return null
+    }
+    return null
+  }, [isWidgetEnvelope, code])
+
   const asciiTree = useMemo(() => {
     if (isAsciiTree(code)) {
       try {
@@ -463,6 +482,14 @@ function CodeBlock({ lang, file, text: code, open }) {
     }
     return null
   }, [code, lang])
+
+  if (parsedWidget) {
+    return (
+      <div className="md-inline-widget" style={{ margin: '18px 0' }}>
+        <WidgetRenderer widget={parsedWidget} />
+      </div>
+    )
+  }
 
   // If it's an ASCII tree (e.g. project structure)
   if (asciiTree && viewMode === 'rich') {

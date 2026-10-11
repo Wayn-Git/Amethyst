@@ -30,7 +30,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from backend.db.connection import get_connection
-from backend.library.store import KINDS, LibraryStore, app_tag_for_url, text_path, thumbnail_path
+from backend.library.store import KINDS, LibraryStore, app_tag_for_url, slide_path, text_path, thumbnail_path
 from backend.mcp.ssrf import UnsafeURL, check_url_async
 from backend.media.reel import is_reel_url
 from backend.retrieval import store as index_store
@@ -41,9 +41,11 @@ from backend.web.reader import (
     FetchError,
     fetch_readable,
     is_pinterest,
+    is_threads,
     is_x_post,
     is_youtube,
     pinterest_oembed,
+    threads_oembed,
     x_oembed,
     youtube_oembed,
 )
@@ -307,6 +309,9 @@ class LibraryService:
                 # not get far either, and its note says so.
                 capture_note = str(exc)
                 log.info("falling back to a plain link for %s: %s", url, exc)
+            except Exception as exc:
+                capture_note = f"Instagram fetch did not finish: {exc}"
+                log.warning("reel capture failed unexpectedly for %s: %s", url, exc)
 
         # An X link is a three-rung ladder, because the top rung needs setup a
         # fresh machine will not have and the bottom rung is nothing. X serves
@@ -470,6 +475,32 @@ class LibraryService:
                 text = title
                 text_source = "title"
             capture_note = ""
+        elif is_threads(url):
+            site = "Threads"
+            meta = await threads_oembed(url)
+            if meta:
+                title = title or meta.get("title")
+                author = meta.get("author") or None
+                text = meta.get("text") or ""
+                thumb_url = meta.get("thumbnail_url")
+                if text:
+                    text_source = "thread text"
+            if not text:
+                try:
+                    page = await self._fetch(url)
+                    if page:
+                        title = title or page.title
+                        author = author or page.author
+                        text = page.text if page else ""
+                        if not thumb_url and page.image:
+                            thumb_url = page.image
+                except Exception as exc:
+                    log.debug("threads page fetch fallback failed for %s: %s", url, exc)
+            if not text and title:
+                text = title
+                text_source = "title"
+            capture_note = ""
+            published_on = None
         else:
             try:
                 page = await self._fetch(url)
@@ -703,6 +734,17 @@ class LibraryService:
                         thumb_url = page.image
                 except Exception:
                     pass
+        elif is_threads(url):
+            meta = await threads_oembed(url)
+            if meta and meta.get("thumbnail_url"):
+                thumb_url = meta.get("thumbnail_url")
+            if not thumb_url:
+                try:
+                    page = await self._fetch(url)
+                    if page and page.image:
+                        thumb_url = page.image
+                except Exception:
+                    pass
         else:
             try:
                 page = await self._fetch(url)
@@ -716,6 +758,76 @@ class LibraryService:
             updated = self.store.get(item_id)
             return bool(updated and updated["thumbnail_path"])
         return False
+
+    async def fetch_slides_for_item(self, item_id: int) -> list[str]:
+        """Fetch and cache carousel slides for an item on-demand."""
+        import json as _json
+        import httpx
+        from backend.library.store import slide_path, thumbnail_path
+        from backend.media.reel import fetch_reel, is_reel_url
+
+        raw = self.store.get(item_id)
+        if not raw:
+            return []
+        row = dict(raw)
+        url = row.get("url")
+        if not url or not is_reel_url(url):
+            return []
+
+        try:
+            reel = await fetch_reel(url, None)
+        except Exception as exc:
+            log.debug("on-demand reel fetch failed for item %s: %s", item_id, exc)
+            return []
+
+        if not reel.slide_urls:
+            return []
+
+        saved_paths: list[str] = []
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            for i, s_url in enumerate(reel.slide_urls[:10]):
+                target = slide_path(item_id, i)
+                if not (target.is_file() and target.stat().st_size > 500):
+                    try:
+                        resp = await client.get(
+                            s_url,
+                            headers={
+                                "User-Agent": (
+                                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                                )
+                            },
+                        )
+                        if resp.status_code == 200 and resp.content:
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_bytes(resp.content)
+                            saved_paths.append(str(target))
+                            if i == 0:
+                                t_target = thumbnail_path(item_id)
+                                if not t_target.is_file() or t_target.stat().st_size < 500:
+                                    t_target.parent.mkdir(parents=True, exist_ok=True)
+                                    t_target.write_bytes(resp.content)
+                                    self.store.update(item_id, thumbnail_path=str(t_target))
+                    except Exception as exc:
+                        log.debug("could not fetch slide %d for item %s: %s", i, item_id, exc)
+                else:
+                    saved_paths.append(str(target))
+
+        # Update resources to reflect local slide endpoints
+        slide_items = [
+            {"type": "slide", "name": f"Slide {idx + 1}", "url": f"/api/library/{item_id}/slides/{idx}", "index": idx}
+            for idx in range(len(reel.slide_urls))
+        ]
+        existing_res = []
+        if row.get("resources"):
+            try:
+                existing_res = _json.loads(row["resources"])
+            except Exception:
+                existing_res = []
+        non_slides = [r for r in existing_res if isinstance(r, dict) and r.get("type") not in ("slide", "image")]
+        self.store.update(item_id, resources=_json.dumps(non_slides + slide_items))
+
+        return saved_paths
 
     async def _store_text(
         self,
@@ -888,9 +1000,10 @@ class LibraryService:
         """
         from backend.library import enrich as enrichment
 
-        row = self.store.get(item_id)
-        if row is None:
+        raw_row = self.store.get(item_id)
+        if raw_row is None:
             raise LibraryError(f"no library item {item_id}")
+        row = dict(raw_row)
 
         body, heading = "", "Text"
         if row["text_path"]:
@@ -922,7 +1035,7 @@ class LibraryService:
                             Path(updated_row["text_path"]).read_text(encoding="utf-8")
                         )
                         text_source = updated_row["text_source"] or "slide analysis"
-                        row = updated_row
+                        row = dict(updated_row)
             except Exception as exc:
                 log.debug("re-extraction of visual content during enrich skipped/failed: %s", exc)
         elif row["media_path"] and Path(row["media_path"]).is_file() and "visual content" not in text_source:
@@ -943,7 +1056,7 @@ class LibraryService:
                             if updated_row and updated_row["text_path"]:
                                 body, heading = enrichment.body_of(Path(updated_row["text_path"]).read_text(encoding="utf-8"))
                                 text_source = updated_row["text_source"]
-                                row = updated_row
+                                row = dict(updated_row)
                 finally:
                     shutil.rmtree(frames_dir, ignore_errors=True)
             except Exception as exc:
@@ -985,13 +1098,20 @@ class LibraryService:
                 combined_tags.append(app_tag)
             combined_tags = combined_tags[:enrichment.MAX_TAGS + 1]
 
+            existing_resources = _json_list(row.get("resources"))
+            merged_resources = list(result.resources) if result.resources else []
+            for r in existing_resources:
+                if isinstance(r, dict) and r.get("type") in ("slide", "image", "music", "song"):
+                    if not any(mr.get("url") == r.get("url") for mr in merged_resources if isinstance(mr, dict)):
+                        merged_resources.append(r)
+
             self.store.update(
                 item_id,
                 status="ready",
                 category=result.category,
                 summary=result.summary,
                 tags=json.dumps(combined_tags) if combined_tags else None,
-                resources=json.dumps(list(result.resources)) if result.resources else None,
+                resources=json.dumps(merged_resources) if merged_resources else None,
                 enrichment_note=result.note,
                 enrichment_model=(
                     f"{result.provider}:{result.model}" if result.provider and result.model else None

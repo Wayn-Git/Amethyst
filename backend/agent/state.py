@@ -143,6 +143,10 @@ class AgentState:
     carried: str = ""
     # An instruction about how to continue, not part of what was said.
     nudge: str | None = None
+    #: Visual presentation steer from TypeSafe Jev (chart, calculator, diagram, simulation, etc.)
+    presentation_steer: str | None = None
+    #: Generative sandboxed UI envelope produced during this turn
+    sandboxed_ui_envelope: str | None = None
     call_fingerprints: dict[str, int] = field(default_factory=dict)
     warned_about_tools: bool = False
     warned_about_cap: bool = False

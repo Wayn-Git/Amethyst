@@ -7,6 +7,7 @@ import SelectionActionMenu, { cleanAiTransformOutput } from './SelectionActionMe
 import { extractSourcesFromMessage } from './SourcesSidePanel.jsx'
 import { replaceSelectedInMarkdown } from './markdown/parse.js'
 import { api, copyText } from '../api.js'
+import WidgetRenderer from './widgets/WidgetRenderer.jsx'
 
 function extractFollowUps(item, text) {
   if (Array.isArray(item?.followUps) && item.followUps.length > 0) return item.followUps
@@ -26,6 +27,8 @@ function extractFollowUps(item, text) {
 
 export default function ResponseArtifactBox({
   text,
+  widget,
+  blocks,
   item,
   minimalToolbar = false,
   hideToolbar = false,
@@ -92,7 +95,17 @@ export default function ResponseArtifactBox({
   }, [])
 
   const handleCopyDocument = async () => {
-    const ok = await copyText(text)
+    let copyContent = text || ''
+    if (!copyContent && blocks?.length) {
+      copyContent = blocks
+        .map((b) => (b.type === 'widget' ? (b.widget?.data?.title || '') : b.content || ''))
+        .filter(Boolean)
+        .join('\n\n')
+    }
+    if (!copyContent && widget?.data?.title) {
+      copyContent = widget.data.title
+    }
+    const ok = await copyText(copyContent)
     setCopied(ok)
     setTimeout(() => setCopied(false), 1500)
   }
@@ -332,7 +345,26 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
         className={`chat-assistant-prose${justUpdated ? ' is-ai-updated' : ''}`}
         ref={docRef}
       >
-        <Markdown text={text} />
+        {blocks && blocks.length > 0 ? (
+          blocks.map((block, idx) =>
+            block.type === 'widget' ? (
+              <div key={idx} className="chat-assistant-widget-wrap">
+                <WidgetRenderer widget={block.widget} />
+              </div>
+            ) : (
+              <Markdown key={idx} text={block.content} />
+            )
+          )
+        ) : (
+          <>
+            {widget && (
+              <div className="chat-assistant-widget-wrap">
+                <WidgetRenderer widget={widget} />
+              </div>
+            )}
+            {text ? <Markdown text={text} /> : null}
+          </>
+        )}
       </div>
 
       {/* Action Toolbar */}

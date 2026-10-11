@@ -60,7 +60,7 @@ def _dedup_tool_results(messages: list[dict]) -> list[dict]:
     result = []
     for idx, msg in enumerate(messages):
         if msg.get("role") == "tool":
-            content = msg.get("content", "")
+            content = str(msg.get("content") or "")
             h = hash(content[:500])  # quick hash of first 500 chars
             if h in seen_hashes and seen_hashes[h] < idx:
                 result.append({
@@ -73,9 +73,10 @@ def _dedup_tool_results(messages: list[dict]) -> list[dict]:
     return result
 
 
-def _summarize_tool_result(content: str, tool_name: str) -> str:
+def _summarize_tool_result(content: str | None, tool_name: str) -> str:
     """Produce a one-line summary of a tool result."""
-    lines = content.strip().split("\n")
+    text = str(content or "").strip()
+    lines = text.split("\n")
     line_count = len(lines)
     preview = lines[0][:100] if lines else ""
     return f"[{tool_name}] {line_count} lines: {preview}"
@@ -88,15 +89,16 @@ def _prune_old_tool_results(
     MIN_CHARS = 200
     result = []
     for idx, msg in enumerate(messages):
+        content = str(msg.get("content") or "")
         if (
             idx < protect_end
             and msg.get("role") == "tool"
-            and len(msg.get("content", "")) > MIN_CHARS
+            and len(content) > MIN_CHARS
         ):
             name = msg.get("name", "tool")
             result.append({
                 **msg,
-                "content": _summarize_tool_result(msg["content"], name),
+                "content": _summarize_tool_result(content, name),
             })
         else:
             result.append(msg)
@@ -109,11 +111,13 @@ def _build_summary_prompt(messages: list[dict], previous_summary: str | None = N
     serialized = []
     for msg in messages:
         role = msg.get("role", "unknown")
-        content = msg.get("content", "")
-        if isinstance(content, list):
+        raw_content = msg.get("content")
+        if isinstance(raw_content, list):
             # Multimodal: extract text parts
-            text_parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+            text_parts = [p.get("text", "") for p in raw_content if isinstance(p, dict) and p.get("type") == "text"]
             content = " ".join(text_parts)
+        else:
+            content = str(raw_content or "")
         # Truncate very long messages
         if len(content) > 6000:
             content = content[:6000] + "...[truncated]"
@@ -162,7 +166,7 @@ def _build_static_fallback_summary(messages: list[dict]) -> str:
     anchors = []
     for msg in messages:
         role = msg.get("role", "")
-        content = msg.get("content", "")
+        content = str(msg.get("content") or "")
         if not content:
             continue
         if role == "user":

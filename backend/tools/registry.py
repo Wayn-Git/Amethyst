@@ -439,7 +439,15 @@ class ToolRegistry:
                     continue
                 from backend.mcp.composio_service import is_no_auth_toolkit
 
-                if is_no_auth_toolkit(tk):
+                if tk == "composio":
+                    try:
+                        from backend.mcp.composio_service import composio_service
+
+                        if not composio_service.is_configured():
+                            continue
+                    except Exception:
+                        continue
+                elif is_no_auth_toolkit(tk):
                     try:
                         from backend.mcp.composio_service import composio_service
 
@@ -546,7 +554,11 @@ class ToolRegistry:
                     return ToolResult.error(
                         f"Composio API key is not configured. Please configure your Composio key in settings to use '{tk}'."
                     )
-                if not is_no_auth_toolkit(tk) and tk not in composio_service.get_connections():
+                if (
+                    tk != "composio"
+                    and not is_no_auth_toolkit(tk)
+                    and tk not in composio_service.get_connections()
+                ):
                     return ToolResult.error(composio_sign_in_instruction(tk))
             except Exception:
                 return ToolResult.error(composio_sign_in_instruction(tk))
@@ -746,6 +758,7 @@ def build_default_registry(
         desktop,
         documents,
         filesystem,
+        generative_ui,
         image_search,
         library,
         mail,
@@ -780,6 +793,7 @@ def build_default_registry(
     registry.register_all(sharing.tools())
     registry.register_all(workers.tools())
     registry.register_all(task.tools())
+    registry.register_all(generative_ui.tools())
     return registry
 
 

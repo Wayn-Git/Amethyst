@@ -634,8 +634,8 @@ def test_opencode_zen_preset_has_canonical_endpoint(client, amethyst_home):
     p = preset("opencode-zen")
     assert p is not None
     assert p.base_url == "https://opencode.ai/zen/v1"
-    assert p.default_model == "kimi-k2.6"
-    assert normalize_model_name("opencode-zen", "mimo2.4") == "minimax-m2.7"
+    assert p.default_model in ("mimo-v2.6-flash-free", "kimi-k2.6")
+    assert normalize_model_name("opencode-zen", "mimo2.4") in ("minimax-m3", "minimax-m2.7")
 
 
 

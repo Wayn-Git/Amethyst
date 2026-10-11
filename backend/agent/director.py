@@ -168,40 +168,34 @@ VISUALIZATION_STEER_INSTRUCTIONS: dict[str, str] = {
         "CRITICAL: You MUST call the `generate_sandboxed_ui` tool with interactive controls (e.g. Canvas or Three.js). "
         "Do not duplicate large <h1> titles in HTML. Match theme variables var(--canvas), var(--surface), var(--text), var(--accent), var(--border)."
     ),
+    "comparison": (
+        "PRESENTATION STEER (Jev router): The user wants a comparison or scorecard between options or technologies. "
+        "CRITICAL: Deliver the response directly as an actual, integrated part of the chat with clear headings, detailed analysis, and a clean markdown comparison table, or call `generate_sandboxed_ui` for an interactive UI. "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested; keep it flowing naturally as conversation."
+    ),
     "itinerary": (
         "PRESENTATION STEER (Jev router): The user wants an itinerary or travel route. "
-        "CRITICAL: Deliver the response using the native itinerary widget envelope. "
-        "Format your answer starting with a ```amethyst:widget\n{\"type\": \"itinerary\", \"data\": {...}}\n``` envelope, "
-        "including title, destination, distance_miles, driving_time, hero_images, and days with daily stops (name, latitude, longitude, short_description, activity_time). "
-        "Follow with a concise summary."
-    ),
-    "comparison": (
-        "PRESENTATION STEER (Jev router): The user wants a structured comparison between options or technologies. "
-        "CRITICAL: Deliver the response using the native comparison widget envelope. "
-        "Format your answer starting with a ```amethyst:widget\n{\"type\": \"comparison\", \"data\": {...}}\n``` envelope, "
-        "including title, options, criteria, pros, cons, and verdict."
+        "CRITICAL: Deliver the response directly as an integrated part of the chat with day-by-day sections, recommendations, driving/travel times, and highlights (or via `generate_sandboxed_ui` for interactive maps/routes). "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
     ),
     "recipe": (
         "PRESENTATION STEER (Jev router): The user wants a culinary recipe. "
-        "CRITICAL: Deliver the response using the native recipe widget envelope. "
-        "Format your answer starting with a ```amethyst:widget\n{\"type\": \"recipe\", \"data\": {...}}\n``` envelope, "
-        "including title, prep_time, cook_time, servings, ingredients, and instructions."
+        "CRITICAL: Deliver directly as an integrated part of the chat with ingredients, step-by-step instructions, and cooking tips (or via `generate_sandboxed_ui` for interactive calculators). "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
     ),
     "step_guide": (
         "PRESENTATION STEER (Jev router): The user wants a step-by-step tutorial or technical procedure. "
-        "CRITICAL: Deliver the response using the native step guide widget envelope. "
-        "Format your answer starting with a ```amethyst:widget\n{\"type\": \"step_guide\", \"data\": {...}}\n``` envelope, "
-        "including title, estimated_time, difficulty, and steps list."
+        "CRITICAL: Deliver directly as an integrated part of the chat with numbered steps, explanations, and code/terminal snippets (or via `generate_sandboxed_ui` for interactive steppers). "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
     ),
     "quiz": (
         "PRESENTATION STEER (Jev router): The user wants a quiz, trivia, or knowledge test. "
-        "CRITICAL: Deliver the response using the native quiz widget envelope. "
-        "Format your answer starting with a ```amethyst:widget\n{\"type\": \"quiz\", \"data\": {...}}\n``` envelope, "
-        "including title and questions with options, correct_index, and explanation."
+        "CRITICAL: Call `generate_sandboxed_ui` for a live interactive quiz with score tracking, or present questions directly in the chat. "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
     ),
     "table": (
         "PRESENTATION STEER (Jev router): The user wants a tabular comparison or data view. "
-        "Format data in a clear markdown table with headers, or call `generate_sandboxed_ui` for a rich searchable table."
+        "CRITICAL: Call `generate_sandboxed_ui` for a rich searchable, sortable interactive table."
     ),
 }
 

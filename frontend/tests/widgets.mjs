@@ -43,6 +43,7 @@ test('an envelope round-trips', () => {
   assert.deepEqual(parseWidgetEnvelope(envelope('recipe', RECIPE)), {
     type: 'recipe',
     data: RECIPE,
+    media: [],
   })
 })
 
@@ -51,6 +52,21 @@ test('every widget type is recognised', () => {
     const parsed = parseWidgetEnvelope(envelope(type, { any: 'shape' }))
     assert.equal(parsed?.type, type, `${type} was not recognised`)
   }
+})
+
+test('sandboxed_ui envelope round-trips with html, css, js', () => {
+  const sandboxData = {
+    title: '3D Simulation',
+    initial_height: 450,
+    html: '<canvas id="scene"></canvas>',
+    css: 'body { margin: 0; }',
+    js: 'console.log("ready");',
+    scripts: ['https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js']
+  }
+  const parsed = parseWidgetEnvelope(envelope('sandboxed_ui', sandboxData))
+  assert.equal(parsed?.type, 'sandboxed_ui')
+  assert.deepEqual(parsed?.data, sandboxData)
+  assert.deepEqual(parsed?.media, [])
 })
 
 test('surrounding whitespace is tolerated', () => {

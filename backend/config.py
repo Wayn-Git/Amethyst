@@ -246,7 +246,8 @@ def key_present(ref: str) -> bool:
         answer = bool(get_secret(ref))
     except Exception:
         answer = False
-    _KEY_PRESENCE[ref] = (answer, now + _KEY_PRESENCE_TTL)
+    ttl = _KEY_PRESENCE_TTL if answer else 300.0
+    _KEY_PRESENCE[ref] = (answer, now + ttl)
     return answer
 
 
