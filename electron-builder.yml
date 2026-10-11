@@ -1,0 +1,52 @@
+appId: ai.amethyst.desktop
+productName: Amethyst
+copyright: Copyright © 2026 Amethyst Authors
+
+directories:
+  output: dist-desktop
+  buildResources: build
+
+files:
+  - "electron/**/*"
+  - "frontend/dist/**/*"
+  - "package.json"
+
+extraResources:
+  - from: "resources/bin"
+    to: "bin"
+    filter: ["**/*"]
+
+publish:
+  provider: github
+  owner: wayn-wayn
+  repo: amethyst
+  releaseType: release
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: ["arm64", "x64"]
+    - target: zip
+      arch: ["arm64", "x64"]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+win:
+  target:
+    - target: nsis
+      arch: ["x64"]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+linux:
+  category: Utility
+  target:
+    - target: AppImage
+      arch: ["x64"]
+    - target: deb
+      arch: ["x64"]

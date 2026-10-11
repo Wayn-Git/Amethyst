@@ -26,6 +26,7 @@ const LOADERS = {
   logs: () => import('./Logs.jsx'),
   dash: () => import('./Dashboard.jsx'),
   remote: () => import('./Remote.jsx'),
+  install: () => import('./Install.jsx'),
   // settings eager
 }
 

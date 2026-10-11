@@ -1,0 +1,21 @@
+{
+  "name": "amethyst",
+  "version": "0.1.0",
+  "description": "Amethyst Desktop Application",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev:desktop": "cross-env ELECTRON_DEV=1 electron .",
+    "package:desktop": "electron-builder",
+    "build:frontend": "npm run build --prefix frontend",
+    "build:backend": "python scripts/build_backend_binary.py",
+    "build:all": "npm run build:frontend && npm run build:backend"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}
