@@ -388,6 +388,8 @@ export const api = {
     j('/composio/fallback/switch', json('POST', { provider, target, reason })),
   resetComposioFallback: (provider) =>
     j('/composio/fallback/reset', json('POST', { provider })),
+  startComposioLogin: () => j('/composio/login/start', json('POST')),
+  pollComposioLogin: (sessionId) => j(`/composio/login/poll/${encodeURIComponent(sessionId)}`),
 
 
   conversations: () => j('/conversations'),
@@ -808,6 +810,7 @@ export const api = {
   // A route rather than a path: the browser is never handed a filesystem
   // location, and a missing still is a 404 rather than a broken <img>.
   thumbnailUrl: (id) => `${getBase()}/library/${id}/thumbnail`,
+  slideUrl: (id, index) => `${getBase()}/library/${id}/slides/${index}`,
   mediaUrl: (id) => `${getBase()}/library/${id}/media`,
 
   // Export selected library items as a Spotify playlist via the MCP connector.
