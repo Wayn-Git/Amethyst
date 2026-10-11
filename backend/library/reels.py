@@ -84,6 +84,7 @@ class ReelCapture:
         *,
         notes: str | None = None,
         requested_kind: str | None = None,
+        existing_id: int | None = None,
     ):
         """Log the reel. Raises ReelError only when there is no item to make."""
         settings = self.settings
@@ -96,6 +97,7 @@ class ReelCapture:
                 requested_kind=requested_kind,
                 settings=settings,
                 scratch=scratch,
+                existing_id=existing_id,
             )
         except Exception:
             shutil.rmtree(scratch, ignore_errors=True)
@@ -125,6 +127,7 @@ class ReelCapture:
         requested_kind: str | None = None,
         settings: InstagramSettings,
         scratch: Path | None = None,
+        existing_id: int | None = None,
     ):
         text = reel.caption
         source = "caption" if reel.has_text else "none"
@@ -151,6 +154,7 @@ class ReelCapture:
             text_source=source,
             capture_note=note,
             duration_seconds=int(reel.duration) if reel.duration else None,
+            existing_id=existing_id,
         )
         if captured.already_logged:
             if scratch:
@@ -197,7 +201,7 @@ class ReelCapture:
                         log.warning("enrichment failed for library item %s: %s", item_id, exc)
 
                 combined = " · ".join(n for n in notes_out if n) or None
-                self.library.store.update(item_id, capture_note=combined)
+                self.library.store.update(item_id, capture_note=combined, status="ready")
             finally:
                 if scratch:
                     shutil.rmtree(scratch, ignore_errors=True)

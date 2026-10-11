@@ -327,9 +327,12 @@ export default function Library() {
     const text = quickCaptureText.trim()
     if (!text) return
 
-    const isUrl = /^https?:\/\//i.test(text)
-    if (isUrl) {
+    const isExplicitUrl = /^https?:\/\//i.test(text)
+    const isBareDomain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/.*)?$/i.test(text)
+    if (isExplicitUrl) {
       handleAddResource({ url: text })
+    } else if (isBareDomain) {
+      handleAddResource({ url: `https://${text}` })
     } else {
       handleAddResource({ notes: text, title: text.slice(0, 48) })
     }

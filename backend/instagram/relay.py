@@ -528,7 +528,7 @@ class RelayPoller:
             )
         except LibraryError as exc:
             log.warning("a relayed %s job could not be logged: %s", kind, exc)
-            return None
+            return False
         except Exception as exc:  # a crash mid-capture is transient until proven otherwise
             log.warning("applying a relayed %s job failed: %s", kind, exc)
             return None
@@ -650,5 +650,8 @@ class RelayPoller:
             # is not a reason to lose the fact that something was sent. The row is
             # still acknowledged; the library says what happened.
             log.warning("a relayed share could not be logged: %s", exc)
+            return False
+        except Exception as exc:
+            log.exception("a relayed share failed unexpectedly: %s", exc)
             return False
         return True

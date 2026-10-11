@@ -250,8 +250,8 @@ class InstagramRunner:
             # Active work in progress: restore regular poll cadence
             self._relay_interval = RELAY_POLL_SECONDS
         else:
-            # Idle: progressively back off to prevent exhausting D1 read quotas (up to 5m)
-            self._relay_interval = min(300.0, max(self._relay_interval, RELAY_POLL_SECONDS) * 1.5)
+            # Idle: back off up to 60s max so shared links arrive promptly
+            self._relay_interval = min(60.0, max(self._relay_interval, RELAY_POLL_SECONDS) * 1.5)
 
         self._next_relay = loop_now + self._relay_interval
 
