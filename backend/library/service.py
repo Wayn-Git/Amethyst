@@ -82,6 +82,15 @@ _KIND_BY_HOST = {
     "music.apple.com": "music",
     "soundcloud.com": "music",
     "www.soundcloud.com": "music",
+    # Social video & post platforms
+    "instagram.com": "video",
+    "www.instagram.com": "video",
+    "instagr.am": "video",
+    "threads.net": "post",
+    "www.threads.net": "post",
+    "threads.com": "post",
+    "tiktok.com": "video",
+    "www.tiktok.com": "video",
 }
 
 #: Spotify mixes music (/track, /album, /artist) with podcasts (/show,
@@ -273,22 +282,27 @@ class LibraryService:
         if kind and kind not in KINDS:
             raise LibraryError(f"unknown kind '{kind}'. One of: {', '.join(KINDS)}")
 
+        existing = None
         if source_ref:
             existing = self.store.by_source_ref(source_ref)
-            if existing is not None:
-                return Captured(as_dict(existing), already_logged=True)
+        if existing is None:
+            existing = self.store.by_url(url)
 
         try:
             await check_url_async(url)
         except UnsafeURL as exc:
             raise LibraryError(str(exc)) from exc
 
-        existing = self.store.by_url(url)
+        existing_id: int | None = None
         if existing is not None:
-            # Idempotent: saving a link twice is a common mistake when
-            # catching up on tabs, and clobbering what was already there with a
-            # second fetch is not what that meant.
-            return Captured(as_dict(existing), already_logged=True)
+            is_skeleton = (
+                existing["status"] in ("received", "processing", "failed")
+                or (existing["title"] == existing["url"] and not existing["text_path"] and not existing["thumbnail_path"])
+            )
+            if is_skeleton:
+                existing_id = existing["id"]
+            else:
+                return Captured(as_dict(existing), already_logged=True)
 
         # An Instagram permalink is not a page anybody can read: Instagram
         # serves a login wall, so `fetch_readable` would log a title-less item
@@ -301,7 +315,9 @@ class LibraryService:
             from backend.library.reels import ReelCapture, ReelError
 
             try:
-                return await ReelCapture(self).capture(url, notes=notes, requested_kind=kind)
+                return await ReelCapture(self).capture(
+                    url, notes=notes, requested_kind=kind, existing_id=existing_id
+                )
             except ReelError as exc:
                 # Not fatal. The link is still worth logging, with the reason it
                 # could not be opened written on it -- the same rule every other
@@ -373,6 +389,7 @@ class LibraryService:
                     text=reader_text,
                     text_source="page",
                     capture_note="",
+                    existing_id=existing_id,
                 )
             meta = await x_oembed(url)
             if meta:
@@ -386,21 +403,37 @@ class LibraryService:
                 if x_note:
                     log.info("x reader rung failed for %s: %s", url, x_note)
                 capture_note = "x.com post: the post text via oEmbed, no thread context"
-                item_id = self.store.create(
-                    kind=kind or kind_for(url),
-                    title=(title or url)[:400],
-                    category=category,
-                    url=url,
-                    author=author,
-                    site=site,
-                    published_on=published_on,
-                    consumed_on=consumed_on or date.today().isoformat(),
-                    notes=notes,
-                    source_ref=source_ref,
-                )
+                if existing_id is not None:
+                    item_id = existing_id
+                    self.store.update(
+                        item_id,
+                        kind=kind or kind_for(url),
+                        title=(title or url)[:400],
+                        category=category,
+                        url=url,
+                        author=author,
+                        site=site,
+                        published_on=published_on,
+                        consumed_on=consumed_on or date.today().isoformat(),
+                        notes=notes,
+                        source_ref=source_ref,
+                    )
+                else:
+                    item_id = self.store.create(
+                        kind=kind or kind_for(url),
+                        title=(title or url)[:400],
+                        category=category,
+                        url=url,
+                        author=author,
+                        site=site,
+                        published_on=published_on,
+                        consumed_on=consumed_on or date.today().isoformat(),
+                        notes=notes,
+                        source_ref=source_ref,
+                    )
                 note = await self._store_text(item_id, title or url, text, capture_note)
                 app_tag = app_tag_for_url(url)
-                updates = {"capture_note": note or None}
+                updates = {"capture_note": note or None, "status": "ready"}
                 if app_tag:
                     updates["tags"] = json.dumps([app_tag])
                 self.store.update(item_id, **updates)
@@ -519,18 +552,34 @@ class LibraryService:
             if page and page.note:
                 capture_note = page.note
 
-        item_id = self.store.create(
-            kind=kind or kind_for(url),
-            title=(title or url)[:400],
-            category=category,
-            url=url,
-            author=author,
-            site=site,
-            published_on=published_on,
-            consumed_on=consumed_on or date.today().isoformat(),
-            notes=notes,
-            source_ref=source_ref,
-        )
+        if existing_id is not None:
+            item_id = existing_id
+            self.store.update(
+                item_id,
+                kind=kind or kind_for(url),
+                title=(title or url)[:400],
+                category=category,
+                url=url,
+                author=author,
+                site=site,
+                published_on=published_on,
+                consumed_on=consumed_on or date.today().isoformat(),
+                notes=notes,
+                source_ref=source_ref,
+            )
+        else:
+            item_id = self.store.create(
+                kind=kind or kind_for(url),
+                title=(title or url)[:400],
+                category=category,
+                url=url,
+                author=author,
+                site=site,
+                published_on=published_on,
+                consumed_on=consumed_on or date.today().isoformat(),
+                notes=notes,
+                source_ref=source_ref,
+            )
 
         note = await self._store_text(item_id, title or url, text, capture_note)
         can_enrich = False
@@ -906,6 +955,7 @@ class LibraryService:
         thumbnail_path: str | None = None,
         media_path: str | None = None,
         duration_seconds: int | None = None,
+        existing_id: int | None = None,
     ) -> Captured:
         """Log something whose text AMETHYST fetched itself, not through a page fetch.
 
@@ -920,25 +970,51 @@ class LibraryService:
         if kind not in KINDS:
             raise LibraryError(f"unknown kind '{kind}'. One of: {', '.join(KINDS)}")
 
-        if source_ref:
-            existing = self.store.by_source_ref(source_ref)
+        if existing_id is None:
+            existing = None
+            if source_ref:
+                existing = self.store.by_source_ref(source_ref)
+            if existing is None and url:
+                existing = self.store.by_url(url)
             if existing is not None:
-                # The same reel arriving twice -- a Meta retry that slipped past
-                # the delivery key, or the user sending it again.
-                return Captured(as_dict(existing), already_logged=True)
+                is_skeleton = (
+                    existing["status"] in ("received", "processing", "failed")
+                    or (existing["title"] == existing["url"] and not existing["text_path"] and not existing["thumbnail_path"])
+                )
+                if is_skeleton:
+                    existing_id = existing["id"]
+                else:
+                    return Captured(as_dict(existing), already_logged=True)
 
-        item_id = self.store.create(
-            kind=kind,
-            title=title[:400],
-            category=category,
-            url=url,
-            author=author,
-            site=site,
-            published_on=published_on,
-            consumed_on=consumed_on or date.today().isoformat(),
-            notes=notes,
-            source_ref=source_ref,
-        )
+        if existing_id is not None:
+            item_id = existing_id
+            self.store.update(
+                item_id,
+                kind=kind,
+                title=title[:400],
+                category=category,
+                url=url,
+                author=author,
+                site=site,
+                published_on=published_on,
+                consumed_on=consumed_on or date.today().isoformat(),
+                notes=notes,
+                source_ref=source_ref,
+                status="ready",
+            )
+        else:
+            item_id = self.store.create(
+                kind=kind,
+                title=title[:400],
+                category=category,
+                url=url,
+                author=author,
+                site=site,
+                published_on=published_on,
+                consumed_on=consumed_on or date.today().isoformat(),
+                notes=notes,
+                source_ref=source_ref,
+            )
         note = await self._store_text(item_id, title, text, capture_note, fetched=False)
         app_tag = app_tag_for_url(url)
         updates = {
@@ -947,6 +1023,7 @@ class LibraryService:
             "thumbnail_path": thumbnail_path,
             "media_path": media_path,
             "duration_seconds": duration_seconds,
+            "status": "ready",
         }
         if app_tag:
             updates["tags"] = json.dumps([app_tag])

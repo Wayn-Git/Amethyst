@@ -1044,6 +1044,90 @@ async def test_enrich_sqlite_row_get_fix(monkeypatch):
     assert "programming" in result["tags"]
 
 
+@pytest.mark.asyncio
+async def test_capture_url_updates_staged_skeleton_item():
+    async def fake_fetch(u):
+        return page(title="Fetched Page Title", text="Some real article body")
+
+    svc = service(fetcher=fake_fetch)
+    test_url = "https://example.com/staged-article"
+
+    # Stage a skeleton card like the relay does
+    staged_id = svc.store.create(kind="article", title=test_url, url=test_url)
+    svc.store.update(staged_id, status="received")
+
+    staged = svc.store.get(staged_id)
+    assert staged["status"] == "received"
+    assert staged["title"] == test_url
+
+    # Ingesting the real page should update the existing row in place
+    captured = await svc.capture_url(test_url)
+    assert captured.already_logged is False
+    assert captured.item["id"] == staged_id
+    assert captured.item["title"] == "Fetched Page Title"
+    assert captured.item["status"] in ("ready", "enriching")
+
+    updated = svc.store.get(staged_id)
+    assert updated["title"] == "Fetched Page Title"
+    assert updated["text_path"] is not None
+
+
+def test_normalize_url_strips_tracking_and_rewrites_instagram():
+    from backend.library.enrich import normalize_url
+
+    # Strips xtok and query
+    reel_url = "https://www.instagram.com/reel/DeWdjLTuV1A/?xtok=MWR4azJvb2l0M3lmbg=="
+    assert normalize_url(reel_url) == "https://www.instagram.com/reel/DeWdjLTuV1A/"
+
+    # Strips igsh and rewrites /share/p/ to /p/
+    share_url = "https://www.instagram.com/share/p/DeWdjLTuV1A/?igsh=xyz123"
+    assert normalize_url(share_url) == "https://www.instagram.com/p/DeWdjLTuV1A/"
+
+    # Rewrites /share/reel/ to /reel/
+    share_reel = "https://www.instagram.com/share/reel/DeWdjLTuV1A/"
+    assert normalize_url(share_reel) == "https://www.instagram.com/reel/DeWdjLTuV1A/"
+
+    # Supports instagr.am
+    short_domain = "https://instagr.am/p/DeWdjLTuV1A/?utm_source=ig_web_copy_link"
+    assert normalize_url(short_domain) == "https://instagr.am/p/DeWdjLTuV1A/"
+
+
+def test_is_reel_url_variants():
+    from backend.media.reel import is_reel_url
+
+    assert is_reel_url("https://www.instagram.com/reel/DeWdjLTuV1A/") is True
+    assert is_reel_url("https://instagr.am/p/DeWdjLTuV1A/") is True
+    assert is_reel_url("https://www.instagram.com/share/reel/DeWdjLTuV1A/") is True
+    assert is_reel_url("https://www.instagram.com/share/p/DeWdjLTuV1A/") is True
+    assert is_reel_url("https://example.com/not-a-reel") is False
+
+
+@pytest.mark.asyncio
+async def test_capture_media_updates_skeleton_item():
+    svc = service()
+    url = "https://www.instagram.com/reel/test_media_123/"
+    staged_id = svc.store.create(kind="video", title=url, url=url)
+    svc.store.update(staged_id, status="received")
+
+    captured = await svc.capture_media(
+        title="Real Media Title",
+        kind="video",
+        url=url,
+        text="Caption and visual content",
+        duration_seconds=30,
+        existing_id=staged_id,
+    )
+    assert captured.already_logged is False
+    assert captured.item["id"] == staged_id
+    assert captured.item["title"] == "Real Media Title"
+    assert captured.item["status"] == "ready"
+
+    row = svc.store.get(staged_id)
+    assert row["status"] == "ready"
+    assert row["duration_seconds"] == 30
+
+
+
 
 
 

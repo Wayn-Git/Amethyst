@@ -6668,6 +6668,9 @@ async def list_library(
 ) -> dict[str, Any]:
     from backend.library.service import LibraryService
 
+    with contextlib.suppress(Exception):
+        _instagram.nudge()
+
     service = LibraryService()
     limit = max(1, min(limit, 200))
     if q and q.strip():

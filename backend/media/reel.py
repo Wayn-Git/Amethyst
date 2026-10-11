@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 #: A post, a reel or a TV permalink. Mirrors `webhook._PERMALINK`, which matches
 #: the same thing inside a delivery payload.
 PERMALINK = re.compile(
-    r"^https?://(?:www\.)?instagram\.com/(?:p|reel|reels|tv|share)/[A-Za-z0-9_\-]+/?",
+    r"^https?://(?:www\.)?(?:instagram\.com|instagr\.am)/(?:p|reel|reels|tv|share)(?:/[A-Za-z0-9_\-]+)+/?",
     re.IGNORECASE,
 )
 
