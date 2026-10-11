@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('amethystDesktop', {
   platform: process.platform,
   checkForUpdates: () => ipcRenderer.invoke('desktop:check-updates'),
   quitAndInstall: () => ipcRenderer.invoke('desktop:quit-and-install'),
+  quit: () => ipcRenderer.invoke('desktop:quit'),
   onUpdateAvailable: (callback) => {
     const handler = (_event, info) => callback(info);
     ipcRenderer.on('desktop:update-available', handler);
@@ -16,4 +17,9 @@ contextBridge.exposeInMainWorld('amethystDesktop', {
     return () => ipcRenderer.removeListener('desktop:update-downloaded', handler);
   },
   openExternal: (url) => ipcRenderer.invoke('desktop:open-external', url),
+});
+
+contextBridge.exposeInMainWorld('electronSplash', {
+  close: () => ipcRenderer.invoke('desktop:quit'),
+  retry: () => ipcRenderer.invoke('desktop:retry-boot'),
 });
