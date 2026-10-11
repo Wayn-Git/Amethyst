@@ -2,6 +2,10 @@
   "name": "amethyst",
   "version": "0.1.0",
   "description": "Amethyst Desktop Application",
+  "author": {
+    "name": "Amethyst Authors",
+    "email": "dev@amethyst.ai"
+  },
   "main": "electron/main.cjs",
   "scripts": {
     "dev:desktop": "cross-env ELECTRON_DEV=1 electron .",

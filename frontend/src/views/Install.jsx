@@ -55,6 +55,7 @@ function CheckIcon() {
 
 export default function Install() {
   const [copiedMac, setCopiedMac] = useState(false);
+  const [copiedWin, setCopiedWin] = useState(false);
   const [copiedLinux, setCopiedLinux] = useState(false);
   const [releaseTag, setReleaseTag] = useState('v0.1.0');
   const [downloadUrls, setDownloadUrls] = useState({
@@ -131,7 +132,17 @@ export default function Install() {
             <WindowsIcon />
             <div className="install-card-title">Windows</div>
             <div className="install-card-body">
-              Run the Installer and Amethyst starts the host itself. The Installer isn&apos;t signed yet, so Windows asks you to confirm it once.
+              Run the Installer and Amethyst starts the host itself. Or install in PowerShell:
+            </div>
+            <div
+              className="install-code-box"
+              onClick={() => copyToClipboard('irm https://raw.githubusercontent.com/wayn-wayn/amethyst/master/install.ps1 | iex', setCopiedWin)}
+              title="Click to copy PowerShell command"
+            >
+              <span className="install-code-text">irm https://raw.github.../install.ps1 | iex</span>
+              <button type="button" className="install-copy-btn">
+                {copiedWin ? <CheckIcon /> : <CopyIcon />}
+              </button>
             </div>
           </div>
           <a href={downloadUrls.windows} className="install-action-btn" target="_blank" rel="noreferrer">
@@ -146,14 +157,14 @@ export default function Install() {
             <TerminalIcon />
             <div className="install-card-title">Linux and servers</div>
             <div className="install-card-body">
-              The host, plus the desktop app when there is a display. Then run amethyst-host install.
+              The host, plus the desktop app when there is a display. Then run amethyst-host install:
             </div>
             <div
               className="install-code-box"
-              onClick={() => copyToClipboard('curl -fsSL https://amethyst.sh/install.sh | bash', setCopiedLinux)}
-              title="Click to copy"
+              onClick={() => copyToClipboard('curl -fsSL https://raw.githubusercontent.com/wayn-wayn/amethyst/master/install.sh | bash', setCopiedLinux)}
+              title="Click to copy curl command"
             >
-              <span className="install-code-text">curl -fsSL https://amethyst.sh/install.sh | bash</span>
+              <span className="install-code-text">curl -fsSL https://raw.github.../install.sh | bash</span>
               <button type="button" className="install-copy-btn">
                 {copiedLinux ? <CheckIcon /> : <CopyIcon />}
               </button>

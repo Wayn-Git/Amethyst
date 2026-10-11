@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import Button from '../ui/Button.jsx'
+import Button from '../ui/AppButton.jsx'
 import Icon from '../Icon.jsx'
 
 /* One step on screen at a time.
