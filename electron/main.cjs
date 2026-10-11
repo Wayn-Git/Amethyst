@@ -114,6 +114,13 @@ function spawnBackend() {
   }
 }
 
+function getAppIconPath() {
+  if (process.platform === 'win32') {
+    return path.join(__dirname, 'assets', 'icon.ico');
+  }
+  return path.join(__dirname, 'assets', 'icon.png');
+}
+
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 440,
@@ -124,6 +131,7 @@ function createSplashWindow() {
     show: false,
     alwaysOnTop: true,
     skipTaskbar: false,
+    icon: getAppIconPath(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -150,6 +158,7 @@ function createMainWindow() {
     show: false,
     backgroundColor: '#101114',
     title: 'Amethyst',
+    icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -184,7 +193,9 @@ function createMainWindow() {
 }
 
 function initTray() {
-  const iconPath = path.join(__dirname, 'assets', 'amethyst-gem.svg');
+  const iconPath = process.platform === 'win32'
+    ? path.join(__dirname, 'assets', 'icon.ico')
+    : path.join(__dirname, 'assets', 'tray-icon.png');
   try {
     tray = new Tray(iconPath);
     const contextMenu = Menu.buildFromTemplate([
@@ -298,6 +309,13 @@ ipcMain.handle('desktop:open-external', (_e, url) => {
 });
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin' && app.dock) {
+    try {
+      app.dock.setIcon(path.join(__dirname, 'assets', 'icon.png'));
+    } catch (e) {
+      console.warn('[Amethyst Supervisor] Could not set dock icon:', e);
+    }
+  }
   initTray();
   setupAutoUpdater();
   bootSupervisor();
