@@ -4,7 +4,7 @@ copyright: Copyright © 2026 Amethyst Authors
 
 directories:
   output: dist-desktop
-  buildResources: build
+  buildResources: electron/assets
 
 files:
   - "electron/**/*"
@@ -23,6 +23,7 @@ publish:
   releaseType: release
 
 mac:
+  icon: electron/assets/icon.icns
   category: public.app-category.developer-tools
   target:
     - target: dmg
@@ -33,6 +34,7 @@ mac:
   gatekeeperAssess: false
 
 win:
+  icon: electron/assets/icon.ico
   target:
     - target: nsis
       arch: ["x64"]
@@ -42,8 +44,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  installerIcon: electron/assets/icon.ico
+  uninstallerIcon: electron/assets/icon.ico
 
 linux:
+  icon: electron/assets/icon.png
   category: Utility
   maintainer: "Amethyst Authors <dev@amethyst.ai>"
   target:

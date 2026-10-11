@@ -31,13 +31,17 @@ case "$OS" in
     curl -fSL "$DOWNLOAD_URL" -o "$TARGET_FILE"
     chmod +x "$TARGET_FILE"
 
-    echo "==> Creating desktop launcher..."
+    echo "==> Setting up application icon and desktop launcher..."
+    ICON_DIR="${HOME}/.local/share/icons/hicolor/512x512/apps"
+    mkdir -p "$ICON_DIR"
+    curl -fsSL "https://raw.githubusercontent.com/wayn-wayn/amethyst/master/frontend/public/icon.png" -o "${ICON_DIR}/amethyst.png" 2>/dev/null || true
+
     cat > "${APP_DIR}/amethyst.desktop" <<EOF
 [Desktop Entry]
 Name=Amethyst
 Comment=Amethyst Personal Intelligence Operating System
 Exec=${TARGET_FILE}
-Icon=utilities-terminal
+Icon=amethyst
 Terminal=false
 Type=Application
 Categories=Utility;Development;
