@@ -189,6 +189,86 @@ OAUTH_TOOLKITS: list[dict[str, Any]] = [
         "no_auth": False,
         "auth_type": "oauth",
     },
+    {
+        "slug": "discord",
+        "name": "Discord",
+        "description": "Send messages, manage channels, and inspect Discord servers.",
+        "category": "Communication",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "twitter",
+        "name": "Twitter / X",
+        "description": "Post tweets, search timelines, and monitor mentions on X.",
+        "category": "Social",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "trello",
+        "name": "Trello",
+        "description": "Manage boards, lists, and task cards.",
+        "category": "Productivity",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "salesforce",
+        "name": "Salesforce",
+        "description": "Manage CRM contacts, leads, accounts, and opportunities.",
+        "category": "Business",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "hubspot",
+        "name": "HubSpot",
+        "description": "Track marketing leads, deals, contacts, and customer tickets.",
+        "category": "Business",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "airtable",
+        "name": "Airtable",
+        "description": "Query and manipulate Airtable bases and records.",
+        "category": "Productivity",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "googledrive",
+        "name": "Google Drive",
+        "description": "Search, organize, and read files in Google Drive.",
+        "category": "Productivity",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "googlesheets",
+        "name": "Google Sheets",
+        "description": "Read, create, and update spreadsheet sheets and rows.",
+        "category": "Productivity",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "googledocs",
+        "name": "Google Docs",
+        "description": "Create, edit, and read document contents in Google Docs.",
+        "category": "Productivity",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
+    {
+        "slug": "clickup",
+        "name": "ClickUp",
+        "description": "Manage tasks, spaces, and project documents in ClickUp.",
+        "category": "Productivity",
+        "no_auth": False,
+        "auth_type": "oauth",
+    },
 ]
 
 
@@ -658,70 +738,122 @@ class ComposioService:
 
     def initiate_connection(self, toolkit: str) -> str:
         """Initiate hosted OAuth authorization with Composio and return redirect URL."""
+        slug = toolkit.lower()
+        login_url = f"https://app.composio.dev/login?toolkit={slug}"
         if not self.is_configured():
-            raise RuntimeError("Composio API key is not configured.")
+            return login_url
         client = self._get_client()
         user_id = self._get_stable_user_id()
-        req = client.toolkits.authorize(user_id=user_id, toolkit=toolkit.lower())
-        redirect_url = getattr(req, "redirect_url", None)
-        if not redirect_url and hasattr(req, "connection_data"):
-            val = getattr(req.connection_data, "val", None)
-            if val:
-                redirect_url = getattr(val, "redirect_url", None)
-        if not redirect_url:
-            raise RuntimeError(f"Could not retrieve redirect authorization URL for '{toolkit}'.")
-        return str(redirect_url)
 
-
-    def get_connections(self, force: bool = False) -> dict[str, dict[str, Any]]:
-        """Return dict of {toolkit_slug: connection_details} for ACTIVE accounts only."""
-        if not self.is_configured():
-            return {}
-        now = time.monotonic()
-        if not force and self._connections_cache is not None and now < self._connections_cache[0]:
-            return self._connections_cache[1]
+        # Strategy 1: Modern composio-client Link API via auth_configs
         try:
-            client = self._get_client()
-            user_id = self._get_stable_user_id()
-            try:
-                accounts = client.connected_accounts.list(user_ids=[user_id], statuses=["ACTIVE"])
-            except Exception as exc:
-                log.debug("User-scoped connection list failed, querying project connections: %s", exc)
-                accounts = client.connected_accounts.list(statuses=["ACTIVE"])
-            active: dict[str, dict[str, Any]] = {}
-            for item in getattr(accounts, "items", []):
-                toolkit = getattr(item, "toolkit", None)
-                slug = getattr(toolkit, "slug", None) if toolkit else None
-                if not slug and isinstance(toolkit, str):
-                    slug = toolkit
-                status = getattr(item, "status", "")
-                if slug and (status == "ACTIVE" or not status):
-                    active[str(slug).lower()] = {
-                        "id": getattr(item, "id", ""),
-                        "status": status or "ACTIVE",
-                        "created_at": getattr(item, "created_at", None),
-                    }
-            self._connections_cache = (now + 5.0, active)
-            return active
+            raw_client = getattr(client, "client", client)
+            if hasattr(raw_client, "auth_configs") and hasattr(raw_client, "link"):
+                configs_res = raw_client.auth_configs.list(toolkit_slug=slug)
+                items = getattr(configs_res, "items", []) or []
+                if items:
+                    auth_cfg = items[0]
+                    auth_cfg_id = getattr(auth_cfg, "id", None) or (auth_cfg.get("id") if isinstance(auth_cfg, dict) else None)
+                    if auth_cfg_id:
+                        link_res = raw_client.link.create(user_id=user_id, auth_config_id=auth_cfg_id)
+                        redirect_url = getattr(link_res, "redirect_url", None)
+                        if redirect_url:
+                            return str(redirect_url)
         except Exception as exc:
-            log.warning("Failed to fetch Composio connected accounts: %s", exc)
-            return self._connections_cache[1] if self._connections_cache else {}
+            log.debug("Composio link.create flow failed for %s: %s", slug, exc)
 
-    def initiate_connection(self, toolkit: str) -> str:
-        """Initiate hosted OAuth authorization with Composio and return redirect URL."""
-        if not self.is_configured():
-            raise RuntimeError("Composio API key is not configured.")
-        client = self._get_client()
-        user_id = self._get_stable_user_id()
-        req = client.toolkits.authorize(user_id=user_id, toolkit=toolkit.lower())
-        redirect_url = getattr(req, "redirect_url", None)
-        if not redirect_url and hasattr(req, "connection_data"):
-            val = getattr(req.connection_data, "val", None)
-            if val:
-                redirect_url = getattr(val, "redirect_url", None)
-        if not redirect_url:
-            raise RuntimeError(f"Could not retrieve redirect authorization URL for '{toolkit}'.")
-        return str(redirect_url)
+        # Strategy 2: High-level session.authorize if available
+        try:
+            if hasattr(client, "create"):
+                session = client.create(user_id=user_id)
+                if hasattr(session, "authorize"):
+                    req = session.authorize(slug)
+                    redirect_url = getattr(req, "redirect_url", None)
+                    if redirect_url:
+                        return str(redirect_url)
+        except Exception as exc:
+            log.debug("Composio session.authorize failed for %s: %s", slug, exc)
+
+        # Strategy 3: Legacy toolkits.authorize
+        try:
+            if hasattr(client, "toolkits") and hasattr(client.toolkits, "authorize"):
+                req = client.toolkits.authorize(user_id=user_id, toolkit=slug)
+                redirect_url = getattr(req, "redirect_url", None)
+                if not redirect_url and hasattr(req, "connection_data"):
+                    val = getattr(req.connection_data, "val", None)
+                    if val:
+                        redirect_url = getattr(val, "redirect_url", None)
+                if redirect_url:
+                    return str(redirect_url)
+        except Exception as exc:
+            log.debug("Legacy toolkits.authorize failed for %s: %s", slug, exc)
+
+        return login_url
+
+    def start_browser_login(self) -> dict[str, Any]:
+        """Initiate Composio CLI-style browser login session.
+
+        Creates an authentication session on backend.composio.dev and returns
+        the direct web URL for Google/web login alongside the verification code.
+        """
+        import httpx
+
+        url = "https://backend.composio.dev/api/v3/cli/create-session"
+        try:
+            resp = httpx.post(url, json={"scope": "user", "source": "amethyst"}, timeout=10.0)
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                session_id = str(data.get("id", ""))
+                code = str(data.get("code", ""))
+                login_url = f"https://dashboard.composio.dev/?cliKey={session_id}"
+                return {
+                    "session_id": session_id,
+                    "code": code,
+                    "login_url": login_url,
+                    "expires_at": data.get("expiresAt"),
+                }
+            raise RuntimeError(f"Composio returned status {resp.status_code}: {resp.text}")
+        except Exception as exc:
+            log.error("Failed to create Composio browser login session: %s", exc)
+            raise RuntimeError(f"Could not initialize Composio browser login: {exc}") from exc
+
+    def poll_browser_login(self, session_id: str) -> dict[str, Any]:
+        """Poll the Composio CLI authentication session for completion.
+
+        When the user completes Google login on Composio, status transitions to
+        'linked' and returns the user API key. Automatically saves the key.
+        """
+        import httpx
+
+        cleaned_id = session_id.strip()
+        if not cleaned_id:
+            return {"status": "error", "error": "session_id is required"}
+
+        url = f"https://backend.composio.dev/api/v3/cli/get-session?id={cleaned_id}"
+        try:
+            resp = httpx.get(url, timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                status = str(data.get("status", "pending"))
+                if status == "linked":
+                    api_key = data.get("api_key")
+                    if api_key:
+                        self.set_api_key(str(api_key), mode="user")
+                        return {
+                            "status": "linked",
+                            "configured": True,
+                            "session_id": cleaned_id,
+                        }
+                    return {"status": "pending", "session_id": cleaned_id}
+                if status in ("expired", "rejected", "failed"):
+                    return {"status": status, "session_id": cleaned_id}
+                return {"status": "pending", "session_id": cleaned_id}
+            if resp.status_code == 404:
+                return {"status": "expired", "session_id": cleaned_id}
+            return {"status": "pending", "session_id": cleaned_id}
+        except Exception as exc:
+            log.warning("Composio browser login poll error for %s: %s", cleaned_id, exc)
+            return {"status": "pending", "session_id": cleaned_id, "error": str(exc)}
 
 
 composio_service = ComposioService()
