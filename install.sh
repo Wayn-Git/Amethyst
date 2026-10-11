@@ -48,9 +48,23 @@ EOF
     ;;
 
   Darwin*)
-    echo "==> Detected macOS. Downloading Amethyst DMG..."
+    echo "==> Detected macOS ($ARCH). Fetching latest release info..."
+    LATEST_JSON=$(curl -fsSL "https://api.github.com/repos/wayn-wayn/amethyst/releases/latest" 2>/dev/null || echo "")
+    if [ "$ARCH" = "arm64" ]; then
+      DMG_NAME="Amethyst-0.1.0-arm64.dmg"
+    else
+      DMG_NAME="Amethyst-0.1.0.dmg"
+    fi
+    DOWNLOAD_URL="https://github.com/wayn-wayn/amethyst/releases/latest/download/${DMG_NAME}"
+    if [ -n "$LATEST_JSON" ]; then
+      MATCHED_URL=$(echo "$LATEST_JSON" | grep -o 'https://[^"]*'"$DMG_NAME" | head -n 1 || echo "")
+      if [ -n "$MATCHED_URL" ]; then
+        DOWNLOAD_URL="$MATCHED_URL"
+      fi
+    fi
     DMG_PATH="/tmp/Amethyst.dmg"
-    curl -fSL "https://github.com/wayn-wayn/amethyst/releases/latest/download/Amethyst-0.1.0.dmg" -o "$DMG_PATH"
+    echo "==> Downloading Amethyst DMG from $DOWNLOAD_URL ..."
+    curl -fSL "$DOWNLOAD_URL" -o "$DMG_PATH"
     echo "==> Mounting and installing Amethyst to /Applications..."
     hdiutil attach "$DMG_PATH" -nobrowse -quiet
     cp -R /Volumes/Amethyst*/Amethyst.app /Applications/
