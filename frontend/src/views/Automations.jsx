@@ -5,7 +5,7 @@ import { useApp } from '../store.jsx'
 import { useViewEntrance } from '../motion.js'
 import { api, serverTime } from '../api.js'
 import { SkeletonCard, default as Skeleton } from '../components/Skeleton.jsx'
-import Button from '../components/ui/Button.jsx'
+import Button from '../components/ui/AppButton.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import ErrorState from '../components/ui/ErrorState.jsx'
 import {
