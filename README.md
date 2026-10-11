@@ -128,30 +128,31 @@ test:
 
 ## Quick start
 
-**Fastest path** (macOS / Linux / WSL2 — Windows: `run.bat`):
+**Desktop Application (Recommended — Zero-Command)**:
+
+Download and run standalone installers across macOS, Windows, and Linux directly from [GitHub Releases](https://github.com/wayn-wayn/amethyst/releases/latest) or the in-app `/install` page:
+- **macOS:** Download `.dmg` or install via Homebrew: `brew install --cask amethyst`
+- **Windows:** Download `.exe` installer (starts the local engine automatically)
+- **Linux:** Download `.AppImage` / `.deb` or install via curl: `curl -fsSL https://amethyst.sh/install.sh | bash`
+
+The desktop application includes a native dark splash loading screen, self-contained engine supervision, single-instance lock, system tray integration, and automatic continuous updates whenever code lands on `master`.
+
+**Developer Desktop Shell:**
 
 ```bash
-git clone https://github.com/Wayn-Git/Amethyst.git
-cd Amethyst
+npm run dev:desktop   # boots electron window with live Vite HMR + backend supervision
+```
+
+**Terminal Quickstart (Developer Mode)**:
+
+```bash
+git clone https://github.com/wayn-wayn/amethyst.git
+cd amethyst
 ./run.sh
 ```
 
 The script sets up the venv, installs dependencies, initializes the database,
-builds the frontend, and opens **http://127.0.0.1:8000**.
-
-**As a desktop application** (after the first run, no terminal needed):
-
-```bash
-amethyst desktop                    # launch it -- or use the application menu
-amethyst-show                       # raise the window of a running instance
-amethyst desktop --install-autostart # start it at login, in the background
-amethyst desktop --install-shortcut  # bind a global key to open it
-```
-
-Launching twice does not start a second copy; it raises the window of the one
-already running. Closing the window puts AMETHYST away rather than quitting it —
-schedules, jobs and the agent loop keep running. `amethyst serve` remains the
-development command. See [docs/architecture/desktop.md](docs/architecture/desktop.md).
+builds the frontend, and opens **http://127.0.0.1:8000**. See [docs/architecture/desktop.md](docs/architecture/desktop.md).
 
 **Docker:**
 
