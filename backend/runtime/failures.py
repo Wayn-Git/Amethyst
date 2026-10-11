@@ -52,6 +52,17 @@ QUOTA_MARKERS = (
     "payment required",
     "quota exceeded",
     "spending limit",
+    "request limited",
+    "tpm reached",
+    "rpm reached",
+    "tpd reached",
+    "rpd reached",
+    "please top up",
+    "top up",
+    "top-up",
+    "rate limit rules",
+    "tokens per minute limit",
+    "requests per minute limit",
 )
 
 
@@ -102,7 +113,7 @@ FALLBACK_KINDS = RETRY_KINDS | {
 
 
 def looks_like_quota(body: str | None) -> bool:
-    return bool(body) and any(marker in body.lower() for marker in QUOTA_MARKERS)
+    return bool(body) and any(marker in str(body).lower() for marker in QUOTA_MARKERS)
 
 
 def classify_status(status: int, body: str | None = None) -> FailureKind:

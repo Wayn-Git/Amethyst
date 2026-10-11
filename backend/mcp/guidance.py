@@ -134,28 +134,30 @@ def ready_connectors_block() -> str | None:
         configured = load_servers()
         lines = []
         slow_lines = []
+        composio_active = []
+
+        # Composio toolkits
+        try:
+            from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
+            from backend.mcp.provider_ownership import is_provider_overridden_by_local
+
+            if composio_service.is_configured():
+                conns = composio_service.get_connections()
+                active_tks = set(conns.keys())
+                for tk in composio_service.get_enabled_toolkits():
+                    if is_no_auth_toolkit(tk):
+                        active_tks.add(tk)
+
+                for tk in sorted(active_tks):
+                    if not is_provider_overridden_by_local(tk):
+                        purpose = _COMPOSIO_PURPOSES.get(tk, "cloud app integration")
+                        lines.append(f"  - composio:{tk} — {purpose}")
+                        composio_active.append(tk)
+        except Exception as exc:
+            log.debug("could not list active composio toolkits: %s", exc)
+
         for name, count in ready.items():
             if name == "composio":
-                # Decompose Composio into individually active connected toolkits
-                try:
-                    from backend.mcp.composio_service import composio_service
-                    from backend.mcp.provider_ownership import is_provider_overridden_by_local
-
-                    conns = composio_service.get_connections() if composio_service.is_configured() else {}
-                    from backend.mcp.composio_service import is_no_auth_toolkit
-
-                    active_tks = set(conns.keys())
-                    if composio_service.is_configured():
-                        for tk in composio_service.get_enabled_toolkits():
-                            if is_no_auth_toolkit(tk):
-                                active_tks.add(tk)
-
-                    for tk in sorted(active_tks):
-                        if not is_provider_overridden_by_local(tk):
-                            purpose = _COMPOSIO_PURPOSES.get(tk, "cloud app integration")
-                            lines.append(f"  - composio:{tk} — {purpose}")
-                except Exception as exc:
-                    log.debug("could not list active composio toolkits: %s", exc)
                 continue
 
             config = configured.get(name)
@@ -170,9 +172,19 @@ def ready_connectors_block() -> str | None:
                 "<connectors>\n"
                 "These connectors are connected and signed in right now. Their tools are"
                 " already authenticated and reach the live service, so they answer"
-                " questions about it that no builtin tool can.\n"
+                " questions about it that no builtin tool can. Always prefer the MCP tool if the connector is ready.\n"
                 + "\n".join(lines)
                 + "\n</connectors>"
+            )
+        if composio_active:
+            block_parts.append(
+                "<composio_instructions>\n"
+                "Composio is active and is your DEFAULT tool suite for: " + ", ".join(composio_active) + ".\n"
+                "To interact with these services (e.g. creating/listing Google Calendar events, sending/reading Gmail):\n"
+                "1. Call `COMPOSIO_SEARCH_TOOLS` with queries=[{'use_case': '...'}] to get the live tool schema.\n"
+                "2. Call `COMPOSIO_MULTI_EXECUTE_TOOL` with the discovered tool slug and arguments to execute the action on the user's real account.\n"
+                "3. NEVER use local mock/dummy tools (e.g. create_calendar_event) when Composio has active connections for the requested service.\n"
+                "</composio_instructions>"
             )
         if slow_lines:
             block_parts.append(

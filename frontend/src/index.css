@@ -11265,6 +11265,72 @@ a.text-reveal-wrap {
   font-weight: 500;
 }
 
+/* Category Groups & Progressive Disclosure */
+.plugin-cat-group {
+  margin-bottom: 26px;
+}
+.plugin-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.plugin-cat-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0;
+}
+.plugin-cat-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: rgba(var(--tint) / 0.06);
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+}
+.plugin-view-more-wrap {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 10px;
+  padding-left: 4px;
+}
+.plugin-view-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(var(--tint) / 0.04);
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: var(--radius-buttons, 9999px);
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.plugin-view-more-btn:hover {
+  background: rgba(var(--tint) / 0.09);
+  color: var(--text);
+  border-color: rgba(var(--tint) / 0.16);
+}
+.local-connectors-section {
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--hairline);
+}
+.plugin-section-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(var(--tint) / 0.05);
+  color: var(--text-dim);
+  border: 1px solid var(--hairline);
+}
+
 /* 2-Column Clean Row Grid */
 .plugin-grid {
   display: grid;
@@ -16903,40 +16969,38 @@ a.text-reveal-wrap {
    is, and the widget itself below it. It exists so a widget reads as something
    the assistant built rather than as loose controls dropped into a message --
    and so the eight renderers cannot each invent their own header. */
+.chat-assistant-widget-wrap {
+  width: 100%;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
 .widget-frame {
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: var(--canvas);
-  overflow: hidden;
-  margin: 4px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  margin: 12px 0;
 }
 
 .widget-frame-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  background: var(--surface-2);
+  padding: 0 0 8px 0;
+  background: transparent;
   border-bottom: 1px solid var(--hairline);
+  margin-bottom: 12px;
 }
 
 .widget-frame-icon {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  background: var(--accent);
-  color: #fff;
-  flex: none;
+  display: none;
 }
 
 .widget-frame-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
-  /* The title is the model's text and can be any length; the label after it is
-     fixed furniture and must not be pushed off the end by a long one. */
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -16945,15 +17009,97 @@ a.text-reveal-wrap {
 }
 
 .widget-frame-label {
-  flex: none;
-  font-family: var(--mono, ui-monospace, monospace);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  display: none;
 }
 
-.widget-frame-body { padding: 14px; }
+.widget-frame-body { padding: 0; }
+.widget-frame-body-flush { padding: 0; }
+
+.sandboxed-ui-container {
+  margin: 12px 0;
+  border: none;
+  border-radius: var(--radius-lg, 10px);
+  background: transparent;
+  overflow: visible;
+  transition: border-color var(--press, 120ms) ease, box-shadow var(--press, 120ms) ease;
+}
+
+.sandboxed-ui-container:hover {
+  border-color: var(--hairline-strong, var(--border));
+}
+
+.sandboxed-ui-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+}
+
+.sandboxed-ui-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sandboxed-ui-sparkle {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.sandboxed-ui-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sandboxed-ui-frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+.sandboxed-ui-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.sandboxed-ui-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-links, 4px);
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--press, 120ms) cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.sandboxed-ui-action-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--hairline);
+}
+
+.sandboxed-ui-iframe {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: block;
+}
 
 /* The renderers sit inside the frame, so their own frame comes off. */
 .widget { margin: 0; }
@@ -40183,39 +40329,31 @@ a.text-reveal-wrap {
    the assistant built rather than as loose controls dropped into a message --
    and so the eight renderers cannot each invent their own header. */
 .widget-frame {
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: var(--canvas);
-  overflow: hidden;
-  margin: 4px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  margin: 12px 0;
 }
 
 .widget-frame-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  background: var(--surface-2);
+  padding: 0 0 8px 0;
+  background: transparent;
   border-bottom: 1px solid var(--hairline);
+  margin-bottom: 12px;
 }
 
 .widget-frame-icon {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  background: var(--accent);
-  color: #fff;
-  flex: none;
+  display: none;
 }
 
 .widget-frame-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
-  /* The title is the model's text and can be any length; the label after it is
-     fixed furniture and must not be pushed off the end by a long one. */
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -40224,15 +40362,10 @@ a.text-reveal-wrap {
 }
 
 .widget-frame-label {
-  flex: none;
-  font-family: var(--mono, ui-monospace, monospace);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  display: none;
 }
 
-.widget-frame-body { padding: 14px; }
+.widget-frame-body { padding: 0; }
 
 /* The renderers sit inside the frame, so their own frame comes off. */
 .widget { margin: 0; }

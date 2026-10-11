@@ -51,6 +51,7 @@ export function getAppFromItem(item) {
   if (url.includes('pinterest.') || url.includes('pin.it')) return 'pinterest'
   if (url.includes('youtube.') || url.includes('youtu.be')) return 'youtube'
   if (url.includes('instagram.') || url.includes('instagr.am')) return 'instagram'
+  if (url.includes('threads.net') || url.includes('threads.com')) return 'threads'
   if (url.includes('tiktok.')) return 'tiktok'
   if (url.includes('x.com') || url.includes('twitter.')) return 'x'
   if (url.includes('github.')) return 'github'
@@ -85,7 +86,19 @@ function LibraryCardComponent({
   const favicon = getFaviconUrl(item.url)
   const app = getAppFromItem(item)
 
-  const isVideo = item.kind === 'video' || app === 'youtube' || app === 'instagram' || app === 'tiktok'
+  const slideCount = useMemo(() => {
+    let res = item.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    if (Array.isArray(res)) {
+      return res.filter((r) => r && (r.type === 'slide' || r.type === 'image')).length
+    }
+    return 0
+  }, [item.resources])
+
+  const isCarousel = slideCount > 1
+  const isVideo = !isCarousel && (item.kind === 'video' || app === 'youtube' || (app === 'instagram' && (item.url || '').includes('/reel/')) || app === 'tiktok')
   const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
   const isNote = item.kind === 'note' || (!hasThumbnail && !item.url)
 
@@ -267,6 +280,7 @@ function LibraryCardComponent({
                     app === 'pinterest' ? 'pin' :
                     app === 'youtube' ? 'play' :
                     app === 'instagram' ? 'spark' :
+                    app === 'threads' ? 'threads' :
                     app === 'tiktok' ? 'play' :
                     app === 'spotify' ? 'music' :
                     app === 'github' ? 'code' :
@@ -279,10 +293,18 @@ function LibraryCardComponent({
               </div>
             )}
 
-            {/* Center Frosted Play Button for Videos / Reels */}
-            {(isVideo || duration) && (
+            {/* Center Frosted Play Button for Videos / Reels (never on multi-slide posts) */}
+            {!isCarousel && (isVideo || duration) && (
               <div className="lib-card-play-btn" aria-hidden="true">
                 <Icon name="play" size={13} />
+              </div>
+            )}
+
+            {/* Top-Right Multi-Image Carousel Pill */}
+            {isCarousel && (
+              <div className="lib-card-carousel-pill" aria-label={`${slideCount} images`}>
+                <Icon name="copy" size={10} />
+                <span>{slideCount}</span>
               </div>
             )}
 

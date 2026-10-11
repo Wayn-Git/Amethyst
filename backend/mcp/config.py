@@ -310,9 +310,7 @@ def load_servers(path: Path | None = None) -> dict[str, ServerConfig]:
 
 
 def _inject_composio_server(servers: dict[str, ServerConfig]) -> None:
-    """Inject dynamic Composio hosted MCP server if configured and not explicitly in mcp.yaml."""
-    if "composio" in servers:
-        return
+    """Inject dynamic Composio hosted MCP server if configured."""
     try:
         from backend.mcp.composio_service import composio_service
 

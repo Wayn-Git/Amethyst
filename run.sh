@@ -40,6 +40,11 @@ error() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$SCRIPT_DIR"
 
+# Prefer user secrets file on Linux so desktop keyrings (GNOME/SecretService) don't prompt for passwords
+if [ -z "$AMETHYST_SECRETS_FILE" ] && [ -f "$HOME/.amethyst/secrets.json" ]; then
+    export AMETHYST_SECRETS_FILE="$HOME/.amethyst/secrets.json"
+fi
+
 show_help() {
     echo -e "${BOLD}AMETHYST - Personal Operating System${RESET}"
     echo ""

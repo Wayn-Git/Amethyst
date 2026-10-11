@@ -307,6 +307,29 @@ async def test_a_turn_that_produced_nothing_is_still_an_error(db, workspace, str
     assert [e.type for e in events][-1] == "error"
 
 
+async def test_stream_interruption_during_reasoning_recovers(db, workspace, streaming):
+    """When a model is streaming reasoning tokens (e.g. Nemotron) and drops with
+    'Error in input stream' before text tokens, it auto-recovers and finishes the answer
+    rather than failing immediately with '[model error]'."""
+    def reasoning(chunk: str) -> StreamEvent:
+        return StreamEvent(type="reasoning", text=chunk)
+
+    streaming(
+        [reasoning("thinking step 1... "), mid_stream_failure()],
+        [reasoning("thinking step 1... step 2... "), text("The capital is Paris."), done("The capital is Paris.")],
+    )
+
+    events, cid = await run(workspace)
+
+    kinds = [e.type for e in events]
+    assert "error" not in kinds
+    assert any(e.type == "reasoning_delta" for e in events)
+    assert any(e.type == "assistant_delta" for e in events)
+    kept = [m for m in MessageRepository().history(cid) if m.role == "assistant"][-1].content
+    assert "Paris" in kept
+    assert "[model error]" not in kept
+
+
 def test_connect_timeout_and_payload_sanitization():
     from backend.runtime.http import CONNECT_TIMEOUT
     from backend.runtime.providers.openai_compat import OpenAICompatClient

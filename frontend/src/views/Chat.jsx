@@ -286,12 +286,12 @@ function foldTraces(items) {
 }
 
 function historyToItems(rows) {
-  return rows.map((m) => {
+  return rows.flatMap((m) => {
     // `rowId` is the database id, which is what a pin is written against.
     // Streamed items have none until the transcript is read back, which is why
     // pinning is offered on stored messages and not on one still arriving.
     if (m.role === 'user') {
-      return { id: nextId(), rowId: m.id, kind: 'user', text: m.content, pinned: Boolean(m.pinned) }
+      return [{ id: nextId(), rowId: m.id, kind: 'user', text: m.content, pinned: Boolean(m.pinned) }]
     }
     if (m.role === 'assistant') {
       // A widget was persisted as a fenced block in its own message, because
@@ -299,7 +299,7 @@ function historyToItems(rows) {
       // the conversation is reopened; `null` for every ordinary answer.
       const widget = parseWidgetEnvelope(m.content ?? '')
       const blocks = parseContentBlocks(m.content ?? '')
-      return {
+      return [{
         id: nextId(),
         rowId: m.id,
         kind: 'assistant',
@@ -308,14 +308,14 @@ function historyToItems(rows) {
         blocks,
         pinned: Boolean(m.pinned),
         callsRaw: Array.isArray(m.tool_calls) ? m.tool_calls : [],
-      }
+      }]
     }
 
     if (m.role === 'tool') {
       if (m.tool_name === 'ask_user' || m.tool_name === 'ask_question') {
-        return null
+        return []
       }
-      return {
+      const toolItem = {
         id: nextId(),
         kind: 'tool',
         name: m.tool_name ?? 'tool',
@@ -323,9 +323,26 @@ function historyToItems(rows) {
         content: m.content ?? '',
         isError: Boolean(m.is_error),
       }
+      const blocks = parseContentBlocks(m.content ?? '')
+      const widgetBlock = blocks.find((b) => b.type === 'widget')
+      if (widgetBlock) {
+        return [
+          toolItem,
+          {
+            id: nextId(),
+            rowId: m.id,
+            kind: 'assistant',
+            text: '',
+            widget: widgetBlock.widget,
+            blocks: [widgetBlock],
+            callsRaw: [],
+          },
+        ]
+      }
+      return [toolItem]
     }
-    return null
-  }).filter(Boolean)
+    return []
+  })
 }
 
 function CopyButton({ text, label = 'Copy' }) {
@@ -783,73 +800,30 @@ const Msg = memo(function Msg({
             onOpenArtifact={onOpenArtifact}
           />
         )}
-        {hasWidgetBlock ? (
-          blocks.map((block, idx) => {
-            const isLastTextBlock = !blocks.slice(idx + 1).some((b) => b.type !== 'widget')
-            return block.type === 'widget' ? (
-              <div key={idx} className="msg-body">
-                <WidgetRenderer widget={block.widget} />
-              </div>
-            ) : (
-              <ResponseArtifactBox
-                key={idx}
-                text={block.content}
-                item={item}
-                minimalToolbar={minimalToolbar}
-                hideToolbar={!isLastTextBlock}
-                conversationId={conversationId}
-                isEditing={isEditing}
-                onStartEdit={onStartEdit}
-                onCancelEdit={onCancelEdit}
-                onSaveEdit={onSaveEdit}
-                onOpenFullScreen={onOpenFullScreen}
-                onRegenerate={onRegenerate}
-                onPin={onPin}
-                onExportDocx={onExportDocx}
-                onViewSources={() => onViewSources?.(item)}
-                onBranchInNewChat={onBranchInNewChat}
-                onFollowUp={(followUpText) => {
-                  setInput(followUpText)
-                  textareaRef.current?.focus()
-                }}
-                onRefer={onRefer}
-                onAskQuote={onAskQuote}
-              />
-            )
-          })
-        ) : (
-          <>
-            {item.widget && (
-              <div className="msg-body">
-                <WidgetRenderer widget={item.widget} />
-              </div>
-            )}
-            {!item.widget && item.text && (
-              <ResponseArtifactBox
-                text={item.text}
-                item={item}
-                minimalToolbar={minimalToolbar}
-                conversationId={conversationId}
-                isEditing={isEditing}
-                onStartEdit={onStartEdit}
-                onCancelEdit={onCancelEdit}
-                onSaveEdit={onSaveEdit}
-                onOpenFullScreen={onOpenFullScreen}
-                onRegenerate={onRegenerate}
-                onPin={onPin}
-                onExportDocx={onExportDocx}
-                onViewSources={() => onViewSources?.(item)}
-                onBranchInNewChat={onBranchInNewChat}
-                onFollowUp={(followUpText) => {
-                  setInput(followUpText)
-                  textareaRef.current?.focus()
-                }}
-                onRefer={onRefer}
-                onAskQuote={onAskQuote}
-              />
-            )}
-          </>
-        )}
+        <ResponseArtifactBox
+          text={item.text}
+          widget={item.widget}
+          blocks={hasWidgetBlock ? blocks : null}
+          item={item}
+          minimalToolbar={minimalToolbar}
+          conversationId={conversationId}
+          isEditing={isEditing}
+          onStartEdit={onStartEdit}
+          onCancelEdit={onCancelEdit}
+          onSaveEdit={onSaveEdit}
+          onOpenFullScreen={onOpenFullScreen}
+          onRegenerate={onRegenerate}
+          onPin={onPin}
+          onExportDocx={onExportDocx}
+          onViewSources={() => onViewSources?.(item)}
+          onBranchInNewChat={onBranchInNewChat}
+          onFollowUp={(followUpText) => {
+            setInput(followUpText)
+            textareaRef.current?.focus()
+          }}
+          onRefer={onRefer}
+          onAskQuote={onAskQuote}
+        />
       </div>
     )
 
@@ -983,7 +957,7 @@ export function resolveModelContextWindow(modelId = '', provider = '') {
 export default function Chat() {
   const {
     health, refreshHealth, setView, setOverlay, toast, registerChat,
-    conversations, refreshConvs, activeId, setActiveId, setRenaming,
+    conversations, refreshConvs, updateConversationOptimistic, activeId, setActiveId, setRenaming,
     caps, setCapEnabled, refreshCaps, setCapabilitiesTab,
     workspace, setWorkspace, notify,
     panel, setPanel, compact, view,
@@ -2021,7 +1995,7 @@ export default function Chat() {
     }
   }, [
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
-    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag,
+    guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag, quotedReference,
   ])
 
   const handleSaveMessageEdit = useCallback(async (msgItem, newText) => {
@@ -2095,6 +2069,24 @@ export default function Chat() {
     return () => window.removeEventListener('amethyst-refer-quote', handleReferQuoteEvent)
   }, [handleQuoteRefer, handleAskQuote])
 
+  useEffect(() => {
+    const handleSendPromptEvent = (e) => {
+      const text = e.detail?.text
+      if (!text) return
+      if (e.detail?.submit) {
+        send(text)
+      } else {
+        setInput(text)
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          textareaRef.current.style.height = 'auto'
+        }
+      }
+    }
+    window.addEventListener('amethyst-send-prompt', handleSendPromptEvent)
+    return () => window.removeEventListener('amethyst-send-prompt', handleSendPromptEvent)
+  }, [send])
+
   // Queue context/messages while a turn is actively executing (matches Queue ↵ in screenshot)
   const handleQueue = useCallback(() => {
     const typed = input.trim()
@@ -2134,7 +2126,7 @@ export default function Chat() {
 
   useEffect(() => { stopRef.current = stop }, [stop])
 
-  const applyModel = useCallback(async (patch) => {
+  const applyModel = useCallback((patch) => {
     const caps = patch.capabilities || {}
     if (patch.context_length) caps.context_length = patch.context_length
     setModelCaps(caps)
@@ -2142,28 +2134,29 @@ export default function Chat() {
     // Clear old variant info immediately to prevent stale levels showing
     setVariantInfo(null)
     
-    // Fetch per-model variant info (saved effort, supported levels, default)
-    const modelId = patch.model || ''
-    if (modelId && caps.supports_effort !== false) {
-      try {
-        const info = await api.getVariant(modelId, activeId)
-        setVariantInfo(info)
-        setEffort(info.resolved || 'high')
-      } catch {
-        setVariantInfo(null)
-      }
-    }
-    
     // Create db_patch by picking out only provider and model
     const db_patch = { provider: patch.provider, model: patch.model }
     
-    if (!activeId) { setDraft((d) => ({ ...d, ...db_patch })) }
-    else {
+    // Instant optimistic update: update local draft and active conversation synchronously
+    setDraft((d) => ({ ...d, ...db_patch }))
+    if (activeId) {
+      updateConversationOptimistic?.(activeId, db_patch)
       api.updateConversation(activeId, db_patch).catch((err) => {
         toast(err.message, 'bad')
       })
     }
-  }, [activeId, toast])
+    
+    // Fetch per-model variant info in background (saved effort, supported levels, default)
+    const modelId = patch.model || ''
+    if (modelId && caps.supports_effort !== false) {
+      api.getVariant(modelId, activeId).then((info) => {
+        setVariantInfo(info)
+        if (info?.resolved) setEffort(info.resolved)
+      }).catch(() => {
+        setVariantInfo(null)
+      })
+    }
+  }, [activeId, toast, updateConversationOptimistic])
 
   /* Ask something without typing it here.
 

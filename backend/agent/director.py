@@ -55,6 +55,7 @@ from backend.agent.tool_search import (
     dispatch_tool_search,
 )
 from backend.agent.context_compressor import ContextCompressor
+from backend.agent.jev import classify_presentation
 from backend.agent.widgets import classify_and_extract, to_envelope, FENCE
 from backend.runtime.variant_store import depth_instruction
 from backend.security.confirmation import guard_instruction
@@ -65,7 +66,7 @@ from backend.db.repositories import (
 )
 from backend.runtime import availability
 from backend.runtime.chain import AttemptBudget, Link, announcement, build_chain, reason_for
-from backend.runtime.failures import FailureKind, should_fall_back, should_retry
+from backend.runtime.failures import FailureKind, looks_like_quota, should_fall_back, should_retry
 from backend.runtime.http import ProviderError, ProviderHTTPError, ProviderStreamError
 from backend.runtime.registry import resolve
 from backend.runtime.router import AUTO, RouteRequest, route
@@ -141,6 +142,62 @@ FINAL_STEP_INSTRUCTION = (
     " you have it, and if the work is unfinished, say plainly what you did, what"
     " you found, and what is left. Do not apologise for the limit."
 )
+
+VISUALIZATION_STEER_INSTRUCTIONS: dict[str, str] = {
+    "chart": (
+        "PRESENTATION STEER (Jev router): The user wants an interactive chart or data visualization. "
+        "CRITICAL: You MUST call the `generate_sandboxed_ui` tool. DO NOT output plain markdown tables or text descriptions of charts. "
+        "Deliver the working, fully interactive chart via `generate_sandboxed_ui` (e.g. using Chart.js or SVG). "
+        "The surrounding container already shows the title banner — do not duplicate large <h1> titles in HTML; start directly with the chart and controls. "
+        "Match theme variables var(--canvas), var(--surface), var(--text), var(--text-dim), var(--accent), var(--border)."
+    ),
+    "calculator": (
+        "PRESENTATION STEER (Jev router): The user wants an interactive tool or calculator. "
+        "CRITICAL: You MUST call the `generate_sandboxed_ui` tool. DO NOT output plain markdown tables, code explanations, or static text. "
+        "Deliver the working, fully interactive application with live inputs, responsive controls, and reactive JavaScript calculation via `generate_sandboxed_ui`. "
+        "The surrounding container already shows the title banner — do not duplicate large <h1> titles in HTML; start directly with the controls and result displays. "
+        "Aesthetic guidance: use clean modern card layouts, preset pill buttons, formatted currency/numbers, smooth CSS transitions, and Amethyst theme variables (var(--canvas), var(--surface), var(--surface-2), var(--text), var(--text-dim), var(--accent), var(--border))."
+    ),
+    "diagram": (
+        "PRESENTATION STEER (Jev router): The user wants an interactive diagram, flowchart, or architecture view. "
+        "CRITICAL: You MUST call the `generate_sandboxed_ui` tool with interactive SVG or HTML/CSS elements. "
+        "Do not duplicate large <h1> titles in HTML. Match theme variables var(--canvas), var(--surface), var(--text), var(--accent), var(--border)."
+    ),
+    "simulation": (
+        "PRESENTATION STEER (Jev router): The user wants an interactive simulation, 3D model, or animation. "
+        "CRITICAL: You MUST call the `generate_sandboxed_ui` tool with interactive controls (e.g. Canvas or Three.js). "
+        "Do not duplicate large <h1> titles in HTML. Match theme variables var(--canvas), var(--surface), var(--text), var(--accent), var(--border)."
+    ),
+    "comparison": (
+        "PRESENTATION STEER (Jev router): The user wants a comparison or scorecard between options or technologies. "
+        "CRITICAL: Deliver the response directly as an actual, integrated part of the chat with clear headings, detailed analysis, and a clean markdown comparison table, or call `generate_sandboxed_ui` for an interactive UI. "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested; keep it flowing naturally as conversation."
+    ),
+    "itinerary": (
+        "PRESENTATION STEER (Jev router): The user wants an itinerary or travel route. "
+        "CRITICAL: Deliver the response directly as an integrated part of the chat with day-by-day sections, recommendations, driving/travel times, and highlights (or via `generate_sandboxed_ui` for interactive maps/routes). "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
+    ),
+    "recipe": (
+        "PRESENTATION STEER (Jev router): The user wants a culinary recipe. "
+        "CRITICAL: Deliver directly as an integrated part of the chat with ingredients, step-by-step instructions, and cooking tips (or via `generate_sandboxed_ui` for interactive calculators). "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
+    ),
+    "step_guide": (
+        "PRESENTATION STEER (Jev router): The user wants a step-by-step tutorial or technical procedure. "
+        "CRITICAL: Deliver directly as an integrated part of the chat with numbered steps, explanations, and code/terminal snippets (or via `generate_sandboxed_ui` for interactive steppers). "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
+    ),
+    "quiz": (
+        "PRESENTATION STEER (Jev router): The user wants a quiz, trivia, or knowledge test. "
+        "CRITICAL: Call `generate_sandboxed_ui` for a live interactive quiz with score tracking, or present questions directly in the chat. "
+        "Do not isolate into a standalone ```amethyst:widget``` component envelope unless specifically requested."
+    ),
+    "table": (
+        "PRESENTATION STEER (Jev router): The user wants a tabular comparison or data view. "
+        "CRITICAL: Call `generate_sandboxed_ui` for a rich searchable, sortable interactive table."
+    ),
+}
 
 def failed_tools_instruction(failures: list[dict[str, str]]) -> str:
     """Told to the model before it writes the answer, when tools failed.
@@ -967,6 +1024,11 @@ class Director:
         except Exception as exc:
             log.exception("the turn failed outside the loop's own handling")
             partial = "".join(shown).strip()
+            sandboxed_ui_env = getattr(state, "sandboxed_ui_envelope", None)
+            if not partial and sandboxed_ui_env:
+                partial = sandboxed_ui_env
+            elif sandboxed_ui_env and FENCE not in partial:
+                partial = f"{sandboxed_ui_env}\n\n{partial}".strip()
             raw_str = f"{type(exc).__name__}: {exc}"
             message = (
                 "The model stream was interrupted by the provider. Please try again."
@@ -1098,7 +1160,30 @@ class Director:
         _skip_widget = bool(
             set(user_message.lower().split()) & _CODE_SIGNALS
         ) or len(user_message) > 500
-        if self.mode != "plan" and not attachments and not _skip_widget:
+
+        # TypeSafe Jev Presentation Routing (OpenIntelligentUI)
+        jev_decision = "text"
+        if self.mode != "plan" and not attachments:
+            try:
+                history_raw = self.messages.history(conversation_id)
+                recent_msgs = to_wire_messages(history_raw)[-3:]
+                recent_msgs.append({"role": "user", "content": user_message})
+                jev_decision = await classify_presentation(recent_msgs)
+
+                # If user says "continue", "next", "update", etc. after a widget turn, preserve generative UI
+                if jev_decision == "text" and history_raw:
+                    last_assistant = next((m for m in reversed(history_raw) if m.role == "assistant"), None)
+                    if last_assistant and ("sandboxed_ui" in (last_assistant.content or "") or "generate_sandboxed_ui" in (last_assistant.content or "")):
+                        clean_lower = user_message.lower().strip(".!? ")
+                        if clean_lower in ("continue", "proceed", "go on", "next", "more", "keep going", "update", "extend") or len(clean_lower.split()) <= 6:
+                            jev_decision = "calculator"
+
+                if jev_decision and jev_decision != "text":
+                    state.presentation_steer = VISUALIZATION_STEER_INSTRUCTIONS.get(jev_decision)
+            except Exception as exc:
+                log.debug("Jev classification failed: %s", exc)
+
+        if self.mode != "plan" and not attachments and not _skip_widget and jev_decision not in ("calculator", "simulation", "diagram", "chart"):
             widget_started = time.monotonic()
             widget_type, widget_data, widget_media = await classify_and_extract(user_message)
             if widget_type != "none" and widget_data is not None:
@@ -1303,6 +1388,8 @@ class Director:
                 elif should_recall:
                     yield Event("status", {"state": "recalling"})
             retrieved, recalled, recent_conversations = await prefetch_fut
+            if not done:
+                yield Event("status", {"state": "thinking"})
             log.debug(
                 "turn prefetch retrieve+recall in %.0fms (trivial=%s, memories=%d)",
                 (time.monotonic() - _prefetch_started) * 1000, trivial, len(recalled or []),
@@ -1666,6 +1753,8 @@ class Director:
                     # Cleared once a call succeeds, not here: a fallback
                     # attempt has to carry the same instruction.
                     wire.append({"role": "system", "content": state.nudge})
+                if state.presentation_steer:
+                    wire.append({"role": "system", "content": state.presentation_steer})
                 if final_step:
                     wire.append({"role": "system", "content": FINAL_STEP_INSTRUCTION})
                 if state.failed_calls:
@@ -1789,6 +1878,7 @@ class Director:
                 response = None
                 streamed = False
                 streamed_text = []
+                streamed_reasoning = []
                 # Reset per attempt, and defined whether or not the provider
                 # streams: the dispatch loop below asks it how much of a
                 # document already reached the panel, and Anthropic and Google
@@ -1827,6 +1917,7 @@ class Director:
                                 said.append(chunk.text)
                                 yield Event("assistant_delta", {"text": chunk.text})
                             elif chunk.type == "reasoning" and chunk.text:
+                                streamed_reasoning.append(chunk.text)
                                 yield Event("reasoning_delta", {"text": chunk.text})
                             elif chunk.type == "tool_arguments":
                                 # A document being written, one fragment at a
@@ -1908,10 +1999,32 @@ class Director:
                     # that is merely unreachable never opened anything, and
                     # re-asking it just pays its timeout twice before the
                     # handover that was always the right answer.
-                    effective_max_resumes = 20 if (self.guards.max_resumes is None or self.guards.max_resumes <= 0) else self.guards.max_resumes
+                    effective_max_resumes = (
+                        self.guards.max_resumes
+                        if (self.guards.max_resumes is not None and self.guards.max_resumes > 0)
+                        else 4
+                    )
                     can_resume = (
                         bool(streamed_text or state.carried)
                         and (should_retry(kind) or kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE))
+                        and kind != FailureKind.NON_RETRYABLE_RATE_LIMIT
+                        and not looks_like_quota(raw_message)
+                        and state.resumes < effective_max_resumes
+                    )
+                    is_stream_interruption = (
+                        (
+                            "input stream" in str(raw_message).lower()
+                            or "stream" in str(raw_message).lower()
+                            or "connection" in str(raw_message).lower()
+                            or "timeout" in str(raw_message).lower()
+                            or "peer closed" in str(raw_message).lower()
+                            or "stream" in type(exc).__name__.lower()
+                            or isinstance(exc, ProviderStreamError)
+                            or bool(streamed_reasoning)
+                        )
+                        and (should_retry(kind) or kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE))
+                        and kind != FailureKind.NON_RETRYABLE_RATE_LIMIT
+                        and not looks_like_quota(raw_message)
                         and state.resumes < effective_max_resumes
                     )
                     if can_resume:
@@ -1929,6 +2042,20 @@ class Director:
                         # The failure is recorded below if the state.resumes run out.
                         log.info(
                             "%s cut the answer short (%s); resuming it (%d/%d)",
+                            chain[state.active].provider,
+                            kind,
+                            state.resumes,
+                            effective_max_resumes,
+                        )
+                        self._checkpoint(state, budget=budget)
+                        yield Event("status", {"state": "resuming"})
+                        await asyncio.sleep(min(0.5 * state.resumes, 2.0))
+                        continue
+                    elif is_stream_interruption:
+                        state.resumes += 1
+                        budget.spend(1)
+                        log.info(
+                            "%s stream interrupted before answer text (%s); auto-recovering attempt (%d/%d)",
                             chain[state.active].provider,
                             kind,
                             state.resumes,
@@ -1977,7 +2104,7 @@ class Director:
                     # continuation and not a restart.
                     can_hand_over = (
                         links_after > 0
-                        and (should_fall_back(kind) or state.active > 0)
+                        and (should_fall_back(kind) or state.active > 0 or bool(streamed_text or state.carried))
                     )
                     if can_hand_over:
                         resuming = bool(streamed_text or state.carried)
@@ -2033,6 +2160,11 @@ class Director:
                     )
                     message = f"{chain[state.active].provider} {reason_for(kind)}."
                     partial = merge_partial(state.carried, "".join(streamed_text)).strip()
+                    sandboxed_ui_env = getattr(state, "sandboxed_ui_envelope", None)
+                    if not partial and sandboxed_ui_env:
+                        partial = sandboxed_ui_env
+                    elif sandboxed_ui_env and FENCE not in partial:
+                        partial = f"{sandboxed_ui_env}\n\n{partial}".strip()
 
                     if partial:
                         # There is an answer. Deliver it, and do not call it a
@@ -2079,23 +2211,6 @@ class Director:
                         )
                         return
 
-                    # If stream dropped and this is an intermittent interruption, attempt auto-recovery
-                    if (
-                        ("input stream" in str(raw_message).lower()
-                         or "stream" in str(message).lower()
-                         or "connection" in str(raw_message).lower())
-                        and state.resumes < effective_max_resumes
-                    ):
-                        state.resumes += 1
-                        log.info(
-                            "%s stream interrupted; auto-recovering attempt %d/%d",
-                            chain[state.active].provider,
-                            state.resumes,
-                            effective_max_resumes,
-                        )
-                        yield Event("status", {"state": "resuming"})
-                        await asyncio.sleep(min(1.0 * state.resumes, 3.0))
-                        continue
 
                     # Nothing was produced, so this really is a failed turn.
                     clean_msg = (
@@ -2201,6 +2316,10 @@ class Director:
                 else:
                     delivered = answer
 
+                sandboxed_ui_env = getattr(state, "sandboxed_ui_envelope", None)
+                if sandboxed_ui_env and FENCE not in delivered:
+                    delivered = f"{sandboxed_ui_env}\n\n{delivered}".strip()
+
                 gallery_imgs = getattr(state, "gallery_images", None)
                 if gallery_imgs and FENCE not in delivered:
                     formatted_imgs = [
@@ -2219,7 +2338,6 @@ class Director:
                             ensure_ascii=False,
                         )
                         w_block = f"\n\n```{FENCE}\n{w_json}\n```\n\n"
-                        import re
                         md_img_pat = re.compile(r"(!\[.*?\]\(.*?\)\s*)+")
                         if md_img_pat.search(delivered):
                             delivered = md_img_pat.sub(w_block, delivered, count=1)
@@ -2449,6 +2567,15 @@ class Director:
                             # see.
                             for stopper in stoppers:
                                 stopper.cancel()
+                            while not context.events.empty():
+                                try:
+                                    item = context.events.get_nowait()
+                                    if isinstance(item, tuple) and item[0] != "__parallel_done__":
+                                        event_type, data = item
+                                        self._note_suspension(state, Event(event_type, data))
+                                        yield Event(event_type, data)
+                                except Exception:
+                                    break
 
                 else:
                     # Sequential segment: execute one-by-one
@@ -2524,6 +2651,15 @@ class Director:
                         finally:
                             if stopper is not None:
                                 stopper.cancel()
+                            while not context.events.empty():
+                                try:
+                                    item = context.events.get_nowait()
+                                    if isinstance(item, tuple) and item[0] != "__parallel_done__":
+                                        event_type, data = item
+                                        self._note_suspension(state, Event(event_type, data))
+                                        yield Event(event_type, data)
+                                except Exception:
+                                    break
 
             # Collect and yield results in original order
             for call, task in dispatch_tasks:
@@ -2565,6 +2701,10 @@ class Director:
                     result = ToolResult.error(f"'{call.name}' raised {type(exc).__name__}: {exc}")
                 else:
                     result = task.result()
+                    if result and result.content and f"```{FENCE}" in result.content:
+                        m = re.search(rf"```{re.escape(FENCE)}\s*\n(.*?)\n```", result.content, re.DOTALL)
+                        if m:
+                            state.sandboxed_ui_envelope = f"```{FENCE}\n{m.group(1).strip()}\n```"
 
                 answered = self._persist(
                     conversation_id,
@@ -2750,6 +2890,7 @@ class Director:
             "thanks", "thank you", "thx", "ty",
             "ok", "okay", "k", "cool", "great", "nice", "awesome", "perfect",
             "yes", "yeah", "yep", "no", "nope",
+            "continue", "proceed", "go on", "next", "more", "keep going",
             "bye", "goodbye", "cya", "see ya",
             "ping", "test",
         }
@@ -2777,8 +2918,9 @@ class Director:
     def _should_retrieve(self, user_message: str, attachments: list | None = None) -> bool:
         """Heuristic: does this prompt target vault note retrieval?
 
-        Direct code tasks, command executions, component building, and math/edits
-        do not need vault document retrieval unless notes/vault/documents are explicitly mentioned.
+        Direct code tasks, command executions, component building, UI/widget generation,
+        and follow-up continuations do not need vault document retrieval unless
+        notes/vault/documents are explicitly mentioned.
         Skipping unneeded retrieval saves ~400ms TTFT per turn.
         """
         if not self.retrieval or not user_message.strip():
@@ -2786,10 +2928,30 @@ class Director:
         text = user_message.strip().lower()
         if any(k in text for k in ("note", "notes", "vault", "doc", "docs", "document", "documents", "readme", "spec", "journal", "briefing")):
             return True
+
+        # UI/widget tasks, calculators, and interactive presentation prompts never need vault notes
+        ui_widget_terms = (
+            "calculator", "calc", "splitter", "tip", "mortgage", "chart", "graph",
+            "simulation", "simulator", "diagram", "widget", "sandboxed", "game",
+            "dashboard", "visualizer", "app", "counter", "convert", "converter",
+        )
+        if any(k in text for k in ui_widget_terms):
+            return False
+
+        # Continuations and short follow-up prompts
+        clean_word = text.strip(".!? ")
+        if clean_word in (
+            "continue", "proceed", "go on", "next", "more", "keep going", "again",
+            "retry", "update", "extend", "fix it", "make it better", "looks good",
+        ):
+            return False
+
         code_task_starters = (
             "write ", "create ", "build ", "fix ", "debug ", "refactor ", "implement ",
             "run ", "exec ", "npm ", "git ", "pip ", "cd ", "mkdir ", "touch ", "rm ",
-            "add unit test", "add test", "update component", "edit file", "make a ", "make "
+            "add unit test", "add test", "update component", "edit file", "make a ", "make ",
+            "can you make", "can you build", "can you create", "could you make", "could you build",
+            "give me ", "gimme ", "show me "
         )
         if text.startswith(code_task_starters):
             return False

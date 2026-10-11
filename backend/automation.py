@@ -1474,6 +1474,16 @@ def enqueue_due(*, moment: datetime | None = None) -> list[dict[str, Any]]:
             continue
         if parse_iso(fresh.next_run_at) > at:
             continue
+        # Advance next_run_at immediately so a long or retried job does not re-trigger every 10s tick
+        nxt = next_run_for(
+            schedule_type=fresh.schedule_type,
+            every_minutes=fresh.every_minutes,
+            daily_at_time=fresh.daily_at_time,
+            weekly_day=fresh.weekly_day,
+            timezone=fresh.timezone,
+        )
+        repo.conn.execute("UPDATE automations SET next_run_at = ? WHERE id = ?", (_iso(nxt), fresh.id))
+        repo.conn.commit()
         job = enqueue_run(fresh)
         log.info("automation %s (%s) is due; job %s", fresh.id, fresh.name, job.id)
         started.append(

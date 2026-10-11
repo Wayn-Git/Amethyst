@@ -10,6 +10,7 @@ import StepGuide from './StepGuide.jsx'
 import Translation from './Translation.jsx'
 import ImageGallery from './ImageGallery.jsx'
 import DataTable from './DataTable.jsx'
+import SandboxedUi from './SandboxedUi.jsx'
 
 /* Widget type -> renderer.
  *
@@ -28,6 +29,7 @@ const RENDERERS = {
   options: Options,
   image_gallery: ImageGallery,
   data_table: DataTable,
+  sandboxed_ui: SandboxedUi,
 }
 
 /* The frame's furniture. Every widget is titled and labelled the same way, so
@@ -44,6 +46,7 @@ const FURNITURE = {
   options: { icon: 'logs', label: 'Options' },
   image_gallery: { icon: 'image', label: 'Gallery' },
   data_table: { icon: 'grid', label: 'Table' },
+  sandboxed_ui: { icon: 'sparkle', label: 'Interactive' },
 }
 
 /* What has to be present for a widget to be worth drawing.
@@ -63,6 +66,7 @@ const CONTENT = {
   options: (d) => d.options?.length,
   image_gallery: (d) => d.images?.length,
   data_table: (d) => d.columns?.length || d.rows?.length,
+  sandboxed_ui: (d) => Boolean(d?.html || d?.js),
 }
 
 
@@ -85,11 +89,12 @@ export default function WidgetRenderer({ widget }) {
   if (!Renderer || !widget?.data) return null
   if (!CONTENT[widget.type](widget.data)) return null
 
-  if (widget.type === 'image_gallery') {
+  if (widget.type === 'image_gallery' || widget.type === 'sandboxed_ui') {
     return <Renderer data={widget.data} />
   }
 
   const { icon, label } = FURNITURE[widget.type]
+  const isFlush = widget.type === 'sandboxed_ui'
 
   return (
     <div className="widget-frame">
@@ -103,7 +108,7 @@ export default function WidgetRenderer({ widget }) {
         <span className="widget-frame-title">{headingFor(widget.type, widget.data)}</span>
         <span className="widget-frame-label">{label}</span>
       </div>
-      <div className="widget-frame-body">
+      <div className={`widget-frame-body ${isFlush ? 'widget-frame-body-flush' : ''}`}>
         <Renderer data={widget.data} />
         {/* Media is a garnish and sits below the answer, never in place of it.
             Renders nothing when there is none, which is most of the time. */}

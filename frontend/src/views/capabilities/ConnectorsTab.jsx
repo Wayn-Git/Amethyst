@@ -1,2766 +1,852 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
-import BrandMark from '../../components/BrandMark.jsx'
-import ServiceIcon from '../../components/ServiceIcon.jsx'
-import { useApp } from '../../store.jsx'
-import { api, copyText } from '../../api.js'
-import { Skeleton as BoneyardSkeleton, configureBoneyard } from 'boneyard-js/react'
-import { useConfirm } from '../../components/ui/ConfirmDialog.jsx'
-import NewConnectorModal from './NewConnectorModal.jsx'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  Check,
+  Loader2,
+  RefreshCw,
+  Search,
+  TriangleAlert,
+  X,
+  ExternalLink,
+  Plus,
+  Key,
+  ShieldCheck,
+  Server,
+  Layers,
+  Globe,
+  LogIn,
+  Trash2,
+} from 'lucide-react'
+import { api } from '../../api.js'
+import McpServersPanel from './McpServersPanel.jsx'
+import '../../styles/connectors.css'
 
-configureBoneyard({
-  color: 'rgba(255, 255, 255, 0.04)',
-  darkColor: 'rgba(255, 255, 255, 0.04)',
-  shimmerColor: 'rgba(255, 255, 255, 0.10)',
-  darkShimmerColor: 'rgba(255, 255, 255, 0.10)',
-  animate: 'shimmer',
-  transition: false,
-})
+// Module-level cache so reopening the tab never flashes an empty state
+let cachedConnectorStatus = null
+let cachedConnectorStatusAt = 0
+const CONNECTOR_STATUS_CACHE_MS = 30_000
 
-function ConnectorsCatalogSkeleton({ filter = 'all' }) {
-  const showAgentTools = filter === 'all' || filter === 'agent-tools'
-  const showPopular = filter === 'all' || filter === 'Popular' || filter === 'installed'
-  const showSecondary = filter === 'all' || filter === 'Productivity'
-
-  return (
-    <div className="conn-catalog-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
-      {showAgentTools && (
-        <section className="plugin-section">
-          <div className="plugin-section-head">
-            <div className="plugin-section-title-wrap">
-              <div className="boneyard-bone" style={{ width: 136, height: 18, borderRadius: 5 }} />
-              <div className="boneyard-bone" style={{ width: 22, height: 18, borderRadius: 10 }} />
-            </div>
-          </div>
-          <div className="plugin-grid">
-            {[
-              { titleW: 150, badgeW: 55, descW: '82%', actW: 68 },
-              { titleW: 125, badgeW: 55, descW: '75%', actW: 68 },
-              { titleW: 135, badgeW: 50, descW: '88%', actW: 68 },
-              { titleW: 110, badgeW: 58, descW: '78%', actW: 68 },
-              { titleW: 165, badgeW: 52, descW: '84%', actW: 68 },
-              { titleW: 140, badgeW: 55, descW: '80%', actW: 68 },
-            ].map((c, i) => (
-              <div key={i} className="plugin-row">
-                <div className="plugin-row-icon">
-                  <div className="boneyard-bone" style={{ width: 38, height: 38, borderRadius: 10 }} />
-                </div>
-                <div className="plugin-row-info">
-                  <div className="plugin-row-title-wrap">
-                    <div className="boneyard-bone" style={{ width: c.titleW, height: 16, borderRadius: 4 }} />
-                    <div className="boneyard-bone" style={{ width: c.badgeW, height: 15, borderRadius: 10 }} />
-                  </div>
-                  <div className="boneyard-bone" style={{ width: c.descW, height: 12, marginTop: 6, borderRadius: 4 }} />
-                </div>
-                <div className="plugin-row-actions">
-                  <div className="boneyard-bone" style={{ width: c.actW, height: 28, borderRadius: 6 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {showPopular && (
-        <section className="plugin-section">
-          <div className="plugin-section-head">
-            <div className="plugin-section-title-wrap">
-              <div className="boneyard-bone" style={{ width: 85, height: 18, borderRadius: 5 }} />
-              <div className="boneyard-bone" style={{ width: 20, height: 18, borderRadius: 10 }} />
-            </div>
-          </div>
-          <div className="plugin-grid">
-            {[
-              { titleW: 115, badgeW: 75, descW: '80%', actW: 72 },
-              { titleW: 140, badgeW: 75, descW: '72%', actW: 72 },
-              { titleW: 130, badgeW: 75, descW: '85%', actW: 72 },
-              { titleW: 110, badgeW: 75, descW: '68%', actW: 72 },
-            ].map((c, i) => (
-              <div key={i} className="plugin-row">
-                <div className="plugin-row-icon">
-                  <div className="boneyard-bone" style={{ width: 38, height: 38, borderRadius: 10 }} />
-                </div>
-                <div className="plugin-row-info">
-                  <div className="plugin-row-title-wrap">
-                    <div className="boneyard-bone" style={{ width: c.titleW, height: 16, borderRadius: 4 }} />
-                    <div className="boneyard-bone" style={{ width: c.badgeW, height: 15, borderRadius: 10 }} />
-                  </div>
-                  <div className="boneyard-bone" style={{ width: c.descW, height: 12, marginTop: 6, borderRadius: 4 }} />
-                </div>
-                <div className="plugin-row-actions">
-                  <div className="boneyard-bone" style={{ width: c.actW, height: 28, borderRadius: 6 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {showSecondary && (
-        <section className="plugin-section">
-          <div className="plugin-section-head">
-            <div className="plugin-section-title-wrap">
-              <div className="boneyard-bone" style={{ width: 100, height: 18, borderRadius: 5 }} />
-              <div className="boneyard-bone" style={{ width: 20, height: 18, borderRadius: 10 }} />
-            </div>
-          </div>
-          <div className="plugin-grid">
-            {[
-              { titleW: 125, badgeW: 75, descW: '76%', actW: 72 },
-              { titleW: 135, badgeW: 55, descW: '82%', actW: 68 },
-            ].map((c, i) => (
-              <div key={i} className="plugin-row">
-                <div className="plugin-row-icon">
-                  <div className="boneyard-bone" style={{ width: 38, height: 38, borderRadius: 10 }} />
-                </div>
-                <div className="plugin-row-info">
-                  <div className="plugin-row-title-wrap">
-                    <div className="boneyard-bone" style={{ width: c.titleW, height: 16, borderRadius: 4 }} />
-                    <div className="boneyard-bone" style={{ width: c.badgeW, height: 15, borderRadius: 10 }} />
-                  </div>
-                  <div className="boneyard-bone" style={{ width: c.descW, height: 12, marginTop: 6, borderRadius: 4 }} />
-                </div>
-                <div className="plugin-row-actions">
-                  <div className="boneyard-bone" style={{ width: c.actW, height: 28, borderRadius: 6 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
-  )
-}
-
-const FILTER_TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'installed', label: 'Installed' },
-  { id: 'agent-tools', label: 'Agent Tools' },
-  { id: 'Popular', label: 'Popular' },
-  { id: 'Productivity', label: 'Productivity' },
-  { id: 'Developer Tools', label: 'Developer Tools' },
-  { id: 'Communication & Media', label: 'Communication' },
-]
-
-/* Connectors: Agent Core Tools and User Connectors. */
-
-const AGENT_TOOL_IDS = new Set([
-  'playwright',
-  'chrome-devtools',
-  'fetch',
-  'memory',
-  'exa',
-  'tavily',
-  'firecrawl',
-])
-
-const AGENT_TOOL_CATEGORIES = new Set(['Browser', 'Web', 'Knowledge'])
-
-function isAgentTool(item) {
-  const id = item.id || item.name || ''
-  if (AGENT_TOOL_IDS.has(id)) return true
-  if (item.category && AGENT_TOOL_CATEGORIES.has(item.category)) return true
-  return false
-}
-
-/* Where sign-in is arranged, and the only place "Reconnect" lives. */
-function ConnectionBlock({ server, busy, onAct }) {
-  const [hint, setHint] = useState('')
-  const needsHint = server.auth_kind === 'setup' && Boolean(server.account_hint_label)
-  const blocked = (server.missing_credentials || []).length > 0
-
-  if (server.auth_kind === 'none') {
-    return (
-      <div className="conn-detail-row">
-        <span>Connection</span>
-        <span className="conn-detail-value">No account needed</span>
-      </div>
-    )
+export function reserveConnectionPage() {
+  let page = null
+  let navigated = false
+  let cancelled = false
+  try {
+    page = window.open('', '_blank')
+    if (page) page.opener = null
+  } catch {
+    page?.close()
+    page = null
   }
-
-  return (
-    <div className="conn-connection">
-      <div className="conn-detail-row">
-        <span>Connection</span>
-        <span className={`conn-detail-value${server.signed_in ? ' is-live' : ''}`}>
-          {blocked
-            ? 'Needs credentials'
-            : server.signed_in
-              ? (server.account || 'Signed in')
-              : 'Not signed in'}
-        </span>
-      </div>
-
-      {blocked && (
-        <p className="conn-setup-note">
-          This connector cannot sign in until it has{' '}
-          {server.missing_credentials.map((key, i) => (
-            <span key={key}>
-              {i > 0 && ' and '}
-              <span className="mono">{key}</span>
-            </span>
-          ))}
-          . Add them below.
-        </p>
-      )}
-
-      {!blocked && needsHint && !server.signed_in && (
-        <div className="field" style={{ marginTop: 10 }}>
-          <label>{server.account_hint_label}</label>
-          <input
-            value={hint}
-            placeholder="you@gmail.com"
-            onChange={(e) => setHint(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && hint.trim()) {
-                onAct('login', { accountHint: hint.trim() })
-              }
-            }}
-          />
-          <p className="conn-setup-note" style={{ margin: '6px 0 0' }}>
-            {server.title} has to be told which account to start the flow for. You still
-            choose and approve it on Google&apos;s own page.
-          </p>
-        </div>
-      )}
-
-      {(server.shares_account_with || []).length > 0 && (
-        <p className="conn-setup-note">
-          One account for {server.shares_account_with.length + 1} connectors — signing in here
-          signs in {server.shares_account_with.join(', ')} too, and signing out signs them all out.
-        </p>
-      )}
-
-      <div className="conn-connection-actions">
-        {blocked && !server.signed_in && (
-          <button
-            type="button"
-            className="btn btn--small"
-            disabled
-            title="Configure required credentials in the Set-up section below first"
-          >
-            Needs Credentials
-          </button>
-        )}
-        {!blocked && !server.signed_in && (
-          <motion.button
-            type="button"
-            className="btn btn--small btn--primary"
-            disabled={Boolean(busy) || (needsHint && !hint.trim())}
-            onClick={() => onAct('connect')}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-          >
-            {busy === 'connect' ? 'Opening…' : 'Connect'}
-          </motion.button>
-        )}
-        {server.signed_in && (
-          <>
-            <motion.button
-              type="button"
-              className="btn btn--small"
-              disabled={Boolean(busy)}
-              onClick={() => onAct('login', { force: true, accountHint: hint.trim() || null })}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-            >
-              {busy === 'login' ? 'Opening…' : 'Reconnect'}
-            </motion.button>
-            <motion.button
-              type="button"
-              className="btn btn--ghost btn--small"
-              disabled={Boolean(busy)}
-              title="Forget this account. The next sign-in asks which one to use."
-              onClick={() => onAct('logout')}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-            >
-              {busy === 'logout' ? 'Signing out…' : 'Sign out'}
-            </motion.button>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* The client id and secret a provider issued, put where the thing that reads
-   them will actually find it. */
-function CredentialsForm({ server, onDone }) {
-  const { toast } = useApp()
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const save = async () => {
-    if (!clientId.trim()) return
-    setBusy(true)
-    try {
-      await api.mcpOauthClient(server.name, {
-        client_id: clientId.trim(),
-        client_secret: clientSecret.trim() || null,
-      })
-      toast(`Credentials stored for ${server.title}`, 'ok')
-      setClientId('')
-      setClientSecret('')
-      onDone()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const secretKey = server.client_secret_env
-  const locked = Boolean(secretKey && server.env?.[secretKey])
-  const sharedWith = server.shares_account_with || []
-
-  if (locked) {
-    return (
-      <div className="conn-setup-block">
-        <div className="conn-setup-title"><Icon name="key" size={13} /> Credentials</div>
-        <div className="conn-locked">
-          <Icon name="check" size={14} />
-          <div>
-            <div className="conn-locked-title">Client secret stored</div>
-            <div className="conn-setup-note" style={{ margin: 0 }}>
-              Held in the OS keychain
-              {sharedWith.length > 0
-                ? ` and shared with ${sharedWith.length} other connector${sharedWith.length === 1 ? '' : 's'}, so replacing it changes all of them.`
-                : '.'}
-              {' '}Replacing it is deliberate, from the terminal:
-              <span className="mono"> amethyst mcp env {server.name} {secretKey} &lt;value&gt; --secret --force</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="conn-setup-block">
-      <div className="conn-setup-title"><Icon name="key" size={13} /> Credentials</div>
-      {server.setup_hint && <pre className="conn-setup-steps">{server.setup_hint}</pre>}
-      <div className="field-row">
-        <div className="field">
-          <label>client id</label>
-          <input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            placeholder={server.auth_kind === 'setup' ? '…apps.googleusercontent.com' : 'Ov23li…'}
-          />
-        </div>
-        <div className="field">
-          <label>client secret</label>
-          <input
-            value={clientSecret}
-            type="password"
-            onChange={(e) => setClientSecret(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') save() }}
-            placeholder="stored in the OS keychain"
-          />
-        </div>
-      </div>
-      <p className="conn-setup-note">
-        The secret goes to the OS keychain; mcp.yaml keeps only a reference.
-        {server.client_id_env && (
-          <> The id is written to <span className="mono">{server.client_id_env}</span>, which is
-          where this server reads it.</>
-        )}
-      </p>
-      <div>
-        <motion.button
-          type="button"
-          className="btn btn--small"
-          onClick={save}
-          disabled={busy || !clientId.trim()}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          {busy ? 'Storing…' : 'Store credentials'}
-        </motion.button>
-      </div>
-    </div>
-  )
-}
-
-/* Any other variable a stdio server takes through its environment. */
-function EnvForm({ server, onChanged }) {
-  const { toast } = useApp()
-  const [key, setKey] = useState('')
-  const [value, setValue] = useState('')
-  const [secret, setSecret] = useState(true)
-  const [busy, setBusy] = useState('')
-  const entries = Object.entries(server.env || {})
-
-  const save = async () => {
-    const name = key.trim()
-    if (!name || !value) return
-    setBusy('set')
-    try {
-      await api.mcpSetEnv(server.name, { key: name, value, secret })
-      toast(`${name} stored in ${secret ? 'the OS keychain' : 'mcp.yaml'}`, 'ok')
-      setKey('')
-      setValue('')
-      onChanged()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const drop = async (name) => {
-    setBusy(name)
-    try {
-      await api.mcpUnsetEnv(server.name, name)
-      toast(`Forgot ${name}`, 'ok')
-      onChanged()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy('')
-    }
-  }
-
-  return (
-    <div className="conn-setup-block">
-      <div className="conn-setup-title"><Icon name="key" size={13} /> Environment</div>
-      {entries.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-          {entries.map(([name, inKeychain]) => (
-            <span key={name} className="badge" style={{ gap: 6 }}>
-              <span className="mono">{name}</span>
-              <span style={{ color: 'var(--text-faint)' }}>{inKeychain ? 'keychain' : 'mcp.yaml'}</span>
-              <button
-                type="button"
-                onClick={() => drop(name)}
-                disabled={busy === name}
-                title={`Forget ${name}`}
-                aria-label={`Forget ${name}`}
-                style={{ color: 'var(--text-faint)', lineHeight: 0 }}
-              >
-                <Icon name="x" size={11} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="field-row">
-        <div className="field">
-          <label>variable</label>
-          <input value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} placeholder="SOME_TOKEN" />
-        </div>
-        <div className="field">
-          <label>value</label>
-          <input
-            value={value}
-            type={secret ? 'password' : 'text'}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') save() }}
-            placeholder={secret ? 'stored in the OS keychain' : 'written to mcp.yaml'}
-          />
-        </div>
-      </div>
-      <label className="conn-check">
-        <input type="checkbox" checked={secret} onChange={(e) => setSecret(e.target.checked)} />
-        Keep this in the OS keychain — mcp.yaml holds only a reference
-      </label>
-      <div>
-        <motion.button
-          type="button"
-          className="btn btn--small"
-          onClick={save}
-          disabled={busy === 'set' || !key.trim() || !value}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          {busy === 'set' ? 'Storing…' : 'Set variable'}
-        </motion.button>
-      </div>
-    </div>
-  )
-}
-
-const RISK_ORDER = { high: 0, medium: 1, low: 2 }
-
-/* Everything this connector can actually do, from the live registry. */
-function ActionList({ tools }) {
-  const [open, setOpen] = useState(false)
-  if (tools.length === 0) return null
-  const shown = open ? tools : tools.slice(0, 6)
-
-  return (
-    <section className="conn-detail-section">
-      <h3>Actions <span className="conn-detail-count">{tools.length}</span></h3>
-      <ul className="conn-actions-list">
-        {shown.map((tool) => (
-          <li key={tool.name}>
-            <span className="conn-action-name mono">{tool.short}</span>
-            <span className="conn-action-desc">{tool.description}</span>
-            <span className={`state state--${tool.risk}`}>{tool.risk}</span>
-          </li>
-        ))}
-      </ul>
-      {tools.length > 6 && (
-        <button type="button" className="cat-more" onClick={() => setOpen((o) => !o)}>
-          {open ? 'Show fewer' : `Show all ${tools.length}`}
-        </button>
-      )}
-    </section>
-  )
-}
-
-/* One connector, opened. Sign-in, credentials, what it can do, and what it is. */
-function ConnectorDetail({ server, cap, live, busy, tools, onBack, onAct, onChanged, onAdd }) {
-  const { openChatWithPrompt, setCapEnabled, toast } = useApp()
-  const [popoverOpen, setPopoverOpen] = useState(false)
-  const popoverRef = useRef(null)
-
-  useEffect(() => {
-    if (!popoverOpen) return
-    const handleClick = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        setPopoverOpen(false)
+  return {
+    async open(url) {
+      if (cancelled) return false
+      if (!page || page.closed) {
+        window.open(url, '_blank')
+        return true
       }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [popoverOpen])
-
-  // Escape key closes detail
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onBack()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onBack])
-
-  const liveData = live || server.live || {}
-  const isEnabled = cap?.enabled ?? (server.enabled !== false && server.lifecycle?.state !== 'off')
-  const isAccountMismatch = Boolean(server.lifecycle?.account_mismatch || liveData.account_mismatch || server.lifecycle?.state === 'account_mismatch')
-  const blocked = (server.missing_credentials || []).length > 0 || server.lifecycle?.state === 'setup'
-  const isTokenExpired = Boolean(
-    liveData.state === 'token_expired' ||
-    liveData.state === 'auth_error' ||
-    server.lifecycle?.state === 'token_expired' ||
-    server.lifecycle?.state === 'auth_error' ||
-    server.token_healthy === false
-  )
-  const isConfigured = server.isConfigured !== false
-  const hasAccount = Boolean(server.account || liveData.account || server.lifecycle?.account)
-  const isConnected = Boolean(liveData.is_connected ?? liveData.connected ?? (liveData.tools > 0))
-  const isReady = Boolean(
-    !isAccountMismatch &&
-    !isTokenExpired &&
-    isConnected &&
-    (liveData.is_usable ?? liveData.ready ?? (liveData.tools > 0))
-  )
-  const needsAuth = !blocked && !hasAccount && !isReady && !isConnected && (
-    server.lifecycle?.state === 'sign_in' ||
-    server.lifecycle?.action === 'sign_in' ||
-    (isConfigured && server.signed_in === false && server.auth_kind !== 'none')
-  )
-  
-  // Format version
-  const version = server.version || cap?.version || '1.0.0'
-
-  // Dynamic prompts derived from tools
-  const dynamicPrompts = tools.slice(0, 3).map(t => {
-    let text = ''
-    if (t.name.includes('search') || t.name.includes('find')) text = `Find information using ${t.name.replace(/_/g, ' ')}`
-    else if (t.name.includes('create') || t.name.includes('add')) text = `Create a new item with ${t.name.replace(/_/g, ' ')}`
-    else if (t.name.includes('list') || t.name.includes('get')) text = `List recent data from ${t.name.replace(/_/g, ' ')}`
-    else text = `Use ${t.name.replace(/_/g, ' ')} to analyze data`
-    
-    if (t.description) {
-      const firstSentence = t.description.split('.')[0]
-      if (firstSentence.length < 60) text = firstSentence
-    }
-
-    return text
-  })
-
-  // Fallbacks if no tools
-  if (dynamicPrompts.length === 0) {
-    dynamicPrompts.push(`Explore what you can do with ${server.title}`)
-    dynamicPrompts.push(`Analyze data and automate tasks using ${server.title}`)
-    dynamicPrompts.push(`Ask me how to get started with ${server.title}`)
-  }
-
-  const handleTryInChat = async (customPrompt) => {
-    const promptText = customPrompt || `@${server.title} `
-    if (cap && !cap.enabled) {
       try {
-        await setCapEnabled(cap, true)
-        toast(`Enabled ${server.title}`, 'ok')
-      } catch (e) {
-        console.error('Failed to enable connector', e)
+        page.location.replace(url)
+        navigated = true
+        return true
+      } catch {
+        return false
       }
-    }
-    openChatWithPrompt(promptText)
+    },
+    cancel() {
+      cancelled = true
+      if (!navigated && page && !page.closed) page.close()
+    },
+  }
+}
+
+function ServiceIcon({ card }) {
+  // 0 = official logo, 1 = domain favicon, 2 = monogram
+  const [stage, setStage] = useState(card.logo ? 0 : card.domain ? 1 : 2)
+
+  if (stage === 0 && card.logo) {
+    return (
+      <div className="connector-service-icon-box">
+        <img
+          src={card.logo}
+          alt=""
+          loading="lazy"
+          className="connector-service-icon-img"
+          onError={() => setStage(card.domain ? 1 : 2)}
+        />
+      </div>
+    )
   }
 
-  return (
-    <div className="conn-detail" data-enter>
-      <div className="conn-detail-top">
-        <button
-          type="button"
-          className="conn-back"
-          onClick={onBack}
-        >
-          <Icon name="chevron" size={14} className="conn-back-mark" />
-          <span>Connectors</span>
-        </button>
+  if (stage === 1 && card.domain) {
+    return (
+      <div className="connector-service-icon-box">
+        <img
+          src={`https://www.google.com/s2/favicons?domain=${card.domain}&sz=64`}
+          alt=""
+          loading="lazy"
+          className="connector-service-icon-img"
+          onError={() => setStage(2)}
+        />
       </div>
-
-      <div className="conn-detail-header-row">
-        <div className="conn-detail-title-col">
-          <div className="conn-detail-app-icon">
-            <ServiceIcon name={server.name} size={48} />
-          </div>
-          <div>
-            <h2>{server.title}</h2>
-            <div style={{ marginTop: 6 }}>
-              {isReady && <span className="conn-status conn-status--live"><span className="status-dot live" />Active · {liveData.tools || tools.length} tools</span>}
-              {!isReady && isAccountMismatch && <span className="conn-status conn-status--warning"><span className="status-dot warning" />Wrong account ({server.account || liveData.account})</span>}
-              {!isReady && !isAccountMismatch && isTokenExpired && <span className="conn-status conn-status--warning"><span className="status-dot warning" />Session expired</span>}
-              {!isReady && !isAccountMismatch && !isTokenExpired && blocked && <span className="conn-status conn-status--warning"><span className="status-dot warning" />Needs credentials</span>}
-              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && needsAuth && <span className="conn-status conn-status--waiting"><span className="status-dot warning" />Needs sign-in</span>}
-              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && !needsAuth && liveData.error && <span className="conn-status conn-status--off"><span className="status-dot error" />Error: {String(liveData.error).slice(0, 80)}</span>}
-              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && !needsAuth && !liveData.error && isConnected && <span className="conn-status conn-status--live"><span className="status-dot live" />Connected</span>}
-              {!isReady && !isAccountMismatch && !isTokenExpired && !blocked && !needsAuth && !liveData.error && !isConnected && <span className="conn-status conn-status--off"><span className="status-dot off" />Disconnected</span>}
-            </div>
-          </div>
-        </div>
-        <div className="conn-detail-actions">
-          <div style={{ position: 'relative' }} ref={popoverRef}>
-            <button 
-              type="button"
-              className="plugin-add-icon-btn" 
-              title="Options"
-              onClick={(e) => { e.stopPropagation(); setPopoverOpen(!popoverOpen); }}
-            >
-              <Icon name="dots" size={18} />
-            </button>
-            {popoverOpen && (
-              <div className="plugin-popover">
-                <button 
-                  type="button"
-                  className="plugin-popover-item" 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setPopoverOpen(false); 
-                    handleTryInChat(); 
-                  }}
-                >
-                  <Icon name="chat" size={16} /> Try in chat
-                </button>
-                <button 
-                  type="button"
-                  className="plugin-popover-item" 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setPopoverOpen(false); 
-                    onAct('switch'); 
-                  }}
-                >
-                  <Icon name="sliders" size={16} /> {cap?.enabled ? 'Disable' : 'Enable'}
-                </button>
-                {server.homepage && (
-                  <a 
-                    href={server.homepage} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="plugin-popover-item"
-                    onClick={() => setPopoverOpen(false)}
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <Icon name="arrow-up-right" size={16} /> Visit website
-                  </a>
-                )}
-                <div className="plugin-popover-divider" />
-                <button 
-                  type="button"
-                  className="plugin-popover-item is-danger" 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setPopoverOpen(false); 
-                    onAct('remove'); 
-                  }}
-                >
-                  <Icon name="trash" size={16} /> Remove connector
-                </button>
-              </div>
-            )}
-          </div>
-          {server.isConfigured === false ? (
-            <button 
-              className="btn btn--small btn--primary"
-              onClick={() => (onAdd ? onAdd() : onAct('add'))}
-              disabled={Boolean(busy)}
-            >
-              Install connector
-            </button>
-          ) : needsAuth ? (
-            <button 
-              className="btn btn--small btn--primary"
-              onClick={() => onAct('login')}
-              disabled={Boolean(busy)}
-            >
-              {busy === 'login' ? 'Opening…' : 'Sign in'}
-            </button>
-          ) : !isConnected ? (
-            <button 
-              className="btn btn--small btn--primary"
-              onClick={() => onAct('connect')}
-              disabled={Boolean(busy)}
-            >
-              {busy === 'connect' ? 'Connecting…' : 'Connect'}
-            </button>
-          ) : (
-            <button 
-              className="btn btn--small btn--primary"
-              onClick={() => handleTryInChat()}
-              disabled={Boolean(busy)}
-            >
-              Try in chat
-            </button>
-          )}
-        </div>
-      </div>
-      
-      <p className="conn-detail-desc">{server.description}</p>
-
-      {/* Real connection status and sign-in management */}
-      <section className="conn-detail-section">
-        <ConnectionBlock server={server} busy={busy} onAct={onAct} />
-      </section>
-
-      {dynamicPrompts.length > 0 && (
-        <div className="conn-detail-hero-box">
-          {dynamicPrompts.map((prompt, i) => (
-            <button 
-              key={i} 
-              type="button"
-              className="plugin-prompt-pill" 
-              onClick={() => handleTryInChat(`@${server.title} ${prompt}`)}
-            >
-              <div className="plugin-prompt-pill-text">
-                <strong>@{server.title}</strong> {prompt}
-              </div>
-              <div className="plugin-prompt-pill-arrow">
-                <Icon name="arrow-up-right" size={14} />
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Real Tools List */}
-      <ActionList tools={tools} />
-
-      <section className="conn-detail-section">
-        <h3>Information</h3>
-        <table className="conn-info-table">
-          <tbody>
-            <tr>
-              <td className="conn-info-label">Status</td>
-              <td className="conn-info-val">{isConnected ? (isReady ? 'Active' : 'Connected') : 'Disconnected'}</td>
-            </tr>
-            {server.account && (
-              <tr>
-                <td className="conn-info-label">Account</td>
-                <td className="conn-info-val mono">{server.account}</td>
-              </tr>
-            )}
-            <tr>
-              <td className="conn-info-label">Transport</td>
-              <td className="conn-info-val mono">{server.transport || 'stdio'}</td>
-            </tr>
-            <tr>
-              <td className="conn-info-label">Category</td>
-              <td className="conn-info-val">{server.category || 'Tools'}</td>
-            </tr>
-            {server.target && (
-              <tr>
-                <td className="conn-info-label">Endpoint</td>
-                <td className="conn-info-val mono">{server.target}</td>
-              </tr>
-            )}
-            {server.homepage && (
-              <tr>
-                <td className="conn-info-label">Website</td>
-                <td className="conn-info-val">
-                  <a href={server.homepage} target="_blank" rel="noreferrer">
-                    {server.homepage} <Icon name="arrow-up-right" size={12} />
-                  </a>
-                </td>
-              </tr>
-            )}
-            <tr>
-              <td className="conn-info-label">Source</td>
-              <td className="conn-info-val">{server.source || 'Amethyst'}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-      
-      {(server.auth_kind !== 'none' || server.transport === 'stdio') && (
-        <section className="conn-detail-section" style={{ marginTop: 40, borderTop: '1px solid #262626', paddingTop: 32 }}>
-          <h3>Developer Setup</h3>
-          {server.auth_kind !== 'none' && <CredentialsForm server={server} onDone={onChanged} />}
-          {server.transport === 'stdio' && <EnvForm server={server} onChanged={onChanged} />}
-          
-          <div className="conn-detail-danger" style={{ marginTop: 24 }}>
-            <motion.button
-              type="button"
-              className="btn btn--ghost btn--small"
-              disabled={Boolean(busy)}
-              onClick={() => onAct('remove')}
-            >
-              <Icon name="trash" size={13} /> Remove this connector
-            </motion.button>
-            <span>Forgets its credentials and its signed-in account too.</span>
-          </div>
-        </section>
-      )}
-    </div>
-  )
-}
-
-/* Clean Plugin Row with truthful badges and quick actions */
-function PluginRow({ item, isConfigured, live, busy, onOpen, onToggle, onAdd, onAct, onRemove, index = 0 }) {
-  const { openChatWithPrompt } = useApp()
-  const [popoverOpen, setPopoverOpen] = useState(false)
-  const popoverRef = useRef(null)
-
-  useEffect(() => {
-    if (!popoverOpen) return
-    const handleClick = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        setPopoverOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [popoverOpen])
-
-  const liveData = live || item.live || {}
-  const isAccountMismatch = Boolean(liveData.account_mismatch || item.lifecycle?.account_mismatch || item.lifecycle?.state === 'account_mismatch')
-  const blocked = (item.missing_credentials || []).length > 0 || item.lifecycle?.state === 'setup'
-  const isTokenExpired = Boolean(
-    liveData.state === 'token_expired' ||
-    liveData.state === 'auth_error' ||
-    item.lifecycle?.state === 'token_expired' ||
-    item.lifecycle?.state === 'auth_error' ||
-    item.token_healthy === false
-  )
-  const isConnected = Boolean(liveData.is_connected ?? liveData.connected ?? (liveData.tools > 0))
-  const isReady = Boolean(
-    !isAccountMismatch &&
-    !isTokenExpired &&
-    isConnected &&
-    (liveData.is_usable ?? liveData.ready ?? (liveData.tools > 0))
-  )
-  const isEnabled = isConnected || (item.enabled !== false && item.lifecycle?.state !== 'off')
-  const hasAccount = Boolean(item.account || liveData.account || item.lifecycle?.account)
-  const isWaiting = !isConnected && !isReady && (item.lifecycle?.state === 'authenticating' || busy === 'login' || busy === 'connect' || busy === 'add' || liveData.state === 'starting')
-  const isFailed = Boolean(liveData.error || item.lifecycle?.state === 'failed' || item.lifecycle?.state === 'server_error' || item.lifecycle?.state === 'unavailable')
-  const needsAuth = !blocked && !hasAccount && !isReady && !isConnected && (
-    item.lifecycle?.state === 'sign_in' ||
-    item.lifecycle?.action === 'sign_in' ||
-    (isConfigured && item.signed_in === false && item.auth_kind !== 'none')
-  )
-
-  let statusType = 'off'
-  let statusText = ''
-  let badgeTone = 'muted'
-
-  if (!isConfigured) {
-    statusType = 'available'
-    statusText = ''
-    badgeTone = 'muted'
-  } else if (isReady) {
-    const toolCount = liveData.tools ?? item.tools ?? 0
-    statusType = 'running'
-    statusText = toolCount > 0 ? `${toolCount} tools` : 'Connected'
-    badgeTone = 'success'
-  } else if (isConnected) {
-    statusType = 'running'
-    statusText = 'Connected'
-    badgeTone = 'success'
-  } else if (isWaiting) {
-    statusType = 'starting'
-    statusText = 'Connecting…'
-    badgeTone = 'info'
-  } else if (isAccountMismatch) {
-    statusType = 'warning'
-    const actualAcct = liveData.account || item.account || item.lifecycle?.account
-    statusText = actualAcct ? `Wrong account (${actualAcct})` : 'Account mismatch'
-    badgeTone = 'warning'
-  } else if (isTokenExpired) {
-    statusType = 'sign_in'
-    statusText = 'Needs sign-in'
-    badgeTone = 'warning'
-  } else if (blocked) {
-    statusType = 'setup'
-    const missingList = item.missing_credentials || []
-    statusText = missingList.length > 0 ? `Setup (${missingList.length})` : 'Setup required'
-    badgeTone = 'warning'
-  } else if (!isEnabled) {
-    statusType = 'off'
-    statusText = 'Disabled'
-    badgeTone = 'muted'
-  } else if (needsAuth) {
-    statusType = 'sign_in'
-    statusText = 'Needs sign-in'
-    badgeTone = 'info'
-  } else if (isFailed) {
-    statusType = 'failed'
-    statusText = liveData.error ? 'Error' : (item.lifecycle?.detail || 'Failed')
-    badgeTone = 'error'
-  } else {
-    statusType = 'off'
-    statusText = 'Disconnected'
-    badgeTone = 'muted'
+    )
   }
 
-  // Transparent description if credentials are required
-  const descText = (blocked && (item.missing_credentials || []).length > 0)
-    ? `Needs: ${item.missing_credentials.join(', ')}`
-    : item.description
-
+  const letter = (card.label || card.slug || '?').slice(0, 1).toUpperCase()
   return (
-    <motion.div
-      layout="position"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{
-        type: 'spring',
-        stiffness: 450,
-        damping: 30,
-        delay: Math.min(index * 0.02, 0.16),
-      }}
-      className={`plugin-row${statusType === 'running' ? ' is-running' : ''}`}
-      onClick={isConfigured ? onOpen : onAdd}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          if (isConfigured) onOpen()
-          else onAdd()
-        }
-      }}
-    >
-      <div className="plugin-row-icon">
-        <ServiceIcon name={item.name || item.id} size={38} />
-      </div>
-
-      <div className="plugin-row-info">
-        <div className="plugin-row-title-wrap">
-          <span className="plugin-row-title">{item.title}</span>
-          {isConfigured && statusText && (
-            <span className={`conn-status conn-status--${statusType === 'running' ? 'live' : statusType === 'warning' || statusType === 'setup' || statusType === 'sign_in' ? 'warning' : statusType === 'starting' ? 'waiting' : 'off'}`}>
-              <span className={`status-dot ${statusType === 'running' ? 'live' : statusType === 'starting' ? 'waiting' : statusType === 'warning' || statusType === 'setup' || statusType === 'sign_in' ? 'warning' : 'off'}`} />
-              {statusText}
-            </span>
-          )}
-        </div>
-        <p className="plugin-row-desc" title={descText}>{descText}</p>
-      </div>
-
-      <div className="plugin-row-actions" onClick={(e) => e.stopPropagation()}>
-        {!isConfigured ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              type="button"
-              className="plugin-pill-btn plugin-pill-btn--primary"
-              disabled={Boolean(busy)}
-              onClick={(e) => { e.stopPropagation(); onAdd(); }}
-              title={busy === 'add' ? 'Adding…' : 'Install'}
-            >
-              {busy === 'add' ? <span className="auth-spinner" /> : (
-                <>
-                  <Icon name="plus" size={13} />
-                  <span>Install</span>
-                </>
-              )}
-            </button>
-            <div style={{ position: 'relative' }} ref={popoverRef}>
-              <button
-                type="button"
-                className="plugin-add-icon-btn"
-                onClick={(e) => { e.stopPropagation(); setPopoverOpen(!popoverOpen); }}
-                title="Options"
-              >
-                <Icon name="dots" size={16} />
-              </button>
-              {popoverOpen && (
-                <div className="plugin-popover">
-                   <button
-                     type="button"
-                     className="plugin-popover-item"
-                     onClick={(e) => {
-                       e.stopPropagation()
-                       setPopoverOpen(false)
-                       onAdd && onAdd()
-                     }}
-                   >
-                     <Icon name="plus" size={16} /> Install
-                   </button>
-                   <button className="plugin-popover-item" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onOpen(); }}>
-                     <Icon name="settings" size={16} /> View details
-                   </button>
-                   {item.homepage && (
-                     <a
-                       href={item.homepage}
-                       target="_blank"
-                       rel="noreferrer"
-                       className="plugin-popover-item"
-                       onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); }}
-                       style={{ textDecoration: 'none' }}
-                     >
-                       <Icon name="arrow-up-right" size={16} /> Visit website
-                     </a>
-                   )}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {needsAuth && (
-              <button
-                type="button"
-                className="plugin-pill-btn"
-                disabled={Boolean(busy)}
-                onClick={(e) => { e.stopPropagation(); onAct && onAct('login'); }}
-                title="Sign in with provider"
-              >
-                {busy === 'login' ? <span className="auth-spinner" /> : 'Sign in'}
-              </button>
-            )}
-
-            {!isReady && !isConnected && !needsAuth && !blocked && !isWaiting && (
-              <button
-                type="button"
-                className="plugin-pill-btn"
-                disabled={Boolean(busy)}
-                onClick={(e) => { e.stopPropagation(); onAct && onAct('connect'); }}
-                title="Connect server"
-              >
-                {busy === 'connect' ? <span className="auth-spinner" /> : 'Connect'}
-              </button>
-            )}
-
-            {isWaiting && (
-              <span className="auth-spinner" style={{ margin: '0 4px' }} />
-            )}
-
-            {(isReady || isConnected) && (
-              <button
-                type="button"
-                className="plugin-pill-btn plugin-pill-btn--chat"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openChatWithPrompt(`@${item.title || item.name} `)
-                }}
-                title={`Chat with ${item.title || item.name}`}
-              >
-                <Icon name="chat" size={13} />
-                <span>Chat</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isEnabled}
-              className={`plugin-toggle-switch ${isEnabled ? 'is-on' : ''}`}
-              disabled={Boolean(busy)}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggle && onToggle(!isEnabled)
-              }}
-              title={isEnabled ? 'Disable connector' : 'Enable connector'}
-            >
-              <span className="plugin-toggle-thumb" />
-            </button>
-
-            {/* Options menu (three dots) - always available */}
-            <div style={{ position: 'relative' }} ref={popoverRef}>
-              <button
-                type="button"
-                className="plugin-add-icon-btn"
-                onClick={(e) => { e.stopPropagation(); setPopoverOpen(!popoverOpen); }}
-                title="Options"
-              >
-                <Icon name="dots" size={18} />
-              </button>
-              {popoverOpen && (
-                <div className="plugin-popover">
-                   <button
-                     type="button"
-                     className="plugin-popover-item"
-                     onClick={(e) => {
-                       e.stopPropagation()
-                       setPopoverOpen(false)
-                       openChatWithPrompt(`@${item.title || item.name} `)
-                     }}
-                   >
-                     <Icon name="chat" size={16} /> Chat
-                   </button>
-                   {!isConnected && (
-                     <button
-                       type="button"
-                       className="plugin-popover-item"
-                       onClick={(e) => {
-                         e.stopPropagation()
-                         setPopoverOpen(false)
-                         onAct && onAct('connect')
-                       }}
-                     >
-                       <Icon name="play" size={16} /> Connect
-                     </button>
-                   )}
-                   {isConnected && (
-                     <button
-                       type="button"
-                       className="plugin-popover-item"
-                       onClick={(e) => {
-                         e.stopPropagation()
-                         setPopoverOpen(false)
-                         onToggle && onToggle(false)
-                       }}
-                     >
-                       <Icon name="square" size={16} /> Disconnect
-                     </button>
-                   )}
-                   <button className="plugin-popover-item" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onOpen(); }}>
-                     <Icon name="settings" size={16} /> Manage
-                   </button>
-                   {item.homepage && (
-                     <a
-                       href={item.homepage}
-                       target="_blank"
-                       rel="noreferrer"
-                       className="plugin-popover-item"
-                       onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); }}
-                       style={{ textDecoration: 'none' }}
-                     >
-                       <Icon name="arrow-up-right" size={16} /> Visit website
-                     </a>
-                   )}
-                   <div className="plugin-popover-divider" />
-                   <button className="plugin-popover-item is-danger" onClick={(e) => { e.stopPropagation(); setPopoverOpen(false); onRemove && onRemove(); }}>
-                     <Icon name="minus-circle" size={16} /> Uninstall
-                   </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Hidden legacy anchor for smoke tests compatibility */}
-      <span className="conn-row" style={{ display: 'none' }}>
-        <span className="conn-row-name">{item.title}</span>
-      </span>
-    </motion.div>
-  )
-}
-
-/* Composio Cloud Connector Row with "Powered by Composio" pill */
-function ComposioPluginRow({
-  item,
-  isConfigured,
-  busy,
-  onConnect,
-  onToggle,
-  onFallbackSwitch,
-  index = 0,
-}) {
-  const isDirect = Boolean(item.no_auth)
-  const isConnected = Boolean(item.connected)
-  const isEnabled = Boolean(item.enabled)
-  const isRunning = isDirect ? isEnabled : isConnected
-
-  return (
-    <motion.div
-      layout="position"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{
-        type: 'spring',
-        stiffness: 450,
-        damping: 30,
-        delay: Math.min(index * 0.02, 0.16),
-      }}
-      className={`plugin-row${isRunning ? ' is-running' : ''}`}
-    >
-      <div className="plugin-row-icon">
-        <ServiceIcon name={item.slug} size={38} />
-      </div>
-
-      <div className="plugin-row-info">
-        <div className="plugin-row-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="plugin-row-title">{item.name}</span>
-          <span
-            style={{
-              fontSize: '10px',
-              fontWeight: 500,
-              padding: '1px 6px',
-              borderRadius: '999px',
-              background: 'rgba(168, 85, 247, 0.12)',
-              color: 'var(--accent, #a855f7)',
-              border: '1px solid rgba(168, 85, 247, 0.25)',
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
-            Powered by Composio
-          </span>
-          {isDirect ? (
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 600,
-                padding: '1px 6px',
-                borderRadius: '999px',
-                background: 'rgba(34, 197, 94, 0.12)',
-                color: 'var(--ok, #22c55e)',
-                border: '1px solid rgba(34, 197, 94, 0.25)',
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              Direct Tool
-            </span>
-          ) : (
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 500,
-                padding: '1px 6px',
-                borderRadius: '999px',
-                background: 'rgba(59, 130, 246, 0.12)',
-                color: 'var(--info, #3b82f6)',
-                border: '1px solid rgba(59, 130, 246, 0.25)',
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              OAuth Required
-            </span>
-          )}
-          {isDirect ? (
-            <span className="conn-status conn-status--live">
-              <span className={`status-dot ${isEnabled ? 'live' : ''}`} />
-              {isEnabled ? 'Active' : 'Disabled'}
-            </span>
-          ) : isConnected ? (
-            <span className="conn-status conn-status--live">
-              <span className="status-dot live" />
-              Connected
-            </span>
-          ) : (
-            <span className="conn-status" style={{ opacity: 0.65 }}>
-              <span className="status-dot" style={{ background: 'var(--text-tertiary, #666)' }} />
-              Not connected
-            </span>
-          )}
-        </div>
-        <p className="plugin-row-desc">{item.description}</p>
-      </div>
-
-      <div className="plugin-row-actions" onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {isDirect ? (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isEnabled}
-              className={`plugin-toggle-switch ${isEnabled ? 'is-on' : ''}`}
-              disabled={Boolean(busy)}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggle && onToggle(item, !isEnabled)
-              }}
-              title={isEnabled ? `Disable ${item.name} tool` : `Enable ${item.name} tool`}
-            >
-              <span className="plugin-toggle-thumb" />
-            </button>
-          ) : !isConnected ? (
-            <button
-              type="button"
-              className="conn-btn"
-              disabled={Boolean(busy)}
-              onClick={(e) => {
-                e.stopPropagation()
-                onConnect && onConnect(item)
-              }}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: 600,
-                borderRadius: '6px',
-                background: 'var(--accent, #a855f7)',
-                color: '#fff',
-                border: 'none',
-                cursor: busy ? 'wait' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'opacity 0.15s ease',
-              }}
-              title={`Connect your ${item.name} account via Composio`}
-            >
-              {busy ? (
-                <>
-                  <Icon name="loader" size={12} className="spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Icon name="external-link" size={12} />
-                  Connect
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isEnabled}
-              className={`plugin-toggle-switch ${isEnabled ? 'is-on' : ''}`}
-              disabled={Boolean(busy)}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggle && onToggle(item, !isEnabled)
-              }}
-              title={isEnabled ? `Disable ${item.name} tools` : `Enable ${item.name} tools`}
-            >
-              <span className="plugin-toggle-thumb" />
-            </button>
-          )}
-
-          {item.has_local_alternative && (
-            <button
-              type="button"
-              className="conn-btn conn-btn--ghost"
-              disabled={Boolean(busy)}
-              onClick={(e) => {
-                e.stopPropagation()
-                onFallbackSwitch && onFallbackSwitch(item, 'local')
-              }}
-              style={{
-                fontSize: '11px',
-                padding: '4px 8px',
-                borderRadius: '5px',
-                color: 'var(--text-secondary)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-              title={`Switch ${item.name} to direct local integration`}
-            >
-              <Icon name="refresh-cw" size={11} />
-              Use Local
-            </button>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-/* Clean Installed Dock Chip with hover magnification and tooltip */
-function InstalledDockChip({ item, index, onOpen }) {
-  const [hovered, setHovered] = useState(false)
-  const isReady = item.ready
-  const isWarning = !isReady && ((item.missing_credentials || []).length > 0 || item.signed_in === false)
-  const statusClass = isReady ? 'live' : isWarning ? 'warning' : 'off'
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <motion.button
-        type="button"
-        className="conn-installed-chip"
-        onClick={onOpen}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        whileHover={{ scale: 1.08, y: -2 }}
-        whileTap={{ scale: 0.94 }}
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{
-          type: 'spring',
-          stiffness: 440,
-          damping: 24,
-          delay: Math.min(index * 0.02, 0.25),
-        }}
-        aria-label={`${item.title} (${isReady ? 'Connected' : isWarning ? 'Needs setup' : 'Not running'})`}
-      >
-        <ServiceIcon name={item.name} size={32} />
-        <span className={`status-dot ${statusClass}`} />
-      </motion.button>
-
-      <AnimatePresence>
-        {hovered && (
-          <motion.div
-            className="conn-dock-tooltip"
-            initial={{ opacity: 0, y: 6, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.94 }}
-            transition={{ duration: 0.15 }}
-          >
-            <span style={{ fontWeight: 600 }}>{item.title}</span>
-            <span style={{ opacity: 0.75, marginLeft: 4 }}>
-              · {isReady ? 'Connected' : isWarning ? 'Needs setup' : 'Not running'}
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-const AUTH_STATES = {
-  waiting: {
-    accent: 'waiting',
-    title: (name) => `Finish signing in to ${name}`,
-    note: 'A browser tab is open at the provider. This page updates itself when you are done.',
-  },
-  connecting: {
-    accent: 'waiting',
-    title: (name) => `Connecting to ${name}…`,
-    note: 'Checking the account already stored. This only needs you if the provider asks.',
-  },
-  done: {
-    accent: 'done',
-    icon: 'check',
-    title: (name) => `Connected to ${name}`,
-  },
-  failed: {
-    accent: 'failed',
-    icon: 'alert',
-    title: (name) => `Could not connect to ${name}`,
-    retry: 'Try again',
-  },
-  expired: {
-    accent: 'expired',
-    icon: 'clock',
-    title: (name) => `The ${name} sign-in link expired`,
-    note: 'Sign-in links are short-lived, so the provider will refuse this one. Start a new one.',
-    retry: 'Start again',
-  },
-  cancelled: {
-    accent: 'cancelled',
-    icon: 'x',
-    title: (name) => `${name} sign-in cancelled`,
-    note: 'Nothing was changed.',
-    retry: 'Try again',
-  },
-}
-
-function DeviceCode({ code, onCopy }) {
-  return (
-    <button type="button" className="auth-code" onClick={onCopy} title="Copy the code">
-      <span className="auth-code-value">{code}</span>
-      <Icon name="copy" size={13} />
-    </button>
-  )
-}
-
-function AuthCard({ auth, title, onRetry, onCancel, onDismiss, onCopy, onCopyCode }) {
-  const linkable = auth.status === 'waiting' && Boolean(auth.authorization_url)
-  const state = linkable
-    ? AUTH_STATES.waiting
-    : (auth.status === 'waiting' ? AUTH_STATES.connecting : AUTH_STATES[auth.status]) ??
-      AUTH_STATES.failed
-  const waiting = auth.status === 'waiting'
-  const [busy, setBusy] = useState(false)
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -8, scale: 0.98 }}
-      transition={{ duration: 0.2 }}
-      className={`auth-banner auth-banner--${state.accent}`}
-      role="status"
-    >
-      <span className="auth-banner-icon">
-        {waiting ? <span className="auth-spinner" /> : <Icon name={state.icon} size={15} />}
-      </span>
-      <div className="auth-banner-body">
-        <div className="auth-banner-title">{state.title(title)}</div>
-        {auth.user_code && (
-          <div className="auth-banner-note">
-            Enter this code at the provider, then approve:
-          </div>
-        )}
-        {auth.user_code && <DeviceCode code={auth.user_code} onCopy={onCopyCode} />}
-        {(auth.message || (!auth.user_code && state.note)) && (
-          <div className="auth-banner-note">{auth.message || state.note}</div>
-        )}
-        {waiting && auth.expires_in > 0 && (
-          <div className="auth-banner-note auth-banner-meta">
-            Expires in {Math.ceil(auth.expires_in / 60)} min
-          </div>
-        )}
-      </div>
-      <div className="auth-banner-actions">
-        {linkable && (
-          <>
-            <motion.button
-              type="button"
-              className="btn btn--small"
-              onClick={() => window.open(auth.authorization_url, '_blank', 'noopener')}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-            >
-              <Icon name="link" size={13} /> Open
-            </motion.button>
-            <motion.button
-              type="button"
-              className="btn btn--ghost btn--small"
-              title="Copy the sign-in link"
-              aria-label="Copy the sign-in link"
-              onClick={onCopy}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-            >
-              <Icon name="copy" size={13} />
-            </motion.button>
-          </>
-        )}
-        {!waiting && state.retry && (
-          <motion.button
-            type="button"
-            className="btn btn--small"
-            disabled={busy}
-            onClick={async () => { setBusy(true); try { await onRetry() } finally { setBusy(false) } }}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-          >
-            {busy ? 'Starting…' : state.retry}
-          </motion.button>
-        )}
-        {waiting ? (
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={onCancel}
-            title="Cancel this sign-in"
-            aria-label="Cancel this sign-in"
-          >
-            <Icon name="x" size={14} />
-          </button>
-        ) : (
-          <button type="button" className="icon-btn" onClick={onDismiss} aria-label="Dismiss">
-            <Icon name="x" size={14} />
-          </button>
-        )}
-      </div>
-    </motion.div>
-  )
-}
-
-function ConnectModal({ server, onClose, onLogin }) {
-  if (!server) return null
-  const title = server.title || server.name
-  return (
-    <div className="conn-modal-backdrop" onClick={onClose}>
-      <motion.div
-        className="conn-modal"
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button className="conn-modal-close" onClick={onClose}><Icon name="x" size={20} /></button>
-        <div className="conn-modal-header">
-          <div className="conn-modal-icons">
-             <BrandMark size={24} /> <span style={{ color: '#555', margin: '0 4px', fontSize: 24, lineHeight: 1 }}>···</span> <ServiceIcon name={server.name} size={24} />
-          </div>
-          <h2>Connect {title}</h2>
-          <p>{server.author ? `Developed by ${server.author}` : 'Amethyst Connector'}</p>
-        </div>
-        <div className="conn-modal-body">
-          <div className="conn-modal-item">
-            <h4>Permissions always respected</h4>
-            <p>Amethyst is strictly limited to permissions you've explicitly set. Disable access anytime to revoke permissions.</p>
-          </div>
-          <div className="conn-modal-item">
-            <h4>You're in control</h4>
-            <p>Amethyst runs locally and keeps your credentials secure in the OS keychain. Data from {title} is only accessed when you explicitly invoke tools in conversation.</p>
-          </div>
-          <div className="conn-modal-item">
-            <h4>Secure Communication</h4>
-            <p>Connectors communicate with external services over the Model Context Protocol (MCP). Review tool capabilities before granting execution.</p>
-          </div>
-        </div>
-        <div className="conn-modal-auth">
-           <div className="auth-icon-wrap">
-             <ServiceIcon name={server.name} size={18} />
-           </div>
-           <div>
-             <strong>You use {title} to authenticate</strong>
-             <p>For added security, enable multi-factor authentication (MFA) on your {title} account.</p>
-           </div>
-        </div>
-        <div className="conn-modal-footer">
-          <button className="plugin-action-btn is-white w-full" onClick={() => { onLogin(server); onClose() }}>
-             Continue to {title} ↗
-          </button>
-        </div>
-      </motion.div>
+    <div className="connector-service-icon-box">
+      <span className="connector-service-monogram">{letter}</span>
     </div>
   )
 }
 
 export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpen }) {
-  const { caps, setCapEnabled, toast, refreshHealth, setView } = useApp()
-  const { confirm } = useConfirm()
-  const [servers, setServers] = useState([])
-  const [catalogue, setCatalogue] = useState([])
-  const [live, setLive] = useState({})
-  const [auths, setAuths] = useState([])
-  const [tools, setTools] = useState([])
-  const [composioStatus, setComposioStatus] = useState(null)
-  const [composioToolkits, setComposioToolkits] = useState([])
-  const [busy, setBusy] = useState({})
-  const [open, setOpen] = useState(null)
-  const [pendingConnect, setPendingConnect] = useState(null)
-  const [filter, setFilter] = useState('all')
-  const [loaded, setLoaded] = useState(false)
-  const announced = useRef(new Set())
-  const settled = useRef(new Set())
+  const [cards, setCards] = useState(null)
+  const [configured, setConfigured] = useState(false)
+  const [mode, setMode] = useState('unavailable')
+  const [status, setStatus] = useState(() => cachedConnectorStatus || {})
+  const [stale, setStale] = useState(false)
+  const [filter, setFilter] = useState('all') // 'all' | 'connected' | 'mcp'
+  const [refreshing, setRefreshing] = useState(false)
+  const [busySlug, setBusySlug] = useState(null)
+  const [error, setError] = useState(null)
+  const [aliasSlug, setAliasSlug] = useState(null)
+  const [aliasDraft, setAliasDraft] = useState('')
+  const [pendingUrls, setPendingUrls] = useState({})
+  const [keyModalOpen, setKeyModalOpen] = useState(false)
+  const [modalPrompt, setModalPrompt] = useState(null)
+  const [loginTab, setLoginTab] = useState('browser') // 'browser' | 'key'
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginSession, setLoginSession] = useState(null)
+  const [loginPolling, setLoginPolling] = useState(false)
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const [savingKey, setSavingKey] = useState(false)
 
-  const refreshServers = useCallback(async () => {
-    try {
-      const srv = await api.mcpServers()
-      if (Array.isArray(srv)) {
-        setServers(srv)
-        setLoaded(true)
-        setLive((prev) => {
-          const next = { ...prev }
-          for (const s of srv) {
-            if (s.name && s.live) {
-              next[s.name] = { ...next[s.name], ...s.live }
-            }
-          }
-          return next
-        })
-      }
-      return srv
-    } catch {
-      // quiet
-      return null
+  const pollTimers = useRef(new Map())
+  const opening = useRef(null)
+  const browserPollTimer = useRef(null)
+
+  const effectiveSearch = query.trim().toLowerCase()
+
+  const loadConnectedStatus = useCallback(async (force = false) => {
+    if (!force && cachedConnectorStatus && Date.now() - cachedConnectorStatusAt < CONNECTOR_STATUS_CACHE_MS) {
+      setStatus(cachedConnectorStatus)
+      return cachedConnectorStatus
     }
-  }, [])
 
-  // Auto-healing: periodically ensure enabled, authenticated connectors stay connected
-  const lastReconcile = useRef(0)
-  const maybeReconnect = useCallback(async (rows) => {
-    if (!rows || !Array.isArray(rows)) return
-    const due = rows.some((r) => {
-      const isConnected = Boolean(r.live?.connected || r.live?.is_connected || (r.live?.tools > 0))
-      const isReady = Boolean(r.live?.ready || r.live?.is_usable)
-      const hasAuth = Boolean(r.signed_in || r.account || r.live?.is_authenticated || r.auth_kind === 'none')
-      const isBlocked = (r.missing_credentials || []).length > 0
-      const retryIn = r.retry_in ?? r.live?.retry_in ?? 0
-      return r.enabled && (!isConnected || !isReady) && hasAuth && !isBlocked && retryIn === 0
-    })
-    if (!due) return
-    if (Date.now() - lastReconcile.current < 8000) return
-    lastReconcile.current = Date.now()
+    setRefreshing(true)
     try {
-      await api.mcpReconcile()
-      await refreshServers()
-      refreshHealth()
-    } catch {
-      // quiet
-    }
-  }, [refreshServers, refreshHealth])
-
-  const refresh = useCallback(async () => {
-    try {
-      const [srv, cat, auth, capabilities, allTools, compStatus, compToolkits] = await Promise.all([
-        api.mcpServers(),
-        api.mcpCatalogue(),
-        api.mcpAuthorizations(),
-        api.capabilities(),
-        api.tools().catch(() => []),
-        api.composioStatus().catch(() => null),
-        api.composioToolkits().catch(() => ({ toolkits: [], enabled: [] })),
-      ])
-      setServers(srv)
-      setCatalogue(cat)
-      setAuths(auth)
-      setTools(allTools)
-      if (compStatus) setComposioStatus(compStatus)
-      if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
-      setLive((prev) => {
-        const next = { ...prev }
-        for (const c of (capabilities.connectors ?? [])) {
-          next[c.name] = { enabled: c.enabled, ...(c.live || {}), ...next[c.name] }
-        }
-        for (const s of (srv || [])) {
-          if (s.name && s.live) {
-            next[s.name] = { ...next[s.name], ...s.live }
-          }
-        }
-        return next
-      })
-    } catch {
-      // quiet
+      const res = await api.connectorsConnected()
+      const services = res.services || {}
+      cachedConnectorStatus = services
+      cachedConnectorStatusAt = Date.now()
+      setStatus(services)
+      setStale(res.credentialStore === 'unavailable')
+      setConfigured(Boolean(res.configured))
+      return services
+    } catch (cause) {
+      setStale(true)
+      return {}
     } finally {
-      setLoaded(true)
+      setRefreshing(false)
     }
   }, [])
 
-  // Initial load: start/reconcile enabled connectors so they run by default!
-  useEffect(() => {
-    refresh()
-    api.mcpReconcile().then(() => refresh()).catch(() => {})
-  }, [refresh])
-
-  // Poll for authorization state
-  useEffect(() => {
-    let cancelled = false
-    const tick = async () => {
-      if (!cancelled) refreshServers().then((rows) => !cancelled && maybeReconnect(rows))
-      let rows
-      try { rows = await api.mcpAuthorizations() } catch { return }
-      if (cancelled) return
-      setAuths(rows)
-      for (const row of rows) {
-        const key = `${row.server}:${row.finished_at}`
-        if (row.status === 'waiting') {
-          if (!announced.current.has(row.server)) {
-            announced.current.add(row.server)
-            refresh()
-          }
-          continue
-        }
-        announced.current.delete(row.server)
-        if (settled.current.has(key)) continue
-        settled.current.add(key)
-        refresh()
-        refreshHealth()
-      }
+  const loadCatalog = useCallback(async () => {
+    try {
+      const res = await api.connectorsCatalog()
+      setCards(res.cards || [])
+      setConfigured(Boolean(res.configured))
+      setMode(res.mode || 'unavailable')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
     }
+  }, [])
 
-    let timer = null
-    const start = () => { if (timer === null) timer = setInterval(tick, 3000) }
-    const stop = () => { if (timer !== null) { clearInterval(timer); timer = null } }
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') stop()
-      else { tick(); start() }
-    }
-    onVisibility()
-    document.addEventListener('visibilitychange', onVisibility)
+  useEffect(() => {
+    loadConnectedStatus()
+    loadCatalog()
     return () => {
-      cancelled = true
-      stop()
-      document.removeEventListener('visibilitychange', onVisibility)
+      opening.current?.cancel()
+      opening.current = null
+      for (const timer of pollTimers.current.values()) clearInterval(timer)
+      pollTimers.current.clear()
+      if (browserPollTimer.current) clearInterval(browserPollTimer.current)
     }
-  }, [refresh, refreshHealth, refreshServers, maybeReconnect])
+  }, [loadConnectedStatus, loadCatalog])
 
-  const retry = useCallback(async (name) => {
-    setAuths((rows) => rows.filter((r) => r.server !== name))
+  useEffect(() => {
+    if (newOpen) {
+      setFilter('mcp')
+    }
+  }, [newOpen])
+
+  const refreshStatus = useCallback(async (slugs) => {
+    if (!slugs.length) return {}
     try {
-      await api.mcpLogin(name, {})
-    } catch (err) {
-      toast(err.message, 'bad')
+      const res = await api.connectorsStatus(slugs.join(','))
+      const incoming = res.services || {}
+      setStatus((current) => ({ ...current, ...incoming }))
+      return incoming
+    } catch {
+      return {}
     }
-  }, [toast])
-
-  const dismissAuth = useCallback((name) => {
-    setAuths((rows) => rows.filter((r) => r.server !== name))
   }, [])
 
-  const cancelAuth = useCallback(async (name) => {
-    setAuths((rows) => rows.filter((r) => r.server !== name))
-    try {
-      await api.mcpCancelLogin(name)
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-    refresh()
-  }, [refresh, toast])
-
-  /* Toggle handler: instant ON/OFF toggle right from row */
-  const handleToggle = useCallback(
-    async (item, nextEnabled) => {
-      const name = item.name || item.id
-      setBusy((b) => ({ ...b, [name]: true }))
-      try {
-        const cap = (caps.connectors ?? []).find((c) => c.name === name)
-        await setCapEnabled(cap || { kind: 'connector', name, enabled: false }, nextEnabled)
-        toast(`${item.title || name} turned ${nextEnabled ? 'ON' : 'OFF'}`, 'ok')
-        await refresh()
-      } catch (err) {
-        toast(err.message || 'Failed to toggle connector', 'bad')
-      } finally {
-        setBusy((b) => ({ ...b, [name]: false }))
-      }
-    },
-    [caps.connectors, setCapEnabled, refresh, toast]
-  )
-
-  /* Composio toolkit toggle handler */
-  const handleComposioToggle = useCallback(
-    async (item, nextEnabled) => {
-      if (!composioStatus?.configured) {
-        toast('Configure your Composio API key in Settings > General to enable cloud connectors', 'amber')
-        return
-      }
-      const slug = item.slug || item
-      const name = item.name || slug
-      setBusy((b) => ({ ...b, [`composio:${slug}`]: true }))
-      try {
-        await api.toggleComposioToolkit(slug, nextEnabled)
-        toast(`${name} ${nextEnabled ? 'enabled' : 'disabled'} in Composio`, 'ok')
-        const [compStatus, compToolkits] = await Promise.all([
-          api.composioStatus().catch(() => null),
-          api.composioToolkits().catch(() => ({ toolkits: [], enabled: [] })),
-        ])
-        if (compStatus) setComposioStatus(compStatus)
-        if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
-        await refresh()
-      } catch (err) {
-        toast(err.message || 'Failed to toggle Composio toolkit', 'bad')
-      } finally {
-        setBusy((b) => ({ ...b, [`composio:${slug}`]: false }))
-      }
-    },
-    [composioStatus, refresh, toast]
-  )
-
-  /* Composio connect handler (launches hosted OAuth) */
-  const handleComposioConnect = useCallback(
-    async (item) => {
-      if (!composioStatus?.configured) {
-        toast('Configure your Composio API key in Settings > General first', 'amber')
-        return
-      }
-      const slug = item.slug || item
-      const name = item.name || slug
-      setBusy((b) => ({ ...b, [`composio:${slug}`]: true }))
-      try {
-        const res = await api.connectComposioToolkit(slug)
-        if (res?.redirect_url) {
-          window.open(res.redirect_url, '_blank')
-          toast(`Opened ${name} authorization page in a new tab`, 'ok')
-          let attempts = 0
-          const pollInterval = setInterval(async () => {
-            attempts++
-            try {
-              const compToolkits = await api.composioToolkits()
-              if (compToolkits?.toolkits) {
-                setComposioToolkits(compToolkits.toolkits)
-                const updated = compToolkits.toolkits.find((t) => t.slug === slug)
-                if (updated?.connected) {
-                  clearInterval(pollInterval)
-                  toast(`${name} connected!`, 'ok')
-                  refresh()
-                }
-              }
-            } catch {
-              // quiet
-            }
-            if (attempts >= 20) {
-              clearInterval(pollInterval)
-            }
-          }, 3000)
-        } else {
-          toast(`Failed to start connection for ${name}`, 'bad')
+  const startPolling = (slug) => {
+    const existing = pollTimers.current.get(slug)
+    if (existing) clearInterval(existing)
+    let tries = 0
+    const timer = setInterval(() => {
+      refreshStatus([slug]).then((services) => {
+        const s = services[slug]
+        if (++tries >= 24 || (s?.connected && !s.pending) || (s?.status && /^(expired|failed)$/i.test(s.status))) {
+          clearInterval(timer)
+          pollTimers.current.delete(slug)
+          loadConnectedStatus(true)
         }
-      } catch (err) {
-        toast(err.message || `Failed to connect ${name}`, 'bad')
-      } finally {
-        setBusy((b) => ({ ...b, [`composio:${slug}`]: false }))
-      }
-    },
-    [composioStatus, refresh, toast]
-  )
-
-  /* Composio fallback switch handler */
-  const handleFallbackSwitch = useCallback(
-    async (item, target) => {
-      const slug = item.slug || item
-      const name = item.name || slug
-      const confirmed = await confirm({
-        title: `Switch ${name} to ${target === 'local' ? 'Local Integration' : 'Composio'}?`,
-        description:
-          target === 'local'
-            ? `Amethyst will use its direct local integration for ${name} instead of Composio. You can configure local credentials in the ${name} connector row.`
-            : `Amethyst will switch back to Composio cloud connection for ${name}.`,
-        confirmLabel: 'Switch Provider',
-        tone: 'default',
       })
-      if (!confirmed) return
+    }, 4000)
+    pollTimers.current.set(slug, timer)
+  }
 
-      setBusy((b) => ({ ...b, [`fallback:${slug}`]: true }))
-      try {
-        await api.switchComposioFallback(slug, target)
-        toast(
-          `Switched ${name} to ${target === 'local' ? 'direct local integration' : 'Composio'}`,
-          'ok',
-        )
-        await refresh()
-      } catch (err) {
-        toast(err.message || `Failed to switch integration for ${name}`, 'bad')
-      } finally {
-        setBusy((b) => ({ ...b, [`fallback:${slug}`]: false }))
-      }
-    },
-    [confirm, refresh, toast]
-  )
-
-  // Refresh Composio toolkits when window regains focus (e.g. after returning from OAuth tab)
-  useEffect(() => {
-    const onFocus = () => {
-      if (composioStatus?.configured) {
-        api.composioToolkits().then((res) => {
-          if (res?.toolkits) setComposioToolkits(res.toolkits)
-        }).catch(() => {})
-      }
-    }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [composioStatus?.configured])
-
-  /* Main Action Handler: 100% real operations. */
-  const act = useCallback(async (server, action, options = {}) => {
-    setBusy((b) => ({ ...b, [server.name]: action }))
+  const startBrowserLogin = async () => {
+    setLoginLoading(true)
+    setError(null)
     try {
-      if (action === 'remove') {
-        const ok = await confirm({
-          title: `Remove ${server.title}?`,
-          description: 'Its stored credentials and signed-in account are forgotten too.',
-          confirmLabel: 'Remove',
-          tone: 'danger',
-        })
-        if (!ok) return
-        await api.mcpRemove(server.name)
-        toast(`Removed ${server.title}`, 'ok')
-        setOpen(null)
-      } else if (action === 'switch') {
-        const cap = (caps.connectors ?? []).find((c) => c.name === server.name)
-        await setCapEnabled(cap || { kind: 'connector', name: server.name, enabled: false }, !cap?.enabled)
-      } else if (action === 'start') {
-        const cap = (caps.connectors ?? []).find((c) => c.name === server.name)
-        if (!cap?.enabled) {
-          await setCapEnabled(cap || { kind: 'connector', name: server.name, enabled: false }, true)
-        }
-        await api.mcpConnect(server.name)
-        toast(`Started ${server.title}`, 'ok')
-      } else if (action === 'connect') {
-        if (server.auth_kind === 'none') {
-          const cap = (caps.connectors ?? []).find((c) => c.name === server.name)
-          if (!cap?.enabled) {
-            await setCapEnabled(cap || { kind: 'connector', name: server.name, enabled: false }, true)
-          }
-          await api.mcpConnect(server.name)
-          toast(`Started ${server.title}`, 'ok')
-        } else {
-          const cap = (caps.connectors ?? []).find((c) => c.name === server.name)
-          if (!cap?.enabled) {
-            await setCapEnabled(cap || { kind: 'connector', name: server.name, enabled: false }, true)
-          }
-          await api.mcpLogin(server.name, {})
-          toast(`Opening ${server.title}'s sign-in — finish in the browser`, 'info')
-        }
-      } else if (action === 'logout') {
-        const result = await api.mcpLogout(server.name)
-        toast(
-          result.cleared?.length
-            ? `Signed out of ${server.title} — the next sign-in will ask which account`
-            : `${server.title} had no account to forget`,
-          'ok'
-        )
-      } else if (action === 'login') {
-        if (!options.force && (server.auth_kind === 'oauth' || server.auth === 'oauth')) {
-           setPendingConnect({ ...server, isCatalogue: false })
-           return
-        }
-        await api.mcpLogin(server.name, options)
-        toast(`Opening ${server.title}'s sign-in — finish in the browser`, 'info')
-      } else if (action === 'sync') {
-        const result = await api.syncTasks()
-        toast(result.summary || `Synced ${server.title}`, 'ok')
-      }
-      await refresh()
-      refreshHealth()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy((b) => ({ ...b, [server.name]: undefined }))
-    }
-  }, [caps, confirm, refresh, refreshHealth, setCapEnabled, setOpen, toast, setPendingConnect])
+      const res = await api.startComposioLogin()
+      setLoginSession(res)
+      setLoginPolling(true)
+      window.open(res.login_url, '_blank')
 
-  const addFromCatalogue = useCallback(async (entry, bypassModal = false) => {
-    if ((entry.auth === 'oauth' || entry.auth_kind === 'oauth') && !bypassModal) {
-      setPendingConnect({ ...entry, isCatalogue: true })
+      if (browserPollTimer.current) clearInterval(browserPollTimer.current)
+      browserPollTimer.current = setInterval(async () => {
+        try {
+          const poll = await api.pollComposioLogin(res.session_id)
+          if (poll.status === 'linked' && poll.configured) {
+            clearInterval(browserPollTimer.current)
+            browserPollTimer.current = null
+            setLoginPolling(false)
+            setLoginSession(null)
+            setKeyModalOpen(false)
+            setModalPrompt(null)
+            setConfigured(true)
+            await loadCatalog()
+            await loadConnectedStatus(true)
+          } else if (poll.status === 'expired' || poll.status === 'failed') {
+            clearInterval(browserPollTimer.current)
+            browserPollTimer.current = null
+            setLoginPolling(false)
+            setError('Composio browser login session expired or was rejected. Please try again.')
+          }
+        } catch {
+          // keep polling
+        }
+      }, 2000)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  const cancelBrowserLogin = () => {
+    if (browserPollTimer.current) {
+      clearInterval(browserPollTimer.current)
+      browserPollTimer.current = null
+    }
+    setLoginPolling(false)
+    setLoginSession(null)
+  }
+
+  const disconnectComposio = async () => {
+    if (!window.confirm('Are you sure you want to disconnect Composio?')) return
+    setError(null)
+    try {
+      await api.deleteComposioKey()
+      setConfigured(false)
+      setKeyModalOpen(false)
+      await loadCatalog()
+      await loadConnectedStatus(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const connect = async (slug, alias) => {
+    if (busySlug || opening.current) return
+
+    if (!configured) {
+      const card = (cards || []).find((c) => c.slug === slug)
+      setModalPrompt(`Please log in to Composio first to connect ${card?.label || slug}.`)
+      setLoginTab('browser')
+      setKeyModalOpen(true)
       return
     }
 
-    const id = entry.id || entry.name
-    setBusy((b) => ({ ...b, [id]: 'add' }))
+    const launch = reserveConnectionPage()
+    opening.current = launch
+    setBusySlug(slug)
+    setError(null)
     try {
-      const result = await api.mcpAdd({ catalogue_id: id })
-      const cap = { kind: 'connector', name: result.name, enabled: false }
-      
-      // Auto-start so it runs by default
-      await setCapEnabled(cap, true)
-      
-      if (entry.auth === 'oauth' || entry.auth_kind === 'oauth') {
-         await api.mcpLogin(result.name, {})
-         toast(`Opening ${result.title || result.name}'s sign-in`, 'info')
-      } else if (entry.auth === 'none' || entry.auth_kind === 'none') {
-         await api.mcpConnect(result.name)
-         toast(`Added and connected ${result.name}`, 'ok')
-      } else {
-         toast(`Added ${result.name}`, 'ok')
-         setOpen(result.name)
-      }
-      
-      await refresh()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy((b) => ({ ...b, [id]: undefined }))
-    }
-  }, [refresh, setCapEnabled, setOpen, toast, setPendingConnect])
+      const res = await api.connectorsAuthorize(slug, alias)
+      if (opening.current !== launch) return
+      const url = res.url
+      if (!url) throw new Error('Invalid authorization URL returned')
 
-  const q = (query || '').trim().toLowerCase()
-  const titleOf = useCallback(
-    (name) => servers.find((srv) => srv.name === name)?.title || name,
-    [servers]
-  )
-
-  const configuredSet = useMemo(() => new Set(servers.map((s) => s.name)), [servers])
-
-  // Filter catalogue and installed by query and active tab
-  const [agentTools, userConnectors] = useMemo(() => {
-    const all = []
-
-    // 1. Configured servers
-    for (const server of servers) {
-      all.push({ ...server, isConfigured: true })
-    }
-
-    // 2. Catalogue entries not yet added
-    for (const entry of catalogue) {
-      if (!configuredSet.has(entry.id)) {
-        all.push({ ...entry, isConfigured: false, name: entry.id })
-      }
-    }
-
-    // Filter by query
-    const queried = all.filter((item) => {
-      if (!q) return true
-      const titleMatch = (item.title || '').toLowerCase().includes(q)
-      const descMatch = (item.description || '').toLowerCase().includes(q)
-      const nameMatch = (item.name || item.id || '').toLowerCase().includes(q)
-      const catMatch = (item.category || '').toLowerCase().includes(q)
-      return titleMatch || descMatch || nameMatch || catMatch
-    })
-
-    // Grouped categories for connectors
-    const catMap = {
-      // Popular
-      'github': 'Popular',
-      'google-workspace': 'Popular',
-      'google-gmail': 'Popular',
-      'google-drive': 'Popular',
-      'google-calendar': 'Popular',
-      'slack': 'Popular',
-      'gmail': 'Popular',
-      'outlook': 'Popular',
-      
-      // Productivity
-      'google-docs': 'Productivity',
-      'google-sheets': 'Productivity',
-      'google-forms': 'Productivity',
-      'google-tasks': 'Productivity',
-      'microsoft-todo': 'Productivity',
-      'notion': 'Productivity',
-      'dropbox': 'Productivity',
-      
-      // Developer Tools
-      'vercel': 'Developer Tools',
-      'supabase': 'Developer Tools',
-      'railway': 'Developer Tools',
-      
-      // Creativity & Design
-      'thesvg': 'Creativity & Design',
-      'google-slides': 'Creativity & Design',
-      'figma': 'Creativity & Design',
-      'canva': 'Creativity & Design',
-      
-      // Communication & Media
-      'google-chat': 'Communication & Media',
-      'linkedin': 'Communication & Media',
-      'spotify': 'Communication & Media',
-      'stripe': 'Business & Finance',
-      'shopify': 'Business & Finance',
-      'hubspot': 'Business & Finance',
-    }
-
-    // Filter by category tab
-    const tabFiltered = queried.filter((item) => {
-      if (filter === 'all') return true
-      if (filter === 'installed') return item.isConfigured
-      if (filter === 'agent-tools') return isAgentTool(item)
-      if (filter === 'connectors') return !isAgentTool(item)
-      const mappedCat = catMap[item.name] || catMap[item.id] || item.category
-      return mappedCat === filter || item.category === filter
-    })
-
-    const toolsList = []
-    
-    const categoryOrder = [
-      'Popular',
-      'Productivity',
-      'Developer Tools',
-      'Creativity & Design',
-      'Communication & Media',
-    ]
-
-    const categories = {}
-    for (const cat of categoryOrder) {
-      categories[cat] = []
-    }
-
-    for (const item of tabFiltered) {
-      if (isAgentTool(item)) {
-        toolsList.push(item)
-      } else {
-        const knownCat = catMap[item.name] || catMap[item.id]
-        const cat = knownCat || item.category || 'More'
-        if (!categories[cat]) {
-          categories[cat] = []
-        }
-        categories[cat].push(item)
-      }
-    }
-
-    return [toolsList, categories]
-  }, [servers, catalogue, configuredSet, q, filter])
-
-  const filteredComposioToolkits = useMemo(() => {
-    if (!composioStatus?.configured) return []
-    if (!composioToolkits || composioToolkits.length === 0) return []
-    return composioToolkits.filter((item) => {
-      if (item.overridden_by_local) return false
-      if (q) {
-        const match =
-          (item.name || '').toLowerCase().includes(q) ||
-          (item.description || '').toLowerCase().includes(q) ||
-          (item.slug || '').toLowerCase().includes(q) ||
-          (item.category || '').toLowerCase().includes(q)
-        if (!match) return false
-      }
-      if (filter === 'all') return true
-      if (filter === 'installed') return Boolean(item.connected)
-      if (filter === 'agent-tools') return Boolean(item.no_auth)
-      if (filter === 'connectors') return true
-      if (filter === 'Popular')
-        return ['slack', 'github', 'gmail', 'notion', 'web_scraper', 'calculator'].includes(item.slug)
-      if (filter === 'Productivity')
-        return ['linear', 'notion', 'googlecalendar', 'asana'].includes(item.slug)
-      if (filter === 'Developer Tools')
-        return ['github', 'jira', 'sql'].includes(item.slug)
-      if (filter === 'Communication & Media' || filter === 'Communication')
-        return ['slack', 'gmail', 'spotify'].includes(item.slug)
-      return item.category === filter
-    })
-  }, [composioStatus?.configured, composioToolkits, q, filter])
-
-  const { directComposioTools, connectedComposioServices } = useMemo(() => {
-    const direct = []
-    const connected = []
-    for (const item of filteredComposioToolkits) {
-      if (item.no_auth) {
-        direct.push(item)
-      } else {
-        connected.push(item)
-      }
-    }
-    return { directComposioTools: direct, connectedComposioServices: connected }
-  }, [filteredComposioToolkits])
-
-  // Installed connectors list for the top chips row
-  const installedList = useMemo(() => {
-    return servers.map((s) => {
-      const serverLive = live[s.name] || s.live || {}
-      const isConnected = Boolean(serverLive.is_connected ?? serverLive.connected ?? (serverLive.tools > 0))
-      const isUsable = Boolean(
-        isConnected &&
-        (serverLive.is_usable ?? serverLive.ready ?? (serverLive.tools > 0)) &&
-        !serverLive.account_mismatch &&
-        !s.lifecycle?.account_mismatch
-      )
-      return {
-        ...s,
-        ready: isUsable,
-      }
-    })
-  }, [servers, live])
-
-  const authCards = useMemo(
-    () => [...auths].sort((a, b) => (a.status === 'waiting' ? -1 : 0) - (b.status === 'waiting' ? -1 : 0)),
-    [auths]
-  )
-
-  // Active detail view
-  const rawOpen = servers.find((s) => s.name === open) || catalogue.find((c) => (c.id === open || c.name === open))
-  const openServer = useMemo(() => {
-    if (!rawOpen) return null
-    const name = rawOpen.name || rawOpen.id
-    const isConfigured = servers.some((s) => s.name === name)
-    return {
-      ...rawOpen,
-      name,
-      title: rawOpen.title || name,
-      isConfigured,
-    }
-  }, [rawOpen, servers])
-
-  const detailTools = useMemo(() => {
-    if (!openServer || !openServer.name) return []
-    const prefix = `__mcp__${openServer.name.replace(/-/g, '_2d')}`
-    return tools
-      .filter((t) => t.server === openServer.name)
-      .map((t) => ({
-        ...t,
-        short: t.name.endsWith(prefix) ? t.name.slice(0, -prefix.length) : t.name,
-        description: (t.description || '').replace(`[${openServer.name}] `, ''),
+      setPendingUrls((prev) => ({ ...prev, [slug]: { url, createdAt: Date.now() } }))
+      setStatus((prev) => ({
+        ...prev,
+        [slug]: {
+          ...(prev[slug] || {}),
+          connected: prev[slug]?.connected || false,
+          pending: true,
+          status: 'INITIATED',
+        },
       }))
-      .sort((a, b) => (RISK_ORDER[a.risk] ?? 3) - (RISK_ORDER[b.risk] ?? 3))
-  }, [openServer, tools])
+      setAliasSlug(null)
+      setAliasDraft('')
+      startPolling(slug)
 
-  const totalInstalled = installedList.length
-  const totalActive = installedList.filter((s) => s.ready).length
+      const opened = await launch.open(url)
+      if (!opened && opening.current === launch) {
+        setError('Popup was blocked by your browser. Click "Open authorization page" below.')
+      }
+    } catch (cause) {
+      launch.cancel()
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      if (opening.current === launch) opening.current = null
+      setBusySlug(null)
+    }
+  }
+
+  const disconnectAccount = async (slug, accountId) => {
+    setBusySlug(slug)
+    setError(null)
+    try {
+      await api.connectorsDisconnectAccount(slug, accountId)
+      await refreshStatus([slug])
+      await loadConnectedStatus(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusySlug(null)
+    }
+  }
+
+  const saveApiKey = async () => {
+    if (!apiKeyDraft.trim()) return
+    setSavingKey(true)
+    setError(null)
+    try {
+      await api.saveComposioKey(apiKeyDraft.trim())
+      setKeyModalOpen(false)
+      setApiKeyDraft('')
+      await loadCatalog()
+      await loadConnectedStatus(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setSavingKey(false)
+    }
+  }
+
+  // Filter matching
+  const matching = (cards || []).filter((c) => {
+    if (!effectiveSearch) return true
+    const haystack = `${c.label} ${c.slug} ${c.blurb || ''}`.toLowerCase()
+    return haystack.includes(effectiveSearch)
+  })
+
+  const isConnected = (slug) => Boolean(status[slug]?.connected || status[slug]?.accounts?.length)
+
+  const visible = (filter === 'connected' ? matching.filter((card) => isConnected(card.slug)) : matching)
+    .sort((a, b) => Number(isConnected(b.slug)) - Number(isConnected(a.slug)))
+
+  const connectedCount = Object.values(status).filter((s) => s.connected || s.accounts?.length).length
 
   return (
-    <>
-      {/* New Connector Modal */}
-      <NewConnectorModal
-        open={newOpen}
-        onClose={() => setNewOpen(false)}
-        onCreated={(createdName) => {
-          refresh()
-          setOpen(createdName)
-        }}
-      />
-
-      <AnimatePresence mode="wait">
-        {openServer ? (
-          <motion.div
-            key={`detail-${openServer.name}`}
-            initial={{ opacity: 0, x: 26, filter: 'blur(4px)' }}
-            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, x: 26, filter: 'blur(4px)' }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+    <div className="connectors-view-root">
+      {/* Top Filter and Actions Bar */}
+      <div className="connectors-nav-bar">
+        <div className="connectors-filter-pills" role="tablist">
+          <button
+            type="button"
+            className={`connector-filter-btn ${filter === 'all' ? 'is-active' : ''}`}
+            onClick={() => setFilter('all')}
           >
-            <ConnectorDetail
-              server={openServer}
-              cap={(caps.connectors ?? []).find((c) => c.name === openServer.name)}
-              live={live[openServer.name]}
-              busy={busy[openServer.name]}
-              tools={detailTools}
-              onBack={() => setOpen(null)}
-              onAct={(action, options) => act(openServer, action, options)}
-              onAdd={() => addFromCatalogue(openServer)}
-              onChanged={refresh}
-            />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="main-grid-view"
-            initial={{ opacity: 0, scale: 0.99 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            <Layers size={14} />
+            <span>All Apps</span>
+          </button>
+          <button
+            type="button"
+            className={`connector-filter-btn ${filter === 'connected' ? 'is-active' : ''}`}
+            onClick={() => setFilter('connected')}
           >
-            {/* Top "Installed" Quick Strip */}
-            {totalInstalled > 0 && (
-              <div className="plugin-installed-section" data-enter>
-                <div className="plugin-installed-header">
-                  <div className="plugin-installed-label">
-                    <span>Installed</span>
-                    <span className="plugin-installed-badge">{totalInstalled}</span>
-                  </div>
-                  <span className="plugin-installed-hint">
-                    <span className="status-dot live" style={{ width: 6, height: 6 }} />
-                    {totalActive} active
-                  </span>
-                </div>
-                <div className="plugin-installed-dock">
-                  {installedList.map((item, index) => (
-                    <InstalledDockChip
-                      key={item.name}
-                      item={item}
-                      index={index}
-                      onOpen={() => setOpen(item.name)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+            <Check size={14} />
+            <span>Connected</span>
+            {connectedCount > 0 && <span className="connector-filter-badge">{connectedCount}</span>}
+          </button>
+          <button
+            type="button"
+            className={`connector-filter-btn ${filter === 'mcp' ? 'is-active' : ''}`}
+            onClick={() => setFilter('mcp')}
+          >
+            <Server size={14} />
+            <span>MCP Servers</span>
+          </button>
+        </div>
 
-            {/* Sub-navigation Segmented Filter Pills */}
-            <div className="conn-filter-pills" data-enter>
-              {FILTER_TABS.map((tab) => {
-                const isActive = filter === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={`conn-pill${isActive ? ' active' : ''}`}
-                    onClick={() => setFilter(tab.id)}
-                  >
-                    <span className="conn-pill-label">{tab.label}</span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeFilterBg"
-                        className="conn-pill-active-bg"
-                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                      />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Auth Banner Stack for pending authentications */}
-            {authCards.length > 0 && (
-              <div className="auth-stack">
-                <AnimatePresence>
-                  {authCards.map((a) => (
-                    <AuthCard
-                      key={a.server}
-                      auth={a}
-                      title={titleOf(a.server)}
-                      onRetry={() => retry(a.server)}
-                      onCancel={() => cancelAuth(a.server)}
-                      onDismiss={() => dismissAuth(a.server)}
-                      onCopyCode={async () =>
-                        toast(
-                          (await copyText(a.user_code))
-                            ? 'Code copied'
-                            : 'Could not copy — type it instead',
-                          'info'
-                        )
-                      }
-                      onCopy={async () =>
-                        toast(
-                          (await copyText(a.authorization_url))
-                            ? 'Sign-in link copied'
-                            : 'Could not copy — open it instead',
-                          'info'
-                        )
-                      }
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-
-            {/* Legacy hidden wrappers so Playwright smoke tests pass without failure */}
-            <div className="conn-list" style={{ display: 'none' }}>
-              {servers.map((s) => (
-                <div key={s.name} className="conn-row" onClick={() => setOpen(s.name)}>
-                  <span className="conn-row-name">{s.title}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'none' }}>
-              <div className="cap-section-head">connected</div>
-              <div className="cap-section-head">not running</div>
-              <div className="cap-head"><button type="button" className="btn">Add</button></div>
-            </div>
-
-            {/* Catalog content powered by Boneyard Skeleton loading */}
-            <BoneyardSkeleton
-              name="connectors-catalog"
-              loading={!loaded}
-              fallback={<ConnectorsCatalogSkeleton filter={filter} />}
-              fixture={<ConnectorsCatalogSkeleton filter={filter} />}
-              animate="shimmer"
-              transition={false}
-              select="viewport"
+        <div className="connectors-top-actions">
+          {configured ? (
+            <button
+              type="button"
+              className="connector-auth-status-btn is-connected"
+              onClick={() => {
+                setModalPrompt(null)
+                setKeyModalOpen(true)
+              }}
+              title="Manage Composio Connection"
             >
-              {loaded ? (
-                <>
-                  {/* 1. AGENT CORE TOOLS SECTION */}
-                  {agentTools.length > 0 && (
-                    <section data-enter className="plugin-section">
-                      <div className="plugin-section-head">
-                        <div className="plugin-section-title-wrap">
-                          <h2 className="plugin-section-title">Agent Core Tools</h2>
-                          <span className="plugin-section-badge">{agentTools.length}</span>
-                        </div>
+              <span className="connector-live-dot" />
+              <span>Composio Connected</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="connector-btn-primary"
+              onClick={() => {
+                setModalPrompt(null)
+                setLoginTab('browser')
+                setKeyModalOpen(true)
+              }}
+              title="Sign in to Composio"
+            >
+              <Globe size={14} />
+              <span>Log in to Composio</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="connector-btn-ghost"
+            onClick={() => {
+              loadConnectedStatus(true)
+              loadCatalog()
+            }}
+            disabled={refreshing}
+            title="Refresh status"
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </div>
+
+      {/* Stale Warning Banner */}
+      {stale && (
+        <div className="connector-status-banner is-warning">
+          <div className="flex items-center gap-2">
+            <TriangleAlert size={16} />
+            <span>Cached status shown while connection status is confirming in the background.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Not Configured Hero Callout Banner */}
+      {!configured && filter !== 'mcp' && (
+        <div className="connector-hero-banner">
+          <div className="connector-hero-info">
+            <div className="connector-hero-icon-box">
+              <Globe size={22} className="text-accent" />
+            </div>
+            <div>
+              <div className="connector-hero-title">Connect Composio Integration Hub</div>
+              <div className="connector-hero-desc">
+                Sign in to link GitHub, Slack, Gmail, Google Calendar, Notion, Linear, Spotify, and 100+ native connectors.
+              </div>
+            </div>
+          </div>
+          <div className="connector-hero-actions">
+            <button
+              type="button"
+              className="connector-btn-primary"
+              onClick={() => {
+                setModalPrompt(null)
+                setLoginTab('browser')
+                setKeyModalOpen(true)
+              }}
+            >
+              <Globe size={14} />
+              <span>Sign in with Browser (1-Click)</span>
+            </button>
+            <button
+              type="button"
+              className="connector-btn-ghost"
+              onClick={() => {
+                setModalPrompt(null)
+                setLoginTab('key')
+                setKeyModalOpen(true)
+              }}
+            >
+              <Key size={13} />
+              <span>Enter API Key</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mcp-notice mcp-notice-error">
+          <div className="flex items-center gap-2">
+            <TriangleAlert size={15} />
+            <span>{error}</span>
+          </div>
+          <button type="button" onClick={() => setError(null)} className="mcp-notice-close">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Composio Login & API Key Modal */}
+      {keyModalOpen && (
+        <div
+          className="mcp-modal-backdrop"
+          onClick={() => {
+            setKeyModalOpen(false)
+            cancelBrowserLogin()
+          }}
+        >
+          <div className="mcp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="mcp-editor-head">
+              <div className="flex items-center gap-2">
+                <Globe size={18} className="text-accent" />
+                <h4 className="mcp-editor-title">Connect Composio</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setKeyModalOpen(false)
+                  cancelBrowserLogin()
+                }}
+                className="mcp-icon-btn"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {modalPrompt && (
+              <div className="connector-modal-prompt">
+                {modalPrompt}
+              </div>
+            )}
+
+            <div className="connector-modal-tabs" role="tablist">
+              <button
+                type="button"
+                className={`connector-modal-tab ${loginTab === 'browser' ? 'is-active' : ''}`}
+                onClick={() => setLoginTab('browser')}
+              >
+                <Globe size={14} />
+                <span>Browser Login</span>
+              </button>
+              <button
+                type="button"
+                className={`connector-modal-tab ${loginTab === 'key' ? 'is-active' : ''}`}
+                onClick={() => setLoginTab('key')}
+              >
+                <Key size={14} />
+                <span>API Key</span>
+              </button>
+            </div>
+
+            {loginTab === 'browser' ? (
+              <div className="flex flex-col gap-3 py-1">
+                <p className="mcp-modal-desc">
+                  Sign in with your Google or GitHub account on Composio. Amethyst will link seamlessly without copying tokens.
+                </p>
+
+                {loginSession ? (
+                  <div className="connector-browser-waiting-box">
+                    <Loader2 size={24} className="animate-spin text-accent" />
+                    <div>
+                      <div className="font-semibold text-sm">Awaiting authentication in browser…</div>
+                      <div className="text-xs text-dim mt-0.5">
+                        Complete sign-in on Composio and verify the code matches:
                       </div>
-
-                      <div className="plugin-grid">
-                        {agentTools.map((item, idx) => (
-                          <PluginRow
-                            key={item.name || item.id}
-                            index={idx}
-                            item={item}
-                            isConfigured={item.isConfigured}
-                            live={live[item.name || item.id]}
-                            busy={busy[item.name || item.id]}
-                            onOpen={() => setOpen(item.name || item.id)}
-                            onToggle={(nextOn) => handleToggle(item, nextOn)}
-                            onAdd={() => addFromCatalogue(item)}
-                            onAct={(action, options) => act(item, action, options)}
-                          />
-                        ))}
+                    </div>
+                    {loginSession.code && (
+                      <div className="connector-code-display">
+                        <span className="text-3xs uppercase tracking-wider text-dim">Verification Code</span>
+                        <span className="connector-code-value">{loginSession.code}</span>
                       </div>
-                    </section>
-                  )}
-
-                  {/* 2. COMPOSIO CLOUD CONNECTORS SECTION */}
-                  {!composioStatus?.configured ? (
-                    (filter === 'all' || filter === 'connectors') && !q && (
-                      <section data-enter className="plugin-section">
-                        <div className="plugin-section-head">
-                          <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <h2 className="plugin-section-title">Cloud Connectors</h2>
-                            <span
-                              style={{
-                                fontSize: '11px',
-                                fontWeight: 500,
-                                padding: '2px 8px',
-                                borderRadius: '999px',
-                                background: 'rgba(168, 85, 247, 0.12)',
-                                color: 'var(--accent, #a855f7)',
-                                border: '1px solid rgba(168, 85, 247, 0.25)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                letterSpacing: '0.02em',
-                              }}
-                            >
-                              Powered by Composio
-                            </span>
-                            <span className="conn-status" style={{ opacity: 0.65 }}>
-                              Not configured
-                            </span>
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.02)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                            borderRadius: '12px',
-                            padding: '20px 24px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div
-                              style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: '8px',
-                                background: 'rgba(168, 85, 247, 0.15)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--accent, #a855f7)',
-                                flexShrink: 0,
-                              }}
-                            >
-                              <Icon name="cloud" size={20} />
-                            </div>
-                            <div>
-                              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                Composio — not configured
-                              </h3>
-                              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                Zero-setup cloud OAuth for Slack, GitHub, Linear, Notion, Gmail, Google Calendar & more
-                              </span>
-                            </div>
-                          </div>
-
-                          <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                            Composio handles cloud OAuth for Slack, GitHub, Linear, Notion, Gmail, Google Calendar, and more without managing your own Google / Slack / GitHub developer apps. Add an API key in Settings &gt; General to enable one-click connections.
-                          </p>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                            <button
-                              type="button"
-                              className="conn-btn conn-btn--primary"
-                              onClick={() => setView('settings')}
-                              style={{
-                                padding: '6px 14px',
-                                fontSize: '13px',
-                                fontWeight: 500,
-                                borderRadius: '6px',
-                                background: 'var(--accent, #a855f7)',
-                                color: '#fff',
-                                border: 'none',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 6,
-                              }}
-                            >
-                              <Icon name="settings" size={14} />
-                              Open Settings
-                            </button>
-                            <a
-                              href="https://dashboard.composio.dev/settings"
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                fontSize: '13px',
-                                color: 'var(--text-secondary)',
-                                textDecoration: 'none',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
-                            >
-                              Get API Key <Icon name="external-link" size={12} />
-                            </a>
-                          </div>
-                        </div>
-                      </section>
-                    )
-                  ) : (
-                    <>
-                      {/* Direct Tools: Work immediately without user OAuth configuration */}
-                      {directComposioTools.length > 0 && (
-                        <section data-enter className="plugin-section">
-                          <div className="plugin-section-head">
-                            <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <h2 className="plugin-section-title">Direct Cloud Tools</h2>
-                              <span
-                                style={{
-                                  fontSize: '11px',
-                                  fontWeight: 500,
-                                  padding: '2px 8px',
-                                  borderRadius: '999px',
-                                  background: 'rgba(34, 197, 94, 0.12)',
-                                  color: 'var(--ok, #22c55e)',
-                                  border: '1px solid rgba(34, 197, 94, 0.25)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                No User OAuth Required
-                              </span>
-                              <span className="plugin-section-badge">
-                                {directComposioTools.filter((t) => t.enabled).length}/{directComposioTools.length} enabled
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="plugin-grid">
-                            {directComposioTools.map((item, idx) => (
-                              <ComposioPluginRow
-                                key={item.slug}
-                                index={idx}
-                                item={item}
-                                isConfigured={true}
-                                busy={busy[`composio:${item.slug}`] || busy[`fallback:${item.slug}`]}
-                                onConnect={() => handleComposioConnect(item)}
-                                onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
-                                onFallbackSwitch={handleFallbackSwitch}
-                              />
-                            ))}
-                          </div>
-                        </section>
-                      )}
-
-                      {/* Connected Services: Require third-party OAuth setup */}
-                      {connectedComposioServices.length > 0 && (
-                        <section data-enter className="plugin-section">
-                          <div className="plugin-section-head">
-                            <div className="plugin-section-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <h2 className="plugin-section-title">Connected Cloud Services</h2>
-                              <span
-                                style={{
-                                  fontSize: '11px',
-                                  fontWeight: 500,
-                                  padding: '2px 8px',
-                                  borderRadius: '999px',
-                                  background: 'rgba(168, 85, 247, 0.12)',
-                                  color: 'var(--accent, #a855f7)',
-                                  border: '1px solid rgba(168, 85, 247, 0.25)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                OAuth Setup Required
-                              </span>
-                              <span className="plugin-section-badge">
-                                {connectedComposioServices.filter((t) => t.connected).length}/{connectedComposioServices.length} connected
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="plugin-grid">
-                            {connectedComposioServices.map((item, idx) => (
-                              <ComposioPluginRow
-                                key={item.slug}
-                                index={idx}
-                                item={item}
-                                isConfigured={true}
-                                busy={busy[`composio:${item.slug}`] || busy[`fallback:${item.slug}`]}
-                                onConnect={() => handleComposioConnect(item)}
-                                onToggle={(tool, nextOn) => handleComposioToggle(tool, nextOn)}
-                                onFallbackSwitch={handleFallbackSwitch}
-                              />
-                            ))}
-                          </div>
-                        </section>
-                      )}
-                    </>
-                  )}
-
-                  {/* 3. USER CONNECTORS & INTEGRATIONS SECTION (Grouped) */}
-                  {Object.entries(userConnectors).map(([catName, items]) => {
-                    if (items.length === 0) return null
-
-                    return (
-                      <section key={catName} data-enter className="plugin-section">
-                        <div className="plugin-section-head">
-                          <div className="plugin-section-title-wrap">
-                            <h2 className="plugin-section-title">{catName}</h2>
-                            <span className="plugin-section-badge">{items.length}</span>
-                          </div>
-                        </div>
-
-                        <div className="plugin-grid">
-                          {items.map((item, idx) => (
-                            <PluginRow
-                              key={item.name || item.id}
-                              index={idx}
-                              item={item}
-                              isConfigured={item.isConfigured}
-                              live={live[item.name || item.id]}
-                              busy={busy[item.name || item.id]}
-                              onOpen={() => setOpen(item.name || item.id)}
-                              onToggle={(nextOn) => handleToggle(item, nextOn)}
-                              onAdd={() => addFromCatalogue(item)}
-                              onAct={(action, options) => act(item, action, options)}
-                              onRemove={async () => {
-                                try {
-                                  await api.mcpRemove(item.name || item.id)
-                                  toast(`Removed ${item.title || item.name}`, 'ok')
-                                  refresh()
-                                } catch (e) {
-                                  toast(e.message, 'bad')
-                                }
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    )
-                  })}
-                </>
-              ) : null}
-            </BoneyardSkeleton>
-
-            {/* Section Discovery Footer - Functional Add Custom CTA */}
-            {loaded && (
-              <section data-enter className="plugin-section">
-                <motion.div
-                  className="plugin-footer-cta"
-                  onClick={() => setNewOpen(true)}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="plugin-footer-cta-left">
-                    <span className="plugin-footer-cta-icon">
-                      <Icon name="plus" size={18} />
-                    </span>
-                    <div className="plugin-footer-cta-text">
-                      <h4>Add Custom MCP Connector or Integration</h4>
-                      <p>Connect any external tool via local command (stdio, npx, uvx) or remote HTTP/SSE</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <a
+                        href={loginSession.login_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mcp-btn mcp-btn-secondary"
+                      >
+                        <ExternalLink size={13} />
+                        <span>Re-open Login Tab</span>
+                      </a>
+                      <button
+                        type="button"
+                        className="mcp-btn mcp-btn-ghost text-dim"
+                        onClick={cancelBrowserLogin}
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
-                  <button type="button" className="btn btn--small btn--primary">
-                    <Icon name="plus" size={13} /> Add Custom
+                ) : (
+                  <div className="flex flex-col gap-3 mt-1">
+                    <button
+                      type="button"
+                      className="connector-browser-login-btn"
+                      onClick={startBrowserLogin}
+                      disabled={loginLoading}
+                    >
+                      {loginLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Globe size={16} />
+                      )}
+                      <span>Sign in with Composio (Google / GitHub)</span>
+                    </button>
+                    <div className="text-2xs text-center text-dim">
+                      Opens Composio's secure sign-in portal in a new tab.
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 py-1">
+                <p className="mcp-modal-desc">
+                  Paste your Composio API key (<code className="font-mono">ak_...</code> or <code className="font-mono">uak_...</code>) from{' '}
+                  <a
+                    href="https://app.composio.dev/settings"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-accent underline inline-flex items-center gap-1"
+                  >
+                    <span>app.composio.dev/settings</span>
+                    <ExternalLink size={11} />
+                  </a>:
+                </p>
+                <input
+                  className="mcp-input font-mono w-full"
+                  placeholder="ak_... or uak_..."
+                  type="password"
+                  value={apiKeyDraft}
+                  onChange={(e) => setApiKeyDraft(e.target.value)}
+                  autoFocus
+                />
+                <div className="mcp-form-footer">
+                  {configured && (
+                    <button
+                      type="button"
+                      className="mcp-btn mcp-btn-danger text-xs mr-auto"
+                      onClick={disconnectComposio}
+                    >
+                      <Trash2 size={13} />
+                      <span>Disconnect Composio</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="mcp-btn mcp-btn-secondary"
+                    onClick={() => setKeyModalOpen(false)}
+                  >
+                    Cancel
                   </button>
-                </motion.div>
-              </section>
+                  <button
+                    type="button"
+                    className="mcp-btn mcp-btn-primary"
+                    onClick={saveApiKey}
+                    disabled={savingKey || !apiKeyDraft.trim()}
+                  >
+                    {savingKey ? <Loader2 size={13} className="animate-spin" /> : null}
+                    <span>Save Key</span>
+                  </button>
+                </div>
+              </div>
             )}
+          </div>
+        </div>
+      )}
 
-            {/* Empty State */}
-            {loaded && agentTools.length === 0 && filteredComposioToolkits.length === 0 && !(!composioStatus?.configured && (filter === 'all' || filter === 'connectors') && !q) && Object.values(userConnectors).every(arr => arr.length === 0) && (
-              <motion.div
-                className="dir-empty"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Icon name="search" size={24} />
-                <p>No connectors or tools match &ldquo;{q}&rdquo;</p>
-                <button type="button" className="btn btn--small" onClick={() => { setFilter('all'); setQuery?.('') }}>
-                  Reset filters
-                </button>
-              </motion.div>
-            )}
-
-            {/* Legacy cat-row references for smoke tests */}
-            <div style={{ display: 'none' }}>
-              {catalogue.map((c) => (
-                <span key={c.id} className="cat-row">{c.title}</span>
-              ))}
+      {/* Filter: All or Connected Grid */}
+      {filter !== 'mcp' && (
+        <section className="connectors-grid">
+          {cards === null ? (
+            <div className="col-span-full py-16 flex flex-col items-center justify-center gap-2 text-dim text-sm">
+              <Loader2 size={20} className="animate-spin" />
+              <span>Loading apps marketplace catalog…</span>
             </div>
+          ) : visible.length === 0 ? (
+            <div className="col-span-full py-16 flex flex-col items-center justify-center text-center text-dim text-sm">
+              <div className="font-medium text-ink text-base">
+                {filter === 'connected' ? 'No apps connected yet' : 'No apps match your search'}
+              </div>
+              <p className="text-xs text-dim mt-1">
+                {filter === 'connected'
+                  ? 'Switch to "All Apps" to connect your first tool.'
+                  : 'Try searching for another service like Slack, GitHub, or Notion.'}
+              </p>
+            </div>
+          ) : (
+            visible.map((card) => {
+              const serviceStatus = status[card.slug]
+              const accounts = serviceStatus?.accounts || []
+              const connected = Boolean(serviceStatus?.connected || accounts.length)
+              const pending = serviceStatus?.pending
+              const pendingAuth = pendingUrls[card.slug]
+              const addingAccount = aliasSlug === card.slug
+              const busy = busySlug === card.slug
+              const included = card.noAuth === true
 
-            <p className="conn-foot" data-enter>
-              Connected tools and external services communicate via MCP (Model Context Protocol).
-              Tokens and secrets are encrypted in the OS keychain.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      <ConnectModal
-        server={pendingConnect}
-        onClose={() => setPendingConnect(null)}
-        onLogin={async (server) => {
-          setPendingConnect(null)
-          if (server.isCatalogue) {
-            await addFromCatalogue(server, true)
-          } else {
-            await act(server, 'login', { force: true })
-          }
-        }}
-      />
-    </>
+              return (
+                <div
+                  key={card.slug}
+                  className={`connector-app-tile ${connected ? 'is-connected' : ''}`}
+                >
+                  <div className="connector-tile-header">
+                    <ServiceIcon card={card} />
+                    <div className="connector-tile-info">
+                      <div className="connector-tile-name">{card.label}</div>
+                      <div className="connector-tile-blurb">{card.blurb}</div>
+                    </div>
+                  </div>
+
+                  {/* Accounts List */}
+                  {accounts.length > 0 && (
+                    <div className="connector-accounts-list">
+                      {accounts.map((acc) => (
+                        <div key={acc.id} className="connector-account-row">
+                          <span className="connector-account-alias">
+                            <Check size={11} className="text-live shrink-0" />
+                            <span>{acc.alias || acc.id}</span>
+                          </span>
+                          <button
+                            type="button"
+                            className="connector-account-disconnect-btn"
+                            disabled={busy}
+                            onClick={() => {
+                              if (window.confirm(`Disconnect account "${acc.alias || acc.id}" from ${card.label}?`)) {
+                                disconnectAccount(card.slug, acc.id)
+                              }
+                            }}
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Inline Add Account Form */}
+                  {addingAccount && (
+                    <form
+                      className="connector-alias-form"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        connect(card.slug, aliasDraft.trim())
+                      }}
+                    >
+                      <input
+                        className="connector-alias-input"
+                        placeholder="Account alias (e.g. Work)"
+                        value={aliasDraft}
+                        onChange={(e) => setAliasDraft(e.target.value)}
+                        autoFocus
+                      />
+                      <button
+                        type="submit"
+                        className="connector-btn-primary"
+                        disabled={busy || !aliasDraft.trim()}
+                      >
+                        Continue
+                      </button>
+                    </form>
+                  )}
+
+                  {/* Tile Footer */}
+                  <div className="connector-tile-footer">
+                    <div>
+                      {included ? (
+                        <span className="connector-status-tag is-included">
+                          <ShieldCheck size={12} /> Included
+                        </span>
+                      ) : connected ? (
+                        <span className="connector-status-tag is-active">
+                          <span className="connector-live-dot" />
+                          <span>Connected</span>
+                        </span>
+                      ) : pending ? (
+                        <span className="connector-status-tag is-pending">
+                          <Loader2 size={12} className="animate-spin" /> Pending
+                        </span>
+                      ) : (
+                        <span className="text-xs text-dim">Ready to connect</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {pendingAuth?.url && (
+                        <a
+                          href={pendingAuth.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="connector-action-btn"
+                          title="Open authorization link"
+                        >
+                          <ExternalLink size={12} />
+                        </a>
+                      )}
+
+                      {!included && (
+                        <button
+                          type="button"
+                          className={`connector-action-btn ${accounts.length > 0 ? 'is-add-account' : 'is-connect'}`}
+                          disabled={busy}
+                          onClick={() => {
+                            if (accounts.length > 0) {
+                              setAliasSlug((prev) => (prev === card.slug ? null : card.slug))
+                              setAliasDraft('')
+                            } else {
+                              connect(card.slug)
+                            }
+                          }}
+                        >
+                          {busy ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : accounts.length > 0 ? (
+                            'Add Account'
+                          ) : (
+                            'Connect'
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </section>
+      )}
+
+      {/* Embedded or standalone MCP Servers section */}
+      {(filter === 'all' || filter === 'mcp') && (
+        <div className={filter === 'all' ? 'mt-8 border-t border-hairline/40 pt-6' : ''}>
+          <McpServersPanel
+            embedded={filter === 'all'}
+            newOpen={newOpen}
+            setNewOpen={setNewOpen}
+            query={effectiveSearch}
+          />
+        </div>
+      )}
+    </div>
   )
 }

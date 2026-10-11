@@ -150,6 +150,35 @@ def test_initiate_connection_returns_redirect_url(monkeypatch):
     assert url == "https://connect.composio.dev/auth/123"
 
 
+def test_initiate_connection_via_link_api(monkeypatch):
+    service = ComposioService()
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+
+    class DummyAuthConfig:
+        id = "ac_test_123"
+
+    class DummyAuthConfigsResp:
+        items = [DummyAuthConfig()]
+
+    class DummyLinkResp:
+        redirect_url = "https://connect.composio.dev/link/abc"
+
+    class DummyClient:
+        class auth_configs:
+            @staticmethod
+            def list(toolkit_slug=""):
+                return DummyAuthConfigsResp()
+
+        class link:
+            @staticmethod
+            def create(user_id="", auth_config_id=""):
+                return DummyLinkResp()
+
+    monkeypatch.setattr(service, "_get_client", lambda: DummyClient())
+    url = service.initiate_connection("github")
+    assert url == "https://connect.composio.dev/link/abc"
+
+
 def test_api_composio_connections_and_toolkits(monkeypatch):
     from fastapi.testclient import TestClient
     from backend.api.main import app
@@ -277,4 +306,94 @@ def test_get_mcp_config_preserves_user_api_key_header():
         assert config["headers"] == {"x-user-api-key": "uak_test_user_key"}
 
 
+def test_composio_browser_login_start_and_poll(monkeypatch):
+    from backend.mcp.composio_service import ComposioService
 
+    service = ComposioService()
+
+    # Mock create-session
+    class MockCreateResp:
+        status_code = 201
+
+        def json(self):
+            return {
+                "id": "session_test_123",
+                "code": "AB12CD",
+                "expiresAt": "2026-10-11T12:00:00Z",
+                "status": "pending",
+            }
+
+    # Mock get-session pending and linked
+    class MockPollPendingResp:
+        status_code = 200
+
+        def json(self):
+            return {"id": "session_test_123", "status": "pending", "api_key": None}
+
+    class MockPollLinkedResp:
+        status_code = 200
+
+        def json(self):
+            return {"id": "session_test_123", "status": "linked", "api_key": "uak_test_secret"}
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", lambda url, **kwargs: MockCreateResp())
+    login_info = service.start_browser_login()
+    assert login_info["session_id"] == "session_test_123"
+    assert login_info["code"] == "AB12CD"
+    assert "cliKey=session_test_123" in login_info["login_url"]
+
+    # Poll pending
+    monkeypatch.setattr(httpx, "get", lambda url, **kwargs: MockPollPendingResp())
+    poll_res = service.poll_browser_login("session_test_123")
+    assert poll_res["status"] == "pending"
+
+    # Poll linked
+    monkeypatch.setattr(httpx, "get", lambda url, **kwargs: MockPollLinkedResp())
+    poll_res = service.poll_browser_login("session_test_123")
+    assert poll_res["status"] == "linked"
+    assert poll_res["configured"] is True
+    assert service.get_api_key() == "uak_test_secret"
+
+
+def test_api_composio_browser_login(monkeypatch):
+    from starlette.testclient import TestClient
+    from backend.api.main import app
+    from backend.mcp.composio_service import composio_service
+
+    monkeypatch.setattr(
+        composio_service,
+        "start_browser_login",
+        lambda: {
+            "session_id": "sess_abc",
+            "code": "XYZ123",
+            "login_url": "https://dashboard.composio.dev/?cliKey=sess_abc",
+        },
+    )
+    monkeypatch.setattr(
+        composio_service,
+        "poll_browser_login",
+        lambda session_id: {
+            "status": "linked",
+            "configured": True,
+            "session_id": session_id,
+        },
+    )
+
+    client = TestClient(app)
+
+    # Test POST /api/composio/login/start
+    resp = client.post("/api/composio/login/start")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["session_id"] == "sess_abc"
+    assert data["code"] == "XYZ123"
+    assert "https://dashboard.composio.dev/?cliKey=sess_abc" == data["login_url"]
+
+    # Test GET /api/composio/login/poll/{session_id}
+    resp = client.get("/api/composio/login/poll/sess_abc")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "linked"
+    assert data["configured"] is True

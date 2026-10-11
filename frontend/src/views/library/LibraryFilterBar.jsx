@@ -7,6 +7,7 @@ const PLATFORMS_META = [
   { id: 'youtube', label: 'YouTube', icon: 'play' },
   { id: 'instagram', label: 'Instagram', icon: 'spark' },
   { id: 'spotify', label: 'Spotify', icon: 'music' },
+  { id: 'threads', label: 'Threads', icon: 'threads' },
   { id: 'pinterest', label: 'Pinterest', icon: 'pin' },
   { id: 'github', label: 'GitHub', icon: 'code' },
   { id: 'x', label: 'X (Twitter)', icon: 'chat' },

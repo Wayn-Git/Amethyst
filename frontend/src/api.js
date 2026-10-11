@@ -382,12 +382,33 @@ export const api = {
     j('/composio/toolkits/toggle', json('POST', { toolkit, enabled })),
   connectComposioToolkit: (slug) =>
     j(`/composio/toolkits/${encodeURIComponent(slug)}/connect`, json('POST')),
+  disconnectComposioToolkit: (slug) =>
+    j(`/composio/toolkits/${encodeURIComponent(slug)}/disconnect`, json('DELETE')),
   composioConnections: () => j('/composio/connections'),
   composioFallbackStatus: () => j('/composio/fallback/status'),
   switchComposioFallback: (provider, target, reason) =>
     j('/composio/fallback/switch', json('POST', { provider, target, reason })),
   resetComposioFallback: (provider) =>
     j('/composio/fallback/reset', json('POST', { provider })),
+  startComposioLogin: () => j('/composio/login/start', json('POST')),
+  pollComposioLogin: (sessionId) => j(`/composio/login/poll/${encodeURIComponent(sessionId)}`),
+
+  // Connectors (Composio Marketplace & MCP)
+  connectorsCatalog: () => j('/connectors/catalog'),
+  connectorsConnected: () => j('/connectors/connected'),
+  connectorsTools: () => j('/connectors/tools'),
+  connectorsStatus: (services) => j(`/connectors${services ? `?services=${encodeURIComponent(services)}` : ''}`),
+  connectorsAuthorize: (slug, alias) => j(`/connectors/${encodeURIComponent(slug)}/authorize`, json('POST', alias ? { alias } : {})),
+  connectorsDisconnectAccount: (slug, accountId) => j(`/connectors/${encodeURIComponent(slug)}/accounts/${encodeURIComponent(accountId)}`, json('DELETE')),
+  connectorsDisconnectService: (slug) => j(`/connectors/${encodeURIComponent(slug)}`, json('DELETE')),
+
+  // Custom MCP servers (OpenMausBot interface)
+  mcpServersList: () => j('/mcp/servers'),
+  mcpServerTest: (name) => j(`/mcp/servers/${encodeURIComponent(name)}/test`, json('POST', {})),
+  mcpServerToggle: (name, enabled) => j(`/mcp/servers/${encodeURIComponent(name)}`, json('PATCH', { enabled })),
+  mcpServerSave: (name, body, isNew = false) => isNew ? j('/mcp/servers', json('POST', { name, ...body })) : j(`/mcp/servers/${encodeURIComponent(name)}`, json('PUT', body)),
+  mcpServerDelete: (name) => j(`/mcp/servers/${encodeURIComponent(name)}`, json('DELETE')),
+  mcpServersImport: (jsonStr) => j('/mcp/servers/import', json('POST', { json: jsonStr })),
 
 
   conversations: () => j('/conversations'),
@@ -808,6 +829,7 @@ export const api = {
   // A route rather than a path: the browser is never handed a filesystem
   // location, and a missing still is a 404 rather than a broken <img>.
   thumbnailUrl: (id) => `${getBase()}/library/${id}/thumbnail`,
+  slideUrl: (id, index) => `${getBase()}/library/${id}/slides/${index}`,
   mediaUrl: (id) => `${getBase()}/library/${id}/media`,
 
   // Export selected library items as a Spotify playlist via the MCP connector.

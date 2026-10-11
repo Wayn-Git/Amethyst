@@ -23,7 +23,7 @@ import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from backend import jobs
 from backend.agent.director import Director, close_open_tool_calls
@@ -77,6 +77,11 @@ from backend.workers import batch as worker_batch
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 log = logging.getLogger(__name__)
+
+# Suppress noisy external HTTP transport loggers and telemetry
+for _noisy in ("httpx", "httpcore", "httpx2", "composio"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 
 def _cors_origins() -> list[str]:
@@ -1378,7 +1383,7 @@ async def delay_endpoint(ms: int = 1200):
     return Response(content=b"", media_type="image/png")
 
 @app.get("/api/ping")
-def ping() -> dict[str, Any]:
+async def ping() -> dict[str, Any]:
     """Alive, and nothing else.
 
     The interface fires this before React has mounted, because a container that
@@ -4064,7 +4069,7 @@ def mcp_catalogue() -> list[dict[str, Any]]:
 
 
 @app.get("/api/mcp/servers")
-def mcp_servers(accounts: bool = False) -> list[dict[str, Any]]:
+def mcp_servers(accounts: bool = False, format: str | None = None) -> Any:
     """Configured connectors. `accounts=true` also asks each who it is signed in as,
     which can mean a network round trip, so the polling list does not ask for it.
 
@@ -4075,6 +4080,7 @@ def mcp_servers(accounts: bool = False) -> list[dict[str, Any]]:
     """
     from backend.capabilities import CapabilityService, Kind
     from backend.mcp import commands as mcp
+    from backend.mcp.config import load_servers
     from backend.mcp.lifecycle import state_of
     from backend.mcp.oauth import PENDING
 
@@ -4084,17 +4090,28 @@ def mcp_servers(accounts: bool = False) -> list[dict[str, Any]]:
     reconciled = manager is not None and manager.reconciled_once
     synced = _synced_sources()
     capabilities = CapabilityService()
+    configured_servers = load_servers()
 
     for row in rows:
         name = row["name"]
-        # `enabled` from the same source `reconcile` obeys, not from mcp.yaml.
-        # The two disagreed: a connector enabled in YAML with no capability
-        # row (connectors default to off there) passed the `off` check, had no
-        # error and no live tools -- and because a manager object existed,
-        # `reconciled` was true, so every fresh server read "failed to start"
-        # until someone pressed Connect. The capability row is the truth; a
-        # connector that is on in YAML but off in `capability_state` now
-        # renders as `off` with a Connect action, which is what it is.
+        cfg = configured_servers.get(name)
+        if cfg:
+            row["command"] = cfg.command or ""
+            row["args"] = cfg.args or []
+            row["envKeys"] = sorted(list(cfg.env.keys()))
+            row["url"] = cfg.url or ""
+            row["type"] = "sse" if str(cfg.transport).lower() == "sse" else "http"
+            row["headerKeys"] = sorted(list(cfg.headers.keys()))
+            if cfg.oauth:
+                row["auth"] = "signed-in" if row.get("signed_in") else "needs-sign-in"
+        else:
+            row["command"] = ""
+            row["args"] = []
+            row["envKeys"] = []
+            row["url"] = ""
+            row["type"] = "http"
+            row["headerKeys"] = []
+
         row["enabled"] = capabilities.is_enabled(Kind.CONNECTOR, name)
         p = PENDING.get(name)
         server_live = live.get(name)
@@ -4116,6 +4133,9 @@ def mcp_servers(accounts: bool = False) -> list[dict[str, Any]]:
             synced=name in synced,
             reconciled=reconciled,
         ).as_dict()
+
+    if format in ("dict", "registry"):
+        return {"servers": rows}
     return rows
 
 
@@ -4262,6 +4282,164 @@ def mcp_remove_server(name: str) -> dict[str, str]:
     if not mcp.remove(name):
         raise HTTPException(404, f"no server named '{name}'")
     return {"status": "removed"}
+
+
+@app.post("/api/mcp/servers/{name}/test")
+async def mcp_server_test(name: str) -> dict[str, Any]:
+    from backend.mcp.config import load_servers
+    from backend.mcp.commands import connect_and_report
+
+    servers = load_servers()
+    config = servers.get(name)
+    if not config:
+        raise HTTPException(404, f"MCP server '{name}' not found")
+
+    try:
+        manager = _mcp.get("manager")
+        if manager is not None:
+            try:
+                await manager.connect_server(config, interactive=False, force=True)
+                conn = manager.connections.get(name)
+                if conn and conn.connected:
+                    tools = [
+                        {"name": getattr(t, "name", str(t)), "description": getattr(t, "description", "")}
+                        for t in getattr(conn, "tools", [])
+                    ]
+                    return {"ok": True, "tools": tools, "total": len(tools)}
+            except Exception:
+                pass
+
+        res = await connect_and_report(name)
+        val = res.get(name)
+        if isinstance(val, int):
+            return {"ok": True, "tools": [], "total": val}
+        return {"ok": False, "error": str(val or "Failed to connect to MCP server")}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+class McpImportBody(BaseModel):
+    json_text: str = Field(alias="json", default="")
+
+
+@app.post("/api/mcp/servers/import")
+async def mcp_servers_import(body: McpImportBody) -> dict[str, Any]:
+    import json as pyjson
+    from backend.mcp.config import ServerConfig, Transport, add_server, load_servers
+
+    try:
+        data = pyjson.loads(body.json_text)
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid JSON: {exc}")
+
+    if not isinstance(data, dict):
+        raise HTTPException(400, 'Expected a JSON object like {"mcpServers": { ... }}')
+
+    entries = data.get("mcpServers") if isinstance(data.get("mcpServers"), dict) else data
+    if "command" in entries or "url" in entries:
+        name = data.get("name") or "imported-server"
+        entries = {name: entries}
+
+    existing = load_servers()
+    added: list[str] = []
+
+    for raw_name, s_data in entries.items():
+        if not isinstance(s_data, dict):
+            continue
+        slug = re.sub(r"[^a-z0-9_-]+", "-", str(raw_name).strip().lower()).strip("-")[:32]
+        if not slug or slug in existing:
+            continue
+
+        if "url" in s_data:
+            transport_str = s_data.get("type", "http").lower()
+            transport = Transport.SSE if transport_str == "sse" else Transport.STREAMABLE_HTTP
+            headers = s_data.get("headers", {})
+            cfg = ServerConfig(
+                name=slug,
+                transport=transport,
+                url=s_data["url"],
+                headers=headers if isinstance(headers, dict) else {},
+                enabled=False,
+            )
+        elif "command" in s_data:
+            args = s_data.get("args", [])
+            env = s_data.get("env", {})
+            cfg = ServerConfig(
+                name=slug,
+                transport=Transport.STDIO,
+                command=s_data["command"],
+                args=args if isinstance(args, list) else [],
+                env=env if isinstance(env, dict) else {},
+                enabled=False,
+            )
+        else:
+            continue
+
+        add_server(cfg)
+        existing[slug] = cfg
+        added.append(slug)
+
+    return {"ok": True, "servers": mcp_servers(), "added": added}
+
+
+class McpPatchBody(BaseModel):
+    enabled: bool
+
+
+@app.patch("/api/mcp/servers/{name}")
+async def mcp_server_toggle(name: str, body: McpPatchBody) -> dict[str, Any]:
+    from backend.capabilities import CapabilityService, Kind
+    from backend.mcp.config import load_servers, save_servers
+
+    servers = load_servers()
+    if name not in servers:
+        raise HTTPException(404, f"MCP server '{name}' not found")
+
+    servers[name].enabled = body.enabled
+    save_servers(servers)
+    CapabilityService().set_enabled(Kind.CONNECTOR, name, body.enabled)
+    await _apply_connector(name, body.enabled)
+
+    return {"ok": True, "servers": mcp_servers()}
+
+
+class McpUpdateBody(BaseModel):
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict[str, Any] | None = None
+    type: str | None = None
+    url: str | None = None
+    headers: dict[str, Any] | None = None
+    enabled: bool | None = None
+
+
+@app.put("/api/mcp/servers/{name}")
+async def mcp_server_update(name: str, body: McpUpdateBody) -> dict[str, Any]:
+    from backend.mcp.config import Transport, load_servers, save_servers
+
+    servers = load_servers()
+    if name not in servers:
+        raise HTTPException(404, f"MCP server '{name}' not found")
+
+    srv = servers[name]
+    if body.command is not None:
+        srv.command = body.command
+        srv.transport = Transport.STDIO
+    if body.args is not None:
+        srv.args = body.args
+    if body.env is not None:
+        srv.env = {k: str(v) for k, v in body.env.items() if v is not True}
+    if body.url is not None:
+        srv.url = body.url
+        t_type = (body.type or "http").lower()
+        srv.transport = Transport.SSE if t_type == "sse" else Transport.STREAMABLE_HTTP
+    if body.headers is not None:
+        srv.headers = {k: str(v) for k, v in body.headers.items() if v is not True}
+    if body.enabled is not None:
+        srv.enabled = body.enabled
+
+    save_servers(servers)
+    return {"ok": True, "servers": mcp_servers()}
 
 
 class OAuthClient(BaseModel):
@@ -4623,7 +4801,7 @@ async def reconcile_connectors() -> dict[str, Any]:
     not running, when the real answer is "nothing has asked them to yet", is the
     same wall of red either way. This is the one button that asks.
     """
-    await _registry_for(None)
+    await _registry_for(None, reconcile_deadline=5.0)
     live = _mcp["manager"].state() if _mcp["manager"] else {}
     return {
         "connected": sum(1 for v in live.values() if v.get("connected")),
@@ -4634,7 +4812,7 @@ async def reconcile_connectors() -> dict[str, Any]:
 
 # ------------------------------------------------------------------ Composio
 @app.get("/api/composio/status")
-def get_composio_status() -> dict[str, Any]:
+async def get_composio_status() -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
 
     return composio_service.get_status()
@@ -4680,28 +4858,65 @@ async def delete_composio_key() -> dict[str, Any]:
     return {"ok": True}
 
 
-@app.get("/api/composio/connections")
-def get_composio_connections() -> dict[str, Any]:
+@app.post("/api/composio/login/start")
+async def start_composio_browser_login() -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
 
-    return {"connections": composio_service.get_connections()}
+    try:
+        return await asyncio.to_thread(composio_service.start_browser_login)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/composio/login/poll/{session_id}")
+async def poll_composio_browser_login(session_id: str) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+    from backend.capabilities import CapabilityService, Kind
+
+    res = await asyncio.to_thread(composio_service.poll_browser_login, session_id)
+    if res.get("status") == "linked" and res.get("configured"):
+        CapabilityService().set_enabled(Kind.CONNECTOR, "composio", True)
+        live_result = await _apply_connector("composio", True)
+        res["live"] = live_result
+    return res
+
+
+@app.get("/api/composio/connections")
+async def get_composio_connections() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    conns = await asyncio.to_thread(composio_service.get_connections)
+    return {"connections": conns}
 
 
 @app.post("/api/composio/toolkits/{toolkit}/connect")
-def connect_composio_toolkit(toolkit: str) -> dict[str, Any]:
+async def connect_composio_toolkit(toolkit: str) -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service
 
-    if not composio_service.is_configured():
-        raise HTTPException(status_code=400, detail="Composio API key is not configured")
     try:
-        redirect_url = composio_service.initiate_connection(toolkit)
+        redirect_url = await asyncio.to_thread(composio_service.initiate_connection, toolkit)
         return {"redirect_url": redirect_url, "toolkit": toolkit}
     except Exception as exc:
+        log.warning("Failed to initiate Composio connection for %s: %s", toolkit, exc)
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.delete("/api/composio/toolkits/{toolkit}/disconnect")
+@app.post("/api/composio/toolkits/{toolkit}/disconnect")
+async def disconnect_composio_toolkit(toolkit: str) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    try:
+        success = await asyncio.to_thread(composio_service.disconnect_toolkit, toolkit)
+        return {"success": success, "toolkit": toolkit}
+    except Exception as exc:
+        log.warning("Failed to disconnect Composio toolkit %s: %s", toolkit, exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+
 @app.get("/api/composio/toolkits")
-def get_composio_toolkits() -> dict[str, Any]:
+async def get_composio_toolkits() -> dict[str, Any]:
     from backend.mcp.composio_service import composio_service, get_toolkits_catalog
     from backend.mcp.provider_ownership import (
         PROVIDER_MAPPING,
@@ -4710,7 +4925,11 @@ def get_composio_toolkits() -> dict[str, Any]:
     )
 
     enabled = set(composio_service.get_enabled_toolkits())
-    connections = composio_service.get_connections() if composio_service.is_configured() else {}
+    connections = (
+        await asyncio.to_thread(composio_service.get_connections)
+        if composio_service.is_configured()
+        else {}
+    )
     catalogue = get_toolkits_catalog()
     for item in catalogue:
         item["enabled"] = item["slug"] in enabled
@@ -4793,6 +5012,71 @@ async def reset_composio_fallback(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "provider": provider}
 
 
+# ── OpenMausBot Connectors (Composio) API ──
+
+@app.get("/api/connectors/catalog")
+async def get_connectors_catalog() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    return await asyncio.to_thread(composio_service.list_catalog)
+
+
+@app.get("/api/connectors/connected")
+async def get_connectors_connected() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    return await asyncio.to_thread(composio_service.get_connected_services_state)
+
+
+@app.get("/api/connectors/tools")
+async def get_connectors_tools() -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    tools = await asyncio.to_thread(composio_service.list_connector_tools)
+    return {"configured": composio_service.is_configured(), "services": tools}
+
+
+@app.get("/api/connectors")
+async def get_connectors_status(services: str = "") -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    slugs = [s.strip() for s in services.split(",") if s.strip()]
+    return await asyncio.to_thread(composio_service.get_service_status, slugs)
+
+
+class ConnectorAuthorizeBody(BaseModel):
+    alias: str | None = None
+
+
+@app.post("/api/connectors/{slug}/authorize")
+async def authorize_connector(slug: str, body: ConnectorAuthorizeBody | None = None) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    alias = body.alias if body else None
+    try:
+        return await asyncio.to_thread(composio_service.authorize_service, slug, alias)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/api/connectors/{slug}/accounts/{account_id}")
+async def delete_connector_account(slug: str, account_id: str) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    try:
+        return await asyncio.to_thread(composio_service.remove_account, slug, account_id)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/api/connectors/{slug}")
+async def delete_connector_service(slug: str) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    try:
+        return await asyncio.to_thread(composio_service.remove_service, slug)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/capabilities")
@@ -6437,6 +6721,9 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
             )
     except LibraryError as exc:
         raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        log.exception("failed to capture library item: %s", exc)
+        raise HTTPException(500, f"Failed to capture item: {exc}") from exc
     return {**captured.item, "already_logged": captured.already_logged}
 
 
@@ -6519,6 +6806,31 @@ async def library_thumbnail(item_id: int) -> FileResponse:
                     return FileResponse(path, media_type="image/jpeg")
 
     raise HTTPException(404, "there is no thumbnail for that item")
+
+
+@app.get("/api/library/{item_id}/slides/{index}")
+async def library_slide(item_id: int, index: int) -> FileResponse:
+    """One slide of a multi-image carousel post."""
+    from backend.library.service import LibraryService
+    from backend.library.store import LibraryStore, slide_path
+
+    spath = slide_path(item_id, index)
+    if spath.is_file() and spath.stat().st_size > 500:
+        return FileResponse(spath, media_type="image/jpeg")
+
+    store = LibraryStore()
+    row = store.get(item_id)
+    if row is None:
+        raise HTTPException(404, f"no library item {item_id}")
+
+    service = LibraryService(store)
+    await service.fetch_slides_for_item(item_id)
+
+    if spath.is_file() and spath.stat().st_size > 500:
+        return FileResponse(spath, media_type="image/jpeg")
+
+    raise HTTPException(404, f"slide {index} not found for item {item_id}")
+
 
 @app.get("/api/library/{item_id}/media")
 def library_media(item_id: int) -> FileResponse:
