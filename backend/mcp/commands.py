@@ -1244,12 +1244,15 @@ def account(name: str) -> str | None:
     raw = get_secret(token_ref(name))
     if not raw:
         return None
+    token = raw
     try:
         import json
 
-        token = json.loads(raw).get("access_token")
-    except ValueError:
-        return None
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            token = parsed.get("access_token") or raw
+    except (ValueError, TypeError):
+        pass
     if not token:
         return None
     return _identity_of(entry.identity_url, entry.identity_field or "", token)
@@ -1317,20 +1320,31 @@ def identity_valid(name: str) -> bool | None:
     """
     import time as _time
 
+    now = _time.monotonic()
+    cached = _VALIDITY_CACHE.get(name)
+    if cached is not None and cached[1] > now:
+        return cached[0]
+
     config = load_servers().get(name)
     if config is None:
         return None
     entry = entry_for(config)
     if entry is None or not entry.identity_url:
         return None
-    token = get_secret(token_ref(name))
+    raw = get_secret(token_ref(name))
+    if not raw:
+        return None
+    token = raw
+    try:
+        import json
+
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            token = parsed.get("access_token") or raw
+    except (ValueError, TypeError):
+        pass
     if not token:
         return None
-
-    now = _time.monotonic()
-    cached = _VALIDITY_CACHE.get(name)
-    if cached is not None and cached[1] > now:
-        return cached[0]
 
     try:
         import httpx2

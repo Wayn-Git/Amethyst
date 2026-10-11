@@ -1226,7 +1226,15 @@ class MCPManager:
         # than being advertised and then failing every call the model makes to
         # it. Concurrent and cached, so the common case where everything is fine
         # costs one round trip per server and usually not even that.
-        await self._probe_live_servers()
+        if deadline is not None:
+            try:
+                await asyncio.wait_for(
+                    self._probe_live_servers(), timeout=min(deadline, 1.0)
+                )
+            except (asyncio.TimeoutError, Exception):
+                log.debug("probe_live_servers timed out or failed during reconcile")
+        else:
+            await self._probe_live_servers()
 
         for name, config in configured.items():
             connection = self.connections.get(name)

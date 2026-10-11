@@ -82,15 +82,13 @@ def classify_search_task(query: str, options: dict[str, Any] | None = None) -> S
 
 
 def _is_provider_configured(name: str) -> bool:
-    from backend.secrets import get_secret
-    from backend.web.search_service import _SEARCH_APIS
+    from backend.web.search_service import _SEARCH_APIS, get_api_key_for_entry
 
     adapter = next((a for a in _SEARCH_APIS if a["name"] == name), None)
     if not adapter:
         return False
     try:
-        key = get_secret(adapter["ref"]) or (os.environ.get(adapter["env"]) if "env" in adapter else None)
-        return bool(key)
+        return bool(get_api_key_for_entry(adapter))
     except Exception:
         return False
 

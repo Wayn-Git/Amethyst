@@ -668,6 +668,13 @@ export function AppProvider({ children }) {
     }
   }, [])
 
+  const updateConversationOptimistic = useCallback((id, patch) => {
+    if (!id || !patch) return
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
+    )
+  }, [])
+
   const renameConversation = useCallback(async (id, title) => {
     setRenaming(null)
     const clean = (title || '').trim()
@@ -894,7 +901,7 @@ export function AppProvider({ children }) {
     health, healthError, refreshHealth,
     toasts, toast, dismissToast,
     overlay, setOverlay,
-    conversations, refreshConvs,
+    conversations, refreshConvs, updateConversationOptimistic,
     activeId, setActiveId,
     renaming, setRenaming, renameConversation, deleteConversation, deleteAllConversations,
     caps, refreshCaps, setCapEnabled, busyCap,
@@ -930,7 +937,7 @@ export function AppProvider({ children }) {
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
     view, setView, server, health, healthError, refreshHealth, toasts, toast, dismissToast, overlay,
-    conversations, refreshConvs, activeId, setActiveId, caps, refreshCaps,
+    conversations, refreshConvs, updateConversationOptimistic, activeId, setActiveId, caps, refreshCaps,
     setCapEnabled, busyCap, workspace, setWorkspace, sidebar, setSidebar,
     compact, railOpen, toggleRail, closeRail, panel, setPanel, togglePanel,
     panelWidth, setPanelWidth, panelExpanded, setPanelExpanded, togglePanelExpanded,

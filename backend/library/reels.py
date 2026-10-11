@@ -26,7 +26,7 @@ import tempfile
 from pathlib import Path
 
 from backend.config import InstagramSettings, load_instagram
-from backend.library.store import media_path, thumbnail_path
+from backend.library.store import media_path, slide_path, thumbnail_path
 from backend.media.audio import extract_audio, ffmpeg_missing, probe_duration
 from backend.media.download import DownloadError, fetch_to
 from backend.media.reel import Reel, ReelError, fetch_reel, is_reel_url, yt_dlp_missing
@@ -133,7 +133,8 @@ class ReelCapture:
         is_music_intent = requested_kind == "music" or (
             bool(notes and notes.strip().lower() in ("music", "song", "#music", "audio"))
         )
-        kind = "music" if is_music_intent else ("video" if reel.video_path is not None else "article")
+        has_slides = bool(reel.slide_urls and len(reel.slide_urls) > 1)
+        kind = "music" if is_music_intent else ("video" if (reel.video_path is not None and not has_slides) else ("post" if has_slides else "article"))
 
         captured = await self.library.capture_media(
             title=reel.title,
@@ -167,6 +168,22 @@ class ReelCapture:
                         item_id, thumb_url, reel.video_path, fallback_urls=reel.slide_urls
                     )
                 )
+                if reel.slide_urls:
+                    import json as _json
+                    row = self.library.store.get(item_id)
+                    existing_res = []
+                    if row and row["resources"]:
+                        try:
+                            existing_res = _json.loads(row["resources"])
+                        except Exception:
+                            existing_res = []
+                    non_slides = [r for r in existing_res if isinstance(r, dict) and r.get("type") not in ("slide", "image")]
+                    slide_items = [
+                        {"type": "slide", "name": f"Slide {i + 1}", "url": f"/api/library/{item_id}/slides/{i}", "index": i}
+                        for i in range(len(reel.slide_urls))
+                    ]
+                    self.library.store.update(item_id, resources=_json.dumps(non_slides + slide_items))
+
                 notes_out.append(
                     await self._process_content(
                         item_id, reel, settings, is_music_intent=is_music_intent
@@ -421,7 +438,7 @@ class ReelCapture:
         return ""
 
     async def _process_slides(self, item_id: int, reel: Reel) -> str:
-        """Extract readable text and summarize carousel slide images."""
+        """Download slides to disk, extract readable text, and summarize carousel slide images."""
         if not reel.slide_urls:
             return ""
 
@@ -430,14 +447,47 @@ class ReelCapture:
         from backend.runtime.vision import extract_visual_text
 
         slide_images: list[bytes] = []
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for s_url in reel.slide_urls[:10]:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            for i, s_url in enumerate(reel.slide_urls[:10]):
                 try:
-                    resp = await client.get(s_url, headers={"User-Agent": "Mozilla/5.0"})
+                    resp = await client.get(
+                        s_url,
+                        headers={
+                            "User-Agent": (
+                                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            )
+                        },
+                    )
                     if resp.status_code == 200 and resp.content:
                         slide_images.append(resp.content)
+                        target = slide_path(item_id, i)
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(resp.content)
+                        if i == 0:
+                            t_target = thumbnail_path(item_id)
+                            if not t_target.is_file() or t_target.stat().st_size < 500:
+                                t_target.parent.mkdir(parents=True, exist_ok=True)
+                                t_target.write_bytes(resp.content)
+                                self.library.store.update(item_id, thumbnail_path=str(t_target))
                 except Exception as exc:
                     log.debug("could not download slide %s: %s", s_url[:60], exc)
+
+        if slide_images:
+            import json as _json
+            row = self.library.store.get(item_id)
+            existing_res = []
+            if row and row["resources"]:
+                try:
+                    existing_res = _json.loads(row["resources"])
+                except Exception:
+                    existing_res = []
+            non_slides = [r for r in existing_res if isinstance(r, dict) and r.get("type") not in ("slide", "image")]
+            slide_items = [
+                {"type": "slide", "name": f"Slide {idx + 1}", "url": f"/api/library/{item_id}/slides/{idx}", "index": idx}
+                for idx in range(len(slide_images))
+            ]
+            self.library.store.update(item_id, resources=_json.dumps(non_slides + slide_items))
 
         if not slide_images:
             return ""

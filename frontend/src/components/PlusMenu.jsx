@@ -49,6 +49,7 @@ export default function PlusMenu({
   const [toolsOpen, setToolsOpen] = useState(false)
   const [memory, setMemory] = useState(null)
   const [tools, setTools] = useState([])
+  const [composioToolkits, setComposioToolkits] = useState([])
   const [busy, setBusy] = useState('')
   const [layoutState, setLayoutState] = useState({
     placement: isHero ? 'down' : placement,
@@ -126,7 +127,27 @@ export default function PlusMenu({
     refreshCaps(scope)
     api.memory(scope).then(setMemory).catch(() => setMemory(null))
     api.tools().then(setTools).catch(() => setTools([]))
+    api.composioToolkits().then((res) => {
+      if (res?.toolkits) setComposioToolkits(res.toolkits)
+    }).catch(() => {})
   }, [scope, refreshCaps])
+
+  const handleComposioClick = useCallback(async (toolkit) => {
+    const slug = toolkit.slug || toolkit
+    const name = toolkit.name || slug
+    try {
+      const res = await api.connectComposioToolkit(slug)
+      if (res?.redirect_url) {
+        window.open(res.redirect_url, '_blank')
+        toast(`Opening ${name} authorization in a new tab`, 'ok')
+      } else {
+        toast(`Failed to start connection for ${name}`, 'bad')
+      }
+    } catch (err) {
+      toast(err.message || `Failed to start connection for ${name}`, 'bad')
+    }
+    onClose()
+  }, [onClose, toast])
 
   const escapeOneLevel = useCallback(() => {
     if (toolsOpen) setToolsOpen(false)
@@ -452,65 +473,94 @@ export default function PlusMenu({
             <div className="pmenu-divider" />
 
             <div className="pmenu-submenu-scroll">
-              {connectors.length === 0 ? (
+              {connectors.length === 0 && composioToolkits.length === 0 ? (
                 <div className="pmenu-empty-item">No connectors configured</div>
               ) : (
-                connectors.map((cap) => {
-                  const needsSignIn = awaitingSignIn.includes(cap.name)
-                  const hasError = Boolean(
-                    cap.live?.error || connectorErrors.some(([n]) => n === cap.name) || needsSignIn
-                  )
-                  const isBusy = busyCap === `connector:${cap.name}`
-                  return (
-                    <div
-                      key={cap.name}
-                      className="pmenu-item"
-                      onClick={() => {
-                        if (needsSignIn) {
-                          setCapabilitiesTab('connectors')
-                          onNavigate('capabilities')
-                          onClose()
-                        } else if (!hasError) {
-                          setCapEnabled(cap, !cap.enabled)
+                <>
+                  {connectors.map((cap) => {
+                    const needsSignIn = awaitingSignIn.includes(cap.name)
+                    const hasError = Boolean(
+                      cap.live?.error || connectorErrors.some(([n]) => n === cap.name) || needsSignIn
+                    )
+                    const isBusy = busyCap === `connector:${cap.name}`
+                    return (
+                      <div
+                        key={cap.name}
+                        className="pmenu-item"
+                        onClick={() => {
+                          if (needsSignIn) {
+                            setCapabilitiesTab('connectors')
+                            onNavigate('capabilities')
+                            onClose()
+                          } else if (!hasError) {
+                            setCapEnabled(cap, !cap.enabled)
+                          }
+                        }}
+                        title={
+                          needsSignIn
+                            ? 'Sign-in required'
+                            : cap.live?.error || cap.title || cap.name
                         }
-                      }}
-                      title={
-                        needsSignIn
-                          ? 'Sign-in required'
-                          : cap.live?.error || cap.title || cap.name
-                      }
-                    >
-                      <div className="pmenu-item-left">
-                        <ServiceIcon name={cap.name} size={16} className="pmenu-service-icon" />
-                        <span className="pmenu-item-label">{cap.title || cap.name}</span>
+                      >
+                        <div className="pmenu-item-left">
+                          <ServiceIcon name={cap.name} size={16} className="pmenu-service-icon" />
+                          <span className="pmenu-item-label">{cap.title || cap.name}</span>
+                        </div>
+                        <div className="pmenu-item-right">
+                          {hasError ? (
+                            <span
+                              className="pmenu-warning-icon-wrap"
+                              title={needsSignIn ? 'Sign-in required' : cap.live?.error || 'Needs authorization'}
+                            >
+                              <Icon name="warning" size={14} className="pmenu-warning-icon" weight="fill" />
+                            </span>
+                          ) : isBusy ? (
+                            <span className="pmenu-busy-spinner">…</span>
+                          ) : (
+                            <div
+                              className={`pmenu-toggle-switch${cap.enabled ? ' is-on' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setCapEnabled(cap, !cap.enabled)
+                              }}
+                              role="switch"
+                              aria-checked={Boolean(cap.enabled)}
+                            >
+                              <div className="pmenu-toggle-thumb" />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="pmenu-item-right">
-                        {hasError ? (
-                          <span
-                            className="pmenu-warning-icon-wrap"
-                            title={needsSignIn ? 'Sign-in required' : cap.live?.error || 'Needs authorization'}
-                          >
-                            <Icon name="warning" size={14} className="pmenu-warning-icon" weight="fill" />
-                          </span>
-                        ) : isBusy ? (
-                          <span className="pmenu-busy-spinner">…</span>
-                        ) : (
-                          <div
-                            className={`pmenu-toggle-switch${cap.enabled ? ' is-on' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setCapEnabled(cap, !cap.enabled)
-                            }}
-                            role="switch"
-                            aria-checked={Boolean(cap.enabled)}
-                          >
-                            <div className="pmenu-toggle-thumb" />
+                    )
+                  })}
+
+                  {composioToolkits.length > 0 && (
+                    <div className="pmenu-plugin-group">
+                      <div className="pmenu-group-title">Composio Apps</div>
+                      {composioToolkits.map((item) => (
+                        <button
+                          key={item.slug}
+                          type="button"
+                          className="pmenu-item"
+                          onClick={() => handleComposioClick(item)}
+                          title={`Open ${item.name} login / authorization`}
+                        >
+                          <div className="pmenu-item-left">
+                            <ServiceIcon name={item.slug} size={16} className="pmenu-service-icon" />
+                            <span className="pmenu-item-label">{item.name}</span>
                           </div>
-                        )}
-                      </div>
+                          <div className="pmenu-item-right">
+                            {item.connected ? (
+                              <Icon name="check-simple" size={13} className="pmenu-check-accent" />
+                            ) : (
+                              <Icon name="external-link" size={11} style={{ opacity: 0.6 }} />
+                            )}
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  )
-                })
+                  )}
+                </>
               )}
             </div>
 
@@ -628,26 +678,51 @@ export default function PlusMenu({
             <div className="pmenu-divider" />
 
             <div className="pmenu-submenu-scroll">
-              {byServer.length === 0 ? (
-                <div className="pmenu-empty-item">No plugins detected</div>
-              ) : (
-                byServer.map(([server, group]) => (
-                  <div key={server} className="pmenu-plugin-group">
-                    <div className="pmenu-group-title">{server}</div>
-                    {group.slice(0, 4).map((tool) => (
-                      <div
-                        key={tool.name}
-                        className="pmenu-item pmenu-item--static"
-                        title={tool.description}
-                      >
-                        <div className="pmenu-item-left">
-                          <Icon name="plug" size={14} className="pmenu-item-icon" />
-                          <span className="pmenu-item-label">{tool.name}</span>
-                        </div>
+              {composioToolkits.length > 0 && (
+                <div className="pmenu-plugin-group">
+                  <div className="pmenu-group-title">Composio Apps</div>
+                  {composioToolkits.map((item) => (
+                    <button
+                      key={item.slug}
+                      type="button"
+                      className="pmenu-item"
+                      onClick={() => handleComposioClick(item)}
+                      title={item.description || `Open ${item.name} login`}
+                    >
+                      <div className="pmenu-item-left">
+                        <ServiceIcon name={item.slug} size={15} className="pmenu-service-icon" />
+                        <span className="pmenu-item-label">{item.name}</span>
                       </div>
-                    ))}
-                  </div>
-                ))
+                      <div className="pmenu-item-right">
+                        {item.connected ? (
+                          <Icon name="check-simple" size={13} className="pmenu-check-accent" />
+                        ) : (
+                          <Icon name="external-link" size={11} style={{ opacity: 0.6 }} />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {byServer.map(([server, group]) => (
+                <div key={server} className="pmenu-plugin-group">
+                  <div className="pmenu-group-title">{server}</div>
+                  {group.slice(0, 4).map((tool) => (
+                    <div
+                      key={tool.name}
+                      className="pmenu-item pmenu-item--static"
+                      title={tool.description}
+                    >
+                      <div className="pmenu-item-left">
+                        <Icon name="plug" size={14} className="pmenu-item-icon" />
+                        <span className="pmenu-item-label">{tool.name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {composioToolkits.length === 0 && byServer.length === 0 && (
+                <div className="pmenu-empty-item">No plugins detected</div>
               )}
             </div>
           </motion.div>

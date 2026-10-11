@@ -72,6 +72,8 @@ export default function SelectionActionMenu({
   const selectedTextRef = useRef('')
   const isInteractingRef = useRef(false)
   const interactTimeoutRef = useRef(null)
+  const isExternalRef = useRef(false)
+  const externalFormatHandlerRef = useRef(null)
 
   const reset = useCallback(() => {
     setMode('idle')
@@ -82,6 +84,8 @@ export default function SelectionActionMenu({
     selectedTextRef.current = ''
     savedRangeRef.current = null
     isInteractingRef.current = false
+    isExternalRef.current = false
+    externalFormatHandlerRef.current = null
     try {
       const sel = window.getSelection()
       if (sel && !sel.isCollapsed) {
@@ -91,6 +95,9 @@ export default function SelectionActionMenu({
   }, [])
 
   const updatePosition = useCallback(() => {
+    // If external iframe has selection, do not clear from native window selection
+    if (isExternalRef.current) return
+
     // If user is currently typing, thinking, or reviewing results, freeze position
     if (mode !== 'idle' || isInteractingRef.current) return
 
@@ -199,6 +206,50 @@ export default function SelectionActionMenu({
       document.removeEventListener('selectionchange', handleSelectionChange)
     }
   }, [updatePosition])
+
+  // External selection listener (from Sandboxed UI iframes)
+  useEffect(() => {
+    const handleExternalSelection = (e) => {
+      if (mode !== 'idle' || isInteractingRef.current) return
+      const { text, rect, onFormat } = e.detail || {}
+      if (!text || !rect) return
+
+      const menuWidth = menuRef.current?.offsetWidth || 280
+      const menuHeight = menuRef.current?.offsetHeight || 38
+
+      let left = rect.left + rect.width / 2
+      left = Math.max(menuWidth / 2 + 12, Math.min(window.innerWidth - menuWidth / 2 - 12, left))
+
+      let top = rect.top - menuHeight - 8
+      if (top < 12) {
+        top = rect.bottom + 8
+      }
+
+      savedRangeRef.current = null
+      isExternalRef.current = true
+      externalFormatHandlerRef.current = onFormat || null
+      selectedTextRef.current = text
+      setSelectedText(text)
+      setCoords({ top, left })
+    }
+
+    const handleExternalSelectionCleared = () => {
+      if (isExternalRef.current && mode === 'idle' && !isInteractingRef.current) {
+        setCoords(null)
+        setSelectedText('')
+        selectedTextRef.current = ''
+        isExternalRef.current = false
+        externalFormatHandlerRef.current = null
+      }
+    }
+
+    window.addEventListener('amethyst:external-selection', handleExternalSelection)
+    window.addEventListener('amethyst:external-selection-cleared', handleExternalSelectionCleared)
+    return () => {
+      window.removeEventListener('amethyst:external-selection', handleExternalSelection)
+      window.removeEventListener('amethyst:external-selection-cleared', handleExternalSelectionCleared)
+    }
+  }, [mode])
 
   // Click outside listener
   useEffect(() => {
@@ -545,13 +596,19 @@ export default function SelectionActionMenu({
             </button>
 
             {/* Formatting Chips (if allowed) */}
-            {allowFormatting && onFormat && (
+            {(allowFormatting || isExternalRef.current) && (onFormat || externalFormatHandlerRef.current) && (
               <>
                 <span className="selection-menu-divider" />
                 <button
                   type="button"
                   title="Bold"
-                  onClick={() => onFormat('bold', selectedTextRef.current || selectedText)}
+                  onClick={() => {
+                    if (externalFormatHandlerRef.current) {
+                      externalFormatHandlerRef.current('bold')
+                    } else if (onFormat) {
+                      onFormat('bold', selectedTextRef.current || selectedText)
+                    }
+                  }}
                   className="selection-menu-btn selection-menu-btn--icon-only font-bold"
                 >
                   B
@@ -559,7 +616,13 @@ export default function SelectionActionMenu({
                 <button
                   type="button"
                   title="Italic"
-                  onClick={() => onFormat('italic', selectedTextRef.current || selectedText)}
+                  onClick={() => {
+                    if (externalFormatHandlerRef.current) {
+                      externalFormatHandlerRef.current('italic')
+                    } else if (onFormat) {
+                      onFormat('italic', selectedTextRef.current || selectedText)
+                    }
+                  }}
                   className="selection-menu-btn selection-menu-btn--icon-only italic"
                 >
                   I
@@ -567,7 +630,13 @@ export default function SelectionActionMenu({
                 <button
                   type="button"
                   title="Inline code"
-                  onClick={() => onFormat('code', selectedTextRef.current || selectedText)}
+                  onClick={() => {
+                    if (externalFormatHandlerRef.current) {
+                      externalFormatHandlerRef.current('code')
+                    } else if (onFormat) {
+                      onFormat('code', selectedTextRef.current || selectedText)
+                    }
+                  }}
                   className="selection-menu-btn selection-menu-btn--icon-only"
                 >
                   <Code size={13} />

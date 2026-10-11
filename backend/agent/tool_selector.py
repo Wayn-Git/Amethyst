@@ -62,12 +62,26 @@ CORE = (
     "task",
     "search_web",
     "fetch_url",
+    "generate_sandboxed_ui",
+    # Composio default tools for agent
+    "COMPOSIO_SEARCH_TOOLS",
+    "COMPOSIO_MULTI_EXECUTE_TOOL",
+    "COMPOSIO_GET_TOOL_SCHEMAS",
+    "COMPOSIO_MANAGE_CONNECTIONS",
 )
 
 #: Builtin tools grouped by the kind of request that needs them, with the words
 #: that signal that kind. Matching is generous on purpose: a category included
 #: needlessly costs a few hundred tokens, while one missed costs the answer.
 CATEGORIES: dict[str, dict[str, Any]] = {
+    "generative_ui": {
+        "tools": ("generate_sandboxed_ui",),
+        "words": (
+            "calculator", "calc", "splitter", "tip", "bill", "chart", "graph",
+            "plot", "3d", "simulation", "simulator", "diagram", "flowchart",
+            "interactive", "widget", "tool", "itinerary", "model", "visualize",
+        ),
+    },
     "files": {
         "tools": ("delete_file", "open_file", "convert_file"),
         "words": (
@@ -174,6 +188,12 @@ CONNECTOR_HINTS: dict[str, tuple[str, ...]] = {
     "firecrawl": ("firecrawl", "crawl", "web scrape"),
     "memory": ("remember", "memory", "recall", "note", "knowledge"),
     "fetch": ("fetch", "url", "webpage"),
+    "composio": (
+        "composio", "calendar", "event", "meeting", "schedule", "reminder", "remind",
+        "email", "gmail", "mail", "inbox", "slack", "github", "notion", "linear",
+        "jira", "asana", "trello", "crm", "salesforce", "hubspot", "tweet", "twitter",
+        "cloud", "integration", "app", "todo", "task",
+    ),
 }
 
 #: Never offer more than this many connectors' tool sets on one turn. A single
@@ -320,7 +340,13 @@ def select_tools(
                 by_server.setdefault(server, []).append(schema)
 
         chosen_servers: list[str] = []
+        # Composio is the default cloud connector: always prioritize it when available
+        if "composio" in by_server:
+            chosen_servers.append("composio")
+
         for server, tools in by_server.items():
+            if server in chosen_servers:
+                continue
             key = server.lower().replace("-", "").replace("_", "")
             hit = key in haystack.replace("-", "").replace("_", "")
             if not hit:
@@ -333,7 +359,9 @@ def select_tools(
             if hit:
                 chosen_servers.append(server)
 
-        chosen_servers = chosen_servers[:max_mcp_servers]
+        # Allow max_mcp_servers with composio included
+        composio_offset = 1 if "composio" in chosen_servers else 0
+        chosen_servers = chosen_servers[:max_mcp_servers + composio_offset]
         for server in chosen_servers:
             wanted.update(getattr(t, "name", "") for t in by_server[server])
 
@@ -344,7 +372,11 @@ def select_tools(
         else:
             wanted.discard("search_images")
 
-        kept = [s for s in schemas if getattr(s, "name", "") in wanted]
+        kept = [
+            s
+            for s in schemas
+            if getattr(s, "name", "") in wanted or _bare(getattr(s, "name", "")) in wanted
+        ]
         # Nothing matched at all: the request is too vague to narrow safely, so
         # do not narrow. Better to spend tokens than to answer without the tool.
         if not kept:

@@ -413,9 +413,18 @@ def normalize_url(raw: str) -> str:
     try:
         parsed = urlparse(url)
         if parsed.scheme in ("http", "https") and parsed.netloc and "." in parsed.netloc:
-            host = parsed.netloc.split(":")[0]
+            host = parsed.netloc.split(":")[0].lower()
             parts = host.split(".")
             if len(parts) >= 2 and len(parts[-1]) >= 2 and not parts[-1].isdigit():
+                if any(sh in host for sh in ("instagram.com", "threads.net", "threads.com", "tiktok.com", "x.com", "twitter.com")):
+                    from urllib.parse import parse_qsl, urlencode, urlunparse
+                    clean_query = [
+                        (k, v)
+                        for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+                        if not k.startswith("utm_") and k not in ("igsh", "obrf", "t", "s", "ref_src")
+                    ]
+                    cleaned = parsed._replace(query=urlencode(clean_query))
+                    return urlunparse(cleaned)
                 return url
     except Exception:
         pass

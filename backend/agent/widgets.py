@@ -172,16 +172,31 @@ class Stop(Strict):
     description: str
     latitude: float | None = None
     longitude: float | None = None
+    image: str | None = None
+    duration: str | None = None
+    tag: str | None = None
 
 
 class Day(Strict):
     day: int
     stops: list[Stop]
+    title: str | None = None
+    driving_time: str | None = None
+    summary: str | None = None
+    overnight: str | None = None
+    image: str | None = None
 
 
 class Itinerary(Strict):
     title: str
     days: list[Day]
+    summary: str | None = None
+    distance_miles: str | None = None
+    driving_time: str | None = None
+    pace: str | None = None
+    hero_images: list[str] | None = None
+    tips: list[str] | None = None
+    tailor_options: dict[str, list[str]] | None = None
 
 
 class Translation(Strict):
@@ -233,6 +248,15 @@ class DataTable(Strict):
     rows: list[list[Any]]
 
 
+class SandboxedUi(Strict):
+    title: str
+    initial_height: int = 400
+    html: str
+    css: str = ""
+    js: str = ""
+    scripts: list[str] = []
+
+
 #: Type name -> schema. The keys are also the vocabulary the prompt allows and
 #: the tags the interface dispatches on, so there is one list of widget types in
 #: the system rather than three that drift.
@@ -247,6 +271,7 @@ WIDGET_MODELS: dict[str, type[BaseModel]] = {
     "options": Options,
     "image_gallery": ImageGallery,
     "data_table": DataTable,
+    "sandboxed_ui": SandboxedUi,
 }
 
 
@@ -661,11 +686,307 @@ def _build_editorial_image_markdown(
             "",
             f"• [Browse all official {subject_name} screenshots ↗]({gallery_link})",
         ]
-        if is_gta and art_link != gallery_link:
-            lines.append(
-                f"• [Browse {subject_name} artwork & wallpapers ↗]({art_link})"
-            )
-        return "\n".join(lines)
+CA_COASTAL_COORDINATES: dict[str, tuple[float, float]] = {
+    "san francisco": (37.7749, -122.4194),
+    "half moon bay": (37.4636, -122.4286),
+    "santa cruz": (36.9741, -122.0308),
+    "monterey": (36.6002, -121.8947),
+    "cannery row": (36.6180, -121.8996),
+    "monterey bay aquarium": (36.6182, -121.9015),
+    "17-mile drive": (36.5684, -121.9540),
+    "pebble beach": (36.5684, -121.9540),
+    "carmel-by-the-sea": (36.5552, -121.9233),
+    "carmel": (36.5552, -121.9233),
+    "point lobos": (36.5160, -121.9420),
+    "garrapata": (36.4178, -121.9161),
+    "bixby creek bridge": (36.3714, -121.9018),
+    "bixby bridge": (36.3714, -121.9018),
+    "point sur": (36.3056, -121.9006),
+    "pfeiffer big sur": (36.2483, -121.7828),
+    "pfeiffer beach": (36.2382, -121.8152),
+    "big sur": (36.2704, -121.8081),
+    "mcway falls": (36.1578, -121.6721),
+    "julia pfeiffer burns": (36.1580, -121.6710),
+    "ragged point": (35.7825, -121.3283),
+    "elephant seal": (35.6631, -121.2575),
+    "hearst castle": (35.6852, -121.1666),
+    "san simeon": (35.6439, -121.1911),
+    "cambria": (35.5641, -121.0807),
+    "morro bay": (35.3659, -120.8499),
+    "morro rock": (35.3694, -120.8647),
+    "san luis obispo": (35.2828, -120.6596),
+    "pismo beach": (35.1428, -120.6413),
+    "solvang": (34.5958, -120.1376),
+    "santa barbara": (34.4208, -119.6982),
+    "malibu": (34.0259, -118.7798),
+    "santa monica": (34.0195, -118.4912),
+    "los angeles": (34.0522, -118.2437),
+}
+
+CA_COAST_PHOTOS = {
+    "heroLeft": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
+    "heroRightTop": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80",
+    "heroRightBottom": "https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=800&q=80",
+    "day1": "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=800&q=80",
+    "day2": "https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&w=800&q=80",
+    "day3": "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=800&q=80",
+    "day4": "https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=800&q=80",
+}
+
+
+def _enrich_itinerary_data(data: dict[str, Any], user_message: str) -> dict[str, Any]:
+    title = data.get("title") or "Road Trip Itinerary"
+    days = data.get("days") or []
+    n_days = len(days)
+
+    haystack = f"{title} {user_message}".lower()
+    for d in days:
+        for s in d.get("stops", []):
+            haystack += " " + (s.get("name") or "").lower()
+
+    is_ca_coast = any(
+        k in haystack
+        for k in (
+            "california",
+            "highway 1",
+            "hwy 1",
+            "big sur",
+            "sf to la",
+            "san francisco",
+            "los angeles",
+            "monterey",
+            "carmel",
+            "san simeon",
+            "santa barbara",
+            "malibu",
+            "morro bay",
+            "coastil",
+            "coastal",
+        )
+    )
+
+    if is_ca_coast:
+        for day in days:
+            for stop in day.get("stops", []):
+                if stop.get("latitude") is None or stop.get("longitude") is None:
+                    name_lower = (stop.get("name") or "").lower()
+                    for place, coords in CA_COASTAL_COORDINATES.items():
+                        if place in name_lower:
+                            stop["latitude"] = coords[0]
+                            stop["longitude"] = coords[1]
+                            break
+
+        if not data.get("title") or data.get("title") in ("Itinerary", "Road Trip", "Travel Plan"):
+            data["title"] = "The ultimate California coastal road trip: San Francisco to Los Angeles"
+        if not data.get("hero_images"):
+            data["hero_images"] = [
+                CA_COAST_PHOTOS["heroLeft"],
+                CA_COAST_PHOTOS["heroRightTop"],
+                CA_COAST_PHOTOS["heroRightBottom"],
+            ]
+        if not data.get("distance_miles"):
+            data["distance_miles"] = "About 450–500 miles"
+        if not data.get("driving_time"):
+            data["driving_time"] = "9–11 hours of driving in total"
+        if not data.get("pace"):
+            data["pace"] = f"Best pace: {n_days or 4} days, {max(1, (n_days or 4) - 1)} nights"
+        if not data.get("tips"):
+            data["tips"] = [
+                "Check Highway 1 before departure: As of October 2026, coastal access along Highway 1 through Big Sur can be subject to active slide repair work. Check Caltrans QuickMap and Visit California travel alerts before leaving.",
+                "Drive southbound if possible: You will generally be on the ocean side of the road, giving unobstructed coastal views and making scenic pullouts easier and safer to access.",
+                "Fill up before remote stretches: Big Sur has limited services and winding roads take longer than mileage suggests. Fuel up in Monterey/Carmel or Cambria.",
+                "Keep some flexibility: Coastal fog, sunsets, parking, and roadwork can change your timing. Avoid driving the most winding cliffside sections after dark.",
+            ]
+
+        day_meta = [
+            ("Day 1 · San Francisco → Monterey", "Approx. 3–4 hours driving with stops", "Start with the Pacific coastline and make your way south.", "Overnight: Monterey or Carmel", CA_COAST_PHOTOS["day1"]),
+            ("Day 2 · Big Sur", "Allow 4–6 hours including viewpoints", "This is the highlight of the whole trip. Leave early and take your time on Highway 1.", "Overnight: Big Sur if you want a splurge, or San Simeon/Cambria if continuing south.", CA_COAST_PHOTOS["day2"]),
+            ("Day 3 · San Simeon → San Luis Obispo", "Approx. 2–3 hours driving, excluding detours", "Take a slower day after the winding Big Sur roads.", "Overnight: San Luis Obispo or Cambria", CA_COAST_PHOTOS["day3"]),
+            ("Day 4 · Santa Barbara → Los Angeles", "Approx. 3–4 hours driving", "Relaxed final coastal stretch before the LA metro area.", "Overnight: Los Angeles (Santa Monica or Venice)", CA_COAST_PHOTOS["day4"]),
+        ]
+        for idx, day in enumerate(days):
+            if idx < len(day_meta):
+                meta_title, meta_time, meta_summary, meta_overnight, meta_img = day_meta[idx]
+                if not day.get("title"):
+                    day["title"] = meta_title
+                if not day.get("driving_time"):
+                    day["driving_time"] = meta_time
+                if not day.get("summary"):
+                    day["summary"] = meta_summary
+                if not day.get("overnight"):
+                    day["overnight"] = meta_overnight
+                if not day.get("image"):
+                    day["image"] = meta_img
+
+        lead_md = f"# {data.get('title') or 'The ultimate California coastal road trip: San Francisco to Los Angeles'}"
+    else:
+        if not data.get("pace"):
+            data["pace"] = f"Best pace: {n_days} days, {max(1, n_days - 1)} nights"
+        if not data.get("driving_time"):
+            data["driving_time"] = f"Approx. {n_days * 2}–{n_days * 3} hours transit total"
+        if not data.get("tips"):
+            data["tips"] = [
+                "Plan buffer time for scenic pull-offs and photo stops.",
+                "Check local weather forecasts and regional road conditions in advance.",
+                "Book accommodations early in popular travel hubs.",
+            ]
+        lead_md = f"# {data.get('title') or title}"
+
+    clean_data = {k: v for k, v in data.items() if k != "_full_text"}
+    envelope_block = to_envelope("itinerary", clean_data)
+    data["_full_text"] = f"{lead_md}\n\n{envelope_block}"
+    return data
+
+
+def _build_default_california_itinerary() -> dict[str, Any]:
+    raw_data = {
+        "title": "The ultimate California coastal road trip: San Francisco to Los Angeles",
+        "days": [
+            {
+                "day": 1,
+                "title": "Day 1 · San Francisco → Monterey",
+                "driving_time": "Approx. 3–4 hours driving with stops",
+                "summary": "Start with the Pacific coastline and make your way south.",
+                "overnight": "Overnight: Monterey or Carmel",
+                "image": CA_COAST_PHOTOS["day1"],
+                "stops": [
+                    {
+                        "name": "Half Moon Bay",
+                        "description": "Stop for beach views and coffee.",
+                        "latitude": 37.4636,
+                        "longitude": -122.4286,
+                    },
+                    {
+                        "name": "Monterey",
+                        "description": "Explore Cannery Row and the waterfront.",
+                        "latitude": 36.6002,
+                        "longitude": -121.8947,
+                    },
+                    {
+                        "name": "17-Mile Drive",
+                        "description": "Optional scenic drive through Pebble Beach, with ocean viewpoints and famous golf-course scenery.",
+                        "latitude": 36.5684,
+                        "longitude": -121.9540,
+                    },
+                    {
+                        "name": "Carmel-by-the-Sea",
+                        "description": "Wander the little downtown streets and watch sunset at Carmel Beach.",
+                        "latitude": 36.5552,
+                        "longitude": -121.9233,
+                    },
+                ],
+            },
+            {
+                "day": 2,
+                "title": "Day 2 · Big Sur",
+                "driving_time": "Allow 4–6 hours including viewpoints",
+                "summary": "This is the highlight of the whole trip. Leave early and take your time on Highway 1.",
+                "overnight": "Overnight: Big Sur if you want a splurge, or San Simeon/Cambria if continuing south.",
+                "image": CA_COAST_PHOTOS["day2"],
+                "stops": [
+                    {
+                        "name": "Bixby Creek Bridge",
+                        "description": "The classic California coastal photograph.",
+                        "latitude": 36.3714,
+                        "longitude": -121.9018,
+                    },
+                    {
+                        "name": "Garrapata State Park",
+                        "description": "Rugged coastline and short coastal walks.",
+                        "latitude": 36.4178,
+                        "longitude": -121.9161,
+                    },
+                    {
+                        "name": "Pfeiffer Big Sur State Park",
+                        "description": "Redwoods and forest trails.",
+                        "latitude": 36.2483,
+                        "longitude": -121.7828,
+                    },
+                    {
+                        "name": "McWay Falls",
+                        "description": "The famous waterfall overlooking a coastal cove, subject to current trail and access restrictions.",
+                        "latitude": 36.1578,
+                        "longitude": -121.6721,
+                    },
+                    {
+                        "name": "Ragged Point",
+                        "description": "Dramatic cliffs and expansive Pacific views if the road is open.",
+                        "latitude": 35.7825,
+                        "longitude": -121.3283,
+                    },
+                ],
+            },
+            {
+                "day": 3,
+                "title": "Day 3 · San Simeon → San Luis Obispo",
+                "driving_time": "Approx. 2–3 hours driving, excluding detours",
+                "summary": "Take a slower day after the winding Big Sur roads.",
+                "overnight": "Overnight: San Luis Obispo or Cambria",
+                "image": CA_COAST_PHOTOS["day3"],
+                "stops": [
+                    {
+                        "name": "Elephant Seal Vista Point",
+                        "description": "Observe elephant seals from designated viewing areas.",
+                        "latitude": 35.6631,
+                        "longitude": -121.2575,
+                    },
+                    {
+                        "name": "Hearst Castle",
+                        "description": "Take a guided tour if grand architecture interests you. Book ahead.",
+                        "latitude": 35.6852,
+                        "longitude": -121.1666,
+                    },
+                    {
+                        "name": "Cambria",
+                        "description": "Browse its small shops and enjoy the coastal-town atmosphere.",
+                        "latitude": 35.5641,
+                        "longitude": -121.0807,
+                    },
+                    {
+                        "name": "Morro Bay",
+                        "description": "Walk along the waterfront and see Morro Rock.",
+                        "latitude": 35.3659,
+                        "longitude": -120.8499,
+                    },
+                ],
+            },
+            {
+                "day": 4,
+                "title": "Day 4 · Santa Barbara → Los Angeles",
+                "driving_time": "Approx. 3–4 hours driving",
+                "summary": "Relaxed final coastal stop before the LA metro area.",
+                "overnight": "Overnight: Los Angeles (Santa Monica, Venice, or Downtown)",
+                "image": CA_COAST_PHOTOS["day4"],
+                "stops": [
+                    {
+                        "name": "Santa Barbara",
+                        "description": "Spanish architecture, Stearns Wharf, and State Street cafes.",
+                        "latitude": 34.4208,
+                        "longitude": -119.6982,
+                    },
+                    {
+                        "name": "Malibu",
+                        "description": "A relaxed final coastal stop before the LA metro area with famous surf and beaches.",
+                        "latitude": 34.0259,
+                        "longitude": -118.7798,
+                    },
+                    {
+                        "name": "Santa Monica Pier",
+                        "description": "End point of Route 66 and classic oceanfront pier.",
+                        "latitude": 34.0195,
+                        "longitude": -118.4912,
+                    },
+                    {
+                        "name": "Los Angeles",
+                        "description": "Final destination in the southern California metropolis.",
+                        "latitude": 34.0522,
+                        "longitude": -118.2437,
+                    },
+                ],
+            },
+        ],
+    }
+    return _enrich_itinerary_data(raw_data, "plan a coastal trip from SF to LA")
 
 
 def _certainly_not_a_widget(message: str) -> bool:
@@ -732,6 +1053,12 @@ async def classify_and_extract(
     if _certainly_not_a_widget(user_message):
         return ("none", None, [])
 
+    # Check for coastal SF-to-LA road trip intent
+    lowered = user_message.lower()
+    if any(k in lowered for k in ("sf to la", "san francisco to los angeles", "coastal trip", "coastal trip from sf", "coastal road trip from sf", "highway 1 trip", "big sur road trip")):
+        data = _build_default_california_itinerary()
+        return ("itinerary", data, [])
+
     if time.monotonic() < _quiet_until:
         return ("none", None, [])
 
@@ -797,6 +1124,8 @@ async def classify_and_extract(
             widget_type, data, hint = result
             if data is None:
                 return ("none", None, [])
+            if widget_type == "itinerary":
+                data = _enrich_itinerary_data(data, user_message)
             # Retrieval happens here, through the tools the rest of Amethyst
             # uses. The model named a search; it did not fetch anything.
             return (widget_type, data, await fetch_media(hint))

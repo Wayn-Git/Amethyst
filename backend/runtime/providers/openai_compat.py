@@ -17,8 +17,12 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
-from backend.config import ProviderConfig
-from backend.runtime.failures import FailureKind, classify_stream_error, should_retry
+from backend.runtime.failures import (
+    FailureKind,
+    classify_stream_error,
+    looks_like_quota,
+    should_retry,
+)
 from backend.runtime.http import (
     MAX_RETRIES,
     ProviderError,
@@ -469,14 +473,14 @@ class OpenAICompatClient:
         finish_reason: str | None = None
         usage: dict[str, Any] = {}
 
-        effective_stream_retries = self.max_retries
+        effective_stream_retries = min(self.max_retries, 2)
         for stream_attempt in range(effective_stream_retries + 1):
             text_parts.clear()
             reasoning_parts.clear()
             partial.clear()
             finish_reason = None
             usage = {}
-            yielded_any = False
+            yielded_content = False
 
             try:
                 async for raw in stream_sse(
@@ -484,7 +488,7 @@ class OpenAICompatClient:
                     headers=self._headers(),
                     payload=payload,
                     timeout=self.timeout,
-                    max_retries=0,
+                    max_retries=min(self.max_retries, 2),
                 ):
                     try:
                         chunk = json.loads(raw)
@@ -522,12 +526,11 @@ class OpenAICompatClient:
 
                     if (piece := _as_text(delta.get("content"))):
                         text_parts.append(piece)
-                        yielded_any = True
+                        yielded_content = True
                         yield StreamEvent(type="text", text=piece)
 
                     if thought := _reasoning_of(delta):
                         reasoning_parts.append(thought)
-                        yielded_any = True
                         yield StreamEvent(type="reasoning", text=thought)
 
                     for fragment in delta.get("tool_calls") or []:
@@ -541,7 +544,7 @@ class OpenAICompatClient:
                         if function.get("arguments"):
                             slot["arguments"] += function["arguments"]
                             if slot["name"]:
-                                yielded_any = True
+                                yielded_content = True
                                 yield StreamEvent(
                                     type="tool_arguments",
                                     tool_name=slot["name"],
@@ -552,12 +555,15 @@ class OpenAICompatClient:
                 break
             except ProviderError as exc:
                 if (
-                    not yielded_any
-                    and should_retry(exc.kind)
+                    not yielded_content
+                    and not reasoning_parts
+                    and (should_retry(exc.kind) or exc.kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE))
+                    and exc.kind != FailureKind.NON_RETRYABLE_RATE_LIMIT
+                    and not looks_like_quota(str(exc))
                     and stream_attempt < effective_stream_retries
                 ):
                     log.warning(
-                        "%s stream connection dropped before content (%s); retrying stream (%d/%d)",
+                        "%s stream connection dropped before answer content (%s); retrying stream (%d/%d)",
                         self.model,
                         exc,
                         stream_attempt + 1,
@@ -565,7 +571,7 @@ class OpenAICompatClient:
                     )
                     if exc.retry_after and exc.retry_after > self.timeout:
                         raise
-                    await asyncio.sleep(max(stream_backoff(stream_attempt), exc.retry_after or 0))
+                    await asyncio.sleep(min(max(stream_backoff(stream_attempt), exc.retry_after or 0), 2.0))
                     continue
                 raise
 

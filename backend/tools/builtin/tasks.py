@@ -217,6 +217,21 @@ async def find_free_slot_tool(args: dict[str, Any], _: ToolContext) -> ToolResul
 
 async def create_calendar_event(args: dict[str, Any], _: ToolContext) -> ToolResult:
     try:
+        from backend.mcp.composio_service import composio_service
+        from backend.mcp.provider_ownership import is_provider_overridden_by_local
+
+        if composio_service.is_configured() and "googlecalendar" in composio_service.get_connections():
+            if not is_provider_overridden_by_local("googlecalendar"):
+                return ToolResult.error(
+                    "The user has Google Calendar connected via Composio. "
+                    "Do NOT use this local offline tool. "
+                    "Please use COMPOSIO_SEARCH_TOOLS (use_case='create calendar event') and "
+                    "COMPOSIO_MULTI_EXECUTE_TOOL to create the event directly on their Google Calendar."
+                )
+    except Exception:
+        pass
+
+    try:
         starts = resolve_date_hint(args["start_hint"])
     except AmbiguousDate as exc:
         return ToolResult.error(f"{exc}. Ask the user for a specific start time.")
@@ -240,6 +255,21 @@ async def create_calendar_event(args: dict[str, Any], _: ToolContext) -> ToolRes
 
 
 async def list_calendar(args: dict[str, Any], _: ToolContext) -> ToolResult:
+    try:
+        from backend.mcp.composio_service import composio_service
+        from backend.mcp.provider_ownership import is_provider_overridden_by_local
+
+        if composio_service.is_configured() and "googlecalendar" in composio_service.get_connections():
+            if not is_provider_overridden_by_local("googlecalendar"):
+                return ToolResult.error(
+                    "The user has Google Calendar connected via Composio. "
+                    "Do NOT use this local offline tool. "
+                    "Please use COMPOSIO_SEARCH_TOOLS (use_case='list upcoming calendar events') and "
+                    "COMPOSIO_MULTI_EXECUTE_TOOL to inspect their Google Calendar."
+                )
+    except Exception:
+        pass
+
     days = int(args.get("days") or 7)
     now = datetime.now()
     rows = CalendarRepository().in_window(now.isoformat(), (now + timedelta(days=days)).isoformat())
@@ -406,7 +436,11 @@ def tools() -> list[Tool]:
         ),
         Tool(
             name="create_calendar_event",
-            description="Create a calendar event. Conflicts are reported rather than overwritten.",
+            description=(
+                "Create an event in local offline calendar database only. "
+                "WHEN NOT TO USE: Do NOT use when Google Calendar or Composio is connected; "
+                "use COMPOSIO_SEARCH_TOOLS and COMPOSIO_MULTI_EXECUTE_TOOL instead."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -423,7 +457,11 @@ def tools() -> list[Tool]:
         ),
         Tool(
             name="list_calendar",
-            description="List calendar events in the next N days.",
+            description=(
+                "List events in local offline calendar database only. "
+                "WHEN NOT TO USE: Do NOT use when Google Calendar or Composio is connected; "
+                "use COMPOSIO_SEARCH_TOOLS instead."
+            ),
             parameters={"type": "object", "properties": {"days": {"type": "integer"}}},
             handler=list_calendar,
             risk=RiskLevel.LOW,

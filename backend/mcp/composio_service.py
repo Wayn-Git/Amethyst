@@ -19,6 +19,12 @@ from backend.db.connection import get_connection
 
 log = logging.getLogger(__name__)
 
+# Suppress noisy HTTP client logs and telemetry
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("composio").setLevel(logging.WARNING)
+os.environ.setdefault("COMPOSIO_TELEMETRY", "false")
+
 SECRET_KEY_REF = "amethyst/composio"
 DEFAULT_TOOLKITS = ["slack", "github", "linear", "notion", "gmail"]
 
@@ -694,6 +700,44 @@ def get_toolkits_catalog() -> list[dict[str, Any]]:
     return [dict(t) for t in (NON_OAUTH_TOOLKITS + OAUTH_TOOLKITS)]
 
 
+CURATED_TOOLKITS_CARDS: list[dict[str, Any]] = [
+    {"slug": "slack", "label": "Slack", "blurb": "Post updates and read channels", "domain": "slack.com", "logo": None, "noAuth": False},
+    {"slug": "github", "label": "GitHub", "blurb": "Issues, pull requests, and code", "domain": "github.com", "logo": None, "noAuth": False},
+    {"slug": "gmail", "label": "Gmail", "blurb": "Read and send email", "domain": "gmail.com", "logo": None, "noAuth": False},
+    {"slug": "googlecalendar", "label": "Google Calendar", "blurb": "Read and create events", "domain": "calendar.google.com", "logo": None, "noAuth": False},
+    {"slug": "googlesheets", "label": "Google Sheets", "blurb": "Read and update spreadsheets", "domain": "sheets.google.com", "logo": None, "noAuth": False},
+    {"slug": "googledocs", "label": "Google Docs", "blurb": "Read and write documents", "domain": "docs.google.com", "logo": None, "noAuth": False},
+    {"slug": "googledrive", "label": "Google Drive", "blurb": "Browse and manage files", "domain": "drive.google.com", "logo": None, "noAuth": False},
+    {"slug": "notion", "label": "Notion", "blurb": "Pages and databases", "domain": "notion.so", "logo": None, "noAuth": False},
+    {"slug": "linear", "label": "Linear", "blurb": "Issues and project tracking", "domain": "linear.app", "logo": None, "noAuth": False},
+    {"slug": "sentry", "label": "Sentry", "blurb": "Errors and alerts", "domain": "sentry.io", "logo": None, "noAuth": False},
+    {"slug": "posthog", "label": "PostHog", "blurb": "Analytics, feature flags, experiments", "domain": "posthog.com", "logo": None, "noAuth": False},
+    {"slug": "discord", "label": "Discord", "blurb": "Messages and channels", "domain": "discord.com", "logo": None, "noAuth": False},
+    {"slug": "twitter", "label": "X (Twitter)", "blurb": "Post and read on X", "domain": "x.com", "logo": None, "noAuth": False},
+    {"slug": "reddit", "label": "Reddit", "blurb": "Browse and post", "domain": "reddit.com", "logo": None, "noAuth": False},
+    {"slug": "zapier", "label": "Zapier", "blurb": "Connect 9,000+ apps", "domain": "zapier.com", "logo": None, "noAuth": False},
+    {"slug": "hubspot", "label": "HubSpot", "blurb": "CRM search & updates", "domain": "hubspot.com", "logo": None, "noAuth": False},
+    {"slug": "salesforce", "label": "Salesforce", "blurb": "CRM records and reports", "domain": "salesforce.com", "logo": None, "noAuth": False},
+    {"slug": "jira", "label": "Jira", "blurb": "Issues and sprints", "domain": "atlassian.com", "logo": None, "noAuth": False},
+    {"slug": "asana", "label": "Asana", "blurb": "Tasks and projects", "domain": "asana.com", "logo": None, "noAuth": False},
+    {"slug": "trello", "label": "Trello", "blurb": "Boards and cards", "domain": "trello.com", "logo": None, "noAuth": False},
+    {"slug": "dropbox", "label": "Dropbox", "blurb": "Files and folders", "domain": "dropbox.com", "logo": None, "noAuth": False},
+    {"slug": "airtable", "label": "Airtable", "blurb": "Bases and records", "domain": "airtable.com", "logo": None, "noAuth": False},
+    {"slug": "figma", "label": "Figma", "blurb": "Files and comments", "domain": "figma.com", "logo": None, "noAuth": False},
+    {"slug": "stripe", "label": "Stripe", "blurb": "Payments and customers", "domain": "stripe.com", "logo": None, "noAuth": False},
+]
+
+NON_AUTH_TOOLKITS_CARDS: list[dict[str, Any]] = [
+    {"slug": "web_scraper", "label": "Web Scraper", "blurb": "Scrape and extract clean text from any webpage or article.", "domain": None, "logo": None, "noAuth": True},
+    {"slug": "duckduckgo", "label": "DuckDuckGo", "blurb": "Privacy-focused web search for links, snippets, and answers.", "domain": "duckduckgo.com", "logo": None, "noAuth": True},
+    {"slug": "calculator", "label": "Calculator", "blurb": "Evaluate mathematical equations and perform numeric computations.", "domain": None, "logo": None, "noAuth": True},
+    {"slug": "weather", "label": "Weather", "blurb": "Get real-time weather reports and forecasts for locations worldwide.", "domain": "weather.com", "logo": None, "noAuth": True},
+    {"slug": "hackernews", "label": "Hacker News", "blurb": "Browse frontpage stories, comments, and search Hacker News.", "domain": "news.ycombinator.com", "logo": None, "noAuth": True},
+    {"slug": "wikipedia", "label": "Wikipedia", "blurb": "Search and retrieve encyclopedia summaries and structured sections.", "domain": "wikipedia.org", "logo": None, "noAuth": True},
+    {"slug": "sql", "label": "SQL Tool", "blurb": "Execute queries and inspect database schemas directly.", "domain": None, "logo": None, "noAuth": True},
+]
+
+
 def _validate_consumer_key(key: str) -> tuple[bool, str | None]:
     """Validate a consumer key against Composio Connect MCP gateway."""
     try:
@@ -745,7 +789,10 @@ class ComposioService:
 
     def __init__(self) -> None:
         self._cached_client: Any = None
+        self._cached_session: Any = None
         self._connections_cache: tuple[float, dict[str, Any]] | None = None
+        self._catalog_cache: tuple[float, dict[str, Any]] | None = None
+        self._tools_cache: tuple[float, dict[str, Any]] | None = None
         self._key_mode: str | None = None
 
     def _detect_key_mode(self, key: str) -> str:
@@ -807,6 +854,7 @@ class ComposioService:
             return False
         secrets.set_secret(SECRET_KEY_REF, cleaned)
         self._cached_client = None
+        self._cached_session = None
         self._connections_cache = None
 
         target_mode = mode or getattr(self, "_key_mode", None) or self._detect_key_mode(cleaned)
@@ -903,6 +951,7 @@ class ComposioService:
         """Remove the Composio API key and clear local session state."""
         secrets.delete_secret(SECRET_KEY_REF)
         self._cached_client = None
+        self._cached_session = None
         self._connections_cache = None
         self._key_mode = None
         conn = get_connection()
@@ -945,6 +994,37 @@ class ComposioService:
                 pass
         return list(DEFAULT_TOOLKITS)
 
+    def _canonical_toolkit_slug(self, slug: str) -> str:
+        """Map toolkit aliases (e.g. 'x' -> 'twitter') to canonical Composio slug."""
+        s = slug.strip().lower()
+        return "twitter" if s == "x" else s
+
+    def _trusted_auth_url(self, value: str | None, slug: str) -> str:
+        """Validate that authorization redirect URL points to a secure Composio domain."""
+        if not value:
+            raise RuntimeError(f"Composio returned no authorization link for {slug}")
+        import urllib.parse
+        parsed = urllib.parse.urlparse(value)
+        if parsed.scheme != "https":
+            raise RuntimeError(f"Composio returned non-HTTPS authorization link: {value}")
+        host = parsed.netloc.lower()
+        if host != "composio.dev" and not host.endswith(".composio.dev"):
+            raise RuntimeError(f"Composio returned untrusted authorization host: {host}")
+        return value
+
+    def _auth_headers(self, json: bool = False) -> dict[str, str]:
+        """Produce proper HTTP headers for Composio API based on key type."""
+        key = self.get_api_key()
+        if not key:
+            return {}
+        mode = getattr(self, "_key_mode", None) or self._detect_key_mode(key)
+        # User API keys (uak_*) authenticate with x-user-api-key; project keys (ak_*) with x-api-key
+        header = "x-user-api-key" if mode == "user" or key.startswith(("uak_", "uak-")) else "x-api-key"
+        headers = {header: key}
+        if json:
+            headers["content-type"] = "application/json"
+        return headers
+
     def _get_stable_user_id(self) -> str:
         """Generate a persistent, stable identifier for this Amethyst instance."""
         node = os.environ.get("AMETHYST_USER_ID")
@@ -956,29 +1036,94 @@ class ComposioService:
             return row["user_id"]
         return f"amethyst_{uuid.uuid4().hex[:12]}"
 
-    def get_or_create_session(self, enabled_toolkits: list[str] | None = None) -> Any:
-        """Get the active Composio session or create a new one with mcp=True."""
-        client = self._get_client()
+    def get_or_create_session(
+        self,
+        enabled_toolkits: list[str] | None = None,
+        force_refresh: bool = False,
+    ) -> Any:
+        """Get the active Composio session or create a new tool router session.
+
+        Adopts OpenMausBot's tool router configuration (unrestricted toolkits with
+        multi_account and manage_connections enabled) so any OAuth service can be
+        linked and invoked on demand.
+        """
         conn = get_connection()
         row = conn.execute("SELECT session_id, user_id, mcp_url FROM composio_state WHERE id = 1").fetchone()
+        user_id = (row["user_id"] if row and row["user_id"] else None) or self._get_stable_user_id()
 
-        if row and row["session_id"]:
+        # Resume existing session unless forced refresh
+        if not force_refresh and self._cached_session is not None:
+            return self._cached_session
+        if not force_refresh and row and row["session_id"]:
             try:
-                # Resume existing session
+                client = self._get_client()
                 session = client.use(row["session_id"], mcp=True)
+                self._cached_session = session
                 return session
             except Exception as exc:
                 log.warning("Could not resume Composio session %s: %s; recreating.", row["session_id"], exc)
 
-        # Create fresh session
-        user_id = row["user_id"] if row and row["user_id"] else self._get_stable_user_id()
+        # Create fresh session via OpenMausBot HTTP tool router API
+        headers = self._auth_headers(json=True)
         toolkits = enabled_toolkits if enabled_toolkits is not None else self.get_enabled_toolkits()
+        if headers:
+            try:
+                import httpx
+                payload: dict[str, Any] = {
+                    "user_id": user_id,
+                    "manage_connections": {
+                        "enable": True,
+                        "enable_wait_for_connections": True,
+                        "enable_connection_removal": True,
+                    },
+                    "multi_account": {
+                        "enable": True,
+                        "max_accounts_per_toolkit": 5,
+                        "require_explicit_selection": True,
+                    },
+                }
+                if enabled_toolkits:
+                    payload["toolkits"] = {"enable": enabled_toolkits}
 
-        session = client.sessions.create(
-            user_id=user_id,
-            toolkits={"enable": toolkits},
-            mcp=True,
-        )
+                res = httpx.post(
+                    "https://backend.composio.dev/api/v3.1/tool_router/session",
+                    headers=headers,
+                    json=payload,
+                    timeout=15.0,
+                )
+                if res.status_code in (200, 201):
+                    data = res.json()
+                    new_session_id = data.get("session_id")
+                    mcp_url = data.get("mcp", {}).get("url", "")
+                    conn.execute(
+                        """
+                        INSERT INTO composio_state (id, session_id, user_id, enabled_toolkits, mcp_url, updated_at)
+                        VALUES (1, ?, ?, ?, ?, datetime('now'))
+                        ON CONFLICT(id) DO UPDATE SET
+                            session_id = excluded.session_id,
+                            user_id = excluded.user_id,
+                            enabled_toolkits = excluded.enabled_toolkits,
+                            mcp_url = excluded.mcp_url,
+                            updated_at = excluded.updated_at
+                        """,
+                        (new_session_id, user_id, json.dumps(toolkits), mcp_url),
+                    )
+                    conn.commit()
+                    from types import SimpleNamespace
+                    return SimpleNamespace(
+                        session_id=new_session_id,
+                        user_id=user_id,
+                        mcp=SimpleNamespace(url=mcp_url, type="http", headers=self._auth_headers()),
+                    )
+            except Exception as exc:
+                log.warning("Direct HTTP session creation failed: %s; falling back to SDK.", exc)
+
+        # Fallback to python SDK
+        client = self._get_client()
+        create_kwargs: dict[str, Any] = {"user_id": user_id, "mcp": True}
+        if toolkits:
+            create_kwargs["toolkits"] = {"enable": toolkits}
+        session = client.sessions.create(**create_kwargs)
 
         mcp_url = getattr(getattr(session, "mcp", None), "url", "")
         conn.execute(
@@ -1039,6 +1184,15 @@ class ComposioService:
                 },
             }
 
+        conn = get_connection()
+        row = conn.execute("SELECT session_id, mcp_url FROM composio_state WHERE id = 1").fetchone()
+        if row and row["mcp_url"]:
+            return {
+                "transport": "streamable-http",
+                "url": row["mcp_url"],
+                "headers": self._auth_headers(),
+            }
+
         try:
             session = self.get_or_create_session()
             mcp_info = getattr(session, "mcp", None)
@@ -1066,7 +1220,7 @@ class ComposioService:
             return None
 
     def get_status(self) -> dict[str, Any]:
-        """Return high-level connection and configuration status."""
+        """Return high-level connection and configuration status without network roundtrips."""
         configured = self.is_configured()
         if not configured:
             return {
@@ -1087,27 +1241,20 @@ class ComposioService:
                 "enabled_toolkits": self.get_enabled_toolkits(),
                 "error": None,
             }
-        try:
-            session = self.get_or_create_session()
-            mcp_info = getattr(session, "mcp", None)
-            mcp_url = getattr(mcp_info, "url", None)
-            return {
-                "configured": True,
-                "active": bool(mcp_url),
-                "key_mode": mode,
-                "session_id": getattr(session, "session_id", None),
-                "enabled_toolkits": self.get_enabled_toolkits(),
-                "error": None,
-            }
-        except Exception as exc:
-            return {
-                "configured": True,
-                "active": False,
-                "key_mode": mode,
-                "session_id": None,
-                "enabled_toolkits": self.get_enabled_toolkits(),
-                "error": str(exc),
-            }
+
+        conn = get_connection()
+        row = conn.execute("SELECT session_id, mcp_url FROM composio_state WHERE id = 1").fetchone()
+        session_id = row["session_id"] if row else None
+        mcp_url = row["mcp_url"] if row else None
+
+        return {
+            "configured": True,
+            "active": bool(mcp_url or session_id),
+            "key_mode": mode,
+            "session_id": session_id,
+            "enabled_toolkits": self.get_enabled_toolkits(),
+            "error": None,
+        }
 
     def get_connections(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """Return dict of {toolkit_slug: connection_details} for ACTIVE accounts only."""
@@ -1117,13 +1264,53 @@ class ComposioService:
         if not force and self._connections_cache is not None and now < self._connections_cache[0]:
             return self._connections_cache[1]
 
-        mode = self.get_key_mode()
         active: dict[str, dict[str, Any]] = {}
+        headers = self._auth_headers()
+        user_id = self._get_stable_user_id()
 
+        # Strategy 1: OpenMausBot HTTP query to connected_accounts
+        if headers:
+            try:
+                import httpx
+                params = {
+                    "limit": "50",
+                    "user_ids": user_id,
+                    "order_by": "updated_at",
+                    "order_direction": "desc",
+                }
+                res = httpx.get(
+                    "https://backend.composio.dev/api/v3.1/connected_accounts",
+                    headers=headers,
+                    params=params,
+                    timeout=8.0,
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    for item in data.get("items", []):
+                        status = (item.get("status") or "").upper()
+                        if status == "ACTIVE":
+                            tk = item.get("toolkit") or {}
+                            slug = tk.get("slug") if isinstance(tk, dict) else tk
+                            if slug:
+                                s_slug = str(slug).lower()
+                                active[s_slug] = {
+                                    "id": item.get("id", ""),
+                                    "status": "ACTIVE",
+                                    "created_at": item.get("created_at"),
+                                    "updated_at": item.get("updated_at"),
+                                    "word_id": item.get("word_id"),
+                                    "alias": item.get("alias"),
+                                }
+                    self._connections_cache = (now + 30.0, active)
+                    return active
+            except Exception as exc:
+                log.debug("HTTP connected accounts listing failed: %s; falling back to SDK", exc)
+
+        # Strategy 2: Python SDK fallback (e.g. for mock tests)
+        mode = self.get_key_mode()
         if mode != "consumer":
             try:
                 client = self._get_client()
-                user_id = self._get_stable_user_id()
                 try:
                     accounts = client.connected_accounts.list(user_ids=[user_id], statuses=["ACTIVE"])
                 except Exception as exc:
@@ -1142,22 +1329,73 @@ class ComposioService:
                             "created_at": getattr(item, "created_at", None),
                         }
             except Exception as exc:
-                log.warning("Failed to fetch Composio connected accounts: %s", exc)
+                log.warning("Failed to fetch Composio connected accounts via SDK: %s", exc)
 
-        self._connections_cache = (now + 5.0, active)
+        self._connections_cache = (now + 30.0, active)
         return active
 
-    def initiate_connection(self, toolkit: str) -> str:
-        """Initiate hosted OAuth authorization with Composio and return redirect URL."""
-        slug = toolkit.lower()
-        login_url = f"https://app.composio.dev/login?toolkit={slug}"
+    def initiate_connection(self, toolkit: str, alias: str | None = None) -> str:
+        """Initiate hosted OAuth authorization with Composio and return redirect URL.
+
+        Uses OpenMausBot's tool router session link technique:
+        POST /api/v3.1/tool_router/session/{session_id}/link with {"toolkit": slug, "alias": alias}
+        Returns the browser OAuth link (e.g. https://connect.composio.dev/link/...).
+        """
+        slug = self._canonical_toolkit_slug(toolkit)
         if not self.is_configured():
-            return login_url
-        client = self._get_client()
+            raise RuntimeError("Composio is not configured with an API key. Connect Composio first.")
+
+        headers = self._auth_headers(json=True)
         user_id = self._get_stable_user_id()
 
-        # Strategy 1: Modern composio-client Link API via auth_configs
+        # Strategy 1: OpenMausBot Tool Router Session Link API
+        if headers:
+            try:
+                import httpx
+                session = self.get_or_create_session()
+                session_id = getattr(session, "session_id", None)
+                if session_id:
+                    link_url = f"https://backend.composio.dev/api/v3.1/tool_router/session/{session_id}/link"
+                    link_payload: dict[str, Any] = {"toolkit": slug}
+                    if alias and str(alias).strip():
+                        link_payload["alias"] = str(alias).strip()
+                    res = httpx.post(link_url, headers=headers, json=link_payload, timeout=15.0)
+
+                    # If session restricted or expired, recreate session and retry once
+                    if res.status_code in (400, 404):
+                        err_text = res.text
+                        if "ToolkitNotAllowed" in err_text or "Session Restriction" in err_text or res.status_code == 404:
+                            log.info("Composio session restricted or expired for %s; recreating session...", slug)
+                            session = self.get_or_create_session(force_refresh=True)
+                            session_id = getattr(session, "session_id", None)
+                            link_url = f"https://backend.composio.dev/api/v3.1/tool_router/session/{session_id}/link"
+                            res = httpx.post(link_url, headers=headers, json=link_payload, timeout=15.0)
+
+                    if res.status_code in (200, 201):
+                        data = res.json()
+                        redirect_url = data.get("redirect_url")
+                        if redirect_url:
+                            return self._trusted_auth_url(str(redirect_url), slug)
+                    else:
+                        err_text = res.text
+                        try:
+                            err_json = res.json()
+                            err_text = err_json.get("error", {}).get("message") or err_json.get("message") or err_text
+                        except Exception:
+                            pass
+                        log.warning("Tool router link request for %s returned HTTP %s: %s", slug, res.status_code, err_text)
+                        if res.status_code in (400, 401, 403, 404, 409):
+                            if res.status_code == 401 or "invalid or revoked" in err_text.lower():
+                                raise RuntimeError("Composio API key is invalid or revoked. Please log in to Composio or update your API key.")
+                            raise RuntimeError(f"Composio connection failed for {slug}: {err_text}")
+            except RuntimeError:
+                raise
+            except Exception as exc:
+                log.debug("HTTP tool router link flow failed for %s: %s; trying SDK fallback", slug, exc)
+
+        # Strategy 2: Modern composio-client Link API via auth_configs (SDK fallback)
         try:
+            client = self._get_client()
             raw_client = getattr(client, "client", client)
             if hasattr(raw_client, "auth_configs") and hasattr(raw_client, "link"):
                 configs_res = raw_client.auth_configs.list(toolkit_slug=slug)
@@ -1169,24 +1407,30 @@ class ComposioService:
                         link_res = raw_client.link.create(user_id=user_id, auth_config_id=auth_cfg_id)
                         redirect_url = getattr(link_res, "redirect_url", None)
                         if redirect_url:
-                            return str(redirect_url)
+                            return self._trusted_auth_url(str(redirect_url), slug)
         except Exception as exc:
-            log.debug("Composio link.create flow failed for %s: %s", slug, exc)
+            if "401" in str(exc) or "AuthenticationError" in type(exc).__name__:
+                raise RuntimeError("Composio API key is invalid or revoked. Please log in to Composio or update your API key.")
+            log.debug("Composio SDK link.create flow failed for %s: %s", slug, exc)
 
-        # Strategy 2: High-level session.authorize if available
+        # Strategy 3: High-level session.authorize if available (SDK fallback)
         try:
+            client = self._get_client()
             if hasattr(client, "create"):
                 session = client.create(user_id=user_id)
                 if hasattr(session, "authorize"):
                     req = session.authorize(slug)
                     redirect_url = getattr(req, "redirect_url", None)
                     if redirect_url:
-                        return str(redirect_url)
+                        return self._trusted_auth_url(str(redirect_url), slug)
         except Exception as exc:
+            if "401" in str(exc) or "AuthenticationError" in type(exc).__name__:
+                raise RuntimeError("Composio API key is invalid or revoked. Please log in to Composio or update your API key.")
             log.debug("Composio session.authorize failed for %s: %s", slug, exc)
 
-        # Strategy 3: Legacy toolkits.authorize
+        # Strategy 4: Legacy toolkits.authorize (SDK fallback)
         try:
+            client = self._get_client()
             if hasattr(client, "toolkits") and hasattr(client.toolkits, "authorize"):
                 req = client.toolkits.authorize(user_id=user_id, toolkit=slug)
                 redirect_url = getattr(req, "redirect_url", None)
@@ -1195,11 +1439,62 @@ class ComposioService:
                     if val:
                         redirect_url = getattr(val, "redirect_url", None)
                 if redirect_url:
-                    return str(redirect_url)
+                    return self._trusted_auth_url(str(redirect_url), slug)
         except Exception as exc:
+            if "401" in str(exc) or "AuthenticationError" in type(exc).__name__:
+                raise RuntimeError("Composio API key is invalid or revoked. Please log in to Composio or update your API key.")
             log.debug("Legacy toolkits.authorize failed for %s: %s", slug, exc)
 
-        return login_url
+        raise RuntimeError(f"Could not generate Composio authorization URL for {slug}. Please log in to Composio or check your connection.")
+
+    def remove_connected_account(self, account_id: str) -> bool:
+        """Revoke and delete a connected account by its ID."""
+        if not self.is_configured() or not account_id:
+            return False
+        headers = self._auth_headers()
+        try:
+            import httpx
+            res = httpx.delete(
+                f"https://backend.composio.dev/api/v3.1/connected_accounts/{account_id}?revoke_on_delete=true",
+                headers=headers,
+                timeout=15.0,
+            )
+            self._connections_cache = None
+            return res.status_code in (200, 204)
+        except Exception as exc:
+            log.warning("Failed to remove Composio connected account %s: %s", account_id, exc)
+            return False
+
+    def disconnect_toolkit(self, toolkit: str) -> bool:
+        """Disconnect all active accounts for a toolkit slug."""
+        slug = self._canonical_toolkit_slug(toolkit)
+        conns = self.get_connections(force=True)
+        conn_info = conns.get(slug)
+        if not conn_info or not conn_info.get("id"):
+            # Check un-cached directly from accounts list
+            headers = self._auth_headers()
+            user_id = self._get_stable_user_id()
+            if headers:
+                try:
+                    import httpx
+                    res = httpx.get(
+                        f"https://backend.composio.dev/api/v3.1/connected_accounts?user_ids={user_id}&toolkit_slugs={slug}",
+                        headers=headers,
+                        timeout=8.0,
+                    )
+                    if res.status_code == 200:
+                        items = res.json().get("items", []) or []
+                        deleted_any = False
+                        for it in items:
+                            act_id = it.get("id")
+                            if act_id and self.remove_connected_account(act_id):
+                                deleted_any = True
+                        if deleted_any:
+                            return True
+                except Exception:
+                    pass
+            return False
+        return self.remove_connected_account(conn_info["id"])
 
     def start_browser_login(self) -> dict[str, Any]:
         """Initiate Composio CLI-style browser login session.
@@ -1265,6 +1560,206 @@ class ComposioService:
         except Exception as exc:
             log.warning("Composio browser login poll error for %s: %s", cleaned_id, exc)
             return {"status": "pending", "session_id": cleaned_id, "error": str(exc)}
+
+    def list_catalog(self) -> dict[str, Any]:
+        """Fetch marketplace catalog of toolkits with logos, falling back to curated cards.
+
+        Matches OpenMausBot /api/connectors/catalog contract.
+        """
+        now = time.monotonic()
+        if self._catalog_cache is not None and now < self._catalog_cache[0]:
+            return self._catalog_cache[1]
+
+        cards: list[dict[str, Any]] = []
+        source = "curated"
+        configured = self.is_configured()
+
+        if configured:
+            headers = self._auth_headers()
+            if headers:
+                try:
+                    import httpx
+
+                    url = "https://backend.composio.dev/api/v3/toolkits?limit=500&sort_by=usage"
+                    res = httpx.get(url, headers=headers, timeout=12.0)
+                    if res.status_code == 200:
+                        data = res.json()
+                        items = data.get("items") or data.get("data") or []
+                        if isinstance(items, list) and items:
+                            seen: set[str] = set()
+                            for t in items:
+                                raw_slug = str(t.get("slug") or t.get("key") or t.get("name") or "")
+                                slug = self._canonical_toolkit_slug(raw_slug)
+                                if not slug or slug in seen:
+                                    continue
+                                seen.add(slug)
+                                meta = t.get("meta") or {}
+                                blurb = (meta.get("description") or t.get("description") or "")[:120]
+                                cards.append({
+                                    "slug": slug,
+                                    "label": t.get("name") or slug.title(),
+                                    "blurb": blurb,
+                                    "logo": meta.get("logo") or t.get("logo") or None,
+                                    "noAuth": bool(t.get("no_auth")),
+                                    "domain": None,
+                                })
+                            source = "api"
+                except Exception as exc:
+                    log.debug("Live toolkits catalog fetch failed: %s; falling back to curated", exc)
+
+        if not cards:
+            cards = [dict(c) for c in CURATED_TOOLKITS_CARDS] + [dict(c) for c in NON_AUTH_TOOLKITS_CARDS]
+            source = "curated"
+
+        pagination = {
+            "items": len(cards),
+            "stalled": False,
+            "complete": True,
+        }
+        res_data = {
+            "configured": configured,
+            "mode": "self-hosted" if configured else "unavailable",
+            "setup": "ready" if configured else "needs-setup",
+            "source": source,
+            "cards": cards,
+            "pagination": pagination,
+        }
+        self._catalog_cache = (now + 600.0, res_data)
+        return res_data
+
+    def get_connected_services_state(self, force: bool = False) -> dict[str, Any]:
+        """Enumerate user's connected accounts and toolkits matching OpenMausBot contract."""
+        configured = self.is_configured()
+        if not configured:
+            return {
+                "configured": False,
+                "credentialStore": "ok",
+                "services": {},
+            }
+
+        headers = self._auth_headers()
+        user_id = self._get_stable_user_id()
+        services: dict[str, dict[str, Any]] = {}
+
+        # Add non-auth toolkits if configured
+        for t in NON_OAUTH_TOOLKITS:
+            slug = t["slug"]
+            services[slug] = {
+                "connected": True,
+                "pending": False,
+                "status": "ACTIVE",
+                "accounts": [],
+            }
+
+        if headers:
+            try:
+                import httpx
+
+                params = {
+                    "limit": "100",
+                    "user_ids": user_id,
+                    "order_by": "updated_at",
+                    "order_direction": "desc",
+                }
+                res = httpx.get(
+                    "https://backend.composio.dev/api/v3.1/connected_accounts",
+                    headers=headers,
+                    params=params,
+                    timeout=10.0,
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    for item in data.get("items", []):
+                        tk = item.get("toolkit") or {}
+                        slug = tk.get("slug") if isinstance(tk, dict) else tk
+                        if not slug:
+                            continue
+                        canonical_slug = self._canonical_toolkit_slug(str(slug))
+                        status = (item.get("status") or "ACTIVE").upper()
+                        account_id = str(item.get("id", ""))
+                        alias = item.get("alias")
+                        acc_entry: dict[str, Any] = {
+                            "id": account_id,
+                            "status": status,
+                        }
+                        if alias:
+                            acc_entry["alias"] = str(alias)
+
+                        if canonical_slug not in services:
+                            services[canonical_slug] = {
+                                "connected": status == "ACTIVE",
+                                "pending": status in ("INITIATED", "INITIALIZING", "PENDING"),
+                                "status": status,
+                                "accounts": [],
+                            }
+                        services[canonical_slug]["accounts"].append(acc_entry)
+                        if status == "ACTIVE":
+                            services[canonical_slug]["connected"] = True
+                            services[canonical_slug]["status"] = "ACTIVE"
+            except Exception as exc:
+                log.debug("HTTP connected accounts query failed: %s", exc)
+
+        return {
+            "configured": True,
+            "credentialStore": "ok",
+            "services": services,
+        }
+
+    def get_service_status(self, slugs: list[str]) -> dict[str, Any]:
+        """Query status for specific service slugs."""
+        all_state = self.get_connected_services_state()
+        if not all_state.get("configured"):
+            return {
+                "configured": False,
+                "credentialStore": "ok",
+                "services": {},
+            }
+        services = all_state.get("services", {})
+        res: dict[str, Any] = {}
+        for s in slugs:
+            c_slug = self._canonical_toolkit_slug(s)
+            res[s] = services.get(c_slug, {
+                "connected": False,
+                "pending": False,
+                "status": "not_connected",
+                "accounts": [],
+            })
+        return {
+            "configured": True,
+            "services": res,
+        }
+
+    def authorize_service(self, slug: str, alias: str | None = None) -> dict[str, Any]:
+        """Authorize a service and return { url }."""
+        url = self.initiate_connection(slug, alias=alias)
+        return {"url": url}
+
+    def remove_account(self, slug: str, account_id: str) -> dict[str, Any]:
+        """Remove a single connected account."""
+        removed = self.remove_connected_account(account_id)
+        return {"removed": 1 if removed else 0}
+
+    def remove_service(self, slug: str) -> dict[str, Any]:
+        """Disconnect all accounts for a service."""
+        removed = self.disconnect_toolkit(slug)
+        return {"removed": 1 if removed else 0}
+
+    def list_connector_tools(self) -> dict[str, Any]:
+        """List grantable connector tools grouped by service slug."""
+        now = time.monotonic()
+        if self._tools_cache is not None and now < self._tools_cache[0]:
+            return self._tools_cache[1]
+        
+        tools_map: dict[str, list[dict[str, str]]] = {}
+        # Fetch enabled/connected toolkits catalog tools
+        catalog = get_toolkits_catalog()
+        for t in catalog:
+            slug = t["slug"]
+            tools_map[slug] = [
+                {"name": f"{slug.upper()}_ACTION", "description": t.get("description", "")}
+            ]
+        self._tools_cache = (now + 60.0, tools_map)
+        return tools_map
 
 
 composio_service = ComposioService()

@@ -120,6 +120,10 @@ def thumbnail_path(item_id: int) -> Path:
     return media_dir() / f"{item_id:06d}-thumb.jpg"
 
 
+def slide_path(item_id: int, index: int) -> Path:
+    return media_dir() / f"{item_id:06d}-slide-{index}.jpg"
+
+
 def media_path(item_id: int, suffix: str) -> Path:
     return media_dir() / f"{item_id:06d}{suffix if suffix.startswith('.') else '.' + suffix}"
 
@@ -142,6 +146,8 @@ def app_tag_for_url(url: str | None) -> str | None:
         return "youtube"
     if host in ("instagram.com", "instagr.am"):
         return "instagram"
+    if host in ("threads.net", "threads.com"):
+        return "threads"
     if host in ("x.com", "twitter.com", "mobile.twitter.com"):
         return "x"
     if host in ("github.com", "gist.github.com"):

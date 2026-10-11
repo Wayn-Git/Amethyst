@@ -42,11 +42,14 @@ def amethyst_home(tmp_path, monkeypatch):
     # every secret between the set and the get.
     from backend.config import forget_key_presence
 
+    monkeypatch.delenv("AMETHYST_SECRETS_FILE", raising=False)
+    secrets._forget_presence()
     forget_key_presence()
     keyring = _MemoryKeyring()
     monkeypatch.setattr(secrets, "_keyring", lambda: keyring)
     connection.reset_connection()
     yield home
+    secrets._forget_presence()
     forget_key_presence()
     connection.reset_connection()
 
