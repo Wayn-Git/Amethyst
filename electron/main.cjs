@@ -121,6 +121,37 @@ function getAppIconPath() {
   return path.join(__dirname, 'assets', 'icon.png');
 }
 
+function killBackendProcess() {
+  if (pingInterval) {
+    clearInterval(pingInterval);
+    pingInterval = null;
+  }
+  if (!backendProcess) return;
+
+  const child = backendProcess;
+  backendProcess = null;
+  const pid = child.pid;
+  if (!pid) return;
+
+  console.log(`[Amethyst Supervisor] Terminating backend process (PID ${pid})...`);
+
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process');
+      execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore' });
+    } catch {}
+  } else {
+    try {
+      const { execSync } = require('child_process');
+      execSync(`pkill -P ${pid} 2>/dev/null || true`, { stdio: 'ignore' });
+      execSync(`kill -9 ${pid} 2>/dev/null || true`, { stdio: 'ignore' });
+    } catch {}
+    try {
+      child.kill('SIGKILL');
+    } catch {}
+  }
+}
+
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 440,
@@ -146,6 +177,11 @@ function createSplashWindow() {
 
   splashWindow.on('closed', () => {
     splashWindow = null;
+    if (!mainWindow && !isQuitting) {
+      isQuitting = true;
+      killBackendProcess();
+      app.quit();
+    }
   });
 }
 
@@ -179,11 +215,17 @@ function createMainWindow() {
     mainWindow.focus();
   });
 
-  mainWindow.on('close', (e) => {
-    if (!isQuitting) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
+  mainWindow.on('close', () => {
+    isQuitting = true;
+    killBackendProcess();
+    app.quit();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    isQuitting = true;
+    killBackendProcess();
+    app.quit();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -219,6 +261,7 @@ function initTray() {
         label: 'Quit',
         click: () => {
           isQuitting = true;
+          killBackendProcess();
           app.quit();
         },
       },
@@ -304,6 +347,14 @@ ipcMain.handle('desktop:check-updates', async () => {
 ipcMain.handle('desktop:quit-and-install', () => {
   autoUpdater.quitAndInstall();
 });
+ipcMain.handle('desktop:quit', () => {
+  isQuitting = true;
+  killBackendProcess();
+  app.quit();
+});
+ipcMain.handle('desktop:retry-boot', () => {
+  bootSupervisor();
+});
 ipcMain.handle('desktop:open-external', (_e, url) => {
   return shell.openExternal(url);
 });
@@ -321,6 +372,12 @@ app.whenReady().then(() => {
   bootSupervisor();
 });
 
+app.on('window-all-closed', () => {
+  isQuitting = true;
+  killBackendProcess();
+  app.quit();
+});
+
 app.on('activate', () => {
   if (mainWindow) {
     mainWindow.show();
@@ -331,16 +388,24 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
-  if (pingInterval) {
-    clearInterval(pingInterval);
-  }
-  if (backendProcess) {
-    console.log('[Amethyst Supervisor] Terminating backend child process...');
-    backendProcess.kill('SIGTERM');
-    setTimeout(() => {
-      if (backendProcess) {
-        backendProcess.kill('SIGKILL');
-      }
-    }, 3000);
-  }
+  killBackendProcess();
+});
+
+app.on('will-quit', () => {
+  isQuitting = true;
+  killBackendProcess();
+});
+
+process.on('exit', () => {
+  killBackendProcess();
+});
+
+process.on('SIGINT', () => {
+  killBackendProcess();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  killBackendProcess();
+  process.exit(0);
 });
