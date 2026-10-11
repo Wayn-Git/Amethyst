@@ -7,8 +7,9 @@ def test_install_view_registered():
     assert "Install once." in content
     assert "Download for Mac" in content
     assert "Download for PC" in content
-    assert "codyinc-host" in content or "amethyst-host" in content or "Linux and servers" in content
     assert "Pair iPhone" in content or "Download on the App Store" in content
+    assert "install.ps1" in content
+    assert "install.sh" in content
 
     registry_js = Path("frontend/src/views/registry.js")
     assert "install" in registry_js.read_text().lower()

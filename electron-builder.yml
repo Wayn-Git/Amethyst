@@ -45,6 +45,7 @@ nsis:
 
 linux:
   category: Utility
+  maintainer: "Amethyst Authors <dev@amethyst.ai>"
   target:
     - target: AppImage
       arch: ["x64"]

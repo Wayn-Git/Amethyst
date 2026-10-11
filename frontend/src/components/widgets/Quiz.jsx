@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import Button from '../ui/Button.jsx'
+import Button from '../ui/AppButton.jsx'
 import Icon from '../Icon.jsx'
 
 /* Multiple choice that marks itself.

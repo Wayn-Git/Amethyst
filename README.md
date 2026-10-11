@@ -132,8 +132,8 @@ test:
 
 Download and run standalone installers across macOS, Windows, and Linux directly from [GitHub Releases](https://github.com/wayn-wayn/amethyst/releases/latest) or the in-app `/install` page:
 - **macOS:** Download `.dmg` or install via Homebrew: `brew install --cask amethyst`
-- **Windows:** Download `.exe` installer (starts the local engine automatically)
-- **Linux:** Download `.AppImage` / `.deb` or install via curl: `curl -fsSL https://amethyst.sh/install.sh | bash`
+- **Windows:** Download `.exe` installer or run in PowerShell: `irm https://raw.githubusercontent.com/wayn-wayn/amethyst/master/install.ps1 | iex`
+- **Linux:** Download `.AppImage` / `.deb` or install via curl: `curl -fsSL https://raw.githubusercontent.com/wayn-wayn/amethyst/master/install.sh | bash`
 
 The desktop application includes a native dark splash loading screen, self-contained engine supervision, single-instance lock, system tray integration, and automatic continuous updates whenever code lands on `master`.
 

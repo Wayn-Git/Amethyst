@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
-import Button from '../ui/Button.jsx'
+import Button from '../ui/AppButton.jsx'
 import { api } from '../../api.js'
 
 const CATEGORY_ALL = 'all'
