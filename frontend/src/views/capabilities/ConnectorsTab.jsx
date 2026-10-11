@@ -2122,6 +2122,14 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       'google-slides': 'Creativity & Design',
       'figma': 'Creativity & Design',
       'canva': 'Creativity & Design',
+      'shadcn': 'Creativity & Design',
+      'magicuidesign-mcp': 'Creativity & Design',
+      'untitledui': 'Creativity & Design',
+      'vengeance-ui': 'Creativity & Design',
+      
+      // Automation & System
+      'cua-driver': 'Developer Tools',
+      'obsidianui': 'Productivity',
       
       // Communication & Media
       'google-chat': 'Communication & Media',
