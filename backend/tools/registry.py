@@ -419,10 +419,21 @@ class ToolRegistry:
             pass
 
         try:
-            from backend.mcp.provider_ownership import is_provider_overridden_by_local
+            from backend.mcp.provider_ownership import (
+                get_withheld_local_servers,
+                get_withheld_local_tool_names,
+                is_provider_overridden_by_local,
+                is_provider_owned_by_composio,
+            )
+            withheld_local_tools = get_withheld_local_tool_names()
+            withheld_local_servers = get_withheld_local_servers()
         except Exception:
             def is_provider_overridden_by_local(_tk: str) -> bool:
                 return False
+            def is_provider_owned_by_composio(_p: str) -> bool:
+                return False
+            withheld_local_tools = set()
+            withheld_local_servers = set()
 
         offered = []
         for t in self._tools.values():
@@ -457,6 +468,18 @@ class ToolRegistry:
                         continue
                 elif tk not in composio_conns:
                     continue
+            else:
+                # Local tool: withhold if Composio actively owns this provider
+                bare_name = t.name.split(MCP_DELIMITER)[0]
+                if bare_name in withheld_local_tools:
+                    continue
+                if t.server_name and t.server_name in withheld_local_servers:
+                    continue
+                if t.server_name == "google-workspace":
+                    if "gmail" in bare_name.lower() and is_provider_owned_by_composio("gmail"):
+                        continue
+                    if "calendar" in bare_name.lower() and is_provider_owned_by_composio("googlecalendar"):
+                        continue
 
             offered.append(t)
 
@@ -562,6 +585,20 @@ class ToolRegistry:
                     return ToolResult.error(composio_sign_in_instruction(tk))
             except Exception:
                 return ToolResult.error(composio_sign_in_instruction(tk))
+        else:
+            # Check if local tool is called while Composio owns the provider
+            try:
+                from backend.mcp.provider_ownership import is_local_tool_owned_by_composio
+
+                owned_by_comp, prov = is_local_tool_owned_by_composio(tool.name)
+                if owned_by_comp:
+                    return ToolResult.error(
+                        f"'{tool.name}' is disabled because the user has '{prov}' connected via Composio. "
+                        f"Do NOT use this local offline tool. "
+                        f"Please use COMPOSIO_SEARCH_TOOLS (use_case='...') and COMPOSIO_MULTI_EXECUTE_TOOL instead."
+                    )
+            except Exception:
+                pass
 
         # The gate gets its own `try`, and that is the whole point: an
         # exception raised *here* used to leave the dispatch function entirely,

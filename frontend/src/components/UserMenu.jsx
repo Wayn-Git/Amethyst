@@ -14,7 +14,7 @@ const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(n
 const MOD_PREFIX = IS_MAC ? '⌘' : 'Ctrl+'
 
 export default function UserMenu({ children, align = 'start', side = 'bottom', sideOffset = 8 }) {
-  const { userProfile, setUserProfile, updateUserProfile, theme, setTheme, setView, setOverlay, toast } = useApp()
+  const { userProfile, setUserProfile, updateUserProfile, theme, setTheme, setView, setOverlay, toast, updateInfo } = useApp()
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [open, setOpen] = useState(false)
@@ -131,6 +131,33 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
           >
             <Icon name="edit" size={14} />
             <span>Change username</span>
+          </DropdownMenuItem>
+        )}
+
+        {Boolean(updateInfo?.available || updateInfo?.downloaded) && (
+          <DropdownMenuItem
+            className="sb-user-popover-item"
+            style={{ color: 'var(--live)', fontWeight: 500 }}
+            onClick={() => {
+              setOpen(false)
+              setView('settings')
+            }}
+          >
+            <Icon name="sparkle" size={14} style={{ color: 'var(--live)' }} />
+            <span>Update available ({updateInfo.version || 'new'})</span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontSize: '10px',
+                padding: '2px 7px',
+                borderRadius: '9999px',
+                background: 'var(--live-soft)',
+                color: 'var(--live)',
+                fontWeight: 600,
+              }}
+            >
+              Update
+            </span>
           </DropdownMenuItem>
         )}
 

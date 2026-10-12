@@ -1013,17 +1013,17 @@ HEARTBEAT_SECONDS = 10.0
 # on a sign-in) are the right ceilings for a connector and the wrong ones for
 # somebody who has just pressed Enter -- see `MCPManager._settle`. Anything
 # slower keeps starting in the background and is there for the next turn.
-TURN_STARTUP_SECONDS = 1.0
+TURN_STARTUP_SECONDS = 0.3
 # Warm connectors (confirmed alive at least once) need much less time — just
 # enough to check they're still responsive, not to wait for cold start.
-CONNECTOR_WARM_DEADLINE = 0.5
+CONNECTOR_WARM_DEADLINE = 0.05
 
 # The same ceiling for the boot-time connector start. It holds the registry
 # lock while it runs, and a turn that arrives during it queues behind that
 # lock -- so an unbounded boot pass made the *first* of a session wait
 # out the slowest connector's 180s (or 300s) ceiling even though the turn's own
 # reconcile was bounded. Slower servers keep coming up in the background.
-BOOT_STARTUP_SECONDS = 10.0
+BOOT_STARTUP_SECONDS = 3.0
 
 # Track whether connectors have been confirmed warm at least once.
 _connectors_warm: bool = False
@@ -3142,10 +3142,21 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
             )
             try:
                 while True:
+                    if cancel.is_set():
+                        build.cancel()
+                        settled = True
+                        release()
+                        yield _frame("guard", reason="Turn stopped by user.")
+                        return
                     done, _ = await asyncio.wait({build}, timeout=HEARTBEAT_SECONDS)
                     if done:
                         break
                     yield _frame("ping")
+                if cancel.is_set():
+                    settled = True
+                    release()
+                    yield _frame("guard", reason="Turn stopped by user.")
+                    return
                 director = build.result()
                 # Mark connectors as warm for subsequent turns — they've been
                 # confirmed alive, so future turns can use the shorter deadline.
@@ -6781,7 +6792,7 @@ async def enrich_library_item(item_id: int) -> dict[str, Any]:
         raise HTTPException(500, f"Enrichment failed: {exc}") from exc
 
 
-@app.get("/api/library/{item_id}/thumbnail")
+@app.api_route("/api/library/{item_id}/thumbnail", methods=["GET", "HEAD"])
 async def library_thumbnail(item_id: int) -> FileResponse:
     """The still, by id. The browser is never handed a filesystem path."""
     from backend.library.service import LibraryService
@@ -6794,6 +6805,14 @@ async def library_thumbnail(item_id: int) -> FileResponse:
 
     if row["thumbnail_path"]:
         path = Path(row["thumbnail_path"])
+        if not path.is_file() and ".psok" in str(path):
+            alt = Path(str(path).replace(".psok", ".amethyst"))
+            if alt.is_file():
+                path = alt
+        elif not path.is_file() and ".amethyst" in str(path):
+            alt = Path(str(path).replace(".amethyst", ".psok"))
+            if alt.is_file():
+                path = alt
         if path.is_file():
             return FileResponse(path, media_type="image/jpeg")
 

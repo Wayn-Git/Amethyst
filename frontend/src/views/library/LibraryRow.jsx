@@ -17,7 +17,7 @@ function LibraryRowComponent({
   const isOptimistic = Boolean(item.isOptimistic)
   const isProcessing = Boolean(item.isProcessing) || item.status === 'processing' || item.status === 'enriching'
   const [thumbFailed, setThumbFailed] = useState(false)
-  const hasThumbnail = Boolean(item.thumbnail_path) && !thumbFailed
+  const hasThumbnail = (Boolean(item.thumbnail_path) || Boolean(item.url)) && !thumbFailed
   const domain = getDomain(item.url, item.site)
   const favicon = getFaviconUrl(item.url)
 
