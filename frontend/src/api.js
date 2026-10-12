@@ -440,6 +440,11 @@ export const api = {
     j(`/composio/toolkits/${encodeURIComponent(slug)}/connect`, json('POST')),
   disconnectComposioToolkit: (slug) =>
     j(`/composio/toolkits/${encodeURIComponent(slug)}/disconnect`, json('DELETE')),
+
+  // Connector waits: a turn suspended on an app card mid-conversation
+  connectorWaits: () => j('/connector-waits'),
+  resolveConnectorWait: (waitId, action) =>
+    j(`/connector-waits/${encodeURIComponent(waitId)}`, json('POST', { action })),
   composioConnections: () => j('/composio/connections'),
   composioFallbackStatus: () => j('/composio/fallback/status'),
   switchComposioFallback: (provider, target, reason) =>

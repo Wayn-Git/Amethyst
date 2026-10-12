@@ -158,7 +158,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         strengths=frozenset({"fast"}),
         label="Groq",
         base_url="https://api.groq.com/openai/v1",
-        default_model="llama-3.3-70b-versatile",
+        default_model="llama-3.1-8b-instant",
         context_window=131_072,
         max_tools=128,
         tokens_per_minute=8_000,
@@ -307,9 +307,10 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         core=True,
         label="NVIDIA NIM",
         base_url="https://integrate.api.nvidia.com/v1",
+        default_model="deepseek-ai/deepseek-v4.1-flash",
         keys_url="https://build.nvidia.com",
         docs_url="https://build.nvidia.com/models",
-        note="Model ids are namespaced, e.g. `nvidia/nemotron-3-ultra-550b-a55b`.",
+        note="Model ids are namespaced, e.g. `deepseek-ai/deepseek-v4.1-flash`.",
     ),
     # --- free tiers that do not expire ------------------------------------
     #

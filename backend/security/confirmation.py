@@ -173,7 +173,17 @@ class ConfirmationService:
                     },
                 )
             )
-        return await self.callback(request)
+        # Announce before the marker: the turn loop that records the
+        # suspension reads the same queue, and `_execute` re-arms its window
+        # off this marker the moment the tool timeout expires while it holds.
+        from backend.tools.base import mark_gate_suspension, clear_gate_suspension
+
+        suspension_id = f"approval:{request.id}"
+        mark_gate_suspension(context, suspension_id, "approval")
+        try:
+            return await self.callback(request)
+        finally:
+            clear_gate_suspension(context, suspension_id)
 
     async def check(
         self,

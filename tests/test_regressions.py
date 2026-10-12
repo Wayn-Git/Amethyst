@@ -655,9 +655,18 @@ def test_switching_provider_with_no_model_named_lands_on_the_new_providers_own_d
         patched = client.patch(f"/api/conversations/{cid}", json={"provider": "groq"})
         assert patched.status_code == 200
         assert patched.json()["provider"] == "groq"
-        assert patched.json()["model"] == "llama-3.3-70b-versatile", (
+        # Named against the catalogue rather than a literal id: the default was
+        # `llama-3.3-70b-versatile` when this test was written and is
+        # `llama-3.1-8b-instant` now, and its point -- land on the provider's
+        # own declared default, never carry the old provider's model across --
+        # does not depend on which model that is.
+        from backend.provider_catalogue import PRESETS_BY_SLUG
+
+        expected_default = PRESETS_BY_SLUG["groq"].default_model
+        assert patched.json()["model"] == expected_default, (
             "must be groq's own declared default, not ollama's model carried across"
         )
+        assert patched.json()["model"] != "qwen2.5:7b"
 
 
 def test_a_conversation_can_be_deleted_and_takes_its_scoped_rows_with_it(api, db):
