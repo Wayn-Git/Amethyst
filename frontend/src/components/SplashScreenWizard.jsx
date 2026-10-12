@@ -4,6 +4,7 @@ import Icon from './Icon.jsx'
 import BrandMark from './BrandMark.jsx'
 import AiProviderIcon from './AiProviderIcon.jsx'
 import { LoaderIcon } from './LoaderIcon.jsx'
+import ServiceIcon from '../views/capabilities/plugins/ServiceIcon.jsx'
 import { api } from '../api.js'
 import { useApp } from '../store.jsx'
 
@@ -806,6 +807,10 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
   const [showGithubPat, setShowGithubPat] = useState(false)
   const [githubPatDraft, setGithubPatDraft] = useState('')
   const [githubPatSaved, setGithubPatSaved] = useState(false)
+  const [searchStatus, setSearchStatus] = useState(null)
+  const [selectedSearchProv, setSelectedSearchProv] = useState('')
+  const [searchKeyDraft, setSearchKeyDraft] = useState('')
+  const [savingSearchKey, setSavingSearchKey] = useState(false)
 
   const handleInstallUv = async () => {
     setActionBusy('install-uv')
@@ -838,14 +843,34 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
     }
   }
 
+  const handleSaveSearchKey = async (name) => {
+    if (!searchKeyDraft.trim()) return
+    setSavingSearchKey(true)
+    try {
+      await api.setSearchProvider(name, searchKeyDraft.trim())
+      setSearchKeyDraft('')
+      setSelectedSearchProv('')
+      const updated = await api.searchProvider().catch(() => null)
+      if (updated) setSearchStatus(updated)
+      toast(`${name.toUpperCase()} search key saved!`, 'ok')
+      if (onRefreshStatus) await onRefreshStatus()
+    } catch (err) {
+      toast(err.message || 'Failed to save search key', 'bad')
+    } finally {
+      setSavingSearchKey(false)
+    }
+  }
+
   const loadData = useCallback(async () => {
     try {
-      const [compStatus, compToolkits] = await Promise.all([
+      const [compStatus, compToolkits, searchInfo] = await Promise.all([
         api.composioStatus().catch(() => null),
         api.composioToolkits().catch(() => ({ toolkits: [] })),
+        api.searchProvider().catch(() => null),
       ])
       if (compStatus) setComposioStatus(compStatus)
       if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
+      if (searchInfo) setSearchStatus(searchInfo)
     } catch {
       /* ignore */
     }
@@ -1038,11 +1063,88 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
         </div>
       )}
 
+      {/* Web Search & Live Intelligence Card */}
+      <div className="splash-card" style={{ marginBottom: 16 }}>
+        <div className="splash-card-row">
+          <div className="splash-card-icon" style={{ background: 'rgba(16, 185, 129, 0.12)' }}>
+            <Icon name="search" size={20} />
+          </div>
+          <div className="splash-card-info">
+            <div className="splash-title-row">
+              <span className="splash-card-title">Live Web Search (Optional)</span>
+              <span className="splash-status-dot-text">
+                <span className={`splash-dot-indicator ${searchStatus?.active ? 'is-active' : ''}`} />
+                {searchStatus?.active ? `Active (${searchStatus.active.toUpperCase()})` : 'Using Scrapers'}
+              </span>
+            </div>
+            <p className="splash-card-desc">
+              Powers real-time search in Spotlight and research tasks. Free tiers available on LangSearch, Exa, or Tavily.
+            </p>
+          </div>
+          {searchStatus?.active ? (
+            <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Ready</span>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {[
+                { slug: 'langsearch', name: 'LangSearch', domain: 'langsearch.com' },
+                { slug: 'exa', name: 'Exa', domain: 'exa.ai' },
+                { slug: 'tavily', name: 'Tavily', domain: 'tavily.com' },
+              ].map((prov) => (
+                <button
+                  key={prov.slug}
+                  type="button"
+                  className="splash-btn-subtle"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 10px',
+                    borderColor: selectedSearchProv === prov.slug ? 'var(--accent)' : undefined,
+                    background: selectedSearchProv === prov.slug ? 'var(--accent-soft)' : undefined,
+                  }}
+                  onClick={() => {
+                    setSelectedSearchProv(selectedSearchProv === prov.slug ? '' : prov.slug)
+                    setSearchKeyDraft('')
+                  }}
+                >
+                  <ServiceIcon card={prov} size="small" />
+                  <span style={{ fontSize: 12 }}>{prov.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!searchStatus?.active && selectedSearchProv && (
+          <div className="splash-input-row" style={{ marginTop: 10 }}>
+            <input
+              type="password"
+              className="splash-input"
+              placeholder={`Paste ${selectedSearchProv} API key...`}
+              value={searchKeyDraft}
+              onChange={(e) => setSearchKeyDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveSearchKey(selectedSearchProv)
+              }}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="splash-btn-primary"
+              disabled={savingSearchKey || !searchKeyDraft.trim()}
+              onClick={() => handleSaveSearchKey(selectedSearchProv)}
+            >
+              {savingSearchKey ? 'Saving...' : 'Save & Enable'}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Composio Cloud Apps Card */}
       <div className="splash-card" style={{ marginBottom: 16 }}>
         <div className="splash-card-row">
-          <div className="splash-card-icon" style={{ background: 'rgba(113, 50, 245, 0.12)' }}>
-            <Icon name="cloud" size={22} />
+          <div style={{ marginRight: 8, flexShrink: 0 }}>
+            <ServiceIcon card={{ slug: 'composio', name: 'Composio', domain: 'composio.dev' }} size="default" />
           </div>
           <div className="splash-card-info">
             <div className="splash-title-row">
@@ -1125,8 +1227,8 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
               return (
                 <div key={slug} className="splash-connector-card">
                   <div className="splash-connector-head">
-                    <div className="splash-connector-icon">
-                      <IconComp size={20} />
+                    <div className="splash-connector-icon" style={{ background: 'none', padding: 0 }}>
+                      <ServiceIcon card={{ slug, name }} size="small" />
                     </div>
                     <div className="splash-connector-meta">
                       <span className="splash-connector-title">{name}</span>
