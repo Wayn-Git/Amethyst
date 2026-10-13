@@ -32,6 +32,22 @@ export function cleanSummary(rawText) {
     .trim()
 }
 
+export function renderFormattedSummary(text) {
+  if (!text) return null
+  const parts = String(text).split(/(\*\*.*?\*\*)/g)
+  if (parts.length === 1) return text
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      return (
+        <strong key={index} className="lib-card-summary-strong">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    return part
+  })
+}
+
 export function extractYoutubeId(url) {
   if (!url) return null
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/i)
@@ -283,6 +299,10 @@ function LibraryCardComponent({
     isVideo ? 'landscape' : 'standard'
   )
 
+  const hasMediaFallback = !hasThumbnail && Boolean(
+    hasLocalVideo || isDirectVideoUrl || youtubeId || (item.duration_seconds > 0 && item.kind !== 'podcast' && item.kind !== 'music') || (item.kind === 'video' && item.url)
+  )
+
   // Explicit, reliable dates that are NEVER hidden
   const rawDate = item.consumed_on || item.created_at
   const dateShort = useMemo(() => formatDisplayDate(rawDate, false), [rawDate])
@@ -429,6 +449,14 @@ function LibraryCardComponent({
               </div>
             ) : (
               <>
+                {/* Blurred ambient backdrop — fills container edge-to-edge so the contained foreground image never shows a void */}
+                <img
+                  className="lib-card-media-backdrop"
+                  src={currentImageUrl}
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                />
                 <img
                   className="lib-card-media-img"
                   src={currentImageUrl}
@@ -542,10 +570,60 @@ function LibraryCardComponent({
             )}
           </div>
         </div>
+      ) : hasMediaFallback ? (
+        <div className="lib-card-media-wrap">
+          <div className="lib-card-media lib-card-media--fallback">
+            <div className="lib-card-fallback-glow" />
+            <div className="lib-card-fallback-center">
+              <span className="lib-card-fallback-icon">
+                <Icon
+                  name={
+                    app === 'youtube' ? 'play' :
+                    app === 'instagram' ? 'spark' :
+                    app === 'threads' ? 'threads' :
+                    app === 'spotify' ? 'music' :
+                    app === 'github' ? 'code' :
+                    app === 'x' ? 'chat' :
+                    KIND_ICON[item.kind] || 'video'
+                  }
+                  size={24}
+                />
+              </span>
+              <span className="lib-card-fallback-label">
+                {item.category && item.category !== 'general' ? item.category : (sourceLabel || 'Media')}
+              </span>
+            </div>
+
+            {/* Top-Left Platform Badge */}
+            <div className="lib-card-platform-pill">
+              <Icon
+                name={
+                  app === 'pinterest' ? 'pin' :
+                  app === 'youtube' ? 'play' :
+                  app === 'instagram' ? 'spark' :
+                  app === 'threads' ? 'threads' :
+                  app === 'tiktok' ? 'play' :
+                  app === 'spotify' ? 'music' :
+                  app === 'github' ? 'code' :
+                  app === 'x' ? 'chat' :
+                  KIND_ICON[item.kind] || 'link'
+                }
+                size={10}
+              />
+              <span>{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
+            </div>
+
+            {duration && (
+              <div className="lib-card-media-overlay">
+                <span className="lib-card-duration-badge">{duration}</span>
+              </div>
+            )}
+          </div>
+        </div>
       ) : null}
 
       {/* Card Content Core */}
-      <div className={`lib-card-body ${!hasThumbnail ? 'lib-card-body--textonly' : ''} ${isPost ? 'lib-card-body--post' : ''}`}>
+      <div className={`lib-card-body ${!hasThumbnail && !hasMediaFallback ? 'lib-card-body--textonly' : ''} ${isPost ? 'lib-card-body--post' : ''}`}>
         {/* Source metadata strip (prevents duplicate platform mentions) */}
         <div className="lib-card-source-row">
           <div className="lib-card-source-left">
@@ -692,7 +770,7 @@ function LibraryCardComponent({
           </div>
         ) : deduplicatedSummary ? (
           <p className={`lib-card-summary ${!item.summary && item.notes ? 'lib-card-summary--notes' : ''}`}>
-            {deduplicatedSummary}
+            {renderFormattedSummary(deduplicatedSummary)}
           </p>
         ) : null}
 
@@ -722,6 +800,44 @@ function LibraryCardComponent({
                 +{extraTagsCount}
               </span>
             )}
+          </div>
+        )}
+
+        {/* Discovered Mentions & External Tool Chips */}
+        {linkResources.length > 0 && (
+          <div className="lib-card-resources-row" onClick={(e) => e.stopPropagation()}>
+            <div className="lib-card-resources-pills">
+              {linkResources.slice(0, 2).map((res, i) => {
+                const fav = getFaviconUrl(res.url)
+                const dName = res.name || getDomain(res.url)
+                return (
+                  <a
+                    key={i}
+                    href={res.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-card-resource-chip"
+                    title={`${dName} — ${res.detail || 'External resource'}`}
+                  >
+                    {fav ? (
+                      <img
+                        src={fav}
+                        alt=""
+                        className="lib-card-resource-fav"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                    ) : (
+                      <Icon name="link" size={9} />
+                    )}
+                    <span>{dName}</span>
+                    <Icon name="arrow-up-right" size={8} className="opacity-60" />
+                  </a>
+                )
+              })}
+              {linkResources.length > 2 && (
+                <span className="lib-card-resource-more">+{linkResources.length - 2} tools</span>
+              )}
+            </div>
           </div>
         )}
 

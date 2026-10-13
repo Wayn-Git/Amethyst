@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
 
@@ -20,6 +20,9 @@ export default function LibraryVideoPlayer({
   imageFitMode = 'contain',
   onToggleFit,
   cleanCoverSlug = 'video',
+  isTheater = false,
+  onToggleTheater = null,
+  subtitles = null,
 }) {
   const containerRef = useRef(null)
   const videoRef = useRef(null)
@@ -37,6 +40,29 @@ export default function LibraryVideoPlayer({
   const [currentSrc, setCurrentSrc] = useState(src)
   const [showEmbed, setShowEmbed] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showCaptions, setShowCaptions] = useState(true)
+
+  // Parse whisper / speech sentences for synchronized subtitles
+  const captionSentences = useMemo(() => {
+    if (!subtitles) return []
+    const raw = String(subtitles).replace(/\[[^\]]*\]/g, '').replace(/https?:\/\/\S+/g, '').trim()
+    if (!raw) return []
+    return raw
+      .split(/(?<=[.!?])\s+|\n{2,}/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !s.startsWith('#'))
+  }, [subtitles])
+
+  const activeCaption = useMemo(() => {
+    if (!captionSentences.length || !duration || duration <= 0) {
+      return captionSentences[0] || null
+    }
+    const idx = Math.min(
+      captionSentences.length - 1,
+      Math.floor((currentTime / duration) * captionSentences.length)
+    )
+    return captionSentences[idx] || null
+  }, [captionSentences, currentTime, duration])
 
   // Sync src
   useEffect(() => {
@@ -181,6 +207,12 @@ export default function LibraryVideoPlayer({
     } else if (e.key === 'f') {
       e.preventDefault()
       toggleFullscreen()
+    } else if ((e.key === 't' || e.key === 'T') && onToggleTheater) {
+      e.preventDefault()
+      onToggleTheater()
+    } else if ((e.key === 'c' || e.key === 'C') && captionSentences.length > 0) {
+      e.preventDefault()
+      setShowCaptions((prev) => !prev)
     }
   }
 
@@ -195,6 +227,22 @@ export default function LibraryVideoPlayer({
       role="region"
       aria-label={title || 'Video Player'}
     >
+      {/* Corner Quick Theater Toggle Button */}
+      {onToggleTheater && (
+        <button
+          type="button"
+          className={`lib-player-corner-theater-btn ${isTheater ? 'lib-player-corner-theater-btn--active' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleTheater()
+          }}
+          title={isTheater ? 'Exit Theater Mode (T)' : 'Theater Mode (T)'}
+          aria-label={isTheater ? 'Exit Theater Mode' : 'Enter Theater Mode'}
+        >
+          <Icon name={isTheater ? 'collapse' : 'desktop'} size={13} />
+          <span>{isTheater ? 'Exit Theater' : 'Theater'}</span>
+        </button>
+      )}
       {/* 1. Embed mode (fallback embed or user selected web embed) */}
       {((showEmbed || (!currentSrc && !fallbackUrl)) && embedUrl) ? (
         <div className="lib-player-embed-container">
@@ -305,6 +353,13 @@ export default function LibraryVideoPlayer({
             )}
           </AnimatePresence>
 
+          {/* Synchronized Closed Captions / Subtitles Overlay */}
+          {showCaptions && activeCaption && (isPlaying || !hasStartedPlaying) && (
+            <div className="lib-player-caption-banner">
+              <span>{activeCaption}</span>
+            </div>
+          )}
+
           {/* Custom Floating Control Bar (Auto-hides during playback) */}
           <div
             className={`lib-player-controls ${showControls || !isPlaying ? 'lib-player-controls--visible' : ''}`}
@@ -355,6 +410,22 @@ export default function LibraryVideoPlayer({
                   <Icon name={isMuted ? 'muted' : 'speaker'} size={14} />
                 </button>
 
+                {/* Subtitles / Closed Captions Toggle */}
+                {captionSentences.length > 0 && (
+                  <button
+                    type="button"
+                    className={`lib-player-btn ${showCaptions ? 'lib-player-btn--active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCaptions((prev) => !prev)
+                    }}
+                    title={showCaptions ? 'Disable subtitles (C)' : 'Enable subtitles (C)'}
+                    aria-label="Toggle Subtitles"
+                  >
+                    <span className="lib-player-cc-badge">CC</span>
+                  </button>
+                )}
+
                 {/* Aspect Ratio Fit Toggle */}
                 {onToggleFit && (
                   <button
@@ -368,6 +439,22 @@ export default function LibraryVideoPlayer({
                     aria-label="Toggle fit mode"
                   >
                     <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={13} />
+                  </button>
+                )}
+
+                {/* Theater Mode Toggle */}
+                {onToggleTheater && (
+                  <button
+                    type="button"
+                    className={`lib-player-btn ${isTheater ? 'lib-player-btn--active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleTheater()
+                    }}
+                    title={isTheater ? 'Exit Theater Mode (T)' : 'Theater Mode (T)'}
+                    aria-label="Toggle Theater Mode"
+                  >
+                    <Icon name={isTheater ? 'collapse' : 'desktop'} size={14} />
                   </button>
                 )}
 

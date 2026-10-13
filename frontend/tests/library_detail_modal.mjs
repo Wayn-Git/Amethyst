@@ -121,9 +121,9 @@ The image presents a screenshot of the website "Understand Anything".
     })
   )
 
-  // 1. Overview tab displays Slide Analysis breakdown
-  assert.ok(html.includes('Slide &amp; Visual Breakdown') || html.includes('Slide & Visual Breakdown'), 'Must display Slide & Visual Breakdown on overview')
-  assert.ok(html.includes('Header Section'), 'Must include Slide Analysis header content')
+  // 1. Overview tab displays clean Summary and Mentioned Resources, keeping raw Slide Breakdown off the overview
+  assert.ok(html.includes('Summary'), 'Must display clean Summary on overview')
+  assert.ok(!html.includes('Slide &amp; Visual Breakdown') && !html.includes('Slide & Visual Breakdown'), 'Overview tab must remain clean without duplicate raw Slide Breakdown')
 
   // 2. Mentioned tools are compact chips, NOT giant boxes
   assert.ok(html.includes('lib-resource-chips-wrap'), 'Must render lib-resource-chips-wrap')

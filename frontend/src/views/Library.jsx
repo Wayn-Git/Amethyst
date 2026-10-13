@@ -540,7 +540,7 @@ export default function Library() {
         ) : (
           <motion.div
             key="grid-canvas"
-            className="lib-view-inner"
+            className="view-inner view-inner--wide lib-view-inner"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
