@@ -77,15 +77,31 @@ export default function Gallery({ compact = false }) {
     <div className={`gallery-container${compact ? ' is-compact' : ''}`}>
       {/* Search Header */}
       <div className="gallery-header-row">
-        <label className="gallery-search">
-          Search widgets
-          <input
-            type="search"
-            aria-label="Search widgets"
-            placeholder="Filter by name, group, or source…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        <label className="gallery-search" htmlFor="gallery-search-input">
+          <span className="gallery-search-title">Search widgets</span>
+          <div className="gallery-search-field">
+            <Icon name="search" size={17} className="gallery-search-icon" />
+            <input
+              id="gallery-search-input"
+              type="search"
+              aria-label="Search widgets"
+              className="gallery-search-input"
+              placeholder="Search widgets by name, group, or source…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoComplete="off"
+            />
+            {search && (
+              <button
+                type="button"
+                className="gallery-search-clear-btn"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+              >
+                <Icon name="x" size={14} />
+              </button>
+            )}
+          </div>
         </label>
       </div>
 
@@ -106,7 +122,7 @@ export default function Gallery({ compact = false }) {
                   aria-pressed={selectedCategory === catId}
                 >
                   <Icon name={catIcon} size={15} />
-                  <span>{catLabel}</span>
+                  <span className="gallery-cat-text">{catLabel}</span>
                   <span className="gallery-cat-count">{count}</span>
                 </button>
               )

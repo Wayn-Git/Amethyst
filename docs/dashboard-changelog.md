@@ -3,6 +3,7 @@
 ## 2026-10-25 — Today Bento Dashboard Redesign & Crash Fixes
 
 - Redesigned Home view into Apple-inspired 12-column Bento Grid with live preview Gallery studio (S/M/L variants), fixed SimpleNamespace risk access in items.py, guarded conversations and layout queries against unhandled undefined filters, added menu icon in Icon.jsx.
+- Polished Today dashboard and Add Widgets studio: Spotlight search bar with clear action, capsule category pills with count badges, radial stage background, ambient bento card gradients, and fluid micro-animations (soundwaves, cascade entrances, hover lifts).
 
 ## 2026-10-24 — Day 1 shell
 
