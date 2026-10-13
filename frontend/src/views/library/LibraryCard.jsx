@@ -169,16 +169,17 @@ function LibraryCardComponent({
   const app = getAppFromItem(item)
   const isPost = item.kind === 'post' || app === 'x' || app === 'reddit' || app === 'threads'
 
-  const avatarResource = useMemo(() => {
+  const parsedResources = useMemo(() => {
     let res = item.resources
     if (typeof res === 'string') {
       try { res = JSON.parse(res) } catch { res = [] }
     }
-    if (Array.isArray(res)) {
-      return res.find((r) => r && r.type === 'avatar')
-    }
-    return null
+    return Array.isArray(res) ? res : []
   }, [item.resources])
+
+  const avatarResource = useMemo(() => {
+    return parsedResources.find((r) => r && r.type === 'avatar') || null
+  }, [parsedResources])
 
   const authorAvatar = useMemo(() => {
     if (avatarResource?.url) return avatarResource.url
@@ -198,12 +199,7 @@ function LibraryCardComponent({
 
   // Multi-image slides / carousel extraction
   const slides = useMemo(() => {
-    let res = item.resources
-    if (typeof res === 'string') {
-      try { res = JSON.parse(res) } catch { res = [] }
-    }
-    if (!Array.isArray(res)) return []
-    const slideRes = res.filter((r) => r && typeof r === 'object' && (r.type === 'slide' || r.type === 'image'))
+    const slideRes = parsedResources.filter((r) => r && typeof r === 'object' && (r.type === 'slide' || r.type === 'image'))
     return slideRes.map((s, idx) => {
       const slideIdx = s.index !== undefined ? s.index : idx
       let sUrl = s.url
@@ -216,13 +212,13 @@ function LibraryCardComponent({
         index: slideIdx,
       }
     })
-  }, [item.id, item.resources])
+  }, [item.id, parsedResources])
 
   const slideCount = slides.length
   const isCarousel = slideCount > 1
 
   const currentImageUrl = useMemo(() => {
-    if (isCarousel && slides[currentSlideIndex]) {
+    if (isCarousel && currentSlideIndex > 0 && slides[currentSlideIndex]) {
       return slides[currentSlideIndex].url
     }
     return api.thumbnailUrl(item.id)
@@ -246,14 +242,10 @@ function LibraryCardComponent({
   const deduplicatedSummary = useMemo(() => getDeduplicatedSummary(item), [item])
 
   const hasVideoResource = useMemo(() => {
-    let res = item.resources
-    if (typeof res === 'string') {
-      try { res = JSON.parse(res) } catch { res = [] }
-    }
-    return Array.isArray(res) && res.some(
+    return parsedResources.some(
       (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|mov|webm)(\?|$)/i.test(r.url)))
     )
-  }, [item.resources])
+  }, [parsedResources])
 
   const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
   const urlLower = (item.url || '').toLowerCase()
@@ -313,18 +305,16 @@ function LibraryCardComponent({
 
   // Extract detected song / music track
   const musicResource = useMemo(() => {
-    if (!item.resources || !Array.isArray(item.resources)) return null
-    return item.resources.find(
+    return parsedResources.find(
       (r) => r && typeof r === 'object' && (r.type === 'music' || r.type === 'song') && r.name
-    )
-  }, [item.resources])
+    ) || null
+  }, [parsedResources])
 
   // Extract external discovered links
   const linkResources = useMemo(() => {
-    if (!item.resources || !Array.isArray(item.resources)) return []
-    return item.resources
+    return parsedResources
       .filter((r) => r && typeof r === 'object' && Boolean(r.url) && r.type !== 'music')
-  }, [item.resources])
+  }, [parsedResources])
 
   // Deduplicate and filter tags (max 3 displayed to prevent cutoff, with +N counter)
   const { visibleTags, extraTagsCount } = useMemo(() => {

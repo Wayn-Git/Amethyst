@@ -439,6 +439,14 @@ export default function Library() {
     setDebouncedQuery('')
   }, [])
 
+  const handleSelectCard = useCallback((item) => {
+    setActiveModalItem(item)
+  }, [])
+
+  const handleTagFilterClick = useCallback((tag) => {
+    setSelectedTags([tag])
+  }, [])
+
   const total = useMemo(
     () => Object.values(counts).reduce((sum, n) => sum + n, 0),
     [counts]
@@ -659,21 +667,21 @@ export default function Library() {
                   <LibraryGrid
                     items={displayedItems}
                     busyId={busyId}
-                    onSelect={(item) => setActiveModalItem(item)}
+                    onSelect={handleSelectCard}
                     onReindex={handleReindex}
                     onEnrich={handleEnrich}
                     onDelete={handleDelete}
-                    onTagClick={(tag) => setSelectedTags([tag])}
+                    onTagClick={handleTagFilterClick}
                   />
                 ) : (
                   <LibraryListView
                     items={displayedItems}
                     busyId={busyId}
-                    onSelect={(item) => setActiveModalItem(item)}
+                    onSelect={handleSelectCard}
                     onReindex={handleReindex}
                     onEnrich={handleEnrich}
                     onDelete={handleDelete}
-                    onTagClick={(tag) => setSelectedTags([tag])}
+                    onTagClick={handleTagFilterClick}
                   />
                 )}
               </main>

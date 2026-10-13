@@ -109,13 +109,12 @@ export default function LibraryGrid({
                   <motion.div
                     key={item.id || index}
                     className={`lib-bento-grid-item ${spanClass}`}
-                    initial={{ opacity: 0, y: 16 }}
+                    initial={{ opacity: 0 }}
                     animate={{
                       opacity: 1,
-                      y: 0,
                       transition: {
-                        duration: 0.32,
-                        delay: Math.min((index % 8) * 0.035, 0.22),
+                        duration: 0.24,
+                        delay: Math.min((index % 8) * 0.025, 0.16),
                         ease: [0.16, 1, 0.3, 1],
                       },
                     }}

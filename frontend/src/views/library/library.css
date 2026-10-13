@@ -1288,16 +1288,15 @@
   border-radius: var(--radius-cards, 6px);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  content-visibility: auto;
-  contain-intrinsic-size: 320px 380px;
-  contain: layout paint;
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
   transition: transform 140ms var(--lib-ease-out), border-color 140ms var(--lib-ease-out), box-shadow 140ms var(--lib-ease-out);
   cursor: pointer;
   user-select: none;
 }
 
 .lib-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) translateZ(0);
   border-color: var(--hairline-strong);
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
 }
@@ -1710,14 +1709,16 @@
   letter-spacing: 0.04em;
   z-index: 3;
   opacity: 0;
+  visibility: hidden;
   transform: translateY(-4px);
   pointer-events: none;
-  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out);
+  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out), visibility 160ms;
 }
 
 .lib-card:hover .lib-card-platform-pill,
 .lib-card:focus-within .lib-card-platform-pill {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
   pointer-events: auto;
 }
@@ -1743,14 +1744,16 @@
   letter-spacing: 0.04em;
   z-index: 3;
   opacity: 0;
+  visibility: hidden;
   transform: translateY(-4px);
   pointer-events: none;
-  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out);
+  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out), visibility 160ms;
 }
 
 .lib-card:hover .lib-card-carousel-pill,
 .lib-card:focus-within .lib-card-carousel-pill {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
   pointer-events: auto;
 }
@@ -1773,8 +1776,9 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out), background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out), visibility 160ms, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
   z-index: 3;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   cursor: pointer;
@@ -1784,6 +1788,7 @@
 .lib-card:hover .lib-card-play-btn,
 .lib-card:focus-within .lib-card-play-btn {
   opacity: 0.95;
+  visibility: visible;
   transform: translate(-50%, -50%) scale(1);
   pointer-events: auto;
 }
@@ -1818,8 +1823,9 @@
   justify-content: center;
   cursor: pointer;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 140ms var(--lib-ease-out), transform 140ms var(--lib-ease-out), background-color 140ms ease;
+  transition: opacity 140ms var(--lib-ease-out), transform 140ms var(--lib-ease-out), visibility 140ms, background-color 140ms ease;
   z-index: 4;
   padding: 0;
 }
@@ -1827,6 +1833,7 @@
 .lib-card:hover .lib-card-slide-nav,
 .lib-card:focus-within .lib-card-slide-nav {
   opacity: 0.92;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -1866,13 +1873,15 @@
   border-radius: var(--radius-sm, 4px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out);
+  transition: opacity 160ms var(--lib-ease-out), transform 160ms var(--lib-ease-out), visibility 160ms;
 }
 
 .lib-card:hover .lib-card-slide-dots,
 .lib-card:focus-within .lib-card-slide-dots {
   opacity: 1;
+  visibility: visible;
   transform: translateX(-50%) translateY(0);
   pointer-events: auto;
 }

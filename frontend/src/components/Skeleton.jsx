@@ -223,7 +223,7 @@ export function SkeletonLibraryCard({ tall = false, variant = 'dither' } = {}) {
         className="skel-lib-media"
         style={tall ? { aspectRatio: '9 / 14', maxHeight: 380, overflow: 'hidden' } : { aspectRatio: '16 / 10', overflow: 'hidden' }}
       >
-        <AsciiSkeleton variant={variant} width="100%" height="100%" rows={tall ? 16 : 9} />
+        <AsciiSkeleton variant={variant} width="100%" height="100%" rows={tall ? 8 : 5} />
       </div>
       <div className="skel-lib-body">
         <div className="skel-lib-source" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -240,7 +240,7 @@ export function SkeletonLibraryCard({ tall = false, variant = 'dither' } = {}) {
 }
 
 /** The bento column layout the library grid is made of. */
-export function SkeletonLibraryGrid({ cards = 9, variant = 'dither' }) {
+export function SkeletonLibraryGrid({ cards = 6, variant = 'dither' }) {
   return (
     <div className="skel-lib-grid lib-bento-grid" aria-hidden="true">
       {Array.from({ length: cards }, (_, i) => (
