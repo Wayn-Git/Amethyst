@@ -79,12 +79,37 @@ function LibraryCardComponent({
   const isEnriching = status === 'enriching' || busy
   const isLiveProcessing = isOptimistic || isReceived || isProcessing || isEnriching
 
+  const app = getAppFromItem(item)
+  const isPost = item.kind === 'post' || app === 'x' || app === 'reddit' || app === 'threads'
+
+  const avatarResource = useMemo(() => {
+    let res = item.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    if (Array.isArray(res)) {
+      return res.find((r) => r && r.type === 'avatar')
+    }
+    return null
+  }, [item.resources])
+
+  const authorAvatar = useMemo(() => {
+    if (avatarResource?.url) return avatarResource.url
+    if (app === 'x' && item.author) {
+      const handle = item.author.replace(/.*@([A-Za-z0-9_]+).*/, '$1')
+      if (handle && handle !== item.author) return `https://unavatar.io/x/${handle}`
+    }
+    if (app === 'github' && item.author) {
+      return `https://github.com/${item.author.replace(/^@/, '')}.png?size=64`
+    }
+    return null
+  }, [avatarResource, app, item.author])
+
   const [thumbFailed, setThumbFailed] = useState(false)
-  const hasThumbnail = (Boolean(item.thumbnail_path) || Boolean(item.url)) && !thumbFailed
+  const hasThumbnail = Boolean(item.thumbnail_path) && !thumbFailed
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)
-  const app = getAppFromItem(item)
 
   const slideCount = useMemo(() => {
     let res = item.resources
@@ -98,8 +123,42 @@ function LibraryCardComponent({
   }, [item.resources])
 
   const isCarousel = slideCount > 1
-  const isVideo = !isCarousel && (item.kind === 'video' || app === 'youtube' || (app === 'instagram' && (item.url || '').includes('/reel/')) || app === 'tiktok')
-  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
+
+  const hasVideoResource = useMemo(() => {
+    let res = item.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    return Array.isArray(res) && res.some(
+      (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|mov|webm)(\?|$)/i.test(r.url)))
+    )
+  }, [item.resources])
+
+  const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
+  const urlLower = (item.url || '').toLowerCase()
+  const isDirectVideoUrl = /\.(mp4|mov|webm)(\?|$)/i.test(urlLower)
+  const isReelOrShort = urlLower.includes('/reel/') || urlLower.includes('/reels/') || urlLower.includes('/shorts/')
+
+  const isVideo = (
+    item.kind === 'video' ||
+    app === 'youtube' ||
+    app === 'tiktok' ||
+    isReelOrShort ||
+    hasLocalVideo ||
+    hasVideoResource ||
+    isDirectVideoUrl ||
+    (app === 'instagram' && (item.duration_seconds || isReelOrShort)) ||
+    (app === 'x' && (hasVideoResource || item.kind === 'video')) ||
+    (app === 'reddit' && (urlLower.includes('v.redd.it') || item.kind === 'video')) ||
+    (item.duration_seconds > 0 && item.kind !== 'podcast' && item.kind !== 'music')
+  )
+
+  const isVertical = (
+    isReelOrShort ||
+    app === 'tiktok' ||
+    app === 'pinterest'
+  )
+
   const isNote = item.kind === 'note' || (!hasThumbnail && !item.url)
 
   const cardVariant = variant || (
@@ -182,7 +241,7 @@ function LibraryCardComponent({
     <article
       ref={cardRef}
       data-item-id={item.id}
-      className={`lib-card lib-card--${cardVariant} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
+      className={`lib-card lib-card--${cardVariant} ${isPost ? 'lib-card--post' : ''} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
       onClick={handleCardClick}
       onMouseMove={handleMouseMove}
       tabIndex={0}
@@ -261,7 +320,13 @@ function LibraryCardComponent({
       {/* Bento Media (Single clean card boundary, flush to edges) */}
       {hasThumbnail ? (
         <div className="lib-card-media-wrap">
-          <div className="lib-card-media">
+          <div className={`lib-card-media ${isPost ? 'lib-card-media--contain' : ''}`}>
+            {/* Ambient blurred backdrop for letterbox-free containment */}
+            <div
+              className="lib-card-media-backdrop"
+              style={{ backgroundImage: `url(${api.thumbnailUrl(item.id)})` }}
+              aria-hidden="true"
+            />
             <img
               className="lib-card-media-img"
               src={api.thumbnailUrl(item.id)}
@@ -319,11 +384,20 @@ function LibraryCardComponent({
       ) : null}
 
       {/* Card Content Core */}
-      <div className={`lib-card-body ${!hasThumbnail ? 'lib-card-body--textonly' : ''}`}>
+      <div className={`lib-card-body ${!hasThumbnail ? 'lib-card-body--textonly' : ''} ${isPost ? 'lib-card-body--post' : ''}`}>
         {/* Source metadata strip (prevents duplicate platform mentions) */}
         <div className="lib-card-source-row">
           <div className="lib-card-source-left">
-            {favicon ? (
+            {authorAvatar ? (
+              <img
+                className="lib-card-author-avatar"
+                src={authorAvatar}
+                alt=""
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            ) : favicon ? (
               <img
                 className="lib-card-favicon"
                 src={favicon}
@@ -338,14 +412,16 @@ function LibraryCardComponent({
               </span>
             )}
             <span className="lib-card-domain">
-              {hasThumbnail && app && (domain || '').toLowerCase().includes(app.toLowerCase())
-                ? (item.author ? `@${item.author.replace(/^@/, '')}` : (item.site || 'RESOURCE'))
+              {app === 'reddit' && (item.subreddit || domain)
+                ? (item.subreddit ? `r/${item.subreddit.replace(/^r\//, '')}` : domain)
+                : item.author
+                ? (item.author.startsWith('@') || item.author.startsWith('/u/') ? item.author : `@${item.author}`)
                 : (domain || item.site || (isNote ? 'NOTE' : 'RESOURCE'))}
             </span>
 
-            {item.author && (!hasThumbnail || !app || !(domain || '').toLowerCase().includes(app.toLowerCase())) && (
+            {item.author && app === 'reddit' && (
               <span className="lib-card-author" title={item.author}>
-                · {item.author}
+                · {item.author.startsWith('/u/') ? item.author : `/u/${item.author}`}
               </span>
             )}
           </div>

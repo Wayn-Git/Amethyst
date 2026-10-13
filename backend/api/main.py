@@ -411,6 +411,12 @@ _instagram = InstagramRunner()
 # other loops should not be waiting behind.
 _browser = BrowserRunner()
 
+# The library auto-enrich sweeper. Summarises items in the background
+# so captures and bookmarks get synthesis and taxonomy without blocking.
+from backend.library.runner import LibraryRunner
+
+_library = LibraryRunner()
+
 
 #: How long a suspension has to have been sitting there before a run row with
 #: nothing behind it is believed to be abandoned rather than mid-decision.
@@ -632,7 +638,9 @@ async def _lifespan(_: FastAPI):
     _instagram.start()
     # Fifth. A no-op on every tick until someone switches the browser on.
     _browser.start()
-    # Sixth, and first to be stopped after the browser: connectors.
+    # Sixth. Sweeps and synthesizes unsummarized library items in the background.
+    _library.start()
+    # Seventh, and first to be stopped after the browser: connectors.
 
     # Switched-on connectors start at boot rather than on the first turn.
     # The manager used to be built lazily by the first chat request, so on a
@@ -676,6 +684,7 @@ async def _lifespan(_: FastAPI):
     _stale_cleanup_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await _stale_cleanup_task
+    await _library.stop()
     await _browser.stop()
     await _instagram.stop()
     await _journal.stop()
@@ -6651,6 +6660,7 @@ class LibraryBody(BaseModel):
     text: str | None = None
     consumed_on: str | None = None
     rating: int | None = None
+    media_path: str | None = None
 
 
 class LibraryPatch(BaseModel):
@@ -6681,6 +6691,7 @@ async def list_library(
 
     with contextlib.suppress(Exception):
         _instagram.nudge()
+        _library.nudge()
 
     service = LibraryService()
     limit = max(1, min(limit, 200))
@@ -6722,6 +6733,17 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
                 notes=body.notes,
                 title=body.title,
             )
+        elif body.media_path and Path(body.media_path).is_file():
+            captured = await service.capture_media_file(
+                body.media_path,
+                title=body.title,
+                kind=body.kind,
+                category=body.category,
+                notes=body.notes,
+                consumed_on=body.consumed_on,
+                rating=body.rating,
+                author=body.author,
+            )
         else:
             captured = await service.log_manual(
                 title=body.title or "",
@@ -6738,7 +6760,18 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
     except Exception as exc:
         log.exception("failed to capture library item: %s", exc)
         raise HTTPException(500, f"Failed to capture item: {exc}") from exc
+    with contextlib.suppress(Exception):
+        _library.nudge()
     return {**captured.item, "already_logged": captured.already_logged}
+
+
+@app.post("/api/library/sweep")
+async def sweep_library() -> dict[str, Any]:
+    from backend.library.store import LibraryStore
+    _library.nudge()
+    unsummarized = len(LibraryStore().unsummarized(limit=500))
+    return {"status": "sweeping", "unsummarized": unsummarized}
+
 
 
 @app.get("/api/library/{item_id}")
@@ -6792,6 +6825,16 @@ async def enrich_library_item(item_id: int) -> dict[str, Any]:
         raise HTTPException(500, f"Enrichment failed: {exc}") from exc
 
 
+@app.post("/api/library/sweep")
+async def sweep_library_unsummarized(force: bool = True) -> dict[str, Any]:
+    """Sweep and automatically enrich all unsummarized items in the background."""
+    from backend.library.service import LibraryService
+
+    service = LibraryService()
+    count = await service.sweep_unsummarized(max_items=50, force=force)
+    return {"swept": count}
+
+
 @app.api_route("/api/library/{item_id}/thumbnail", methods=["GET", "HEAD"])
 async def library_thumbnail(item_id: int) -> FileResponse:
     """The still, by id. The browser is never handed a filesystem path."""
@@ -6814,7 +6857,9 @@ async def library_thumbnail(item_id: int) -> FileResponse:
             if alt.is_file():
                 path = alt
         if path.is_file():
-            return FileResponse(path, media_type="image/jpeg")
+            import mimetypes
+            mime, _ = mimetypes.guess_type(str(path))
+            return FileResponse(path, media_type=mime or "image/jpeg")
 
     # If missing or not yet downloaded, try on-demand fetch once
     if row["url"]:
@@ -6825,7 +6870,9 @@ async def library_thumbnail(item_id: int) -> FileResponse:
             if row and row["thumbnail_path"]:
                 path = Path(row["thumbnail_path"])
                 if path.is_file():
-                    return FileResponse(path, media_type="image/jpeg")
+                    import mimetypes
+                    mime, _ = mimetypes.guess_type(str(path))
+                    return FileResponse(path, media_type=mime or "image/jpeg")
 
     raise HTTPException(404, "there is no thumbnail for that item")
 
@@ -6867,18 +6914,56 @@ def library_media(item_id: int) -> FileResponse:
     
     if row is None:
         raise HTTPException(404, f"no library item {item_id}")
+    row = dict(row)
         
-    path = Path(row["media_path"]) if row["media_path"] else None
-    if path and path.is_file():
+    path = Path(row["media_path"]) if row.get("media_path") else None
+    if path and path.is_file() and path.stat().st_size > 1000:
         mime_type, _ = mimetypes.guess_type(str(path))
         return FileResponse(path, media_type=mime_type or "video/mp4")
+
+    # Check if a media file for this item already exists on disk
+    from backend.library.store import media_path
+    for ext in (".mp4", ".webm", ".mov", ".mkv"):
+        candidate = media_path(item_id, ext)
+        if candidate.is_file() and candidate.stat().st_size > 1000:
+            with get_connection() as conn:
+                conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(candidate), item_id))
+                conn.commit()
+            mime_type, _ = mimetypes.guess_type(str(candidate))
+            return FileResponse(candidate, media_type=mime_type or "video/mp4")
         
-    # On-demand download for videos / reels (pure MP4 like videodropper / savefromins)
-    url = row["url"]
+    # On-demand download for videos / reels (Instagram, TikTok, Twitter/X, Reddit, etc.)
+    # 1. First check if a direct video URL exists in resources
+    if row.get("resources"):
+        try:
+            import json as _json
+            import httpx
+            res_list = _json.loads(row["resources"])
+            for r in res_list:
+                if isinstance(r, dict) and r.get("type") == "video" and r.get("url"):
+                    v_url = r["url"]
+                    if v_url.startswith("http"):
+                        target = media_path(item_id, ".mp4")
+                        if not target.is_file() or target.stat().st_size < 1000:
+                            with httpx.Client(timeout=45.0, follow_redirects=True) as client:
+                                resp = client.get(v_url)
+                                if resp.status_code == 200 and len(resp.content) > 1000:
+                                    target.parent.mkdir(parents=True, exist_ok=True)
+                                    target.write_bytes(resp.content)
+                        if target.is_file() and target.stat().st_size > 1000:
+                            with get_connection() as conn:
+                                conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
+                                conn.commit()
+                            mime_type, _ = mimetypes.guess_type(str(target))
+                            return FileResponse(target, media_type=mime_type or "video/mp4")
+        except Exception:
+            pass
+
+    # 2. General yt-dlp on-demand extractor
+    url = row.get("url")
     if url:
         try:
             import yt_dlp
-            from backend.library.store import media_path
             from backend.config import load_instagram
             settings = load_instagram()
             target = media_path(item_id, ".mp4")
@@ -6890,14 +6975,23 @@ def library_media(item_id: int) -> FileResponse:
             }
             if settings.cookies_from_browser:
                 ydl_opts["cookiesfrombrowser"] = (settings.cookies_from_browser,)
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            if target.is_file() and target.stat().st_size > 1000:
-                with get_connection() as conn:
-                    conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
-                    conn.commit()
-                mime_type, _ = mimetypes.guess_type(str(target))
-                return FileResponse(target, media_type=mime_type or "video/mp4")
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+            except Exception:
+                # Retry anonymously without browser cookies if browser locked
+                if "cookiesfrombrowser" in ydl_opts:
+                    ydl_opts.pop("cookiesfrombrowser", None)
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
+            for ext in (".mp4", ".webm", ".mov", ".mkv"):
+                cand = media_path(item_id, ext)
+                if cand.is_file() and cand.stat().st_size > 1000:
+                    with get_connection() as conn:
+                        conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(cand), item_id))
+                        conn.commit()
+                    mime_type, _ = mimetypes.guess_type(str(cand))
+                    return FileResponse(cand, media_type=mime_type or "video/mp4")
         except Exception:
             pass
 

@@ -1,18 +1,19 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   Search,
   Plus,
   X,
   ChevronRight,
   Server,
-  Layers,
-  Sparkles,
   ArrowRight,
-  Loader2,
 } from 'lucide-react'
 import PluginCard from './PluginCard.jsx'
 import ServiceIcon from './ServiceIcon.jsx'
 import McpServersPanel from '../McpServersPanel.jsx'
+import {
+  PluginGridSkeleton,
+  PluginsDirectorySkeleton,
+} from './PluginSkeletons.jsx'
 
 // Curated Popular App Slugs
 const POPULAR_SLUGS = [
@@ -42,6 +43,8 @@ const NOTEWORTHY_SLUGS = [
 
 export default function PluginsDirectory({
   cards = [],
+  loading = false,
+  searchLoading = false,
   statusMap = {},
   searchQuery = '',
   setSearchQuery,
@@ -55,8 +58,6 @@ export default function PluginsDirectory({
   newOpen,
   setNewOpen,
 }) {
-  const [filterView, setFilterView] = useState('all') // 'all' | 'installed' | 'mcp'
-
   // Map of card by slug for rapid lookup
   const cardMap = useMemo(() => {
     const map = new Map()
@@ -158,7 +159,7 @@ export default function PluginsDirectory({
 
         <div className="plugin-directory-actions-block">
           <div className="plugin-directory-search-pill">
-            <Search size={14} className="text-dim shrink-0" />
+            <Search size={15} className="text-dim shrink-0" />
             <input
               type="text"
               placeholder="Search plugins"
@@ -173,7 +174,7 @@ export default function PluginsDirectory({
                 onClick={() => setSearchQuery('')}
                 aria-label="Clear search"
               >
-                <X size={12} />
+                <X size={13} />
               </button>
             )}
           </div>
@@ -184,7 +185,7 @@ export default function PluginsDirectory({
             onClick={onOpenAuthModal}
             title="Connect Composio or Custom MCP Server"
           >
-            <Plus size={16} />
+            <Plus size={18} />
           </button>
         </div>
       </div>
@@ -194,11 +195,15 @@ export default function PluginsDirectory({
         <section className="plugin-directory-search-results-section">
           <div className="plugin-section-header">
             <span className="plugin-section-title">
-              Search Results ({searchResults.length})
+              {searchLoading
+                ? 'Searching plugins…'
+                : `Search Results (${searchResults.length})`}
             </span>
           </div>
 
-          {searchResults.length === 0 ? (
+          {searchLoading ? (
+            <PluginGridSkeleton count={4} />
+          ) : searchResults.length === 0 ? (
             <div className="plugin-empty-search-state">
               <p className="text-base font-medium text-ink">No plugins found</p>
               <p className="text-xs text-dim mt-1">
@@ -222,251 +227,222 @@ export default function PluginsDirectory({
             </div>
           )}
         </section>
+      ) : loading ? (
+        <>
+          <PluginsDirectorySkeleton />
+
+          {/* ── Categories Quick Navigation Strip ── */}
+          <section className="plugin-directory-categories-strip">
+            <div className="plugin-section-header">
+              <h2 className="plugin-section-title">Browse by Category</h2>
+            </div>
+
+            <div className="plugin-category-chips-row">
+              {[
+                'Communication',
+                'Developer Tools',
+                'Productivity',
+                'Web & Data',
+                'CRM & Sales',
+                'Media & Social',
+                'Utilities',
+              ].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className="plugin-category-chip-btn"
+                  onClick={() => onOpenCategory(cat)}
+                >
+                  <span>{cat}</span>
+                  <ArrowRight size={13} className="text-dim" />
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Local & MCP Servers (Bottom Dedicated Section) ── */}
+          <section className="plugin-directory-mcp-section">
+            <div className="plugin-section-header">
+              <div className="flex items-center gap-2">
+                <Server size={17} className="text-accent" />
+                <h2 className="plugin-section-title">Local & System Connectors</h2>
+              </div>
+              <span className="text-xs text-dim">
+                Direct agent tools and custom stdio MCP servers
+              </span>
+            </div>
+
+            <McpServersPanel
+              embedded={true}
+              newOpen={newOpen}
+              setNewOpen={setNewOpen}
+              query=""
+            />
+          </section>
+        </>
       ) : (
         <>
-          {/* ── Filter Pills Bar (All, Installed, MCP) ── */}
-          <div className="plugin-filter-pills-row">
-            <div className="connectors-filter-pills" role="tablist">
+          {/* ── "Installed >" Horizontal Squircle Strip (Screenshot 3) ── */}
+          {installedCards.length > 0 && (
+            <section className="plugin-installed-strip-section">
               <button
                 type="button"
-                className={`connector-filter-btn ${filterView === 'all' ? 'is-active' : ''}`}
-                onClick={() => setFilterView('all')}
+                className="plugin-installed-strip-header"
+                onClick={() => onOpenCategory('Installed')}
+                title="View all installed plugins"
               >
-                <Layers size={13} />
-                <span>All Plugins</span>
-              </button>
-              <button
-                type="button"
-                className={`connector-filter-btn ${filterView === 'installed' ? 'is-active' : ''}`}
-                onClick={() => setFilterView('installed')}
-              >
-                <Sparkles size={13} />
                 <span>Installed</span>
-                {installedCards.length > 0 && (
-                  <span className="connector-filter-badge">
-                    {installedCards.length}
-                  </span>
-                )}
+                <ChevronRight size={15} className="text-dim" />
               </button>
+
+              <div className="plugin-installed-icons-row">
+                {installedCards.map((card) => (
+                  <button
+                    key={card.slug}
+                    type="button"
+                    className="plugin-installed-icon-btn"
+                    onClick={() => onOpenDetail(card)}
+                    title={`${card.label || card.name} (Connected)`}
+                  >
+                    <ServiceIcon card={card} size="default" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── Popular Section (2-Column Grid + Category Bridge Link) ── */}
+          <section className="plugin-directory-section">
+            <div className="plugin-section-header">
+              <h2 className="plugin-section-title">Popular</h2>
+            </div>
+
+            <div className="plugin-two-col-grid">
+              {popularCards.map((card) => (
+                <PluginCard
+                  key={card.slug}
+                  card={card}
+                  status={statusMap[card.slug]}
+                  onOpenDetail={onOpenDetail}
+                  onConnect={onConnect}
+                  onDisconnect={onDisconnect}
+                  onChat={onChat}
+                  busy={busySlug === card.slug}
+                />
+              ))}
+            </div>
+
+            {/* Overlapping mini-icons + Category Bridge Link */}
+            <div className="plugin-category-bridge-row">
               <button
                 type="button"
-                className={`connector-filter-btn ${filterView === 'mcp' ? 'is-active' : ''}`}
-                onClick={() => setFilterView('mcp')}
+                className="plugin-category-bridge-btn"
+                onClick={() => onOpenCategory('Productivity')}
               >
-                <Server size={13} />
-                <span>Local MCP</span>
+                <div className="plugin-bridge-mini-icons">
+                  {productivityPreviewCards.map((c) => (
+                    <div key={c.slug} className="plugin-bridge-mini-icon-wrap">
+                      <ServiceIcon card={c} size="small" />
+                    </div>
+                  ))}
+                </div>
+                <span className="plugin-bridge-text">
+                  See Notion, Productivity, and more
+                </span>
               </button>
             </div>
-          </div>
+          </section>
 
-          {filterView === 'mcp' ? (
-            /* Dedicated Local MCP View */
-            <div className="plugin-mcp-dedicated-view">
-              <McpServersPanel
-                embedded={false}
-                newOpen={newOpen}
-                setNewOpen={setNewOpen}
-                query=""
-              />
+          {/* ── New & Noteworthy Section (2-Column Grid + Category Bridge Link) ── */}
+          <section className="plugin-directory-section">
+            <div className="plugin-section-header">
+              <h2 className="plugin-section-title">New & Noteworthy</h2>
             </div>
-          ) : filterView === 'installed' ? (
-            /* Dedicated Installed Apps View */
-            <section className="plugin-directory-installed-full-section">
-              <div className="plugin-section-header">
-                <span className="plugin-section-title">
-                  Installed Plugins ({installedCards.length})
-                </span>
-              </div>
-              {installedCards.length === 0 ? (
-                <div className="plugin-empty-installed-state">
-                  <p className="text-sm font-medium">No plugins connected yet</p>
-                  <p className="text-xs text-dim mt-1">
-                    Connect your favorite apps from the directory to start taking actions.
-                  </p>
-                </div>
-              ) : (
-                <div className="plugin-two-col-grid">
-                  {installedCards.map((card) => (
-                    <PluginCard
-                      key={card.slug}
-                      card={card}
-                      status={statusMap[card.slug]}
-                      onOpenDetail={onOpenDetail}
-                      onConnect={onConnect}
-                      onDisconnect={onDisconnect}
-                      onChat={onChat}
-                      busy={busySlug === card.slug}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          ) : (
-            /* Standard Directory Experience */
-            <>
-              {/* ── "Installed >" Horizontal Squircle Strip (Screenshot 3) ── */}
-              {installedCards.length > 0 && (
-                <section className="plugin-installed-strip-section">
-                  <button
-                    type="button"
-                    className="plugin-installed-strip-header"
-                    onClick={() => setFilterView('installed')}
-                    title="View all installed plugins"
-                  >
-                    <span>Installed</span>
-                    <ChevronRight size={14} className="text-dim" />
-                  </button>
 
-                  <div className="plugin-installed-icons-row">
-                    {installedCards.map((card) => (
-                      <button
-                        key={card.slug}
-                        type="button"
-                        className="plugin-installed-icon-btn"
-                        onClick={() => onOpenDetail(card)}
-                        title={`${card.label || card.name} (Connected)`}
-                      >
-                        <ServiceIcon card={card} size="default" />
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* ── Popular Section (2-Column Grid + Category Bridge Link) ── */}
-              <section className="plugin-directory-section">
-                <div className="plugin-section-header">
-                  <h2 className="plugin-section-title">Popular</h2>
-                </div>
-
-                <div className="plugin-two-col-grid">
-                  {popularCards.map((card) => (
-                    <PluginCard
-                      key={card.slug}
-                      card={card}
-                      status={statusMap[card.slug]}
-                      onOpenDetail={onOpenDetail}
-                      onConnect={onConnect}
-                      onDisconnect={onDisconnect}
-                      onChat={onChat}
-                      busy={busySlug === card.slug}
-                    />
-                  ))}
-                </div>
-
-                {/* Overlapping mini-icons + Category Bridge Link */}
-                <div className="plugin-category-bridge-row">
-                  <button
-                    type="button"
-                    className="plugin-category-bridge-btn"
-                    onClick={() => onOpenCategory('Productivity')}
-                  >
-                    <div className="plugin-bridge-mini-icons">
-                      {productivityPreviewCards.map((c) => (
-                        <div key={c.slug} className="plugin-bridge-mini-icon-wrap">
-                          <ServiceIcon card={c} size="small" />
-                        </div>
-                      ))}
-                    </div>
-                    <span className="plugin-bridge-text">
-                      See Notion, Productivity, and more
-                    </span>
-                  </button>
-                </div>
-              </section>
-
-              {/* ── New & Noteworthy Section (2-Column Grid + Category Bridge Link) ── */}
-              <section className="plugin-directory-section">
-                <div className="plugin-section-header">
-                  <h2 className="plugin-section-title">New & Noteworthy</h2>
-                </div>
-
-                <div className="plugin-two-col-grid">
-                  {noteworthyCards.map((card) => (
-                    <PluginCard
-                      key={card.slug}
-                      card={card}
-                      status={statusMap[card.slug]}
-                      onOpenDetail={onOpenDetail}
-                      onConnect={onConnect}
-                      onDisconnect={onDisconnect}
-                      onChat={onChat}
-                      busy={busySlug === card.slug}
-                    />
-                  ))}
-                </div>
-
-                {/* Overlapping mini-icons + Developer Tools Category Bridge Link */}
-                <div className="plugin-category-bridge-row">
-                  <button
-                    type="button"
-                    className="plugin-category-bridge-btn"
-                    onClick={() => onOpenCategory('Developer Tools')}
-                  >
-                    <div className="plugin-bridge-mini-icons">
-                      {devToolsPreviewCards.map((c) => (
-                        <div key={c.slug} className="plugin-bridge-mini-icon-wrap">
-                          <ServiceIcon card={c} size="small" />
-                        </div>
-                      ))}
-                    </div>
-                    <span className="plugin-bridge-text">
-                      See Developer Tools, Web & Data, and more
-                    </span>
-                  </button>
-                </div>
-              </section>
-
-              {/* ── Categories Quick Navigation Strip ── */}
-              <section className="plugin-directory-categories-strip">
-                <div className="plugin-section-header">
-                  <h2 className="plugin-section-title">Browse by Category</h2>
-                </div>
-
-                <div className="plugin-category-chips-row">
-                  {[
-                    'Communication',
-                    'Developer Tools',
-                    'Productivity',
-                    'Web & Data',
-                    'CRM & Sales',
-                    'Media & Social',
-                    'Utilities',
-                  ].map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      className="plugin-category-chip-btn"
-                      onClick={() => onOpenCategory(cat)}
-                    >
-                      <span>{cat}</span>
-                      <ArrowRight size={12} className="text-dim" />
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              {/* ── Local & MCP Servers (Bottom Dedicated Section) ── */}
-              <section className="plugin-directory-mcp-section">
-                <div className="plugin-section-header">
-                  <div className="flex items-center gap-2">
-                    <Server size={16} className="text-accent" />
-                    <h2 className="plugin-section-title">Local & System Connectors</h2>
-                  </div>
-                  <span className="text-xs text-dim">
-                    Direct agent tools and custom stdio MCP servers
-                  </span>
-                </div>
-
-                <McpServersPanel
-                  embedded={true}
-                  newOpen={newOpen}
-                  setNewOpen={setNewOpen}
-                  query=""
+            <div className="plugin-two-col-grid">
+              {noteworthyCards.map((card) => (
+                <PluginCard
+                  key={card.slug}
+                  card={card}
+                  status={statusMap[card.slug]}
+                  onOpenDetail={onOpenDetail}
+                  onConnect={onConnect}
+                  onDisconnect={onDisconnect}
+                  onChat={onChat}
+                  busy={busySlug === card.slug}
                 />
-              </section>
-            </>
-          )}
+              ))}
+            </div>
+
+            {/* Overlapping mini-icons + Developer Tools Category Bridge Link */}
+            <div className="plugin-category-bridge-row">
+              <button
+                type="button"
+                className="plugin-category-bridge-btn"
+                onClick={() => onOpenCategory('Developer Tools')}
+              >
+                <div className="plugin-bridge-mini-icons">
+                  {devToolsPreviewCards.map((c) => (
+                    <div key={c.slug} className="plugin-bridge-mini-icon-wrap">
+                      <ServiceIcon card={c} size="small" />
+                    </div>
+                  ))}
+                </div>
+                <span className="plugin-bridge-text">
+                  See Developer Tools, Web & Data, and more
+                </span>
+              </button>
+            </div>
+          </section>
+
+          {/* ── Categories Quick Navigation Strip ── */}
+          <section className="plugin-directory-categories-strip">
+            <div className="plugin-section-header">
+              <h2 className="plugin-section-title">Browse by Category</h2>
+            </div>
+
+            <div className="plugin-category-chips-row">
+              {[
+                'Communication',
+                'Developer Tools',
+                'Productivity',
+                'Web & Data',
+                'CRM & Sales',
+                'Media & Social',
+                'Utilities',
+              ].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className="plugin-category-chip-btn"
+                  onClick={() => onOpenCategory(cat)}
+                >
+                  <span>{cat}</span>
+                  <ArrowRight size={13} className="text-dim" />
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Local & MCP Servers (Bottom Dedicated Section) ── */}
+          <section className="plugin-directory-mcp-section">
+            <div className="plugin-section-header">
+              <div className="flex items-center gap-2">
+                <Server size={17} className="text-accent" />
+                <h2 className="plugin-section-title">Local & System Connectors</h2>
+              </div>
+              <span className="text-xs text-dim">
+                Direct agent tools and custom stdio MCP servers
+              </span>
+            </div>
+
+            <McpServersPanel
+              embedded={true}
+              newOpen={newOpen}
+              setNewOpen={setNewOpen}
+              query=""
+            />
+          </section>
         </>
       )}
     </div>

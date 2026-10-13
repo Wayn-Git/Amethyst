@@ -67,7 +67,7 @@ export default function PluginCard({
       >
         {isPending || busy ? (
           <div className="plugin-action-icon-btn is-loading" title="Connecting...">
-            <Loader2 size={16} className="animate-spin text-accent" />
+            <Loader2 size={18} className="animate-spin text-accent" />
           </div>
         ) : isConnected ? (
           <div className="plugin-menu-anchor" ref={menuRef}>
@@ -78,7 +78,7 @@ export default function PluginCard({
               onClick={() => setMenuOpen((prev) => !prev)}
               aria-expanded={menuOpen}
             >
-              <MoreHorizontal size={17} />
+              <MoreHorizontal size={19} />
             </button>
 
             {menuOpen && (
@@ -92,7 +92,7 @@ export default function PluginCard({
                     onChat?.(card)
                   }}
                 >
-                  <MessageSquare size={14} className="text-dim" />
+                  <MessageSquare size={15} className="text-dim" />
                   <span>Chat</span>
                 </button>
                 <button
@@ -104,7 +104,7 @@ export default function PluginCard({
                     onOpenDetail?.(card)
                   }}
                 >
-                  <Settings size={14} className="text-dim" />
+                  <Settings size={15} className="text-dim" />
                   <span>Manage</span>
                 </button>
                 <div className="plugin-popover-divider" />
@@ -123,7 +123,7 @@ export default function PluginCard({
                     }
                   }}
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={15} />
                   <span>Uninstall</span>
                 </button>
               </div>
@@ -137,7 +137,7 @@ export default function PluginCard({
               title="More options"
               onClick={() => setMenuOpen((prev) => !prev)}
             >
-              <MoreHorizontal size={17} />
+              <MoreHorizontal size={19} />
             </button>
 
             {menuOpen && (
@@ -151,7 +151,7 @@ export default function PluginCard({
                     onChat?.(card)
                   }}
                 >
-                  <MessageSquare size={14} className="text-dim" />
+                  <MessageSquare size={15} className="text-dim" />
                   <span>Chat</span>
                 </button>
                 <button
@@ -163,7 +163,7 @@ export default function PluginCard({
                     onOpenDetail?.(card)
                   }}
                 >
-                  <Settings size={14} className="text-dim" />
+                  <Settings size={15} className="text-dim" />
                   <span>Details</span>
                 </button>
               </div>
@@ -176,7 +176,7 @@ export default function PluginCard({
             title={`Connect ${card.label || card.name}`}
             onClick={() => onConnect?.(card.slug)}
           >
-            <Plus size={16} />
+            <Plus size={18} />
           </button>
         )}
       </div>

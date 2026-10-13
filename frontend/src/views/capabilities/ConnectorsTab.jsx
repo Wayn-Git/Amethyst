@@ -64,6 +64,8 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   // Catalog and connection state
   const [cards, setCards] = useState(null)
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [searchLoading, setSearchLoading] = useState(false)
   const [configured, setConfigured] = useState(false)
   const [status, setStatus] = useState(() => cachedConnectorStatus || {})
   const [stale, setStale] = useState(false)
@@ -89,7 +91,11 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   // Dynamic search fetch
   useEffect(() => {
-    if (!effectiveSearch || effectiveSearch.length < 2) return
+    if (!effectiveSearch || effectiveSearch.length < 2) {
+      setSearchLoading(false)
+      return
+    }
+    setSearchLoading(true)
     const timer = setTimeout(async () => {
       try {
         const res = await api.connectorsCatalog(effectiveSearch)
@@ -104,9 +110,13 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
         }
       } catch {
         // Keep local results on network error
+      } finally {
+        setSearchLoading(false)
       }
     }, 300)
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+    }
   }, [effectiveSearch])
 
   // Load connected state
@@ -137,12 +147,15 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   // Load catalog
   const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true)
     try {
       const res = await api.connectorsCatalog()
       setCards(res.cards || [])
       setConfigured(Boolean(res.configured))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setCatalogLoading(false)
     }
   }, [])
 
@@ -399,8 +412,15 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
   // Category cards for Category view
   const categoryCards = useMemo(() => {
     if (!activeCategory || !cards) return []
+    if (activeCategory === 'Installed') {
+      return cards.filter(
+        (c) =>
+          Boolean(status[c.slug]?.connected) ||
+          Boolean(status[c.slug]?.accounts?.length)
+      )
+    }
     return cards.filter((c) => c.category === activeCategory)
-  }, [cards, activeCategory])
+  }, [cards, activeCategory, status])
 
   return (
     <div className="connectors-tab-orchestrator">
@@ -614,9 +634,9 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
       {/* ── View Hierarchy Transitions (Directory -> Category -> Detail) ── */}
       <AnimatePresence mode="wait">
-        {viewMode === 'detail' && activeCard ? (
+        {viewMode === 'detail' ? (
           <motion.div
-            key={`detail-${activeCard.slug}`}
+            key={activeCard ? `detail-${activeCard.slug}` : 'detail-skeleton'}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
@@ -624,12 +644,12 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
           >
             <PluginDetailView
               card={activeCard}
-              status={status[activeCard.slug]}
+              status={activeCard ? status[activeCard.slug] : null}
               onBack={handleBack}
               onConnect={connect}
               onDisconnectAccount={disconnectAccount}
               onDisconnectService={disconnectService}
-              busy={busySlug === activeCard.slug}
+              busy={busySlug === activeCard?.slug}
             />
           </motion.div>
         ) : viewMode === 'category' && activeCategory ? (
@@ -643,6 +663,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             <CategoryView
               category={activeCategory}
               cards={categoryCards}
+              loading={catalogLoading || cards === null}
               statusMap={status}
               onBack={handleBack}
               onOpenDetail={handleOpenDetail}
@@ -662,6 +683,8 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
           >
             <PluginsDirectory
               cards={cards || []}
+              loading={catalogLoading || cards === null}
+              searchLoading={searchLoading}
               statusMap={status}
               searchQuery={query}
               setSearchQuery={setQuery}

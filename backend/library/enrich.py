@@ -261,9 +261,18 @@ REAL_TEXT_SOURCES = (
     "slide analysis",
     "caption and slide analysis",
     "page",
+    "note",
     "notes",
     "description",
     "video description",
+    "thread text",
+    "tweet",
+    "social post",
+    "document",
+    "manual",
+    "text",
+    "user",
+    "file",
 )
 
 PROMPT = """\
@@ -690,17 +699,39 @@ def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
 
 def _refusal(text: str, text_source: str | None) -> str | None:
     """The reason not to ask a model, when there is one."""
-    if (text_source or "none") not in REAL_TEXT_SOURCES:
-        return (
-            "there is no text for this one. A direct-message share carries the video"
-            " and a title, and no caption -- nothing was summarised because there"
-            " would have been nothing to summarise from."
-        )
-    if len(text.strip()) < MIN_ENRICHABLE_CHARS:
+    cleaned = (text or "").strip()
+    if len(cleaned) < MIN_ENRICHABLE_CHARS:
         return (
             "the text is a line or two, which is already the whole of it. Summarising"
             " it would just be repeating it."
         )
+    src = (text_source or "").lower().strip()
+    if src and src not in ("none", ""):
+        if not any(
+            known in src
+            for known in (
+                "caption",
+                "transcript",
+                "visual",
+                "slide",
+                "page",
+                "note",
+                "desc",
+                "tweet",
+                "thread",
+                "post",
+                "doc",
+                "text",
+                "manual",
+                "user",
+                "file",
+            )
+        ):
+            return (
+                "there is no text for this one. A direct-message share carries the video"
+                " and a title, and no caption -- nothing was summarised because there"
+                " would have been nothing to summarise from."
+            )
     return None
 
 
@@ -753,14 +784,15 @@ async def enrich_text(
             return result
         if result.provider and result.note is None:
             availability.record_success(link.provider)
+            clean_fallback = body.strip() if (10 <= len(body.strip()) <= 320) else None
             return Enrichment(
                 category=result.category,
-                summary=None,
+                summary=clean_fallback,
                 tags=result.tags,
                 resources=result.resources,
                 provider=result.provider,
                 model=result.model,
-                note="the text was too brief to extract further insights from.",
+                note=None if clean_fallback else "the text was too brief to extract further insights from.",
             )
         last = result
 
@@ -953,7 +985,19 @@ def render_markdown(
 #: The headings `render_markdown` writes a body under. Knowing them is what lets
 #: the source text be read back out of a file that has already been enriched --
 #: without it, re-enriching would summarise the previous summary.
-BODY_HEADINGS = ("Transcript", "Caption", "Caption and Transcript", "Text", "Notes")
+BODY_HEADINGS = (
+    "Transcript",
+    "Caption",
+    "Caption and Transcript",
+    "Text",
+    "Notes",
+    "Post",
+    "Description",
+    "Slide Analysis",
+    "Visual Content",
+    "Document",
+    "Title",
+)
 
 _HEADING = re.compile(rf"^## ({'|'.join(BODY_HEADINGS)})\s*$", re.MULTILINE)
 
@@ -968,17 +1012,28 @@ def body_of(markdown: str) -> tuple[str, str]:
     match = _HEADING.search(text)
     if match:
         body = text[match.end() :]
-        # Everything up to the provenance rule, which is the last thing written.
-        cut = body.rfind("\n---\n")
+        # Cut at first provenance divider rule so legacy stacked footers are discarded
+        cut = body.find("\n---\n")
         if cut != -1:
             body = body[:cut]
+        # Clean any repeated headings from past buggy cycles
+        body = re.sub(
+            rf"^##\s*(?:{'|'.join(BODY_HEADINGS)})\s*\n*", "", body, flags=re.MULTILINE
+        )
         return body.strip(), match.group(1)
 
-    # Never enriched: the file is a title and then the text.
+    # Never enriched or non-standard format: the file is a title and then the text.
     lines = text.splitlines()
     if lines and lines[0].startswith("# "):
         lines = lines[1:]
-    return "\n".join(lines).strip(), "Text"
+    body = "\n".join(lines).strip()
+    cut = body.find("\n---\n")
+    if cut != -1:
+        body = body[:cut]
+    body = re.sub(
+        rf"^##\s*(?:{'|'.join(BODY_HEADINGS)})\s*\n*", "", body, flags=re.MULTILINE
+    )
+    return body.strip(), "Text"
 
 
 def stamp() -> str:

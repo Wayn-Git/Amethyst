@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import ServiceIcon from './ServiceIcon.jsx'
 import PluginHeroPreview from './PluginHeroPreview.jsx'
+import { PluginDetailSkeleton } from './PluginSkeletons.jsx'
 
 export default function PluginDetailView({
   card,
@@ -24,7 +25,7 @@ export default function PluginDetailView({
   const [aliasDraft, setAliasDraft] = useState('')
   const [showAddAccount, setShowAddAccount] = useState(false)
 
-  if (!card) return null
+  if (!card) return <PluginDetailSkeleton onBack={onBack} />
 
   const accounts = status?.accounts || []
   const isConnected = Boolean(status?.connected || accounts.length > 0)
@@ -70,7 +71,7 @@ export default function PluginDetailView({
           onClick={onBack}
           aria-label="Back to plugins"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={18} />
           <span>Plugins</span>
         </button>
       </div>
@@ -91,12 +92,12 @@ export default function PluginDetailView({
           <div className="plugin-detail-header-actions">
             {isIncluded ? (
               <span className="plugin-status-badge is-included">
-                <ShieldCheck size={14} />
+                <ShieldCheck size={15} />
                 <span>Included</span>
               </span>
             ) : isPending || busy ? (
               <button type="button" className="plugin-cta-btn is-loading" disabled>
-                <Loader2 size={15} className="animate-spin" />
+                <Loader2 size={16} className="animate-spin" />
                 <span>Connecting…</span>
               </button>
             ) : isConnected ? (
@@ -119,7 +120,7 @@ export default function PluginDetailView({
                   }}
                   title="Disconnect"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={14} />
                   <span>Disconnect</span>
                 </button>
               </div>
@@ -129,7 +130,7 @@ export default function PluginDetailView({
                 className="plugin-cta-btn is-primary"
                 onClick={() => onConnect?.(card.slug)}
               >
-                <Plus size={15} />
+                <Plus size={16} />
                 <span>Connect</span>
               </button>
             )}
@@ -149,7 +150,7 @@ export default function PluginDetailView({
                   className="plugin-accounts-add-btn"
                   onClick={() => setShowAddAccount(true)}
                 >
-                  <Plus size={12} />
+                  <Plus size={13} />
                   <span>Add another account</span>
                 </button>
               )}
@@ -159,7 +160,7 @@ export default function PluginDetailView({
               {accounts.map((acc) => (
                 <div key={acc.id} className="plugin-account-item">
                   <div className="flex items-center gap-2">
-                    <Check size={13} className="text-live shrink-0" />
+                    <Check size={14} className="text-live shrink-0" />
                     <span className="text-sm font-medium">
                       {acc.alias || acc.id}
                     </span>

@@ -349,9 +349,27 @@ class ReelCapture:
         finally:
             if audio is not None:
                 audio.unlink(missing_ok=True)
-            if settings.keep_video:
-                self.library.store.update(item_id, media_path=str(video))
-            else:
+            if video and video.is_file() and video.stat().st_size > 1000:
+                self.library.store.update(
+                    item_id,
+                    media_path=str(video),
+                    kind="video" if not is_music_intent else "music",
+                )
+                try:
+                    import json as _json
+                    row = self.library.store.get(item_id)
+                    existing_res = []
+                    if row and row.resources:
+                        try:
+                            existing_res = _json.loads(row.resources)
+                        except Exception:
+                            existing_res = []
+                    if not any(isinstance(r, dict) and r.get("type") == "video" for r in existing_res):
+                        existing_res.insert(0, {"type": "video", "name": "Video", "url": f"/api/library/{item_id}/media"})
+                        self.library.store.update(item_id, resources=_json.dumps(existing_res))
+                except Exception:
+                    pass
+            elif not settings.keep_video and video and video.is_file():
                 video.unlink(missing_ok=True)
             if duration is not None:
                 self.library.store.update(item_id, duration_seconds=int(duration))

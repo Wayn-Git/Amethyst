@@ -364,6 +364,34 @@ class LibraryStore:
         params.extend([limit, offset])
         return self.conn.execute(sql, params).fetchall()
 
+    def unsummarized(
+        self, limit: int = 50, exclude_ids: tuple[int, ...] = ()
+    ) -> list[sqlite3.Row]:
+        """Items that currently have no summary and are not already being enriched."""
+        if exclude_ids:
+            placeholders = ",".join("?" * len(exclude_ids))
+            return self.conn.execute(
+                f"""
+                SELECT * FROM library_items
+                WHERE (summary IS NULL OR summary = '')
+                  AND status != 'enriching'
+                  AND id NOT IN ({placeholders})
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (*exclude_ids, limit),
+            ).fetchall()
+        return self.conn.execute(
+            """
+            SELECT * FROM library_items
+            WHERE (summary IS NULL OR summary = '')
+              AND status != 'enriching'
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
     def unfiled(
         self,
         *,
