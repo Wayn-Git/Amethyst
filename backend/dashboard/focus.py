@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from datetime import timedelta
 from typing import Literal
 
@@ -12,6 +13,9 @@ from backend.dashboard import items
 from backend.dashboard.models import StrictModel
 from backend.dashboard.store import settings_read
 from backend.db.connection import get_connection, transaction
+from backend.notify import notify
+
+log = logging.getLogger(__name__)
 
 
 class FocusInput(StrictModel):
@@ -67,35 +71,30 @@ def apply(conn, action, body):
         )
 
 
-def complete_due():
+async def complete_due():
     now = items.local_now()
-    with transaction() as conn:
-        for row in conn.execute("SELECT * FROM dashboard_focus WHERE ended_at IS NULL").fetchall():
-            end = items.parsed(row["started_at"]) + timedelta(seconds=row["duration_s"])
-            if end > now:
-                continue
+    rows = (
+        get_connection().execute("SELECT * FROM dashboard_focus WHERE ended_at IS NULL").fetchall()
+    )
+    for row in rows:
+        end = items.parsed(row["started_at"]) + timedelta(seconds=row["duration_s"])
+        if end > now:
+            continue
+        # Save the deduplicated notification first so interruption cannot lose it.
+        await notify(
+            f"{row['mode'].title()} complete",
+            "Your timer has finished.",
+            source_key=f"focus:{row['id']}",
+        )
+        with transaction() as conn:
             conn.execute(
-                "UPDATE dashboard_focus SET ended_at=?,completed=1 WHERE id=?",
+                "UPDATE dashboard_focus SET ended_at=?,completed=1 WHERE id=? AND ended_at IS NULL",
                 (end.isoformat(), row["id"]),
             )
-            conn.execute(
-                "INSERT OR IGNORE INTO notifications(source_key,title,body,created_at) "
-                "VALUES(?,?,?,?)",
-                (
-                    f"focus:{row['id']}",
-                    f"{row['mode'].title()} complete",
-                    "Your timer has finished.",
-                    now.isoformat(),
-                ),
-            )
-            conn.execute(
-                "UPDATE widget_cache SET state='stale' WHERE widget_id "
-                "IN ('task.focus','sys.notify')"
-            )
+            conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id='task.focus'")
 
 
 def provide():
-    complete_due()
     value = snapshot()
     return {
         **value["settings"],
@@ -106,5 +105,8 @@ def provide():
 
 async def run():
     while True:
-        complete_due()
+        try:
+            await complete_due()
+        except Exception:
+            log.exception("widget=task.focus tick failed")
         await asyncio.sleep(1)

@@ -1,4 +1,6 @@
+import asyncio
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -14,6 +16,7 @@ from backend.db.connection import reset_connection
 def clock(db, monkeypatch):
     now = [datetime(2026, 10, 25, 23, 59, tzinfo=ZoneInfo("Asia/Kolkata"))]
     monkeypatch.setattr(items, "local_now", lambda: now[0])
+    monkeypatch.setattr("backend.notify._desktop_notify", AsyncMock(return_value=True))
     return now
 
 
@@ -37,8 +40,8 @@ def test_timer_gate_restart_completion(clock, db):
         reset_connection()
         assert focus.provide()["items"][0]["started_at"] == clock[0].isoformat()
         clock[0] += timedelta(minutes=1)
-        focus.complete_due()
-        focus.complete_due()
+        asyncio.run(focus.complete_due())
+        asyncio.run(focus.complete_due())
         assert focus.provide()["items"][0]["completed"] == 1
         from backend.db.connection import get_connection
 

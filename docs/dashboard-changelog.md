@@ -129,3 +129,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 task.habits: gated local creation/check-ins, daily or Monday-based weekly targets, date-derived streaks; fixed-clock backend and functional UI checks pass.
 
 - 2026-10-25 task.goals: gated local goals with target dates, manual percentages or live existing-task progress; fixed-clock backend and functional UI checks pass.
+
+- 2026-10-25 task.focus: completion reuses the shared notification dispatcher, including quiet hours and desktop delivery; worker retries tick failures.
