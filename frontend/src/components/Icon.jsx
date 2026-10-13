@@ -297,6 +297,8 @@ const MARKS = {
   code: CodeSimple,
   expand: ArrowsOut,
   collapse: ArrowsIn,
+  maximize: ArrowsOut,
+  minimize: ArrowsIn,
   download: DownloadSimple,
   page: FileText,
   paperclip: Paperclip,

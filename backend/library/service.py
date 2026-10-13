@@ -24,13 +24,14 @@ import asyncio
 import json
 import logging
 import re
+import shutil
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
 from backend.db.connection import get_connection
-from backend.library.store import KINDS, LibraryStore, app_tag_for_url, slide_path, text_path, thumbnail_path
+from backend.library.store import KINDS, LibraryStore, app_tag_for_url, media_path, slide_path, text_path, thumbnail_path
 from backend.mcp.ssrf import UnsafeURL, check_url_async
 from backend.media.reel import is_reel_url
 from backend.retrieval import store as index_store
@@ -41,10 +42,12 @@ from backend.web.reader import (
     FetchError,
     fetch_readable,
     is_pinterest,
+    is_reddit,
     is_threads,
     is_x_post,
     is_youtube,
     pinterest_oembed,
+    reddit_post,
     threads_oembed,
     x_oembed,
     youtube_oembed,
@@ -55,6 +58,7 @@ log = logging.getLogger(__name__)
 #: Background enrichment tasks, held so the event loop's weak reference to an
 #: unreferenced task cannot be the reason enrichment silently vanishes.
 _BACKGROUND_TASKS: set[asyncio.Task] = set()
+_SWEEP_ATTEMPTS: dict[int, float] = {}
 
 #: Below this, the "text" is a cookie banner or a paywall stub rather than an
 #: article, and indexing it would pollute the index with a page nobody read.
@@ -76,6 +80,11 @@ _KIND_BY_HOST = {
     "pinterest.com": "post",
     "www.pinterest.com": "post",
     "pin.it": "post",
+    "reddit.com": "post",
+    "www.reddit.com": "post",
+    "old.reddit.com": "post",
+    "redd.it": "post",
+    "v.redd.it": "video",
     "arxiv.org": "paper",
     "www.arxiv.org": "paper",
     # Music platforms
@@ -184,6 +193,9 @@ def as_dict(row) -> dict:
         except Exception:
             pass
 
+    if not data.get("excerpt") and not data.get("summary") and data.get("enriched_at"):
+        data["excerpt"] = data.get("notes") or data.get("title") or ""
+
     return data
 
 
@@ -222,7 +234,7 @@ def _extract_youtube_info(url: str) -> dict | None:
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
-            "extract_flat": False,
+            "extract_flat": True,
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             return ydl.extract_info(url, download=False)
@@ -260,6 +272,8 @@ class LibraryService:
         notes: str | None = None,
         title: str | None = None,
         source_ref: str | None = None,
+        existing_id: int | None = None,
+        force: bool = False,
     ) -> Captured:
         """Log a URL, fetching whatever text it will give up.
 
@@ -293,13 +307,12 @@ class LibraryService:
         except UnsafeURL as exc:
             raise LibraryError(str(exc)) from exc
 
-        existing_id: int | None = None
-        if existing is not None:
+        if existing_id is None and existing is not None:
             is_skeleton = (
                 existing["status"] in ("received", "processing", "failed")
                 or (existing["title"] == existing["url"] and not existing["text_path"] and not existing["thumbnail_path"])
             )
-            if is_skeleton:
+            if is_skeleton or force:
                 existing_id = existing["id"]
             else:
                 return Captured(as_dict(existing), already_logged=True)
@@ -433,11 +446,56 @@ class LibraryService:
                     )
                 note = await self._store_text(item_id, title or url, text, capture_note)
                 app_tag = app_tag_for_url(url)
-                updates = {"capture_note": note or None, "status": "ready"}
+                can_enrich = False
+                try:
+                    from backend.config import load_library
+                    can_enrich = bool(load_library().auto_enrich)
+                except Exception:
+                    can_enrich = False
+                initial_status = "enriching" if (can_enrich and len(text.strip()) >= 15) else "ready"
+                updates = {
+                    "capture_note": note or None,
+                    "text_source": "thread text",
+                    "status": initial_status,
+                }
                 if app_tag:
                     updates["tags"] = json.dumps([app_tag])
+                all_resources = []
+                if meta.get("slide_urls"):
+                    all_resources.extend([
+                        {"type": "slide", "name": f"Photo {i + 1}", "url": u, "index": i}
+                        for i, u in enumerate(meta["slide_urls"])
+                    ])
+                if meta.get("video_url"):
+                    video_item = {"type": "video", "name": "Video", "url": meta["video_url"]}
+                    all_resources.insert(0, video_item)
+                    updates["kind"] = "video"
+                if all_resources:
+                    updates["resources"] = json.dumps(all_resources)
+                    async def _cache_video(i_id: int, v_u: str):
+                        try:
+                            import httpx
+                            from backend.library.store import media_path
+                            target = media_path(i_id, ".mp4")
+                            if not target.is_file():
+                                async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as c:
+                                    r = await c.get(v_u)
+                                    if r.status_code == 200 and len(r.content) > 1000:
+                                        target.parent.mkdir(parents=True, exist_ok=True)
+                                        target.write_bytes(r.content)
+                                        self.store.update(i_id, media_path=str(target))
+                        except Exception:
+                            pass
+                    try:
+                        asyncio.create_task(_cache_video(item_id, meta["video_url"]))
+                    except Exception:
+                        pass
                 self.store.update(item_id, **updates)
-                self._enrich_later(item_id)
+                thumb_url = meta.get("thumbnail_url")
+                if thumb_url:
+                    await self._save_thumb(item_id, thumb_url)
+                if initial_status == "enriching":
+                    self._enrich_later(item_id)
                 return Captured(as_dict(self.store.get(item_id)))
             # Rung 3: the note names whichever rung was the last one tried.
             if x_note:
@@ -449,6 +507,7 @@ class LibraryService:
         text_source = "none"
         duration_seconds = None
         thumb_url: str | None = None
+        threads_slides: list[str] | None = None
         if is_youtube(url):
             info = None
             try:
@@ -516,6 +575,8 @@ class LibraryService:
                 author = meta.get("author") or None
                 text = meta.get("text") or ""
                 thumb_url = meta.get("thumbnail_url")
+                if meta.get("slide_urls"):
+                    threads_slides = meta["slide_urls"]
                 if text:
                     text_source = "thread text"
             if not text:
@@ -527,11 +588,25 @@ class LibraryService:
                         text = page.text if page else ""
                         if not thumb_url and page.image:
                             thumb_url = page.image
+                        if text:
+                            text_source = "thread text"
                 except Exception as exc:
                     log.debug("threads page fetch fallback failed for %s: %s", url, exc)
             if not text and title:
                 text = title
                 text_source = "title"
+            capture_note = ""
+            published_on = None
+        elif is_reddit(url):
+            site = "reddit.com"
+            meta = await reddit_post(url)
+            if meta:
+                title = title or meta.get("title")
+                author = author or meta.get("author")
+                text = meta.get("text") or ""
+                thumb_url = meta.get("thumbnail_url")
+                if text:
+                    text_source = "post"
             capture_note = ""
             published_on = None
         else:
@@ -547,6 +622,8 @@ class LibraryService:
             site = page.site if page else None
             published_on = page.published_on if page else None
             text = page.text if page else ""
+            if text:
+                text_source = "page"
             if page and page.image:
                 thumb_url = page.image
             if page and page.note:
@@ -594,6 +671,16 @@ class LibraryService:
             updates["text_source"] = text_source
         if duration_seconds is not None:
             updates["duration_seconds"] = duration_seconds
+        if threads_slides:
+            slide_items = [
+                {"type": "slide", "name": f"Photo {i + 1}", "url": u, "index": i}
+                for i, u in enumerate(threads_slides)
+            ]
+            updates["resources"] = json.dumps(slide_items)
+            try:
+                asyncio.create_task(self.fetch_slides_for_item(item_id))
+            except Exception:
+                pass
 
         # Automatically tag item according to originating app/platform
         app_tag = app_tag_for_url(url)
@@ -698,7 +785,166 @@ class LibraryService:
         # is the only searchable thing about it.
         body = (text or "").strip() or (notes or "").strip()
         note = await self._store_text(item_id, title, body, "", fetched=False)
-        self.store.update(item_id, capture_note=note or None)
+        can_enrich = False
+        try:
+            from backend.config import load_library
+            can_enrich = bool(load_library().auto_enrich)
+        except Exception:
+            can_enrich = False
+        text_source = "manual" if body else "none"
+        initial_status = "enriching" if (can_enrich and len(body) >= 15) else "ready"
+        self.store.update(item_id, capture_note=note or None, text_source=text_source, status=initial_status)
+        if initial_status == "enriching":
+            self._enrich_later(item_id)
+        return Captured(as_dict(self.store.get(item_id)))
+
+    async def capture_media_file(
+        self,
+        media_path_src: str,
+        *,
+        title: str | None = None,
+        kind: str | None = None,
+        category: str | None = None,
+        notes: str | None = None,
+        consumed_on: str | None = None,
+        rating: int | None = None,
+        author: str | None = None,
+    ) -> Captured:
+        """Log a local media file (video, audio, image, document) uploaded to the platform."""
+        src = Path(media_path_src).resolve()
+        if not src.is_file():
+            raise LibraryError(f"file not found: {media_path_src}")
+
+        ext = src.suffix.lower()
+        if not kind or kind not in KINDS:
+            if ext in (".mp4", ".mov", ".webm", ".mkv", ".avi"):
+                kind = "video"
+            elif ext in (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"):
+                kind = "podcast"
+            elif ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic"):
+                kind = "image"
+            elif ext in (".pdf", ".epub"):
+                kind = "book"
+            else:
+                kind = "note"
+
+        clean_title = (title or src.stem).replace("_", " ").strip() or "Uploaded File"
+
+        item_id = self.store.create(
+            kind=kind,
+            title=clean_title[:400],
+            category=category,
+            url=None,
+            author=author,
+            site=None,
+            consumed_on=consumed_on or date.today().isoformat(),
+            notes=notes,
+            rating=_rating(rating),
+        )
+
+        dest_media = media_path(item_id, ext or ".bin")
+        dest_media.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy2(src, dest_media)
+        except Exception as exc:
+            log.warning("failed to copy media to library storage for %s: %s", item_id, exc)
+            dest_media = src
+
+        thumb_saved = None
+        duration_seconds = None
+        text = ""
+        text_source = "none"
+
+        if kind == "video":
+            t_target = thumbnail_path(item_id)
+            from backend.media.audio import _run, ffmpeg_missing
+            if not ffmpeg_missing():
+                try:
+                    code, _ = await _run(["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(dest_media), "-vframes", "1", "-q:v", "3", str(t_target)])
+                    if code == 0 and t_target.is_file() and t_target.stat().st_size > 500:
+                        thumb_saved = str(t_target)
+                except Exception as exc:
+                    log.debug("ffmpeg thumbnail generation failed for %s: %s", item_id, exc)
+
+            try:
+                from backend.media.audio import extract_audio
+                from backend.runtime.transcribe import resolve_transcriber, transcribe
+                audio_dest = media_path(item_id, ".audio")
+                audio_file = await extract_audio(dest_media, audio_dest)
+                if audio_file and resolve_transcriber() is not None:
+                    res = await transcribe(audio_file)
+                    if res.text and res.text.strip():
+                        text = res.text.strip()
+                        text_source = "transcript"
+            except Exception as exc:
+                log.debug("transcription for uploaded video %s failed: %s", item_id, exc)
+
+        elif kind in ("podcast", "audio", "music"):
+            try:
+                from backend.runtime.transcribe import resolve_transcriber, transcribe
+                if resolve_transcriber() is not None:
+                    res = await transcribe(dest_media)
+                    if res.text and res.text.strip():
+                        text = res.text.strip()
+                        text_source = "transcript"
+            except Exception as exc:
+                log.debug("audio transcription for %s failed: %s", item_id, exc)
+
+        elif kind == "image":
+            t_target = thumbnail_path(item_id)
+            try:
+                shutil.copy2(dest_media, t_target)
+                thumb_saved = str(t_target)
+                text_source = "image"
+            except Exception:
+                pass
+
+        elif ext in (".txt", ".md"):
+            try:
+                text = dest_media.read_text(encoding="utf-8", errors="replace")[:50000]
+                text_source = "document"
+            except Exception:
+                pass
+
+        elif ext == ".pdf":
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(str(dest_media))
+                pages = [p.extract_text() for p in reader.pages[:20] if p.extract_text()]
+                text = "\n\n".join(pages)
+                if text:
+                    text_source = "document"
+            except Exception:
+                pass
+
+        body = (text or "").strip() or (notes or "").strip() or clean_title
+        if text_source == "none" and body:
+            text_source = "manual" if notes else "title"
+
+        note = await self._store_text(item_id, clean_title, body, "", fetched=False)
+
+        can_enrich = False
+        try:
+            from backend.config import load_library
+            can_enrich = bool(load_library().auto_enrich)
+        except Exception:
+            can_enrich = False
+
+        initial_status = "enriching" if (can_enrich and len(body.strip()) >= 15) else "ready"
+        updates = {
+            "capture_note": note or None,
+            "text_source": text_source,
+            "media_path": str(dest_media),
+            "thumbnail_path": thumb_saved,
+            "status": initial_status,
+        }
+        if duration_seconds:
+            updates["duration_seconds"] = duration_seconds
+        self.store.update(item_id, **updates)
+
+        if initial_status == "enriching":
+            self._enrich_later(item_id)
+
         return Captured(as_dict(self.store.get(item_id)))
 
     async def _save_thumb(self, item_id: int, thumb_url: str) -> None:
@@ -714,7 +960,7 @@ class LibraryService:
         try:
             async with _httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 resp = await client.get(thumb_url, headers=DEFAULT_HEADERS)
-            if resp.status_code == 200 and resp.content and len(resp.content) >= 1024:
+            if resp.status_code == 200 and resp.content and len(resp.content) >= 300:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(resp.content)
                 self.store.update(item_id, thumbnail_path=str(target))
@@ -772,6 +1018,14 @@ class LibraryService:
                 meta = await youtube_oembed(url)
                 if meta and meta.get("thumbnail_url"):
                     thumb_url = meta.get("thumbnail_url")
+        elif is_reddit(url):
+            meta = await reddit_post(url)
+            if meta and meta.get("thumbnail_url"):
+                thumb_url = meta.get("thumbnail_url")
+        elif is_x_post(url):
+            meta = await x_oembed(url)
+            if meta and meta.get("thumbnail_url"):
+                thumb_url = meta.get("thumbnail_url")
         elif is_pinterest(url):
             meta = await pinterest_oembed(url)
             if meta and meta.get("thumbnail_url"):
@@ -802,6 +1056,16 @@ class LibraryService:
             except Exception:
                 pass
 
+        # High-res favicon/touch-icon fallback if webpage had no og:image
+        if not thumb_url and url:
+            try:
+                from urllib.parse import urlparse
+                host = (urlparse(url).hostname or "").lower()
+                if host and not any(h in host for h in ("localhost", "127.0.0.1")):
+                    thumb_url = f"https://www.google.com/s2/favicons?domain={host}&sz=128"
+            except Exception:
+                pass
+
         if thumb_url:
             await self._save_thumb(item_id, thumb_url)
             updated = self.store.get(item_id)
@@ -820,21 +1084,32 @@ class LibraryService:
             return []
         row = dict(raw)
         url = row.get("url")
-        if not url or not is_reel_url(url):
-            return []
+        slide_urls: list[str] = []
+        if url and is_reel_url(url):
+            try:
+                reel = await fetch_reel(url, None)
+                if reel and reel.slide_urls:
+                    slide_urls = list(reel.slide_urls)
+            except Exception as exc:
+                log.debug("on-demand reel fetch failed for item %s: %s", item_id, exc)
 
-        try:
-            reel = await fetch_reel(url, None)
-        except Exception as exc:
-            log.debug("on-demand reel fetch failed for item %s: %s", item_id, exc)
-            return []
+        if not slide_urls and row.get("resources"):
+            try:
+                existing_res = _json.loads(row["resources"])
+                for r in existing_res:
+                    if isinstance(r, dict) and r.get("type") in ("slide", "image"):
+                        u = r.get("url")
+                        if u and u.startswith("http"):
+                            slide_urls.append(u)
+            except Exception:
+                pass
 
-        if not reel.slide_urls:
+        if not slide_urls:
             return []
 
         saved_paths: list[str] = []
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            for i, s_url in enumerate(reel.slide_urls[:10]):
+            for i, s_url in enumerate(slide_urls[:10]):
                 target = slide_path(item_id, i)
                 if not (target.is_file() and target.stat().st_size > 500):
                     try:
@@ -862,10 +1137,16 @@ class LibraryService:
                 else:
                     saved_paths.append(str(target))
 
-        # Update resources to reflect local slide endpoints
+        # Update resources to reflect local slide endpoints while keeping remote_url
         slide_items = [
-            {"type": "slide", "name": f"Slide {idx + 1}", "url": f"/api/library/{item_id}/slides/{idx}", "index": idx}
-            for idx in range(len(reel.slide_urls))
+            {
+                "type": "slide",
+                "name": f"Slide {idx + 1}",
+                "url": f"/api/library/{item_id}/slides/{idx}",
+                "remote_url": slide_urls[idx] if idx < len(slide_urls) else None,
+                "index": idx,
+            }
+            for idx in range(len(slide_urls))
         ]
         existing_res = []
         if row.get("resources"):
@@ -1091,53 +1372,112 @@ class LibraryService:
             except OSError as exc:
                 log.warning("could not read library text for %s: %s", item_id, exc)
 
-        text_source = row["text_source"] or ("page" if row["url"] else "none")
+        text_source = row["text_source"] or ("page" if row["url"] else "note")
 
         # If this is a reel/video/carousel and has not had visual content extracted yet,
-        # try re-extracting slides or frames so enrichment has full visual context
-        if row["url"] and is_reel_url(row["url"]) and text_source in ("caption", "none"):
+        # try re-extracting slides, caption or frames so enrichment has full context
+        if row["url"] and is_reel_url(row["url"]) and (
+            row["title"] in ("Instagram", row["url"])
+            or text_source in ("caption", "none", "title", "page")
+            or not row.get("resources")
+            or not row.get("thumbnail_path")
+        ):
             from backend.config import load_instagram
-            from backend.media.reel import fetch_reel
+            from backend.library.reels import ReelCapture
             ig_settings = load_instagram()
             try:
-                reel = await fetch_reel(row["url"], None, cookies_from_browser=ig_settings.cookies_from_browser or None)
-                if reel.slide_urls:
-                    from backend.library.reels import ReelCapture
-                    rc = ReelCapture(self, settings=ig_settings)
-                    await rc._process_slides(item_id, reel)
-                    # Re-read updated row and body
-                    updated_row = self.store.get(item_id)
-                    if updated_row and updated_row["text_path"]:
+                rc = ReelCapture(self, settings=ig_settings)
+                recaptured = await rc.capture(row["url"], existing_id=item_id)
+                updated_row = self.store.get(item_id)
+                if updated_row:
+                    row = dict(updated_row)
+                    if row["text_path"]:
                         body, heading = enrichment.body_of(
-                            Path(updated_row["text_path"]).read_text(encoding="utf-8")
+                            Path(row["text_path"]).read_text(encoding="utf-8")
                         )
-                        text_source = updated_row["text_source"] or "slide analysis"
-                        row = dict(updated_row)
+                    text_source = row["text_source"] or "caption"
             except Exception as exc:
-                log.debug("re-extraction of visual content during enrich skipped/failed: %s", exc)
-        elif row["media_path"] and Path(row["media_path"]).is_file() and "visual content" not in text_source:
-            try:
-                import tempfile
-                from backend.media.vision import extract_frames
-                from backend.runtime.vision import extract_visual_text
-                frames_dir = Path(tempfile.mkdtemp(prefix="amethyst-vision-enrich-"))
+                log.debug("re-extraction of reel during enrich skipped/failed: %s", exc)
+
+        # Check if local video exists on disk if media_path was null in DB
+        if not row.get("media_path"):
+            for ext in (".mp4", ".mov", ".webm", ".mkv"):
+                cand = media_path(item_id, ext)
+                if cand.is_file():
+                    row["media_path"] = str(cand)
+                    self.store.update(item_id, media_path=str(cand))
+                    break
+
+        elif row.get("media_path") and Path(row["media_path"]).is_file():
+            # If transcript is missing, try audio extraction and transcription
+            if "transcript" not in text_source:
                 try:
-                    frames = await extract_frames(Path(row["media_path"]), frames_dir)
-                    if frames:
-                        vtext = await extract_visual_text([f.read_bytes() for f in frames])
-                        if vtext:
-                            new_body = f"{body}\n\n## Visual Content\n\n{vtext}" if body else vtext
-                            new_source = f"{text_source} and visual content" if text_source not in ("none", "") else "visual content"
-                            await self.replace_text(item_id, new_body, text_source=new_source)
-                            updated_row = self.store.get(item_id)
-                            if updated_row and updated_row["text_path"]:
-                                body, heading = enrichment.body_of(Path(updated_row["text_path"]).read_text(encoding="utf-8"))
-                                text_source = updated_row["text_source"]
-                                row = dict(updated_row)
-                finally:
-                    shutil.rmtree(frames_dir, ignore_errors=True)
+                    from backend.media.audio import extract_audio
+                    from backend.runtime.transcribe import resolve_transcriber, transcribe
+                    if resolve_transcriber() is not None:
+                        a_dest = media_path(item_id, ".audio")
+                        a_file = await extract_audio(Path(row["media_path"]), a_dest)
+                        if a_file:
+                            res = await transcribe(a_file)
+                            if res and res.text and res.text.strip():
+                                t_text = res.text.strip()
+                                body = f"{body}\n\n## Transcript\n\n{t_text}" if body else t_text
+                                text_source = f"{text_source} and transcript" if text_source not in ("none", "") else "transcript"
+                                await self.replace_text(item_id, body, text_source=text_source)
+                                updated_row = self.store.get(item_id)
+                                if updated_row and updated_row["text_path"]:
+                                    body, heading = enrichment.body_of(Path(updated_row["text_path"]).read_text(encoding="utf-8"))
+                                    row = dict(updated_row)
+                except Exception as exc:
+                    log.debug("transcription during enrich failed: %s", exc)
+
+            if "visual content" not in text_source:
+                try:
+                    import tempfile
+                    from backend.media.vision import extract_frames
+                    from backend.runtime.vision import extract_visual_text
+                    frames_dir = Path(tempfile.mkdtemp(prefix="amethyst-vision-enrich-"))
+                    try:
+                        frames = await extract_frames(Path(row["media_path"]), frames_dir)
+                        if frames:
+                            vtext = await extract_visual_text([f.read_bytes() for f in frames])
+                            if vtext:
+                                new_body = f"{body}\n\n## Visual Content\n\n{vtext}" if body else vtext
+                                new_source = f"{text_source} and visual content" if text_source not in ("none", "") else "visual content"
+                                await self.replace_text(item_id, new_body, text_source=new_source)
+                                updated_row = self.store.get(item_id)
+                                if updated_row and updated_row["text_path"]:
+                                    body, heading = enrichment.body_of(Path(updated_row["text_path"]).read_text(encoding="utf-8"))
+                                    text_source = updated_row["text_source"]
+                                    row = dict(updated_row)
+                    finally:
+                        shutil.rmtree(frames_dir, ignore_errors=True)
+                except Exception as exc:
+                    log.debug("frame re-extraction during enrich failed: %s", exc)
+
+        # If body is still empty but URL exists, re-fetch page/post
+        if not body.strip() and row["url"]:
+            try:
+                await self.capture_url(row["url"], existing_id=item_id, force=True)
+                updated_row = self.store.get(item_id)
+                if updated_row:
+                    row = dict(updated_row)
+                    if row["text_path"] and Path(row["text_path"]).is_file():
+                        body, heading = enrichment.body_of(
+                            Path(row["text_path"]).read_text(encoding="utf-8")
+                        )
+                    text_source = row["text_source"] or "page"
             except Exception as exc:
-                log.debug("frame re-extraction during enrich failed: %s", exc)
+                log.debug("re-fetching link during enrich for item %s failed: %s", item_id, exc)
+
+        if not body.strip() and row.get("notes"):
+            body = row["notes"]
+            heading = "Notes"
+            text_source = "notes"
+        elif not body.strip() and row.get("title") and len(row["title"].strip()) >= 15:
+            body = row["title"]
+            heading = "Title"
+            text_source = "title"
 
         if text_source == "transcript":
             heading = "Transcript"
@@ -1151,6 +1491,12 @@ class LibraryService:
             heading = "Visual Content"
         elif text_source in ("video description", "description"):
             heading = "Description"
+        elif text_source in ("notes", "note", "manual"):
+            heading = "Notes"
+        elif text_source in ("thread text", "tweet", "social post"):
+            heading = "Post"
+        elif text_source == "document":
+            heading = "Document"
 
         self.store.update(item_id, status="enriching")
         try:
@@ -1182,11 +1528,15 @@ class LibraryService:
                     if not any(mr.get("url") == r.get("url") for mr in merged_resources if isinstance(mr, dict)):
                         merged_resources.append(r)
 
+            clean_summary = result.summary
+            if not clean_summary and body.strip() and 10 <= len(body.strip()) <= 400:
+                clean_summary = body.strip()
+
             self.store.update(
                 item_id,
                 status="ready",
                 category=result.category,
-                summary=result.summary,
+                summary=clean_summary,
                 tags=json.dumps(combined_tags) if combined_tags else None,
                 resources=json.dumps(merged_resources) if merged_resources else None,
                 enrichment_note=result.note,
@@ -1460,6 +1810,49 @@ class LibraryService:
             if len(out) >= limit:
                 break
         return out
+
+    async def sweep_unsummarized(self, max_items: int = 50, force: bool = False) -> int:
+        """Find items that lack summaries and enrich them sequentially.
+
+        Returns the number of items processed.
+        """
+        try:
+            from backend.config import load_library
+            if not load_library().auto_enrich:
+                return 0
+        except Exception:
+            return 0
+
+        import time
+        now = time.time()
+        if force:
+            _SWEEP_ATTEMPTS.clear()
+
+        # Clean up attempts older than 10 minutes so items can be retried eventually
+        expired = [item_id for item_id, t in _SWEEP_ATTEMPTS.items() if now - t > 600]
+        for item_id in expired:
+            _SWEEP_ATTEMPTS.pop(item_id, None)
+
+        recent_ids = tuple(_SWEEP_ATTEMPTS.keys())
+        rows = self.store.unsummarized(limit=max_items, exclude_ids=recent_ids)
+        if not rows:
+            return 0
+
+        processed = 0
+        for row in rows:
+            item_id = row["id"]
+            _SWEEP_ATTEMPTS[item_id] = now
+            try:
+                log.info("auto-enriching unsummarized library item %d: %s", item_id, row["title"] or "")
+                await self.enrich(item_id)
+                processed += 1
+            except Exception as exc:
+                log.warning("auto-enrichment sweep failed for item %d: %s", item_id, exc)
+            # Gentle throttle between items to prevent rate limiting
+            await asyncio.sleep(1.2)
+
+        return processed
+
 
 
 def _rating(value: object) -> int | None:

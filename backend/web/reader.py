@@ -238,46 +238,94 @@ def is_threads(url: str) -> bool:
     return host in THREADS_HOSTS or any(host.endswith(f".{h}") for h in THREADS_HOSTS)
 
 
-async def threads_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:
-    """Fetch post text, author, and embed metadata via Threads' public oEmbed API.
+async def threads_oembed(url: str, *, timeout: float = 10.0) -> dict[str, Any] | None:
+    """Fetch post text, author, and embed metadata via Threads' oEmbed API or rendered reader fallback."""
+    clean_url = re.sub(r"^https?://(?:www\.)?threads\.com", "https://www.threads.net", url)
+    author = None
+    m_author = re.search(r"/@([A-Za-z0-9_.-]+)", clean_url)
+    if m_author:
+        author = m_author.group(1)
 
-    No authentication required (tokenless up to 1,000 req/hr).
-    """
-    for endpoint in THREADS_OEMBED_URLS:
+    clean_text = ""
+    thumb: str | None = None
+    slide_urls: list[str] = []
+
+    # Attempt 1: Tokenless public oEmbed API
+    for endpoint in (
+        "https://graph.threads.net/v1.0/oembed?url={url}",
+        "https://graph.threads.com/v1.0/oembed?url={url}",
+        *THREADS_OEMBED_URLS,
+    ):
         try:
-            target = endpoint.format(url=quote(url, safe=""))
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            target = endpoint.format(url=quote(clean_url, safe=""))
+            async with httpx.AsyncClient(timeout=min(timeout, 6.0), follow_redirects=True) as client:
                 resp = await client.get(target, headers=DEFAULT_HEADERS)
             if resp.status_code == 200:
                 data = resp.json()
                 raw_html = data.get("html") or ""
-                # Strip HTML tags to extract raw post text
-                clean_text = re.sub(r"<[^>]+>", " ", raw_html)
-                clean_text = " ".join(clean_text.split())
-                clean_text = re.sub(r"\s*View on Threads\s*", "", clean_text, flags=re.IGNORECASE).strip()
-
-                author = (data.get("author_name") or "").strip()
-                if not author:
-                    m = re.search(r"/@([A-Za-z0-9_.-]+)", url)
-                    if m:
-                        author = m.group(1)
-
-                title = data.get("title") or (f"Thread by @{author}" if author else "Threads Post")
-                if clean_text and len(clean_text) > 10:
-                    first_line = clean_text.splitlines()[0][:90]
-                    title = f"@{author}: {first_line}" if author else first_line
-
-                thumb = (data.get("thumbnail_url") or "").strip() or None
-                return {
-                    "title": title,
-                    "author": author or None,
-                    "site": "threads.net",
-                    "text": clean_text,
-                    "thumbnail_url": thumb,
-                }
+                # Strip HTML tags
+                raw_extracted = re.sub(r"<[^>]+>", " ", raw_html)
+                raw_extracted = " ".join(raw_extracted.split())
+                raw_extracted = re.sub(r"\s*View on Threads\s*", "", raw_extracted, flags=re.IGNORECASE).strip()
+                if raw_extracted:
+                    clean_text = raw_extracted
+                if not author and data.get("author_name"):
+                    author = str(data["author_name"]).strip()
+                if data.get("thumbnail_url"):
+                    thumb = str(data["thumbnail_url"]).strip()
+                if clean_text:
+                    break
         except Exception as exc:
-            log.debug("Threads oEmbed failed for %s via %s: %s", url, endpoint, exc)
-    return None
+            log.debug("Threads oEmbed failed for %s via %s: %s", clean_url, endpoint, exc)
+
+    # Attempt 2: Rendered Reader fallback when oEmbed provides no text (only SVG logo)
+    if not clean_text or len(clean_text) < 5:
+        try:
+            from backend.web.jina import fetch_rendered
+            rendered_page = await fetch_rendered(clean_url, timeout=timeout)
+            if rendered_page and rendered_page.text:
+                full_md = rendered_page.text
+                # Match post text right under date link or # [Thread]
+                m_post = re.search(
+                    r"\[\d{2}/\d{2}/\d{2,4}\]\(https?://[^\)]+/post/[^\)]+\)\s*\n\s*\n(.*?)(?:\n\s*\n\d+(?:\.\d+)?[KMBkmb]?|\Z)",
+                    full_md,
+                    re.DOTALL,
+                )
+                if m_post:
+                    clean_text = m_post.group(1).strip()
+                else:
+                    m2 = re.search(r"#\s*\[Thread\][^\n]*\n(.*?)(?:\n\s*\n\d+(?:\.\d+)?[KMBkmb]?|\Z)", full_md, re.DOTALL)
+                    if m2:
+                        lines = [l.strip() for l in m2.group(1).splitlines() if l.strip() and not l.startswith("![") and not l.startswith("[")]
+                        clean_text = " ".join(lines[:6])
+
+                # Extract post images
+                all_imgs = re.findall(r"!\[(.*?)\]\((https?://[^\)]+)\)", full_md)
+                post_imgs = [img for alt, img in all_imgs if "profile picture" not in alt.lower() and "profile_pic" not in img and "rsrc.php" not in img]
+                if post_imgs:
+                    thumb = post_imgs[0]
+                    slide_urls = post_imgs
+                elif all_imgs and not thumb:
+                    thumb = all_imgs[0][1]
+        except Exception as exc:
+            log.debug("Threads rendered reader fallback failed for %s: %s", url, exc)
+
+    if not clean_text and not author and not thumb:
+        return None
+
+    title = f"Thread by @{author}" if author else "Threads Post"
+    if clean_text:
+        first_line = clean_text.splitlines()[0][:90].strip()
+        title = f"@{author}: {first_line}" if author else first_line
+
+    return {
+        "title": title,
+        "author": author or None,
+        "site": "threads.net",
+        "text": clean_text,
+        "thumbnail_url": thumb,
+        "slide_urls": slide_urls,
+    }
 
 
 #: X serves a JavaScript shell to an ordinary fetch, so a captured link has
@@ -286,6 +334,7 @@ async def threads_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] |
 #: owns are the same ones checked here.
 X_HOSTS = {"x.com", "twitter.com", "mobile.twitter.com"}
 X_OEMBED_URL = "https://publish.twitter.com/oembed?url={url}"
+X_OEMBED_V2_URL = "https://publish.x.com/oembed?url={url}"
 
 
 def is_x_post(url: str) -> bool:
@@ -294,42 +343,313 @@ def is_x_post(url: str) -> bool:
     return (urlparse(url).hostname or "").lower() in X_HOSTS
 
 
-async def x_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:
-    """A post's author and text, from X's own public oEmbed endpoint.
-
-    No credentials, no rate limit worth naming, and no thread context -- the
-    single post and nothing before or after it. That is still the difference
-    between a captured link with a real title and body and one logged as a bare
-    URL, and it is why this is the middle rung of the capture ladder rather
-    than a footnote: it works on a machine with no reader installed, which is
-    every machine that has not opted in.
-    """
+def _tweet_token(tweet_id: str) -> str:
+    """Calculate syndication token for public tweet fetch."""
+    import math
     try:
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            response = await client.get(
-                X_OEMBED_URL.format(url=quote(url, safe="")),
-                headers=DEFAULT_HEADERS,
-            )
-        if response.status_code != 200:
-            return None
-        data = json.loads(response.text)
-    except (httpx.HTTPError, ValueError) as exc:
-        log.debug("x oembed lookup failed for %s: %s", url, exc)
-        return None
-    # `html` is the embed markup with the post text inside it; strip the tags
-    # to the words. Not a full readability pass -- a blockquote, a link and
-    # the author's handle is the whole of what X puts in there.
-    text = re.sub(r"<[^>]+>", " ", data.get("html") or "")
-    text = " ".join(text.split())
-    title = (data.get("author_name") or "").strip()
-    if not title:
-        return None
-    return {
-        "title": f"{title} on X",
-        "author": title,
-        "site": "x.com",
-        "text": text,
-    }
+        val = (float(tweet_id) / 1e15) * math.pi
+        chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+        int_part = int(val)
+        frac_part = val - int_part
+        res = []
+        if int_part > 0:
+            temp = int_part
+            s = []
+            while temp > 0:
+                s.append(chars[temp % 36])
+                temp //= 36
+            res.extend(reversed(s))
+        for _ in range(16):
+            frac_part *= 36
+            d = int(frac_part)
+            res.append(chars[d])
+            frac_part -= d
+        raw = "".join(res)
+        cleaned = re.sub(r"[0.]+", "", raw)
+        return cleaned[:11]
+    except Exception:
+        return ""
+
+
+async def x_oembed(url: str, *, timeout: float = 10.0) -> dict[str, Any] | None:
+    """Fetch post author, text, images, and thumbnail from Twitter's syndication API, vxTwitter, or oEmbed."""
+    m_id = re.search(r"/(?:status|statuses)/(\d+)", url)
+    tweet_id = m_id.group(1) if m_id else None
+
+    # Attempt 1: Twitter Syndication API (gives text, user, full attachments, high-res photos)
+    if tweet_id:
+        token = _tweet_token(tweet_id)
+        syndication_url = f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&lang=en&token={token}"
+        try:
+            async with httpx.AsyncClient(timeout=min(timeout, 8.0), follow_redirects=True) as client:
+                resp = await client.get(syndication_url, headers=DEFAULT_HEADERS)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data and isinstance(data, dict):
+                    user = data.get("user") or {}
+                    name = user.get("name") or ""
+                    screen_name = user.get("screen_name") or ""
+                    author = f"{name} (@{screen_name})" if (name and screen_name) else (screen_name or name or None)
+                    text = (data.get("text") or "").strip()
+                    photos = [p["url"] for p in data.get("photos", []) if isinstance(p, dict) and "url" in p]
+                    media = [
+                        m.get("media_url_https") for m in data.get("mediaDetails", [])
+                        if isinstance(m, dict) and m.get("media_url_https")
+                    ]
+                    all_media = list(dict.fromkeys(photos + media))
+                    avatar = user.get("profile_image_url_https") or (f"https://unavatar.io/x/{screen_name}" if screen_name else None)
+                    thumb = all_media[0] if all_media else None
+                    title = f"@{screen_name}: {text.splitlines()[0][:80]}" if screen_name and text else (text[:80] or f"Post by @{screen_name or 'author'}")
+                    video_url = None
+                    v_obj = data.get("video")
+                    if v_obj and isinstance(v_obj, dict):
+                        variants = v_obj.get("variants") or []
+                        mp4_variants = [v for v in variants if isinstance(v, dict) and v.get("type") == "video/mp4" and v.get("src")]
+                        if mp4_variants:
+                            video_url = mp4_variants[0].get("src")
+                    if not video_url:
+                        for md in data.get("mediaDetails", []):
+                            if isinstance(md, dict) and md.get("type") in ("video", "animated_gif"):
+                                vi = md.get("video_info") or {}
+                                for var in vi.get("variants") or []:
+                                    if isinstance(var, dict) and var.get("content_type") == "video/mp4" and var.get("url"):
+                                        video_url = var["url"]
+                                        break
+                            if video_url:
+                                break
+                    return {
+                        "title": title,
+                        "author": author,
+                        "site": "x.com",
+                        "text": text,
+                        "thumbnail_url": thumb,
+                        "avatar_url": avatar,
+                        "video_url": video_url,
+                        "slide_urls": all_media if len(all_media) > 1 else [],
+                    }
+        except Exception as exc:
+            log.debug("Twitter syndication fetch failed for %s: %s", url, exc)
+
+    # Attempt 2: fxtwitter / fixupx public API
+    if tweet_id:
+        try:
+            async with httpx.AsyncClient(timeout=min(timeout, 8.0), follow_redirects=True) as client:
+                fx_resp = await client.get(f"https://api.fxtwitter.com/status/{tweet_id}", headers=DEFAULT_HEADERS)
+            if fx_resp.status_code == 200:
+                fx_json = fx_resp.json()
+                tweet = fx_json.get("tweet") or {}
+                if tweet and tweet.get("text"):
+                    author_obj = tweet.get("author") or {}
+                    name = author_obj.get("name") or ""
+                    screen_name = author_obj.get("screen_name") or ""
+                    author = f"{name} (@{screen_name})" if (name and screen_name) else (screen_name or name or None)
+                    text = (tweet.get("text") or "").strip()
+                    media = tweet.get("media") or {}
+                    photos = [p.get("url") for p in media.get("photos", []) if isinstance(p, dict) and p.get("url")]
+                    videos = [v.get("url") for v in media.get("videos", []) if isinstance(v, dict) and v.get("url")]
+                    all_media = list(dict.fromkeys(photos + videos))
+                    avatar = author_obj.get("avatar_url") or (f"https://unavatar.io/x/{screen_name}" if screen_name else None)
+                    thumb = all_media[0] if all_media else None
+                    title = f"@{screen_name}: {text.splitlines()[0][:80]}" if screen_name and text else (text[:80] or f"Post by @{screen_name or 'author'}")
+                    return {
+                        "title": title,
+                        "author": author,
+                        "site": "x.com",
+                        "text": text,
+                        "thumbnail_url": thumb,
+                        "avatar_url": avatar,
+                        "video_url": videos[0] if videos else None,
+                        "slide_urls": all_media if len(all_media) > 1 else [],
+                    }
+        except Exception as exc:
+            log.debug("fxtwitter API fetch failed for %s: %s", url, exc)
+
+    # Attempt 3: vxTwitter public API
+    if tweet_id:
+        try:
+            async with httpx.AsyncClient(timeout=min(timeout, 8.0), follow_redirects=True) as client:
+                vx_resp = await client.get(f"https://api.vxtwitter.com/Twitter/status/{tweet_id}", headers=DEFAULT_HEADERS)
+            if vx_resp.status_code == 200:
+                data = vx_resp.json()
+                if data and isinstance(data, dict) and data.get("text"):
+                    name = data.get("user_name") or ""
+                    screen_name = data.get("user_screen_name") or ""
+                    author = f"{name} (@{screen_name})" if (name and screen_name) else (screen_name or name or None)
+                    text = (data.get("text") or "").strip()
+                    media_urls = data.get("mediaURLs") or []
+                    thumb = (
+                        media_urls[0]
+                        if media_urls
+                        else (
+                            data.get("user_profile_image_url")
+                            or (f"https://unavatar.io/x/{screen_name}" if screen_name else None)
+                        )
+                    )
+                    video_url = None
+                    for me in data.get("media_extended", []):
+                        if isinstance(me, dict) and me.get("type") in ("video", "gif") and me.get("url"):
+                            video_url = me["url"]
+                            break
+                    if not video_url:
+                        for u in media_urls:
+                            if isinstance(u, str) and (".mp4" in u or ".m3u8" in u or ".mov" in u):
+                                video_url = u
+                                break
+                    title = f"@{screen_name}: {text.splitlines()[0][:80]}" if screen_name and text else (text[:80] or f"Post by @{screen_name or 'author'}")
+                    return {
+                        "title": title,
+                        "author": author,
+                        "site": "x.com",
+                        "text": text,
+                        "thumbnail_url": thumb,
+                        "video_url": video_url,
+                        "slide_urls": media_urls if len(media_urls) > 1 else [],
+                    }
+        except Exception as exc:
+            log.debug("vxTwitter API fetch failed for %s: %s", url, exc)
+
+    # Attempt 3: Public publish.twitter.com / publish.x.com oEmbed (requires unencoded URL parameter)
+    for oembed_base in ("https://publish.twitter.com/oembed?url=", "https://publish.x.com/oembed?url="):
+        for candidate_url in (url, re.sub(r"^https?://(?:www\.)?x\.com", "https://twitter.com", url)):
+            try:
+                target = f"{oembed_base}{candidate_url}"
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                    response = await client.get(target, headers=DEFAULT_HEADERS)
+                if response.status_code == 200:
+                    data = json.loads(response.text)
+                    raw_html = data.get("html") or ""
+                    m_p = re.search(r"<p[^>]*>(.*?)</p>", raw_html, re.DOTALL)
+                    text = m_p.group(1) if m_p else raw_html
+                    text = re.sub(r"<[^>]+>", " ", text)
+                    text = html.unescape(" ".join(text.split()))
+                    author_name = (data.get("author_name") or "").strip()
+                    author_url = (data.get("author_url") or "").strip()
+                    handle = None
+                    m_h = re.search(r"/(?:x|twitter)\.com/([^/?#]+)", author_url)
+                    if m_h:
+                        handle = m_h.group(1)
+                    avatar = f"https://unavatar.io/x/{handle}" if handle else None
+                    title = f"@{handle}: {text[:80]}" if handle and text else (f"{author_name} on X" if author_name else "X Post")
+                    return {
+                        "title": title,
+                        "author": f"{author_name} (@{handle})" if (author_name and handle) else (author_name or handle or None),
+                        "site": "x.com",
+                        "text": text,
+                        "thumbnail_url": None,
+                        "avatar_url": avatar,
+                        "slide_urls": [],
+                    }
+            except Exception as exc:
+                log.debug("x oembed lookup failed for %s via %s: %s", candidate_url, oembed_base, exc)
+
+    # Attempt 4: Fallback for deleted or private tweets - extract handle from URL
+    m_handle = re.search(r"/(?:x|twitter)\.com/([^/?#]+)/status/(\d+)", url)
+    if m_handle:
+        handle = m_handle.group(1)
+        if handle.lower() not in ("i", "intent", "share"):
+            return {
+                "title": f"Post by @{handle}",
+                "author": f"@{handle}",
+                "site": "x.com",
+                "text": f"Post by @{handle} on X (formerly Twitter). The original post content could not be retrieved from X's public endpoints (post may be private or deleted).",
+                "thumbnail_url": None,
+                "avatar_url": f"https://unavatar.io/x/{handle}",
+                "slide_urls": [],
+            }
+
+    return None
+
+
+REDDIT_HOSTS = {"reddit.com", "www.reddit.com", "old.reddit.com", "redd.it", "v.redd.it"}
+
+
+def is_reddit(url: str) -> bool:
+    """True for Reddit post, comments or media URLs."""
+    host = (urlparse(url).hostname or "").lower()
+    return host in REDDIT_HOSTS or any(host.endswith("." + h) for h in REDDIT_HOSTS)
+
+
+async def reddit_post(url: str, *, timeout: float = 10.0) -> dict[str, Any] | None:
+    """Fetch post author, text, images, and thumbnail from Reddit's public Atom/RSS, JSON, or oEmbed."""
+    clean_url = url.split("?")[0].rstrip("/")
+    m_short = re.search(r"redd\.it/([A-Za-z0-9]+)", clean_url)
+    if m_short:
+        clean_url = f"https://www.reddit.com/comments/{m_short.group(1)}"
+
+    # 1. First attempt: Reddit Atom RSS feed (<clean_url>.rss)
+    rss_url = clean_url + ".rss"
+    try:
+        import xml.etree.ElementTree as ET
+        async with httpx.AsyncClient(timeout=min(timeout, 8.0), follow_redirects=True) as client:
+            resp = await client.get(rss_url, headers=DEFAULT_HEADERS)
+        if resp.status_code == 200 and "<feed" in resp.text:
+            root = ET.fromstring(resp.text)
+            ns = {"atom": "http://www.w3.org/2005/Atom", "media": "http://search.yahoo.com/mrss/"}
+            entry = root.find("atom:entry", ns)
+            if entry is not None:
+                title = entry.findtext("atom:title", namespaces=ns) or ""
+                # Strip trailing " : subreddit_name" from title
+                title = re.sub(r"\s*:\s*[A-Za-z0-9_]+$", "", title).strip()
+                author_el = entry.find("atom:author", ns)
+                author = author_el.findtext("atom:name", namespaces=ns) if author_el is not None else None
+                raw_content = entry.findtext("atom:content", namespaces=ns) or ""
+
+                # Extract image or thumbnail
+                thumb = None
+                media_thumb = entry.find("media:thumbnail", ns)
+                if media_thumb is not None:
+                    thumb = media_thumb.attrib.get("url")
+                if not thumb:
+                    imgs = re.findall(r'<img[^>]+src=["\']([^"\']+)["\']', raw_content)
+                    if imgs:
+                        thumb = imgs[0]
+
+                # Clean readable markdown/plain text
+                text = re.sub(r"<br\s*/?>", "\n", raw_content)
+                text = re.sub(r"</(p|div|li|h[1-6]|blockquote)>", "\n\n", text)
+                text = re.sub(r"<[^>]+>", " ", text)
+                text = html.unescape(text)
+                clean_lines = [line.strip() for line in text.splitlines()]
+                text = "\n".join(l for l in clean_lines if l)
+
+                m_sub = re.search(r"/r/([^/]+)", clean_url)
+                sub = m_sub.group(1) if m_sub else None
+
+                return {
+                    "title": title or "Reddit Post",
+                    "author": author,
+                    "site": "reddit.com",
+                    "text": text,
+                    "thumbnail_url": thumb,
+                    "subreddit": sub,
+                }
+    except Exception as exc:
+        log.debug("Reddit RSS fetch failed for %s: %s", url, exc)
+
+    # 2. Second attempt: Reddit oEmbed
+    try:
+        oembed_url = f"https://www.reddit.com/oembed?url={quote(clean_url, safe='')}"
+        async with httpx.AsyncClient(timeout=min(timeout, 6.0), follow_redirects=True) as client:
+            resp = await client.get(oembed_url, headers=DEFAULT_HEADERS)
+        if resp.status_code == 200:
+            data = resp.json()
+            title = data.get("title") or ""
+            author_name = data.get("author_name") or ""
+            author = f"/u/{author_name}" if author_name else None
+            m_sub = re.search(r"/r/([^/]+)", clean_url)
+            sub = m_sub.group(1) if m_sub else None
+            return {
+                "title": title or "Reddit Post",
+                "author": author,
+                "site": "reddit.com",
+                "text": title,
+                "thumbnail_url": None,
+                "subreddit": sub,
+            }
+    except Exception as exc:
+        log.debug("Reddit oembed fetch failed for %s: %s", url, exc)
+
+    return None
 
 
 async def youtube_oembed(url: str, *, timeout: float = 10.0) -> dict[str, str] | None:

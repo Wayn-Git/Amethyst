@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
 import { ChevronLeft, Search, X } from 'lucide-react'
 import PluginCard from './PluginCard.jsx'
+import { PluginGridSkeleton } from './PluginSkeletons.jsx'
 
 const CATEGORY_SUBTITLES = {
+  'Installed': 'Manage your connected integrations, active credentials, and tool permissions.',
   'Communication': 'Stay in sync with messaging, email, and real-time collaboration tools.',
   'Developer Tools': 'Tools to help developers ship faster, track issues, and automate git workflows.',
   'Productivity': 'Organize tasks, docs, spreadsheets, and project roadmaps seamlessly.',
@@ -16,6 +18,7 @@ const CATEGORY_SUBTITLES = {
 export default function CategoryView({
   category,
   cards = [],
+  loading = false,
   statusMap = {},
   onBack,
   onOpenDetail,
@@ -51,7 +54,7 @@ export default function CategoryView({
           onClick={onBack}
           aria-label="Back to plugins"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={18} />
           <span>Plugins</span>
         </button>
       </div>
@@ -64,7 +67,7 @@ export default function CategoryView({
         </div>
 
         <div className="plugin-category-search-box">
-          <Search size={14} className="text-dim shrink-0" />
+          <Search size={15} className="text-dim shrink-0" />
           <input
             type="text"
             className="plugin-category-search-input"
@@ -79,14 +82,16 @@ export default function CategoryView({
               onClick={() => setCategoryQuery('')}
               aria-label="Clear search"
             >
-              <X size={12} />
+              <X size={13} />
             </button>
           )}
         </div>
       </div>
 
       {/* 2-Column Grid of App Rows */}
-      {filteredCards.length === 0 ? (
+      {loading ? (
+        <PluginGridSkeleton count={6} />
+      ) : filteredCards.length === 0 ? (
         <div className="plugin-empty-category">
           <p className="text-sm text-dim">
             No plugins in {category} match &ldquo;{categoryQuery}&rdquo;

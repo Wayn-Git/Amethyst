@@ -197,6 +197,10 @@ def _to_reel(
             thumbs = entry.get("thumbnails") or []
             if thumbs:
                 slide_urls.append(thumbs[-1]["url"])
+            elif entry.get("url"):
+                slide_urls.append(entry["url"])
+            elif entry.get("thumbnail"):
+                slide_urls.append(entry["thumbnail"])
     elif source_for_slides.get("thumbnails"):
         slide_urls.append(source_for_slides["thumbnails"][-1]["url"])
 

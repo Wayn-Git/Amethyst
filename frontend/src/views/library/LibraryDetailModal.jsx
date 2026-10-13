@@ -148,6 +148,8 @@ export default function LibraryDetailModal({
   const [showVisualContent, setShowVisualContent] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const [imageFitMode, setImageFitMode] = useState('contain')
+  const carouselTrackRef = useRef(null)
 
   // Sync state if item changes
   useEffect(() => {
@@ -155,11 +157,22 @@ export default function LibraryDetailModal({
       setNotes(item.notes || '')
       setTags(item.tags || [])
       setRating(item.rating || null)
+      setTagInput('')
+      setIsAddingTag(false)
+      setHoveredStar(null)
+      setSavingNotes(false)
+      setBusyAction('')
+      setShowLightbox(false)
+      setCopiedSummary(false)
+      setCopiedLink(false)
       setEnrichError(null)
       setShowTranscript(false)
       setShowVisualContent(false)
       setIsPlaying(false)
       setCurrentSlideIndex(0)
+      if (carouselTrackRef.current) {
+        carouselTrackRef.current.scrollLeft = 0
+      }
     }
   }, [item?.id])
 
@@ -216,48 +229,17 @@ export default function LibraryDetailModal({
   const app = item?.app || (
     (item?.url || '').includes('instagram.') || (item?.url || '').includes('instagr.am') ? 'instagram' :
     (item?.url || '').includes('threads.net') || (item?.url || '').includes('threads.com') ? 'threads' :
+    (item?.url || '').includes('x.com') || (item?.url || '').includes('twitter.') ? 'x' :
     (item?.url || '').includes('pinterest.') || (item?.url || '').includes('pin.it') ? 'pinterest' :
     (item?.url || '').includes('youtube.') || (item?.url || '').includes('youtu.be') ? 'youtube' :
     (item?.url || '').includes('tiktok.') ? 'tiktok' : null
   )
-  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item?.kind === 'video' && app !== 'youtube')
-
-  // Extract carousel slides/images if this is a multi-image post
-  const slides = useMemo(() => {
-    if (!item) return []
-    let res = item.resources
-    if (typeof res === 'string') {
-      try { res = JSON.parse(res) } catch { res = [] }
-    }
-    if (res && Array.isArray(res)) {
-      const slideRes = res.filter(
-        (r) => r && typeof r === 'object' && (r.type === 'slide' || r.type === 'image') && (r.url || r.index !== undefined)
-      )
-      if (slideRes.length > 0) return slideRes
-    }
-    return []
-  }, [item])
-
-  const currentSlideUrl = useMemo(() => {
-    if (slides && slides.length > 0) {
-      const s = slides[currentSlideIndex]
-      if (!s) return null
-      if (s.index !== undefined) {
-        return api.slideUrl(item.id, s.index)
-      }
-      if (s.url) {
-        if (s.url.startsWith('/api/library/')) {
-          const match = s.url.match(/\/slides\/(\d+)/)
-          if (match) return api.slideUrl(item.id, parseInt(match[1], 10))
-        }
-        if (!s.url.includes('cdninstagram.com') && !s.url.includes('fbcdn.net')) {
-          return s.url
-        }
-      }
-      return api.slideUrl(item.id, currentSlideIndex)
-    }
-    return null
-  }, [slides, currentSlideIndex, item?.id])
+  const isVertical = (
+    (item?.url || '').includes('/reel/') ||
+    (item?.url || '').includes('/reels/') ||
+    (item?.url || '').includes('/shorts/') ||
+    app === 'tiktok'
+  )
 
   // YouTube embed detection
   const youtubeEmbedUrl = useMemo(() => {
@@ -269,18 +251,139 @@ export default function LibraryDetailModal({
     return null
   }, [item?.url])
 
-  // Direct MP4 video playback (local or Instagram reel or video kind)
-  // Multi-image posts are NEVER playable videos; carousel navigation takes precedence
-  const hasSlides = slides && slides.length > 1
-  const hasLocalVideo = Boolean(item?.media_path) && (
-    item.media_path.endsWith('.mp4') || item.media_path.endsWith('.webm') || item.media_path.endsWith('.mov')
-  )
-  const isDirectVideo = !hasSlides && (
-    hasLocalVideo ||
-    (app === 'instagram' && (item?.url || '').includes('/reel/')) ||
-    (item?.kind === 'video')
-  )
+  // Extract carousel slides/images/video if this is a post with media
+  const carouselItems = useMemo(() => {
+    if (!item) return []
+    let res = item.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    const slideRes = (Array.isArray(res) ? res : []).filter(
+      (r) => r && typeof r === 'object' && (r.type === 'slide' || r.type === 'image') && (r.url || r.index !== undefined)
+    )
+
+    const videoResource = (Array.isArray(res) ? res : []).find(
+      (r) => r && typeof r === 'object' && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
+    )
+
+    const hasLocalVid = Boolean(item.media_path) && (
+      item.media_path.endsWith('.mp4') || item.media_path.endsWith('.webm') || item.media_path.endsWith('.mov')
+    )
+    const urlLower = (item.url || '').toLowerCase()
+    const isDirectVideoUrl = /\.(mp4|webm|mov)(\?|$)/i.test(urlLower)
+    const isSocialVideo =
+      (app === 'instagram' && (urlLower.includes('/reel/') || urlLower.includes('/reels/') || item.kind === 'video' || item.duration_seconds)) ||
+      (app === 'tiktok') ||
+      (app === 'reddit' && (urlLower.includes('/comments/') || urlLower.includes('v.redd.it') || item.kind === 'video')) ||
+      (app === 'x' && (Boolean(videoResource) || item.kind === 'video')) ||
+      (item.duration_seconds > 0 && item.kind !== 'podcast' && item.kind !== 'music')
+
+    const isVid = hasLocalVid || Boolean(videoResource) || isDirectVideoUrl || isSocialVideo || (item.kind === 'video' && !youtubeEmbedUrl)
+    const videoStreamUrl = api.mediaUrl(item.id)
+    const fallbackVideoUrl = videoResource?.url && videoResource.url.startsWith('http') ? videoResource.url : null
+
+    const list = []
+    if (youtubeEmbedUrl) {
+      list.push({ type: 'youtube', url: youtubeEmbedUrl, name: 'YouTube Video' })
+    } else if (isVid) {
+      list.push({
+        type: 'video',
+        url: videoStreamUrl,
+        fallbackUrl: fallbackVideoUrl,
+        poster: hasThumbnail ? api.thumbnailUrl(item.id) : undefined,
+        name: 'Video',
+      })
+      slideRes.forEach((s, idx) => {
+        const slideIdx = s.index !== undefined ? s.index : idx
+        const remoteUrl = s.remote_url || (s.url && s.url.startsWith('http') ? s.url : null)
+        let sUrl = s.url
+        if (!sUrl || (!sUrl.startsWith('http') && !sUrl.startsWith('/api/'))) {
+          sUrl = api.slideUrl(item.id, slideIdx)
+        }
+        list.push({
+          type: 'image',
+          url: sUrl,
+          remoteUrl,
+          name: s.name || `Photo ${idx + 1}`,
+          index: slideIdx,
+        })
+      })
+    } else if (slideRes.length > 0) {
+      slideRes.forEach((s, idx) => {
+        const slideIdx = s.index !== undefined ? s.index : idx
+        const remoteUrl = s.remote_url || (s.url && s.url.startsWith('http') ? s.url : null)
+        let sUrl = s.url
+        if (!sUrl || (!sUrl.startsWith('http') && !sUrl.startsWith('/api/'))) {
+          sUrl = api.slideUrl(item.id, slideIdx)
+        }
+        list.push({
+          type: 'image',
+          url: sUrl,
+          remoteUrl,
+          name: s.name || `Photo ${idx + 1}`,
+          index: slideIdx,
+        })
+      })
+    } else if (hasThumbnail) {
+      list.push({
+        type: 'image',
+        url: api.thumbnailUrl(item.id),
+        name: 'Cover image',
+        index: 0,
+      })
+    } else {
+      list.push({
+        type: 'graphic',
+        name: 'Card',
+        index: 0,
+      })
+    }
+    return list
+  }, [item, app, youtubeEmbedUrl, hasThumbnail])
+
+  const slides = carouselItems
+
+  const currentSlideUrl = useMemo(() => {
+    const cur = carouselItems[currentSlideIndex]
+    if (!cur) return null
+    if (cur.type === 'image') return cur.url
+    if (cur.type === 'video' && cur.poster) return cur.poster
+    return hasThumbnail ? api.thumbnailUrl(item?.id) : null
+  }, [carouselItems, currentSlideIndex, item?.id, hasThumbnail])
+
+  const hasSlides = carouselItems && carouselItems.length > 1
+  const isDirectVideo = Boolean(carouselItems.some((c) => c.type === 'video'))
   const isPlayable = Boolean(isDirectVideo || youtubeEmbedUrl)
+
+  const scrollToSlide = useCallback((targetIdx) => {
+    if (carouselTrackRef.current) {
+      const slides = carouselTrackRef.current.children
+      if (slides && slides[targetIdx] && typeof slides[targetIdx].scrollIntoView === 'function') {
+        slides[targetIdx].scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'start',
+        })
+      } else {
+        const width = carouselTrackRef.current.clientWidth
+        carouselTrackRef.current.scrollTo({
+          left: targetIdx * width,
+          behavior: 'smooth',
+        })
+      }
+    }
+    setCurrentSlideIndex(targetIdx)
+  }, [])
+
+  const handleCarouselScroll = useCallback((e) => {
+    const width = e.target.clientWidth
+    if (width > 0) {
+      const newIndex = Math.round(e.target.scrollLeft / width)
+      if (newIndex >= 0 && newIndex < carouselItems.length && newIndex !== currentSlideIndex) {
+        setCurrentSlideIndex(newIndex)
+      }
+    }
+  }, [currentSlideIndex, carouselItems.length])
 
   // Single clean source attribution
   const sourceInfo = useMemo(() => {
@@ -365,15 +468,21 @@ export default function LibraryDetailModal({
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
       if (e.key === 'ArrowLeft') {
         e.preventDefault()
-        if (slides.length > 1 && (!isPlayable || showLightbox)) {
-          setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))
+        if (carouselItems.length > 1 && !showLightbox) {
+          const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : carouselItems.length - 1
+          scrollToSlide(prevIdx)
+        } else if (showLightbox && carouselItems.length > 1) {
+          setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : carouselItems.length - 1))
         } else {
           handlePrev()
         }
       } else if (e.key === 'ArrowRight') {
         e.preventDefault()
-        if (slides.length > 1 && (!isPlayable || showLightbox)) {
-          setCurrentSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))
+        if (carouselItems.length > 1 && !showLightbox) {
+          const nextIdx = currentSlideIndex < carouselItems.length - 1 ? currentSlideIndex + 1 : 0
+          scrollToSlide(nextIdx)
+        } else if (showLightbox && carouselItems.length > 1) {
+          setCurrentSlideIndex((prev) => (prev < carouselItems.length - 1 ? prev + 1 : 0))
         } else {
           handleNext()
         }
@@ -387,7 +496,7 @@ export default function LibraryDetailModal({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handlePrev, handleNext, onClose, slides.length, isPlayable, showLightbox])
+  }, [handlePrev, handleNext, onClose, carouselItems.length, currentSlideIndex, scrollToSlide, showLightbox])
 
   if (!item) return null
 
@@ -644,92 +753,127 @@ export default function LibraryDetailModal({
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className={`lib-page-media-viewport ${isVertical ? 'lib-page-media-viewport--portrait' : ''}`}>
-              {/* Direct Playable Video (pure MP4 stream - zero Instagram iframes) */}
-              {isPlaying ? (
-                <div className="lib-page-player-box">
-                  {isDirectVideo ? (
-                    <video
-                      src={api.mediaUrl(item.id)}
-                      controls
-                      autoPlay
-                      playsInline
-                      loop
-                      className="lib-page-video-elem"
-                      poster={hasThumbnail ? api.thumbnailUrl(item.id) : undefined}
-                    />
-                  ) : youtubeEmbedUrl ? (
-                    <iframe
-                      src={youtubeEmbedUrl}
-                      title={item.title || 'YouTube Video'}
-                      className="lib-page-iframe-elem"
-                      allowFullScreen
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    />
-                  ) : hasThumbnail ? (
-                    <img
-                      src={api.thumbnailUrl(item.id)}
-                      alt={item.title || 'Cover image'}
-                      className="lib-page-cover-img"
-                    />
-                  ) : null}
-                </div>
-              ) : (
-                <div
-                  className="lib-page-cover-box"
-                  onClick={() => {
-                    if (isPlayable) setIsPlaying(true)
-                    else if (hasThumbnail || currentSlideUrl) setShowLightbox(true)
-                  }}
-                >
-                  {currentSlideUrl ? (
-                    <img
-                      src={currentSlideUrl}
-                      alt={item.title || (slides.length > 1 ? `Slide ${currentSlideIndex + 1}` : 'Post image')}
-                      className="lib-page-cover-img"
-                      onError={(e) => {
-                        if (hasThumbnail && e.currentTarget.src !== api.thumbnailUrl(item.id)) {
-                          e.currentTarget.src = api.thumbnailUrl(item.id)
-                        }
-                      }}
-                    />
-                  ) : hasThumbnail ? (
-                    <img
-                      src={api.thumbnailUrl(item.id)}
-                      alt={item.title || 'Cover image'}
-                      className="lib-page-cover-img"
-                    />
-                  ) : (
-                    /* Reference Aesthetic Amethyst Gradient Visual Card */
-                    <div className="lib-page-graphic-card">
-                      <div className="lib-page-graphic-gradient" />
-                      <div className="lib-page-graphic-title">{cleanCoverSlug}</div>
-                    </div>
-                  )}
-
-                  {/* Play Overlay Button for Videos & Reels */}
-                  {isPlayable && (
-                    <motion.button
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.94 }}
-                      type="button"
-                      className="lib-page-play-badge"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setIsPlaying(true)
-                      }}
-                      title="Play video"
-                      aria-label="Play video"
-                    >
-                      <div className="lib-page-play-circle">
-                        <Icon name="play" size={26} />
+              <div
+                ref={carouselTrackRef}
+                className="lib-page-carousel-track"
+                onScroll={handleCarouselScroll}
+              >
+                {carouselItems.map((cItem, idx) => (
+                  <div key={`slide-${idx}`} className="lib-page-carousel-slide">
+                    {cItem.type === 'video' ? (
+                      isPlaying ? (
+                        <div className="lib-page-player-box">
+                          <video
+                            src={cItem.url}
+                            controls
+                            autoPlay
+                            playsInline
+                            loop
+                            className="lib-page-video-elem"
+                            poster={cItem.poster}
+                            onError={(e) => {
+                              if (cItem.fallbackUrl && e.currentTarget.src !== cItem.fallbackUrl) {
+                                e.currentTarget.src = cItem.fallbackUrl
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="lib-page-cover-box"
+                          onClick={() => setIsPlaying(true)}
+                        >
+                          {cItem.poster ? (
+                            <>
+                              <div
+                                className="lib-page-cover-backdrop"
+                                style={{ backgroundImage: `url(${cItem.poster})` }}
+                              />
+                              <img
+                                src={cItem.poster}
+                                alt={item.title || 'Video cover'}
+                                className={`lib-page-cover-img lib-page-cover-img--${imageFitMode}`}
+                              />
+                            </>
+                          ) : (
+                            <div className="lib-page-graphic-card">
+                              <div className="lib-page-graphic-gradient" />
+                              <div className="lib-page-graphic-title">{cleanCoverSlug}</div>
+                            </div>
+                          )}
+                          <motion.button
+                            whileHover={{ scale: 1.08 }}
+                            whileTap={{ scale: 0.94 }}
+                            type="button"
+                            className="lib-page-play-badge"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setIsPlaying(true)
+                            }}
+                            title="Play video"
+                            aria-label="Play video"
+                          >
+                            <div className="lib-page-play-circle">
+                              <Icon name="play" size={26} />
+                            </div>
+                          </motion.button>
+                        </div>
+                      )
+                    ) : cItem.type === 'youtube' ? (
+                      <div className="lib-page-player-box">
+                        <iframe
+                          src={cItem.url}
+                          title={item.title || 'YouTube Video'}
+                          className="lib-page-iframe-elem"
+                          allowFullScreen
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        />
                       </div>
-                    </motion.button>
-                  )}
-                </div>
-              )}
+                    ) : cItem.type === 'image' ? (
+                      <div
+                        className="lib-page-cover-box"
+                        onClick={() => {
+                          setCurrentSlideIndex(idx)
+                          setShowLightbox(true)
+                        }}
+                      >
+                        <div
+                          className="lib-page-cover-backdrop"
+                          style={{ backgroundImage: `url(${cItem.url})` }}
+                        />
+                        <img
+                          src={cItem.url}
+                          alt={cItem.name || item.title || `Photo ${idx + 1}`}
+                          className={`lib-page-cover-img lib-page-cover-img--${imageFitMode}`}
+                          onError={(e) => {
+                            const currentSrc = e.currentTarget.src
+                            const slideApi = api.slideUrl(item.id, cItem.index ?? idx)
+                            if (!currentSrc.includes(`/slides/${cItem.index ?? idx}`) && currentSrc !== slideApi) {
+                              e.currentTarget.src = slideApi
+                              return
+                            }
+                            if (cItem.remoteUrl && currentSrc !== cItem.remoteUrl) {
+                              e.currentTarget.src = cItem.remoteUrl
+                              return
+                            }
+                            if (hasThumbnail && currentSrc !== api.thumbnailUrl(item.id)) {
+                              e.currentTarget.src = api.thumbnailUrl(item.id)
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="lib-page-graphic-card">
+                        <div className="lib-page-graphic-gradient" />
+                        <div className="lib-page-graphic-title">{cleanCoverSlug}</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
-              {/* Multi-image Carousel Controls: ONLY rendered when post has multiple images, NEVER on videos */}
-              {!isPlayable && slides.length > 1 && (
+              {/* Multi-image Carousel Navigation Arrows & Dots */}
+              {carouselItems.length > 1 && (
                 <>
                   <motion.button
                     whileHover={{ scale: 1.1, backgroundColor: 'rgba(0,0,0,0.85)' }}
@@ -738,7 +882,8 @@ export default function LibraryDetailModal({
                     className="lib-page-carousel-arrow lib-page-carousel-arrow--prev"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))
+                      const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : carouselItems.length - 1
+                      scrollToSlide(prevIdx)
                     }}
                     title="Previous image"
                     aria-label="Previous image"
@@ -752,15 +897,30 @@ export default function LibraryDetailModal({
                     className="lib-page-carousel-arrow lib-page-carousel-arrow--next"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setCurrentSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))
+                      const nextIdx = currentSlideIndex < carouselItems.length - 1 ? currentSlideIndex + 1 : 0
+                      scrollToSlide(nextIdx)
                     }}
                     title="Next image"
                     aria-label="Next image"
                   >
                     <Icon name="chevron-right" size={16} />
                   </motion.button>
-                  <div className="lib-page-slide-indicator">
-                    {currentSlideIndex + 1} / {slides.length}
+                  <div className="lib-page-carousel-dots">
+                    {carouselItems.map((_, dotIdx) => (
+                      <button
+                        key={`dot-${dotIdx}`}
+                        type="button"
+                        className={`lib-page-carousel-dot ${dotIdx === currentSlideIndex ? 'lib-page-carousel-dot--active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          scrollToSlide(dotIdx)
+                        }}
+                        aria-label={`Go to slide ${dotIdx + 1}`}
+                      />
+                    ))}
+                    <span className="lib-page-carousel-count">
+                      {currentSlideIndex + 1}/{carouselItems.length}
+                    </span>
                   </div>
                 </>
               )}
@@ -768,6 +928,20 @@ export default function LibraryDetailModal({
 
             {/* Controls Below Media Frame: Full view + Source */}
             <div className="lib-page-media-actions">
+              {isPlayable && !isPlaying && (
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  type="button"
+                  className="lib-page-pill-btn lib-page-pill-btn--primary"
+                  onClick={() => setIsPlaying(true)}
+                  title="Play video"
+                >
+                  <Icon name="play" size={12} />
+                  <span>Play video</span>
+                </motion.button>
+              )}
+
               {isPlayable && isPlaying && (
                 <motion.button
                   whileHover={{ scale: 1.03 }}
@@ -782,6 +956,19 @@ export default function LibraryDetailModal({
                 </motion.button>
               )}
 
+              {/* Fit vs Fill aspect ratio toggle pill */}
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.96 }}
+                type="button"
+                className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
+                onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                title={imageFitMode === 'contain' ? 'Fill frame (crop edges)' : 'Complete original image (uncropped)'}
+              >
+                <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={12} />
+                <span>{imageFitMode === 'contain' ? 'Original Fit' : 'Fill'}</span>
+              </motion.button>
+
               {hasThumbnail && (
                 <motion.button
                   whileHover={{ scale: 1.03 }}
@@ -792,7 +979,7 @@ export default function LibraryDetailModal({
                   title="Open full resolution lightbox"
                 >
                   <Icon name="maximize" size={12} />
-                  <span>Full view</span>
+                  <span>Lightbox</span>
                 </motion.button>
               )}
 
@@ -806,8 +993,8 @@ export default function LibraryDetailModal({
                   className="lib-page-pill-btn"
                   title="Open original website"
                 >
-                  <Icon name="arrow-up-right" size={12} />
-                  <span>Source</span>
+                  <Icon name="external-link" size={12} />
+                  <span>{sourceInfo.platformName || 'Source'}</span>
                 </motion.a>
               )}
             </div>
@@ -1308,24 +1495,37 @@ export default function LibraryDetailModal({
               onClick={(e) => e.stopPropagation()}
             >
               <img
-                src={currentSlideUrl || api.thumbnailUrl(item.id)}
-                alt={item.title || (slides.length > 1 ? `Slide ${currentSlideIndex + 1}` : 'Full resolution image')}
+                src={carouselItems[currentSlideIndex]?.url || currentSlideUrl || api.thumbnailUrl(item.id)}
+                alt={item.title || (carouselItems.length > 1 ? `Slide ${currentSlideIndex + 1}` : 'Full resolution image')}
                 className="lib-lightbox-img"
                 onError={(e) => {
-                  if (hasThumbnail && e.currentTarget.src !== api.thumbnailUrl(item.id)) {
+                  const cItem = carouselItems[currentSlideIndex]
+                  const currentSrc = e.currentTarget.src
+                  const slideApi = api.slideUrl(item.id, cItem?.index ?? currentSlideIndex)
+                  if (!currentSrc.includes(`/slides/${cItem?.index ?? currentSlideIndex}`) && currentSrc !== slideApi) {
+                    e.currentTarget.src = slideApi
+                    return
+                  }
+                  if (cItem?.remoteUrl && currentSrc !== cItem.remoteUrl) {
+                    e.currentTarget.src = cItem.remoteUrl
+                    return
+                  }
+                  if (hasThumbnail && currentSrc !== api.thumbnailUrl(item.id)) {
                     e.currentTarget.src = api.thumbnailUrl(item.id)
                   }
                 }}
               />
 
-              {slides.length > 1 && (
+              {carouselItems.length > 1 && (
                 <>
                   <button
                     type="button"
                     className="lib-lightbox-nav lib-lightbox-nav--prev"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))
+                      const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : carouselItems.length - 1
+                      setCurrentSlideIndex(prevIdx)
+                      scrollToSlide(prevIdx)
                     }}
                     title="Previous slide"
                     aria-label="Previous slide"
@@ -1337,7 +1537,9 @@ export default function LibraryDetailModal({
                     className="lib-lightbox-nav lib-lightbox-nav--next"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setCurrentSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))
+                      const nextIdx = currentSlideIndex < carouselItems.length - 1 ? currentSlideIndex + 1 : 0
+                      setCurrentSlideIndex(nextIdx)
+                      scrollToSlide(nextIdx)
                     }}
                     title="Next slide"
                     aria-label="Next slide"
@@ -1345,7 +1547,7 @@ export default function LibraryDetailModal({
                     <Icon name="chevron-right" size={20} />
                   </button>
                   <div className="lib-lightbox-slide-pill">
-                    {currentSlideIndex + 1} / {slides.length}
+                    {currentSlideIndex + 1} / {carouselItems.length}
                   </div>
                 </>
               )}

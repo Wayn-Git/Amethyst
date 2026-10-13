@@ -66,40 +66,42 @@ export default function Capabilities() {
             })}
           </div>
 
-          <div className="clean-cap-actions">
-            <div className="plugin-search-pill">
-              <Icon name="search" size={14} />
-              <input
-                value={query}
-                placeholder={skills ? 'Search skills…' : 'Search 500+ apps & connectors…'}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape' && query) {
-                    e.stopPropagation()
-                    setQuery('')
-                  }
-                }}
-              />
-              {query && (
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={() => setQuery('')}
-                  aria-label="Clear"
-                >
-                  <Icon name="x" size={12} />
-                </button>
-              )}
+          {skills && (
+            <div className="clean-cap-actions">
+              <div className="plugin-search-pill">
+                <Icon name="search" size={14} />
+                <input
+                  value={query}
+                  placeholder="Search skills…"
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape' && query) {
+                      e.stopPropagation()
+                      setQuery('')
+                    }
+                  }}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => setQuery('')}
+                    aria-label="Clear"
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="plugin-add-custom-btn"
+                title="New skill"
+                onClick={() => setNewOpen((o) => !o)}
+              >
+                <Icon name={newOpen ? 'x' : 'plus'} size={15} />
+              </button>
             </div>
-            <button
-              type="button"
-              className="plugin-add-custom-btn"
-              title={skills ? 'New skill' : 'New connector'}
-              onClick={() => setNewOpen((o) => !o)}
-            >
-              <Icon name={newOpen ? 'x' : 'plus'} size={15} />
-            </button>
-          </div>
+          )}
         </div>
 
         <div

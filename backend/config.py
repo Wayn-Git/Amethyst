@@ -822,7 +822,7 @@ _INSTAGRAM_SETTINGS = {
     "owner_ig_id": ("instagram.owner_ig_id", ""),
     "allow_senders": ("instagram.allow_senders", "[]"),
     "mentions_from": ("instagram.mentions_from", "allowlist"),
-    "keep_video": ("instagram.keep_video", False),
+    "keep_video": ("instagram.keep_video", True),
     "max_video_mb": ("instagram.max_video_mb", DEFAULT_MAX_VIDEO_MB),
     "max_duration_seconds": ("instagram.max_duration_seconds", DEFAULT_MAX_DURATION_SECONDS),
     "media_budget_mb": ("instagram.media_budget_mb", DEFAULT_MEDIA_BUDGET_MB),
@@ -855,7 +855,7 @@ class InstagramSettings:
     #: this a stranger fills someone's library.
     allow_senders: tuple[str, ...] = ()
     mentions_from: str = "allowlist"
-    keep_video: bool = False
+    keep_video: bool = True
     max_video_mb: int = DEFAULT_MAX_VIDEO_MB
     max_duration_seconds: int = DEFAULT_MAX_DURATION_SECONDS
     media_budget_mb: int = DEFAULT_MEDIA_BUDGET_MB

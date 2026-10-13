@@ -12,8 +12,16 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     url.includes('tiktok.') ? 'tiktok' : null
   )
   const hasThumb = Boolean(item.thumbnail_path)
-  const isVideo = item.kind === 'video' || app === 'youtube' || app === 'instagram' || app === 'tiktok'
-  const isVertical = app === 'instagram' || app === 'tiktok' || app === 'pinterest' || (item.kind === 'video' && app !== 'youtube')
+  const isReelOrShort = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/')
+  const isVertical = isReelOrShort || app === 'tiktok' || app === 'pinterest'
+  const isVideo = (
+    item.kind === 'video' ||
+    app === 'youtube' ||
+    app === 'tiktok' ||
+    isReelOrShort ||
+    Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path)) ||
+    Boolean(item.duration_seconds)
+  )
   const isNote = item.kind === 'note' || (!hasThumb && !item.url)
   const isEssential = item.rating === 5
 
