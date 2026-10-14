@@ -1243,6 +1243,90 @@ _ERROR_HTML = """<!doctype html><html><head><meta charset="utf-8">
 </main></body></html>"""
 
 
+def default_socket_path():
+    import pathlib
+
+    base = pathlib.Path(os.environ.get("AMETHYST_HOME", pathlib.Path.home() / ".amethyst"))
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "desktop.sock"
+
+
+def acquire_instance_lock(
+    socket_path=None,
+    action: str = "palette",
+    timeout: float = 1.0,
+):
+    """Acquire single-instance domain socket lock, or signal existing instance.
+
+    Returns:
+        (sock, True) if acquired and this process is primary.
+        (None, False) if another instance holds the lock and was signaled.
+    """
+    import json
+    import pathlib
+    import socket
+
+    path = pathlib.Path(socket_path) if socket_path else default_socket_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        client.settimeout(timeout)
+        client.connect(str(path))
+        payload = json.dumps({"action": action}).encode("utf-8") + b"\n"
+        client.sendall(payload)
+        client.close()
+        return None, False
+    except (OSError, ConnectionRefusedError):
+        client.close()
+        with contextlib.suppress(FileNotFoundError):
+            if path.exists() or path.is_socket():
+                path.unlink(missing_ok=True)
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        server.bind(str(path))
+        server.listen(5)
+        server.settimeout(0.5)
+        return server, True
+    except OSError:
+        server.close()
+        return None, False
+
+
+def listen_instance_socket(
+    server_sock,
+    on_command,
+    stop_event,
+) -> None:
+    """Listen for summon/action commands on the instance socket."""
+    import json
+    import socket
+
+    while not stop_event.is_set():
+        try:
+            conn, _ = server_sock.accept()
+        except socket.timeout:
+            continue
+        except OSError:
+            break
+
+        try:
+            with conn:
+                conn.settimeout(1.0)
+                data = b""
+                while not data.endswith(b"\n") and not stop_event.is_set():
+                    chunk = conn.recv(1024)
+                    if not chunk:
+                        break
+                    data += chunk
+                if data:
+                    cmd = json.loads(data.decode("utf-8"))
+                    on_command(cmd)
+        except Exception:
+            pass
+
+
 def _already_running(port: int) -> int | None:
     """Hand the running AMETHYST this launch, if there is one. Returns an exit code.
 
