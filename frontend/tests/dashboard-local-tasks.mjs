@@ -48,5 +48,19 @@ try {
     await page.reload()
     await page.getByText('1/1 daily · Streak: 1', { exact: true }).waitFor()
   }
+  if (widget === 'task.goals') {
+    await page.getByLabel('Goal title', { exact: true }).fill('Learn fixture')
+    await page.getByLabel('Target date', { exact: true }).fill('2026-10-26')
+    await page.getByRole('button', { name: 'Create goal', exact: true }).click()
+    await page.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await page.getByLabel('Progress for Learn fixture', { exact: true }).fill('75')
+    await page.getByRole('button', { name: 'Update progress', exact: true }).click()
+    await page.getByRole('button', { name: 'Reject change', exact: true }).click()
+    await page.getByText('Target: 2026-10-26 · Progress: 0%', { exact: true }).waitFor()
+    await page.getByLabel('Progress for Learn fixture', { exact: true }).fill('75')
+    await page.getByRole('button', { name: 'Update progress', exact: true }).click()
+    await page.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await page.getByText('Target: 2026-10-26 · Progress: 75%', { exact: true }).waitFor()
+  }
   console.log(`${widget}: passed`)
 } finally { await browser.close() }

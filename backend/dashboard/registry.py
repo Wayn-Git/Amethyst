@@ -406,6 +406,11 @@ MANIFESTS = [
         "tier": "v2",
         "actions": [dict(id=a, label=a.title(), gate=True) for a in ("add", "checkin")],
     },
+    {
+        **task_manifest("task.goals", "Goals"),
+        "tier": "v2",
+        "actions": [dict(id=a, label=a.title(), gate=True) for a in ("add", "progress")],
+    },
     task_manifest("task.today", "Today list"),
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),

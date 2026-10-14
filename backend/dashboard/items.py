@@ -328,6 +328,10 @@ def apply(conn, widget_id, action, body):
         from backend.dashboard.habits import apply as apply_habit
 
         return apply_habit(conn, action, body)
+    if widget_id == "task.goals":
+        from backend.dashboard.goals import apply as apply_goal
+
+        return apply_goal(conn, action, body)
     if widget_id == "task.focus":
         from backend.dashboard.focus import apply as apply_focus
 

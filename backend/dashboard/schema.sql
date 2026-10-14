@@ -181,3 +181,16 @@ CREATE TABLE IF NOT EXISTS dashboard_habit_checkins (
     day TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS dashboard_habit_history ON dashboard_habit_checkins(habit_id,day);
+
+CREATE TABLE IF NOT EXISTS dashboard_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    target_date TEXT NOT NULL,
+    mode TEXT NOT NULL CHECK(mode IN ('manual','tasks')),
+    progress INTEGER NOT NULL DEFAULT 0 CHECK(progress BETWEEN 0 AND 100)
+);
+CREATE TABLE IF NOT EXISTS dashboard_goal_tasks (
+    goal_id INTEGER NOT NULL REFERENCES dashboard_goals(id) ON DELETE CASCADE,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    PRIMARY KEY(goal_id,task_id)
+);

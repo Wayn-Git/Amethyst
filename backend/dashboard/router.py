@@ -220,6 +220,11 @@ async def item_action(widget_id: str, action: str, body: dict):
             from backend.dashboard.habits import draft as habit_draft
 
             return habit_draft(action, HabitInput.model_validate(body))
+        if widget_id == "task.goals":
+            from backend.dashboard.goals import GoalInput
+            from backend.dashboard.goals import draft as goal_draft
+
+            return goal_draft(action, GoalInput.model_validate(body))
         if widget_id == "task.focus":
             from backend.dashboard.focus import FocusInput
             from backend.dashboard.focus import draft as focus_draft
