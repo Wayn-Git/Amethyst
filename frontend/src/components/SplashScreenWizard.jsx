@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Icon from './Icon.jsx'
 import BrandMark from './BrandMark.jsx'
@@ -93,6 +93,15 @@ const ACCENT_PRESETS = [
   { id: 'emerald', hex: '#10b981', label: 'Emerald' },
   { id: 'coral', hex: '#f43f5e', label: 'Coral' },
   { id: 'amber', hex: '#f59e0b', label: 'Amber' },
+]
+
+const CLOUD_APPS = [
+  { slug: 'gmail', name: 'Gmail', desc: 'Read, search, and send emails.', IconComp: GoogleIcon },
+  { slug: 'googlecalendar', name: 'Google Calendar', desc: 'Schedule and manage events.', IconComp: GoogleIcon },
+  { slug: 'slack', name: 'Slack', desc: 'Team channels and direct messages.', IconComp: SlackIcon },
+  { slug: 'github', name: 'GitHub', desc: 'Repos, PRs, and issues.', IconComp: GithubIcon },
+  { slug: 'linear', name: 'Linear', desc: 'Issue tracking & tickets.', IconComp: LinearIcon },
+  { slug: 'notion', name: 'Notion', desc: 'Docs, notes, and databases.', IconComp: NotionIcon },
 ]
 
 const slideVariants = {
@@ -799,18 +808,15 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
   const [composioStatus, setComposioStatus] = useState(null)
   const [composioToolkits, setComposioToolkits] = useState([])
   const [actionBusy, setActionBusy] = useState('')
+  const [connectingApps, setConnectingApps] = useState({})
   const [browserLoggingIn, setBrowserLoggingIn] = useState(false)
   const [pollCountdown, setPollCountdown] = useState(300)
-  const [pollIntervalId, setPollIntervalId] = useState(null)
-  const [showManualKey, setShowManualKey] = useState(false)
-  const [composioKeyDraft, setComposioKeyDraft] = useState('')
+  const [showLater, setShowLater] = useState(false)
   const [showGithubPat, setShowGithubPat] = useState(false)
   const [githubPatDraft, setGithubPatDraft] = useState('')
   const [githubPatSaved, setGithubPatSaved] = useState(false)
-  const [searchStatus, setSearchStatus] = useState(null)
-  const [selectedSearchProv, setSelectedSearchProv] = useState('')
-  const [searchKeyDraft, setSearchKeyDraft] = useState('')
-  const [savingSearchKey, setSavingSearchKey] = useState(false)
+  const connectTimers = useRef({})
+  const pollIdRef = useRef(null)
 
   const handleInstallUv = async () => {
     setActionBusy('install-uv')
@@ -843,34 +849,14 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
     }
   }
 
-  const handleSaveSearchKey = async (name) => {
-    if (!searchKeyDraft.trim()) return
-    setSavingSearchKey(true)
-    try {
-      await api.setSearchProvider(name, searchKeyDraft.trim())
-      setSearchKeyDraft('')
-      setSelectedSearchProv('')
-      const updated = await api.searchProvider().catch(() => null)
-      if (updated) setSearchStatus(updated)
-      toast(`${name.toUpperCase()} search key saved!`, 'ok')
-      if (onRefreshStatus) await onRefreshStatus()
-    } catch (err) {
-      toast(err.message || 'Failed to save search key', 'bad')
-    } finally {
-      setSavingSearchKey(false)
-    }
-  }
-
   const loadData = useCallback(async () => {
     try {
-      const [compStatus, compToolkits, searchInfo] = await Promise.all([
+      const [compStatus, compToolkits] = await Promise.all([
         api.composioStatus().catch(() => null),
         api.composioToolkits().catch(() => ({ toolkits: [] })),
-        api.searchProvider().catch(() => null),
       ])
       if (compStatus) setComposioStatus(compStatus)
       if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
-      if (searchInfo) setSearchStatus(searchInfo)
     } catch {
       /* ignore */
     }
@@ -882,9 +868,10 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
 
   useEffect(() => {
     return () => {
-      if (pollIntervalId) clearInterval(pollIntervalId)
+      if (pollIdRef.current) clearInterval(pollIdRef.current)
+      Object.values(connectTimers.current).forEach((id) => clearInterval(id))
     }
-  }, [pollIntervalId])
+  }, [])
 
   const handleStartBrowserLogin = async () => {
     setActionBusy('composio-login')
@@ -904,7 +891,7 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
           if (remaining <= 0) {
             clearInterval(id)
             setBrowserLoggingIn(false)
-            setPollIntervalId(null)
+            pollIdRef.current = null
             toast('Login session timed out', 'bad')
             return
           }
@@ -913,7 +900,7 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
             if (pollRes?.status === 'connected' || pollRes?.connected) {
               clearInterval(id)
               setBrowserLoggingIn(false)
-              setPollIntervalId(null)
+              pollIdRef.current = null
               toast('Composio linked successfully!', 'ok')
               await loadData()
             }
@@ -921,7 +908,7 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
             /* ignore polling error */
           }
         }, 3000)
-        setPollIntervalId(id)
+        pollIdRef.current = id
       } else {
         toast('Could not start Composio browser login', 'bad')
       }
@@ -933,38 +920,29 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
   }
 
   const handleCancelLogin = () => {
-    if (pollIntervalId) clearInterval(pollIntervalId)
-    setPollIntervalId(null)
+    if (pollIdRef.current) clearInterval(pollIdRef.current)
+    pollIdRef.current = null
     setBrowserLoggingIn(false)
     toast('Login cancelled', 'ok')
   }
 
-  const handleSaveComposioKey = async () => {
-    if (!composioKeyDraft.trim()) return
-    setActionBusy('composio-key')
-    try {
-      const res = await api.saveComposioKey(composioKeyDraft.trim())
-      setComposioKeyDraft('')
-      await loadData()
-      if (res?.status?.error) {
-        toast(res.status.error, 'bad')
-      } else {
-        toast('Composio connected! You can now authorize cloud apps.', 'ok')
-      }
-    } catch (e) {
-      toast(e.message || 'Failed to save Composio key', 'bad')
-    } finally {
-      setActionBusy('')
-    }
+  const stopConnecting = (slug) => {
+    setConnectingApps((m) => {
+      const next = { ...m }
+      delete next[slug]
+      return next
+    })
   }
 
   const handleComposioAppConnect = async (slug, name) => {
+    if (connectingApps[slug] || actionBusy === `comp:${slug}`) return
     setActionBusy(`comp:${slug}`)
     try {
       const res = await api.connectComposioToolkit(slug)
       if (res?.redirect_url) {
         window.open(res.redirect_url, '_blank')
         toast(`Complete ${name} authorization in your browser tab`, 'ok')
+        setConnectingApps((m) => ({ ...m, [slug]: true }))
         let attempts = 0
         const interval = setInterval(async () => {
           attempts++
@@ -975,12 +953,22 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
               const updated = data.toolkits.find((t) => t.slug === slug)
               if (updated?.connected) {
                 clearInterval(interval)
+                delete connectTimers.current[slug]
+                stopConnecting(slug)
                 toast(`${name} connected!`, 'ok')
+                if (onRefreshStatus) await onRefreshStatus()
+                return
               }
             }
           } catch {}
-          if (attempts >= 25) clearInterval(interval)
+          if (attempts >= 25) {
+            clearInterval(interval)
+            delete connectTimers.current[slug]
+            stopConnecting(slug)
+            toast(`Still waiting on ${name}. Finish in the browser tab, or try Connect again.`, 'bad')
+          }
         }, 3000)
+        connectTimers.current[slug] = interval
       } else {
         toast(`Failed to start connection for ${name}`, 'bad')
       }
@@ -1012,15 +1000,6 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
     }
   }
 
-  const CLOUD_APPS = [
-    { slug: 'gmail', name: 'Gmail', desc: 'Read, search, and send emails.', IconComp: GoogleIcon },
-    { slug: 'googlecalendar', name: 'Google Calendar', desc: 'Schedule and manage events.', IconComp: GoogleIcon },
-    { slug: 'slack', name: 'Slack', desc: 'Team channels and direct messages.', IconComp: SlackIcon },
-    { slug: 'github', name: 'GitHub', desc: 'Repos, PRs, and issues.', IconComp: GithubIcon },
-    { slug: 'linear', name: 'Linear', desc: 'Issue tracking & tickets.', IconComp: LinearIcon },
-    { slug: 'notion', name: 'Notion', desc: 'Docs, notes, and databases.', IconComp: NotionIcon },
-  ]
-
   const isComposioLinked = Boolean(composioStatus?.enabled || composioStatus?.has_key)
   const runtimes = setupStatus?.runtimes
 
@@ -1030,114 +1009,9 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
         <span className="splash-step-tag">Step 2 of 3</span>
         <h2 className="splash-step-title">Connect Your Apps (Optional)</h2>
         <p className="splash-step-subtitle">
-          Give Amethyst tools to read your emails, check calendars, and manage project tasks.
+          Optional — Amethyst works fully without these. Sign in to Composio to link Gmail, Calendar, Slack, GitHub,
+          Linear, and Notion with one click each. Everything else can wait.
         </p>
-      </div>
-
-      {/* uv Runtime Downloader Banner (R12) */}
-      {runtimes && runtimes.uv && !runtimes.uv.available && (
-        <div className="splash-card" style={{ marginBottom: 16, borderColor: 'var(--accent-line, rgba(113, 50, 245, 0.25))' }}>
-          <div className="splash-card-row">
-            <div className="splash-card-icon" style={{ background: 'var(--accent-soft, rgba(113, 50, 245, 0.12))' }}>
-              <Icon name="code" size={20} />
-            </div>
-            <div className="splash-card-info">
-              <div className="splash-title-row">
-                <span className="splash-card-title">Python Connector Runtime (uv)</span>
-                <span className="splash-badge-runtime">Needs uv</span>
-              </div>
-              <p className="splash-card-desc">
-                Required for standalone Python MCP connectors. Amethyst can download standalone uv directly to ~/.amethyst/bin.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="splash-btn-primary"
-              disabled={actionBusy === 'install-uv'}
-              onClick={handleInstallUv}
-            >
-              <span>{actionBusy === 'install-uv' ? 'Installing uv...' : 'Install uv (1-Click)'}</span>
-              <Icon name="download" size={13} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Web Search & Live Intelligence Card */}
-      <div className="splash-card" style={{ marginBottom: 16 }}>
-        <div className="splash-card-row">
-          <div className="splash-card-icon" style={{ background: 'rgba(16, 185, 129, 0.12)' }}>
-            <Icon name="search" size={20} />
-          </div>
-          <div className="splash-card-info">
-            <div className="splash-title-row">
-              <span className="splash-card-title">Live Web Search (Optional)</span>
-              <span className="splash-status-dot-text">
-                <span className={`splash-dot-indicator ${searchStatus?.active ? 'is-active' : ''}`} />
-                {searchStatus?.active ? `Active (${searchStatus.active.toUpperCase()})` : 'Using Scrapers'}
-              </span>
-            </div>
-            <p className="splash-card-desc">
-              Powers real-time search in Spotlight and research tasks. Free tiers available on LangSearch, Exa, or Tavily.
-            </p>
-          </div>
-          {searchStatus?.active ? (
-            <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Ready</span>
-          ) : (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              {[
-                { slug: 'langsearch', name: 'LangSearch', domain: 'langsearch.com' },
-                { slug: 'exa', name: 'Exa', domain: 'exa.ai' },
-                { slug: 'tavily', name: 'Tavily', domain: 'tavily.com' },
-              ].map((prov) => (
-                <button
-                  key={prov.slug}
-                  type="button"
-                  className="splash-btn-subtle"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '4px 10px',
-                    borderColor: selectedSearchProv === prov.slug ? 'var(--accent)' : undefined,
-                    background: selectedSearchProv === prov.slug ? 'var(--accent-soft)' : undefined,
-                  }}
-                  onClick={() => {
-                    setSelectedSearchProv(selectedSearchProv === prov.slug ? '' : prov.slug)
-                    setSearchKeyDraft('')
-                  }}
-                >
-                  <ServiceIcon card={prov} size="small" />
-                  <span style={{ fontSize: 12 }}>{prov.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {!searchStatus?.active && selectedSearchProv && (
-          <div className="splash-input-row" style={{ marginTop: 10 }}>
-            <input
-              type="password"
-              className="splash-input"
-              placeholder={`Paste ${selectedSearchProv} API key...`}
-              value={searchKeyDraft}
-              onChange={(e) => setSearchKeyDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveSearchKey(selectedSearchProv)
-              }}
-              autoFocus
-            />
-            <button
-              type="button"
-              className="splash-btn-primary"
-              disabled={savingSearchKey || !searchKeyDraft.trim()}
-              onClick={() => handleSaveSearchKey(selectedSearchProv)}
-            >
-              {savingSearchKey ? 'Saving...' : 'Save & Enable'}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Composio Cloud Apps Card */}
@@ -1155,7 +1029,7 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
               </span>
             </div>
             <p className="splash-card-desc">
-              One-click hosted OAuth for Gmail, Calendar, Slack, GitHub, Linear, and Notion.
+              Sign in once, then connect Gmail, Calendar, Slack, GitHub, Linear, and Notion with one click each.
             </p>
           </div>
 
@@ -1185,45 +1059,13 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
           )}
         </div>
 
-        {/* Manual key toggle */}
-        {!isComposioLinked && (
-          <div style={{ marginTop: 10 }}>
-            <button
-              type="button"
-              className="splash-btn-subtle"
-              style={{ fontSize: 11.5 }}
-              onClick={() => setShowManualKey(!showManualKey)}
-            >
-              <span>{showManualKey ? 'Hide manual key entry' : 'Or enter API key manually'}</span>
-            </button>
-            {showManualKey && (
-              <div className="splash-input-row" style={{ marginTop: 8 }}>
-                <input
-                  type="password"
-                  className="splash-input"
-                  placeholder="Paste Composio API key..."
-                  value={composioKeyDraft}
-                  onChange={(e) => setComposioKeyDraft(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="splash-btn-subtle"
-                  disabled={actionBusy === 'composio-key' || !composioKeyDraft.trim()}
-                  onClick={handleSaveComposioKey}
-                >
-                  Save Key
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Cloud Apps List */}
+        {/* Cloud Apps List — one click each, status flips on its own */}
         {isComposioLinked && (
           <div className="splash-connectors-grid" style={{ marginTop: 14 }}>
             {CLOUD_APPS.map(({ slug, name, desc, IconComp }) => {
               const item = composioToolkits.find((t) => t.slug === slug)
               const connected = Boolean(item?.connected)
+              const connecting = Boolean(connectingApps[slug])
               return (
                 <div key={slug} className="splash-connector-card">
                   <div className="splash-connector-head">
@@ -1238,6 +1080,11 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
                   <div className="splash-connector-footer">
                     {connected ? (
                       <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Connected</span>
+                    ) : connecting ? (
+                      <span className="splash-connecting-note">
+                        <LoaderIcon type="pixels" />
+                        <span>Connecting…</span>
+                      </span>
                     ) : (
                       <button
                         type="button"
@@ -1245,7 +1092,7 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
                         disabled={actionBusy === `comp:${slug}`}
                         onClick={() => handleComposioAppConnect(slug, name)}
                       >
-                        {actionBusy === `comp:${slug}` ? 'Opening...' : 'Connect'}
+                        {actionBusy === `comp:${slug}` ? 'Opening…' : 'Connect'}
                       </button>
                     )}
                   </div>
@@ -1254,118 +1101,153 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
             })}
           </div>
         )}
+
+        {!isComposioLinked && (
+          <p className="splash-card-desc" style={{ marginTop: 10 }}>
+            After you sign in, each app connects straight from its card — no keys to paste anywhere.
+          </p>
+        )}
       </div>
 
-      {/* Local & Direct Connectors (No Account Needed) */}
+      {/* Fine to skip — deferred, non-blocking shortcuts to Settings */}
       <div className="splash-card">
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #f1f5f9)', display: 'block', marginBottom: 10 }}>
-          Direct &amp; Local Connectors
-        </span>
-        <div className="splash-connectors-grid">
-          {/* GitHub Personal Access Token Option (R13) */}
-          <div className="splash-connector-card">
-            <div className="splash-connector-head">
-              <div className="splash-connector-icon">
-                <GithubIcon size={20} />
-              </div>
-              <div className="splash-connector-meta">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="splash-connector-title">GitHub (Personal Access Token)</span>
-                  <span
-                    className="splash-badge-runtime"
-                    style={{
-                      background: 'var(--accent-soft, rgba(113, 50, 245, 0.12))',
-                      color: 'var(--accent, #7132f5)',
-                      borderColor: 'var(--accent-line, rgba(113, 50, 245, 0.25))',
-                    }}
-                  >
-                    Direct PAT
-                  </span>
+        <button
+          type="button"
+          className="splash-later-toggle"
+          onClick={() => setShowLater(!showLater)}
+          aria-expanded={showLater}
+        >
+          <Icon name={showLater ? 'caret-down' : 'caret-right'} size={13} />
+          <span className="splash-later-title">Connect later — fine to skip</span>
+          <span className="splash-later-note">Everything here is optional and stays available in Settings.</span>
+        </button>
+
+        {showLater && (
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            <p className="splash-card-desc">
+              Live web search already works with no key at all. A premium provider (LangSearch, Exa, Tavily) can be
+              added later under Settings → Integrations if you ever want richer results.
+            </p>
+
+            {runtimes && runtimes.uv && !runtimes.uv.available && (
+              <div className="splash-card-row">
+                <div className="splash-card-icon" style={{ background: 'var(--accent-soft, rgba(113, 50, 245, 0.12))' }}>
+                  <Icon name="code" size={20} />
                 </div>
-                <span className="splash-connector-desc">Direct access to repositories and issues without cloud OAuth.</span>
-              </div>
-            </div>
-            <div className="splash-connector-footer">
-              {githubPatSaved ? (
-                <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Token Configured</span>
-              ) : (
+                <div className="splash-card-info">
+                  <div className="splash-title-row">
+                    <span className="splash-card-title">Python Connector Runtime (uv)</span>
+                    <span className="splash-badge-runtime">Needs uv</span>
+                  </div>
+                  <p className="splash-card-desc">
+                    Only needed for standalone Python MCP connectors. Installs to ~/.amethyst/bin.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  className="splash-btn-subtle"
-                  onClick={() => setShowGithubPat(!showGithubPat)}
+                  className="splash-btn-primary"
+                  disabled={actionBusy === 'install-uv'}
+                  onClick={handleInstallUv}
                 >
-                  {showGithubPat ? 'Cancel' : 'Enter Personal Access Token'}
+                  <span>{actionBusy === 'install-uv' ? 'Installing…' : 'Install uv'}</span>
+                  <Icon name="download" size={13} />
                 </button>
-              )}
-            </div>
-            {showGithubPat && !githubPatSaved && (
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
-                <div className="splash-input-row">
-                  <input
-                    type="password"
-                    className="splash-input"
-                    placeholder="Paste ghp_... or github_pat_..."
-                    value={githubPatDraft}
-                    onChange={(e) => setGithubPatDraft(e.target.value)}
-                  />
+              </div>
+            )}
+
+            <div className="splash-connector-card">
+              <div className="splash-connector-head">
+                <div className="splash-connector-icon">
+                  <GithubIcon size={20} />
+                </div>
+                <div className="splash-connector-meta">
+                  <span className="splash-connector-title">GitHub (Personal Access Token)</span>
+                  <span className="splash-connector-desc">Direct repo access without cloud OAuth. The GitHub card above already covers it.</span>
+                </div>
+              </div>
+              <div className="splash-connector-footer">
+                {githubPatSaved ? (
+                  <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Token Configured</span>
+                ) : (
                   <button
                     type="button"
                     className="splash-btn-subtle"
-                    disabled={actionBusy === 'github-pat' || !githubPatDraft.trim()}
-                    onClick={handleSaveGithubPat}
+                    onClick={() => setShowGithubPat(!showGithubPat)}
                   >
-                    {actionBusy === 'github-pat' ? 'Saving...' : 'Save Token'}
+                    {showGithubPat ? 'Cancel' : 'Enter Token'}
                   </button>
-                </div>
-                <a
-                  href="https://github.com/settings/tokens?scopes=repo,read:org,read:user,gist,notifications,workflow"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: 11, color: 'var(--accent, #7132f5)', textDecoration: 'none' }}
-                >
-                  Generate GitHub Token (repo, read:org, gist) ↗
-                </a>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* Microsoft To Do */}
-          <div className="splash-connector-card">
-            <div className="splash-connector-head">
-              <div className="splash-connector-icon">
-                <MicrosoftIcon size={20} />
-              </div>
-              <div className="splash-connector-meta">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="splash-connector-title">Microsoft To Do</span>
-                  {(!runtimes?.node?.available && !runtimes?.npx) && (
-                    <a
-                      href="https://nodejs.org"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="splash-badge-runtime"
-                      style={{ textDecoration: 'none' }}
-                      title="Node.js is required for npx tools. Click to download."
+              {showGithubPat && !githubPatSaved && (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                  <div className="splash-input-row">
+                    <input
+                      type="password"
+                      className="splash-input"
+                      placeholder="Paste ghp_... or github_pat_..."
+                      value={githubPatDraft}
+                      onChange={(e) => setGithubPatDraft(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="splash-btn-subtle"
+                      disabled={actionBusy === 'github-pat' || !githubPatDraft.trim()}
+                      onClick={handleSaveGithubPat}
                     >
-                      Needs Node.js ↗
-                    </a>
-                  )}
+                      {actionBusy === 'github-pat' ? 'Saving…' : 'Save Token'}
+                    </button>
+                  </div>
+                  <a
+                    href="https://github.com/settings/tokens?scopes=repo,read:org,read:user,gist,notifications,workflow"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: 11, color: 'var(--accent, #7132f5)', textDecoration: 'none' }}
+                  >
+                    Generate GitHub Token (repo, read:org, gist) ↗
+                  </a>
                 </div>
-                <span className="splash-connector-desc">Device code sign-in for tasks.</span>
+              )}
+            </div>
+
+            <div className="splash-connector-card">
+              <div className="splash-connector-head">
+                <div className="splash-connector-icon">
+                  <MicrosoftIcon size={20} />
+                </div>
+                <div className="splash-connector-meta">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="splash-connector-title">Microsoft To Do</span>
+                    {(!runtimes?.node?.available && !runtimes?.npx) && (
+                      <a
+                        href="https://nodejs.org"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="splash-badge-runtime"
+                        style={{ textDecoration: 'none' }}
+                        title="Node.js is required for npx tools. Click to download."
+                      >
+                        Needs Node.js ↗
+                      </a>
+                    )}
+                  </div>
+                  <span className="splash-connector-desc">Device code sign-in for tasks.</span>
+                </div>
+              </div>
+              <div className="splash-connector-footer">
+                <button
+                  type="button"
+                  className="splash-btn-subtle"
+                  disabled={actionBusy === 'microsoft-todo' || (!runtimes?.node?.available && !runtimes?.npx)}
+                  onClick={() => handleLocalLogin('microsoft-todo')}
+                >
+                  Sign In
+                </button>
               </div>
             </div>
-            <div className="splash-connector-footer">
-              <button
-                type="button"
-                className="splash-btn-subtle"
-                disabled={actionBusy === 'microsoft-todo' || (!runtimes?.node?.available && !runtimes?.npx)}
-                onClick={() => handleLocalLogin('microsoft-todo')}
-              >
-                Sign In
-              </button>
-            </div>
+
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

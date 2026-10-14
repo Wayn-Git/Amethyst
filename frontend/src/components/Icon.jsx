@@ -356,6 +356,7 @@ const MARKS = {
   camera: Camera,
   monitor: Desktop,
   desktop: Desktop,
+  theater: Desktop,
   mouse: Mouse,
   power: Power,
   wifi: WifiHigh,
