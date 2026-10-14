@@ -41,7 +41,7 @@ export function useWidget(manifest, quiet, refreshVersion, onData) {
     return () => window.removeEventListener('dashboard-items-changed', changed)
   }, [load, manifest.id])
   useEffect(() => {
-    onData(manifest.id, data)
+    onData?.(manifest.id, data)
   }, [manifest.id, data, onData])
   useEffect(() => {
     if (!data.refreshing) return

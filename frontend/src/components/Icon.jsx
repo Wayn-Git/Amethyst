@@ -55,6 +55,7 @@ import {
   Key,
   Keyboard,
   Link,
+  List,
   ListBullets,
   ListChecks,
   Lock,
@@ -139,6 +140,7 @@ import {
   TiktokLogo,
   XLogo,
   YoutubeLogo,
+  Robot,
 } from '@phosphor-icons/react'
 
 /* One icon set, one stroke weight, one grid.
@@ -310,6 +312,7 @@ const MARKS = {
   layout: SidebarRight,
   link: Link,
   list: ListBullets,
+  menu: List,
   lock: Lock,
   logs: ListChecks,
   moon: Moon,
@@ -367,6 +370,7 @@ const MARKS = {
   utilities: Wrench,
   convert: ArrowsLeftRight,
   upload: UploadSimple,
+  robot: Robot,
 }
 
 /* Optical weight.

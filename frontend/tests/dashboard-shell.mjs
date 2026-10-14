@@ -1,7 +1,7 @@
 // Isolated dashboard backend and labelled synthetic data; no connectors or screenshots.
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { moveWidget, quietNow, resizeWidget, freshness, previewRows, rankNeeds } from '../src/dashboard/layout.js'
 
@@ -33,10 +33,12 @@ const browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] }
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
 page.setDefaultTimeout(15000)
 await page.addInitScript(() => { localStorage.setItem('amethyst.ui.v1', JSON.stringify({ onboardingDone: true, theme: 'paper' })); localStorage.setItem('amethyst.ui.forceDesktop', '1') })
-let offline = false, clockState = null, brokenClock = false, tasksState = 'ok'
+let offline = false, clockState = null, brokenClock = false, tasksState = 'ok', richGlance = false
 const calls = []
 await page.route('**/api/**', async route => {
   const url = new URL(route.request().url()); calls.push(url.pathname)
+  if (url.pathname === '/api/library/101/thumbnail') return route.fulfill({ contentType: 'image/png', body: readFileSync(new URL('../public/icon.png', import.meta.url)) })
+  if (url.pathname.endsWith('/thumbnail')) return route.fulfill({ status: 404, body: '' })
   if (url.pathname === '/api/dashboard/search') {
     const systems = [['dash.sync', 'Refresh status'], ['dash.quiet', 'Quiet hours'], ['dash.shortcuts', 'Keyboard shortcuts'], ['dash.gallery', 'Widget gallery']]
     return route.fulfill({ json: { items: systems.filter(([, title]) => title.toLowerCase().includes(url.searchParams.get('q').toLowerCase())).map(([id, title]) => ({ id, title, group: 'Widgets', href: `/today?widget=${id}` })) } })
@@ -45,10 +47,12 @@ await page.route('**/api/**', async route => {
     if (offline) return route.abort('internetdisconnected')
     const id = url.pathname.match(/^\/api\/widgets\/([^/]+)\/(?:data|refresh)$/)?.[1]
     if (id === 'glance.clock' && (clockState || brokenClock)) return route.fulfill({ json: { state: clockState || 'ok', payload: brokenClock ? { zones: ['Invalid/Zone'] } : null, synced_at: new Date().toISOString(), error: clockState === 'error' ? 'Fixture failure' : null } })
+    if (richGlance && ['glance.weather', 'glance.next-event', 'glance.music'].includes(id)) return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: id === 'glance.weather' ? { temperature: 24, timezone: 'Asia/Kolkata', rain_alert: true } : { items: [{ title: id === 'glance.music' ? 'Music fixture' : 'Calendar fixture', start: '2026-11-04T09:00:00Z', artists: ['Artist fixture'] }] } } })
+    if (id === 'lib.resurface') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { items: [{ id: 101, title: 'Image fixture note', kind: 'note', reason: 'Today’s task: Fixture', excerpt: 'A saved passage fixture.' }, { id: 102, title: 'Missing cover fixture', kind: 'note', reason: 'Recent capture: Fixture' }] } } })
     if (id === 'glance.weather') return route.fulfill({ json: { state: 'ok', payload: { set_location: true }, synced_at: new Date().toISOString() } })
     if (['glance.music', 'glance.next-event', 'need.inbox', 'dev.prs'].includes(id)) return route.fulfill({ json: { state: 'not-connected', payload: null } })
     if (id === 'task.today') return route.fulfill({ json: { state: tasksState, payload: tasksState === 'empty' ? { items: [] } : payload, synced_at: new Date().toISOString() } })
-    if (['lib.resurface', 'agent.brief', 'agent.feed', 'need.drafts', 'need.waiting', 'feed.news'].includes(id)) return route.fulfill({ json: { state: 'empty', payload: { items: [], disabled: true, connected: false }, synced_at: new Date().toISOString() } })
+    if (['agent.brief', 'agent.feed', 'need.drafts', 'need.waiting', 'feed.news'].includes(id)) return route.fulfill({ json: { state: 'empty', payload: { items: [], disabled: true, connected: false }, synced_at: new Date().toISOString() } })
     if (id === 'need.overdue') return route.fulfill({ json: { state: 'ok', payload: { items: [{ id: 1, title: 'Overdue fixture', due_at: '2020-01-01', source: 'task.today' }] }, synced_at: new Date().toISOString() } })
     if (id === 'need.mentions') return route.fulfill({ json: { state: 'ok', payload: { items: [{ id: 2, title: 'Mention fixture', source: 'github', at: '2026-10-25' }] }, synced_at: new Date().toISOString() } })
     return route.fulfill({ response: await route.fetch({ url: backend + url.pathname + url.search }) })
@@ -161,16 +165,56 @@ try {
   await draftSettings.waitFor()
   await page.keyboard.press('Escape')
   await draftSettings.waitFor({ state: 'hidden' })
+  // The presentation uses real cached images; missing covers retain their content.
+  const library = page.locator('[data-widget="lib.resurface"]')
+  await library.getByText('Image fixture note', { exact: true }).waitFor()
+  await library.scrollIntoViewIfNeeded()
+  await page.waitForFunction(() => {
+    const images = document.querySelectorAll('[data-widget="lib.resurface"] img')
+    return images.length === 2 && images[0].naturalWidth > 0 && images[1].hidden
+  })
+  assert.equal(await library.getByText('Missing cover fixture', { exact: true }).isVisible(), true)
+  assert.equal(await page.locator('.home-ascii').getAttribute('aria-hidden'), 'true')
+  richGlance = true
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.getByText('Calendar fixture', { exact: true }).waitFor()
+  await page.getByText('Music fixture', { exact: true }).waitFor()
+  await page.getByText('Rain likely in the next 12 hours', { exact: true }).waitFor()
+  assert.equal(await page.locator('.glance-date b').textContent(), '4')
+  const capture = page.locator('.home-capture')
+  await capture.focus()
+  assert.equal(await capture.evaluate(el => getComputedStyle(el).outlineStyle), 'solid')
+  await page.keyboard.press('Enter')
+  await page.getByRole('dialog', { name: 'Spotlight Command Palette', exact: true }).waitFor()
+  await page.keyboard.press('Escape')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  assert.deepEqual(await page.locator('.widget-home button').evaluateAll(nodes => [...new Set(nodes.map(el => getComputedStyle(el).transitionDuration))]), ['0s'])
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   offline = true; await page.reload({ waitUntil: 'domcontentloaded' }); await clock.getByText('Stale data.', { exact: true }).waitFor()
   for (const theme of ['graphite', 'ink', 'nocturne', 'nvidia', 'paper', 'sand', 'claude', 'cursor', 'system']) {
     await page.evaluate(theme => document.documentElement.setAttribute('data-theme', theme), theme)
-  for (const width of [1440, 390]) {
+  const contrasts = await page.evaluate(() => {
+    const context = document.createElement('canvas').getContext('2d')
+    function luminance(color) {
+      context.clearRect(0, 0, 1, 1); context.fillStyle = color; context.fillRect(0, 0, 1, 1)
+      const linear = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => { const c = v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4 })
+      return linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722
+    }
+    return [['.home-primary', '.home-primary'], ['.home-date', '.widget-home'], ['.home-eyebrow', '.widget-home'], ['.home-needs .widget-chip', '.home-needs'], ['.home-needs strong', '.home-needs'], ['.home-needs p', '.home-needs']].map(([text, surface]) => {
+      const a = luminance(getComputedStyle(document.querySelector(text)).color)
+      const b = luminance(getComputedStyle(document.querySelector(surface)).backgroundColor)
+      return { selector: text, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) }
+    })
+  })
+  for (const { selector, ratio } of contrasts) assert.ok(ratio >= 4.5, `${theme} ${selector}: contrast ${ratio.toFixed(2)}`)
+  for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 })
-    assert.equal(await page.locator('.widget-home').evaluate(el => el.scrollWidth > el.clientWidth), false)
+    assert.equal(await page.locator('.widget-home').evaluate(el => el.scrollWidth > el.clientWidth), false, `${theme} at ${width}px overflows`)
+    assert.ok(await clock.evaluate(el => el.getBoundingClientRect().height >= 220), 'Glance cards retain generous sizing')
     assert.deepEqual(await page.locator('.home-widget *').evaluateAll(nodes => nodes.filter(el => ['auto', 'scroll'].includes(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight).map(el => el.className)), [])
     const badButtons = await page.locator('.widget-home button:visible').evaluateAll(nodes => nodes.filter(el => { const r = el.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5 || !(el.textContent.trim() || el.getAttribute('aria-label')) }).map(el => el.outerHTML))
     assert.deepEqual(badButtons, [])
   }
   }
-  console.log('PASS Home: Morning hierarchy, merged needs, settings/gallery drawers, five-row previews, focus restore, keyboard/drag/resize, persistence, clock settings, states, offline, 1440/390px no nested scrolling, 44px targets')
+  console.log('PASS Home: Morning hierarchy, merged needs, settings/gallery drawers, five-row previews, focus restore, keyboard/drag/resize, persistence, clock settings, states, offline, 320–1440px no nested scrolling, 44px targets, theme contrast, real/missing covers, connected glance states, capture keyboard, reduced motion')
 } finally { await page.unrouteAll({ behavior: 'wait' }); await browser.close() }

@@ -286,7 +286,7 @@ async def decide(widget_id, draft_id, approved):
             confirmation_decision=(outcome.decision if approved else "denied")
             if outcome
             else "gate_error",
-            risk_level=outcome.risk.value if outcome else None,
+            risk_level=getattr(getattr(outcome, "risk", None), "value", None) if outcome else None,
             error=error,
             duration_ms=int((time.monotonic() - started) * 1000),
         )

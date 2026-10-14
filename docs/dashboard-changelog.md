@@ -1,8 +1,8 @@
 # Dashboard changelog
 
-## 2026-10-25 — Today Bento Dashboard Redesign
+## 2026-10-25 — Today Bento Dashboard Redesign & Crash Fixes
 
-- Redesigned Home view into 4-section Bento layout with FocusTimer, ProgressGauge, and tactile squircle cards.
+- Redesigned Home view into Apple-inspired 12-column Bento Grid with live preview Gallery studio (S/M/L variants), fixed SimpleNamespace risk access in items.py, guarded conversations and layout queries against unhandled undefined filters, added menu icon in Icon.jsx.
 
 ## 2026-10-24 — Day 1 shell
 

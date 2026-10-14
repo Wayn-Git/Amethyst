@@ -183,10 +183,11 @@ export default function Sidebar() {
 
   // Split into Starred and Recents
   const { starred, recents } = useMemo(() => {
+    const list = Array.isArray(conversations) ? conversations : []
     const q = filter.trim().toLowerCase()
     const matches = q
-      ? conversations.filter((c) => (c.title || 'untitled').toLowerCase().includes(q))
-      : conversations
+      ? list.filter((c) => (c.title || 'untitled').toLowerCase().includes(q))
+      : list
 
     const starList = matches.filter((c) => c.pinned)
     const recentList = matches.filter((c) => !c.pinned)

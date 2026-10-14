@@ -240,9 +240,15 @@ applyAccentColor(loadPrefs().accentColor)
 function applyTextSize(pct) {
   const root = document.documentElement
   const scale = pct / 100
-  root.style.setProperty('--text-scale', scale)
-  root.style.setProperty('--ui-scale', scale)
-  root.style.fontSize = `${scale * 16}px`
+  if (typeof window !== 'undefined' && window.amethystDesktop?.setZoomFactor) {
+    window.amethystDesktop.setZoomFactor(scale)
+    root.style.setProperty('--ui-scale', 1)
+    root.style.setProperty('--text-scale', 1)
+  } else {
+    root.style.setProperty('--ui-scale', scale)
+    root.style.setProperty('--text-scale', scale)
+  }
+  root.style.fontSize = ''
 }
 
 function applyDensity(density) {
@@ -672,17 +678,18 @@ export function AppProvider({ children }) {
   const refreshConvs = useCallback(async () => {
     try {
       const rows = await api.conversations()
+      const list = Array.isArray(rows) ? rows : []
       setConversations((prev) => {
-        if (prev && prev.length === rows.length) {
+        if (Array.isArray(prev) && prev.length === list.length) {
           const unchanged = prev.every((p, i) => {
-            const r = rows[i]
+            const r = list[i]
             return p.id === r.id && p.updated_at === r.updated_at && p.title === r.title
           })
           if (unchanged) return prev
         }
-        return rows
+        return list
       })
-      return rows
+      return list
     } catch (err) {
       setHealthError(err.message)
       return []
