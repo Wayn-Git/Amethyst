@@ -14992,56 +14992,6 @@ a.text-reveal-wrap {
   font-weight: 600;
 }
 
-.home-top-mode-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  padding: 18px 24px 8px;
-  user-select: none;
-  z-index: 10;
-}
-
-.home-mode-segmented {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-  background: color-mix(in srgb, var(--canvas-deep) 85%, var(--hairline));
-  border: 1px solid var(--hairline);
-  border-radius: 9999px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.home-mode-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 18px;
-  border-radius: 9999px;
-  font-size: 13.5px;
-  font-weight: 550;
-  color: var(--text-dim);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  letter-spacing: -0.01em;
-}
-
-.home-mode-btn:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--canvas) 60%, transparent);
-}
-
-.home-mode-btn.is-active {
-  color: var(--text);
-  background: var(--canvas);
-  border-color: var(--hairline);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--hairline);
-  font-weight: 600;
-}
-
 .wb-bar-user-toggle {
   display: inline-flex;
   align-items: center;
