@@ -15,11 +15,16 @@ import {
   ListOrdered,
   X,
   MessageSquare,
+  ShieldAlert,
+  AlertTriangle,
+  RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import type {
   ApprovalCardOption,
   ApprovalCardProps,
   ApprovalCardQuestion,
+  ApprovalCardStatus,
 } from "./types";
 import { formatQuestionSubmission } from "./format-submission.js";
 import { cn } from "@/lib/utils.js";
@@ -29,53 +34,254 @@ export function ApprovalCard({
   mode = "questions",
   className,
   disabled = false,
+  children,
+  // Review mode props
+  title,
+  description,
+  status: propStatus = "pending",
+  risk,
+  category,
+  result,
+  approveLabel = "Approve",
+  rejectLabel = "Decline",
+  requestChangesLabel = "Request changes",
+  onApprove,
+  onReject,
+  onRequestChanges,
+  onDismiss,
+  // Questions mode props
   questions = [],
   settledAnswers,
   onSubmitQuestions,
   onDismissQuestions,
+  // Plan review mode props
   planId,
-  title = "Plan",
   summary,
   steps = [],
   settledStatus,
   onApprovePlan,
   onDiscardPlan,
   onEditPlanStep,
-  onRequestChanges,
 }: ApprovalCardProps) {
   // ----------------------------------------------------
-  // PLAN REVIEW MODE
+  // 1. REVIEW & APPROVE MODE (choicescard.md ReviewFlow)
   // ----------------------------------------------------
-  if (mode === "plan" || (steps && steps.length > 0 && questions.length === 0)) {
-    const isSettled = Boolean(settledStatus);
+  if (mode === "review" || onApprove || onReject) {
+    const isSettled =
+      propStatus === "approved" ||
+      propStatus === "rejected" ||
+      propStatus === "changes-requested" ||
+      propStatus === "answered" ||
+      propStatus === "discarded";
+
+    const isSubmitting = propStatus === "submitting";
+
+    if (isSettled) {
+      const outcomeText =
+        result ||
+        (propStatus === "approved"
+          ? "Approved and executed."
+          : propStatus === "changes-requested"
+          ? "Changes requested. The agent will revise."
+          : "Declined.");
+
+      const isGood = propStatus === "approved";
+
+      return (
+        <div className={cn("approval-card-root is-settled", className)}>
+          <div className="approval-card-header">
+            <div className="approval-card-title-group">
+              <div
+                className="approval-card-icon-pill"
+                style={{
+                  background: isGood
+                    ? "var(--live-soft, rgba(16, 185, 129, 0.12))"
+                    : "var(--surface-3, rgba(255, 255, 255, 0.08))",
+                  color: isGood
+                    ? "var(--live, #10b981)"
+                    : "var(--text-faint, #94a3b8)",
+                }}
+              >
+                {isGood ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  <X className="size-3.5" />
+                )}
+              </div>
+              <span className="approval-card-heading">
+                {typeof title === "string" ? title : "Decision recorded"}
+              </span>
+            </div>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 text-[12px] font-medium",
+                isGood ? "text-[var(--live)]" : "text-[var(--text-dim)]"
+              )}
+            >
+              {outcomeText}
+            </span>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div
         className={cn(
-          "w-full max-w-2xl my-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[var(--text)] transition-all",
-          isSettled && "opacity-90 bg-[var(--canvas)]",
+          "approval-card-root",
+          risk === "high" || risk === "critical"
+            ? "is-high-risk"
+            : risk === "medium"
+            ? "is-medium-risk"
+            : "",
           className
         )}
       >
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
-          <div className="flex items-center gap-2">
-            <div className="flex size-6 items-center justify-center rounded-full bg-[var(--accent-wash)] text-[var(--accent)]">
+        <div className="approval-card-header">
+          <div className="approval-card-title-group">
+            <div className="approval-card-icon-pill">
+              <ShieldAlert className="size-3.5" />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="approval-card-heading">
+                  {title || "Approval required"}
+                </span>
+                {category && (
+                  <span className="approval-card-category-tag">{category}</span>
+                )}
+                {risk && (
+                  <span className="approval-card-risk-pill" data-risk={risk}>
+                    <span className="approval-card-risk-dash" />
+                    {risk.toUpperCase()}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label="Dismiss approval"
+              className="approval-card-dismiss-btn"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+
+        {description && (
+          <p className="mt-2.5 text-[13px] text-[var(--text-dim)] leading-relaxed">
+            {description}
+          </p>
+        )}
+
+        {children && <div className="approval-card-body">{children}</div>}
+
+        <div className="approval-card-footer">
+          <span className="text-[11.5px] text-[var(--text-faint)]">
+            Execution waits on your sign-off.
+          </span>
+          <div className="approval-card-actions-group">
+            {onRequestChanges && (
+              <button
+                type="button"
+                disabled={disabled || isSubmitting}
+                onClick={() => onRequestChanges()}
+                className="approval-card-btn-ghost"
+              >
+                {requestChangesLabel}
+              </button>
+            )}
+            {onReject && (
+              <button
+                type="button"
+                disabled={disabled || isSubmitting}
+                onClick={onReject}
+                className="approval-card-btn-ghost"
+              >
+                <X className="size-3.5" />
+                {rejectLabel}
+              </button>
+            )}
+            {onApprove && (
+              <button
+                type="button"
+                disabled={disabled || isSubmitting}
+                onClick={onApprove}
+                className="approval-card-btn-primary"
+              >
+                <Check className="size-3.5" />
+                {approveLabel}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // 2. PLAN REVIEW MODE
+  // ----------------------------------------------------
+  if (
+    mode === "plan" ||
+    (steps && steps.length > 0 && questions.length === 0)
+  ) {
+    const isSettled = Boolean(settledStatus);
+
+    if (isSettled) {
+      return (
+        <div className={cn("approval-card-root is-settled", className)}>
+          <div className="approval-card-header">
+            <div className="approval-card-title-group">
+              <div
+                className="approval-card-icon-pill"
+                style={{
+                  background:
+                    settledStatus === "approved"
+                      ? "var(--live-soft, rgba(16, 185, 129, 0.12))"
+                      : "var(--surface-3)",
+                  color:
+                    settledStatus === "approved"
+                      ? "var(--live, #10b981)"
+                      : "var(--text-faint)",
+                }}
+              >
+                {settledStatus === "approved" ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  <X className="size-3.5" />
+                )}
+              </div>
+              <span className="approval-card-heading">
+                {settledStatus === "approved" ? "Plan approved" : "Plan discarded"}
+              </span>
+              <span className="approval-card-step-badge">
+                {steps.length} step{steps.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--live)]">
+              {settledStatus === "approved" ? "Executing steps" : "Discarded"}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={cn("approval-card-root", className)}>
+        <div className="approval-card-header">
+          <div className="approval-card-title-group">
+            <div className="approval-card-icon-pill">
               <ListOrdered className="size-3.5" />
             </div>
-            <span className="text-[13px] font-semibold text-[var(--text)]">
-              {title}
-            </span>
-            <span className="rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-[11px] font-mono text-[var(--text-dim)]">
+            <span className="approval-card-heading">{title || "Plan"}</span>
+            <span className="approval-card-step-badge">
               {steps.length} step{steps.length === 1 ? "" : "s"}
             </span>
           </div>
-
-          {isSettled && (
-            <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--live)]">
-              <Check className="size-3.5" />
-              {settledStatus === "approved" ? "Approved" : "Discarded"}
-            </span>
-          )}
         </div>
 
         {summary && (
@@ -85,52 +291,40 @@ export function ApprovalCard({
         )}
 
         {/* Step list */}
-        <ol className="mt-3 flex flex-col gap-2">
+        <ol className="approval-plan-steps">
           {steps.map((step, idx) => (
-            <li
-              key={idx}
-              className="group rounded-[6px] border border-[var(--border)] bg-[var(--canvas)] p-2.5 transition-colors"
-            >
-              <div className="flex items-start gap-2.5">
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-3)] text-[11px] font-mono font-medium text-[var(--text-faint)]">
-                  {idx + 1}
-                </span>
+            <li key={idx} className="approval-plan-step">
+              <span className="approval-plan-step-num">{idx + 1}</span>
 
-                <div className="flex-1 min-w-0">
-                  {isSettled ? (
-                    <span className="text-[13px] font-medium text-[var(--text)] select-text">
-                      {step.title}
-                    </span>
-                  ) : (
-                    <input
-                      type="text"
-                      value={step.title}
-                      disabled={disabled}
-                      aria-label={`Step ${idx + 1}`}
-                      onChange={(e) => onEditPlanStep?.(idx, e.target.value)}
-                      className="w-full bg-transparent text-[13px] font-medium text-[var(--text)] outline-none border-b border-transparent focus:border-[var(--accent)] transition-colors px-0.5"
-                    />
-                  )}
+              <div className="approval-plan-step-body">
+                {isSettled ? (
+                  <span className="text-[13px] font-medium text-[var(--text)] select-text">
+                    {step.title}
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    value={step.title}
+                    disabled={disabled}
+                    aria-label={`Step ${idx + 1}`}
+                    onChange={(e) => onEditPlanStep?.(idx, e.target.value)}
+                    className="approval-plan-step-input"
+                  />
+                )}
 
-                  {step.detail && (
-                    <p className="mt-1 text-[12px] text-[var(--text-dim)] leading-normal">
-                      {step.detail}
-                    </p>
-                  )}
+                {step.detail && (
+                  <p className="approval-plan-step-detail">{step.detail}</p>
+                )}
 
-                  {step.tools && step.tools.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {step.tools.map((tool, tIdx) => (
-                        <span
-                          key={tIdx}
-                          className="rounded px-1.5 py-0.5 text-[10.5px] font-mono bg-[var(--surface-2)] text-[var(--text-faint)] border border-[var(--border)]"
-                        >
-                          {tool}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {step.tools && step.tools.length > 0 && (
+                  <div className="approval-plan-step-tools">
+                    {step.tools.map((tool, tIdx) => (
+                      <span key={tIdx} className="approval-plan-tool-tag">
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </li>
           ))}
@@ -144,29 +338,29 @@ export function ApprovalCard({
               : "Plan was discarded."}
           </p>
         ) : (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border)]">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={onApprovePlan}
-                className="inline-flex items-center gap-1.5 rounded-[9999px] bg-[var(--accent)] px-3.5 py-1.5 text-[12.5px] font-medium text-white shadow-sm hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-              >
-                <Check className="size-3.5" />
-                Approve and run
-              </button>
+          <div className="approval-card-footer">
+            <span className="text-[11.5px] text-[var(--text-faint)]">
+              Nothing runs until approved.
+            </span>
+            <div className="approval-card-actions-group">
               <button
                 type="button"
                 disabled={disabled}
                 onClick={onDiscardPlan}
-                className="inline-flex items-center gap-1.5 rounded-[9999px] border border-[var(--border)] bg-transparent px-3 py-1.5 text-[12.5px] font-medium text-[var(--text-dim)] hover:bg-[var(--surface-3)] hover:text-[var(--text)] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+                className="approval-card-btn-ghost"
               >
                 Discard
               </button>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={onApprovePlan}
+                className="approval-card-btn-primary"
+              >
+                <Check className="size-3.5" />
+                Approve and run
+              </button>
             </div>
-            <span className="text-[11.5px] text-[var(--text-faint)]">
-              Nothing runs until approved.
-            </span>
           </div>
         )}
       </div>
@@ -174,7 +368,7 @@ export function ApprovalCard({
   }
 
   // ----------------------------------------------------
-  // QUESTIONS / CHOICES MODE
+  // 3. QUESTIONS / CHOICES MODE (choicescard.md QuestionFlow)
   // ----------------------------------------------------
   return (
     <QuestionsView
@@ -216,50 +410,16 @@ function QuestionsView({
   const isSettled = Boolean(
     settledAnswers &&
       (Array.isArray(settledAnswers)
-        ? settledAnswers.length > 0 && settledAnswers.some((a) => a && a !== "—" && a !== "")
+        ? settledAnswers.length > 0 &&
+          settledAnswers.some((a) => a && a !== "—" && a !== "")
         : Boolean(settledAnswers))
   );
 
-  // Settled card summary
-  if (isSettled) {
-    return (
-      <div
-        className={cn(
-          "w-full max-w-2xl my-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[var(--text)]",
-          className
-        )}
-      >
-        <div className="flex items-center gap-2 pb-2.5 border-b border-[var(--border)]">
-          <div className="flex size-5 items-center justify-center rounded-full bg-[var(--live-soft)] text-[var(--live)]">
-            <Check className="size-3" />
-          </div>
-          <span className="text-[12.5px] font-semibold text-[var(--text)]">
-            Answered
-          </span>
-        </div>
-        <div className="mt-3 flex flex-col gap-2.5">
-          {questions.map((q, idx) => (
-            <div key={q.id || idx} className="text-[12.5px]">
-              <span className="font-medium text-[var(--text-dim)]">
-                {q.header || q.prompt}
-              </span>
-              <p className="mt-0.5 text-[13px] text-[var(--text)] font-normal">
-                {settledAnswers?.[idx] || "—"}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (total === 0 || !currentQ) return null;
-
-  const currentAnswer = answers[currentQ.id];
-  const isMultipleSelect = currentQ.type === "multiple";
+  const currentAnswer = currentQ ? answers[currentQ.id] : undefined;
+  const isMultipleSelect = currentQ ? currentQ.type === "multiple" : false;
 
   const handleSelectOption = (opt: ApprovalCardOption) => {
-    if (disabled || isSubmitting) return;
+    if (disabled || isSubmitting || !currentQ) return;
 
     if (isMultipleSelect) {
       const existing: ApprovalCardOption[] = Array.isArray(currentAnswer)
@@ -275,7 +435,7 @@ function QuestionsView({
       setAnswers((prev) => ({ ...prev, [currentQ.id]: updated }));
     } else {
       setAnswers((prev) => ({ ...prev, [currentQ.id]: opt }));
-      // In single choice, if not the last question, automatically advance after short pause
+      // In single choice, auto advance to next question smoothly
       if (currentIndex < total - 1) {
         setTimeout(() => {
           setCurrentIndex((idx) => Math.min(total - 1, idx + 1));
@@ -285,6 +445,7 @@ function QuestionsView({
   };
 
   const handleCustomChange = (val: string) => {
+    if (!currentQ) return;
     setCustomText((prev) => ({ ...prev, [currentQ.id]: val }));
     if (val.trim()) {
       setAnswers((prev) => ({
@@ -295,6 +456,7 @@ function QuestionsView({
   };
 
   const handleSkip = () => {
+    if (!currentQ) return;
     setAnswers((prev) => ({ ...prev, [currentQ.id]: { status: "skipped" } }));
     if (currentIndex < total - 1) {
       setCurrentIndex((idx) => idx + 1);
@@ -314,15 +476,14 @@ function QuestionsView({
 
   // Keyboard navigation: 1-9 to pick, Enter to advance/submit
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (disabled || isSubmitting) return;
+    if (isSettled || disabled || isSubmitting || total === 0 || !currentQ)
+      return;
 
-      // Only handle keyboard navigation if focus is inside this card
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (!cardRef.current || !cardRef.current.contains(document.activeElement)) {
         return;
       }
 
-      // If typing in the write-in text input inside the card:
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
@@ -363,38 +524,65 @@ function QuestionsView({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentIndex, total, currentQ, answers, disabled, isSubmitting]);
+  }, [isSettled, currentIndex, total, currentQ, answers, disabled, isSubmitting]);
 
-  const hasAnsweredCurrent =
-    currentAnswer !== undefined && currentAnswer !== null;
+  // Settled card summary
+  if (isSettled) {
+    return (
+      <div className={cn("approval-card-root is-settled", className)}>
+        <div className="approval-card-header">
+          <div className="approval-card-title-group">
+            <div
+              className="approval-card-icon-pill"
+              style={{ background: "var(--live-soft)", color: "var(--live)" }}
+            >
+              <Check className="size-3.5" />
+            </div>
+            <span className="approval-card-heading">Answered</span>
+          </div>
+        </div>
+        <div className="approval-settled-recap">
+          {questions.map((q, idx) => (
+            <div key={q.id || idx} className="approval-settled-row">
+              <span className="approval-settled-q">
+                {q.header || q.prompt}
+              </span>
+              <div className="approval-settled-a">
+                {settledAnswers?.[idx] || "—"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (total === 0 || !currentQ) return null;
+
   const isLastQuestion = currentIndex === total - 1;
 
   return (
-    <div
-      ref={cardRef}
-      className={cn(
-        "w-full max-w-2xl my-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[var(--text)] transition-all",
-        className
-      )}
-    >
+    <div ref={cardRef} className={cn("approval-card-root", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="size-4 text-[var(--accent)]" />
-          <span className="text-[13px] font-semibold text-[var(--text)]">
+      <div className="approval-card-header">
+        <div className="approval-card-title-group">
+          <div className="approval-card-icon-pill">
+            <MessageSquare className="size-3.5" />
+          </div>
+          <span className="approval-card-heading">
             {currentQ.header || "Question"}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
           {isMulti && (
-            <div className="flex items-center gap-1 text-[11px] font-mono text-[var(--text-faint)]">
+            <div className="approval-card-pagination">
               <button
                 type="button"
                 disabled={currentIndex === 0}
                 onClick={() => setCurrentIndex((idx) => Math.max(0, idx - 1))}
                 aria-label="Previous question"
-                className="rounded p-1 hover:bg-[var(--surface-3)] disabled:opacity-30 cursor-pointer"
+                className="approval-card-page-btn"
               >
                 <ChevronLeft className="size-3.5" />
               </button>
@@ -408,7 +596,7 @@ function QuestionsView({
                   setCurrentIndex((idx) => Math.min(total - 1, idx + 1))
                 }
                 aria-label="Next question"
-                className="rounded p-1 hover:bg-[var(--surface-3)] disabled:opacity-30 cursor-pointer"
+                className="approval-card-page-btn"
               >
                 <ChevronRight className="size-3.5" />
               </button>
@@ -420,7 +608,7 @@ function QuestionsView({
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss"
-              className="rounded p-1 text-[var(--text-faint)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] transition-colors cursor-pointer"
+              className="approval-card-dismiss-btn"
             >
               <X className="size-3.5" />
             </button>
@@ -429,19 +617,15 @@ function QuestionsView({
       </div>
 
       {/* Question Prompt */}
-      <div className="mt-3">
-        <h3 className="text-[14px] font-medium text-[var(--text)] leading-snug">
-          {currentQ.prompt}
-        </h3>
+      <div className="approval-card-prompt-wrap">
+        <h3 className="approval-card-prompt">{currentQ.prompt}</h3>
         {isMultipleSelect && (
-          <span className="mt-1 block text-[11.5px] text-[var(--text-faint)]">
-            Select all that apply
-          </span>
+          <span className="approval-card-hint">Select all that apply</span>
         )}
       </div>
 
       {/* Options List */}
-      <div className="mt-3.5 flex flex-col gap-2">
+      <div className="approval-card-options-list">
         {(currentQ.options || []).map((opt, oIdx) => {
           const isSelected = isMultipleSelect
             ? Array.isArray(currentAnswer) &&
@@ -455,38 +639,18 @@ function QuestionsView({
               disabled={disabled}
               onClick={() => handleSelectOption(opt)}
               className={cn(
-                "group relative flex w-full items-start gap-3 rounded-[8px] border p-3 text-left transition-all duration-150 cursor-pointer",
-                isSelected
-                  ? "border-[var(--accent)] bg-[var(--accent-wash)]"
-                  : "border-[var(--border)] bg-[var(--canvas)] hover:border-[var(--border-strong,var(--text-faint))] hover:bg-[var(--surface-3)]"
+                "approval-card-option",
+                isSelected && "is-selected"
               )}
             >
-              <span
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded text-[11px] font-mono transition-colors",
-                  isSelected
-                    ? "bg-[var(--accent)] text-white font-medium"
-                    : "border border-[var(--border)] text-[var(--text-faint)] group-hover:text-[var(--text)]"
-                )}
-              >
+              <span className="approval-card-option-badge">
                 {isSelected ? <Check className="size-3" /> : oIdx + 1}
               </span>
 
-              <div className="flex-1 min-w-0">
-                <span
-                  className={cn(
-                    "text-[13px] font-medium leading-tight block",
-                    isSelected
-                      ? "text-[var(--text)]"
-                      : "text-[var(--text)] group-hover:text-[var(--text)]"
-                  )}
-                >
-                  {opt.label}
-                </span>
+              <div className="approval-card-option-content">
+                <span className="approval-card-option-title">{opt.label}</span>
                 {opt.description && (
-                  <p className="mt-1 text-[11.5px] text-[var(--text-dim)] leading-normal">
-                    {opt.description}
-                  </p>
+                  <p className="approval-card-option-desc">{opt.description}</p>
                 )}
               </div>
             </button>
@@ -494,26 +658,26 @@ function QuestionsView({
         })}
 
         {/* Freeform write-in input */}
-        <div className="mt-1">
+        <div>
           <input
             type="text"
             value={customText[currentQ.id] || ""}
             disabled={disabled}
             placeholder="Something else / in your own words…"
             onChange={(e) => handleCustomChange(e.target.value)}
-            className="w-full rounded-[6px] border border-[var(--border)] bg-[var(--canvas)] px-3 py-2 text-[12.5px] text-[var(--text)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors"
+            className="approval-card-custom-input"
           />
         </div>
       </div>
 
       {/* Footer controls */}
-      <div className="mt-4 flex items-center justify-between pt-2.5 border-t border-[var(--border)]">
+      <div className="approval-card-footer">
         {isMulti ? (
           <button
             type="button"
             onClick={handleSkip}
             disabled={disabled}
-            className="text-[12px] font-medium text-[var(--text-faint)] hover:text-[var(--text)] transition-colors cursor-pointer"
+            className="approval-card-btn-skip"
           >
             Skip
           </button>
@@ -521,13 +685,13 @@ function QuestionsView({
           <div />
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="approval-card-actions-group">
           {isMulti && !isLastQuestion ? (
             <button
               type="button"
               disabled={disabled}
               onClick={() => setCurrentIndex((idx) => idx + 1)}
-              className="inline-flex items-center gap-1 rounded-[9999px] border border-[var(--border)] bg-[var(--surface-3)] px-3 py-1.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--surface-2)] active:scale-[0.98] transition-all cursor-pointer"
+              className="approval-card-btn-ghost"
             >
               Next
               <ChevronRight className="size-3" />
@@ -537,7 +701,7 @@ function QuestionsView({
               type="button"
               disabled={disabled || isSubmitting}
               onClick={doSubmit}
-              className="inline-flex items-center gap-1.5 rounded-[9999px] bg-[var(--accent)] px-4 py-1.5 text-[12.5px] font-medium text-white shadow-sm hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+              className="approval-card-btn-primary"
             >
               <Check className="size-3.5" />
               {isSubmitting ? "Submitting…" : "Submit"}

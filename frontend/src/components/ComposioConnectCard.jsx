@@ -44,9 +44,9 @@ export default function ComposioConnectCard({ url, app = 'App' }) {
       style={{
         margin: '10px 0',
         padding: '12px 16px',
-        borderRadius: '10px',
-        border: '1px solid rgba(168, 85, 247, 0.28)',
-        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%)',
+        borderRadius: 'var(--radius-links)',
+        border: '1px solid var(--accent-line)',
+        background: 'var(--accent-wash)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -58,8 +58,8 @@ export default function ComposioConnectCard({ url, app = 'App' }) {
           style={{
             width: 34,
             height: 34,
-            borderRadius: '8px',
-            background: 'rgba(168, 85, 247, 0.14)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--accent-soft)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

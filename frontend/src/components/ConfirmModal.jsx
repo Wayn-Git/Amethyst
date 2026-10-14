@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Icon from './Icon.jsx'
-import { api, prettyJSON } from '../api.js'
+import { api } from '../api.js'
 import { useFocusTrap } from '../hooks/useFocusTrap.js'
 import { JsonViewer } from './arc/json-viewer/json-viewer'
 import { CodeBlock } from './arc/code-block/code-block'
 import './confirm-modal.css'
 
-/* Modern Tool Execution Confirmation Modal.
-   The turn is suspended while this is up. Keyboard-driven:
-   - Enter: Allow and execute
-   - Esc: Decline
-   - R: Toggle "Remember choice" for this operation */
+/* Modern Human-in-the-Loop Tool Execution Approval Modal
+   Strictly follows wayn-design-system and choicescard.md specifications:
+   - 12px squircle geometry (rounded-xl) for all action buttons & icon pills
+   - Squircle rectangular indicators (zero circular dots)
+   - Keyboard-driven decision flow:
+     - Enter: Allow and execute
+     - Esc: Decline
+     - R: Toggle "Remember choice" for this operation */
 
 function getToolMeta(name = '', args = {}) {
   const n = String(name).toLowerCase()
@@ -82,8 +85,6 @@ export default function ConfirmModal({ pending = [], onDecide }) {
       await api.decideConfirmation(target.id, { allow, remember })
       onDecide(target.id)
     } catch (err) {
-      // Do not remove request when decision did not reach server. Keeping gate
-      // visible prevents an accidental tool execution after a transport error.
       setDecisionError(err?.message || 'Could not submit permission decision. Try again.')
     } finally {
       setBusy(null)
@@ -159,7 +160,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
+          transition={{ duration: 0.16 }}
         >
           <motion.div
             className={windowClasses}
@@ -167,9 +168,9 @@ export default function ConfirmModal({ pending = [], onDecide }) {
             role="dialog"
             aria-modal="true"
             aria-label="Permission required"
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            exit={{ opacity: 0, scale: 0.96, y: 6 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           >
             {/* Header */}
@@ -187,7 +188,8 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                       </span>
                     )}
                     <span className="confirm-risk-pill">
-                      <span className="confirm-risk-dot" />
+                      {/* Squircle rectangular dash indicator (zero circular dots) */}
+                      <span className="confirm-risk-dash" />
                       {sensitive ? 'Sensitive' : `${risk.charAt(0).toUpperCase()}${risk.slice(1)} Risk`}
                     </span>
                   </div>
@@ -207,7 +209,6 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                   <span>{decisionError}</span>
                 </div>
               )}
-              {/* Reason notice if escalation or sensitive path */}
               {reason && (
                 <div className="confirm-reason-box">
                   <Icon name={sensitive ? 'lock' : 'alert'} size={15} />
@@ -215,7 +216,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                 </div>
               )}
 
-              {/* Inspector Card */}
+              {/* Parameter Inspection Card */}
               <div className="confirm-inspect-card">
                 <div className="confirm-inspect-header">
                   <span className="confirm-inspect-title">
@@ -241,7 +242,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                 </div>
 
                 {viewMode === 'raw' ? (
-                  <div className="confirm-raw-json-viewer" style={{ padding: '6px 12px 12px 12px' }}>
+                  <div className="confirm-raw-json-viewer" style={{ padding: '8px 12px 12px 12px' }}>
                     <JsonViewer data={args || {}} rootName="parameters" maxHeight={240} defaultExpandDepth={2} />
                   </div>
                 ) : (
@@ -336,7 +337,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                   <div className="confirm-remember-desc">
                     {sensitive ? (
                       <span style={{ color: 'var(--stop, #ef4444)' }}>
-                        Disabled: sensitive paths always require confirmation and cannot be stored.
+                        Sensitive paths always require confirmation and cannot be stored.
                       </span>
                     ) : (
                       <>
@@ -351,7 +352,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
               </div>
             </div>
 
-            {/* Footer Buttons */}
+            {/* Footer Buttons - strictly 12px squircle geometry (rounded-xl) */}
             <div className="confirm-footer">
               <button
                 type="button"
