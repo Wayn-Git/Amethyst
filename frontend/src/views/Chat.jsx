@@ -3345,30 +3345,6 @@ export default function Chat() {
 
       <div className="chat-main">
 
-        {isEmpty && (
-          <div className="home-top-mode-bar">
-            <div className="home-mode-segmented">
-              <button
-                type="button"
-                className="home-mode-btn is-active"
-                title="Work Mode (Conversations, Tools, General Assistant)"
-              >
-                <Icon name="chat" size={15} />
-                <span>Work</span>
-              </button>
-              <button
-                type="button"
-                className="home-mode-btn"
-                onClick={() => setView('code')}
-                title="Switch to Code Mode (Powered by OpenCode Engine)"
-              >
-                <Icon name="code" size={15} />
-                <span>Code</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         {isEmpty ? (
           <motion.div
             className="hero-stack"
