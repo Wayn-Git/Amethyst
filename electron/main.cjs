@@ -134,10 +134,17 @@ function spawnBackend(port = activePort) {
 
   let args = [];
   if (!app.isPackaged) {
-    args = ['-m', 'backend.cli', 'serve', '--port', port.toString()];
+    args = ['-m', 'backend.cli', 'serve', '--port', port.toString(), '--host', '127.0.0.1'];
   } else {
-    args = ['serve', '--port', port.toString()];
+    args = ['serve', '--port', port.toString(), '--host', '127.0.0.1'];
   }
+
+  const venvBin = process.platform === 'win32'
+    ? path.join(__dirname, '..', '.venv', 'Scripts')
+    : path.join(__dirname, '..', '.venv', 'bin');
+  const envPath = !app.isPackaged
+    ? `${venvBin}${path.delimiter}${process.env.PATH || ''}`
+    : process.env.PATH;
 
   try {
     backendProcess = spawn(execPath, args, {
@@ -145,8 +152,11 @@ function spawnBackend(port = activePort) {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        PATH: envPath,
         AMETHYST_PORT: port.toString(),
         AMETHYST_HOST: '127.0.0.1',
+        AMETHYST_BIND_PORT: port.toString(),
+        AMETHYST_BIND_HOST: '127.0.0.1',
         AMETHYST_DESKTOP: '1',
       },
     });
