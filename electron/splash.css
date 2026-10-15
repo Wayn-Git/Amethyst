@@ -159,3 +159,47 @@ body {
   background: rgba(139, 92, 246, 0.28);
   border-color: rgba(139, 92, 246, 0.7);
 }
+
+.splash-log-snippet {
+  display: none;
+  width: 320px;
+  max-height: 80px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: ui-monospace, 'Geist Mono', SFMono-Regular, monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #e2e8f0;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.splash-actions-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.splash-secondary-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.splash-secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+

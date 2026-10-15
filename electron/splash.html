@@ -23,7 +23,11 @@
 
     <div id="splash-error-box" class="splash-error-box">
       <span id="splash-error-text" class="splash-error-msg"></span>
-      <button id="splash-retry" class="splash-retry-btn">Retry Connection</button>
+      <pre id="splash-log-snippet" class="splash-log-snippet"></pre>
+      <div class="splash-actions-row">
+        <button id="splash-open-logs" class="splash-secondary-btn">Open Logs</button>
+        <button id="splash-retry" class="splash-retry-btn">Retry</button>
+      </div>
     </div>
   </div>
 
@@ -32,8 +36,10 @@
     const loaderSec = document.getElementById('splash-loader-section');
     const errorBox = document.getElementById('splash-error-box');
     const errorText = document.getElementById('splash-error-text');
+    const logSnippet = document.getElementById('splash-log-snippet');
     const closeBtn = document.getElementById('splash-close');
     const retryBtn = document.getElementById('splash-retry');
+    const openLogsBtn = document.getElementById('splash-open-logs');
 
     window.updateStatus = function(text) {
       if (statusEl) {
@@ -43,11 +49,19 @@
       if (errorBox) errorBox.style.display = 'none';
     };
 
-    window.showError = function(msg) {
+    window.showError = function(msg, snippet) {
       if (loaderSec) loaderSec.style.display = 'none';
       if (errorBox) {
         errorBox.style.display = 'flex';
         errorText.textContent = msg || 'Trouble connecting to backend engine.';
+        if (logSnippet) {
+          if (snippet) {
+            logSnippet.textContent = snippet;
+            logSnippet.style.display = 'block';
+          } else {
+            logSnippet.style.display = 'none';
+          }
+        }
       }
     };
 
@@ -57,6 +71,14 @@
           window.electronSplash.close();
         } else {
           window.close();
+        }
+      });
+    }
+
+    if (openLogsBtn) {
+      openLogsBtn.addEventListener('click', () => {
+        if (window.electronSplash?.openLogs) {
+          window.electronSplash.openLogs();
         }
       });
     }
