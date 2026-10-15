@@ -13,6 +13,43 @@ let tray = null;
 let backendProcess = null;
 let isQuitting = false;
 let pingInterval = null;
+let trayEnabled = true;
+
+function getLogsDir() {
+  const userData = app.getPath('userData');
+  const logsDir = path.join(userData, 'logs');
+  const fs = require('fs');
+  if (!fs.existsSync(logsDir)) {
+    try {
+      fs.mkdirSync(logsDir, { recursive: true });
+    } catch {}
+  }
+  return logsDir;
+}
+
+let logStream = null;
+const recentLogs = [];
+const MAX_RECENT_LOGS = 30;
+
+function appendBackendLog(chunk) {
+  const text = chunk.toString();
+  for (const line of text.split('\n')) {
+    if (line.trim()) {
+      recentLogs.push(line.trim());
+      if (recentLogs.length > MAX_RECENT_LOGS) {
+        recentLogs.shift();
+      }
+    }
+  }
+  try {
+    if (!logStream) {
+      const fs = require('fs');
+      const logFile = path.join(getLogsDir(), 'backend.log');
+      logStream = fs.createWriteStream(logFile, { flags: 'a' });
+    }
+    logStream.write(chunk);
+  } catch {}
+}
 
 // Enforce single-instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -163,14 +200,25 @@ function spawnBackend(port = activePort) {
 
     backendProcess.stdout?.on('data', (d) => {
       console.log(`[Amethyst Backend stdout] ${d.toString().trim()}`);
+      appendBackendLog(d);
     });
     backendProcess.stderr?.on('data', (d) => {
       console.warn(`[Amethyst Backend stderr] ${d.toString().trim()}`);
+      appendBackendLog(d);
     });
 
     backendProcess.on('exit', (code, signal) => {
       console.log(`[Amethyst Backend] Process exited with code ${code}, signal ${signal}`);
+      appendBackendLog(`[Amethyst Backend] Process exited with code ${code}, signal ${signal}\n`);
       backendProcess = null;
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+        const snippet = recentLogs.slice(-20).join('\n');
+        splashWindow?.webContents.executeJavaScript(
+          `window.showError && window.showError("Backend process exited unexpectedly (code ${code || signal})", ${JSON.stringify(snippet)});`
+        );
+      }
     });
   } catch (err) {
     console.error('[Amethyst Supervisor] Failed to spawn backend:', err);
@@ -278,7 +326,12 @@ function createMainWindow() {
     mainWindow.focus();
   });
 
-  mainWindow.on('close', () => {
+  mainWindow.on('close', (e) => {
+    if (trayEnabled && !isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+      return;
+    }
     isQuitting = true;
     killBackendProcess();
     app.quit();
@@ -410,8 +463,9 @@ async function bootSupervisor() {
     } else if (attempts >= maxAttempts) {
       clearInterval(pingInterval);
       pingInterval = null;
+      const snippet = recentLogs.slice(-20).join('\n');
       splashWindow?.webContents.executeJavaScript(
-        "window.showError && window.showError('Unable to connect to Amethyst backend engine.');"
+        `window.showError && window.showError("Unable to connect to Amethyst backend engine.", ${JSON.stringify(snippet)});`
       );
     }
   }, 500);
@@ -438,6 +492,13 @@ ipcMain.handle('desktop:retry-boot', () => {
 });
 ipcMain.handle('desktop:open-external', (_e, url) => {
   return shell.openExternal(url);
+});
+ipcMain.handle('desktop:set-tray-enabled', (_e, enabled) => {
+  trayEnabled = Boolean(enabled);
+  return { ok: true, trayEnabled };
+});
+ipcMain.handle('desktop:open-logs', () => {
+  return shell.openPath(getLogsDir());
 });
 
 app.whenReady().then(() => {
