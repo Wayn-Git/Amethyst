@@ -102,10 +102,40 @@ _ABSENT_CACHE: dict[tuple[str, str], float] = {}
 _ABSENT_TTL = 10.0  # 10s negative cache for absent keys
 
 
+def enable_file_store(path: Path | None = None) -> _FileStore:
+    """Explicitly activate owner-only (0600) file storage for secrets."""
+    configured = os.environ.get("AMETHYST_SECRETS_FILE", "").strip()
+    target = path or (Path(configured).expanduser() if configured else Path("~/.amethyst/secrets.json").expanduser())
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        handle = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            json.dump({}, out)
+    os.environ["AMETHYST_SECRETS_FILE"] = str(target)
+    return _FileStore(target)
+
+
 def _store():
     """Where secrets go. The OS keychain unless the environment says otherwise."""
     configured = os.environ.get("AMETHYST_SECRETS_FILE", "").strip()
-    return _FileStore(Path(configured).expanduser()) if configured else _keyring()
+    if configured:
+        return _FileStore(Path(configured).expanduser())
+
+    try:
+        from backend.db.connection import get_connection
+
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = 'keychain.fallback_consented'"
+        ).fetchone()
+        if row and str(row[0]) in ("1", "true", "True"):
+            default_path = Path("~/.amethyst/secrets.json").expanduser()
+            return _FileStore(default_path)
+    except Exception:
+        pass
+
+    return _keyring()
+
 
 
 #: What to tell someone whose host cannot store a key. The error `keyring` raises
