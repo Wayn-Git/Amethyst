@@ -26,6 +26,26 @@ def _native_base(base_url: str | None) -> str:
     return base[:-3].rstrip("/") if base.endswith("/v1") else base
 
 
+async def stream_pull(model: str, base_url: str | None = None):
+    """Stream model pull progress directly from Ollama's local /api/pull."""
+    import json
+    import httpx
+
+    native = _native_base(base_url)
+    pull_url = f"{native}/api/pull"
+    async with httpx.AsyncClient(timeout=None) as client:
+        async with client.stream("POST", pull_url, json={"model": model, "stream": True}) as resp:
+            if resp.status_code != 200:
+                err_text = await resp.aread()
+                yield json.dumps({
+                    "error": f"Ollama returned HTTP {resp.status_code}: {err_text.decode('utf-8', errors='replace')}"
+                }).encode("utf-8") + b"\n"
+                return
+            async for chunk in resp.aiter_bytes():
+                yield chunk
+
+
+
 def initialize(
     config: ProviderConfig, model: str | None = None, *, max_retries: int = MAX_RETRIES
 ) -> ResolvedModel:
