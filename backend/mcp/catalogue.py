@@ -416,13 +416,19 @@ CATALOGUE: list[CatalogueEntry] = [
         transport=Transport.STREAMABLE_HTTP,
         url="https://api.githubcopilot.com/mcp/",
         oauth_scopes=["repo", "read:org", "read:user", "gist", "notifications", "workflow"],
+        api_key_ref="amethyst-mcp/github.api_key",
+        api_key_header="Authorization",
         homepage="https://github.com/github/github-mcp-server",
         setup_hint=(
-            "GitHub publishes no dynamic registration endpoint, so register one app once:\n"
-            "  1. github.com/settings/developers -> New OAuth App\n"
-            "  2. Authorization callback URL: http://127.0.0.1:33418/oauth/callback\n"
-            "  3. Generate a client secret\n"
-            "  4. Paste the client id and secret below, then sign in."
+            "Connect with a Personal Access Token (easiest) or your own OAuth App:\n"
+            "  Option A: Personal Access Token (classic)\n"
+            "    1. github.com/settings/tokens -> Generate new token (classic) with repo & read:org scopes\n"
+            "    2. Paste token below, then press Connect.\n"
+            "  Option B: OAuth App\n"
+            "    1. github.com/settings/developers -> New OAuth App\n"
+            "    2. Authorization callback URL: http://127.0.0.1:33418/oauth/callback\n"
+            "    3. Generate a client secret\n"
+            "    4. Paste the client id and secret below, then sign in."
         ),
         identity_url="https://api.github.com/user",
         identity_field="login",
