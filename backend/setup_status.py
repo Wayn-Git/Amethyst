@@ -105,13 +105,21 @@ def check_keychain() -> dict[str, Any]:
         }
 
 
+def _find_bin(name: str) -> str | None:
+    from pathlib import Path
+    local_bin = Path.home() / ".amethyst" / "bin" / name
+    if local_bin.is_file() and os.access(str(local_bin), os.X_OK):
+        return str(local_bin)
+    return shutil.which(name)
+
+
 def check_runtimes() -> dict[str, bool]:
     """Detect presence of connector and worker execution runtimes on PATH."""
     return {
-        "npx": shutil.which("npx") is not None or shutil.which("node") is not None,
-        "uvx": shutil.which("uvx") is not None or shutil.which("uv") is not None,
-        "ffmpeg": shutil.which("ffmpeg") is not None,
-        "opencode": shutil.which("opencode") is not None,
+        "npx": _find_bin("npx") is not None or _find_bin("node") is not None,
+        "uvx": _find_bin("uvx") is not None or _find_bin("uv") is not None,
+        "ffmpeg": _find_bin("ffmpeg") is not None,
+        "opencode": _find_bin("opencode") is not None,
     }
 
 

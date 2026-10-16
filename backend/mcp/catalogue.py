@@ -25,6 +25,15 @@ class AuthKind(enum.StrEnum):
     SETUP = "setup"
 
 
+class RuntimeKind(enum.StrEnum):
+    NONE = "none"
+    NODE = "node"
+    UV = "uv"
+    FFMPEG = "ffmpeg"
+    OPENCODE = "opencode"
+    CUA = "cua"
+
+
 @dataclass
 class CatalogueEntry:
     id: str
@@ -39,6 +48,7 @@ class CatalogueEntry:
     oauth_scopes: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
     requires: str | None = None  # what the user must have installed
+    runtime: RuntimeKind = RuntimeKind.NONE  # structured runtime dependency
     setup_hint: str | None = None  # shown when auth is SETUP
     # A server that wants one bare API key rather than an OAuth app's
     # client id/secret pair or a credentials file -- `missing_credentials`
@@ -149,6 +159,49 @@ class CatalogueEntry:
             catalogue_id=self.id,
             description=self.description,
         )
+
+
+def check_runtime(runtime: RuntimeKind) -> tuple[bool, str | None]:
+    """Check if the given runtime requirement is satisfied."""
+    import shutil
+    from pathlib import Path
+
+    if runtime == RuntimeKind.NONE:
+        return True, None
+
+    def _which(name: str) -> str | None:
+        local_bin = Path.home() / ".amethyst" / "bin" / name
+        if local_bin.is_file() and os.access(str(local_bin), os.X_OK):
+            return str(local_bin)
+        return shutil.which(name)
+
+    if runtime == RuntimeKind.NODE:
+        if _which("npx") or _which("node"):
+            return True, None
+        return False, "Node.js (npx) is required"
+
+    if runtime == RuntimeKind.UV:
+        if _which("uvx") or _which("uv"):
+            return True, None
+        return False, "uv (uvx) is required"
+
+    if runtime == RuntimeKind.FFMPEG:
+        if _which("ffmpeg"):
+            return True, None
+        return False, "ffmpeg is required"
+
+    if runtime == RuntimeKind.OPENCODE:
+        if _which("opencode"):
+            return True, None
+        return False, "opencode is required"
+
+    if runtime == RuntimeKind.CUA:
+        cua_path = Path.home() / ".local" / "bin" / "cua-driver"
+        if _which("cua-driver") or (cua_path.is_file() and os.access(str(cua_path), os.X_OK)):
+            return True, None
+        return False, "cua-driver is required"
+
+    return True, None
 
 
 # One Google server, presented as the applications people actually think in.
@@ -269,6 +322,7 @@ def _google_apps() -> list[CatalogueEntry]:
                 args=["workspace-mcp", "--single-user", "--tools", service],
                 env=_GOOGLE_ENV.copy(),
                 requires="uv (uvx) and a Google Cloud OAuth client",
+                runtime=RuntimeKind.UV,
                 setup_hint=GOOGLE_SETUP_HINT,
                 homepage="https://github.com/taylorwilsdon/google_workspace_mcp",
                 client_id_env="GOOGLE_OAUTH_CLIENT_ID",
@@ -300,6 +354,7 @@ def _google_merged() -> CatalogueEntry:
         args=["workspace-mcp", "--single-user", "--tools", *GOOGLE_MERGED_TOOLS],
         env=_GOOGLE_ENV.copy(),
         requires="uv (uvx) and a Google Cloud OAuth client",
+        runtime=RuntimeKind.UV,
         setup_hint=GOOGLE_SETUP_HINT,
         homepage="https://github.com/taylorwilsdon/google_workspace_mcp",
         client_id_env="GOOGLE_OAUTH_CLIENT_ID",
@@ -329,6 +384,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="npx",
         args=["-y", "@playwright/mcp@latest"],
         requires="Node.js (npx)",
+        runtime=RuntimeKind.NODE,
         homepage="https://github.com/microsoft/playwright-mcp",
     ),
     CatalogueEntry(
@@ -344,6 +400,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="npx",
         args=["-y", "chrome-devtools-mcp@latest"],
         requires="Node.js (npx) and Chrome",
+        runtime=RuntimeKind.NODE,
         homepage="https://github.com/ChromeDevTools/chrome-devtools-mcp",
     ),
     # ----------------------------------------------------------------- github
@@ -383,6 +440,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="uvx",
         args=["mcp-server-fetch"],
         requires="uv (uvx)",
+        runtime=RuntimeKind.UV,
         homepage="https://github.com/modelcontextprotocol/servers",
     ),
     CatalogueEntry(
@@ -398,6 +456,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="npx",
         args=["-y", "@modelcontextprotocol/server-memory"],
         requires="Node.js (npx)",
+        runtime=RuntimeKind.NODE,
         homepage="https://github.com/modelcontextprotocol/servers",
     ),
     # ----------------------------------------------------------------- vercel
@@ -429,6 +488,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="npx",
         args=["-y", "microsoft-todo-mcp"],
         requires="Node.js (npx)",
+        runtime=RuntimeKind.NODE,
         setup_hint=(
             "Nothing to register. This server signs in with Microsoft's own public\n"
             "client, and asks only for the `Tasks.ReadWrite` scope — your To Do lists\n"
@@ -457,6 +517,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="uvx",
         args=["mcp-server-linkedin@latest"],
         requires="uv (uvx). The server downloads and manages its own Chromium.",
+        runtime=RuntimeKind.UV,
         setup_hint=(
             "Read this before connecting. LinkedIn has no API for this: the server\n"
             "signs into your real account in a browser and reads the pages as you\n"
@@ -486,6 +547,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="npx",
         args=["-y", "@0xbarandiaran/spotify-mcp-server"],
         requires="Node.js (npx) and a Spotify developer app",
+        runtime=RuntimeKind.NODE,
         setup_hint=(
             "This is a published fork of marcelmarais/spotify-mcp-server, updated for\n"
             "Spotify's February 2026 API change — the original is not on npm.\n"
@@ -579,6 +641,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="npx",
         args=["-y", "@thesvg/mcp-server@latest"],
         requires="Node.js (npx)",
+        runtime=RuntimeKind.NODE,
         homepage="https://thesvg.org",
     ),
     # ------------------------------------------------------------- cua-driver
@@ -595,6 +658,7 @@ CATALOGUE: list[CatalogueEntry] = [
         command="cua-driver",
         args=["mcp"],
         requires="cua-driver binary installed (~/.local/bin/cua-driver)",
+        runtime=RuntimeKind.CUA,
         homepage="https://github.com/trycua/cua",
     ),
     # ----------------------------------------------------------------- shadcn
