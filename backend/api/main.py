@@ -6599,10 +6599,15 @@ def update_device_permissions(device_id: str, body: dict[str, Any]) -> dict[str,
 
 
 @app.post("/api/devices/pair")
-def start_pairing(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def start_pairing(
+    body: dict[str, Any] | None = None,
+    prefer_lan: bool = False,
+) -> dict[str, Any]:
     """Open a pairing window and return the QR code to show."""
     from backend.db.connection import get_connection
     from backend.sync import devices as sync_devices
+
+    want_lan = prefer_lan or bool((body or {}).get("prefer_lan"))
 
     conn = get_connection()
     secret, payload = sync_devices.open_pairing(
@@ -6625,8 +6630,18 @@ def start_pairing(body: dict[str, Any] | None = None) -> dict[str, Any]:
     lan_payload = sync_devices.pairing_payload(secret, host=host_url, relay=relay_url, prefer_lan=True) if host_url else ""
     web_payload = sync_devices.pairing_payload(secret, app=app_url, relay=relay_url, host=host_url) if app_url else ""
 
-    # Direct LAN is preferred for remote PC controls, falling back to Web or general payload
-    active_payload = lan_payload if lan_payload else (web_payload if web_payload else payload)
+    # Prioritize secure HTTPS / Web origin for mobile crypto.subtle compatibility (R11)
+    if want_lan and lan_payload:
+        active_payload = lan_payload
+    elif web_payload and (app_url.startswith("https://") or relay_url.startswith("https://")):
+        active_payload = web_payload
+    elif web_payload:
+        active_payload = web_payload
+    elif lan_payload:
+        active_payload = lan_payload
+    else:
+        active_payload = payload
+
 
     return {
         "secret": secret,
