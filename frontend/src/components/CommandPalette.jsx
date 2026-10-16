@@ -18,6 +18,7 @@ import WikiSummaryView from './damon/views/WikiSummaryView.jsx'
 import AnswerCardView from './damon/views/AnswerCardView.jsx'
 import TasksView from './damon/views/TasksView.jsx'
 import LibraryView from './damon/views/LibraryView.jsx'
+import DamonSplitPane from './damon/DamonSplitPane.jsx'
 import { evaluateMath } from './damon/calculator.js'
 import { peek, put } from './damon/searchCache.js'
 import { request as dashboardRequest } from '../dashboard/api.js'
@@ -219,6 +220,7 @@ export default function CommandPalette({ bare = false }) {
   const [localResults, setLocalResults] = useState({ query: '', items: [] })
   const [localStatus, setLocalStatus] = useState('')
   const [capturing, setCapturing] = useState(false)
+  const [launcherItems, setLauncherItems] = useState([])
 
   // Search results state
   const [webResults, setWebResults] = useState([])
@@ -364,6 +366,54 @@ export default function CommandPalette({ bare = false }) {
 
     return () => { delete window.__amethyst_spotlight_shown }
   }, [open, replayOpenAnimation])
+
+  // Auto-hide spotlight on window blur / click outside when in native bare mode
+  useEffect(() => {
+    if (!bare) return
+    const onWindowBlur = () => {
+      window.pywebview?.api?.hide?.()
+    }
+    window.addEventListener('blur', onWindowBlur)
+    return () => window.removeEventListener('blur', onWindowBlur)
+  }, [bare])
+
+  // Stream unified launcher results from backend LauncherEngine
+  useEffect(() => {
+    if (!open || activeMode !== 'all') {
+      setLauncherItems([])
+      return
+    }
+
+    const sessionId = 'session_' + Math.random().toString(36).slice(2)
+    const es = new EventSource(
+      `/api/launcher/stream?q=${encodeURIComponent(effectiveQuery)}&session_id=${sessionId}`
+    )
+
+    es.onmessage = (event) => {
+      try {
+        const batch = JSON.parse(event.data)
+        if (Array.isArray(batch)) {
+          setLauncherItems((prev) => {
+            const map = new Map(prev.map((item) => [item.id, item]))
+            for (const item of batch) {
+              map.set(item.id, item)
+            }
+            return Array.from(map.values()).sort((a, b) => (b.score || 0) - (a.score || 0))
+          })
+        }
+      } catch (err) {
+        console.warn('Launcher SSE parse error', err)
+      }
+    }
+
+    es.onerror = () => {
+      es.close()
+    }
+
+    return () => {
+      es.close()
+    }
+  }, [open, activeMode, effectiveQuery])
 
   // Refresh tasks callback
   const refreshTasks = useCallback(() => {
@@ -902,6 +952,60 @@ export default function CommandPalette({ bare = false }) {
     return out
   }, [effectiveQuery, mathResult, handleNavigate, chat, activeMode, handleSelectMode, toast])
 
+  const handlePreviewAction = useCallback(async (action, item) => {
+    const targetItem = item || results[index]
+    if (!targetItem) return
+    try {
+      if (action.handler_payload?.action_type === 'navigate') {
+        handleNavigate(action.handler_payload.target)
+        closePalette()
+        return
+      }
+      if (action.handler_payload?.url) {
+        openUrl(action.handler_payload.url)
+        closePalette()
+        return
+      }
+      if (action.id === 'ask_agent') {
+        const prompt = action.handler_payload?.prompt || action.handler_payload?.title
+        handleNavigate('chat', prompt)
+        closePalette()
+        return
+      }
+      if (targetItem.provider_id) {
+        await api.executeLauncherAction(targetItem.provider_id, action.id, action.handler_payload || {})
+        if (bare) {
+          setFlash(action.title || 'Done')
+          setTimeout(() => { setFlash(null); closePalette() }, 500)
+        } else {
+          closePalette()
+        }
+      }
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }, [handleNavigate, closePalette, bare, toast, index])
+
+  const launcherCommands = useMemo(() => {
+    return launcherItems.map((item) => ({
+      id: item.id,
+      group: item.badge || item.provider_id.toUpperCase(),
+      icon: item.icon || 'search',
+      label: item.title,
+      hint: item.subtitle,
+      preview_type: item.preview_type,
+      preview_data: item.preview_data,
+      actions: item.actions,
+      provider_id: item.provider_id,
+      run: async () => {
+        const primary = (item.actions || []).find((a) => a.is_primary) || (item.actions || [])[0]
+        if (primary) {
+          await handlePreviewAction(primary, item)
+        }
+      },
+    }))
+  }, [launcherItems, handlePreviewAction])
+
   // Filtered results
   const results = useMemo(() => {
     // Dedicated view modes return empty list for generic list
@@ -964,10 +1068,10 @@ export default function CommandPalette({ bare = false }) {
       label: item.title, hint: item.detail,
       run: () => { window.location.assign(item.href) },
     }))
-    return [...local, ...dynamicItems, ...matchedCommands, ...matchedMemory]
+    return [...launcherCommands, ...local, ...dynamicItems, ...matchedCommands, ...matchedMemory]
   }, [
     activeMode, effectiveQuery, commands, dynamicItems, memory, localResults,
-    conversations, handleNavigate, chat,
+    conversations, handleNavigate, chat, launcherCommands,
   ])
 
   // Count items for keyboard navigation
@@ -1307,7 +1411,7 @@ export default function CommandPalette({ bare = false }) {
         {/* Universal Mode / Commands Mode List */}
         {activeMode !== 'web' && activeMode !== 'youtube' && activeMode !== 'images' &&
          activeMode !== 'tasks' && activeMode !== 'library' && activeMode !== 'github' && (
-          <>
+          <DamonSplitPane activeItem={results[index]} onAction={handlePreviewAction}>
             {results.length === 0 && (
               <div className="palette-empty damon-empty-state">
                 <Icon name="search" size={24} />
@@ -1349,7 +1453,7 @@ export default function CommandPalette({ bare = false }) {
                 </Button>
               </div>
             ))}
-          </>
+          </DamonSplitPane>
         )}
         </div>
       </div>

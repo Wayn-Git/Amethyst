@@ -1,0 +1,104 @@
+import React from 'react'
+import Icon from '../Icon.jsx'
+import Button from '../ui/AppButton.jsx'
+
+export default function DamonPreview({ item, onAction }) {
+  if (!item || !item.preview_type || item.preview_type === 'none') {
+    return null
+  }
+
+  const { preview_type, preview_data = {}, title, subtitle, icon, actions = [] } = item
+  const primaryAction = actions.find((a) => a.is_primary) || actions[0]
+
+  if (preview_type === 'app_info') {
+    return (
+      <div className="damon-preview-content damon-preview-app">
+        <div className="damon-preview-app-header">
+          <div className="damon-preview-app-icon-wrap">
+            <Icon name={icon || 'cpu'} className="damon-preview-app-icon" />
+          </div>
+          <div className="damon-preview-app-titles">
+            <h3 className="damon-preview-app-name">{title}</h3>
+            {subtitle && <p className="damon-preview-app-subtitle">{subtitle}</p>}
+          </div>
+        </div>
+
+        <div className="damon-preview-meta-list">
+          {preview_data.exec && (
+            <div className="damon-preview-meta-row">
+              <span className="damon-preview-meta-label">Command</span>
+              <code className="damon-preview-meta-val">{preview_data.exec}</code>
+            </div>
+          )}
+          {preview_data.path && (
+            <div className="damon-preview-meta-row">
+              <span className="damon-preview-meta-label">Path</span>
+              <code className="damon-preview-meta-val">{preview_data.path}</code>
+            </div>
+          )}
+          {preview_data.categories && preview_data.categories.length > 0 && (
+            <div className="damon-preview-meta-row">
+              <span className="damon-preview-meta-label">Categories</span>
+              <div className="damon-preview-tags">
+                {preview_data.categories.slice(0, 4).map((cat) => (
+                  <span key={cat} className="damon-preview-tag">{cat}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {primaryAction && (
+          <div className="damon-preview-actions-bar">
+            <Button
+              className="damon-preview-primary-btn"
+              onClick={() => onAction && onAction(primaryAction)}
+            >
+              <Icon name="play" />
+              <span>{primaryAction.title}</span>
+              <kbd className="damon-preview-kbd">↵</kbd>
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (preview_type === 'markdown') {
+    return (
+      <div className="damon-preview-content damon-preview-reader">
+        <div className="damon-preview-reader-header">
+          <div className="damon-preview-reader-badge">
+            <Icon name={icon || 'book'} />
+            <span>{preview_data.kind || 'Library'}</span>
+          </div>
+          <h3 className="damon-preview-reader-title">{title}</h3>
+          {preview_data.site && (
+            <span className="damon-preview-reader-site">{preview_data.site}</span>
+          )}
+        </div>
+
+        <div className="damon-preview-reader-body">
+          <p>{preview_data.excerpt || 'No description available.'}</p>
+        </div>
+
+        {actions.length > 0 && (
+          <div className="damon-preview-actions-bar">
+            {primaryAction && (
+              <Button
+                className="damon-preview-primary-btn"
+                onClick={() => onAction && onAction(primaryAction)}
+              >
+                <Icon name="arrow-up-right" />
+                <span>{primaryAction.title}</span>
+                <kbd className="damon-preview-kbd">↵</kbd>
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}

@@ -1,3 +1,4 @@
+import { storedIdentity } from './lib/credentials.js'
 /* Where the API is.
 
    Empty in development and in the single-process build, where the API is served
@@ -11,9 +12,9 @@ export const API_ORIGIN = (import.meta.env?.VITE_API_BASE || '').trim().replace(
 export function getApiOrigin() {
   if (API_ORIGIN) return API_ORIGIN
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('amethyst.sync.identity.v1') : null
+    const raw = storedIdentity()
     if (raw) {
-      const id = JSON.parse(raw)
+      const id = raw
       if (id?.hostUrl && typeof window !== 'undefined' && window.location.origin !== id.hostUrl) {
         return id.hostUrl.replace(/\/+$/, '')
       }
@@ -29,9 +30,9 @@ export function getBase() {
 
 export function getAuthHeaders() {
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('amethyst.sync.identity.v1') : null
+    const raw = storedIdentity()
     if (raw) {
-      const id = JSON.parse(raw)
+      const id = raw
       if (id?.token) {
         return {
           Authorization: `Bearer ${id.token}`,
@@ -207,6 +208,19 @@ async function verifyOrWake() {
   }
 }
 
+async function reviewedRemoteAction(path, body) {
+  const draft = await j(path, json('POST', body))
+  const { confirm } = await import('./components/ui/confirmStore.js')
+  const approved = await confirm({
+    title: `Review ${draft.action}`,
+    description: JSON.stringify(draft.arguments),
+    confirmLabel: 'Approve action', required: true, danger: true,
+  })
+  const result = await j(`/remote/actions/${encodeURIComponent(draft.draft_id)}/decision`, json('POST', { approved }))
+  if (!result.ok) throw new Error(result.error || 'Action denied')
+  return result
+}
+
 async function j(url, opts) {
   let res
   const base = getBase()
@@ -380,10 +394,10 @@ export const api = {
   // Remote PC & System Telemetry
   remoteStatus: () => j('/remote/status'),
   remoteProcesses: () => j('/remote/processes'),
-  remoteKillProcess: (pid, sig = 15) => j('/remote/processes/kill', json('POST', { pid, sig })),
+  remoteKillProcess: (pid, sig = 15) => reviewedRemoteAction('/remote/processes/kill', { pid, signal: sig === 9 ? 'SIGKILL' : 'SIGTERM' }),
   remoteApplications: () => j('/remote/applications'),
-  remoteLaunchApp: (target) => j('/remote/applications/launch', json('POST', { target })),
-  remoteCommand: (command, root = false) => j('/remote/command', json('POST', { command, root })),
+  remoteLaunchApp: (target) => reviewedRemoteAction('/remote/applications/launch', { target }),
+  remoteCommand: (command, root = false) => reviewedRemoteAction('/remote/command', { command, elevated: root }),
 
   // Remote Media & Audio
   remoteMedia: (command) => j('/remote/media', json('POST', { command })),
@@ -393,7 +407,7 @@ export const api = {
   remoteSink: (sink) => j('/remote/media/sink', json('POST', { sink })),
 
   // Remote Power
-  remotePower: (action) => j(`/remote/power/${encodeURIComponent(action)}`, json('POST')),
+  remotePower: (action) => reviewedRemoteAction(`/remote/power/${encodeURIComponent(action)}`, {}),
   remoteWake: () => j('/remote/power/wake'),
 
   // Remote Input (Mouse, Keyboard, Clipboard)
@@ -969,6 +983,12 @@ export const api = {
     }),
 
   // Spotlight search endpoints (Damon)
+  executeLauncherAction: (provider_id, action_id, payload = {}) =>
+    j('/launcher/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider_id, action_id, payload }),
+    }),
   searchWeb: (q, limit = 8, signal, offset = 0) =>
     j(`/search/web?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`, { signal }),
   searchYouTube: (q, limit = 8, signal, offset = 0, sort = 'relevance') =>
