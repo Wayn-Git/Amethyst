@@ -75,7 +75,7 @@ from backend.workers import batch as worker_batch
 # bundle with AMETHYST_CORS_ORIGINS as a comma-separated list. No wildcard: AMETHYST
 # binds to localhost for one user, and a wildcard would let any page that user
 # visits drive their machine through this API.
-DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "capacitor://localhost", "https://localhost"]
 
 log = logging.getLogger(__name__)
 
@@ -634,6 +634,7 @@ async def _lifespan(_: FastAPI):
     # The lane the runner above puts work into. Started after it, so a tick that
     # fires in the same millisecond finds somewhere to put a job.
     _automation_lane.start()
+    mobile_capture_lane.start()
     # The fan-out lane. Separate from the one above so a batch a scheduled turn
     # asked for cannot queue behind the turn that is waiting for it.
     _worker_lane.start()
@@ -706,6 +707,7 @@ async def _lifespan(_: FastAPI):
     # has already stopped. A job in flight is cancelled and put back with its
     # ledger intact, which is the difference between a shutdown and a loss.
     await _automation_lane.stop()
+    await mobile_capture_lane.stop()
     await _worker_lane.stop()
     with contextlib.suppress(asyncio.CancelledError):
         _boot_connectors.cancel()
@@ -772,7 +774,11 @@ def _bound_wide() -> bool:
     host = os.environ.get(BIND_HOST_ENV, "127.0.0.1").strip() or "127.0.0.1"
     if host in ("0.0.0.0", "::"):
         return True
-    return not _is_local(host)
+    import ipaddress
+    try:
+        return not ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return host != "localhost"
 
 
 @lru_cache(maxsize=2)
@@ -836,36 +842,31 @@ class RemoteCallerGuard:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] not in ("http", "websocket") or not _bound_wide():
+        if scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
+        from backend.security.remote_access import allowed, capability
+        from urllib.parse import parse_qs
+
+        headers = dict(scope.get("headers", []))
+        auth_header = headers.get(b"authorization", b"").decode("latin1")
+        token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+        token = token or headers.get(b"x-amethyst-device-token", b"").decode("latin1").strip()
+        if not token:
+            token = parse_qs(scope.get("query_string", b"").decode("latin1")).get("token", [""])[0]
+        forwarded = any(key in headers for key in (b"forwarded", b"x-forwarded-for", b"x-real-ip"))
         client = scope.get("client")
-        if _is_local(client[0] if client else None):
+        # A supplied credential is always checked, including over loopback.
+        # Proxy requests cannot inherit the local process's trust.
+        if not token and not forwarded and (
+            not _bound_wide() or _is_local(client[0] if client else None)
+        ):
             return await self.app(scope, receive, send)
 
         path = scope.get("path", "")
-        # Public paths (ping, pairing claim handshake)
-        if not path.startswith("/api/") or path in _PUBLIC_PATHS or path == "/api/pair/claim":
+        if not path.startswith("/api/") or path in _PUBLIC_PATHS:
             return await self.app(scope, receive, send)
-
-        # The preflight still has to be answered
         if scope["type"] == "http" and scope.get("method") == "OPTIONS":
             return await self.app(scope, receive, send)
-
-        # Extract bearer token from header or query string
-        token = ""
-        headers = dict(scope.get("headers", []))
-        auth_header = headers.get(b"authorization", b"").decode("latin1")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
-        elif b"x-amethyst-device-token" in headers:
-            token = headers[b"x-amethyst-device-token"].decode("latin1").strip()
-
-        if not token:
-            query = scope.get("query_string", b"").decode("latin1")
-            if "token=" in query:
-                from urllib.parse import parse_qs
-
-                token = parse_qs(query).get("token", [""])[0]
 
         if token:
             from backend.db.connection import get_connection
@@ -875,40 +876,16 @@ class RemoteCallerGuard:
             device = sync_devices.authenticate(conn, token)
             if device and device.revoked_at is None:
                 scope["device"] = device
-                perms = device.permissions
-
-                # Scope enforcement
-                if (path.startswith("/api/terminal") or path.startswith("/ws/terminal")) and not perms.get("terminal", True):
-                    if scope["type"] == "websocket":
-                        return await send({"type": "websocket.close", "code": 1008})
-                    res = JSONResponse({"detail": "Device lacks terminal permission"}, status_code=403)
-                    return await res(scope, receive, send)
-
-                if path.startswith("/api/remote/power") and not perms.get("power", True):
-                    res = JSONResponse({"detail": "Device lacks power control permission"}, status_code=403)
-                    return await res(scope, receive, send)
-
-                if (path.startswith("/api/remote/camera") or path.startswith("/api/remote/webcam")) and not perms.get("webcam", True):
-                    res = JSONResponse({"detail": "Device lacks webcam permission"}, status_code=403)
-                    return await res(scope, receive, send)
-
-                if (path.startswith("/api/remote/screen") or path.startswith("/api/remote/screenshot")) and not perms.get("screen", True):
-                    res = JSONResponse({"detail": "Device lacks screen permission"}, status_code=403)
-                    return await res(scope, receive, send)
-
-                if path.startswith("/api/remote/audio") and not (perms.get("mic", True) or perms.get("audio", True)):
-                    res = JSONResponse({"detail": "Device lacks audio permission"}, status_code=403)
-                    return await res(scope, receive, send)
-
-                if path.startswith("/api/remote/files") and not perms.get("files", True):
-                    res = JSONResponse({"detail": "Device lacks file transfer permission"}, status_code=403)
-                    return await res(scope, receive, send)
-
-                if path.startswith("/api/remote/input") and not perms.get("input", True):
-                    res = JSONResponse({"detail": "Device lacks input permission"}, status_code=403)
-                    return await res(scope, receive, send)
-
-                return await self.app(scope, receive, send)
+                method = "WS" if scope["type"] == "websocket" else scope.get("method", "GET")
+                permission = capability(path, method)
+                if allowed(device, permission):
+                    return await self.app(scope, receive, send)
+                if scope["type"] == "websocket":
+                    return await send({"type": "websocket.close", "code": 1008})
+                response = JSONResponse(
+                    {"detail": f"Device lacks {permission or 'remote access'} permission"}, status_code=403,
+                )
+                return await response(scope, receive, send)
 
         if scope["type"] == "websocket":
             return await send({"type": "websocket.close", "code": 1008})
@@ -938,6 +915,8 @@ from backend.remote import router as remote_router
 
 # Remote control and companion APIs
 app.include_router(remote_router)
+from backend.remote.captures import router as mobile_router, lane as mobile_capture_lane
+app.include_router(mobile_router)
 
 from backend.converter import router as converter_router
 app.include_router(converter_router)
@@ -8766,6 +8745,73 @@ async def search_answer_endpoint(q: str, request: Request) -> dict[str, Any]:
             continue
     return {"query": q, "answer": None, "sources": results[:5], "error": last_error}
 
+
+# ----------------------------------------------------------------- launcher engine
+_launcher_engine = None
+
+
+def get_launcher_engine():
+    global _launcher_engine
+    if _launcher_engine is None:
+        from backend.launcher.engine import LauncherEngine
+        from backend.launcher.providers.apps import AppProvider
+        from backend.launcher.providers.commands import CommandProvider
+        from backend.launcher.providers.library import LibraryProvider
+
+        engine = LauncherEngine()
+        engine.register_provider(AppProvider())
+        engine.register_provider(CommandProvider())
+        engine.register_provider(LibraryProvider())
+        _launcher_engine = engine
+    return _launcher_engine
+
+
+@app.get("/api/launcher/stream")
+async def launcher_stream(q: str = "", session_id: str = "") -> StreamingResponse:
+    """Stream ranked launcher search results over SSE."""
+    import asyncio
+    import json
+    engine = get_launcher_engine()
+
+    async def event_generator():
+        try:
+            async for batch in engine.query(q, session_id):
+                items = [r.to_dict() for r in batch]
+                yield f"data: {json.dumps(items)}\n\n"
+        except asyncio.CancelledError:
+            pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/launcher/action")
+async def launcher_action(request: Request) -> dict[str, Any]:
+    """Execute a contextual action on a launcher result."""
+    body = await request.json()
+    provider_id = body.get("provider_id")
+    action_id = body.get("action_id")
+    payload = body.get("payload", {})
+
+    if not provider_id or not action_id:
+        raise HTTPException(status_code=400, detail="provider_id and action_id required")
+
+    engine = get_launcher_engine()
+    provider = engine.get_provider(provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail=f"Provider not found: {provider_id}")
+
+    try:
+        return await engine.execute_action(provider_id, action_id, payload)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ----------------------------------------------------------------- share
