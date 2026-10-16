@@ -462,7 +462,7 @@ def pairing_payload(
     fields = {"s": secret}
     if relay:
         fields["r"] = relay.rstrip("/")
-    if host:
+    if host and (prefer_lan or not app.startswith("https://")):
         fields["h"] = host.rstrip("/")
     query = urlencode(fields)
     if prefer_lan and host:
