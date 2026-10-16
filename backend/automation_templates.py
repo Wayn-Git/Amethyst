@@ -64,6 +64,39 @@ class AutomationTemplate:
 
 TEMPLATES: list[AutomationTemplate] = [
     AutomationTemplate(
+        id="cloud_morning_briefing",
+        name="Daily Email Briefing (Cloud & Local)",
+        description="Autonomous morning briefing with pending replies, schedule conflicts, and action items sent to your inbox.",
+        icon="sun",
+        category="productivity",
+        prompt=(
+            "Generate my daily morning briefing: identify who is waiting on an urgent reply in my emails and Discord, "
+            "review today's Google Calendar meetings and flag any overlapping conflicts, and suggest 2-3 high-impact actions."
+        ),
+        schedule_type="daily_at",
+        daily_at_time="08:00",
+        notification="email",
+        actions=["search_email", "list_calendar"],
+        tags=["email", "briefing", "cloud"],
+    ),
+    AutomationTemplate(
+        id="cloud_library_digest",
+        name="Weekly Library Reading Digest",
+        description="Sunday digest of saved articles, videos, and links you haven't opened yet with 1-line takeaways.",
+        icon="book-open",
+        category="research",
+        prompt=(
+            "Review items saved to my library that I haven't opened yet. Write a punchy one-line takeaway for each "
+            "and suggest the top 3 worth reading this weekend."
+        ),
+        schedule_type="weekly_at",
+        daily_at_time="09:00",
+        weekly_day=6,  # Sunday
+        notification="email",
+        actions=["search_library"],
+        tags=["email", "library", "digest"],
+    ),
+    AutomationTemplate(
         id="morning_briefing",
         name="Morning Brief",
         description="Top world, business, and tech headlines with one-line summaries, market moves, and weather.",
