@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.mcp import commands as mcp_cmds
+from backend.mcp.catalogue import GOOGLE_SETUP_HINT
 from backend.secrets import get_secret, set_secret
 
 ENV_PATH = ROOT / ".env"
@@ -154,7 +155,7 @@ def setup_models() -> None:
 # ----------------------------------------------------------------------
 # 2. App Connectors & OAuth Setup
 # ----------------------------------------------------------------------
-def setup_connectors() -> None:
+def setup_connectors(auto_choice: str | None = None) -> None:
     print_header("2. App Connectors & OAuth Configuration")
     print("Connect your external apps so the assistant can act on your behalf.")
     print("\nSelect a connector to configure:")
@@ -165,7 +166,7 @@ def setup_connectors() -> None:
     print("  5) Web Search (Tavily / Exa API keys)")
     print("  6) Return to Main Menu")
 
-    choice = prompt_input("Enter choice (1-6)", "1")
+    choice = auto_choice if auto_choice is not None else prompt_input("Enter choice (1-6)", "1")
 
     if choice == "1":
         print("\n[Microsoft To Do]")
@@ -183,12 +184,7 @@ def setup_connectors() -> None:
 
     elif choice == "2":
         print("\n[Google Workspace - Gmail, Calendar, Drive]")
-        print("Google OAuth requires an OAuth Client ID & Secret from Google Cloud Console.")
-        print("Steps:")
-        print("  1. Visit: https://console.cloud.google.com/apis/credentials")
-        print("  2. Create OAuth client ID -> Application type: Desktop app")
-        print("  3. Set redirect URI (if asked): http://127.0.0.1:33418/oauth/callback")
-        print("  4. Enable Gmail, Calendar, and Drive APIs in API Library.")
+        print(GOOGLE_SETUP_HINT)
         client_id = prompt_input("Enter Google Client ID (or leave blank to skip)")
         if client_id:
             client_secret = prompt_input("Enter Google Client Secret")
@@ -210,6 +206,7 @@ def setup_connectors() -> None:
         print("   (Scopes needed: repo, read:user)")
         token = prompt_input("Enter GitHub Personal Access Token (or leave blank to skip)")
         if token:
+            set_secret("amethyst-mcp/github.api_key", token)
             set_secret("amethyst/github-token", token)
             try:
                 mcp_cmds.add_from_catalogue("github")
