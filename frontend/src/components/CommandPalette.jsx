@@ -19,6 +19,7 @@ import AnswerCardView from './damon/views/AnswerCardView.jsx'
 import TasksView from './damon/views/TasksView.jsx'
 import LibraryView from './damon/views/LibraryView.jsx'
 import DamonSplitPane from './damon/DamonSplitPane.jsx'
+import ActionPanel from './damon/ActionPanel.jsx'
 import { evaluateMath } from './damon/calculator.js'
 import { peek, put } from './damon/searchCache.js'
 import { request as dashboardRequest } from '../dashboard/api.js'
@@ -221,6 +222,7 @@ export default function CommandPalette({ bare = false }) {
   const [localStatus, setLocalStatus] = useState('')
   const [capturing, setCapturing] = useState(false)
   const [launcherItems, setLauncherItems] = useState([])
+  const [actionPanelOpen, setActionPanelOpen] = useState(false)
 
   // Search results state
   const [webResults, setWebResults] = useState([])
@@ -301,15 +303,19 @@ export default function CommandPalette({ bare = false }) {
     }
   }, [detectedService, querySubject])
 
-  // Reliable dismissal logic: 1st Escape resets sub-mode/query, 2nd Escape closes Damon
+  // Reliable dismissal logic: 1st Escape closes Action Panel, 2nd resets query, 3rd closes Damon
   const handleDismiss = useCallback(() => {
+    if (actionPanelOpen) {
+      setActionPanelOpen(false)
+      return
+    }
     if (rawQuery.trim() || selectedMode !== 'all') {
       setRawQuery('')
       setSelectedMode('all')
       return
     }
     closePalette()
-  }, [rawQuery, selectedMode, closePalette])
+  }, [actionPanelOpen, rawQuery, selectedMode, closePalette])
 
   useModalDismiss(open, handleDismiss)
   useFocusTrap(panelRef, open)
@@ -1115,11 +1121,11 @@ export default function CommandPalette({ bare = false }) {
 
   // Keyboard navigation & toggle handler
   const onKeyDown = (e) => {
-    // 1. Shortcut toggle: Cmd+K / Ctrl+K while Damon is open ALWAYS closes Damon
+    // 1. Shortcut toggle: Cmd+K / Ctrl+K while Damon is open toggles Action Panel
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
       e.stopPropagation()
-      closePalette()
+      setActionPanelOpen((prev) => !prev)
       return
     }
 
@@ -1468,6 +1474,9 @@ export default function CommandPalette({ bare = false }) {
             <kbd className="kbd">↵</kbd> Open
           </span>
           <span className="damon-hint-item">
+            <kbd className="kbd">⌘K</kbd> Actions
+          </span>
+          <span className="damon-hint-item">
             <kbd className="kbd">Tab</kbd> Filter Mode
           </span>
           <span className="damon-hint-item">
@@ -1478,6 +1487,16 @@ export default function CommandPalette({ bare = false }) {
           <span>AMETHYST SPOTLIGHT</span>
         </div>
       </footer>
+
+      <ActionPanel
+        isOpen={actionPanelOpen}
+        activeItem={results[index]}
+        onSelectAction={(action, item) => {
+          setActionPanelOpen(false)
+          handlePreviewAction(action, item)
+        }}
+        onClose={() => setActionPanelOpen(false)}
+      />
     </div>
   )
 

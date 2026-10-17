@@ -489,3 +489,6 @@ Shared card/detail composition keeps editors mounted across resizing, preserves 
 - `dash.quiet`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
 - `dash.shortcuts`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
 - Verification: 169 variants across six states; all 80 real card/detail compositions and long-list stress; nine-theme responsive/AA sweeps; 27 write recovery flows; clock/media/adoption/public checks; production build, served-desktop interactions and focused lint pass. Per-ID checklist and 30-law evidence/limits: `today-size-motion.md`. Backend tests were not repeated; live-device and pixel-reference review remain outstanding.
+
+- 2026-10-29 — Astra mobile research: added `docs/plans/astra-mobile-research.md` with repository evidence, framework/reuse comparison, remote-control security gaps and phased acceptance gates; documentation only, no widget changes.
+- 2026-10-29 — Damon launcher redesign (Milestone 1): single-instance socket lock, async streaming LauncherEngine (apps, library, commands), split-pane preview layout, and Cmd+K action panel with Esc hierarchy; 45 pytest tests and 3 frontend node tests pass.

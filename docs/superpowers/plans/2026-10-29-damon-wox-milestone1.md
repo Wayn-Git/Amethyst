@@ -33,12 +33,12 @@
 - Create: `tests/test_desktop_socket.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_desktop_socket.py` verifying single-instance lock acquisition and summon signaling over domain socket.
-- [ ] Run test using pytest to ensure it fails.
-- [ ] Implement `_acquire_single_instance_lock()` and IPC socket listener in `backend/desktop.py`.
-- [ ] Wire blur event on pywebview window to trigger `hide()` and sync `_spotlight_up.clear()`.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "fix(desktop): implement single-instance socket lock and blur auto-hide"`
+- [x] Write failing test in `tests/test_desktop_socket.py` verifying single-instance lock acquisition and summon signaling over domain socket.
+- [x] Run test using pytest to ensure it fails.
+- [x] Implement `_acquire_single_instance_lock()` and IPC socket listener in `backend/desktop.py`.
+- [x] Wire blur event on pywebview window to trigger `hide()` and sync `_spotlight_up.clear()`.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "fix(desktop): implement single-instance socket lock and blur auto-hide"`
 
 ---
 
@@ -51,12 +51,12 @@
 - Create: `tests/test_launcher_engine.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_launcher_engine.py` verifying `BaseLauncherProvider`, async query cancellation, concurrency, and score sorting in `LauncherEngine`.
-- [ ] Run test to confirm it fails.
-- [ ] Implement data models (`LauncherAction`, `LauncherResult`) and `BaseLauncherProvider` in `backend/launcher/provider.py`.
-- [ ] Implement `LauncherEngine` in `backend/launcher/engine.py` with provider registration, session task tracking, cancellation, and deduplication.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(launcher): add LauncherEngine and base provider contract"`
+- [x] Write failing test in `tests/test_launcher_engine.py` verifying `BaseLauncherProvider`, async query cancellation, concurrency, and score sorting in `LauncherEngine`.
+- [x] Run test to confirm it fails.
+- [x] Implement data models (`LauncherAction`, `LauncherResult`) and `BaseLauncherProvider` in `backend/launcher/provider.py`.
+- [x] Implement `LauncherEngine` in `backend/launcher/engine.py` with provider registration, session task tracking, cancellation, and deduplication.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(launcher): add LauncherEngine and base provider contract"`
 
 ---
 
@@ -68,11 +68,11 @@
 - Create: `tests/test_app_provider.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_app_provider.py` testing Linux `.desktop` parsing, icon resolution, fuzzy matching, and subprocess launch invocation.
-- [ ] Run test to confirm it fails.
-- [ ] Implement `AppProvider` in `backend/launcher/providers/apps.py` scanning XDG directories (`/usr/share/applications`, `~/.local/share/applications`, Flatpak), caching results in-memory, and launching apps safely.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(launcher): add native desktop application search provider"`
+- [x] Write failing test in `tests/test_app_provider.py` testing Linux `.desktop` parsing, icon resolution, fuzzy matching, and subprocess launch invocation.
+- [x] Run test to confirm it fails.
+- [x] Implement `AppProvider` in `backend/launcher/providers/apps.py` scanning XDG directories (`/usr/share/applications`, `~/.local/share/applications`, Flatpak), caching results in-memory, and launching apps safely.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(launcher): add native desktop application search provider"`
 
 ---
 
@@ -84,12 +84,12 @@
 - Create: `tests/test_launcher_library.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_launcher_library.py` testing SQLite FTS5 search over saved items/notes and command matching.
-- [ ] Run test to confirm it fails.
-- [ ] Implement `LibraryProvider` querying existing Amethyst database for saved links, notes, and facts with rich markdown snippet previews.
-- [ ] Implement `CommandProvider` for navigation and system/theme commands.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(launcher): add library and command search providers"`
+- [x] Write failing test in `tests/test_launcher_library.py` testing SQLite FTS5 search over saved items/notes and command matching.
+- [x] Run test to confirm it fails.
+- [x] Implement `LibraryProvider` querying existing Amethyst database for saved links, notes, and facts with rich markdown snippet previews.
+- [x] Implement `CommandProvider` for navigation and system/theme commands.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(launcher): add library and command search providers"`
 
 ---
 
@@ -100,12 +100,12 @@
 - Create: `tests/test_launcher_endpoints.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_launcher_endpoints.py` testing `GET /api/launcher/stream` SSE output and `POST /api/launcher/action` execution.
-- [ ] Run test to confirm it fails.
-- [ ] Mount `LauncherEngine` in `backend/api/main.py` and register `AppProvider`, `LibraryProvider`, and `CommandProvider`.
-- [ ] Implement `/api/launcher/stream` using `EventSourceResponse` (or async streaming generator) and `/api/launcher/action`.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(api): add launcher streaming and action endpoints"`
+- [x] Write failing test in `tests/test_launcher_endpoints.py` testing `GET /api/launcher/stream` SSE output and `POST /api/launcher/action` execution.
+- [x] Run test to confirm it fails.
+- [x] Mount `LauncherEngine` in `backend/api/main.py` and register `AppProvider`, `LibraryProvider`, and `CommandProvider`.
+- [x] Implement `/api/launcher/stream` using `EventSourceResponse` (or async streaming generator) and `/api/launcher/action`.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(api): add launcher streaming and action endpoints"`
 
 ---
 
@@ -119,13 +119,13 @@
 - Create: `frontend/tests/launcher-splitpane.test.mjs`
 
 **Steps:**
-- [ ] Write failing node test in `frontend/tests/launcher-splitpane.test.mjs` verifying split-pane layout rendering, 55/45 width ratio, and preview content binding.
-- [ ] Run test with `node --test frontend/tests/launcher-splitpane.test.mjs` to confirm it fails.
-- [ ] Implement `DamonPreview.jsx` to render app details, library snippets, or collapse smoothly.
-- [ ] Implement `DamonSplitPane.jsx` and integrate into `CommandPalette.jsx`.
-- [ ] Update `frontend/src/index.css` with clean Amethyst tokenized styles for the split pane.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(damon): add split-pane layout and adaptive preview pane"`
+- [x] Write failing node test in `frontend/tests/launcher-splitpane.test.mjs` verifying split-pane layout rendering, 55/45 width ratio, and preview content binding.
+- [x] Run test with `node --test frontend/tests/launcher-splitpane.test.mjs` to confirm it fails.
+- [x] Implement `DamonPreview.jsx` to render app details, library snippets, or collapse smoothly.
+- [x] Implement `DamonSplitPane.jsx` and integrate into `CommandPalette.jsx`.
+- [x] Update `frontend/src/index.css` with clean Amethyst tokenized styles for the split pane.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(damon): add split-pane layout and adaptive preview pane"`
 
 ---
 
@@ -138,10 +138,10 @@
 - Create: `frontend/tests/launcher-actionpanel.test.mjs`
 
 **Steps:**
-- [ ] Write failing test in `frontend/tests/launcher-actionpanel.test.mjs` verifying `Cmd+K` toggles action panel, keyboard selection, Esc hierarchy, and action execution.
-- [ ] Run test to confirm it fails.
-- [ ] Implement `ActionPanel.jsx` showing contextual primary/secondary actions with keyboard shortcuts.
-- [ ] Wire Esc key handler in `CommandPalette.jsx` according to spec hierarchy (close panel -> clear query -> close palette).
-- [ ] Wire "Ask Amethyst" action forwarding to chat.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(damon): add keyboard action panel and complete Milestone 1 vertical slice"`
+- [x] Write failing test in `frontend/tests/launcher-actionpanel.test.mjs` verifying `Cmd+K` toggles action panel, keyboard selection, Esc hierarchy, and action execution.
+- [x] Run test to confirm it fails.
+- [x] Implement `ActionPanel.jsx` showing contextual primary/secondary actions with keyboard shortcuts.
+- [x] Wire Esc key handler in `CommandPalette.jsx` according to spec hierarchy (close panel -> clear query -> close palette).
+- [x] Wire "Ask Amethyst" action forwarding to chat.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(damon): add keyboard action panel and complete Milestone 1 vertical slice"`
