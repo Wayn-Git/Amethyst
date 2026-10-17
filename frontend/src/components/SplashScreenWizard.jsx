@@ -794,7 +794,7 @@ function StepModels({ toast, setupStatus, onRefreshStatus }) {
 // -----------------------------------------------------------------------------
 // STEP 3: Connect Apps (Optional)
 // -----------------------------------------------------------------------------
-function StepConnectors({ toast, setupStatus }) {
+function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
   const [composioStatus, setComposioStatus] = useState(null)
   const [composioToolkits, setComposioToolkits] = useState([])
   const [actionBusy, setActionBusy] = useState('')
@@ -803,6 +803,40 @@ function StepConnectors({ toast, setupStatus }) {
   const [pollIntervalId, setPollIntervalId] = useState(null)
   const [showManualKey, setShowManualKey] = useState(false)
   const [composioKeyDraft, setComposioKeyDraft] = useState('')
+  const [showGithubPat, setShowGithubPat] = useState(false)
+  const [githubPatDraft, setGithubPatDraft] = useState('')
+  const [githubPatSaved, setGithubPatSaved] = useState(false)
+
+  const handleInstallUv = async () => {
+    setActionBusy('install-uv')
+    try {
+      await api.installUv()
+      toast('uv runtime installed successfully to ~/.amethyst/bin!', 'ok')
+      if (onRefreshStatus) await onRefreshStatus()
+    } catch (err) {
+      toast(err.message || 'Failed to install uv', 'bad')
+    } finally {
+      setActionBusy('')
+    }
+  }
+
+  const handleSaveGithubPat = async () => {
+    const token = githubPatDraft.trim()
+    if (!token) return
+    setActionBusy('github-pat')
+    try {
+      await api.mcpSetApiKey('github', token)
+      setGithubPatSaved(true)
+      setGithubPatDraft('')
+      setShowGithubPat(false)
+      toast('GitHub Personal Access Token saved!', 'ok')
+      if (onRefreshStatus) await onRefreshStatus()
+    } catch (err) {
+      toast(err.message || 'Failed to save GitHub token', 'bad')
+    } finally {
+      setActionBusy('')
+    }
+  }
 
   const loadData = useCallback(async () => {
     try {
@@ -975,6 +1009,35 @@ function StepConnectors({ toast, setupStatus }) {
         </p>
       </div>
 
+      {/* uv Runtime Downloader Banner (R12) */}
+      {runtimes && runtimes.uv && !runtimes.uv.available && (
+        <div className="splash-card" style={{ marginBottom: 16, borderColor: 'var(--accent-line, rgba(113, 50, 245, 0.25))' }}>
+          <div className="splash-card-row">
+            <div className="splash-card-icon" style={{ background: 'var(--accent-soft, rgba(113, 50, 245, 0.12))' }}>
+              <Icon name="code" size={20} />
+            </div>
+            <div className="splash-card-info">
+              <div className="splash-title-row">
+                <span className="splash-card-title">Python Connector Runtime (uv)</span>
+                <span className="splash-badge-runtime">Needs uv</span>
+              </div>
+              <p className="splash-card-desc">
+                Required for standalone Python MCP connectors. Amethyst can download standalone uv directly to ~/.amethyst/bin.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="splash-btn-primary"
+              disabled={actionBusy === 'install-uv'}
+              onClick={handleInstallUv}
+            >
+              <span>{actionBusy === 'install-uv' ? 'Installing uv...' : 'Install uv (1-Click)'}</span>
+              <Icon name="download" size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Composio Cloud Apps Card */}
       <div className="splash-card" style={{ marginBottom: 16 }}>
         <div className="splash-card-row">
@@ -1091,12 +1154,80 @@ function StepConnectors({ toast, setupStatus }) {
         )}
       </div>
 
-      {/* Local Connectors (No Account Needed) */}
+      {/* Local & Direct Connectors (No Account Needed) */}
       <div className="splash-card">
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #f1f5f9)', display: 'block', marginBottom: 10 }}>
-          Local System Connectors
+          Direct &amp; Local Connectors
         </span>
         <div className="splash-connectors-grid">
+          {/* GitHub Personal Access Token Option (R13) */}
+          <div className="splash-connector-card">
+            <div className="splash-connector-head">
+              <div className="splash-connector-icon">
+                <GithubIcon size={20} />
+              </div>
+              <div className="splash-connector-meta">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="splash-connector-title">GitHub (Personal Access Token)</span>
+                  <span
+                    className="splash-badge-runtime"
+                    style={{
+                      background: 'var(--accent-soft, rgba(113, 50, 245, 0.12))',
+                      color: 'var(--accent, #7132f5)',
+                      borderColor: 'var(--accent-line, rgba(113, 50, 245, 0.25))',
+                    }}
+                  >
+                    Direct PAT
+                  </span>
+                </div>
+                <span className="splash-connector-desc">Direct access to repositories and issues without cloud OAuth.</span>
+              </div>
+            </div>
+            <div className="splash-connector-footer">
+              {githubPatSaved ? (
+                <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Token Configured</span>
+              ) : (
+                <button
+                  type="button"
+                  className="splash-btn-subtle"
+                  onClick={() => setShowGithubPat(!showGithubPat)}
+                >
+                  {showGithubPat ? 'Cancel' : 'Enter Personal Access Token'}
+                </button>
+              )}
+            </div>
+            {showGithubPat && !githubPatSaved && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                <div className="splash-input-row">
+                  <input
+                    type="password"
+                    className="splash-input"
+                    placeholder="Paste ghp_... or github_pat_..."
+                    value={githubPatDraft}
+                    onChange={(e) => setGithubPatDraft(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="splash-btn-subtle"
+                    disabled={actionBusy === 'github-pat' || !githubPatDraft.trim()}
+                    onClick={handleSaveGithubPat}
+                  >
+                    {actionBusy === 'github-pat' ? 'Saving...' : 'Save Token'}
+                  </button>
+                </div>
+                <a
+                  href="https://github.com/settings/tokens?scopes=repo,read:org,read:user,gist,notifications,workflow"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 11, color: 'var(--accent, #7132f5)', textDecoration: 'none' }}
+                >
+                  Generate GitHub Token (repo, read:org, gist) ↗
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Microsoft To Do */}
           <div className="splash-connector-card">
             <div className="splash-connector-head">
               <div className="splash-connector-icon">
@@ -1105,7 +1236,18 @@ function StepConnectors({ toast, setupStatus }) {
               <div className="splash-connector-meta">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span className="splash-connector-title">Microsoft To Do</span>
-                  {!runtimes?.npx && <span className="splash-badge-runtime">Needs Node.js</span>}
+                  {(!runtimes?.node?.available && !runtimes?.npx) && (
+                    <a
+                      href="https://nodejs.org"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="splash-badge-runtime"
+                      style={{ textDecoration: 'none' }}
+                      title="Node.js is required for npx tools. Click to download."
+                    >
+                      Needs Node.js ↗
+                    </a>
+                  )}
                 </div>
                 <span className="splash-connector-desc">Device code sign-in for tasks.</span>
               </div>
@@ -1114,7 +1256,7 @@ function StepConnectors({ toast, setupStatus }) {
               <button
                 type="button"
                 className="splash-btn-subtle"
-                disabled={actionBusy === 'microsoft-todo' || !runtimes?.npx}
+                disabled={actionBusy === 'microsoft-todo' || (!runtimes?.node?.available && !runtimes?.npx)}
                 onClick={() => handleLocalLogin('microsoft-todo')}
               >
                 Sign In

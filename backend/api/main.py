@@ -4836,6 +4836,46 @@ def mcp_set_oauth_client(name: str, body: OAuthClient) -> dict[str, str]:
     return {"status": "stored"}
 
 
+class McpApiKey(BaseModel):
+    api_key: str
+
+
+@app.post("/api/mcp/servers/{name}/api-key")
+def mcp_set_api_key(name: str, body: McpApiKey) -> dict[str, str]:
+    """Store an API key or Personal Access Token in the keychain for an MCP server (R13)."""
+    from backend.mcp import catalogue as cat
+    from backend.mcp import commands as mcp
+    from backend.mcp.config import load_servers, save_servers
+    from backend.secrets import set_secret
+
+    key = body.api_key.strip()
+    if not key:
+        raise HTTPException(400, "API key cannot be empty")
+
+    servers = load_servers()
+    config = servers.get(name)
+    entry = cat.get(name)
+
+    ref = (
+        (config.api_key_ref if config else None)
+        or (entry.api_key_ref if entry else None)
+        or f"amethyst-mcp/{name}.api_key"
+    )
+    set_secret(ref, key)
+
+    if config is not None:
+        config.api_key_ref = ref
+        save_servers(servers)
+    elif entry is not None:
+        mcp.add_from_catalogue(name)
+        servers = load_servers()
+        if name in servers:
+            servers[name].api_key_ref = ref
+            save_servers(servers)
+
+    return {"status": "stored", "name": name, "api_key_ref": ref}
+
+
 class ServerEnv(BaseModel):
     key: str
     value: str
