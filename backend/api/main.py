@@ -2529,6 +2529,60 @@ async def install_uv_route() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to install uv: {exc}")
 
 
+class RelayVerifyRequest(BaseModel):
+    token: str
+    account_id: str | None = None
+    database_name: str = "amethyst-relay"
+
+
+class RelayDeployRequest(BaseModel):
+    token: str
+    account_id: str
+    database_id: str | None = None
+    relay_url: str | None = None
+
+
+@app.post("/api/relay/verify")
+async def verify_relay_route(body: RelayVerifyRequest) -> dict[str, Any]:
+    """Verify Cloudflare API token and check/resolve D1 database (R18)."""
+    from backend.relay_deploy import verify_cloudflare_token, check_or_create_d1
+
+    valid, message = await verify_cloudflare_token(body.token)
+    if not valid:
+        return {"valid": False, "message": message, "d1": None}
+
+    d1_info = None
+    if body.account_id:
+        try:
+            d1_info = await check_or_create_d1(body.token, body.account_id, body.database_name)
+        except Exception as e:
+            return {"valid": True, "message": message, "d1_error": str(e), "d1": None}
+
+    return {"valid": True, "message": message, "d1": d1_info}
+
+
+@app.post("/api/relay/deploy")
+async def deploy_relay_route(body: RelayDeployRequest) -> dict[str, Any]:
+    """Save Cloudflare relay credentials and configure relay URL (R18)."""
+    from backend.secrets import set_secret
+    from backend.config import save_instagram
+
+    set_secret("amethyst/cloudflare-token", body.token)
+    set_secret("amethyst/cloudflare-account-id", body.account_id)
+    if body.database_id:
+        set_secret("amethyst/cloudflare-database-id", body.database_id)
+
+    if body.relay_url:
+        save_instagram({"relay_url": body.relay_url, "relay_enabled": True})
+
+    return {
+        "ok": True,
+        "message": "Relay credentials configured successfully.",
+        "account_id": body.account_id,
+        "database_id": body.database_id,
+    }
+
+
 class OllamaPullRequest(BaseModel):
     model: str = "llama3.2"
 
