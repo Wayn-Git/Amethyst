@@ -1785,6 +1785,7 @@ class AddProvider(BaseModel):
     #: the key is already there, or when the endpoint needs none.
     api_key: str | None = None
     key: str | None = None
+    account_id: str | None = None
 
 
 class VerifyProvider(BaseModel):
@@ -1793,6 +1794,7 @@ class VerifyProvider(BaseModel):
     base_url: str | None = None
     default_model: str | None = None
     adapter: str | None = None
+    account_id: str | None = None
 
 
 @app.get("/api/providers")
@@ -1875,6 +1877,10 @@ def add_provider_route(body: AddProvider) -> dict[str, Any]:
     ):
         if value:
             entry[field] = value
+
+    if body.account_id and entry.get("base_url"):
+        acc = body.account_id.strip()
+        entry["base_url"] = entry["base_url"].replace("{account_id}", acc).replace("ACCOUNT_ID", acc)
 
     # Without a base URL the OpenAI-compatible adapter silently posts to
     # OpenAI, which fails as an authentication error and reads as a bad key.
@@ -2268,6 +2274,9 @@ async def verify_provider_route(name: str, body: VerifyProvider) -> dict[str, An
 
     adapter = body.adapter or (preset.adapter if preset else None) or clean_name
     base_url = body.base_url or (preset.base_url if preset else None) or ""
+    if body.account_id and base_url:
+        acc = body.account_id.strip()
+        base_url = base_url.replace("{account_id}", acc).replace("ACCOUNT_ID", acc)
 
     temp_cfg = ProviderConfig(
         name=clean_name,

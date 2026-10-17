@@ -173,7 +173,7 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         strengths=frozenset({"fast", "cheap"}),
         label="Kilocode",
         base_url="https://api.kilo.ai/api/gateway",
-        default_model="stepfun/step-3.7-flash:free",
+        default_model="kilo-auto/free",
         keys_url="https://app.kilo.ai/settings/keys",
         docs_url="https://kilo.ai/docs",
         note=(
@@ -386,13 +386,13 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         # get a token -- is still worth not researching, and a URL that says
         # ACCOUNT_ID fails visibly where a wrong one would fail as a 404 nobody
         # could explain.
-        base_url="https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID/ai/v1",
+        base_url="https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
         default_model="@cf/meta/llama-3.1-8b-instruct-fast",
         keys_url="https://dash.cloudflare.com/profile/api-tokens",
         docs_url="https://developers.cloudflare.com/workers-ai/models/",
         note=(
-            "Replace ACCOUNT_ID in the base URL with yours from the Cloudflare"
-            " dashboard, or every call 404s. 10,000 neurons a day, reset at"
+            "Enter your Cloudflare Account ID and API Token. Amethyst automatically"
+            " substitutes {account_id} in the base URL. 10,000 neurons a day, reset at"
             " midnight UTC, run at the edge."
         ),
     ),
