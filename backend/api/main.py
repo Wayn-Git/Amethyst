@@ -2365,12 +2365,32 @@ class CompleteSetupRequest(BaseModel):
 
 
 @app.post("/api/setup/complete")
-def complete_setup_route(body: CompleteSetupRequest) -> dict[str, Any]:
+async def complete_setup_route(body: CompleteSetupRequest) -> dict[str, Any]:
     """Mark onboarding complete in SQLite app_settings and persist privacy preferences (R4)."""
+    from backend.retrieval.embeddings import auto_configure_embeddings
     from backend.setup_status import mark_setup_complete
 
     opts = body.model_dump(exclude_unset=True)
-    return mark_setup_complete(opts)
+    res = mark_setup_complete(opts)
+    try:
+        embed_res = await auto_configure_embeddings()
+        if embed_res:
+            res["embeddings"] = {"provider": embed_res[0], "model": embed_res[1]}
+    except Exception:
+        log.debug("auto_configure_embeddings failed during setup completion", exc_info=True)
+    return res
+
+
+@app.post("/api/setup/embeddings/auto")
+async def auto_configure_embeddings_route() -> dict[str, Any]:
+    """Auto-detect and configure embeddings from available candidates (R17)."""
+    from backend.retrieval.embeddings import auto_configure_embeddings
+
+    res = await auto_configure_embeddings()
+    if res:
+        provider, model = res
+        return {"configured": True, "provider": provider, "model": model}
+    return {"configured": False, "provider": None, "model": None}
 
 
 class KeychainFallbackRequest(BaseModel):
