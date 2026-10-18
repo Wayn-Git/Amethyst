@@ -696,7 +696,50 @@ def to_wire_messages(history: list[Message]) -> list[dict]:
             out.append(trimmed)
         # Otherwise the row was only ever the call, and without it there is
         # nothing left to send.
-    return out
+    return compact_consumed_tool_results(out)
+
+
+def compact_consumed_tool_results(wire_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Replace old tool results in wire history with one-line stubs once consumed.
+
+    In a multi-turn conversation, a tool result message (`role: "tool"`) that
+    has already been followed by an `assistant` message has had its information
+    extracted and reasoned over. Keeping full multi-thousand-character tool outputs
+    in the wire history across subsequent iterations wastes tokens and context.
+
+    Replaces the consumed tool result's content with:
+        f"[{tool_name} executed, result consumed]"
+
+    Preserves the `role: "tool"`, `tool_call_id`, and `tool_name` so chat completion
+    schemas (e.g. OpenAI, Anthropic, Mistral) remain strictly valid.
+    Only tool results that have a subsequent `assistant` message later in the list
+    are compacted; the latest tool results (currently pending consumption by the
+    next assistant generation) are preserved in full.
+    """
+    if not wire_messages:
+        return wire_messages
+
+    last_assistant_idx = -1
+    for i in range(len(wire_messages) - 1, -1, -1):
+        if wire_messages[i].get("role") == "assistant":
+            last_assistant_idx = i
+            break
+
+    if last_assistant_idx == -1:
+        return wire_messages
+
+    compacted: list[dict[str, Any]] = []
+    for i, msg in enumerate(wire_messages):
+        if msg.get("role") == "tool" and i < last_assistant_idx:
+            name = msg.get("tool_name") or msg.get("name") or "tool"
+            stub = f"[{name} executed, result consumed]"
+            new_msg = dict(msg)
+            new_msg["content"] = stub
+            compacted.append(new_msg)
+        else:
+            compacted.append(msg)
+
+    return compacted
 
 
 def to_wire_message(m: Message) -> dict:
@@ -955,6 +998,8 @@ def budget_history(
         while chosen and chosen[0].get("role") == "tool":
             chosen = chosen[1:]
         return chosen
+
+    messages = compact_consumed_tool_results(messages)
 
     available = (
         context_window - estimate_tokens(system_prompt) - tool_schema_tokens(tools) - reserved

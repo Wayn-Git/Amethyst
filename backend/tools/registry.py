@@ -20,7 +20,7 @@ from backend.runtime.types import ToolSchema
 from backend.security.confirmation import ConfirmationOutcome, ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSource
 
-MAX_RESULT_CHARS = 100_000
+MAX_RESULT_CHARS = 8_000  # ~2,000 tokens at ~4 chars/token
 MCP_DELIMITER = "__mcp__"
 
 #: How long one tool call may run before the registry stops it.
@@ -118,15 +118,17 @@ NEVER_CACHE = frozenset({
 })
 
 
-def truncate(text: str, limit: int = MAX_RESULT_CHARS) -> str:
+def truncate(
+    text: str,
+    limit: int = MAX_RESULT_CHARS,
+    tool_name: str = "",
+    arguments: dict[str, Any] | None = None,
+) -> str:
     if len(text) <= limit:
         return text
-    head_size = int(limit * 0.6)
-    tail_size = int(limit * 0.3)
-    head = text[:head_size]
-    tail = text[-tail_size:]
-    omitted = len(text) - head_size - tail_size
-    return f"{head}\n\n[... {omitted} characters truncated / omitted ...]\n\n{tail}"
+    from backend.mcp.composio_sanitizer import cap_tool_result_content
+
+    return cap_tool_result_content(text, tool_name=tool_name, arguments=arguments, max_chars=limit)
 
 
 class ToolRegistry:
@@ -673,7 +675,7 @@ class ToolRegistry:
             except Exception as exc:
                 log.debug("Failed to append fallback instruction: %s", exc)
 
-        result.content = truncate(result.content)
+        result.content = truncate(result.content, tool_name=name, arguments=arguments)
         # Anything that can change the machine invalidates every cached read:
         # a file written, a task updated or a document edited is exactly the
         # event that makes an earlier `view_file` or `list_files` a lie.

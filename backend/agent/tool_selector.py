@@ -278,37 +278,45 @@ _TASK_INTENTS: list[tuple[str, tuple[str, ...]]] = [
     ("do this in parallel", ("task",)),
     ("research this", ("task",)),
     ("explore this", ("task",)),
-    # Connector-specific workflows
-    ("check my email", ("dispatch_parallel_jobs",)),
-    ("check email", ("dispatch_parallel_jobs",)),
-    ("read my email", ("dispatch_parallel_jobs",)),
-    ("send email", ("dispatch_parallel_jobs",)),
-    ("check my calendar", ("dispatch_parallel_jobs",)),
-    ("what's on my calendar", ("dispatch_parallel_jobs",)),
-    ("create event", ("dispatch_parallel_jobs",)),
-    ("schedule meeting", ("dispatch_parallel_jobs",)),
-    ("check github", ("dispatch_parallel_jobs",)),
-    ("github notifications", ("dispatch_parallel_jobs",)),
-    ("create issue", ("dispatch_parallel_jobs",)),
-    ("create pull request", ("dispatch_parallel_jobs",)),
-    ("browse the web", ("dispatch_parallel_jobs",)),
-    ("open a browser", ("dispatch_parallel_jobs",)),
-    ("take a screenshot", ("dispatch_parallel_jobs",)),
-    ("scrape a page", ("dispatch_parallel_jobs",)),
-    ("deploy to vercel", ("dispatch_parallel_jobs",)),
-    ("check vercel", ("dispatch_parallel_jobs",)),
-    ("play music", ("dispatch_parallel_jobs",)),
-    ("search spotify", ("dispatch_parallel_jobs",)),
-    ("check linkedin", ("dispatch_parallel_jobs",)),
-    ("search linkedin", ("dispatch_parallel_jobs",)),
     ("send agentmail", ("send_agentmail",)),
     ("via agentmail", ("send_agentmail", "search_agentmail", "read_agentmail")),
     ("agentmail", ("send_agentmail", "search_agentmail", "read_agentmail")),
 ]
 
 
+def _compile_words_regex(words: tuple[str, ...]) -> re.Pattern[str]:
+    escaped = [re.escape(w.strip()) for w in sorted(words, key=len, reverse=True) if w.strip()]
+    if not escaped:
+        return re.compile(r"(?!)")
+    return re.compile(r"\b(?:" + "|".join(escaped) + r")\b", re.IGNORECASE)
+
+
+_CATEGORY_REGEXES: dict[str, re.Pattern[str]] = {
+    cat: _compile_words_regex(spec["words"]) for cat, spec in CATEGORIES.items()
+}
+
+_HINT_REGEXES: dict[str, re.Pattern[str]] = {
+    hint_key: _compile_words_regex(words) for hint_key, words in CONNECTOR_HINTS.items()
+}
+
+_TASK_INTENT_PATTERNS: list[tuple[re.Pattern[str], tuple[str, ...]]] = [
+    (re.compile(rf"\b{re.escape(phrase.strip())}\b", re.IGNORECASE), tools)
+    for phrase, tools in _TASK_INTENTS
+]
+
+LANE_CATEGORIES: dict[str, set[str]] = {
+    "chat": set(),
+    "connector": {"mail", "calendar", "tasks", "social"},
+    "research": {"web", "search_local", "documents", "library"},
+    "widget": {"generative_ui"},
+    "agent": set(CATEGORIES.keys()),
+}
+
+
 def _matches(text: str, words: tuple[str, ...]) -> bool:
-    return any(word in text for word in words)
+    if not text or not words:
+        return False
+    return bool(_compile_words_regex(words).search(text))
 
 
 def select_tools(
@@ -337,14 +345,14 @@ def select_tools(
             wanted.add("generate_sandboxed_ui")
         elif lane == "chat":
             # Pure chat turns do not need heavy code-editing or local terminal execution
-            if not any(k in haystack for k in ("edit", "file", "run", "command", "shell", "bash")):
+            if not any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash")):
                 wanted.difference_update({
                     "edit_file", "write_file", "delete_file", "run_shell_command",
                     "patch_file_with_search", "apply_file_diff",
                 })
         elif lane == "connector":
             # Connector turns focus on MCP / external integrations
-            if not any(k in haystack for k in ("edit", "file", "run", "command", "shell", "bash")):
+            if not any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash")):
                 wanted.difference_update({
                     "edit_file", "write_file", "delete_file", "run_shell_command",
                     "patch_file_with_search", "apply_file_diff",
@@ -353,18 +361,24 @@ def select_tools(
                 s_name = getattr(s, "name", "")
                 if s_name.startswith("COMPOSIO_") or s_name.startswith("composio_") or _server_of(s_name):
                     wanted.add(s_name)
+        elif lane == "research":
+            # Research turns focus on search / reading / web / docs
+            if not any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash")):
+                wanted.difference_update({
+                    "edit_file", "write_file", "delete_file", "run_shell_command",
+                    "patch_file_with_search", "apply_file_diff",
+                })
 
-        # Phase 1: Task-intent matching. Multi-word phrases are higher-signal
-        # than single keywords — "fix the bug" means grep+view+edit+shell, not
-        # just "shell" from matching "fix".
-        for phrase, tools in _TASK_INTENTS:
-            if phrase in haystack:
+        # Phase 1: Task-intent matching using word boundaries
+        for pat, tools in _TASK_INTENT_PATTERNS:
+            if pat.search(haystack):
                 wanted.update(tools)
 
-        # Phase 2: Category keyword matching (existing logic, lower priority)
-        for spec in CATEGORIES.values():
-            if _matches(haystack, spec["words"]):
-                wanted.update(spec["tools"])
+        # Phase 2: Category keyword matching driven by lane
+        allowed_cats = LANE_CATEGORIES.get(lane, set(CATEGORIES.keys())) if lane else set(CATEGORIES.keys())
+        for cat_name, rx in _CATEGORY_REGEXES.items():
+            if cat_name in allowed_cats and rx.search(haystack):
+                wanted.update(CATEGORIES[cat_name]["tools"])
 
         # Phase 3: Connector matching. A connector is offered when its name is
         # said, when one of its own tool names is said, or when a hint word for
@@ -393,8 +407,8 @@ def select_tools(
             key = server.lower().replace("-", "").replace("_", "")
             hit = key in haystack.replace("-", "").replace("_", "")
             if not hit:
-                for hint_key, words in CONNECTOR_HINTS.items():
-                    if hint_key in key and _matches(haystack, words):
+                for hint_key, rx in _HINT_REGEXES.items():
+                    if hint_key in key and rx.search(haystack):
                         hit = True
                         break
             if not hit:

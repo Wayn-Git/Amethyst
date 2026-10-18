@@ -25,7 +25,7 @@ from backend.agent.widgets import is_connected_service_intent
 
 log = logging.getLogger(__name__)
 
-Lane = Literal["chat", "connector", "widget", "agent"]
+Lane = Literal["chat", "connector", "widget", "research", "agent"]
 
 _CODE_SIGNALS: set[str] = {
     "fix", "bug", "error", "refactor", "edit", "write", "create",
@@ -33,6 +33,11 @@ _CODE_SIGNALS: set[str] = {
     "compile", "run", "deploy", "commit", "push", "pull", "merge",
     "review", "analyze", "explain", "implement", "add", "remove",
     "update", "change", "modify", "install", "configure", "setup",
+}
+
+_RESEARCH_SIGNALS: set[str] = {
+    "search", "lookup", "google", "browse", "tavily", "firecrawl",
+    "arxiv", "wikipedia", "documentation", "docs", "research",
 }
 
 _TRIVIAL_GREETINGS: set[str] = {
@@ -143,7 +148,7 @@ def route_intent_fast(
         return (
             IntentRoute(
                 lane="chat",
-                step_budget=min(max_iterations, 3),
+                step_budget=min(max_iterations, 1),
                 presentation="text",
                 tool_filter="chat",
                 reason="empty message",
@@ -159,7 +164,7 @@ def route_intent_fast(
         return (
             IntentRoute(
                 lane="connector",
-                step_budget=min(max_iterations, 15),
+                step_budget=min(max_iterations, 4),
                 tool_filter="connector",
                 presentation="text",
                 reason="connected service intent detected",
@@ -173,7 +178,7 @@ def route_intent_fast(
         return (
             IntentRoute(
                 lane="agent",
-                step_budget=max_iterations,
+                step_budget=min(max_iterations, 20),
                 presentation="text",
                 reason="code signals or structured payload detected",
             ),
@@ -193,12 +198,33 @@ def route_intent_fast(
                 lane="widget",
                 presentation=local_pres,
                 presentation_steer=steer,
-                step_budget=min(max_iterations, 5),
+                step_budget=min(max_iterations, 4),
                 tool_filter="widget",
                 reason=f"local heuristic presentation match: {local_pres}",
             ),
             False,
             need_extract,
+        )
+
+    # Guard 5: Research / Web search / Documentation lookups
+    is_research = bool(words & _RESEARCH_SIGNALS) or bool(
+        re.search(
+            r"\b(search the web|search web|search for|look up|find out|research|browse the web|google|read the docs|read documentation)\b",
+            clean_text,
+            re.IGNORECASE,
+        )
+    )
+    if is_research:
+        return (
+            IntentRoute(
+                lane="research",
+                step_budget=min(max_iterations, 8),
+                tool_filter="research",
+                presentation="text",
+                reason="research or web lookup intent detected",
+            ),
+            False,
+            False,
         )
 
     if has_widget_signals(clean_text):
@@ -208,7 +234,7 @@ def route_intent_fast(
             IntentRoute(
                 lane="widget",
                 presentation="text",
-                step_budget=min(max_iterations, 5),
+                step_budget=min(max_iterations, 4),
                 tool_filter="widget",
                 reason="widget signals present, awaiting concurrent confirmation",
             ),
@@ -216,7 +242,7 @@ def route_intent_fast(
             True,
         )
 
-    # Guard 5: Conversational / greeting / math / simple chat turns
+    # Guard 6: Conversational / greeting / math / simple chat turns
     lowered_clean = clean_text.lower().rstrip("!?. ")
     conversational_phrases = {
         "who are you", "what are you", "what can you do", "introduce yourself",
@@ -230,7 +256,7 @@ def route_intent_fast(
         return (
             IntentRoute(
                 lane="chat",
-                step_budget=min(max_iterations, 10),
+                step_budget=min(max_iterations, 1),
                 tool_filter="chat",
                 presentation="text",
                 reason="trivial greeting or conversational turn",
@@ -244,7 +270,7 @@ def route_intent_fast(
         return (
             IntentRoute(
                 lane="chat",
-                step_budget=min(max_iterations, 10),
+                step_budget=min(max_iterations, 1),
                 tool_filter="chat",
                 presentation="text",
                 reason="calculation turn",
@@ -257,7 +283,7 @@ def route_intent_fast(
     return (
         IntentRoute(
             lane="agent",
-            step_budget=max_iterations,
+            step_budget=min(max_iterations, 20),
             presentation="text",
             reason="uncertain intent, fall through to agent loop",
         ),
@@ -285,7 +311,7 @@ def resolve_intent_route(
                 lane="widget",
                 presentation=decision,
                 presentation_steer=steer,
-                step_budget=min(max_iterations, 5),
+                step_budget=min(max_iterations, 4),
                 tool_filter="widget",
                 reason=f"confirmed presentation: {decision}",
             )
@@ -303,7 +329,7 @@ def resolve_intent_route(
                 lane="agent",
                 presentation="text",
                 presentation_steer=None,
-                step_budget=max_iterations,
+                step_budget=min(max_iterations, 20),
                 reason="widget not confirmed, fell through to agent",
             )
     return initial_route
