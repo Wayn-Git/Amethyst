@@ -25,11 +25,11 @@ export function formatDuration(seconds) {
 }
 
 export function getDomain(url, site) {
-  if (site) return site.replace(/^www\./i, '').toUpperCase()
+  if (site) return site.replace(/^www\./i, '').toLowerCase()
   if (!url) return ''
   try {
     const parsed = new URL(url)
-    return (parsed.hostname || '').replace(/^www\./i, '').toUpperCase()
+    return (parsed.hostname || '').replace(/^www\./i, '').toLowerCase()
   } catch {
     return ''
   }
@@ -156,7 +156,9 @@ function LibraryCardComponent({
   const isVertical = (
     isReelOrShort ||
     app === 'tiktok' ||
-    app === 'pinterest'
+    app === 'pinterest' ||
+    Boolean(item.is_reel) ||
+    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video'))
   )
 
   const isSlidePost = (
@@ -276,7 +278,7 @@ function LibraryCardComponent({
       {/* Bento Media (Single clean card boundary, flush to edges) */}
       {hasThumbnail ? (
         <div className="lib-card-media-wrap">
-          <div className="lib-card-media lib-card-media--contain">
+          <div className="lib-card-media lib-card-media--cover">
             <img
               className="lib-card-media-img"
               src={api.thumbnailUrl(item.id)}
@@ -371,7 +373,7 @@ function LibraryCardComponent({
                 ? (item.subreddit ? `r/${item.subreddit.replace(/^r\//, '')}` : domain)
                 : item.author
                 ? (item.author.startsWith('@') || item.author.startsWith('/u/') ? item.author : `@${item.author}`)
-                : (domain || item.site || (isNote ? 'NOTE' : 'RESOURCE'))}
+                : (domain || item.site || (isNote ? 'Note' : 'Resource'))}
             </span>
 
             {item.author && app === 'reddit' && (
@@ -501,31 +503,6 @@ function LibraryCardComponent({
           </div>
         )}
 
-        {/* Discovered External Links (compact) */}
-        {linkResources.length > 0 && (
-          <div className="lib-card-link-resources" onClick={(e) => e.stopPropagation()}>
-            <a
-              href={linkResources[0].url}
-              target="_blank"
-              rel="noreferrer"
-              className="lib-card-link-chip"
-              title={`${linkResources[0].name}: ${linkResources[0].url}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Icon name="link" size={10} />
-              <span className="lib-card-link-name">{linkResources[0].name}</span>
-              <span className="lib-card-link-arrow">↗</span>
-            </a>
-            {linkResources.length > 1 && (
-              <span
-                className="lib-card-extra-links-chip"
-                title={linkResources.slice(1).map((r) => r.name || r.url).join(', ')}
-              >
-                +{linkResources.length - 1}
-              </span>
-            )}
-          </div>
-        )}
 
         {/* Tags Row with +N anti-clipping protection */}
         {visibleTags.length > 0 && (

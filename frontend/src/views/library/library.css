@@ -31,13 +31,13 @@
   padding: 24px 32px 48px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 @media (max-width: 768px) {
   .lib-view-inner {
     padding: 16px 16px 32px;
-    gap: 16px;
+    gap: 12px;
   }
 }
 
@@ -1095,6 +1095,88 @@
   color: var(--text-faint);
 }
 
+.lib-dropdown-menu--filter-popover {
+  width: 320px;
+  max-height: 440px;
+}
+
+.lib-filter-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+  max-height: 380px;
+}
+
+.lib-filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lib-filter-section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.lib-filter-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.lib-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4.5px;
+  padding: 3.5px 8.5px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 120ms ease;
+  user-select: none;
+}
+
+.lib-filter-chip:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--hairline-strong);
+}
+
+.lib-filter-chip.is-active {
+  background: var(--accent-wash, rgba(113, 50, 245, 0.12));
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.lib-filter-chip .lib-pill-count {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  opacity: 0.7;
+}
+
+.lib-filter-tag-search {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  margin-bottom: 2px;
+}
+
+.lib-filter-tag-search input {
+  font-size: 11px;
+  width: 100%;
+}
+
 /* --------------------------------------------------------------------------
    Bento Grid Architecture (.lib-bento-grid)
    -------------------------------------------------------------------------- */
@@ -1425,23 +1507,21 @@
   z-index: 1;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center center;
   display: block;
   transition: transform 350ms var(--lib-ease-out);
 }
 
-/* Contain mode ensures screenshots, vertical images, memes, and social posts are never awkwardly cropped */
+.lib-card-media--cover .lib-card-media-img,
 .lib-card-media--contain .lib-card-media-img {
-  object-fit: contain;
-  max-width: 100%;
-  max-height: 100%;
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
 }
 
-.lib-card:hover .lib-card-media-img {
-  transform: scale(1.025);
-}
-
+.lib-card:hover .lib-card-media-img,
+.lib-card:hover .lib-card-media--cover .lib-card-media-img,
 .lib-card:hover .lib-card-media--contain .lib-card-media-img {
   transform: scale(1.025);
 }
@@ -1682,12 +1762,14 @@
 }
 
 .lib-card-domain {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lib-card-dot {
