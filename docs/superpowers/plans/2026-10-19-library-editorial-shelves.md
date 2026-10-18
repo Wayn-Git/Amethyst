@@ -38,7 +38,7 @@
 - Consumes: Raw item objects from `/api/library`.
 - Produces: `partitionLibraryShelves(items: Array) -> { jumpBackIn: Array, essential: Array, media: Array, reading: Array }`
 
-- [ ] **Step 1: Write the failing unit test for shelf partitioning**
+- [x] **Step 1: Write the failing unit test for shelf partitioning**
 
 Create `frontend/tests/library_shelves.mjs` verifying that `partitionLibraryShelves`:
 1. Places processing or fresh items (< 48h) into `jumpBackIn`.
@@ -47,12 +47,12 @@ Create `frontend/tests/library_shelves.mjs` verifying that `partitionLibraryShel
 4. Places articles/notes/repos into `reading`.
 5. Handles empty arrays and missing fields without throwing.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/library_shelves.mjs`  
 Expected: FAIL (cannot find module `shelfUtils.js`).
 
-- [ ] **Step 3: Implement `partitionLibraryShelves` in `frontend/src/views/library/shelfUtils.js`**
+- [x] **Step 3: Implement `partitionLibraryShelves` in `frontend/src/views/library/shelfUtils.js`**
 
 Implement deterministic partitioning:
 ```javascript
@@ -101,12 +101,12 @@ export function partitionLibraryShelves(items = []) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/library_shelves.mjs`  
 Expected: PASS with 0 failures. Add script `"test:shelves": "node tests/library_shelves.mjs"` to `frontend/package.json`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/views/library/shelfUtils.js frontend/tests/library_shelves.mjs frontend/package.json
@@ -125,16 +125,16 @@ git commit -m "feat(library): add shelf partitioning utility and test suite"
 - Consumes: `{ shelves: { jumpBackIn, essential, media, reading }, onSelect, onNavigateShelf, onReindex, onEnrich, onDelete, onTagClick, busyId }`
 - Produces: React DOM rendering of the 4 editorial shelves with clean shelf headers, item counts, and "View all →" triggers.
 
-- [ ] **Step 1: Add SSR render test to `frontend/tests/library_shelves.mjs`**
+- [x] **Step 1: Add SSR render test to `frontend/tests/library_shelves.mjs`**
 
 Add test rendering `<LibraryEditorialShelves />` with sample partitioned data to assert that shelf titles (`Jump Back In`, `Essential Knowledge`, `Media & Watchlist`, `Reading & Insights`) render without crashing.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/library_shelves.mjs`  
 Expected: FAIL (cannot find module `LibraryEditorialShelves.jsx`).
 
-- [ ] **Step 3: Implement `LibraryEditorialShelves.jsx`**
+- [x] **Step 3: Implement `LibraryEditorialShelves.jsx`**
 
 Build the component with four modular sections:
 1. `Jump Back In`: Compact horizontal row with live pulse badge on syncing cards.
@@ -143,12 +143,12 @@ Build the component with four modular sections:
 4. `Reading & Insights`: 3-column clean editorial typographic grid.
 Each section includes a header with title, count badge, and a `View all →` button invoking `onNavigateShelf(shelfKey)`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/library_shelves.mjs`  
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/views/library/LibraryEditorialShelves.jsx frontend/tests/library_shelves.mjs
@@ -167,25 +167,25 @@ git commit -m "feat(library): create LibraryEditorialShelves component"
 - Consumes: Props for title, item counts, search query, quick capture, sort order, layout mode, and modal triggers.
 - Produces: Unified single-tier header deck (`LibraryToolbar`) and slim secondary filter ribbon (`LibraryFilterBar`).
 
-- [ ] **Step 1: Refactor `LibraryToolbar.jsx` into the single-tier studio command deck**
+- [x] **Step 1: Refactor `LibraryToolbar.jsx` into the single-tier studio command deck**
 
 Integrate:
 - Left: `Library` title and live syncing / total item count pill badge.
 - Center: Streamlined search & quick capture omnibar with integrated sort dropdown and `Save ↵` pill.
 - Right: Layout segmented switch (`grid` vs `list`), external capture button, playlist button (if audio present), and primary `＋ Add Resource` capsule button with `⌘K` keyboard badge.
 
-- [ ] **Step 2: Streamline `LibraryFilterBar.jsx` into a flush hairline ribbon**
+- [x] **Step 2: Streamline `LibraryFilterBar.jsx` into a flush hairline ribbon**
 
 - Remove unnecessary vertical padding.
 - Render clean underline/pill format tabs (*All*, *Articles*, *Videos*, *Notes*) on the left.
 - Render *★ Essential*, *Sources* dropdown, and *Categories* dropdown flush on the right.
 
-- [ ] **Step 3: Run build check to verify syntax and exports**
+- [x] **Step 3: Run build check to verify syntax and exports**
 
 Run: `cd frontend && npm run build`  
 Expected: PASS with 0 build errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/views/library/LibraryToolbar.jsx frontend/src/views/library/LibraryFilterBar.jsx
@@ -203,18 +203,18 @@ git commit -m "refactor(library): consolidate header into single-tier command de
 - Consumes: `partitionLibraryShelves` from `./library/shelfUtils.js`, `LibraryEditorialShelves` from `./library/LibraryEditorialShelves.jsx`.
 - Produces: Dynamically switched canvas between `LibraryEditorialShelves` (when `!hasFilter`) and `LibraryGrid` / `LibraryListView` (when `hasFilter === true`).
 
-- [ ] **Step 1: Compute shelves in `Library.jsx` using `useMemo`**
+- [x] **Step 1: Compute shelves in `Library.jsx` using `useMemo`**
 
 Call `partitionLibraryShelves(items)` to produce `{ jumpBackIn, essential, media, reading }`.
 
-- [ ] **Step 2: Wire up `onNavigateShelf` handler**
+- [x] **Step 2: Wire up `onNavigateShelf` handler**
 
 - `jumpBackIn` → resets filters and ensures `order='desc'`.
 - `essential` → calls `setSelectedRating('5')`.
 - `media` → calls `setSelectedKind('video')`.
 - `reading` → calls `setSelectedKind('article')`.
 
-- [ ] **Step 3: Replace redundant header and render `LibraryEditorialShelves` when `!hasFilter`**
+- [x] **Step 3: Replace redundant header and render `LibraryEditorialShelves` when `!hasFilter`**
 
 - Remove the standalone `<header className="lib-header">` block (now unified inside `LibraryToolbar`).
 - Conditional render:
@@ -237,12 +237,12 @@ Call `partitionLibraryShelves(items)` to produce `{ jumpBackIn, essential, media
   )}
   ```
 
-- [ ] **Step 4: Verify frontend build passes**
+- [x] **Step 4: Verify frontend build passes**
 
 Run: `cd frontend && npm run build`  
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/views/Library.jsx
@@ -260,14 +260,14 @@ git commit -m "feat(library): integrate editorial shelves and dynamic view switc
 - Consumes: Kraken CSS tokens (`--canvas`, `--surface`, `--accent`, `--border`, `--text`, `--text-dim`, `--ease-out`).
 - Produces: Polished CSS classes for command deck, shelves, aspect-ratio containers, active press feedback, and responsive breakpoints.
 
-- [ ] **Step 1: Add command deck and shelf grid styling**
+- [x] **Step 1: Add command deck and shelf grid styling**
 
 - Style `.lib-command-deck`: clean 1-row flex layout with subtle border-bottom.
 - Style `.lib-shelf`: 40px vertical separation, clean shelf headers, item count badge.
 - Style `.lib-shelf-grid--media`: responsive aspect-ratio grid (16:9 and 9:16 support).
 - Style `.lib-shelf-grid--reading`: 3-column editorial typography cards.
 
-- [ ] **Step 2: Add Emil Kowalski tactile micro-interactions**
+- [x] **Step 2: Add Emil Kowalski tactile micro-interactions**
 
 ```css
 .lib-card:active {
@@ -281,16 +281,16 @@ git commit -m "feat(library): integrate editorial shelves and dynamic view switc
 }
 ```
 
-- [ ] **Step 3: Test light and dark theme token variables**
+- [x] **Step 3: Test light and dark theme token variables**
 
 Ensure `--border`, `--surface`, and `--text` resolve seamlessly in both dark and light modes.
 
-- [ ] **Step 4: Verify build and lint**
+- [x] **Step 4: Verify build and lint**
 
 Run: `cd frontend && npm run build && npm run lint`  
 Expected: PASS with 0 errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/views/library/library.css
@@ -307,17 +307,17 @@ git commit -m "style(library): add tactile press states, shelf layout grids, and
 - Review: `frontend/src/views/library/LibraryToolbar.jsx`
 - Review: `frontend/src/views/library/LibraryFilterBar.jsx`
 
-- [ ] **Step 1: Run all frontend test suites**
+- [x] **Step 1: Run all frontend test suites**
 
 Run: `cd frontend && npm run test:library && npm run test:shelves`  
 Expected: ALL PASS.
 
-- [ ] **Step 2: Run frontend production build**
+- [x] **Step 2: Run frontend production build**
 
 Run: `cd frontend && npm run build`  
 Expected: Zero build warnings or errors.
 
-- [ ] **Step 3: Commit completed plan**
+- [x] **Step 3: Commit completed plan**
 
 ```bash
 git add docs/superpowers/plans/2026-10-19-library-editorial-shelves.md
