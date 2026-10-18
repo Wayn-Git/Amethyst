@@ -8,7 +8,7 @@ import ExportPlaylistModal from './ExportPlaylistModal.jsx'
 import LibraryVideoPlayer from './LibraryVideoPlayer.jsx'
 import { formatDuration, getDomain, getFaviconUrl, KIND_ICON } from './LibraryCard.jsx'
 import { RATING_TIERS, getRatingTier } from './ratingUtils.js'
-import { formatDisplayDate, formatFullDateTime } from './dateUtils.js'
+import { formatDisplayDate, formatFullDateTime, formatRelativeDate } from './dateUtils.js'
 
 export function formatModelDisplayName(modelStr) {
   if (!modelStr) return 'AI Synthesis'
@@ -70,9 +70,11 @@ export function parseMarkdownSections(markdown, excerpt, textSource) {
     }
   }
 
+  // Separate body from provenance footer rule
   const footerIdx = text.search(/\n---\n/)
   const clean = footerIdx !== -1 ? text.slice(0, footerIdx) : text
 
+  // Match all markdown H2 headings
   const headingRegex = /^##\s+([^\n]+)$/gm
   const matches = []
   let m
@@ -80,6 +82,7 @@ export function parseMarkdownSections(markdown, excerpt, textSource) {
     matches.push({ name: m[1].trim(), index: m.index, endIndex: m.index + m[0].length })
   }
 
+  // Preamble between # Title and first ## Heading is the AI summary / synopsis
   let preamble = matches.length > 0 ? clean.slice(0, matches[0].index) : clean
   const preambleLines = preamble.split('\n').filter((line) => {
     const trimmed = line.trim()
@@ -122,6 +125,7 @@ export function parseMarkdownSections(markdown, excerpt, textSource) {
     }
   }
 
+  // Fallback for speech transcript if textSource explicitly mentions transcript
   if (!transcript && textSource && textSource.includes('transcript')) {
     if (textBody) {
       transcript = textBody
@@ -138,295 +142,381 @@ export function parseMarkdownSections(markdown, excerpt, textSource) {
   }
 }
 
-export function LibraryDetailModal({
-  item,
-  items,
-  currentIndex = -1,
+export function extractTranscript(content, excerpt, textSource) {
+  return parseMarkdownSections(content, excerpt, textSource).transcript
+}
+
+export function extractVisualContent(content) {
+  return parseMarkdownSections(content).visualContent
+}
+
+export function getCleanDomain(url) {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.replace(/^www\./, '')
+  } catch {
+    return null
+  }
+}
+
+export function getResourceIcon(type, url) {
+  const t = (type || '').toLowerCase()
+  if (t === 'movie' || t === 'film' || t === 'show' || t === 'video') return 'video'
+  if (t === 'code' || t === 'repo' || t === 'tool' || t === 'software' || t === 'library') return 'code'
+  if (t === 'person' || t === 'creator' || t === 'author') return 'user'
+  if (t === 'book' || t === 'article' || t === 'paper') return 'book'
+  if (url) return 'globe'
+  return 'link'
+}
+
+export function formatFriendlyEnrichmentNote(note) {
+  if (!note) return null
+  const s = String(note).trim()
+  if (s.includes('none of the configured providers answered') || s.includes('could not be reached')) {
+    return 'AI provider was unreachable during capture'
+  }
+  if (s.includes('did not answer within') || s.includes('Timeout')) {
+    return 'AI model timed out during capture'
+  }
+  if (s.includes('there is no text for this one') || s.includes('there was no readable text') || s.includes('no readable text')) {
+    return 'No speech, caption, or page text was detected for this item'
+  }
+  if (s.includes('the text is a line or two')) {
+    return 'Content was too brief for automatic synthesis'
+  }
+  return s.length > 90 ? `${s.slice(0, 87)}...` : s
+}
+
+export default function LibraryDetailModal({
+  item: initialItem,
+  items = [],
+  onNavigate,
   onClose,
-  onPrev,
-  onNext,
   onUpdate,
   onDelete,
-  toast = () => {},
+  toast,
+  onExportPlaylist,
 }) {
-  const [detailItem, setDetailItem] = useState(item)
-  const [busyAction, setBusyAction] = useState('')
-  const [rating, setRating] = useState(item?.rating ?? null)
+  const [detailItem, setDetailItem] = useState(initialItem)
+  const item = detailItem || initialItem
+
   const [notes, setNotes] = useState(item?.notes || '')
-  const [noteInput, setNoteInput] = useState(item?.notes || '')
-  const [tags, setTags] = useState(() => {
-    let t = item?.tags
-    if (typeof t === 'string') {
-      try { t = JSON.parse(t) } catch { t = [] }
-    }
-    return Array.isArray(t) ? t : []
-  })
-  const [isAddingTag, setIsAddingTag] = useState(false)
   const [tagInput, setTagInput] = useState('')
-
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
-  const [imageFitMode, setImageFitMode] = useState('cover')
-  const [mediaMode, setMediaMode] = useState('video')
+  const [isAddingTag, setIsAddingTag] = useState(false)
+  const [tags, setTags] = useState(item?.tags || [])
+  const [rating, setRating] = useState(item?.rating || null)
+  const [hoveredStar, setHoveredStar] = useState(null)
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
   const [showLightbox, setShowLightbox] = useState(false)
-  const [captionExpanded, setCaptionExpanded] = useState(false)
-
-  // Overflow Menu State
-  const [showOverflowMenu, setShowOverflowMenu] = useState(false)
-  const overflowMenuRef = useRef(null)
-
-  // Transcripts Drawer State
-  const [showTranscriptsDrawer, setShowTranscriptsDrawer] = useState(false)
-  const [activeDrawerTab, setActiveDrawerTab] = useState('transcript')
-
-  // Copied states
+  const [copiedSummary, setCopiedSummary] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
-  const [copiedDrawerText, setCopiedDrawerText] = useState(false)
-
-  // AI model settings
+  const [enrichError, setEnrichError] = useState(null)
+  const [showTranscript, setShowTranscript] = useState(false)
+  const [showVisualContent, setShowVisualContent] = useState(false)
+  const [showCaption, setShowCaption] = useState(false)
+  const [showTextBody, setShowTextBody] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [showEmbed, setShowEmbed] = useState(false)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const [imageFitMode, setImageFitMode] = useState('contain')
+  const [savedSongs, setSavedSongs] = useState(() => new Set())
+  const [savingSong, setSavingSong] = useState(null)
+  const [showInternalExportModal, setShowInternalExportModal] = useState(false)
+  const [internalExportItems, setInternalExportItems] = useState([])
+  const [selectedEnrichProvider, setSelectedEnrichProvider] = useState('groq')
+  const [selectedEnrichModel, setSelectedEnrichModel] = useState('llama-3.3-70b-versatile')
   const [showModelMenu, setShowModelMenu] = useState(false)
-  const [selectedEnrichProvider, setSelectedEnrichProvider] = useState(() => {
-    return item?.enrichment_model ? formatModelProvider(item.enrichment_model) : 'groq'
-  })
-  const [selectedEnrichModel, setSelectedEnrichModel] = useState(() => {
-    return item?.enrichment_model ? item.enrichment_model.split(':')[1] || item.enrichment_model : 'llama-3.3-70b-versatile'
-  })
-
-  // Playlists
-  const [playlists, setPlaylists] = useState([])
-  const [showExportPlaylist, setShowExportPlaylist] = useState(false)
-
+  const modelPickerRef = useRef(null)
+  const [mediaMode, setMediaMode] = useState('video')
+  const [activeTab, setActiveTab] = useState('overview')
+  const [copiedTranscript, setCopiedTranscript] = useState(false)
+  const [copiedVisuals, setCopiedVisuals] = useState(false)
+  const [isCaptionExpanded, setIsCaptionExpanded] = useState(false)
   const carouselTrackRef = useRef(null)
 
-  // Load playlists & settings
+  // Load configured enrichment model from library settings
   useEffect(() => {
-    let unmounted = false
-    async function loadInitial() {
-      try {
-        const plList = await api.listPlaylists?.()
-        if (!unmounted && Array.isArray(plList)) setPlaylists(plList)
-      } catch {}
-      try {
-        const settings = await api.getLibrarySettings?.()
-        if (!unmounted && settings) {
-          if (settings.enrich_provider) setSelectedEnrichProvider(settings.enrich_provider)
-          if (settings.enrich_model) setSelectedEnrichModel(settings.enrich_model)
-        }
-      } catch {}
-    }
-    loadInitial()
-    return () => { unmounted = true }
+    api.librarySettings?.()
+      .then((settings) => {
+        if (settings?.enrich_provider) setSelectedEnrichProvider(settings.enrich_provider)
+        if (settings?.enrich_model) setSelectedEnrichModel(settings.enrich_model)
+      })
+      .catch(() => {})
   }, [])
 
-  // Sync state when item changes
+  // Dismiss model picker on click outside
   useEffect(() => {
-    setDetailItem(item)
-    setRating(item?.rating ?? null)
-    setNotes(item?.notes || '')
-    setNoteInput(item?.notes || '')
-    let nextTags = item?.tags
-    if (typeof nextTags === 'string') {
-      try { nextTags = JSON.parse(nextTags) } catch { nextTags = [] }
-    }
-    setTags(Array.isArray(nextTags) ? nextTags : [])
-    setCurrentSlideIndex(0)
-    setMediaMode('video')
-    setShowLightbox(false)
-    setShowOverflowMenu(false)
-    setShowTranscriptsDrawer(false)
-  }, [item?.id])
-
-  // Fetch full item content
-  useEffect(() => {
-    let unmounted = false
-    if (!item?.id) return
-    async function fetchFull() {
-      try {
-        const full = await api.getLibraryItem(item.id)
-        if (!unmounted && full) {
-          setDetailItem(full)
-          if (full.notes !== undefined) {
-            setNotes(full.notes || '')
-            setNoteInput(full.notes || '')
-          }
-          if (full.rating !== undefined) setRating(full.rating)
-          let t = full.tags
-          if (typeof t === 'string') {
-            try { t = JSON.parse(t) } catch { t = [] }
-          }
-          if (Array.isArray(t)) setTags(t)
-        }
-      } catch {}
-    }
-    fetchFull()
-    return () => { unmounted = true }
-  }, [item?.id])
-
-  // Close overflow menu on outside click
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (overflowMenuRef.current && !overflowMenuRef.current.contains(e.target)) {
-        setShowOverflowMenu(false)
+    if (!showModelMenu) return
+    const handleClickOutside = (e) => {
+      if (modelPickerRef.current && !modelPickerRef.current.contains(e.target)) {
+        setShowModelMenu(false)
       }
     }
-    if (showOverflowMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showOverflowMenu])
+    window.addEventListener('mousedown', handleClickOutside, true)
+    return () => window.removeEventListener('mousedown', handleClickOutside, true)
+  }, [showModelMenu])
 
-  // Pager helpers
+  // Sync state if item changes, and fetch fresh item data from backend
+  useEffect(() => {
+    setDetailItem(initialItem)
+    if (initialItem) {
+      setNotes(initialItem.notes || '')
+      setTags(initialItem.tags || [])
+      setRating(initialItem.rating || null)
+      setTagInput('')
+      setIsAddingTag(false)
+      setHoveredStar(null)
+      setSavingNotes(false)
+      setBusyAction('')
+      setShowLightbox(false)
+      setCopiedSummary(false)
+      setCopiedLink(false)
+      setEnrichError(null)
+      setShowTranscript(false)
+      setShowVisualContent(false)
+      setShowCaption(false)
+      setShowTextBody(false)
+      setIsPlaying(false)
+      setShowEmbed(false)
+      setCurrentSlideIndex(0)
+      setActiveTab('overview')
+      setCopiedTranscript(false)
+      setCopiedVisuals(false)
+      if (carouselTrackRef.current) {
+        carouselTrackRef.current.scrollLeft = 0
+      }
+    }
+    if (initialItem?.id) {
+      let isCurrent = true
+      const fetchItem = api.libraryItem ? api.libraryItem(initialItem.id) : (api.get ? api.get(`/library/${initialItem.id}`) : null)
+      if (fetchItem && typeof fetchItem.then === 'function') {
+        fetchItem
+          .then((fresh) => {
+            if (isCurrent && fresh && fresh.id === initialItem.id) {
+              setDetailItem(fresh)
+              if (fresh.notes !== undefined) setNotes(fresh.notes || '')
+              if (fresh.tags) setTags(fresh.tags)
+              if (fresh.rating !== undefined) setRating(fresh.rating)
+              onUpdate?.(fresh)
+            }
+          })
+          .catch(() => {})
+      }
+      return () => {
+        isCurrent = false
+      }
+    }
+  }, [initialItem?.id])
+
+  // Pager index and handlers
+  const currentIndex = useMemo(() => {
+    if (!items || items.length === 0 || !item) return -1
+    return items.findIndex((it) => it.id === item.id)
+  }, [items, item?.id])
+
   const hasPrev = currentIndex > 0
-  const hasNext = currentIndex !== -1 && items && currentIndex < items.length - 1
+  const hasNext = currentIndex >= 0 && currentIndex < items.length - 1
 
   const handlePrev = useCallback(() => {
-    if (hasPrev) onPrev?.()
-  }, [hasPrev, onPrev])
+    if (hasPrev && onNavigate) {
+      onNavigate(items[currentIndex - 1])
+    }
+  }, [hasPrev, onNavigate, items, currentIndex])
 
   const handleNext = useCallback(() => {
-    if (hasNext) onNext?.()
-  }, [hasNext, onNext])
+    if (hasNext && onNavigate) {
+      onNavigate(items[currentIndex + 1])
+    }
+  }, [hasNext, onNavigate, items, currentIndex])
 
-  // Content parsing
-  const { summaryCandidate, transcript, visualContent, caption, textBody } = useMemo(() => {
-    return parseMarkdownSections(detailItem?.content, item?.excerpt, item?.text_source)
-  }, [detailItem?.content, item?.excerpt, item?.text_source])
+  // Parse all markdown sections (Transcript, Visual Content, Caption, Text Body, Preamble)
+  const parsedSections = useMemo(
+    () => parseMarkdownSections(item?.content, item?.excerpt || item?.capture_note, item?.text_source),
+    [item?.content, item?.excerpt, item?.capture_note, item?.text_source]
+  )
 
-  // Extracted entity
-  const entity = useMemo(() => {
-    return detailItem?.entity || item?.entity || null
-  }, [detailItem?.entity, item?.entity])
+  const summaryText = item?.summary || parsedSections.summaryCandidate || null
 
-  // Date & Duration
-  const dateFull = useMemo(() => {
-    return formatDisplayDate(item?.published_on || item?.consumed_on)
-  }, [item?.published_on, item?.consumed_on])
+  const transcript = parsedSections.transcript
+  const transcriptWordCount = useMemo(() => {
+    if (!transcript) return 0
+    return transcript.trim().split(/\s+/).length
+  }, [transcript])
 
-  const duration = useMemo(() => {
-    return formatDuration(item?.duration_seconds)
-  }, [item?.duration_seconds])
+  const visualContent = parsedSections.visualContent
+  const visualWordCount = useMemo(() => {
+    if (!visualContent) return 0
+    return visualContent.trim().split(/\s+/).length
+  }, [visualContent])
 
-  const domain = useMemo(() => {
-    return getDomain(item?.url, item?.site)
-  }, [item?.url, item?.site])
+  const caption = parsedSections.caption
+  const captionWordCount = useMemo(() => {
+    if (!caption) return 0
+    return caption.trim().split(/\s+/).length
+  }, [caption])
 
-  const favicon = useMemo(() => {
-    return getFaviconUrl(item?.url)
-  }, [item?.url])
+  const textBody = parsedSections.textBody
+  const textBodyWordCount = useMemo(() => {
+    if (!textBody) return 0
+    return textBody.trim().split(/\s+/).length
+  }, [textBody])
 
-  // Author Avatar
-  const authorAvatar = useMemo(() => {
+  const contentCount = useMemo(() => {
+    return (transcript ? 1 : 0) + (visualContent ? 1 : 0) + (caption ? 1 : 0) + (textBody ? 1 : 0)
+  }, [transcript, visualContent, caption, textBody])
+
+  const notesCount = useMemo(() => {
+    return (notes && notes.trim() ? 1 : 0) + (tags && tags.length > 0 ? 1 : 0)
+  }, [notes, tags])
+
+  // Detected audio tracks
+  const musicResources = useMemo(() => {
     let res = item?.resources
     if (typeof res === 'string') {
       try { res = JSON.parse(res) } catch { res = [] }
     }
-    if (Array.isArray(res)) {
-      const av = res.find((r) => r && r.type === 'avatar')
-      if (av?.url) return av.url
-    }
-    const appLower = (item?.app || '').toLowerCase()
-    if (appLower === 'x' && item?.author) {
-      const handle = item.author.replace(/.*@([A-Za-z0-9_]+).*/, '$1')
-      if (handle && handle !== item.author) return `https://unavatar.io/x/${handle}`
-    }
-    if (appLower === 'github' && item?.author) {
-      return `https://github.com/${item.author.replace(/^@/, '')}.png?size=64`
-    }
-    return null
-  }, [item?.resources, item?.app, item?.author])
+    if (!Array.isArray(res)) return []
+    return res.filter(
+      (r) => r && typeof r === 'object' && (r.type === 'music' || r.type === 'song') && (r.name || r.title)
+    )
+  }, [item?.resources])
 
-  // Platform & Source
-  const sourceInfo = useMemo(() => {
-    if (!item) return { platformName: 'Resource', icon: 'link', author: null, showFavicon: false }
-    const app = (item.app || '').toLowerCase()
-    const APP_NAMES = {
-      instagram: 'Instagram',
-      threads: 'Threads',
-      youtube: 'YouTube',
-      pinterest: 'Pinterest',
-      tiktok: 'TikTok',
-      x: 'X',
-      twitter: 'X',
-      github: 'GitHub',
-      reddit: 'Reddit',
-      spotify: 'Spotify',
+  // Non-audio mentioned resources and websites
+  const mentionedResources = useMemo(() => {
+    let res = item?.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
     }
-    if (app && APP_NAMES[app]) {
-      return {
-        platformName: APP_NAMES[app],
-        icon: app === 'youtube' ? 'play' :
-              app === 'instagram' ? 'spark' :
-              app === 'spotify' ? 'music' :
-              app === 'github' ? 'code' :
-              app === 'x' ? 'chat' : KIND_ICON[item.kind] || 'link',
-        author: item.author ? (item.author.startsWith('@') ? item.author : `@${item.author}`) : null,
-        showFavicon: Boolean(favicon),
-      }
+    if (!Array.isArray(res)) return []
+    return res.filter(
+      (r) => r && typeof r === 'object' && r.type !== 'music' && r.type !== 'song' && r.type !== 'slide' && r.type !== 'avatar'
+    )
+  }, [item?.resources])
+
+  // Save detected song to library Song List
+  const handleSaveSong = async (track) => {
+    const title = track.name || track.title || 'Unknown Track'
+    const author = track.detail || track.author || track.artist || ''
+    setSavingSong(title)
+    try {
+      await api.addLibraryItem({
+        title,
+        author,
+        kind: 'music',
+        category: 'music',
+        url: track.url || null,
+        notes: `Detected audio from: ${item.title || 'video'}`,
+      })
+      setSavedSongs((prev) => new Set(prev).add(title))
+      toast?.(`Added "${title}" to Song List`, 'ok')
+    } catch (err) {
+      toast?.(err?.message || 'Failed to save song', 'bad')
+    } finally {
+      setSavingSong(null)
     }
-    return {
-      platformName: domain || (item.kind || 'resource').toUpperCase(),
-      icon: KIND_ICON[item.kind] || 'link',
-      author: item.author || null,
-      showFavicon: Boolean(favicon),
+  }
+
+  // Export detected song to playlist
+  const handleExportSongToPlaylist = (track) => {
+    const trackItem = {
+      id: item.id,
+      title: track.name || track.title || 'Unknown Track',
+      author: track.detail || track.author || track.artist || '',
+      kind: 'music',
     }
-  }, [item, domain, favicon])
+    if (onExportPlaylist) {
+      onExportPlaylist([trackItem])
+    } else {
+      setInternalExportItems([trackItem])
+      setShowInternalExportModal(true)
+    }
+  }
 
-  // Caption text for left media card
-  const captionText = useMemo(() => {
-    if (caption && caption.trim()) return caption.trim()
-    if (item?.notes && !item.notes.startsWith('http') && !item.notes.startsWith('?')) return item.notes.trim()
-    if (item?.excerpt && item.excerpt.trim()) return item.excerpt.trim()
-    return null
-  }, [caption, item?.notes, item?.excerpt])
+  const activeRatingTier = useMemo(() => getRatingTier(rating), [rating])
+  const previewRatingTier = useMemo(() => getRatingTier(hoveredStar), [hoveredStar])
+  const displayedTier = previewRatingTier || activeRatingTier
 
-  // Media preparation
-  const urlLower = (item?.url || '').toLowerCase()
-  const isDirectVideoUrl = /\.(mp4|mov|webm)(\?|$)/i.test(urlLower)
-  const isReelOrShort = urlLower.includes('/reel/') || urlLower.includes('/reels/') || urlLower.includes('/shorts/')
-  const isSocialVideo =
-    urlLower.includes('instagram.com') ||
-    urlLower.includes('tiktok.com') ||
-    urlLower.includes('youtube.com') ||
-    urlLower.includes('youtu.be')
+  const rawDate = item?.consumed_on || item?.created_at
+  const dateFull = useMemo(() => formatDisplayDate(rawDate, true), [rawDate])
 
-  const isVertical = Boolean(
-    isReelOrShort ||
-    (item?.duration_seconds && item.duration_seconds < 120 && isSocialVideo) ||
-    urlLower.includes('tiktok.com')
+  const domain = getDomain(item?.url, item?.site)
+  const duration = formatDuration(item?.duration_seconds)
+  const favicon = getFaviconUrl(item?.url)
+  const hasThumbnail = Boolean(item?.thumbnail_path || item?.url)
+  const app = item?.app || (
+    (item?.url || '').includes('instagram.') || (item?.url || '').includes('instagr.am') ? 'instagram' :
+    (item?.url || '').includes('threads.net') || (item?.url || '').includes('threads.com') ? 'threads' :
+    (item?.url || '').includes('x.com') || (item?.url || '').includes('twitter.') ? 'x' :
+    (item?.url || '').includes('pinterest.') || (item?.url || '').includes('pin.it') ? 'pinterest' :
+    (item?.url || '').includes('youtube.') || (item?.url || '').includes('youtu.be') ? 'youtube' :
+    (item?.url || '').includes('tiktok.') ? 'tiktok' : null
+  )
+  const isVertical = (
+    (item?.url || '').includes('/reel/') ||
+    (item?.url || '').includes('/reels/') ||
+    (item?.url || '').includes('/shorts/') ||
+    app === 'tiktok'
   )
 
+  // YouTube embed detection
+  const youtubeEmbedUrl = useMemo(() => {
+    if (!item?.url) return null
+    const m = item.url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+    if (m && m[1]) {
+      return `https://www.youtube-nocookie.com/embed/${m[1]}?autoplay=1`
+    }
+    return null
+  }, [item?.url])
+
+  // Instagram embed detection
+  const instagramEmbedUrl = useMemo(() => {
+    if (!item?.url) return null
+    const m = item.url.match(/instagram\.com\/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/i)
+    return m && m[1] ? `https://www.instagram.com/reel/${m[1]}/embed/` : null
+  }, [item?.url])
+
+  // Extract carousel slides/images/video if this is a post with media
   const { videoItem, slideItems, isVid } = useMemo(() => {
     if (!item) return { videoItem: null, slideItems: [], isVid: false }
     let res = item.resources
     if (typeof res === 'string') {
       try { res = JSON.parse(res) } catch { res = [] }
     }
-    const resList = Array.isArray(res) ? res : []
-    const slideRes = resList.filter((r) => r && (r.type === 'slide' || r.type === 'image'))
-    const videoResource = resList.find(
-      (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|mov|webm)(\?|$)/i.test(r.url)))
+    const slideRes = (Array.isArray(res) ? res : []).filter(
+      (r) => r && typeof r === 'object' && (r.type === 'slide' || r.type === 'image') && (r.url || r.index !== undefined)
     )
 
-    let youtubeEmbedUrl = null
-    if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
-      const match = item.url?.match(/(?:v=|\/embed\/|\/watch\?v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/)
-      if (match && match[1]) {
-        youtubeEmbedUrl = `https://www.youtube.com/embed/${match[1]}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`
-      }
-    }
+    const videoResource = (Array.isArray(res) ? res : []).find(
+      (r) => r && typeof r === 'object' && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
+    )
 
-    const hasLocalVid = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
-    const hasVideo = hasLocalVid || Boolean(videoResource) || isDirectVideoUrl || (item.kind === 'video' && !youtubeEmbedUrl)
+    const hasLocalVid = Boolean(item.media_path) && (
+      item.media_path.endsWith('.mp4') || item.media_path.endsWith('.webm') || item.media_path.endsWith('.mov')
+    )
+    const urlLower = (item.url || '').toLowerCase()
+    const isDirectVideoUrl = /\.(mp4|webm|mov)(\?|$)/i.test(urlLower)
+    const isSocialVideo =
+      (app === 'instagram' && (urlLower.includes('/reel/') || urlLower.includes('/reels/') || item.kind === 'video' || item.duration_seconds)) ||
+      (app === 'tiktok') ||
+      (app === 'reddit' && (urlLower.includes('/comments/') || urlLower.includes('v.redd.it') || item.kind === 'video')) ||
+      (app === 'x' && (Boolean(videoResource) || item.kind === 'video')) ||
+      (item.duration_seconds > 0 && item.kind !== 'podcast' && item.kind !== 'music')
+
+    const hasVideo = hasLocalVid || Boolean(videoResource) || isDirectVideoUrl || isSocialVideo || (item.kind === 'video' && !youtubeEmbedUrl)
     const videoStreamUrl = api.mediaUrl(item.id)
     const fallbackVideoUrl =
       (videoResource?.remote_url && videoResource.remote_url.startsWith('http') ? videoResource.remote_url : null) ||
       (videoResource?.url && videoResource.url.startsWith('http') ? videoResource.url : null) ||
       (isDirectVideoUrl ? item.url : null)
 
-    const vItem = (youtubeEmbedUrl || hasVideo) ? {
-      type: youtubeEmbedUrl ? 'youtube' : 'video',
-      url: youtubeEmbedUrl || videoStreamUrl,
+    const vItem = (youtubeEmbedUrl || hasVideo || instagramEmbedUrl) ? {
+      type: youtubeEmbedUrl ? 'youtube' : (hasVideo ? 'video' : 'embed'),
+      url: youtubeEmbedUrl ? youtubeEmbedUrl : (hasVideo ? videoStreamUrl : instagramEmbedUrl),
       fallbackUrl: fallbackVideoUrl,
-      poster: item.thumbnail_path ? api.thumbnailUrl(item.id) : undefined,
+      embedUrl: instagramEmbedUrl,
+      poster: hasThumbnail ? api.thumbnailUrl(item.id) : undefined,
       name: 'Video',
     } : null
 
@@ -447,7 +537,7 @@ export function LibraryDetailModal({
     })
 
     if (!vItem && sItems.length === 0) {
-      if (item.thumbnail_path) {
+      if (hasThumbnail) {
         sItems.push({
           type: 'image',
           url: api.thumbnailUrl(item.id),
@@ -464,18 +554,42 @@ export function LibraryDetailModal({
     }
 
     return { videoItem: vItem, slideItems: sItems, isVid: hasVideo }
-  }, [item, urlLower, isDirectVideoUrl])
+  }, [item, app, youtubeEmbedUrl, instagramEmbedUrl, hasThumbnail])
 
+  const hasMultipleMediaModes = Boolean(videoItem && slideItems.length > 0)
   const isVideoMode = Boolean(videoItem && (mediaMode === 'video' || slideItems.length === 0))
   const carouselItems = isVideoMode ? (videoItem ? [videoItem] : []) : slideItems
+  const slides = carouselItems
+
+  const currentSlideUrl = useMemo(() => {
+    if (isVideoMode && videoItem) {
+      return videoItem.poster || (hasThumbnail ? api.thumbnailUrl(item?.id) : null)
+    }
+    const cur = slideItems[currentSlideIndex]
+    if (cur) return cur.url
+    return hasThumbnail ? api.thumbnailUrl(item?.id) : null
+  }, [isVideoMode, videoItem, slideItems, currentSlideIndex, item?.id, hasThumbnail])
+
+  const hasSlides = carouselItems && carouselItems.length > 1
+  const isDirectVideo = Boolean(carouselItems.some((c) => c.type === 'video'))
+  const isPlayable = Boolean(isDirectVideo || youtubeEmbedUrl || instagramEmbedUrl)
 
   const scrollToSlide = useCallback((targetIdx) => {
     if (carouselTrackRef.current) {
-      const width = carouselTrackRef.current.clientWidth
-      carouselTrackRef.current.scrollTo({
-        left: targetIdx * width,
-        behavior: 'smooth',
-      })
+      const slides = carouselTrackRef.current.children
+      if (slides && slides[targetIdx] && typeof slides[targetIdx].scrollIntoView === 'function') {
+        slides[targetIdx].scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'start',
+        })
+      } else {
+        const width = carouselTrackRef.current.clientWidth
+        carouselTrackRef.current.scrollTo({
+          left: targetIdx * width,
+          behavior: 'smooth',
+        })
+      }
     }
     setCurrentSlideIndex(targetIdx)
   }, [])
@@ -490,72 +604,222 @@ export function LibraryDetailModal({
     }
   }, [currentSlideIndex, carouselItems.length])
 
-  // Primary Action CTAs
-  const primaryActions = useMemo(() => {
+  // Single clean source attribution
+  const sourceInfo = useMemo(() => {
+    if (!item) return { platformName: 'Resource', icon: 'link', author: null, showFavicon: false }
+    if (item.kind === 'note') {
+      return {
+        platformName: 'Personal Note',
+        icon: 'edit',
+        author: item.author || null,
+        showFavicon: false,
+      }
+    }
+    const APP_NAMES = {
+      instagram: 'Instagram',
+      threads: 'Threads',
+      youtube: 'YouTube',
+      pinterest: 'Pinterest',
+      tiktok: 'TikTok',
+      x: 'X',
+      twitter: 'X',
+      github: 'GitHub',
+      reddit: 'Reddit',
+      spotify: 'Spotify',
+    }
+    const cleanDomain = domain || item.site || ''
+    const appMatch = app && cleanDomain.toLowerCase().includes(app.toLowerCase())
+
+    if (app && (appMatch || !cleanDomain)) {
+      return {
+        platformName: APP_NAMES[app] || (app.charAt(0).toUpperCase() + app.slice(1)),
+        icon: app === 'pinterest' ? 'pin' :
+              app === 'youtube' ? 'play' :
+              app === 'instagram' ? 'spark' :
+              app === 'threads' ? 'threads' :
+              app === 'spotify' ? 'music' :
+              app === 'github' ? 'code' :
+              app === 'x' ? 'chat' : KIND_ICON[item.kind] || 'link',
+        author: item.author ? `@${item.author.replace(/^@/, '')}` : null,
+        showFavicon: Boolean(favicon),
+      }
+    }
+
+    return {
+      platformName: cleanDomain || (item.kind || 'resource').toUpperCase(),
+      icon: KIND_ICON[item.kind] || 'link',
+      author: item.author || null,
+      showFavicon: Boolean(favicon),
+    }
+  }, [item, app, domain, favicon])
+
+  // Filter out redundant platform and generic category tags
+  const filteredTags = useMemo(() => {
+    const appLower = (app || '').toLowerCase()
+    const catLower = (item?.category || '').toLowerCase()
+    return tags.filter((t) => {
+      if (!t || typeof t !== 'string') return false
+      const clean = t.trim().toLowerCase()
+      if (clean === appLower || clean === catLower) return false
+      if (clean === 'general' || clean === 'other' || clean === 'post') return false
+      return true
+    })
+  }, [tags, app, item?.category])
+
+  // Detect whether capture-time LLM failed or timed out
+  const isLlmFailure = useMemo(() => {
+    if (!item || item.summary) return false
+    const note = (item.enrichment_note || '').toLowerCase()
+    return Boolean(
+      note.includes('provider') ||
+      note.includes('timeout') ||
+      note.includes('not answer') ||
+      note.includes('could not be reached') ||
+      note.includes('failed') ||
+      note.includes('cloudflare') ||
+      note.includes('error')
+    )
+  }, [item])
+
+  // Parsed entity metadata (if enriched)
+  const entity = useMemo(() => {
+    let ent = item?.entity
+    if (typeof ent === 'string') {
+      try { ent = JSON.parse(ent) } catch { ent = null }
+    }
+    return (ent && typeof ent === 'object') ? ent : null
+  }, [item?.entity])
+
+  const displayTitle = entity?.title || item?.title || 'Untitled Resource'
+  const displaySubtitle = entity?.subtitle || (item?.author ? `By ${item.author}` : (domain || sourceInfo.platformName))
+  const displayRating = entity?.rating || null
+
+  // Author avatar if available from resources
+  const authorAvatarUrl = useMemo(() => {
+    let res = item?.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    const avatarRes = (Array.isArray(res) ? res : []).find(
+      (r) => r && typeof r === 'object' && (r.type === 'avatar' || r.name === 'avatar')
+    )
+    return avatarRes?.url || avatarRes?.remote_url || null
+  }, [item?.resources])
+
+  // Context-adaptive action buttons
+  const adaptiveActions = useMemo(() => {
     if (entity?.actions && Array.isArray(entity.actions) && entity.actions.length > 0) {
       return entity.actions
     }
-    const acts = []
-    const cat = (item?.category || '').toLowerCase()
-    const isVideo = item?.kind === 'video' || cat === 'movie' || cat === 'cinema' || isVid
-    if (isVideo) {
-      const q = encodeURIComponent(`${entity?.title || item?.title || ''} trailer`)
-      acts.push({
-        label: 'Watch trailer',
-        url: `https://www.youtube.com/results?search_query=${q}`,
-        kind: 'trailer',
-      })
-    } else if (cat === 'tool' || item?.kind === 'code') {
-      if (item?.url) {
-        acts.push({ label: 'Visit website', url: item.url, kind: 'website' })
-      }
-    } else if (cat === 'book') {
-      const q = encodeURIComponent(`${entity?.title || item?.title || ''} book`)
-      acts.push({ label: 'Open details', url: `https://www.goodreads.com/search?q=${q}`, kind: 'details' })
-    }
-    if (item?.url && !acts.some((a) => a.url === item.url)) {
-      acts.push({ label: 'Open details', url: item.url, kind: 'details' })
-    }
-    return acts.slice(0, 2)
-  }, [entity, item, isVid])
+    const actions = []
+    if (item?.url) {
+      let primaryLabel = 'Open Link'
+      let primaryIcon = 'external-link'
+      const kind = (item?.kind || '').toLowerCase()
+      const cat = (item?.category || '').toLowerCase()
+      const host = (domain || '').toLowerCase()
 
-  // Spec Table Rows
-  const specRows = useMemo(() => {
-    if (entity?.attributes && typeof entity.attributes === 'object') {
-      const rows = Object.entries(entity.attributes)
-        .filter(([k, v]) => Boolean(k && v))
-        .map(([key, value]) => ({ key, value: String(value) }))
-      if (rows.length > 0) return rows
+      if (kind === 'video' || cat === 'movie' || cat === 'video' || host.includes('youtube') || host.includes('tiktok') || host.includes('vimeo')) {
+        primaryLabel = host.includes('youtube') ? 'Watch on YouTube' : 'Watch Video'
+        primaryIcon = 'play'
+      } else if (kind === 'code' || cat === 'tool' || host.includes('github') || host.includes('gitlab')) {
+        primaryLabel = 'View Repository'
+        primaryIcon = 'code'
+      } else if (cat === 'paper' || host.includes('arxiv')) {
+        primaryLabel = 'Read Paper'
+        primaryIcon = 'file-text'
+      } else if (kind === 'music' || cat === 'music' || host.includes('spotify') || host.includes('soundcloud') || host.includes('bandcamp')) {
+        primaryLabel = 'Listen on Spotify'
+        primaryIcon = 'music'
+      } else if (kind === 'article' || cat === 'article' || host.includes('substack') || host.includes('medium')) {
+        primaryLabel = 'Read Article'
+        primaryIcon = 'book'
+      } else if (host.includes('twitter') || host.includes('x.com') || host.includes('threads') || host.includes('reddit')) {
+        primaryLabel = 'View Post'
+        primaryIcon = 'chat'
+      } else {
+        primaryLabel = `Visit ${sourceInfo.platformName || 'Source'}`
+        primaryIcon = 'external-link'
+      }
+
+      actions.push({
+        label: primaryLabel,
+        url: item.url,
+        icon: primaryIcon,
+        primary: true,
+      })
     }
-    // Fallback spec rows for legacy items
-    const rows = []
-    if (item?.category) {
-      rows.push({ key: 'Genre', value: item.category.charAt(0).toUpperCase() + item.category.slice(1) })
+    return actions
+  }, [entity?.actions, item?.url, item?.kind, item?.category, domain, sourceInfo.platformName])
+
+  // Context-adaptive attributes table
+  const adaptiveAttributes = useMemo(() => {
+    if (entity?.attributes && typeof entity.attributes === 'object' && Object.keys(entity.attributes).length > 0) {
+      return Object.entries(entity.attributes).map(([k, v]) => ({ key: k, value: String(v) }))
     }
-    if (entity?.rating || item?.rating) {
-      rows.push({ key: 'Rating', value: entity?.rating || `${item.rating}/5★` })
-    }
+    const attrs = []
+    const kind = (item?.kind || '').toLowerCase()
+    const cat = (item?.category || '').toLowerCase()
+
     if (item?.author) {
-      rows.push({ key: 'Creator', value: item.author.startsWith('@') ? item.author : `@${item.author}` })
+      attrs.push({ key: 'Author / Creator', value: item.author })
+    }
+    if (sourceInfo.platformName && sourceInfo.platformName !== 'Resource') {
+      attrs.push({ key: 'Platform', value: sourceInfo.platformName })
     }
     if (duration) {
-      rows.push({ key: 'Runtime', value: duration })
+      attrs.push({ key: 'Duration', value: duration })
+    }
+    if (cat && cat !== 'general') {
+      attrs.push({ key: 'Category', value: cat.charAt(0).toUpperCase() + cat.slice(1) })
+    } else if (kind) {
+      attrs.push({ key: 'Format', value: kind.charAt(0).toUpperCase() + kind.slice(1) })
     }
     if (dateFull) {
-      rows.push({ key: 'Released', value: dateFull })
+      attrs.push({ key: 'Captured', value: dateFull })
     }
-    if (domain) {
-      rows.push({ key: 'Source', value: domain })
+    attrs.push({ key: 'Index Status', value: item?.indexed ? 'Vector indexed' : 'Archive' })
+    return attrs
+  }, [entity?.attributes, item?.author, sourceInfo.platformName, duration, item?.category, item?.kind, dateFull, item?.indexed])
+
+  // Keyboard navigation: left/right to move through slides or items, escape to close
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (carouselItems.length > 1 && !showLightbox) {
+          const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : carouselItems.length - 1
+          scrollToSlide(prevIdx)
+        } else if (showLightbox && carouselItems.length > 1) {
+          setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : carouselItems.length - 1))
+        } else {
+          handlePrev()
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (carouselItems.length > 1 && !showLightbox) {
+          const nextIdx = currentSlideIndex < carouselItems.length - 1 ? currentSlideIndex + 1 : 0
+          scrollToSlide(nextIdx)
+        } else if (showLightbox && carouselItems.length > 1) {
+          setCurrentSlideIndex((prev) => (prev < carouselItems.length - 1 ? prev + 1 : 0))
+        } else {
+          handleNext()
+        }
+      } else if (e.key === 'Escape') {
+        if (showLightbox) {
+          setShowLightbox(false)
+        } else {
+          onClose?.()
+        }
+      }
     }
-    return rows
-  }, [entity, item, duration, dateFull, domain])
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handlePrev, handleNext, onClose, carouselItems.length, currentSlideIndex, scrollToSlide, showLightbox])
 
-  // Narrative synopsis
-  const displaySynopsis = useMemo(() => {
-    return entity?.synopsis || detailItem?.summary || item?.summary || summaryCandidate || item?.excerpt || ''
-  }, [entity?.synopsis, detailItem?.summary, item?.summary, summaryCandidate, item?.excerpt])
+  if (!item) return null
 
-  // Rating and Curation handlers
   const handleRating = async (stars) => {
     const newRating = rating === stars ? null : stars
     setRating(newRating)
@@ -588,7 +852,7 @@ export function LibraryDetailModal({
     try {
       const updated = await api.updateLibraryItem(item.id, { tags: nextTags })
       onUpdate?.(updated)
-      toast(`Added tag #${clean}`, 'ok')
+      toast(`Added #${clean}`, 'ok')
     } catch (err) {
       toast(err.message, 'bad')
     }
@@ -607,14 +871,28 @@ export function LibraryDetailModal({
   }
 
   const handleSaveNotes = async () => {
-    if (noteInput === notes) return
-    setNotes(noteInput)
+    setSavingNotes(true)
     try {
-      const updated = await api.updateLibraryItem(item.id, { notes: noteInput })
+      const updated = await api.updateLibraryItem(item.id, { notes: notes.trim() || null })
       onUpdate?.(updated)
       toast('Notes saved', 'ok')
     } catch (err) {
       toast(err.message, 'bad')
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
+  const handleCopySummary = async () => {
+    const textToCopy = item.summary || item.title || item.url || ''
+    if (!textToCopy) return
+    try {
+      await navigator.clipboard.writeText(textToCopy)
+      setCopiedSummary(true)
+      toast('Copied synthesis to clipboard', 'ok')
+      setTimeout(() => setCopiedSummary(false), 2000)
+    } catch {
+      toast('Failed to copy', 'bad')
     }
   }
 
@@ -623,26 +901,39 @@ export function LibraryDetailModal({
     try {
       await navigator.clipboard.writeText(item.url)
       setCopiedLink(true)
-      toast('Copied URL to clipboard', 'ok')
+      toast('Copied link to clipboard', 'ok')
       setTimeout(() => setCopiedLink(false), 2000)
     } catch {
-      toast('Failed to copy URL', 'bad')
+      toast('Failed to copy link', 'bad')
     }
   }
 
-  const handleCopyDrawerText = async (txt) => {
-    if (!txt) return
+  const handleCopyTranscript = useCallback(async () => {
+    if (!transcript) return
     try {
-      await navigator.clipboard.writeText(txt)
-      setCopiedDrawerText(true)
-      toast('Copied text to clipboard', 'ok')
-      setTimeout(() => setCopiedDrawerText(false), 2000)
+      await navigator.clipboard.writeText(transcript)
+      setCopiedTranscript(true)
+      toast('Copied transcript to clipboard', 'ok')
+      setTimeout(() => setCopiedTranscript(false), 2000)
     } catch {
-      toast('Failed to copy text', 'bad')
+      toast('Failed to copy transcript', 'bad')
     }
-  }
+  }, [transcript, toast])
+
+  const handleCopyVisuals = useCallback(async () => {
+    if (!visualContent) return
+    try {
+      await navigator.clipboard.writeText(visualContent)
+      setCopiedVisuals(true)
+      toast('Copied visual content to clipboard', 'ok')
+      setTimeout(() => setCopiedVisuals(false), 2000)
+    } catch {
+      toast('Failed to copy visual content', 'bad')
+    }
+  }, [visualContent, toast])
 
   const handleEnrich = async (provOverride, modOverride) => {
+    setEnrichError(null)
     setBusyAction('enrich')
     try {
       const p = (typeof provOverride === 'string' && provOverride) || selectedEnrichProvider
@@ -654,6 +945,7 @@ export function LibraryDetailModal({
       toast('Synthesized with AI', 'ok')
     } catch (err) {
       const msg = err.message || 'AI synthesis failed. Check your LLM settings.'
+      setEnrichError(msg)
       toast(msg, 'bad')
     } finally {
       setBusyAction('')
@@ -683,21 +975,9 @@ export function LibraryDetailModal({
     }
   }
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Delete "${item.title}" from your library?`)) return
-    try {
-      await api.deleteLibraryItem(item.id)
-      onDelete?.(item)
-      toast('Item deleted from library', 'ok')
-      onClose?.()
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
   const isEnriching = busyAction === 'enrich' || item.status === 'enriching'
 
-  // Clean slug for graphic card fallback
+  // Clean slug/short name for fallback visual card
   const cleanCoverSlug = (item.title || 'resource')
     .toLowerCase()
     .replace(/^the\s+/, '')
@@ -708,675 +988,1307 @@ export function LibraryDetailModal({
   return (
     <>
       <motion.div
-        className="lib-page-detail lib-page-detail--editorial"
+        className="lib-page-detail"
         role="region"
         aria-label={item.title || 'Library item detail'}
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        exit={{ opacity: 0, y: 10 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       >
         {/* ========================================================
             TOP NAVIGATION BAR
             ======================================================== */}
         <header className="lib-page-header">
           <div className="lib-page-header-left">
+            {/* Prominent Back to Library button */}
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
-              className="lib-editorial-back-btn"
+              className="lib-page-back-btn"
               onClick={onClose}
               title="Back to Library (Esc)"
             >
               <Icon name="arrow-left" size={15} />
               <span>Library</span>
             </motion.button>
+
+            <span className="lib-page-source-pill">
+              {sourceInfo.showFavicon && favicon ? (
+                <img
+                  src={favicon}
+                  alt=""
+                  className="lib-page-source-favicon"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
+              ) : (
+                <Icon name={sourceInfo.icon} size={12} />
+              )}
+              <span className="lib-page-source-title">{sourceInfo.platformName}</span>
+              {sourceInfo.author && (
+                <span className="lib-page-source-author">· {sourceInfo.author}</span>
+              )}
+            </span>
           </div>
 
           <div className="lib-page-header-right">
             {items && items.length > 0 && currentIndex !== -1 && (
-              <div className="lib-editorial-pager">
-                <button
+              <div className="lib-page-pager">
+                <motion.button
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.88 }}
                   type="button"
-                  className="lib-editorial-pager-btn"
+                  className="lib-page-pager-btn"
                   onClick={handlePrev}
                   disabled={!hasPrev}
                   title="Previous item (←)"
+                  aria-label="Previous item"
                 >
-                  <Icon name="chevron-left" size={13} />
-                </button>
-                <span className="lib-editorial-pager-text">
+                  <Icon name="chevron-left" size={14} />
+                </motion.button>
+                <span className="lib-page-pager-text">
                   {currentIndex + 1} of {items.length}
                 </span>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.88 }}
                   type="button"
-                  className="lib-editorial-pager-btn"
+                  className="lib-page-pager-btn"
                   onClick={handleNext}
                   disabled={!hasNext}
                   title="Next item (→)"
+                  aria-label="Next item"
                 >
-                  <Icon name="chevron-right" size={13} />
-                </button>
+                  <Icon name="chevron-right" size={14} />
+                </motion.button>
               </div>
             )}
 
-            {/* Remind me to watch / Saved CTA */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              type="button"
-              className={`lib-editorial-remind-btn ${rating ? 'lib-editorial-remind-btn--saved' : ''}`}
-              onClick={() => handleRating(rating ? null : 5)}
-              title={rating ? 'Curated in Library' : 'Remind me to watch'}
-            >
-              <Icon name="bell" size={14} />
-              <span>{rating ? 'Curated' : 'Remind me to watch'}</span>
-            </motion.button>
-
-            {/* More Options (···) Overflow Menu */}
-            <div className="lib-overflow-wrap" ref={overflowMenuRef}>
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                type="button"
-                className="lib-editorial-icon-btn"
-                onClick={() => setShowOverflowMenu((v) => !v)}
-                title="More options"
-                aria-label="More options"
+            {item.url && (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="lib-page-icon-btn"
+                title="Open original website"
               >
-                <Icon name="more-horizontal" size={16} />
-              </motion.button>
-
-              <AnimatePresence>
-                {showOverflowMenu && (
-                  <motion.div
-                    className="lib-overflow-menu"
-                    initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                    transition={{ duration: 0.12 }}
-                  >
-                    <button
-                      type="button"
-                      className="lib-overflow-row"
-                      onClick={() => {
-                        setShowOverflowMenu(false)
-                        handleEnrich()
-                      }}
-                      disabled={isEnriching}
-                    >
-                      <Icon name="spark" size={13} />
-                      <span>{isEnriching ? 'Synthesizing...' : 'Re-analyze with AI'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="lib-overflow-row"
-                      onClick={() => {
-                        setShowOverflowMenu(false)
-                        setShowModelMenu(true)
-                      }}
-                    >
-                      <Icon name="sliders" size={13} />
-                      <span>Model: {formatModelDisplayName(selectedEnrichModel)}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="lib-overflow-row"
-                      onClick={() => {
-                        setShowOverflowMenu(false)
-                        handleReindex()
-                      }}
-                    >
-                      <Icon name="refresh" size={13} />
-                      <span>Re-index Search Embeddings</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="lib-overflow-row"
-                      onClick={() => {
-                        setShowOverflowMenu(false)
-                        setShowTranscriptsDrawer(true)
-                      }}
-                    >
-                      <Icon name="file-text" size={13} />
-                      <span>Inspect Transcripts & Text</span>
-                    </button>
-
-                    {item.url && (
-                      <button
-                        type="button"
-                        className="lib-overflow-row"
-                        onClick={() => {
-                          setShowOverflowMenu(false)
-                          handleCopyLink()
-                        }}
-                      >
-                        <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
-                        <span>Copy Original URL</span>
-                      </button>
-                    )}
-
-                    <div className="lib-overflow-hr" />
-
-                    <button
-                      type="button"
-                      className="lib-overflow-row lib-overflow-row--danger"
-                      onClick={() => {
-                        setShowOverflowMenu(false)
-                        handleDelete()
-                      }}
-                    >
-                      <Icon name="trash" size={13} />
-                      <span>Delete Item</span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                <Icon name="link" size={13} />
+              </a>
+            )}
 
             <button
               type="button"
-              className="lib-editorial-icon-btn lib-editorial-icon-btn--close"
+              className="lib-page-icon-btn"
+              onClick={handleCopyLink}
+              title="Copy URL"
+            >
+              <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
+            </button>
+
+            <button
+              type="button"
+              className="lib-page-icon-btn lib-page-icon-btn--close"
               onClick={onClose}
               title="Close (Esc)"
               aria-label="Close"
             >
-              <Icon name="x" size={15} />
+              <Icon name="x" size={14} />
             </button>
           </div>
         </header>
 
         {/* ========================================================
-            SPACIOUS EDITORIAL TWO-COLUMN BODY
+            TWO-COLUMN MAIN BODY (Animated on item change)
             ======================================================== */}
-        <div className="lib-editorial-container">
-          {/* ----------------- LEFT COLUMN: FRAMED MEDIA CARD ----------------- */}
-          <div className="lib-editorial-media-column">
-            <div className="lib-framed-card">
-              {/* Media Viewport */}
-              <div className={`lib-framed-canvas ${isVertical ? 'lib-framed-canvas--portrait' : ''}`}>
-                {isVideoMode && videoItem ? (
-                  <LibraryVideoPlayer
-                    src={videoItem.url}
-                    poster={videoItem.poster}
-                    title={item.title}
-                    fallbackUrl={videoItem.fallbackUrl}
-                    embedUrl={videoItem.embedUrl}
-                    isVertical={isVertical}
-                    imageFitMode={imageFitMode}
-                    onToggleFit={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
-                    cleanCoverSlug={cleanCoverSlug}
-                  />
-                ) : (
-                  <div className="lib-framed-carousel-viewport">
-                    <div
-                      ref={carouselTrackRef}
-                      className="lib-framed-carousel-track"
-                      onScroll={handleCarouselScroll}
-                    >
-                      {slideItems.map((cItem, idx) => (
-                        <div key={`slide-${idx}`} className="lib-framed-slide">
-                          {cItem.type === 'image' ? (
-                            <img
-                              src={cItem.url}
-                              alt={cItem.name || item.title || `Media ${idx + 1}`}
-                              className={`lib-framed-img lib-framed-img--${imageFitMode}`}
-                              onClick={() => {
-                                setCurrentSlideIndex(idx)
-                                setShowLightbox(true)
-                              }}
-                              onError={(e) => {
-                                const currentSrc = e.currentTarget.src
-                                const slideApi = api.slideUrl(item.id, cItem.index ?? idx)
-                                if (!currentSrc.includes(`/slides/${cItem.index ?? idx}`) && currentSrc !== slideApi) {
-                                  e.currentTarget.src = slideApi
-                                  return
-                                }
-                                if (cItem.remoteUrl && currentSrc !== cItem.remoteUrl) {
-                                  e.currentTarget.src = cItem.remoteUrl
-                                  return
-                                }
-                                if (item.thumbnail_path && currentSrc !== api.thumbnailUrl(item.id)) {
-                                  e.currentTarget.src = api.thumbnailUrl(item.id)
-                                }
-                              }}
-                            />
-                          ) : (
-                            <div className="lib-player-graphic-card">
-                              <div className="lib-player-graphic-title">{cleanCoverSlug}</div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+        <div className="lib-page-body">
+          {/* ----------------- LEFT COLUMN: MEDIA CENTER ----------------- */}
+          <motion.div
+            key={`media-${item.id}`}
+            className="lib-page-media-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.18 }}
+          >
+            {hasMultipleMediaModes && (
+              <div className="lib-media-segment" role="tablist" aria-label="Media view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isVideoMode}
+                  className={`lib-media-segment-btn ${isVideoMode ? 'lib-media-segment-btn--active' : ''}`}
+                  onClick={() => setMediaMode('video')}
+                >
+                  <Icon name="play" size={12} />
+                  <span>Video</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!isVideoMode}
+                  className={`lib-media-segment-btn ${!isVideoMode ? 'lib-media-segment-btn--active' : ''}`}
+                  onClick={() => {
+                    setMediaMode('slides')
+                    setIsPlaying(false)
+                  }}
+                >
+                  <Icon name="image" size={12} />
+                  <span>Diagrams & Slides ({slideItems.length})</span>
+                </button>
+              </div>
+            )}
 
-                    {/* Counter Pill in Top Right Corner */}
-                    {slideItems.length > 1 && (
-                      <div className="lib-framed-counter-badge">
-                        {currentSlideIndex + 1} / {slideItems.length}
-                      </div>
-                    )}
-
-                    {/* Left / Right Chevron Arrows on Hover */}
-                    {slideItems.length > 1 && (
-                      <>
-                        <button
-                          type="button"
-                          className="lib-framed-nav-chevron lib-framed-nav-chevron--prev"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : slideItems.length - 1
-                            scrollToSlide(prevIdx)
+            {isVideoMode && videoItem ? (
+              <LibraryVideoPlayer
+                src={videoItem.url}
+                poster={videoItem.poster}
+                title={item.title}
+                fallbackUrl={videoItem.fallbackUrl}
+                embedUrl={videoItem.embedUrl}
+                isVertical={isVertical}
+                imageFitMode={imageFitMode}
+                onToggleFit={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                cleanCoverSlug={cleanCoverSlug}
+              />
+            ) : (
+              <div className={`lib-page-media-viewport ${isVertical ? 'lib-page-media-viewport--portrait' : ''}`}>
+                <div
+                  ref={carouselTrackRef}
+                  className="lib-page-carousel-track"
+                  onScroll={handleCarouselScroll}
+                >
+                  {slideItems.map((cItem, idx) => (
+                    <div key={`slide-${idx}`} className="lib-page-carousel-slide">
+                      {cItem.type === 'image' ? (
+                        <div
+                          className="lib-page-cover-box"
+                          onClick={() => {
+                            setCurrentSlideIndex(idx)
+                            setShowLightbox(true)
                           }}
-                          aria-label="Previous slide"
                         >
-                          <Icon name="chevron-left" size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          className="lib-framed-nav-chevron lib-framed-nav-chevron--next"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const nextIdx = currentSlideIndex < slideItems.length - 1 ? currentSlideIndex + 1 : 0
-                            scrollToSlide(nextIdx)
-                          }}
-                          aria-label="Next slide"
-                        >
-                          <Icon name="chevron-right" size={15} />
-                        </button>
-                      </>
-                    )}
-
-                    {/* Dot Pagination at Bottom Edge */}
-                    {slideItems.length > 1 && (
-                      <div className="lib-framed-dots-bar">
-                        {slideItems.map((_, idx) => (
-                          <button
-                            key={`dot-${idx}`}
-                            type="button"
-                            className={`lib-framed-dot ${idx === currentSlideIndex ? 'lib-framed-dot--active' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              scrollToSlide(idx)
+                          <img
+                            src={cItem.url}
+                            alt={cItem.name || item.title || `Photo ${idx + 1}`}
+                            className={`lib-page-cover-img lib-page-cover-img--${imageFitMode}`}
+                            onError={(e) => {
+                              const currentSrc = e.currentTarget.src
+                              const slideApi = api.slideUrl(item.id, cItem.index ?? idx)
+                              if (!currentSrc.includes(`/slides/${cItem.index ?? idx}`) && currentSrc !== slideApi) {
+                                e.currentTarget.src = slideApi
+                                return
+                              }
+                              if (cItem.remoteUrl && currentSrc !== cItem.remoteUrl) {
+                                e.currentTarget.src = cItem.remoteUrl
+                                return
+                              }
+                              if (hasThumbnail && currentSrc !== api.thumbnailUrl(item.id)) {
+                                e.currentTarget.src = api.thumbnailUrl(item.id)
+                              }
                             }}
-                            aria-label={`Slide ${idx + 1}`}
                           />
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ) : (
+                        <div className="lib-player-graphic-card">
+                          <div className="lib-player-graphic-title">{cleanCoverSlug}</div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Minimal bottom-docked slide navigation bar */}
+                {slideItems.length > 1 && (
+                  <div className="lib-slide-nav-bar">
+                    <button
+                      type="button"
+                      className="lib-slide-nav-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : slideItems.length - 1
+                        scrollToSlide(prevIdx)
+                      }}
+                      title="Previous slide"
+                      aria-label="Previous slide"
+                    >
+                      <Icon name="chevron-left" size={14} />
+                    </button>
+                    <span className="lib-slide-nav-counter">
+                      {currentSlideIndex + 1} / {slideItems.length}
+                    </span>
+                    <button
+                      type="button"
+                      className="lib-slide-nav-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const nextIdx = currentSlideIndex < slideItems.length - 1 ? currentSlideIndex + 1 : 0
+                        scrollToSlide(nextIdx)
+                      }}
+                      title="Next slide"
+                      aria-label="Next slide"
+                    >
+                      <Icon name="chevron-right" size={14} />
+                    </button>
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Framed Card Bottom Footer */}
-              <div className="lib-framed-footer">
-                <div className="lib-framed-author-row">
-                  <div className="lib-framed-author-info">
-                    {authorAvatar ? (
-                      <img src={authorAvatar} alt="" className="lib-framed-avatar" />
+            {/* Controls Below Media Frame: Only displayed for non-video mode (e.g. diagrams/slides) */}
+            {!isVideoMode && (
+              <div className="lib-page-media-actions">
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  type="button"
+                  className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
+                  onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                  title={imageFitMode === 'contain' ? 'Fill frame' : 'Original uncropped fit'}
+                >
+                  <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={12} />
+                  <span>{imageFitMode === 'contain' ? 'Original Fit' : 'Fill'}</span>
+                </motion.button>
+
+                {hasThumbnail && (
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.96 }}
+                    type="button"
+                    className="lib-page-pill-btn"
+                    onClick={() => setShowLightbox(true)}
+                    title="Open full resolution lightbox"
+                  >
+                    <Icon name="maximize" size={12} />
+                    <span>Lightbox</span>
+                  </motion.button>
+                )}
+
+                {item.url && (
+                  <motion.a
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.96 }}
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-page-pill-btn"
+                    title="Open original website"
+                  >
+                    <Icon name="external-link" size={12} />
+                    <span>{sourceInfo.platformName || 'Source'}</span>
+                  </motion.a>
+                )}
+              </div>
+            )}
+
+            {/* Author / Creator Context Card */}
+            {(item.author || sourceInfo.author || authorAvatarUrl) && (
+              <div className="lib-author-card">
+                <div className="lib-author-card-left">
+                  <div className="lib-author-card-avatar">
+                    {authorAvatarUrl ? (
+                      <img src={authorAvatarUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                    ) : favicon ? (
+                      <img src={favicon} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} />
                     ) : (
-                      <div className="lib-framed-avatar-fallback">
-                        <Icon name={sourceInfo.icon} size={14} />
-                      </div>
+                      <span>{(item.author || sourceInfo.platformName || 'A').charAt(0).toUpperCase()}</span>
                     )}
-                    <span className="lib-framed-author-handle">
-                      {sourceInfo.author || sourceInfo.platformName}
+                  </div>
+                  <div className="lib-author-card-info">
+                    <span className="lib-author-card-handle">
+                      {sourceInfo.author || (item.author ? `@${item.author.replace(/^@/, '')}` : (domain || 'Author'))}
+                    </span>
+                    <span className="lib-author-card-platform">
+                      {sourceInfo.platformName}
                     </span>
                   </div>
+                </div>
 
-                  {item.url && (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="lib-framed-open-pill"
-                      title="Open source website"
-                    >
-                      <span>Open</span>
-                      <Icon name="external-link" size={11} />
-                    </a>
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-author-card-btn"
+                    title={`Open on ${sourceInfo.platformName}`}
+                  >
+                    <span>Open ↗</span>
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Expandable Caption Preview */}
+            {(caption || item.excerpt) && (
+              <div className="lib-author-caption-card">
+                <p className={`lib-author-caption-text ${!isCaptionExpanded ? 'lib-author-caption-text--clamped' : ''}`}>
+                  {caption || item.excerpt}
+                </p>
+                {(caption || item.excerpt).length > 90 && (
+                  <button
+                    type="button"
+                    className="lib-author-caption-toggle"
+                    onClick={() => setIsCaptionExpanded((v) => !v)}
+                  >
+                    <span>{isCaptionExpanded ? 'Less ⌃' : 'More ⌄'}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </motion.div>
+
+          {/* ----------------- RIGHT COLUMN: INTELLIGENCE & CURATION ----------------- */}
+          <motion.div
+            key={`content-${item.id}`}
+            className="lib-page-content-col"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="lib-page-content-scroll">
+              {/* 1. Main Title & Type-Adaptive Subtitle */}
+              <div className="lib-detail-hero">
+                <div className="lib-detail-title-row">
+                  <h1 className="lib-page-heading">{displayTitle}</h1>
+                  {displayRating && (
+                    <span className="lib-rating-badge-pill" title="Subject Rating">
+                      <Icon name="star" size={12} filled style={{ color: '#f59e0b' }} />
+                      <span>{displayRating}</span>
+                    </span>
                   )}
                 </div>
 
-                {captionText && (
-                  <div className="lib-framed-caption-wrap">
-                    <p className={`lib-framed-caption-text ${captionExpanded ? 'lib-framed-caption-text--expanded' : ''}`}>
-                      {captionText}
-                    </p>
-                    {captionText.length > 80 && (
-                      <button
-                        type="button"
-                        className="lib-framed-caption-toggle"
-                        onClick={() => setCaptionExpanded((v) => !v)}
-                      >
-                        <span>{captionExpanded ? 'Less' : 'More'}</span>
-                        <Icon name={captionExpanded ? 'chevron-up' : 'chevron-down'} size={11} />
-                      </button>
+                {displaySubtitle && (
+                  <div className="lib-detail-subtitle">
+                    <span>{displaySubtitle}</span>
+                    {item?.category && item.category !== 'general' && (
+                      <span className="lib-detail-category-badge">{item.category}</span>
                     )}
                   </div>
                 )}
               </div>
-            </div>
-          </div>
 
-          {/* ----------------- RIGHT COLUMN: EDITORIAL SPEC & CURATION ----------------- */}
-          <div className="lib-editorial-content-column">
-            <div className="lib-editorial-scroll-body">
-              {/* 1. Main Title */}
-              <h1 className="lib-editorial-main-title">
-                {entity?.title || item.title || 'Untitled Resource'}
-              </h1>
-
-              {/* 2. Subtitle: Creator/Director · Category */}
-              {(entity?.subtitle || item.author || item.category) && (
-                <div className="lib-editorial-subtitle-line">
-                  {entity?.subtitle || `${item.author ? `@${item.author.replace(/^@/, '')}` : (sourceInfo.platformName || '')} · ${item.category || item.kind}`}
+              {/* 2. Metadata Strip */}
+              <div className="lib-page-meta-strip">
+                <div className="lib-page-meta-item">
+                  <Icon name="calendar" size={12} />
+                  <span>Captured {dateFull || 'Undated'}</span>
                 </div>
-              )}
-
-              {/* 3. Rating Pill Badge */}
-              {entity?.rating && (
-                <div className="lib-editorial-rating-wrap">
-                  <span className="lib-editorial-rating-chip">
-                    <span className="lib-editorial-rating-tag">R</span>
-                    <span>{entity.rating}</span>
-                  </span>
+                {item.author && (
+                  <div className="lib-page-meta-item">
+                    <Icon name="user" size={12} />
+                    <span>By {item.author}</span>
+                  </div>
+                )}
+                {duration && (
+                  <div className="lib-page-meta-item">
+                    <Icon name="clock" size={12} />
+                    <span>{duration}</span>
+                  </div>
+                )}
+                <div className="lib-page-meta-item lib-page-meta-item--vector">
+                  <span className="lib-page-vector-dot" />
+                  <span>{item.indexed ? 'Vector indexed' : 'Archive'}</span>
                 </div>
-              )}
+              </div>
 
-              {/* 4. Narrative Synopsis Paragraph */}
-              {displaySynopsis && (
-                <div className="lib-editorial-synopsis-p">
-                  <p>{displaySynopsis}</p>
-                </div>
-              )}
-
-              {/* 5. Primary Action CTAs */}
-              <div className="lib-editorial-actions-bar">
-                {primaryActions.map((act, idx) => (
+              {/* 3. Action Pill Buttons */}
+              <div className="lib-page-cta-row">
+                {adaptiveActions.map((act, i) => (
                   <a
-                    key={`act-${idx}`}
+                    key={i}
                     href={act.url}
                     target="_blank"
                     rel="noreferrer"
-                    className={`lib-editorial-cta-btn ${idx === 0 ? 'lib-editorial-cta-btn--primary' : 'lib-editorial-cta-btn--secondary'}`}
+                    className={`lib-page-cta-pill ${act.primary || i === 0 ? 'lib-page-cta-pill--primary' : 'lib-page-cta-pill--secondary'}`}
                   >
-                    {act.kind === 'trailer' || act.kind === 'video' ? (
-                      <Icon name="play" size={13} />
-                    ) : null}
-                    <span>{act.label}</span>
-                    <Icon name="external-link" size={12} />
+                    <Icon name={act.icon || 'external-link'} size={14} />
+                    <span>{act.label} ↗</span>
                   </a>
                 ))}
+
+                {item.url && (
+                  <button
+                    type="button"
+                    className="lib-page-cta-pill lib-page-cta-pill--secondary"
+                    onClick={handleCopyLink}
+                    title="Copy URL"
+                  >
+                    <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
+                    <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="lib-page-cta-pill lib-page-cta-pill--secondary"
+                  onClick={() => handleEnrich()}
+                  disabled={Boolean(busyAction) || item.status === 'enriching'}
+                  title="Synthesize / Re-analyze with AI"
+                >
+                  <Icon
+                    name={isEnriching ? 'loader' : 'spark'}
+                    size={13}
+                    className={isEnriching ? 'animate-spin' : ''}
+                  />
+                  <span>{isEnriching ? 'Synthesizing...' : (summaryText ? 'Re-analyze' : 'Synthesize')}</span>
+                </button>
               </div>
 
-              {/* 6. Clean Two-Column Spec Table */}
-              <div className="lib-editorial-spec-table">
-                {specRows.map((row, idx) => (
-                  <div key={`spec-${idx}`} className="lib-editorial-spec-row">
-                    <span className="lib-editorial-spec-key">{row.key}</span>
-                    <span className="lib-editorial-spec-val">{row.value}</span>
-                  </div>
-                ))}
+              {/* Studio Segmented Navigation Tabs */}
+              <div className="lib-studio-tabs" role="tablist" aria-label="Studio sections">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'overview'}
+                  className={`lib-studio-tab-btn ${activeTab === 'overview' ? 'lib-studio-tab-btn--active' : ''}`}
+                  onClick={() => setActiveTab('overview')}
+                >
+                  <Icon name="spark" size={13} />
+                  <span>Overview & AI</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'content'}
+                  className={`lib-studio-tab-btn ${activeTab === 'content' ? 'lib-studio-tab-btn--active' : ''}`}
+                  onClick={() => setActiveTab('content')}
+                >
+                  <Icon name="file-text" size={13} />
+                  <span>Content & Transcripts</span>
+                  {contentCount > 0 && (
+                    <span className="lib-studio-tab-badge">{contentCount}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'notes'}
+                  className={`lib-studio-tab-btn ${activeTab === 'notes' ? 'lib-studio-tab-btn--active' : ''}`}
+                  onClick={() => setActiveTab('notes')}
+                >
+                  <Icon name="edit" size={13} />
+                  <span>Notes & Curation</span>
+                  {notesCount > 0 && (
+                    <span className="lib-studio-tab-badge">{notesCount}</span>
+                  )}
+                </button>
               </div>
 
-              {/* 7. Category Attribution */}
-              <div className="lib-editorial-category-row">
-                <span className="lib-editorial-cat-label">Category:</span>
-                <span className="lib-editorial-cat-val">
-                  {entity?.attributes?.Genre || item.category ? (item.category.charAt(0).toUpperCase() + item.category.slice(1)) : 'General'}
-                </span>
-              </div>
+              {/* TAB 1: OVERVIEW & AI SYNTHESIS */}
+              {activeTab === 'overview' && (
+                <div className="lib-tab-pane" data-enter>
+                  {/* Significance Star Rating */}
+                  <div className="lib-page-significance-bar">
+                    <span className="lib-page-significance-title">Significance</span>
+                    <div className="lib-page-stars-track">
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const isFilled = (hoveredStar ?? rating ?? 0) >= star
+                        return (
+                          <motion.button
+                            key={star}
+                            whileHover={{ scale: 1.25 }}
+                            whileTap={{ scale: 0.85 }}
+                            type="button"
+                            className="lib-page-star-btn"
+                            onMouseEnter={() => setHoveredStar(star)}
+                            onMouseLeave={() => setHoveredStar(null)}
+                            onClick={() => handleRating(star)}
+                            title={`Assign ${star} Star (${RATING_TIERS[star]?.label}): ${RATING_TIERS[star]?.description}`}
+                          >
+                            <Icon
+                              name="star"
+                              size={15}
+                              filled={isFilled}
+                              style={{
+                                color: isFilled ? (RATING_TIERS[star]?.color || '#f59e0b') : 'var(--hairline-strong)',
+                                transition: 'color 120ms ease, transform 120ms ease',
+                              }}
+                            />
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+                    <span className="lib-page-significance-tier">
+                      {displayedTier ? displayedTier.label : 'Unrated'}
+                    </span>
 
-              {/* 8. Unified "Yours" Card */}
-              <div className="lib-yours-box">
-                <h3 className="lib-yours-title">Yours</h3>
-
-                {/* Lists Row */}
-                <div className="lib-yours-field-row">
-                  <span className="lib-yours-field-label">Lists</span>
-                  <div className="lib-yours-pills-row">
-                    {playlists.map((pl) => (
-                      <span key={pl.id} className="lib-yours-pill">
-                        <Icon name="list" size={11} />
-                        <span>{pl.name}</span>
-                      </span>
-                    ))}
-                    {playlists.length === 0 && (
-                      <span className="lib-yours-pill">
-                        <Icon name="list" size={11} />
-                        <span>Random</span>
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="lib-yours-add-pill"
-                      onClick={() => setShowExportPlaylist(true)}
-                      title="Add to list"
-                    >
-                      <Icon name="plus" size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tags Row */}
-                <div className="lib-yours-field-row">
-                  <span className="lib-yours-field-label">Tags</span>
-                  <div className="lib-yours-pills-row">
-                    {tags.map((t) => (
-                      <span key={t} className="lib-yours-pill">
-                        <span>{t}</span>
-                        <button
-                          type="button"
-                          className="lib-yours-pill-x"
-                          onClick={() => handleRemoveTag(t)}
-                          title={`Remove #${t}`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    {isAddingTag ? (
-                      <form onSubmit={handleAddTag} className="inline-flex">
-                        <input
-                          autoFocus
-                          type="text"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onBlur={() => { if (!tagInput) setIsAddingTag(false) }}
-                          placeholder="tag..."
-                          className="lib-yours-input-pill"
-                        />
-                      </form>
-                    ) : (
+                    {rating && (
                       <button
                         type="button"
-                        className="lib-yours-add-pill"
-                        onClick={() => setIsAddingTag(true)}
-                        title="Add tag"
+                        className="lib-page-clear-rating-btn"
+                        onClick={() => handleRating(rating)}
+                        title="Clear rating"
                       >
-                        <Icon name="plus" size={12} />
+                        <Icon name="x" size={10} />
+                        <span>Clear</span>
                       </button>
                     )}
                   </div>
-                </div>
 
-                {/* Notes Input */}
-                <div className="lib-yours-notes-block">
-                  <span className="lib-yours-field-label">Notes</span>
-                  <textarea
-                    value={noteInput}
-                    onChange={(e) => setNoteInput(e.target.value)}
-                    onBlur={handleSaveNotes}
-                    placeholder="Add a note..."
-                    rows={2}
-                    className="lib-yours-textarea"
-                  />
+                  {/* Key Insights & Synthesis Panel */}
+                  {isEnriching ? (
+                    <div className="lib-synthesis-card lib-synthesis-card--generating">
+                      <div className="lib-synthesis-header">
+                        <div className="lib-synthesis-title-wrap">
+                          <div className="lib-synthesis-icon-badge lib-synthesis-icon-badge--spinning">
+                            <span className="lib-card-spinner" />
+                          </div>
+                          <span className="lib-synthesis-heading">Synthesizing Insights & Extracting Entities</span>
+                        </div>
+                        <span className="lib-synthesis-model-pill">Processing</span>
+                      </div>
+                      <div className="lib-synthesis-generating-skel">
+                        <div className="lib-skel" style={{ width: '96%', height: 11, borderRadius: 4 }} />
+                        <div className="lib-skel" style={{ width: '84%', height: 11, borderRadius: 4 }} />
+                        <div className="lib-skel" style={{ width: '70%', height: 11, borderRadius: 4 }} />
+                      </div>
+                      <p className="lib-synthesis-generating-hint">
+                        Transcribing speech with Whisper and extracting referenced websites, tools, and taxonomy...
+                      </p>
+                    </div>
+                  ) : summaryText ? (
+                    <div className="lib-synthesis-card">
+                      <div className="lib-synthesis-header">
+                        <div className="lib-synthesis-title-wrap">
+                          <div className="lib-synthesis-icon-badge">
+                            <Icon name="spark" size={13} />
+                          </div>
+                          <span className="lib-synthesis-heading">Key insights and synthesis</span>
+                          <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
+                            <button
+                              type="button"
+                              className="lib-model-select-btn"
+                              onClick={() => setShowModelMenu((v) => !v)}
+                              title={`Synthesis Model: ${formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}${item.enrichment_model && item.enrichment_model !== selectedEnrichModel ? ` (originally generated with ${formatModelDisplayName(item.enrichment_model)})` : ''}`}
+                            >
+                              <AiProviderIcon
+                                provider={selectedEnrichProvider || 'groq'}
+                                model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                size={12}
+                              />
+                              <span>
+                                {formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}
+                              </span>
+                              <Icon name="chevron-down" size={10} />
+                            </button>
+
+                            {showModelMenu && (
+                              <div className="lib-model-menu-popover">
+                                <ModelMenu
+                                  provider={selectedEnrichProvider || 'groq'}
+                                  model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                  onChange={handleModelChange}
+                                  onClose={() => setShowModelMenu(false)}
+                                  placement="down"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="lib-synthesis-actions">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.92 }}
+                            type="button"
+                            className="lib-synthesis-action-btn"
+                            onClick={handleCopySummary}
+                            title="Copy synthesis to clipboard"
+                          >
+                            <Icon name={copiedSummary ? 'check' : 'copy'} size={12} />
+                            <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.92 }}
+                            type="button"
+                            className="lib-synthesis-action-btn"
+                            onClick={() => handleEnrich()}
+                            disabled={Boolean(busyAction)}
+                            title="Regenerate summary and extract resources with AI"
+                          >
+                            <Icon name="refresh" size={12} />
+                            <span>Regenerate</span>
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      <p className="lib-synthesis-prose">{summaryText}</p>
+                    </div>
+                  ) : (
+                    <div className="lib-synthesis-card lib-synthesis-card--pending">
+                      <div className="lib-synthesis-header">
+                        <div className="lib-synthesis-title-wrap">
+                          <div className="lib-synthesis-icon-badge lib-synthesis-icon-badge--pending">
+                            <Icon name="spark" size={13} />
+                          </div>
+                          <span className="lib-synthesis-heading">AI Synthesis Pending</span>
+                          <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
+                            <button
+                              type="button"
+                              className="lib-model-select-btn"
+                              onClick={() => setShowModelMenu((v) => !v)}
+                              title={`Configure synthesis model (current default: ${formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')})`}
+                            >
+                              <AiProviderIcon
+                                provider={selectedEnrichProvider || 'groq'}
+                                model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                size={12}
+                              />
+                              <span>
+                                {formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}
+                              </span>
+                              <Icon name="chevron-down" size={10} />
+                            </button>
+
+                            {showModelMenu && (
+                              <div className="lib-model-menu-popover">
+                                <ModelMenu
+                                  provider={selectedEnrichProvider || 'groq'}
+                                  model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                  onChange={handleModelChange}
+                                  onClose={() => setShowModelMenu(false)}
+                                  placement="down"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {isLlmFailure && (
+                          <span className="lib-detail-warning-tag">Offline during capture</span>
+                        )}
+                      </div>
+
+                      <div className="lib-synthesis-pending-content">
+                        <p className="lib-synthesis-pending-desc">
+                          {isLlmFailure
+                            ? 'The AI model was unavailable or timed out when this item arrived. Run synthesis now to transcribe speech and extract all referenced websites, tools, and takeaways.'
+                            : 'Synthesize this resource to automatically transcribe speech, extract key takeaways, and identify referenced websites & links.'}
+                        </p>
+
+                        {enrichError && (
+                          <div className="lib-detail-error-banner">
+                            <Icon name="alert" size={12} />
+                            <span>{enrichError}</span>
+                          </div>
+                        )}
+
+                        <div className="lib-synthesis-pending-actions">
+                          <button
+                            type="button"
+                            className="lib-btn lib-btn--primary"
+                            disabled={Boolean(busyAction) || item.status === 'enriching'}
+                            onClick={() => handleEnrich()}
+                          >
+                            <Icon
+                              name={isEnriching ? 'loader' : 'spark'}
+                              size={13}
+                              className={isEnriching ? 'animate-spin' : ''}
+                            />
+                            <span>{isEnriching ? 'Synthesizing...' : 'Synthesize with AI'}</span>
+                          </button>
+
+                          {item.enrichment_note && (
+                            <span className="lib-detail-pending-note" title={item.enrichment_note}>
+                              {formatFriendlyEnrichmentNote(item.enrichment_note)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Type-Adaptive Specifications & Attributes */}
+                  {adaptiveAttributes.length > 0 && (
+                    <div className="lib-page-section">
+                      <div className="lib-page-section-header">
+                        <span className="lib-page-section-title-wrap">
+                          <Icon name="info" size={13} />
+                          <span>Specifications & Attributes</span>
+                        </span>
+                      </div>
+                      <div className="lib-page-spec-table">
+                        {adaptiveAttributes.map((attr, idx) => (
+                          <div key={idx} className="lib-page-spec-item">
+                            <span className="lib-page-spec-key">{attr.key}</span>
+                            <span className="lib-page-spec-val">{attr.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detected Audio & Songs Section */}
+                  {musicResources.length > 0 && (
+                    <div className="lib-page-section">
+                      <div className="lib-page-section-header">
+                        <span className="lib-page-section-title-wrap">
+                          <Icon name="music" size={13} />
+                          <span>Detected Audio & Songs</span>
+                        </span>
+                        <span className="lib-page-section-count">
+                          {musicResources.length} {musicResources.length === 1 ? 'track' : 'tracks'}
+                        </span>
+                      </div>
+
+                      <div className="lib-songs-list">
+                        {musicResources.map((track, i) => {
+                          const trackTitle = track.name || track.title || 'Unknown Track'
+                          const trackArtist = track.detail || track.author || track.artist || ''
+                          const isSaved = savedSongs.has(trackTitle)
+                          const isSaving = savingSong === trackTitle
+
+                          return (
+                            <div key={i} className="lib-song-card">
+                              <div className="lib-song-card-left">
+                                <div className="lib-song-icon-badge">
+                                  <Icon name="music" size={16} />
+                                </div>
+                                <div className="lib-song-details">
+                                  <div className="lib-song-title-row">
+                                    <span className="lib-song-title" title={trackTitle}>
+                                      {trackTitle}
+                                    </span>
+                                  </div>
+                                  {trackArtist && (
+                                    <span className="lib-song-artist" title={trackArtist}>
+                                      {trackArtist}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="lib-song-actions">
+                                {track.url && (
+                                  <a
+                                    href={track.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="lib-song-btn"
+                                    title={`Open on ${track.url.includes('shazam') ? 'Shazam' : 'platform'}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Icon name="external-link" size={11} />
+                                    <span>Platform</span>
+                                  </a>
+                                )}
+
+                                <button
+                                  type="button"
+                                  className={`lib-song-btn ${isSaved ? 'lib-song-btn--saved' : 'lib-song-btn--primary'}`}
+                                  disabled={isSaved || isSaving}
+                                  onClick={() => handleSaveSong(track)}
+                                  title={isSaved ? 'Saved to Song List' : 'Add to Song List'}
+                                >
+                                  <Icon
+                                    name={isSaved ? 'check' : isSaving ? 'loader' : 'plus'}
+                                    size={11}
+                                    className={isSaving ? 'animate-spin' : ''}
+                                  />
+                                  <span>
+                                    {isSaved
+                                      ? 'Saved to Song List'
+                                      : isSaving
+                                      ? 'Saving...'
+                                      : 'Add to Song List'}
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="lib-song-btn"
+                                  onClick={() => handleExportSongToPlaylist(track)}
+                                  title="Create or export to Spotify playlist"
+                                >
+                                  <Icon name="list-plus" size={11} />
+                                  <span>Export Playlist</span>
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mentioned Resources & Websites */}
+                  {mentionedResources.length > 0 && (
+                    <div className="lib-page-section">
+                      <div className="lib-page-section-header">
+                        <span className="lib-page-section-title-wrap">
+                          <Icon name="globe" size={13} />
+                          <span>Mentioned resources and websites</span>
+                        </span>
+                        <span className="lib-page-section-count">
+                          {mentionedResources.length} {mentionedResources.length === 1 ? 'item' : 'items'}
+                        </span>
+                      </div>
+
+                      <div className="lib-synthesis-resources-grid">
+                        {mentionedResources.map((res, i) => {
+                          const domain = getCleanDomain(res.url)
+                          const iconName = getResourceIcon(res.type, res.url)
+                          const isClickable = Boolean(res.url)
+
+                          const content = (
+                            <>
+                              <div className="lib-resource-card-left">
+                                <div className="lib-resource-icon">
+                                  <Icon name={iconName} size={13} />
+                                </div>
+                                <div className="lib-resource-info">
+                                  <div className="lib-resource-name-row">
+                                    <span className="lib-resource-name" title={res.name}>{res.name}</span>
+                                    {domain && <span className="lib-resource-domain">{domain}</span>}
+                                    {res.type && res.type !== 'other' && res.type !== 'link' && !domain && (
+                                      <span className="lib-resource-type-pill">{res.type}</span>
+                                    )}
+                                  </div>
+                                  {res.detail && (
+                                    <span className="lib-resource-detail" title={res.detail}>{res.detail}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {isClickable && (
+                                <div className="lib-resource-launch" title={`Open ${res.url}`}>
+                                  <Icon name="arrow-up-right" size={13} />
+                                </div>
+                              )}
+                            </>
+                          )
+
+                          return isClickable ? (
+                            <a
+                              key={i}
+                              href={res.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="lib-resource-card"
+                              title={`Open ${res.name} (${res.url})`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {content}
+                            </a>
+                          ) : (
+                            <div key={i} className="lib-resource-card lib-resource-card--static">
+                              {content}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+
+              {/* TAB 2: CONTENT & TRANSCRIPTS */}
+              {activeTab === 'content' && (
+                <div className="lib-tab-pane" data-enter>
+                  {contentCount === 0 ? (
+                    <div className="lib-content-empty-card">
+                      <div className="lib-content-empty-icon">
+                        <Icon name="file-text" size={24} />
+                      </div>
+                      <h3 className="lib-content-empty-title">No raw transcripts or slides extracted yet</h3>
+                      <p className="lib-content-empty-desc">
+                        Synthesize this item with AI to automatically run Whisper speech-to-text on the audio track and Vision AI OCR frame analysis.
+                      </p>
+                      <button
+                        type="button"
+                        className="lib-btn lib-btn--primary"
+                        disabled={Boolean(busyAction) || item.status === 'enriching'}
+                        onClick={() => handleEnrich()}
+                      >
+                        <Icon name="spark" size={13} />
+                        <span>Extract Transcripts & Visual Content</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Speech Transcript */}
+                      {transcript && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="quotes" size={13} />
+                              <span>Source Speech Transcript</span>
+                              {transcriptWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{transcriptWordCount} words</span>
+                              )}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.92 }}
+                                type="button"
+                                className="lib-synthesis-action-btn"
+                                onClick={handleCopyTranscript}
+                                title="Copy full transcript"
+                              >
+                                <Icon name={copiedTranscript ? 'check' : 'copy'} size={12} />
+                                <span>{copiedTranscript ? 'Copied' : 'Copy'}</span>
+                              </motion.button>
+                            </div>
+                          </div>
+
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{transcript}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="spark" size={10} />
+                              <span>Transcribed verbatim from reel audio via Whisper</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Visual Content & OCR Frames */}
+                      {visualContent && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="brain" size={13} />
+                              <span>Slide & Visual On-Screen Content</span>
+                              {visualWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{visualWordCount} words</span>
+                              )}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.92 }}
+                                type="button"
+                                className="lib-synthesis-action-btn"
+                                onClick={handleCopyVisuals}
+                                title="Copy visual text content"
+                              >
+                                <Icon name={copiedVisuals ? 'check' : 'copy'} size={12} />
+                                <span>{copiedVisuals ? 'Copied' : 'Copy'}</span>
+                              </motion.button>
+                            </div>
+                          </div>
+
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{visualContent}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="image" size={10} />
+                              <span>Extracted from video frames & slides via Vision AI OCR</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Creator Caption */}
+                      {caption && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="user" size={13} />
+                              <span>Creator Caption & Post Description</span>
+                              {captionWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{captionWordCount} words</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{caption}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="user" size={10} />
+                              <span>Original post caption from author</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Full-Text Document */}
+                      {textBody && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="file-text" size={13} />
+                              <span>Captured Full Document Text</span>
+                              {textBodyWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{textBodyWordCount} words</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{textBody}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="file" size={10} />
+                              <span>Full document markdown / text body</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: NOTES & METADATA */}
+              {activeTab === 'notes' && (
+                <div className="lib-tab-pane" data-enter>
+                  {/* Personal Notes & Synthesis */}
+                  <div className="lib-page-section">
+                    <div className="lib-page-notes-header">
+                      <label className="lib-page-section-title-wrap" htmlFor="lib-page-notes">
+                        <Icon name="edit" size={13} />
+                        <span>Personal notes and synthesis</span>
+                      </label>
+                      {notes !== (item.notes || '') && (
+                        <button
+                          type="button"
+                          className="lib-btn lib-btn--primary lib-page-save-notes-btn"
+                          disabled={savingNotes}
+                          onClick={handleSaveNotes}
+                        >
+                          <Icon name="check" size={12} />
+                          <span>{savingNotes ? 'Saving...' : 'Save notes'}</span>
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      id="lib-page-notes"
+                      className="lib-page-notes-input"
+                      placeholder="Record your personal notes, takeaways, code snippets, or key quotes..."
+                      rows={6}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      onBlur={handleSaveNotes}
+                    />
+                  </div>
+
+                  {/* Topics & Taxonomy Tags */}
+                  <div className="lib-page-section">
+                    <div className="lib-page-section-title-wrap">
+                      <Icon name="tag" size={13} />
+                      <span>Topics and taxonomy tags</span>
+                    </div>
+                    <div className="lib-page-tags-strip">
+                      {filteredTags.map((tag) => (
+                        <span key={tag} className="lib-page-tag-pill">
+                          <span>#{tag}</span>
+                          <button
+                            type="button"
+                            className="lib-page-tag-remove"
+                            onClick={() => handleRemoveTag(tag)}
+                            title={`Remove #${tag}`}
+                            aria-label={`Remove #${tag}`}
+                          >
+                            <Icon name="x" size={9} />
+                          </button>
+                        </span>
+                      ))}
+
+                      {isAddingTag ? (
+                        <form onSubmit={handleAddTag} className="lib-page-tag-form">
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="New tag..."
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onBlur={() => {
+                              if (!tagInput.trim()) setIsAddingTag(false)
+                            }}
+                            className="lib-page-tag-input"
+                          />
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          className="lib-page-tag-pill lib-page-tag-pill--add"
+                          onClick={() => setIsAddingTag(true)}
+                        >
+                          <Icon name="plus" size={11} />
+                          <span>Add tag</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Technical Provenance & System Specs */}
+                  <div className="lib-page-section">
+                    <div className="lib-page-section-title-wrap">
+                      <Icon name="info" size={13} />
+                      <span>Technical Provenance</span>
+                    </div>
+                    <div className="lib-provenance-card">
+                      <div className="lib-provenance-row">
+                        <span className="lib-provenance-label">Resource ID</span>
+                        <span className="lib-provenance-val mono">{item.id}</span>
+                      </div>
+                      <div className="lib-provenance-row">
+                        <span className="lib-provenance-label">Format / Kind</span>
+                        <span className="lib-provenance-val capitalize">{item.kind || 'link'} · {sourceInfo.platformName}</span>
+                      </div>
+                      {item.url && (
+                        <div className="lib-provenance-row">
+                          <span className="lib-provenance-label">Original URL</span>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="lib-provenance-link"
+                            title={item.url}
+                          >
+                            {item.url}
+                          </a>
+                        </div>
+                      )}
+                      {item.media_path && (
+                        <div className="lib-provenance-row">
+                          <span className="lib-provenance-label">Media Path</span>
+                          <span className="lib-provenance-val mono" title={item.media_path}>{item.media_path}</span>
+                        </div>
+                      )}
+                      <div className="lib-provenance-row">
+                        <span className="lib-provenance-label">Semantic Index</span>
+                        <span className="lib-provenance-val">
+                          {item.indexed ? 'Indexed in Chroma Vector Space' : 'Archived (unindexed)'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          </motion.div>
         </div>
+
+        {/* ========================================================
+            BOTTOM DOCKED ACTIONS BAR
+            ======================================================== */}
+        <footer className="lib-page-footer">
+          <div className="lib-page-footer-left">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              type="button"
+              className="lib-page-dock-btn"
+              disabled={Boolean(busyAction)}
+              onClick={handleReindex}
+              title="Re-run semantic search embeddings indexer"
+            >
+              <Icon name="refresh" size={13} />
+              <span>Re-index</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              type="button"
+              className="lib-page-dock-btn"
+              disabled={Boolean(busyAction)}
+              onClick={handleEnrich}
+              title="Re-analyze and regenerate insights with AI"
+            >
+              <Icon name="spark" size={13} />
+              <span>Re-analyze</span>
+            </motion.button>
+          </div>
+
+          <div className="lib-page-footer-right">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              type="button"
+              className="lib-page-dock-btn lib-page-dock-btn--danger"
+              onClick={() => {
+                if (window.confirm(`Delete "${item.title}" from library?`)) {
+                  onDelete?.(item)
+                  onClose()
+                }
+              }}
+              title="Delete resource from library"
+            >
+              <Icon name="trash" size={13} />
+              <span>Delete</span>
+            </motion.button>
+          </div>
+        </footer>
       </motion.div>
 
-      {/* ========================================================
-          INSPECT TRANSCRIPTS & TEXT DRAWER
-          ======================================================== */}
+      {/* High-Resolution Lightbox Modal */}
       <AnimatePresence>
-        {showTranscriptsDrawer && (
-          <div
-            className="lib-drawer-backdrop"
-            onClick={() => setShowTranscriptsDrawer(false)}
-          >
-            <motion.div
-              className="lib-drawer-panel"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="lib-drawer-header">
-                <div className="lib-drawer-title-wrap">
-                  <Icon name="file-text" size={15} />
-                  <h3>Transcripts & Extracted Content</h3>
-                </div>
-                <button
-                  type="button"
-                  className="lib-editorial-icon-btn"
-                  onClick={() => setShowTranscriptsDrawer(false)}
-                  title="Close drawer"
-                >
-                  <Icon name="x" size={14} />
-                </button>
-              </div>
-
-              {/* Drawer Segment Tabs */}
-              <div className="lib-drawer-tabs">
-                <button
-                  type="button"
-                  className={`lib-drawer-tab ${activeDrawerTab === 'transcript' ? 'lib-drawer-tab--active' : ''}`}
-                  onClick={() => setActiveDrawerTab('transcript')}
-                >
-                  Transcript {transcript ? '✓' : ''}
-                </button>
-                <button
-                  type="button"
-                  className={`lib-drawer-tab ${activeDrawerTab === 'visual' ? 'lib-drawer-tab--active' : ''}`}
-                  onClick={() => setActiveDrawerTab('visual')}
-                >
-                  Visual OCR {visualContent ? '✓' : ''}
-                </button>
-                <button
-                  type="button"
-                  className={`lib-drawer-tab ${activeDrawerTab === 'raw' ? 'lib-drawer-tab--active' : ''}`}
-                  onClick={() => setActiveDrawerTab('raw')}
-                >
-                  Raw Markdown
-                </button>
-              </div>
-
-              <div className="lib-drawer-content">
-                {activeDrawerTab === 'transcript' && (
-                  <div className="lib-drawer-pane">
-                    <div className="lib-drawer-pane-bar">
-                      <span className="lib-drawer-count">
-                        {transcript ? `${transcript.split(/\s+/).length} words spoken` : 'No transcript recorded'}
-                      </span>
-                      {transcript && (
-                        <button
-                          type="button"
-                          className="lib-drawer-copy-btn"
-                          onClick={() => handleCopyDrawerText(transcript)}
-                        >
-                          <Icon name={copiedDrawerText ? 'check' : 'copy'} size={12} />
-                          <span>{copiedDrawerText ? 'Copied' : 'Copy'}</span>
-                        </button>
-                      )}
-                    </div>
-                    <pre className="lib-drawer-text-view">
-                      {transcript || 'No speech transcript available for this item.'}
-                    </pre>
-                  </div>
-                )}
-
-                {activeDrawerTab === 'visual' && (
-                  <div className="lib-drawer-pane">
-                    <div className="lib-drawer-pane-bar">
-                      <span className="lib-drawer-count">
-                        {visualContent ? `${visualContent.split(/\s+/).length} words OCR` : 'No visual text'}
-                      </span>
-                      {visualContent && (
-                        <button
-                          type="button"
-                          className="lib-drawer-copy-btn"
-                          onClick={() => handleCopyDrawerText(visualContent)}
-                        >
-                          <Icon name={copiedDrawerText ? 'check' : 'copy'} size={12} />
-                          <span>{copiedDrawerText ? 'Copied' : 'Copy'}</span>
-                        </button>
-                      )}
-                    </div>
-                    <pre className="lib-drawer-text-view">
-                      {visualContent || 'No on-screen text was detected from frames.'}
-                    </pre>
-                  </div>
-                )}
-
-                {activeDrawerTab === 'raw' && (
-                  <div className="lib-drawer-pane">
-                    <div className="lib-drawer-pane-bar">
-                      <span className="lib-drawer-count">Markdown file</span>
-                      {detailItem?.content && (
-                        <button
-                          type="button"
-                          className="lib-drawer-copy-btn"
-                          onClick={() => handleCopyDrawerText(detailItem.content)}
-                        >
-                          <Icon name={copiedDrawerText ? 'check' : 'copy'} size={12} />
-                          <span>{copiedDrawerText ? 'Copied' : 'Copy'}</span>
-                        </button>
-                      )}
-                    </div>
-                    <pre className="lib-drawer-text-view">
-                      {detailItem?.content || 'No text content on disk.'}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Lightbox Modal */}
-      <AnimatePresence>
-        {showLightbox && (
+        {showLightbox && (hasThumbnail || currentSlideUrl) && (
           <div
             className="lib-lightbox-overlay"
             onClick={() => setShowLightbox(false)}
           >
             <motion.div
               className="lib-lightbox-content"
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              exit={{ opacity: 0, scale: 0.94 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               onClick={(e) => e.stopPropagation()}
             >
               <img
-                src={slideItems[currentSlideIndex]?.url || (item.thumbnail_path ? api.thumbnailUrl(item.id) : '')}
-                alt={item.title || 'Full image'}
+                src={carouselItems[currentSlideIndex]?.url || currentSlideUrl || api.thumbnailUrl(item.id)}
+                alt={item.title || (carouselItems.length > 1 ? `Slide ${currentSlideIndex + 1}` : 'Full resolution image')}
                 className="lib-lightbox-img"
+                onError={(e) => {
+                  const cItem = carouselItems[currentSlideIndex]
+                  const currentSrc = e.currentTarget.src
+                  const slideApi = api.slideUrl(item.id, cItem?.index ?? currentSlideIndex)
+                  if (!currentSrc.includes(`/slides/${cItem?.index ?? currentSlideIndex}`) && currentSrc !== slideApi) {
+                    e.currentTarget.src = slideApi
+                    return
+                  }
+                  if (cItem?.remoteUrl && currentSrc !== cItem.remoteUrl) {
+                    e.currentTarget.src = cItem.remoteUrl
+                    return
+                  }
+                  if (hasThumbnail && currentSrc !== api.thumbnailUrl(item.id)) {
+                    e.currentTarget.src = api.thumbnailUrl(item.id)
+                  }
+                }}
               />
+
+              {carouselItems.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="lib-lightbox-nav lib-lightbox-nav--prev"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : carouselItems.length - 1
+                      setCurrentSlideIndex(prevIdx)
+                      scrollToSlide(prevIdx)
+                    }}
+                    title="Previous slide"
+                    aria-label="Previous slide"
+                  >
+                    <Icon name="chevron-left" size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    className="lib-lightbox-nav lib-lightbox-nav--next"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const nextIdx = currentSlideIndex < carouselItems.length - 1 ? currentSlideIndex + 1 : 0
+                      setCurrentSlideIndex(nextIdx)
+                      scrollToSlide(nextIdx)
+                    }}
+                    title="Next slide"
+                    aria-label="Next slide"
+                  >
+                    <Icon name="chevron-right" size={20} />
+                  </button>
+                  <div className="lib-lightbox-slide-pill">
+                    {currentSlideIndex + 1} / {carouselItems.length}
+                  </div>
+                </>
+              )}
+
               <button
                 type="button"
                 className="lib-lightbox-close"
                 onClick={() => setShowLightbox(false)}
-                title="Close"
+                title="Close full view (Esc)"
               >
                 <Icon name="x" size={16} />
               </button>
@@ -1385,28 +2297,15 @@ export function LibraryDetailModal({
         )}
       </AnimatePresence>
 
-      {/* Model Selection Menu */}
-      {showModelMenu && (
-        <ModelMenu
-          isOpen={showModelMenu}
-          onClose={() => setShowModelMenu(false)}
-          onSelect={handleModelChange}
-          currentModel={selectedEnrichModel}
-          currentProvider={selectedEnrichProvider}
-        />
-      )}
-
-      {/* Export Playlist Modal */}
-      {showExportPlaylist && (
+      {/* Standalone Export Playlist Modal for detected tracks */}
+      {showInternalExportModal && (
         <ExportPlaylistModal
-          open={showExportPlaylist}
-          items={[item]}
-          onClose={() => setShowExportPlaylist(false)}
+          open={showInternalExportModal}
+          items={internalExportItems}
+          onClose={() => setShowInternalExportModal(false)}
           toast={toast}
         />
       )}
     </>
   )
 }
-
-export default LibraryDetailModal

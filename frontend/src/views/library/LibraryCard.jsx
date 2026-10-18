@@ -382,6 +382,53 @@ function LibraryCardComponent({
                 <span>{app ? app.toUpperCase() : (item.kind || 'article').toUpperCase()}</span>
               </span>
             )}
+
+            {!isOptimistic && (
+              <div className="lib-card-inline-actions" role="toolbar" aria-label="Card quick actions" onClick={(e) => e.stopPropagation()}>
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-card-action-btn"
+                    title="Open original website"
+                  >
+                    <Icon name="link" size={13} />
+                  </a>
+                )}
+                {!item.summary && (
+                  <button
+                    type="button"
+                    className="lib-card-action-btn"
+                    disabled={busy}
+                    title="Read & synthesize with AI"
+                    onClick={() => onEnrich?.(item)}
+                  >
+                    <Icon name="spark" size={13} />
+                  </button>
+                )}
+                {item.indexed && (
+                  <button
+                    type="button"
+                    className="lib-card-action-btn"
+                    disabled={busy}
+                    title="Re-index embeddings"
+                    onClick={() => onReindex?.(item)}
+                  >
+                    <Icon name="refresh" size={13} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="lib-card-action-btn lib-card-action-btn--danger"
+                  disabled={busy}
+                  title="Delete from library"
+                  onClick={() => onDelete?.(item)}
+                >
+                  <Icon name="trash" size={13} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
