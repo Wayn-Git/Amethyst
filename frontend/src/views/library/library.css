@@ -6249,4 +6249,315 @@
   word-break: break-word;
 }
 
+/* ==========================================================================
+   CONSOLIDATED STUDIO COMMAND DECK & EDITORIAL SHELVES
+   ========================================================================== */
+
+.lib-command-deck {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline, var(--border));
+  flex-wrap: wrap;
+}
+
+.lib-deck-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.lib-deck-title {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: var(--text-heading, 22px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.lib-deck-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--radius-buttons, 9999px);
+  background: var(--surface);
+  border: 1px solid var(--hairline, var(--border));
+  font-family: var(--font-mono);
+  font-size: var(--text-caption, 12px);
+  color: var(--text-dim);
+}
+
+.lib-command-deck .lib-command-bar {
+  flex: 1 1 360px;
+  max-width: 640px;
+  margin: 0;
+}
+
+.lib-deck-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lib-deck-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-buttons, 9999px);
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  font-weight: 500;
+  font-size: var(--text-caption, 13px);
+  cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease;
+}
+
+.lib-deck-add-btn:active {
+  transform: scale(0.97);
+}
+
+/* --------------------------------------------------------------------------
+   Editorial Shelves
+   -------------------------------------------------------------------------- */
+
+.lib-editorial-shelves {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  padding-top: 8px;
+}
+
+.lib-shelf {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lib-shelf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hairline, var(--border));
+}
+
+.lib-shelf-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lib-shelf-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.lib-shelf-title {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: var(--text-subheading, 17px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.lib-shelf-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption, 11px);
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--hairline, var(--border));
+  padding: 1px 7px;
+  border-radius: var(--radius-cards, 6px);
+}
+
+.lib-shelf-action {
+  background: transparent;
+  border: none;
+  font-size: var(--text-caption, 12.5px);
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-links, 4px);
+  transition: color 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+
+.lib-shelf-action:hover {
+  color: var(--accent);
+}
+
+.lib-shelf-action:active {
+  transform: scale(0.97);
+}
+
+/* Jump Back In Scroll Track */
+.lib-shelf-scroll-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 0 10px;
+  scrollbar-width: thin;
+}
+
+.lib-shelf-scroll-track::-webkit-scrollbar {
+  height: 4px;
+}
+
+.lib-shelf-scroll-track::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong, var(--border));
+  border-radius: 4px;
+}
+
+.lib-recent-capsule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 8px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline, var(--border));
+  border-radius: var(--radius-buttons, 9999px);
+  cursor: pointer;
+  flex-shrink: 0;
+  max-width: 280px;
+  transition: transform 160ms var(--ease-out), border-color 160ms ease;
+}
+
+.lib-recent-capsule:hover {
+  border-color: var(--accent-line, var(--accent));
+}
+
+.lib-recent-capsule:active {
+  transform: scale(0.98);
+}
+
+.lib-recent-capsule-thumb {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--hairline, var(--border));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lib-recent-capsule-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lib-recent-capsule-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.lib-recent-live-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--live, #149e61);
+  box-shadow: 0 0 0 2px var(--canvas);
+  animation: libPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes libPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.15); }
+}
+
+.lib-recent-capsule-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lib-recent-capsule-domain {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.lib-recent-capsule-title {
+  font-size: var(--text-caption, 12px);
+  font-weight: 500;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 190px;
+  line-height: 1.3;
+}
+
+/* Shelf Grids */
+.lib-shelf-grid {
+  display: grid;
+  width: 100%;
+  gap: 16px;
+}
+
+.lib-shelf-grid--essential {
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+}
+
+@media (max-width: 768px) {
+  .lib-shelf-grid--essential {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lib-shelf-grid--media {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.lib-shelf-grid--reading {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+/* Tactile micro-interactions (Emil principles) */
+.lib-card:active,
+.lib-shelf-card-col:active,
+.lib-recent-capsule:active {
+  transform: scale(0.99);
+}
+
+.lib-btn:active,
+.lib-header-action-btn:active,
+.lib-segmented-btn:active,
+.lib-tab-btn:active,
+.lib-shelf-action:active,
+.lib-capture-pill-btn:active {
+  transform: scale(0.97);
+}
+
+
 

@@ -921,7 +921,7 @@ export default function LibraryDetailModal({
     }
   }
 
-  const handleCopyTranscript = useCallback(async () => {
+  const handleCopyTranscript = async () => {
     if (!transcript) return
     try {
       await navigator.clipboard.writeText(transcript)
@@ -931,9 +931,9 @@ export default function LibraryDetailModal({
     } catch {
       toast('Failed to copy transcript', 'bad')
     }
-  }, [transcript, toast])
+  }
 
-  const handleCopyVisuals = useCallback(async () => {
+  const handleCopyVisuals = async () => {
     if (!visualContent) return
     try {
       await navigator.clipboard.writeText(visualContent)
@@ -943,7 +943,7 @@ export default function LibraryDetailModal({
     } catch {
       toast('Failed to copy visual content', 'bad')
     }
-  }, [visualContent, toast])
+  }
 
   const handleEnrich = async (provOverride, modOverride) => {
     setEnrichError(null)
