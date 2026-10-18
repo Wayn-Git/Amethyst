@@ -13,8 +13,6 @@ import LibraryFilterBar from './library/LibraryFilterBar.jsx'
 import LibraryTagRail from './library/LibraryTagRail.jsx'
 import LibraryGrid from './library/LibraryGrid.jsx'
 import LibraryListView from './library/LibraryListView.jsx'
-import LibraryEditorialShelves from './library/LibraryEditorialShelves.jsx'
-import { partitionLibraryShelves } from './library/shelfUtils.js'
 import LibraryDetailModal from './library/LibraryDetailModal.jsx'
 import AddContentModal from './library/AddContentModal.jsx'
 import ExportPlaylistModal from './library/ExportPlaylistModal.jsx'
@@ -475,24 +473,6 @@ export default function Library() {
 
   const hasFilter = Boolean(activeFilterCount > 0)
 
-  const shelves = useMemo(() => partitionLibraryShelves(items), [items])
-
-  const handleNavigateShelf = useCallback(
-    (shelfKey) => {
-      if (shelfKey === 'jumpBackIn') {
-        handleClearFilters()
-        setOrder('desc')
-      } else if (shelfKey === 'essential') {
-        setSelectedRating('5')
-      } else if (shelfKey === 'media') {
-        setSelectedKind('video')
-      } else if (shelfKey === 'reading') {
-        setSelectedKind('article')
-      }
-    },
-    [handleClearFilters]
-  )
-
   const hasMusic = Boolean(
     counts?.music ||
     categoryCounts?.music ||
@@ -645,17 +625,6 @@ export default function Library() {
                       </EmptyState.Footer>
                     </EmptyState>
                   </div>
-                ) : !hasFilter && layout === 'grid' ? (
-                  <LibraryEditorialShelves
-                    shelves={shelves}
-                    busyId={busyId}
-                    onSelect={(item) => setActiveModalItem(item)}
-                    onNavigateShelf={handleNavigateShelf}
-                    onReindex={handleReindex}
-                    onEnrich={handleEnrich}
-                    onDelete={handleDelete}
-                    onTagClick={(tag) => setSelectedTag(tag)}
-                  />
                 ) : layout === 'grid' ? (
                   <LibraryGrid
                     items={displayedItems}

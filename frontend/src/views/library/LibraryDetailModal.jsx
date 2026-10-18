@@ -758,42 +758,6 @@ export default function LibraryDetailModal({
     return actions
   }, [entity?.actions, item?.url, item?.kind, item?.category, domain, sourceInfo.platformName])
 
-  // Context-adaptive attributes table
-  const adaptiveAttributes = useMemo(() => {
-    if (entity?.attributes && typeof entity.attributes === 'object' && Object.keys(entity.attributes).length > 0) {
-      return Object.entries(entity.attributes).map(([k, v]) => ({ key: k, value: String(v) }))
-    }
-    const attrs = []
-    const kind = (item?.kind || '').toLowerCase()
-    const cat = (item?.category || '').toLowerCase()
-    const isSocialMedia = (sourceInfo.platformName || '').toLowerCase().includes('instagram') ||
-                          (sourceInfo.platformName || '').toLowerCase().includes('tiktok') ||
-                          (sourceInfo.platformName || '').toLowerCase().includes('threads')
-
-    if (item?.author) {
-      attrs.push({ key: 'Author / Creator', value: cleanAuthor || item.author })
-    }
-    if (sourceInfo.platformName && sourceInfo.platformName !== 'Resource') {
-      attrs.push({ key: 'Platform', value: sourceInfo.platformName })
-    }
-    if (duration) {
-      attrs.push({ key: 'Duration', value: duration })
-    }
-    const categoryLabel = cat && cat !== 'general'
-      ? (cat === 'movie' && (item?.is_reel || isSocialMedia)
-          ? 'Film Clip'
-          : (cat.charAt(0).toUpperCase() + cat.slice(1)))
-      : (kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : null)
-
-    if (categoryLabel) {
-      attrs.push({ key: 'Content Type', value: categoryLabel })
-    }
-    if (dateFull) {
-      attrs.push({ key: 'Captured', value: dateFull })
-    }
-    attrs.push({ key: 'Knowledge Index', value: item?.indexed ? 'Vector indexed (Semantic search)' : 'Archive storage' })
-    return attrs
-  }, [entity?.attributes, item?.author, cleanAuthor, sourceInfo.platformName, duration, item?.category, item?.kind, dateFull, item?.indexed, item?.is_reel])
 
   // Keyboard navigation: left/right to move through slides or items, escape to close
   useEffect(() => {
@@ -1736,26 +1700,6 @@ export default function LibraryDetailModal({
                             </span>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Type-Adaptive Specifications & Attributes */}
-                  {adaptiveAttributes.length > 0 && (
-                    <div className="lib-page-section">
-                      <div className="lib-page-section-header">
-                        <span className="lib-page-section-title-wrap">
-                          <Icon name="info" size={13} />
-                          <span>Specifications & Attributes</span>
-                        </span>
-                      </div>
-                      <div className="lib-page-spec-table">
-                        {adaptiveAttributes.map((attr, idx) => (
-                          <div key={idx} className="lib-page-spec-item">
-                            <span className="lib-page-spec-key">{attr.key}</span>
-                            <span className="lib-page-spec-val">{attr.value}</span>
-                          </div>
-                        ))}
                       </div>
                     </div>
                   )}
