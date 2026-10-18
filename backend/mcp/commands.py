@@ -1476,7 +1476,11 @@ def missing_credentials(config: ServerConfig) -> list[str]:
     if kind == "oauth":
         if config.oauth_client_id or default_id:
             return []
-        if entry.setup_hint and ("register" in entry.setup_hint.lower() or "client" in entry.setup_hint.lower()):
+        if (config.api_key_ref or (entry and entry.api_key_ref)) and get_secret(config.api_key_ref or entry.api_key_ref):
+            return []
+        if entry.setup_hint and ("register" in entry.setup_hint.lower() or "client" in entry.setup_hint.lower() or "token" in entry.setup_hint.lower()):
+            if entry.api_key_ref:
+                return ["a Personal Access Token or OAuth client credentials"]
             return ["an OAuth client id and secret"]
         return []
     if kind != "setup":
@@ -1520,6 +1524,10 @@ def is_signed_in(config: ServerConfig) -> bool | None:
         return bool(_accounts_of(config))
     if kind == "setup":
         return None
+    entry = entry_for(config)
+    key_ref = config.api_key_ref or (entry.api_key_ref if entry else None)
+    if key_ref and get_secret(key_ref):
+        return True
     return has_tokens(config.name)
 
 
