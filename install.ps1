@@ -21,7 +21,7 @@ try {
 }
 
 if (-not $DownloadUrl) {
-    $DownloadUrl = "https://github.com/$Repo/releases/latest/download/Amethyst-Setup-0.1.1.exe"
+    $DownloadUrl = "https://github.com/$Repo/releases/latest/download/Amethyst-Setup-0.1.3-beta.exe"
 }
 
 $TempExe = Join-Path $env:TEMP "Amethyst-Setup.exe"

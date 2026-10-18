@@ -3877,7 +3877,7 @@ function About() {
   const handleCopyBuild = () => {
     const details = {
       app: 'Amethyst',
-      version: '0.1.2-beta',
+      version: '0.1.3-beta',
       platform: typeof navigator !== 'undefined'
         ? `${navigator.userAgentData?.platform || navigator.platform || 'linux'} · ${navigator.userAgent.includes('x86_64') || navigator.userAgent.includes('x64') ? 'x64' : 'arm64'}`
         : 'linux · x64',
@@ -3918,7 +3918,7 @@ function About() {
           <BrandMark size={40} />
           <div>
             <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>
-              Amethyst 0.1.2-beta
+              Amethyst 0.1.3-beta
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
               {platformStr}
@@ -3988,7 +3988,7 @@ function About() {
                   ? 'Update downloaded in background. Restart Amethyst to complete installation.'
                   : updateInfo?.available
                   ? 'A new release is available. Click to download and install.'
-                  : `Version 0.1.2-beta · Built for Linux, macOS & Windows.`}
+                  : `Version 0.1.3-beta · Built for Linux, macOS & Windows.`}
               </span>
             </div>
           </div>
