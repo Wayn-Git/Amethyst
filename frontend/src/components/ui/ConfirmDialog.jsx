@@ -20,10 +20,17 @@ export default function ConfirmDialogHost() {
 
   const {
     title,
-    description,
-    confirmLabel = 'Confirm',
-    cancelLabel = 'Cancel',
-    tone = 'default',
+    subject,
+    description = item.description || item.message || item.text,
+    confirmLabel = item.confirmLabel || item.confirmText || 'Confirm',
+    cancelLabel = item.cancelLabel || item.cancelText || 'Cancel',
+    tone = (item.danger || item.destructive || item.tone === 'danger')
+      ? 'danger'
+      : item.tone === 'warning'
+      ? 'warning'
+      : item.tone === 'success'
+      ? 'success'
+      : 'default',
   } = item
 
   return (
@@ -32,10 +39,11 @@ export default function ConfirmDialogHost() {
       onClose={() => resolveConfirm(false)}
       onConfirm={() => resolveConfirm(true)}
       title={title}
+      subject={subject}
       description={description}
       confirmLabel={confirmLabel}
       cancelLabel={cancelLabel}
-      tone={tone === 'danger' ? 'danger' : tone === 'warning' ? 'warning' : 'default'}
+      tone={tone}
     />
   )
 }
