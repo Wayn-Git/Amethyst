@@ -122,7 +122,8 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
               onClick={async () => {
                 setMenu(false)
                 const ok = await confirm({
-                  title: `Delete "${conv.title || 'untitled'}"?`,
+                  title: 'Delete conversation?',
+                  subject: conv.title || 'untitled',
                   description: 'This conversation and its messages will be permanently removed.',
                   confirmLabel: 'Delete',
                   tone: 'danger',
