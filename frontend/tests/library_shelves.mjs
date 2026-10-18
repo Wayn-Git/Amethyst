@@ -126,6 +126,81 @@ test('separates media items from reading items', () => {
   assert.deepEqual(result.reading.map((i) => i.id), ['read-art', 'read-note'])
 })
 
+// Test 5: LibraryEditorialShelves SSR rendering
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { build } from 'vite'
+import react from '@vitejs/plugin-react'
+import React from 'react'
+
+const here = new URL('.', import.meta.url).pathname
+const out = join(here, '../node_modules/.library-shelves-test')
+mkdirSync(out, { recursive: true })
+
+const entry = join(out, 'entry.jsx')
+writeFileSync(
+  entry,
+  `export { default } from ${JSON.stringify(join(here, '../src/views/library/LibraryEditorialShelves.jsx'))}\n`
+)
+
+let LibraryEditorialShelves = null
+try {
+  const result = await build({
+    root: out,
+    logLevel: 'silent',
+    plugins: [react()],
+    build: {
+      ssr: entry,
+      outDir: out,
+      emptyOutDir: false,
+      rollupOptions: {
+        external: [
+          'react',
+          'react/jsx-runtime',
+          'react-dom',
+          'react-dom/server',
+          'framer-motion',
+          'motion',
+        ],
+      },
+    },
+  })
+  const [{ output }] = [result].flat()
+  const bundled = output.find((chunk) => chunk.isEntry)
+  const mod = await import(pathToFileURL(join(out, bundled.fileName)).href)
+  LibraryEditorialShelves = mod.default
+} catch (err) {
+  // Build failure expected when file doesn't exist yet
+}
+
+test('renders LibraryEditorialShelves with partitioned shelves', () => {
+  if (!LibraryEditorialShelves) {
+    throw new Error('LibraryEditorialShelves not found or failed to compile')
+  }
+
+  const sampleShelves = {
+    jumpBackIn: [{ id: '1', title: 'Recent Item', kind: 'article' }],
+    essential: [{ id: '2', title: 'Essential Item', rating: 5, kind: 'article' }],
+    media: [{ id: '3', title: 'Video Item', kind: 'video' }],
+    reading: [{ id: '4', title: 'Read Item', kind: 'article' }],
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryEditorialShelves, {
+      shelves: sampleShelves,
+      onNavigateShelf: () => {},
+      onSelect: () => {},
+    })
+  )
+
+  assert.ok(html.includes('Jump Back In'), 'Must contain Jump Back In header')
+  assert.ok(html.includes('Essential Knowledge'), 'Must contain Essential Knowledge header')
+  assert.ok(html.includes('Media &amp; Watchlist') || html.includes('Media & Watchlist'), 'Must contain Media header')
+  assert.ok(html.includes('Reading &amp; Insights') || html.includes('Reading & Insights'), 'Must contain Reading header')
+})
+
 if (failures.length > 0) {
   console.error(`${passed} passed, ${failures.length} failed:`)
   for (const f of failures) {
@@ -135,3 +210,4 @@ if (failures.length > 0) {
 } else {
   console.log(`${passed} passed, 0 failed`)
 }
+
