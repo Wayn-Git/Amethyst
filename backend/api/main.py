@@ -1787,6 +1787,14 @@ class AddProvider(BaseModel):
     key: str | None = None
 
 
+class VerifyProvider(BaseModel):
+    api_key: str | None = None
+    key: str | None = None
+    base_url: str | None = None
+    default_model: str | None = None
+    adapter: str | None = None
+
+
 @app.get("/api/providers")
 async def list_providers() -> dict[str, Any]:
     """What is configured, what could be, and what is actually answering."""
@@ -1830,6 +1838,10 @@ async def list_providers() -> dict[str, Any]:
                 "docs_url": preset.docs_url,
                 "local": preset.local,
                 "note": preset.note,
+                "free": preset.free,
+                "core": preset.core,
+                "adapter": preset.adapter,
+                "strengths": sorted(preset.strengths),
                 "listed": preset.slug in listed,
             }
             for preset in PROVIDER_PRESETS
@@ -2215,6 +2227,180 @@ async def provider_models(name: str) -> dict[str, Any]:
 #: parsing test imports, and moving a function is not a reason to rewrite a test
 #: that is about the parsing rather than about where it lives.
 _model_list = openai_compat.list_models
+
+
+@app.post("/api/providers/{name}/verify")
+async def verify_provider_route(name: str, body: VerifyProvider) -> dict[str, Any]:
+    """Verify provider credentials against live /models endpoint before saving.
+
+    Never persists invalid keys to disk or OS keychain (R1).
+    Returns valid=True for 200 (ok) and 429 (rate-limited but valid key).
+    Returns valid=False for 401/403 (invalid key) or network connection errors.
+    """
+    clean_name = name.strip().lower()
+    from backend.config import ProviderConfig
+    from backend.provider_catalogue import preset as find_preset
+    from backend.runtime.reasoning_catalog import capabilities_for
+    from backend.runtime.registry import model_lister
+    from backend.secrets import resolve_api_key
+
+    preset = find_preset(clean_name)
+    key_val = (body.api_key or body.key or "").strip()
+    is_local = bool(preset and preset.local)
+
+    if not key_val and not is_local:
+        # Check if already resolved in keychain or environment
+        ref = f"amethyst/{clean_name}"
+        env_var = None
+        if preset and preset.api_key_env:
+            env_var = preset.api_key_env
+        existing_key = resolve_api_key(ref=ref, env=env_var)
+        if existing_key:
+            key_val = existing_key
+        else:
+            return {
+                "valid": False,
+                "status": "invalid_key",
+                "message": f"API key is required for {clean_name}",
+                "models": [],
+                "latency_ms": 0,
+            }
+
+    adapter = body.adapter or (preset.adapter if preset else None) or clean_name
+    base_url = body.base_url or (preset.base_url if preset else None) or ""
+
+    temp_cfg = ProviderConfig(
+        name=clean_name,
+        base_url=base_url,
+        provider=adapter,
+        default_model=body.default_model or (preset.default_model if preset else None),
+    )
+    base = availability.resolve_base_url(temp_cfg)
+    headers_fn, parse_fn = model_lister(temp_cfg)
+    headers = headers_fn(key_val)
+
+    t0 = time.monotonic()
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            try:
+                response = await client.get(f"{base}/models", headers=headers)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404 and "/openai/v1" in base:
+                    alt_base = base.replace("/openai/v1", "/v1")
+                    response = await client.get(f"{alt_base}/models", headers=headers)
+                    response.raise_for_status()
+                else:
+                    raise
+            payload = response.json()
+            models = parse_fn(payload)
+
+            for m in models:
+                if "capabilities" not in m:
+                    provider_caps = m.get("_provider_reasoning")
+                    m["capabilities"] = capabilities_for(m.get("id", ""), provider_caps)
+
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "valid": True,
+                "status": "ok",
+                "message": f"Verified successfully ({len(models)} models found)" if models else "Verified successfully",
+                "models": models,
+                "latency_ms": elapsed_ms,
+            }
+    except httpx.HTTPStatusError as exc:
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        code = exc.response.status_code
+        detail = exc.response.text
+        if code in (401, 403):
+            return {
+                "valid": False,
+                "status": "invalid_key",
+                "message": f"Authentication failed ({code}): Check your API key. {detail[:200]}",
+                "models": [],
+                "latency_ms": elapsed_ms,
+            }
+        elif code == 429:
+            return {
+                "valid": True,
+                "status": "rate_limited",
+                "message": f"Key is valid, but provider returned rate limit or quota exceeded (429): {detail[:200]}",
+                "models": [],
+                "latency_ms": elapsed_ms,
+            }
+        else:
+            return {
+                "valid": False,
+                "status": "error",
+                "message": f"Provider returned error ({code}): {detail[:200]}",
+                "models": [],
+                "latency_ms": elapsed_ms,
+            }
+    except Exception as exc:
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        return {
+            "valid": False,
+            "status": "unreachable",
+            "message": f"Could not reach {base} ({type(exc).__name__}: {exc})",
+            "models": [],
+            "latency_ms": elapsed_ms,
+        }
+
+
+@app.get("/api/setup/status")
+async def setup_status_route() -> dict[str, Any]:
+    """Single source of truth for Amethyst setup and onboarding readiness (R3)."""
+    from backend.setup_status import get_setup_status
+
+    errors = dict(_mcp.get("errors", {}))
+    tools_count = len(_listing_registry().list())
+    return await get_setup_status(mcp_errors=errors, active_tools_count=tools_count)
+
+
+class CompleteSetupRequest(BaseModel):
+    browser_enabled: bool | None = None
+    tray_enabled: bool | None = None
+
+
+@app.post("/api/setup/complete")
+def complete_setup_route(body: CompleteSetupRequest) -> dict[str, Any]:
+    """Mark onboarding complete in SQLite app_settings and persist privacy preferences (R4)."""
+    from backend.setup_status import mark_setup_complete
+
+    opts = body.model_dump(exclude_unset=True)
+    return mark_setup_complete(opts)
+
+
+class KeychainFallbackRequest(BaseModel):
+    consent: bool
+
+
+@app.post("/api/setup/keychain/fallback")
+def enable_keychain_fallback_route(body: KeychainFallbackRequest) -> dict[str, Any]:
+    """Activate user-consented file fallback for storing credentials on headless/minimal systems (R9)."""
+    if not body.consent:
+        raise HTTPException(status_code=400, detail="Consent is required to enable file storage fallback.")
+
+    from backend.db.connection import get_connection, transaction
+    from backend.secrets import enable_file_store
+
+    store = enable_file_store()
+    conn = get_connection()
+    with transaction(conn):
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('keychain.fallback_consented', '1')"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')"
+        )
+
+    return {
+        "ok": True,
+        "storage_type": "file",
+        "path": str(store.path),
+        "message": "File-backed secrets storage enabled with user consent.",
+    }
+
 
 
 @app.delete("/api/providers/{name}")
@@ -6766,11 +6952,16 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
 
 
 @app.post("/api/library/sweep")
-async def sweep_library() -> dict[str, Any]:
+async def sweep_library(force: bool = True) -> dict[str, Any]:
+    """Sweep and automatically enrich unsummarized items in the background."""
+    from backend.library.service import LibraryService
     from backend.library.store import LibraryStore
+
     _library.nudge()
+    service = LibraryService()
+    count = await service.sweep_unsummarized(max_items=50, force=force)
     unsummarized = len(LibraryStore().unsummarized(limit=500))
-    return {"status": "sweeping", "unsummarized": unsummarized}
+    return {"status": "sweeping", "swept": count, "unsummarized": unsummarized}
 
 
 
@@ -6825,14 +7016,6 @@ async def enrich_library_item(item_id: int) -> dict[str, Any]:
         raise HTTPException(500, f"Enrichment failed: {exc}") from exc
 
 
-@app.post("/api/library/sweep")
-async def sweep_library_unsummarized(force: bool = True) -> dict[str, Any]:
-    """Sweep and automatically enrich all unsummarized items in the background."""
-    from backend.library.service import LibraryService
-
-    service = LibraryService()
-    count = await service.sweep_unsummarized(max_items=50, force=force)
-    return {"swept": count}
 
 
 @app.api_route("/api/library/{item_id}/thumbnail", methods=["GET", "HEAD"])
@@ -6959,9 +7142,9 @@ def library_media(item_id: int) -> FileResponse:
         except Exception:
             pass
 
-    # 2. General yt-dlp on-demand extractor
+    # 2. General yt-dlp on-demand extractor (only for video/audio kinds)
     url = row.get("url")
-    if url:
+    if url and row.get("kind") in ("video", "podcast", "music"):
         try:
             import yt_dlp
             from backend.config import load_instagram
