@@ -3742,21 +3742,26 @@
 }
 
 .lib-page-media-col {
-  flex: 0 0 50%;
-  max-width: 50%;
-  width: 50%;
-  min-width: 340px;
+  flex: 0 0 48%;
+  max-width: 540px;
+  width: 48%;
+  min-width: 360px;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  justify-content: stretch;
-  padding: 0;
-  margin: 0;
-  background: #000000;
+  justify-content: flex-start;
+  padding: 32px 28px 32px 32px;
+  box-sizing: border-box;
+  background: var(--canvas-deep, var(--canvas));
   border-right: 1px solid var(--hairline);
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.lib-page-media-col::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 900px) {
@@ -3764,10 +3769,9 @@
     flex: none;
     max-width: 100%;
     width: 100%;
-    height: 52vh;
+    height: auto;
     min-height: 320px;
-    padding: 0;
-    margin: 0;
+    padding: 20px;
     border-right: none;
     border-bottom: 1px solid var(--hairline);
   }
@@ -3780,34 +3784,24 @@
 .lib-player-root {
   position: relative;
   width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 0;
+  aspect-ratio: 16 / 10;
+  border-radius: 16px;
   margin: 0;
   padding: 0;
   overflow: hidden;
   background: #000000;
-  border: none;
-  box-shadow: none;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   outline: none;
-  flex: 1;
+  flex-shrink: 0;
 }
 
 .lib-player-root--portrait {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  margin: 0;
-  padding: 0;
-  border-radius: 0;
-  border: none;
-  box-shadow: none;
-  aspect-ratio: auto;
+  aspect-ratio: 9 / 15;
+  max-height: 58vh;
 }
 
 .lib-player-surface {
@@ -4085,30 +4079,23 @@
 .lib-page-media-viewport {
   position: relative;
   width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 0;
+  aspect-ratio: 16 / 10;
+  border-radius: 16px;
   overflow: hidden;
   background: #000000;
-  border: none;
-  box-shadow: none;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0;
   padding: 0;
-  flex: 1;
+  flex-shrink: 0;
 }
 
 .lib-page-media-viewport--portrait {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  margin: 0;
-  border-radius: 0;
-  aspect-ratio: auto;
+  aspect-ratio: 9 / 15;
+  max-height: 58vh;
 }
 
 .lib-page-cover-box {
@@ -4364,7 +4351,7 @@
   align-items: center;
   gap: 5px;
   padding: 4px 12px;
-  border-radius: var(--radius-buttons, 9999px);
+  border-radius: 8px;
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid rgba(245, 158, 11, 0.3);
   color: #f59e0b;
@@ -4387,9 +4374,9 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 9px 20px;
   min-height: 38px;
-  border-radius: var(--radius-buttons, 9999px);
+  border-radius: 12px;
   font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
@@ -4425,7 +4412,7 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 12px 20px;
   padding: 16px 18px;
-  border-radius: var(--radius-lg, 10px);
+  border-radius: 14px;
   background: var(--surface);
   border: 1px solid var(--hairline);
   margin-bottom: 20px;
@@ -4465,7 +4452,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-radius: var(--radius-lg, 10px);
+  border-radius: 14px;
   background: var(--surface);
   border: 1px solid var(--hairline);
   margin-top: 14px;
@@ -4482,7 +4469,7 @@
 .lib-author-card-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 9999px;
+  border-radius: 10px;
   background: var(--surface-3);
   display: flex;
   align-items: center;
@@ -4525,7 +4512,7 @@
   align-items: center;
   gap: 5px;
   padding: 6px 14px;
-  border-radius: var(--radius-buttons, 9999px);
+  border-radius: 10px;
   background: var(--surface-2);
   border: 1px solid var(--hairline);
   color: var(--text);
@@ -4544,7 +4531,7 @@
 
 .lib-author-caption-card {
   padding: 12px 16px;
-  border-radius: var(--radius-lg, 10px);
+  border-radius: 14px;
   background: var(--surface);
   border: 1px solid var(--hairline);
   margin-top: 10px;
@@ -4586,7 +4573,7 @@
   padding: 4px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--radius-buttons, 9999px);
+  border-radius: 14px;
   margin: 10px 0 16px 0;
 }
 
@@ -4595,7 +4582,7 @@
   align-items: center;
   gap: 6px;
   padding: 7px 16px;
-  border-radius: var(--radius-buttons, 9999px);
+  border-radius: 10px;
   background: transparent;
   border: none;
   color: var(--text-dim);
