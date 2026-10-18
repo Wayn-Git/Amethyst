@@ -393,7 +393,7 @@ function LibraryCardComponent({
                     className="lib-card-action-btn"
                     title="Open original website"
                   >
-                    <Icon name="link" size={12} />
+                    <Icon name="link" size={13} />
                   </a>
                 )}
                 {!item.summary && (
@@ -404,7 +404,7 @@ function LibraryCardComponent({
                     title="Read & synthesize with AI"
                     onClick={() => onEnrich?.(item)}
                   >
-                    <Icon name="spark" size={12} />
+                    <Icon name="spark" size={13} />
                   </button>
                 )}
                 {item.indexed && (
@@ -415,7 +415,7 @@ function LibraryCardComponent({
                     title="Re-index embeddings"
                     onClick={() => onReindex?.(item)}
                   >
-                    <Icon name="refresh" size={12} />
+                    <Icon name="refresh" size={13} />
                   </button>
                 )}
                 <button
@@ -425,7 +425,7 @@ function LibraryCardComponent({
                   title="Delete from library"
                   onClick={() => onDelete?.(item)}
                 >
-                  <Icon name="trash" size={12} />
+                  <Icon name="trash" size={13} />
                 </button>
               </div>
             )}

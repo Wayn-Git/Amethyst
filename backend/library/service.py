@@ -1659,19 +1659,27 @@ class LibraryService:
             if not clean_summary and not result.note and text_source not in ("none", "") and body.strip() and 10 <= len(body.strip()) <= 400:
                 clean_summary = body.strip()
 
-            self.store.update(
-                item_id,
-                status="ready",
-                category=result.category,
-                summary=clean_summary,
-                tags=json.dumps(combined_tags) if combined_tags else None,
-                resources=json.dumps(merged_resources) if merged_resources else None,
-                enrichment_note=result.note,
-                enrichment_model=(
+            update_fields = {
+                "status": "ready",
+                "category": result.category,
+                "summary": clean_summary,
+                "tags": json.dumps(combined_tags) if combined_tags else None,
+                "resources": json.dumps(merged_resources) if merged_resources else None,
+                "enrichment_note": result.note,
+                "enrichment_model": (
                     f"{result.provider}:{result.model}" if result.provider and result.model else None
                 ),
-                enriched_at=enrichment.stamp(),
-            )
+                "enriched_at": enrichment.stamp(),
+            }
+            if getattr(result, "entity", None):
+                update_fields["entity"] = json.dumps(result.entity)
+                if (
+                    row["title"] in ("Instagram", "YouTube", "TikTok", "Reddit", "Twitter", "X", row.get("url"))
+                    or not row.get("title")
+                ) and result.entity.get("title"):
+                    update_fields["title"] = result.entity["title"]
+
+            self.store.update(item_id, **update_fields)
 
             if body.strip():
                 rendered = enrichment.render_markdown(

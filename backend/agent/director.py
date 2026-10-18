@@ -1562,7 +1562,8 @@ class Director:
 
         base_max_iters = 1000 if (self.guards.max_iterations is None or self.guards.max_iterations <= 0) else self.guards.max_iterations
         effective_budget = intent_route.step_budget
-        max_iters = min(base_max_iters, effective_budget)
+        max_continuations = self.guards.max_continuations or 0
+        max_iters = min(base_max_iters, effective_budget + max_continuations)
         wall_clock_cap = min(self.guards.max_seconds, 45.0) if self.guards.max_seconds > 0 else 45.0
         hard_timeout = max(self.guards.max_seconds, 60.0) if self.guards.max_seconds > 0 else 60.0
         final_step_attempted = False
@@ -1574,19 +1575,18 @@ class Director:
                 break
 
             elapsed = time.monotonic() - started
-            if final_step_attempted or elapsed > hard_timeout:
+            if (self.guards.max_seconds > 0 and elapsed > self.guards.max_seconds) or elapsed > hard_timeout:
                 state.error = "time limit reached"
                 self._checkpoint(state, "stopped", budget=budget)
                 yield _guard("time limit reached", said, iteration, state.tool_calls_made, started)
                 break
 
-            # The final iteration forces an answer rather than tool invocation:
+            # The final iteration or wall-clock cap forces an answer rather than tool invocation:
             # withholding tool schemas turns a limit into a clean final wrap-up.
             hit_wall_clock = elapsed > wall_clock_cap
-            hit_step_limit = (iteration >= max_iters - 1)
+            task_step = iteration - state.continuations
+            hit_step_limit = (iteration > 0 and task_step >= effective_budget - 1)
             final_step = hit_step_limit or hit_wall_clock
-            if final_step:
-                final_step_attempted = True
 
             # Clears what belongs to one answer rather than to the turn:
             # `state.carried`, `state.resumes`, `state.blind_noted`. It was the
