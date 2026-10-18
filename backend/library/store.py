@@ -70,6 +70,7 @@ _UPDATABLE = frozenset(
         "duration_seconds",
         "source_ref",
         "status",
+        "entity",
     }
 )
 
@@ -189,6 +190,12 @@ class LibraryStore:
 
         try:
             self.conn.execute("ALTER TABLE library_items ADD COLUMN status TEXT DEFAULT 'ready'")
+            self.conn.commit()
+        except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
+            pass
+
+        try:
+            self.conn.execute("ALTER TABLE library_items ADD COLUMN entity TEXT")
             self.conn.commit()
         except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
             pass
