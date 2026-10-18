@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Icon from './Icon.jsx'
 import BrandMark from './BrandMark.jsx'
 import AiProviderIcon from './AiProviderIcon.jsx'
-import { LoaderIcon } from './OnboardingWizard.jsx'
+import { LoaderIcon } from './LoaderIcon.jsx'
 import { api } from '../api.js'
 import { useApp } from '../store.jsx'
 

@@ -179,19 +179,89 @@ def as_dict(row) -> dict:
         status = "ready"
     data["status"] = status
 
+    item_id = data.get("id")
+
+    # 1. Fallback & resolution for text content
+    text_p = None
     if data.get("text_path"):
+        text_p = Path(data["text_path"])
+        if not text_p.is_file():
+            if ".psok" in str(text_p):
+                alt = Path(str(text_p).replace(".psok", ".amethyst"))
+                if alt.is_file():
+                    text_p = alt
+            elif ".amethyst" in str(text_p):
+                alt = Path(str(text_p).replace(".amethyst", ".psok"))
+                if alt.is_file():
+                    text_p = alt
+        if not text_p.is_file() and item_id:
+            from backend.config import paths
+            cand1 = paths().library_dir / text_p.name
+            if cand1.is_file():
+                text_p = cand1
+            else:
+                for match in paths().library_dir.glob(f"{item_id:06d}-*.md"):
+                    if match.is_file():
+                        text_p = match
+                        break
+
+    if text_p and text_p.is_file():
+        data["text_path"] = str(text_p)
         try:
-            from pathlib import Path
-            p = Path(data["text_path"])
-            if p.is_file():
-                raw = p.read_text(encoding="utf-8", errors="replace")
-                data["content"] = raw
-                if not data.get("excerpt"):
-                    from backend.library.enrich import body_of
-                    body, _ = body_of(raw)
-                    data["excerpt"] = body.strip()[:1000]
+            raw = text_p.read_text(encoding="utf-8", errors="replace")
+            data["content"] = raw
+            if not data.get("excerpt"):
+                from backend.library.enrich import body_of
+                body, _ = body_of(raw)
+                data["excerpt"] = body.strip()[:1000]
         except Exception:
             pass
+
+    # 2. Fallback & resolution for thumbnail path
+    thumb_p = Path(data["thumbnail_path"]) if data.get("thumbnail_path") else None
+    if thumb_p and not thumb_p.is_file():
+        if ".psok" in str(thumb_p):
+            alt = Path(str(thumb_p).replace(".psok", ".amethyst"))
+            if alt.is_file():
+                thumb_p = alt
+        elif ".amethyst" in str(thumb_p):
+            alt = Path(str(thumb_p).replace(".amethyst", ".psok"))
+            if alt.is_file():
+                thumb_p = alt
+
+    if (not thumb_p or not thumb_p.is_file()) and item_id:
+        cand = thumbnail_path(item_id)
+        if cand.is_file():
+            thumb_p = cand
+        else:
+            for ext in (".jpg", ".jpeg", ".png", ".webp"):
+                alt_cand = cand.parent / f"{item_id:06d}-thumb{ext}"
+                if alt_cand.is_file():
+                    thumb_p = alt_cand
+                    break
+    if thumb_p and thumb_p.is_file():
+        data["thumbnail_path"] = str(thumb_p)
+
+    # 3. Fallback & resolution for media path
+    media_p = Path(data["media_path"]) if data.get("media_path") else None
+    if media_p and not media_p.is_file():
+        if ".psok" in str(media_p):
+            alt = Path(str(media_p).replace(".psok", ".amethyst"))
+            if alt.is_file():
+                media_p = alt
+        elif ".amethyst" in str(media_p):
+            alt = Path(str(media_p).replace(".amethyst", ".psok"))
+            if alt.is_file():
+                media_p = alt
+
+    if (not media_p or not media_p.is_file()) and item_id:
+        for ext in (".mp4", ".webm", ".mov", ".mkv"):
+            cand = media_path(item_id, ext)
+            if cand.is_file() and cand.stat().st_size > 1000:
+                media_p = cand
+                break
+    if media_p and media_p.is_file():
+        data["media_path"] = str(media_p)
 
     if not data.get("excerpt") and not data.get("summary") and data.get("enriched_at"):
         data["excerpt"] = data.get("notes") or data.get("title") or ""
@@ -291,7 +361,8 @@ class LibraryService:
         if not notes and raw_input != url:
             surrounding = raw_input.replace(url, "").strip()
             surrounding = re.sub(r"^(check out|look what i found|found on|shared from)[^:\n]*:?\s*", "", surrounding, flags=re.I).strip()
-            if surrounding:
+            # Strip query strings, hash fragments, and raw links from being treated as notes
+            if surrounding and not re.match(r"^[?&#/]", surrounding) and not surrounding.startswith("http"):
                 notes = surrounding[:2000]
         if kind and kind not in KINDS:
             raise LibraryError(f"unknown kind '{kind}'. One of: {', '.join(KINDS)}")
@@ -331,16 +402,27 @@ class LibraryService:
                 return await ReelCapture(self).capture(
                     url, notes=notes, requested_kind=kind, existing_id=existing_id
                 )
-            except ReelError as exc:
-                # Not fatal. The link is still worth logging, with the reason it
-                # could not be opened written on it -- the same rule every other
-                # failed fetch here follows. The plain-page attempt below will
-                # not get far either, and its note says so.
+            except (ReelError, Exception) as exc:
                 capture_note = str(exc)
-                log.info("falling back to a plain link for %s: %s", url, exc)
-            except Exception as exc:
-                capture_note = f"Instagram fetch did not finish: {exc}"
-                log.warning("reel capture failed unexpectedly for %s: %s", url, exc)
+                log.info("reel capture could not open %s: %s", url, exc)
+                # Parse shortcode from reel URL for an honest, informative title
+                m_code = re.search(r"/(?:reel|reels|p)/([A-Za-z0-9_-]+)", url)
+                shortcode = m_code.group(1) if m_code else ""
+                fallback_title = title or (f"Instagram Reel {shortcode}" if shortcode else "Instagram Reel")
+                return await self.capture_media(
+                    title=fallback_title,
+                    kind=kind or "video",
+                    category=category,
+                    url=url,
+                    site="instagram.com",
+                    consumed_on=consumed_on,
+                    notes=notes,
+                    source_ref=url,
+                    text="",
+                    text_source="none",
+                    capture_note=capture_note,
+                    existing_id=existing_id,
+                )
 
         # An X link is a three-rung ladder, because the top rung needs setup a
         # fresh machine will not have and the bottom rung is nothing. X serves
@@ -626,6 +708,13 @@ class LibraryService:
                 text_source = "page"
             if page and page.image:
                 thumb_url = page.image
+            if not thumb_url and url:
+                try:
+                    host = (urlparse(url).hostname or "").lower()
+                    if host and not any(h in host for h in ("localhost", "127.0.0.1")):
+                        thumb_url = f"https://www.google.com/s2/favicons?domain={host}&sz=128"
+                except Exception:
+                    pass
             if page and page.note:
                 capture_note = page.note
 
@@ -947,12 +1036,17 @@ class LibraryService:
 
         return Captured(as_dict(self.store.get(item_id)))
 
-    async def _save_thumb(self, item_id: int, thumb_url: str) -> None:
+    async def _save_thumb(self, item_id: int, thumb_url: str, base_url: str | None = None) -> None:
         """Download a thumbnail and attach it to the library item.
 
         Best-effort — a failure is logged but never raised, because the item
         is already saved and a missing image is better than a missing row.
         """
+        if not thumb_url:
+            return
+        if base_url and not thumb_url.startswith(("http://", "https://")):
+            from urllib.parse import urljoin
+            thumb_url = urljoin(base_url, thumb_url)
         import httpx as _httpx
         from backend.web.reader import DEFAULT_HEADERS
 
@@ -988,7 +1082,11 @@ class LibraryService:
                 from backend.media.audio import _run, ffmpeg_missing
                 if not ffmpeg_missing():
                     try:
-                        code, _ = await _run(["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(vpath), "-vframes", "1", "-q:v", "3", str(target)])
+                        code, _ = await _run(
+                            ["ffmpeg", "-y", "-ss", "00:00:01", "-i", str(vpath), "-vframes", "1", "-q:v", "3", str(target)],
+                            timeout=30.0,
+                            workspace=str(target.parent),
+                        )
                         if code == 0 and target.is_file() and target.stat().st_size > 500:
                             self.store.update(item_id, thumbnail_path=str(target))
                             return True
@@ -1347,7 +1445,14 @@ class LibraryService:
         self.store.update(item_id, **fields)
         return as_dict(self.store.get(item_id))
 
-    async def enrich(self, item_id: int, *, client=None) -> dict:
+    async def enrich(
+        self,
+        item_id: int,
+        *,
+        client=None,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> dict:
         """Say what this item is about, from the text it actually has.
 
         Rewrites the item's file so the summary, the tags and the mentioned
@@ -1470,11 +1575,16 @@ class LibraryService:
             except Exception as exc:
                 log.debug("re-fetching link during enrich for item %s failed: %s", item_id, exc)
 
-        if not body.strip() and row.get("notes"):
+        if (
+            not body.strip()
+            and row.get("notes")
+            and not re.match(r"^[?&#]", row["notes"].strip())
+            and not row["notes"].strip().startswith("http")
+        ):
             body = row["notes"]
             heading = "Notes"
             text_source = "notes"
-        elif not body.strip() and row.get("title") and len(row["title"].strip()) >= 15:
+        elif not body.strip() and row.get("title") and len(row["title"].strip()) >= 5 and row["title"].strip() not in ("Instagram", "YouTube", "Twitter", "X", "TikTok", "Reddit"):
             body = row["title"]
             heading = "Title"
             text_source = "title"
@@ -1501,7 +1611,13 @@ class LibraryService:
         self.store.update(item_id, status="enriching")
         try:
             result = await enrichment.enrich_text(
-                body, title=row["title"], kind=row["kind"], text_source=text_source, client=client
+                body,
+                title=row["title"],
+                kind=row["kind"],
+                text_source=text_source,
+                client=client,
+                provider=provider,
+                model=model,
             )
 
             existing_tags = _json_list(row["tags"])
@@ -1529,7 +1645,7 @@ class LibraryService:
                         merged_resources.append(r)
 
             clean_summary = result.summary
-            if not clean_summary and body.strip() and 10 <= len(body.strip()) <= 400:
+            if not clean_summary and not result.note and text_source not in ("none", "") and body.strip() and 10 <= len(body.strip()) <= 400:
                 clean_summary = body.strip()
 
             self.store.update(

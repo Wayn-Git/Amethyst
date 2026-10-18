@@ -28,6 +28,14 @@ from __future__ import annotations
 import logging
 import time
 
+from backend.mcp import live
+from backend.mcp.config import load_servers
+from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
+from backend.mcp.provider_ownership import (
+    get_withheld_local_servers,
+    is_provider_overridden_by_local,
+)
+
 log = logging.getLogger(__name__)
 
 #: Where a person fixes any of this. One string, because an instruction that
@@ -127,9 +135,6 @@ def ready_connectors_block() -> str | None:
         return _connectors_cache[1]
 
     try:
-        from backend.mcp import live
-        from backend.mcp.config import load_servers
-
         ready = live.ready_connectors()
         configured = load_servers()
         lines = []
@@ -138,9 +143,6 @@ def ready_connectors_block() -> str | None:
 
         # Composio toolkits
         try:
-            from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
-            from backend.mcp.provider_ownership import is_provider_overridden_by_local
-
             if composio_service.is_configured():
                 conns = composio_service.get_connections()
                 active_tks = set(conns.keys())
@@ -158,8 +160,6 @@ def ready_connectors_block() -> str | None:
 
         withheld_servers: set[str] = set()
         try:
-            from backend.mcp.provider_ownership import get_withheld_local_servers
-
             withheld_servers = get_withheld_local_servers()
         except Exception:
             pass
@@ -188,13 +188,21 @@ def ready_connectors_block() -> str | None:
             block_parts.append(
                 "<composio_instructions>\n"
                 "Composio is active and is your DEFAULT tool suite for: " + ", ".join(composio_active) + ".\n"
-                "To interact with these services (e.g. creating/listing Google Calendar events, sending/reading Gmail):\n"
-                "1. Call `COMPOSIO_SEARCH_TOOLS` with queries=[{'use_case': '...'}] to get the live tool schema.\n"
-                "2. Call `COMPOSIO_MULTI_EXECUTE_TOOL` using the required array format:\n"
-                "   {\"tools\": [{\"tool_slug\": \"<TOOL_SLUG>\", \"arguments\": { ... }}]}\n"
-                "   Example for Google Calendar:\n"
-                "   {\"tools\": [{\"tool_slug\": \"GOOGLECALENDAR_CREATE_EVENT\", \"arguments\": {\"summary\": \"...\", \"start_datetime\": \"...\"}}]}\n"
-                "3. NEVER use local mock/dummy tools (e.g. create_calendar_event) when Composio has active connections for the requested service.\n"
+                "The most common actions for connected toolkits are available as direct tools in your active tools array "
+                "(e.g. `GOOGLECALENDAR_FIND_EVENT`, `GOOGLECALENDAR_CREATE_EVENT`, `GMAIL_FETCH_EMAILS`, `GMAIL_SEND_EMAIL`, "
+                "`GITHUB_CREATE_AN_ISSUE`, `SLACK_SEND_MESSAGE`, `NOTION_SEARCH_NOTION_PAGE`).\n"
+                "The Composio meta-tools (COMPOSIO_SEARCH_TOOLS, COMPOSIO_MULTI_EXECUTE_TOOL, "
+                "COMPOSIO_GET_TOOL_SCHEMAS, COMPOSIO_MANAGE_CONNECTIONS) are also directly available in your tool list.\n"
+                "Rules for calling Composio:\n"
+                "1. Use a direct tool if one fits (preferred). For example, to check the calendar or list events, call `GOOGLECALENDAR_FIND_EVENT` directly. "
+                "To read recent emails, call `GMAIL_FETCH_EMAILS` directly.\n"
+                "2. If no direct tool fits what you need, fall back to searching: call `COMPOSIO_SEARCH_TOOLS` to find the action schema, "
+                "then execute via `COMPOSIO_MULTI_EXECUTE_TOOL`.\n"
+                "3. Standard requests (calendar, email, etc.) MUST finish in at most 2 LLM calls:\n"
+                "   - Call 1: Call the direct tool (e.g. `GOOGLECALENDAR_FIND_EVENT` or `GMAIL_FETCH_EMAILS`).\n"
+                "   - Call 2: Synthesize and return the final user-facing answer from the tool response.\n"
+                "   Result: queries like 'what\\'s on my calendar' should be exactly one direct tool call plus the answer.\n"
+                "4. NEVER use local mock/dummy tools (e.g. create_calendar_event) when Composio has active connections for the requested service.\n"
                 "</composio_instructions>"
             )
         if slow_lines:

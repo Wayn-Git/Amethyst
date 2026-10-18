@@ -845,10 +845,10 @@ async def test_reel_music_intent_vs_standard():
         video_path=None,
     )
 
-    # Standard reel capture: kind is "article" (or "video" when path exists)
+    # Standard reel capture: kind is "video"
     await rc._store(dummy_reel, notes=None, requested_kind=None, settings=MagicMock())
     args, kwargs = library.capture_media.call_args
-    assert kwargs["kind"] == "article"
+    assert kwargs["kind"] == "video"
     assert kwargs["category"] is None
 
     # Music intent reel capture: kind becomes "music", category is "music"

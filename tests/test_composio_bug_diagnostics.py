@@ -58,10 +58,11 @@ def test_normalize_composio_multi_execute_args():
     }
     norm1 = normalize_composio_multi_execute_args(args1)
     assert norm1 == {
+        "sync_response_to_workbench": False,
         "tools": [{
             "tool_slug": "GOOGLECALENDAR_CREATE_EVENT",
             "arguments": {"summary": "Get groceries", "start_datetime": "2026-10-12T15:00:00"},
-        }]
+        }],
     }
 
     # Case 2: tools array provided, but uses 'name' or lacks 'tool_slug'
@@ -73,10 +74,11 @@ def test_normalize_composio_multi_execute_args():
     }
     norm2 = normalize_composio_multi_execute_args(args2)
     assert norm2 == {
+        "sync_response_to_workbench": False,
         "tools": [{
             "tool_slug": "GOOGLECALENDAR_CREATE_EVENT",
             "arguments": {"summary": "Get groceries"},
-        }]
+        }],
     }
 
     # Case 3: tools array provided, but parameters flattened without inner 'arguments'
@@ -89,10 +91,11 @@ def test_normalize_composio_multi_execute_args():
     }
     norm3 = normalize_composio_multi_execute_args(args3)
     assert norm3 == {
+        "sync_response_to_workbench": False,
         "tools": [{
             "tool_slug": "GOOGLECALENDAR_CREATE_EVENT",
             "arguments": {"summary": "Get groceries", "start": "tomorrow"},
-        }]
+        }],
     }
 
     # Case 4: top-level parameters without tools or arguments keys
@@ -102,18 +105,20 @@ def test_normalize_composio_multi_execute_args():
     }
     norm4 = normalize_composio_multi_execute_args(args4)
     assert norm4 == {
+        "sync_response_to_workbench": False,
         "tools": [{
             "tool_slug": "GOOGLECALENDAR_CREATE_EVENT",
             "arguments": {"summary": "Get groceries"},
-        }]
+        }],
     }
 
     # Case 5: already perfectly structured
     args5 = {
+        "sync_response_to_workbench": False,
         "tools": [{
             "tool_slug": "GOOGLECALENDAR_CREATE_EVENT",
             "arguments": {"summary": "Get groceries"},
-        }]
+        }],
     }
     norm5 = normalize_composio_multi_execute_args(args5)
     assert norm5 == args5

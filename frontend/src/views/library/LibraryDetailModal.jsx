@@ -1,7 +1,11 @@
 import { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import Icon from '../../components/Icon.jsx'
+import ModelMenu from '../../components/ModelMenu.jsx'
+import AiProviderIcon from '../../components/AiProviderIcon.jsx'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api.js'
+import ExportPlaylistModal from './ExportPlaylistModal.jsx'
+import LibraryVideoPlayer from './LibraryVideoPlayer.jsx'
 import { formatDuration, getDomain, getFaviconUrl, KIND_ICON } from './LibraryCard.jsx'
 import { RATING_TIERS, getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate, formatFullDateTime, formatRelativeDate } from './dateUtils.js'
@@ -9,19 +13,26 @@ import { formatDisplayDate, formatFullDateTime, formatRelativeDate } from './dat
 export function formatModelDisplayName(modelStr) {
   if (!modelStr) return 'AI Synthesis'
   const clean = String(modelStr).trim()
+  if (clean.includes('gemini-2.5-pro')) return 'Gemini 2.5 Pro'
+  if (clean.includes('gemini-2.5-flash')) return 'Gemini 2.5 Flash'
+  if (clean.includes('gemini-2') || clean.includes('gemini-flash')) return 'Gemini Flash'
+  if (clean.includes('gemini-1.5')) return 'Gemini 1.5'
+  if (clean.includes('claude-3-7')) return 'Claude 3.7 Sonnet'
+  if (clean.includes('claude-3-5-sonnet') || clean.includes('claude-3.5-sonnet')) return 'Claude 3.5 Sonnet'
+  if (clean.includes('claude-3-5') || clean.includes('claude-3.5')) return 'Claude 3.5'
+  if (clean.includes('gpt-4o-mini')) return 'GPT-4o Mini'
+  if (clean.includes('gpt-4o')) return 'GPT-4o'
+  if (clean.includes('llama-3.3') || clean.includes('llama-3-3')) return 'LLaMA 3.3 70B'
+  if (clean.includes('llama-3.1') || clean.includes('llama-3-1')) return 'LLaMA 3.1'
+  if (clean.includes('llama-3') || clean.includes('llama-3-8b')) return 'LLaMA 3 8B'
+  if (clean.includes('mimo')) return 'MiMo Flash'
+  if (clean.includes('nemotron')) return 'Nemotron 120B'
+  if (clean.includes('kilo')) return 'Kilo Free'
   if (clean.includes('ministral-8b') || clean.includes('ministral')) return 'Ministral 8B'
   if (clean.includes('mistral-large')) return 'Mistral Large'
   if (clean.includes('mistral-small')) return 'Mistral Small'
   if (clean.includes('mistral')) return 'Mistral'
   if (clean.includes('whisper')) return 'Whisper v3'
-  if (clean.includes('llama-3.3') || clean.includes('llama-3-3')) return 'LLaMA 3.3 70B'
-  if (clean.includes('llama-3.1') || clean.includes('llama-3-1')) return 'LLaMA 3.1'
-  if (clean.includes('llama-3') || clean.includes('llama-3-8b')) return 'LLaMA 3 8B'
-  if (clean.includes('gpt-4o-mini')) return 'GPT-4o Mini'
-  if (clean.includes('gpt-4o')) return 'GPT-4o'
-  if (clean.includes('gpt-4')) return 'GPT-4'
-  if (clean.includes('claude-3-5') || clean.includes('claude-3.5')) return 'Claude 3.5'
-  if (clean.includes('gemini-2') || clean.includes('gemini-1.5')) return 'Gemini'
   if (clean.startsWith('cloudflare:') || clean.startsWith('@cf/')) {
     const parts = clean.split('/')
     const model = parts[parts.length - 1] || 'Workers AI'
@@ -32,57 +43,111 @@ export function formatModelDisplayName(modelStr) {
   return clean.split(':')[0] || 'AI Synthesis'
 }
 
-export function extractTranscript(content, excerpt, textSource) {
-  if (!content && !excerpt) return null
-  const src = content || excerpt
-  const marker = '## Transcript'
-  const idx = src.indexOf(marker)
-  if (idx !== -1) {
-    let t = src.slice(idx + marker.length)
-    const nextHeaderIdx = t.search(/\n## /)
-    const footerIdx = t.indexOf('---')
-    let cut = t.length
-    if (nextHeaderIdx !== -1) cut = Math.min(cut, nextHeaderIdx)
-    if (footerIdx !== -1) cut = Math.min(cut, footerIdx)
-    return t.slice(0, cut).trim()
-  }
-  if (textSource && textSource.includes('transcript')) {
-    if (content && content.includes('\n\n')) {
-      const parts = content.split('\n\n')
-      const filtered = parts.filter(p => (
-        !p.startsWith('# ') &&
-        !p.startsWith('Tags:') &&
-        !p.startsWith('## Mentioned') &&
-        !p.startsWith('## Slide') &&
-        !p.startsWith('## Visual') &&
-        !p.startsWith('## Caption') &&
-        !p.startsWith('---') &&
-        !p.startsWith('- ')
-      ))
-      if (filtered.length > 1) {
-        return filtered.slice(1).join('\n\n').trim()
-      }
+export function formatModelProvider(modelStr) {
+  if (!modelStr) return 'google'
+  const clean = String(modelStr).toLowerCase().trim()
+  if (clean.startsWith('google') || clean.includes('gemini')) return 'google'
+  if (clean.startsWith('groq') || clean.includes('llama')) return 'groq'
+  if (clean.startsWith('anthropic') || clean.includes('claude')) return 'anthropic'
+  if (clean.startsWith('openai') || clean.includes('gpt') || clean.startsWith('o1') || clean.startsWith('o3')) return 'openai'
+  if (clean.startsWith('mistral') || clean.includes('ministral')) return 'mistral'
+  if (clean.startsWith('deepseek')) return 'deepseek'
+  if (clean.startsWith('cloudflare') || clean.startsWith('@cf/')) return 'cloudflare'
+  if (clean.startsWith('ollama')) return 'ollama'
+  if (clean.includes(':')) return clean.split(':')[0]
+  return 'google'
+}
+
+export function parseMarkdownSections(markdown, excerpt, textSource) {
+  const text = markdown || excerpt || ''
+  if (!text) {
+    return {
+      summaryCandidate: null,
+      transcript: null,
+      visualContent: null,
+      caption: null,
+      textBody: null,
     }
   }
-  return null
+
+  // Separate body from provenance footer rule
+  const footerIdx = text.search(/\n---\n/)
+  const clean = footerIdx !== -1 ? text.slice(0, footerIdx) : text
+
+  // Match all markdown H2 headings
+  const headingRegex = /^##\s+([^\n]+)$/gm
+  const matches = []
+  let m
+  while ((m = headingRegex.exec(clean)) !== null) {
+    matches.push({ name: m[1].trim(), index: m.index, endIndex: m.index + m[0].length })
+  }
+
+  // Preamble between # Title and first ## Heading is the AI summary / synopsis
+  let preamble = matches.length > 0 ? clean.slice(0, matches[0].index) : clean
+  const preambleLines = preamble.split('\n').filter((line) => {
+    const trimmed = line.trim()
+    return (
+      !trimmed.startsWith('# ') &&
+      !trimmed.startsWith('Tags:') &&
+      !trimmed.startsWith('Category:') &&
+      !trimmed.startsWith('http://') &&
+      !trimmed.startsWith('https://')
+    )
+  })
+  const summaryCandidate = preambleLines.join('\n').trim()
+
+  const sections = {}
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i]
+    const nextStart = i + 1 < matches.length ? matches[i + 1].index : clean.length
+    sections[cur.name.toLowerCase()] = clean.slice(cur.endIndex, nextStart).trim()
+  }
+
+  let visualContent = sections['visual content'] || sections['slide analysis'] || null
+  let transcript = sections['transcript'] || null
+  let caption = sections['caption'] || null
+  let textBody =
+    sections['text'] ||
+    sections['post'] ||
+    sections['description'] ||
+    sections['notes'] ||
+    sections['document'] ||
+    null
+
+  if (sections['caption and transcript']) {
+    const ct = sections['caption and transcript']
+    const paragraphs = ct.split(/\n\s*\n/)
+    if (paragraphs.length >= 2) {
+      caption = caption || paragraphs.slice(0, Math.min(2, paragraphs.length - 1)).join('\n\n').trim()
+      transcript = transcript || paragraphs.slice(Math.min(2, paragraphs.length - 1)).join('\n\n').trim()
+    } else {
+      transcript = transcript || ct
+    }
+  }
+
+  // Fallback for speech transcript if textSource explicitly mentions transcript
+  if (!transcript && textSource && textSource.includes('transcript')) {
+    if (textBody) {
+      transcript = textBody
+      textBody = null
+    }
+  }
+
+  return {
+    summaryCandidate: summaryCandidate || null,
+    transcript,
+    visualContent,
+    caption,
+    textBody,
+  }
+}
+
+export function extractTranscript(content, excerpt, textSource) {
+  return parseMarkdownSections(content, excerpt, textSource).transcript
 }
 
 export function extractVisualContent(content) {
-  if (!content) return null
-  const markers = ['## Slide Analysis', '## Visual Content']
-  for (const marker of markers) {
-    const idx = content.indexOf(marker)
-    if (idx !== -1) {
-      let t = content.slice(idx + marker.length)
-      const nextHeaderIdx = t.search(/\n## /)
-      const footerIdx = t.indexOf('---')
-      let cut = t.length
-      if (nextHeaderIdx !== -1) cut = Math.min(cut, nextHeaderIdx)
-      if (footerIdx !== -1) cut = Math.min(cut, footerIdx)
-      return t.slice(0, cut).trim()
-    }
-  }
-  return null
+  return parseMarkdownSections(content).visualContent
 }
 
 export function getCleanDomain(url) {
@@ -114,8 +179,8 @@ export function formatFriendlyEnrichmentNote(note) {
   if (s.includes('did not answer within') || s.includes('Timeout')) {
     return 'AI model timed out during capture'
   }
-  if (s.includes('there is no text for this one')) {
-    return 'No speech or caption was detected for this item'
+  if (s.includes('there is no text for this one') || s.includes('there was no readable text') || s.includes('no readable text')) {
+    return 'No speech, caption, or page text was detected for this item'
   }
   if (s.includes('the text is a line or two')) {
     return 'Content was too brief for automatic synthesis'
@@ -124,14 +189,18 @@ export function formatFriendlyEnrichmentNote(note) {
 }
 
 export default function LibraryDetailModal({
-  item,
+  item: initialItem,
   items = [],
   onNavigate,
   onClose,
   onUpdate,
   onDelete,
   toast,
+  onExportPlaylist,
 }) {
+  const [detailItem, setDetailItem] = useState(initialItem)
+  const item = detailItem || initialItem
+
   const [notes, setNotes] = useState(item?.notes || '')
   const [tagInput, setTagInput] = useState('')
   const [isAddingTag, setIsAddingTag] = useState(false)
@@ -146,17 +215,55 @@ export default function LibraryDetailModal({
   const [enrichError, setEnrichError] = useState(null)
   const [showTranscript, setShowTranscript] = useState(false)
   const [showVisualContent, setShowVisualContent] = useState(false)
+  const [showCaption, setShowCaption] = useState(false)
+  const [showTextBody, setShowTextBody] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [showEmbed, setShowEmbed] = useState(false)
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [imageFitMode, setImageFitMode] = useState('contain')
+  const [savedSongs, setSavedSongs] = useState(() => new Set())
+  const [savingSong, setSavingSong] = useState(null)
+  const [showInternalExportModal, setShowInternalExportModal] = useState(false)
+  const [internalExportItems, setInternalExportItems] = useState([])
+  const [selectedEnrichProvider, setSelectedEnrichProvider] = useState('groq')
+  const [selectedEnrichModel, setSelectedEnrichModel] = useState('llama-3.3-70b-versatile')
+  const [showModelMenu, setShowModelMenu] = useState(false)
+  const modelPickerRef = useRef(null)
+  const [mediaMode, setMediaMode] = useState('video')
+  const [activeTab, setActiveTab] = useState('overview')
+  const [copiedTranscript, setCopiedTranscript] = useState(false)
+  const [copiedVisuals, setCopiedVisuals] = useState(false)
   const carouselTrackRef = useRef(null)
 
-  // Sync state if item changes
+  // Load configured enrichment model from library settings
   useEffect(() => {
-    if (item) {
-      setNotes(item.notes || '')
-      setTags(item.tags || [])
-      setRating(item.rating || null)
+    api.librarySettings?.()
+      .then((settings) => {
+        if (settings?.enrich_provider) setSelectedEnrichProvider(settings.enrich_provider)
+        if (settings?.enrich_model) setSelectedEnrichModel(settings.enrich_model)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Dismiss model picker on click outside
+  useEffect(() => {
+    if (!showModelMenu) return
+    const handleClickOutside = (e) => {
+      if (modelPickerRef.current && !modelPickerRef.current.contains(e.target)) {
+        setShowModelMenu(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClickOutside, true)
+    return () => window.removeEventListener('mousedown', handleClickOutside, true)
+  }, [showModelMenu])
+
+  // Sync state if item changes, and fetch fresh item data from backend
+  useEffect(() => {
+    setDetailItem(initialItem)
+    if (initialItem) {
+      setNotes(initialItem.notes || '')
+      setTags(initialItem.tags || [])
+      setRating(initialItem.rating || null)
       setTagInput('')
       setIsAddingTag(false)
       setHoveredStar(null)
@@ -168,13 +275,39 @@ export default function LibraryDetailModal({
       setEnrichError(null)
       setShowTranscript(false)
       setShowVisualContent(false)
+      setShowCaption(false)
+      setShowTextBody(false)
       setIsPlaying(false)
+      setShowEmbed(false)
       setCurrentSlideIndex(0)
+      setActiveTab('overview')
+      setCopiedTranscript(false)
+      setCopiedVisuals(false)
       if (carouselTrackRef.current) {
         carouselTrackRef.current.scrollLeft = 0
       }
     }
-  }, [item?.id])
+    if (initialItem?.id) {
+      let isCurrent = true
+      const fetchItem = api.libraryItem ? api.libraryItem(initialItem.id) : (api.get ? api.get(`/library/${initialItem.id}`) : null)
+      if (fetchItem && typeof fetchItem.then === 'function') {
+        fetchItem
+          .then((fresh) => {
+            if (isCurrent && fresh && fresh.id === initialItem.id) {
+              setDetailItem(fresh)
+              if (fresh.notes !== undefined) setNotes(fresh.notes || '')
+              if (fresh.tags) setTags(fresh.tags)
+              if (fresh.rating !== undefined) setRating(fresh.rating)
+              onUpdate?.(fresh)
+            }
+          })
+          .catch(() => {})
+      }
+      return () => {
+        isCurrent = false
+      }
+    }
+  }, [initialItem?.id])
 
   // Pager index and handlers
   const currentIndex = useMemo(() => {
@@ -197,23 +330,108 @@ export default function LibraryDetailModal({
     }
   }, [hasNext, onNavigate, items, currentIndex])
 
-  const transcript = useMemo(
-    () => extractTranscript(item?.content, item?.excerpt || item?.capture_note, item?.text_source),
+  // Parse all markdown sections (Transcript, Visual Content, Caption, Text Body, Preamble)
+  const parsedSections = useMemo(
+    () => parseMarkdownSections(item?.content, item?.excerpt || item?.capture_note, item?.text_source),
     [item?.content, item?.excerpt, item?.capture_note, item?.text_source]
   )
+
+  const summaryText = item?.summary || parsedSections.summaryCandidate || null
+
+  const transcript = parsedSections.transcript
   const transcriptWordCount = useMemo(() => {
     if (!transcript) return 0
     return transcript.trim().split(/\s+/).length
   }, [transcript])
 
-  const visualContent = useMemo(
-    () => extractVisualContent(item?.content),
-    [item?.content]
-  )
+  const visualContent = parsedSections.visualContent
   const visualWordCount = useMemo(() => {
     if (!visualContent) return 0
     return visualContent.trim().split(/\s+/).length
   }, [visualContent])
+
+  const caption = parsedSections.caption
+  const captionWordCount = useMemo(() => {
+    if (!caption) return 0
+    return caption.trim().split(/\s+/).length
+  }, [caption])
+
+  const textBody = parsedSections.textBody
+  const textBodyWordCount = useMemo(() => {
+    if (!textBody) return 0
+    return textBody.trim().split(/\s+/).length
+  }, [textBody])
+
+  const contentCount = useMemo(() => {
+    return (transcript ? 1 : 0) + (visualContent ? 1 : 0) + (caption ? 1 : 0) + (textBody ? 1 : 0)
+  }, [transcript, visualContent, caption, textBody])
+
+  const notesCount = useMemo(() => {
+    return (notes && notes.trim() ? 1 : 0) + (tags && tags.length > 0 ? 1 : 0)
+  }, [notes, tags])
+
+  // Detected audio tracks
+  const musicResources = useMemo(() => {
+    let res = item?.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    if (!Array.isArray(res)) return []
+    return res.filter(
+      (r) => r && typeof r === 'object' && (r.type === 'music' || r.type === 'song') && (r.name || r.title)
+    )
+  }, [item?.resources])
+
+  // Non-audio mentioned resources and websites
+  const mentionedResources = useMemo(() => {
+    let res = item?.resources
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res) } catch { res = [] }
+    }
+    if (!Array.isArray(res)) return []
+    return res.filter(
+      (r) => r && typeof r === 'object' && r.type !== 'music' && r.type !== 'song' && r.type !== 'slide' && r.type !== 'avatar'
+    )
+  }, [item?.resources])
+
+  // Save detected song to library Song List
+  const handleSaveSong = async (track) => {
+    const title = track.name || track.title || 'Unknown Track'
+    const author = track.detail || track.author || track.artist || ''
+    setSavingSong(title)
+    try {
+      await api.addLibraryItem({
+        title,
+        author,
+        kind: 'music',
+        category: 'music',
+        url: track.url || null,
+        notes: `Detected audio from: ${item.title || 'video'}`,
+      })
+      setSavedSongs((prev) => new Set(prev).add(title))
+      toast?.(`Added "${title}" to Song List`, 'ok')
+    } catch (err) {
+      toast?.(err?.message || 'Failed to save song', 'bad')
+    } finally {
+      setSavingSong(null)
+    }
+  }
+
+  // Export detected song to playlist
+  const handleExportSongToPlaylist = (track) => {
+    const trackItem = {
+      id: item.id,
+      title: track.name || track.title || 'Unknown Track',
+      author: track.detail || track.author || track.artist || '',
+      kind: 'music',
+    }
+    if (onExportPlaylist) {
+      onExportPlaylist([trackItem])
+    } else {
+      setInternalExportItems([trackItem])
+      setShowInternalExportModal(true)
+    }
+  }
 
   const activeRatingTier = useMemo(() => getRatingTier(rating), [rating])
   const previewRatingTier = useMemo(() => getRatingTier(hoveredStar), [hoveredStar])
@@ -251,9 +469,16 @@ export default function LibraryDetailModal({
     return null
   }, [item?.url])
 
+  // Instagram embed detection
+  const instagramEmbedUrl = useMemo(() => {
+    if (!item?.url) return null
+    const m = item.url.match(/instagram\.com\/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/i)
+    return m && m[1] ? `https://www.instagram.com/reel/${m[1]}/embed/` : null
+  }, [item?.url])
+
   // Extract carousel slides/images/video if this is a post with media
-  const carouselItems = useMemo(() => {
-    if (!item) return []
+  const { videoItem, slideItems, isVid } = useMemo(() => {
+    if (!item) return { videoItem: null, slideItems: [], isVid: false }
     let res = item.resources
     if (typeof res === 'string') {
       try { res = JSON.parse(res) } catch { res = [] }
@@ -278,82 +503,75 @@ export default function LibraryDetailModal({
       (app === 'x' && (Boolean(videoResource) || item.kind === 'video')) ||
       (item.duration_seconds > 0 && item.kind !== 'podcast' && item.kind !== 'music')
 
-    const isVid = hasLocalVid || Boolean(videoResource) || isDirectVideoUrl || isSocialVideo || (item.kind === 'video' && !youtubeEmbedUrl)
+    const hasVideo = hasLocalVid || Boolean(videoResource) || isDirectVideoUrl || isSocialVideo || (item.kind === 'video' && !youtubeEmbedUrl)
     const videoStreamUrl = api.mediaUrl(item.id)
-    const fallbackVideoUrl = videoResource?.url && videoResource.url.startsWith('http') ? videoResource.url : null
+    const fallbackVideoUrl =
+      (videoResource?.remote_url && videoResource.remote_url.startsWith('http') ? videoResource.remote_url : null) ||
+      (videoResource?.url && videoResource.url.startsWith('http') ? videoResource.url : null) ||
+      (isDirectVideoUrl ? item.url : null)
 
-    const list = []
-    if (youtubeEmbedUrl) {
-      list.push({ type: 'youtube', url: youtubeEmbedUrl, name: 'YouTube Video' })
-    } else if (isVid) {
-      list.push({
-        type: 'video',
-        url: videoStreamUrl,
-        fallbackUrl: fallbackVideoUrl,
-        poster: hasThumbnail ? api.thumbnailUrl(item.id) : undefined,
-        name: 'Video',
-      })
-      slideRes.forEach((s, idx) => {
-        const slideIdx = s.index !== undefined ? s.index : idx
-        const remoteUrl = s.remote_url || (s.url && s.url.startsWith('http') ? s.url : null)
-        let sUrl = s.url
-        if (!sUrl || (!sUrl.startsWith('http') && !sUrl.startsWith('/api/'))) {
-          sUrl = api.slideUrl(item.id, slideIdx)
-        }
-        list.push({
-          type: 'image',
-          url: sUrl,
-          remoteUrl,
-          name: s.name || `Photo ${idx + 1}`,
-          index: slideIdx,
-        })
-      })
-    } else if (slideRes.length > 0) {
-      slideRes.forEach((s, idx) => {
-        const slideIdx = s.index !== undefined ? s.index : idx
-        const remoteUrl = s.remote_url || (s.url && s.url.startsWith('http') ? s.url : null)
-        let sUrl = s.url
-        if (!sUrl || (!sUrl.startsWith('http') && !sUrl.startsWith('/api/'))) {
-          sUrl = api.slideUrl(item.id, slideIdx)
-        }
-        list.push({
-          type: 'image',
-          url: sUrl,
-          remoteUrl,
-          name: s.name || `Photo ${idx + 1}`,
-          index: slideIdx,
-        })
-      })
-    } else if (hasThumbnail) {
-      list.push({
+    const vItem = (youtubeEmbedUrl || hasVideo || instagramEmbedUrl) ? {
+      type: youtubeEmbedUrl ? 'youtube' : (hasVideo ? 'video' : 'embed'),
+      url: youtubeEmbedUrl ? youtubeEmbedUrl : (hasVideo ? videoStreamUrl : instagramEmbedUrl),
+      fallbackUrl: fallbackVideoUrl,
+      embedUrl: instagramEmbedUrl,
+      poster: hasThumbnail ? api.thumbnailUrl(item.id) : undefined,
+      name: 'Video',
+    } : null
+
+    const sItems = slideRes.map((s, idx) => {
+      const slideIdx = s.index !== undefined ? s.index : idx
+      const remoteUrl = s.remote_url || (s.url && s.url.startsWith('http') ? s.url : null)
+      let sUrl = s.url
+      if (!sUrl || (!sUrl.startsWith('http') && !sUrl.startsWith('/api/'))) {
+        sUrl = api.slideUrl(item.id, slideIdx)
+      }
+      return {
         type: 'image',
-        url: api.thumbnailUrl(item.id),
-        name: 'Cover image',
-        index: 0,
-      })
-    } else {
-      list.push({
-        type: 'graphic',
-        name: 'Card',
-        index: 0,
-      })
-    }
-    return list
-  }, [item, app, youtubeEmbedUrl, hasThumbnail])
+        url: sUrl,
+        remoteUrl,
+        name: s.name || `Slide ${idx + 1}`,
+        index: slideIdx,
+      }
+    })
 
+    if (!vItem && sItems.length === 0) {
+      if (hasThumbnail) {
+        sItems.push({
+          type: 'image',
+          url: api.thumbnailUrl(item.id),
+          name: 'Cover image',
+          index: 0,
+        })
+      } else {
+        sItems.push({
+          type: 'graphic',
+          name: 'Card',
+          index: 0,
+        })
+      }
+    }
+
+    return { videoItem: vItem, slideItems: sItems, isVid: hasVideo }
+  }, [item, app, youtubeEmbedUrl, instagramEmbedUrl, hasThumbnail])
+
+  const hasMultipleMediaModes = Boolean(videoItem && slideItems.length > 0)
+  const isVideoMode = Boolean(videoItem && (mediaMode === 'video' || slideItems.length === 0))
+  const carouselItems = isVideoMode ? (videoItem ? [videoItem] : []) : slideItems
   const slides = carouselItems
 
   const currentSlideUrl = useMemo(() => {
-    const cur = carouselItems[currentSlideIndex]
-    if (!cur) return null
-    if (cur.type === 'image') return cur.url
-    if (cur.type === 'video' && cur.poster) return cur.poster
+    if (isVideoMode && videoItem) {
+      return videoItem.poster || (hasThumbnail ? api.thumbnailUrl(item?.id) : null)
+    }
+    const cur = slideItems[currentSlideIndex]
+    if (cur) return cur.url
     return hasThumbnail ? api.thumbnailUrl(item?.id) : null
-  }, [carouselItems, currentSlideIndex, item?.id, hasThumbnail])
+  }, [isVideoMode, videoItem, slideItems, currentSlideIndex, item?.id, hasThumbnail])
 
   const hasSlides = carouselItems && carouselItems.length > 1
   const isDirectVideo = Boolean(carouselItems.some((c) => c.type === 'video'))
-  const isPlayable = Boolean(isDirectVideo || youtubeEmbedUrl)
+  const isPlayable = Boolean(isDirectVideo || youtubeEmbedUrl || instagramEmbedUrl)
 
   const scrollToSlide = useCallback((targetIdx) => {
     if (carouselTrackRef.current) {
@@ -588,11 +806,39 @@ export default function LibraryDetailModal({
     }
   }
 
-  const handleEnrich = async () => {
+  const handleCopyTranscript = useCallback(async () => {
+    if (!transcript) return
+    try {
+      await navigator.clipboard.writeText(transcript)
+      setCopiedTranscript(true)
+      toast('Copied transcript to clipboard', 'ok')
+      setTimeout(() => setCopiedTranscript(false), 2000)
+    } catch {
+      toast('Failed to copy transcript', 'bad')
+    }
+  }, [transcript, toast])
+
+  const handleCopyVisuals = useCallback(async () => {
+    if (!visualContent) return
+    try {
+      await navigator.clipboard.writeText(visualContent)
+      setCopiedVisuals(true)
+      toast('Copied visual content to clipboard', 'ok')
+      setTimeout(() => setCopiedVisuals(false), 2000)
+    } catch {
+      toast('Failed to copy visual content', 'bad')
+    }
+  }, [visualContent, toast])
+
+  const handleEnrich = async (provOverride, modOverride) => {
     setEnrichError(null)
     setBusyAction('enrich')
     try {
-      const updated = await api.enrichLibraryItem(item.id)
+      const p = (typeof provOverride === 'string' && provOverride) || selectedEnrichProvider
+      const m = (typeof modOverride === 'string' && modOverride) || selectedEnrichModel
+      const payload = (p && m) ? { provider: p, model: m } : undefined
+      const updated = await api.enrichLibraryItem(item.id, payload)
+      setDetailItem(updated)
       onUpdate?.(updated)
       toast('Synthesized with AI', 'ok')
     } catch (err) {
@@ -602,6 +848,16 @@ export default function LibraryDetailModal({
     } finally {
       setBusyAction('')
     }
+  }
+
+  const handleModelChange = async ({ provider, model }) => {
+    setSelectedEnrichProvider(provider)
+    setSelectedEnrichModel(model)
+    setShowModelMenu(false)
+    try {
+      await api.updateLibrarySettings?.({ enrich_provider: provider, enrich_model: model })
+    } catch {}
+    handleEnrich(provider, model)
   }
 
   const handleReindex = async () => {
@@ -748,256 +1004,179 @@ export default function LibraryDetailModal({
           <motion.div
             key={`media-${item.id}`}
             className="lib-page-media-col"
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.18 }}
           >
-            <div className={`lib-page-media-viewport ${isVertical ? 'lib-page-media-viewport--portrait' : ''}`}>
-              <div
-                ref={carouselTrackRef}
-                className="lib-page-carousel-track"
-                onScroll={handleCarouselScroll}
-              >
-                {carouselItems.map((cItem, idx) => (
-                  <div key={`slide-${idx}`} className="lib-page-carousel-slide">
-                    {cItem.type === 'video' ? (
-                      isPlaying ? (
-                        <div className="lib-page-player-box">
-                          <video
+            {hasMultipleMediaModes && (
+              <div className="lib-media-segment" role="tablist" aria-label="Media view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isVideoMode}
+                  className={`lib-media-segment-btn ${isVideoMode ? 'lib-media-segment-btn--active' : ''}`}
+                  onClick={() => setMediaMode('video')}
+                >
+                  <Icon name="play" size={12} />
+                  <span>Video</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!isVideoMode}
+                  className={`lib-media-segment-btn ${!isVideoMode ? 'lib-media-segment-btn--active' : ''}`}
+                  onClick={() => {
+                    setMediaMode('slides')
+                    setIsPlaying(false)
+                  }}
+                >
+                  <Icon name="image" size={12} />
+                  <span>Diagrams & Slides ({slideItems.length})</span>
+                </button>
+              </div>
+            )}
+
+            {isVideoMode && videoItem ? (
+              <LibraryVideoPlayer
+                src={videoItem.url}
+                poster={videoItem.poster}
+                title={item.title}
+                fallbackUrl={videoItem.fallbackUrl}
+                embedUrl={videoItem.embedUrl}
+                isVertical={isVertical}
+                imageFitMode={imageFitMode}
+                onToggleFit={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                cleanCoverSlug={cleanCoverSlug}
+              />
+            ) : (
+              <div className={`lib-page-media-viewport ${isVertical ? 'lib-page-media-viewport--portrait' : ''}`}>
+                <div
+                  ref={carouselTrackRef}
+                  className="lib-page-carousel-track"
+                  onScroll={handleCarouselScroll}
+                >
+                  {slideItems.map((cItem, idx) => (
+                    <div key={`slide-${idx}`} className="lib-page-carousel-slide">
+                      {cItem.type === 'image' ? (
+                        <div
+                          className="lib-page-cover-box"
+                          onClick={() => {
+                            setCurrentSlideIndex(idx)
+                            setShowLightbox(true)
+                          }}
+                        >
+                          <img
                             src={cItem.url}
-                            controls
-                            autoPlay
-                            playsInline
-                            loop
-                            className="lib-page-video-elem"
-                            poster={cItem.poster}
+                            alt={cItem.name || item.title || `Photo ${idx + 1}`}
+                            className={`lib-page-cover-img lib-page-cover-img--${imageFitMode}`}
                             onError={(e) => {
-                              if (cItem.fallbackUrl && e.currentTarget.src !== cItem.fallbackUrl) {
-                                e.currentTarget.src = cItem.fallbackUrl
+                              const currentSrc = e.currentTarget.src
+                              const slideApi = api.slideUrl(item.id, cItem.index ?? idx)
+                              if (!currentSrc.includes(`/slides/${cItem.index ?? idx}`) && currentSrc !== slideApi) {
+                                e.currentTarget.src = slideApi
+                                return
+                              }
+                              if (cItem.remoteUrl && currentSrc !== cItem.remoteUrl) {
+                                e.currentTarget.src = cItem.remoteUrl
+                                return
+                              }
+                              if (hasThumbnail && currentSrc !== api.thumbnailUrl(item.id)) {
+                                e.currentTarget.src = api.thumbnailUrl(item.id)
                               }
                             }}
                           />
                         </div>
                       ) : (
-                        <div
-                          className="lib-page-cover-box"
-                          onClick={() => setIsPlaying(true)}
-                        >
-                          {cItem.poster ? (
-                            <>
-                              <div
-                                className="lib-page-cover-backdrop"
-                                style={{ backgroundImage: `url(${cItem.poster})` }}
-                              />
-                              <img
-                                src={cItem.poster}
-                                alt={item.title || 'Video cover'}
-                                className={`lib-page-cover-img lib-page-cover-img--${imageFitMode}`}
-                              />
-                            </>
-                          ) : (
-                            <div className="lib-page-graphic-card">
-                              <div className="lib-page-graphic-gradient" />
-                              <div className="lib-page-graphic-title">{cleanCoverSlug}</div>
-                            </div>
-                          )}
-                          <motion.button
-                            whileHover={{ scale: 1.08 }}
-                            whileTap={{ scale: 0.94 }}
-                            type="button"
-                            className="lib-page-play-badge"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setIsPlaying(true)
-                            }}
-                            title="Play video"
-                            aria-label="Play video"
-                          >
-                            <div className="lib-page-play-circle">
-                              <Icon name="play" size={26} />
-                            </div>
-                          </motion.button>
+                        <div className="lib-player-graphic-card">
+                          <div className="lib-player-graphic-title">{cleanCoverSlug}</div>
                         </div>
-                      )
-                    ) : cItem.type === 'youtube' ? (
-                      <div className="lib-page-player-box">
-                        <iframe
-                          src={cItem.url}
-                          title={item.title || 'YouTube Video'}
-                          className="lib-page-iframe-elem"
-                          allowFullScreen
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        />
-                      </div>
-                    ) : cItem.type === 'image' ? (
-                      <div
-                        className="lib-page-cover-box"
-                        onClick={() => {
-                          setCurrentSlideIndex(idx)
-                          setShowLightbox(true)
-                        }}
-                      >
-                        <div
-                          className="lib-page-cover-backdrop"
-                          style={{ backgroundImage: `url(${cItem.url})` }}
-                        />
-                        <img
-                          src={cItem.url}
-                          alt={cItem.name || item.title || `Photo ${idx + 1}`}
-                          className={`lib-page-cover-img lib-page-cover-img--${imageFitMode}`}
-                          onError={(e) => {
-                            const currentSrc = e.currentTarget.src
-                            const slideApi = api.slideUrl(item.id, cItem.index ?? idx)
-                            if (!currentSrc.includes(`/slides/${cItem.index ?? idx}`) && currentSrc !== slideApi) {
-                              e.currentTarget.src = slideApi
-                              return
-                            }
-                            if (cItem.remoteUrl && currentSrc !== cItem.remoteUrl) {
-                              e.currentTarget.src = cItem.remoteUrl
-                              return
-                            }
-                            if (hasThumbnail && currentSrc !== api.thumbnailUrl(item.id)) {
-                              e.currentTarget.src = api.thumbnailUrl(item.id)
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="lib-page-graphic-card">
-                        <div className="lib-page-graphic-gradient" />
-                        <div className="lib-page-graphic-title">{cleanCoverSlug}</div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
 
-              {/* Multi-image Carousel Navigation Arrows & Dots */}
-              {carouselItems.length > 1 && (
-                <>
-                  <motion.button
-                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(0,0,0,0.85)' }}
-                    whileTap={{ scale: 0.92 }}
-                    type="button"
-                    className="lib-page-carousel-arrow lib-page-carousel-arrow--prev"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : carouselItems.length - 1
-                      scrollToSlide(prevIdx)
-                    }}
-                    title="Previous image"
-                    aria-label="Previous image"
-                  >
-                    <Icon name="chevron-left" size={16} />
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(0,0,0,0.85)' }}
-                    whileTap={{ scale: 0.92 }}
-                    type="button"
-                    className="lib-page-carousel-arrow lib-page-carousel-arrow--next"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const nextIdx = currentSlideIndex < carouselItems.length - 1 ? currentSlideIndex + 1 : 0
-                      scrollToSlide(nextIdx)
-                    }}
-                    title="Next image"
-                    aria-label="Next image"
-                  >
-                    <Icon name="chevron-right" size={16} />
-                  </motion.button>
-                  <div className="lib-page-carousel-dots">
-                    {carouselItems.map((_, dotIdx) => (
-                      <button
-                        key={`dot-${dotIdx}`}
-                        type="button"
-                        className={`lib-page-carousel-dot ${dotIdx === currentSlideIndex ? 'lib-page-carousel-dot--active' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          scrollToSlide(dotIdx)
-                        }}
-                        aria-label={`Go to slide ${dotIdx + 1}`}
-                      />
-                    ))}
-                    <span className="lib-page-carousel-count">
-                      {currentSlideIndex + 1}/{carouselItems.length}
+                {/* Minimal bottom-docked slide navigation bar */}
+                {slideItems.length > 1 && (
+                  <div className="lib-slide-nav-bar">
+                    <button
+                      type="button"
+                      className="lib-slide-nav-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const prevIdx = currentSlideIndex > 0 ? currentSlideIndex - 1 : slideItems.length - 1
+                        scrollToSlide(prevIdx)
+                      }}
+                      title="Previous slide"
+                      aria-label="Previous slide"
+                    >
+                      <Icon name="chevron-left" size={14} />
+                    </button>
+                    <span className="lib-slide-nav-counter">
+                      {currentSlideIndex + 1} / {slideItems.length}
                     </span>
+                    <button
+                      type="button"
+                      className="lib-slide-nav-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const nextIdx = currentSlideIndex < slideItems.length - 1 ? currentSlideIndex + 1 : 0
+                        scrollToSlide(nextIdx)
+                      }}
+                      title="Next slide"
+                      aria-label="Next slide"
+                    >
+                      <Icon name="chevron-right" size={14} />
+                    </button>
                   </div>
-                </>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            {/* Controls Below Media Frame: Full view + Source */}
-            <div className="lib-page-media-actions">
-              {isPlayable && !isPlaying && (
+            {/* Controls Below Media Frame: Only displayed for non-video mode (e.g. diagrams/slides) */}
+            {!isVideoMode && (
+              <div className="lib-page-media-actions">
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.96 }}
                   type="button"
-                  className="lib-page-pill-btn lib-page-pill-btn--primary"
-                  onClick={() => setIsPlaying(true)}
-                  title="Play video"
+                  className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
+                  onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                  title={imageFitMode === 'contain' ? 'Fill frame' : 'Original uncropped fit'}
                 >
-                  <Icon name="play" size={12} />
-                  <span>Play video</span>
+                  <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={12} />
+                  <span>{imageFitMode === 'contain' ? 'Original Fit' : 'Fill'}</span>
                 </motion.button>
-              )}
 
-              {isPlayable && isPlaying && (
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
-                  type="button"
-                  className="lib-page-pill-btn"
-                  onClick={() => setIsPlaying(false)}
-                  title="Switch back to cover view"
-                >
-                  <Icon name="spark" size={12} />
-                  <span>Cover view</span>
-                </motion.button>
-              )}
+                {hasThumbnail && (
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.96 }}
+                    type="button"
+                    className="lib-page-pill-btn"
+                    onClick={() => setShowLightbox(true)}
+                    title="Open full resolution lightbox"
+                  >
+                    <Icon name="maximize" size={12} />
+                    <span>Lightbox</span>
+                  </motion.button>
+                )}
 
-              {/* Fit vs Fill aspect ratio toggle pill */}
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.96 }}
-                type="button"
-                className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
-                onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
-                title={imageFitMode === 'contain' ? 'Fill frame (crop edges)' : 'Complete original image (uncropped)'}
-              >
-                <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={12} />
-                <span>{imageFitMode === 'contain' ? 'Original Fit' : 'Fill'}</span>
-              </motion.button>
-
-              {hasThumbnail && (
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
-                  type="button"
-                  className="lib-page-pill-btn"
-                  onClick={() => setShowLightbox(true)}
-                  title="Open full resolution lightbox"
-                >
-                  <Icon name="maximize" size={12} />
-                  <span>Lightbox</span>
-                </motion.button>
-              )}
-
-              {item.url && (
-                <motion.a
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="lib-page-pill-btn"
-                  title="Open original website"
-                >
-                  <Icon name="external-link" size={12} />
-                  <span>{sourceInfo.platformName || 'Source'}</span>
-                </motion.a>
-              )}
-            </div>
+                {item.url && (
+                  <motion.a
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.96 }}
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-page-pill-btn"
+                    title="Open original website"
+                  >
+                    <Icon name="external-link" size={12} />
+                    <span>{sourceInfo.platformName || 'Source'}</span>
+                  </motion.a>
+                )}
+              </div>
+            )}
           </motion.div>
 
           {/* ----------------- RIGHT COLUMN: INTELLIGENCE & CURATION ----------------- */}
@@ -1036,393 +1215,707 @@ export default function LibraryDetailModal({
                 </div>
               </div>
 
-              {/* 3. Significance Star Rating */}
-              <div className="lib-page-significance-bar">
-                <span className="lib-page-significance-title">Significance</span>
-                <div className="lib-page-stars-track">
-                  {[1, 2, 3, 4, 5].map((star) => {
-                    const isFilled = (hoveredStar ?? rating ?? 0) >= star
-                    return (
-                      <motion.button
-                        key={star}
-                        whileHover={{ scale: 1.25 }}
-                        whileTap={{ scale: 0.85 }}
-                        type="button"
-                        className="lib-page-star-btn"
-                        onMouseEnter={() => setHoveredStar(star)}
-                        onMouseLeave={() => setHoveredStar(null)}
-                        onClick={() => handleRating(star)}
-                        title={`Assign ${star} Star (${RATING_TIERS[star]?.label}): ${RATING_TIERS[star]?.description}`}
-                      >
-                        <Icon
-                          name="star"
-                          size={15}
-                          filled={isFilled}
-                          style={{
-                            color: isFilled ? (RATING_TIERS[star]?.color || '#f59e0b') : 'var(--hairline-strong)',
-                            transition: 'color 120ms ease, transform 120ms ease',
-                          }}
-                        />
-                      </motion.button>
-                    )
-                  })}
-                </div>
-                <span className="lib-page-significance-tier">
-                  {displayedTier ? displayedTier.label : 'Unrated'}
-                </span>
-
-                {rating && (
-                  <button
-                    type="button"
-                    className="lib-page-clear-rating-btn"
-                    onClick={() => handleRating(rating)}
-                    title="Clear rating"
-                  >
-                    <Icon name="x" size={10} />
-                    <span>Clear</span>
-                  </button>
-                )}
+              {/* Studio Segmented Navigation Tabs */}
+              <div className="lib-studio-tabs" role="tablist" aria-label="Studio sections">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'overview'}
+                  className={`lib-studio-tab-btn ${activeTab === 'overview' ? 'lib-studio-tab-btn--active' : ''}`}
+                  onClick={() => setActiveTab('overview')}
+                >
+                  <Icon name="spark" size={13} />
+                  <span>Overview & AI</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'content'}
+                  className={`lib-studio-tab-btn ${activeTab === 'content' ? 'lib-studio-tab-btn--active' : ''}`}
+                  onClick={() => setActiveTab('content')}
+                >
+                  <Icon name="file-text" size={13} />
+                  <span>Content & Transcripts</span>
+                  {contentCount > 0 && (
+                    <span className="lib-studio-tab-badge">{contentCount}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'notes'}
+                  className={`lib-studio-tab-btn ${activeTab === 'notes' ? 'lib-studio-tab-btn--active' : ''}`}
+                  onClick={() => setActiveTab('notes')}
+                >
+                  <Icon name="edit" size={13} />
+                  <span>Notes & Curation</span>
+                  {notesCount > 0 && (
+                    <span className="lib-studio-tab-badge">{notesCount}</span>
+                  )}
+                </button>
               </div>
 
-              {/* 4. Key Insights & Synthesis Panel */}
-              {isEnriching ? (
-                <div className="lib-synthesis-card lib-synthesis-card--generating">
-                  <div className="lib-synthesis-header">
-                    <div className="lib-synthesis-title-wrap">
-                      <div className="lib-synthesis-icon-badge lib-synthesis-icon-badge--spinning">
-                        <span className="lib-card-spinner" />
-                      </div>
-                      <span className="lib-synthesis-heading">Synthesizing Insights & Extracting Entities</span>
+              {/* TAB 1: OVERVIEW & AI SYNTHESIS */}
+              {activeTab === 'overview' && (
+                <div className="lib-tab-pane" data-enter>
+                  {/* Significance Star Rating */}
+                  <div className="lib-page-significance-bar">
+                    <span className="lib-page-significance-title">Significance</span>
+                    <div className="lib-page-stars-track">
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const isFilled = (hoveredStar ?? rating ?? 0) >= star
+                        return (
+                          <motion.button
+                            key={star}
+                            whileHover={{ scale: 1.25 }}
+                            whileTap={{ scale: 0.85 }}
+                            type="button"
+                            className="lib-page-star-btn"
+                            onMouseEnter={() => setHoveredStar(star)}
+                            onMouseLeave={() => setHoveredStar(null)}
+                            onClick={() => handleRating(star)}
+                            title={`Assign ${star} Star (${RATING_TIERS[star]?.label}): ${RATING_TIERS[star]?.description}`}
+                          >
+                            <Icon
+                              name="star"
+                              size={15}
+                              filled={isFilled}
+                              style={{
+                                color: isFilled ? (RATING_TIERS[star]?.color || '#f59e0b') : 'var(--hairline-strong)',
+                                transition: 'color 120ms ease, transform 120ms ease',
+                              }}
+                            />
+                          </motion.button>
+                        )
+                      })}
                     </div>
-                    <span className="lib-synthesis-model-pill">Processing</span>
+                    <span className="lib-page-significance-tier">
+                      {displayedTier ? displayedTier.label : 'Unrated'}
+                    </span>
+
+                    {rating && (
+                      <button
+                        type="button"
+                        className="lib-page-clear-rating-btn"
+                        onClick={() => handleRating(rating)}
+                        title="Clear rating"
+                      >
+                        <Icon name="x" size={10} />
+                        <span>Clear</span>
+                      </button>
+                    )}
                   </div>
-                  <div className="lib-synthesis-generating-skel">
-                    <div className="lib-skel" style={{ width: '96%', height: 11, borderRadius: 4 }} />
-                    <div className="lib-skel" style={{ width: '84%', height: 11, borderRadius: 4 }} />
-                    <div className="lib-skel" style={{ width: '70%', height: 11, borderRadius: 4 }} />
-                  </div>
-                  <p className="lib-synthesis-generating-hint">
-                    Transcribing speech with Whisper and extracting referenced websites, tools, and taxonomy...
-                  </p>
-                </div>
-              ) : item.summary ? (
-                <div className="lib-synthesis-card">
-                  <div className="lib-synthesis-header">
-                    <div className="lib-synthesis-title-wrap">
-                      <div className="lib-synthesis-icon-badge">
-                        <Icon name="spark" size={13} />
+
+                  {/* Key Insights & Synthesis Panel */}
+                  {isEnriching ? (
+                    <div className="lib-synthesis-card lib-synthesis-card--generating">
+                      <div className="lib-synthesis-header">
+                        <div className="lib-synthesis-title-wrap">
+                          <div className="lib-synthesis-icon-badge lib-synthesis-icon-badge--spinning">
+                            <span className="lib-card-spinner" />
+                          </div>
+                          <span className="lib-synthesis-heading">Synthesizing Insights & Extracting Entities</span>
+                        </div>
+                        <span className="lib-synthesis-model-pill">Processing</span>
                       </div>
-                      <span className="lib-synthesis-heading">Key insights and synthesis</span>
-                      {item.enrichment_model && (
-                        <span className="lib-synthesis-model-pill" title={item.enrichment_model}>
-                          {formatModelDisplayName(item.enrichment_model)}
+                      <div className="lib-synthesis-generating-skel">
+                        <div className="lib-skel" style={{ width: '96%', height: 11, borderRadius: 4 }} />
+                        <div className="lib-skel" style={{ width: '84%', height: 11, borderRadius: 4 }} />
+                        <div className="lib-skel" style={{ width: '70%', height: 11, borderRadius: 4 }} />
+                      </div>
+                      <p className="lib-synthesis-generating-hint">
+                        Transcribing speech with Whisper and extracting referenced websites, tools, and taxonomy...
+                      </p>
+                    </div>
+                  ) : summaryText ? (
+                    <div className="lib-synthesis-card">
+                      <div className="lib-synthesis-header">
+                        <div className="lib-synthesis-title-wrap">
+                          <div className="lib-synthesis-icon-badge">
+                            <Icon name="spark" size={13} />
+                          </div>
+                          <span className="lib-synthesis-heading">Key insights and synthesis</span>
+                          <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
+                            <button
+                              type="button"
+                              className="lib-model-select-btn"
+                              onClick={() => setShowModelMenu((v) => !v)}
+                              title={`Synthesis Model: ${formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}${item.enrichment_model && item.enrichment_model !== selectedEnrichModel ? ` (originally generated with ${formatModelDisplayName(item.enrichment_model)})` : ''}`}
+                            >
+                              <AiProviderIcon
+                                provider={selectedEnrichProvider || 'groq'}
+                                model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                size={12}
+                              />
+                              <span>
+                                {formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}
+                              </span>
+                              <Icon name="chevron-down" size={10} />
+                            </button>
+
+                            {showModelMenu && (
+                              <div className="lib-model-menu-popover">
+                                <ModelMenu
+                                  provider={selectedEnrichProvider || 'groq'}
+                                  model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                  onChange={handleModelChange}
+                                  onClose={() => setShowModelMenu(false)}
+                                  placement="down"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="lib-synthesis-actions">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.92 }}
+                            type="button"
+                            className="lib-synthesis-action-btn"
+                            onClick={handleCopySummary}
+                            title="Copy synthesis to clipboard"
+                          >
+                            <Icon name={copiedSummary ? 'check' : 'copy'} size={12} />
+                            <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.92 }}
+                            type="button"
+                            className="lib-synthesis-action-btn"
+                            onClick={() => handleEnrich()}
+                            disabled={Boolean(busyAction)}
+                            title="Regenerate summary and extract resources with AI"
+                          >
+                            <Icon name="refresh" size={12} />
+                            <span>Regenerate</span>
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      <p className="lib-synthesis-prose">{summaryText}</p>
+                    </div>
+                  ) : (
+                    <div className="lib-synthesis-card lib-synthesis-card--pending">
+                      <div className="lib-synthesis-header">
+                        <div className="lib-synthesis-title-wrap">
+                          <div className="lib-synthesis-icon-badge lib-synthesis-icon-badge--pending">
+                            <Icon name="spark" size={13} />
+                          </div>
+                          <span className="lib-synthesis-heading">AI Synthesis Pending</span>
+                          <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
+                            <button
+                              type="button"
+                              className="lib-model-select-btn"
+                              onClick={() => setShowModelMenu((v) => !v)}
+                              title={`Configure synthesis model (current default: ${formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')})`}
+                            >
+                              <AiProviderIcon
+                                provider={selectedEnrichProvider || 'groq'}
+                                model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                size={12}
+                              />
+                              <span>
+                                {formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}
+                              </span>
+                              <Icon name="chevron-down" size={10} />
+                            </button>
+
+                            {showModelMenu && (
+                              <div className="lib-model-menu-popover">
+                                <ModelMenu
+                                  provider={selectedEnrichProvider || 'groq'}
+                                  model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
+                                  onChange={handleModelChange}
+                                  onClose={() => setShowModelMenu(false)}
+                                  placement="down"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {isLlmFailure && (
+                          <span className="lib-detail-warning-tag">Offline during capture</span>
+                        )}
+                      </div>
+
+                      <div className="lib-synthesis-pending-content">
+                        <p className="lib-synthesis-pending-desc">
+                          {isLlmFailure
+                            ? 'The AI model was unavailable or timed out when this item arrived. Run synthesis now to transcribe speech and extract all referenced websites, tools, and takeaways.'
+                            : 'Synthesize this resource to automatically transcribe speech, extract key takeaways, and identify referenced websites & links.'}
+                        </p>
+
+                        {enrichError && (
+                          <div className="lib-detail-error-banner">
+                            <Icon name="alert" size={12} />
+                            <span>{enrichError}</span>
+                          </div>
+                        )}
+
+                        <div className="lib-synthesis-pending-actions">
+                          <button
+                            type="button"
+                            className="lib-btn lib-btn--primary"
+                            disabled={Boolean(busyAction) || item.status === 'enriching'}
+                            onClick={() => handleEnrich()}
+                          >
+                            <Icon
+                              name={isEnriching ? 'loader' : 'spark'}
+                              size={13}
+                              className={isEnriching ? 'animate-spin' : ''}
+                            />
+                            <span>{isEnriching ? 'Synthesizing...' : 'Synthesize with AI'}</span>
+                          </button>
+
+                          {item.enrichment_note && (
+                            <span className="lib-detail-pending-note" title={item.enrichment_note}>
+                              {formatFriendlyEnrichmentNote(item.enrichment_note)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detected Audio & Songs Section */}
+                  {musicResources.length > 0 && (
+                    <div className="lib-page-section">
+                      <div className="lib-page-section-header">
+                        <span className="lib-page-section-title-wrap">
+                          <Icon name="music" size={13} />
+                          <span>Detected Audio & Songs</span>
                         </span>
-                      )}
-                    </div>
+                        <span className="lib-page-section-count">
+                          {musicResources.length} {musicResources.length === 1 ? 'track' : 'tracks'}
+                        </span>
+                      </div>
 
-                    <div className="lib-synthesis-actions">
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.92 }}
-                        type="button"
-                        className="lib-synthesis-action-btn"
-                        onClick={handleCopySummary}
-                        title="Copy synthesis to clipboard"
-                      >
-                        <Icon name={copiedSummary ? 'check' : 'copy'} size={12} />
-                        <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.92 }}
-                        type="button"
-                        className="lib-synthesis-action-btn"
-                        onClick={handleEnrich}
-                        disabled={Boolean(busyAction)}
-                        title="Regenerate summary and extract resources with AI"
-                      >
-                        <Icon name="refresh" size={12} />
-                        <span>Regenerate</span>
-                      </motion.button>
-                    </div>
-                  </div>
+                      <div className="lib-songs-list">
+                        {musicResources.map((track, i) => {
+                          const trackTitle = track.name || track.title || 'Unknown Track'
+                          const trackArtist = track.detail || track.author || track.artist || ''
+                          const isSaved = savedSongs.has(trackTitle)
+                          const isSaving = savingSong === trackTitle
 
-                  <p className="lib-synthesis-prose">{item.summary}</p>
+                          return (
+                            <div key={i} className="lib-song-card">
+                              <div className="lib-song-card-left">
+                                <div className="lib-song-icon-badge">
+                                  <Icon name="music" size={16} />
+                                </div>
+                                <div className="lib-song-details">
+                                  <div className="lib-song-title-row">
+                                    <span className="lib-song-title" title={trackTitle}>
+                                      {trackTitle}
+                                    </span>
+                                  </div>
+                                  {trackArtist && (
+                                    <span className="lib-song-artist" title={trackArtist}>
+                                      {trackArtist}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="lib-song-actions">
+                                {track.url && (
+                                  <a
+                                    href={track.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="lib-song-btn"
+                                    title={`Open on ${track.url.includes('shazam') ? 'Shazam' : 'platform'}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Icon name="external-link" size={11} />
+                                    <span>Platform</span>
+                                  </a>
+                                )}
+
+                                <button
+                                  type="button"
+                                  className={`lib-song-btn ${isSaved ? 'lib-song-btn--saved' : 'lib-song-btn--primary'}`}
+                                  disabled={isSaved || isSaving}
+                                  onClick={() => handleSaveSong(track)}
+                                  title={isSaved ? 'Saved to Song List' : 'Add to Song List'}
+                                >
+                                  <Icon
+                                    name={isSaved ? 'check' : isSaving ? 'loader' : 'plus'}
+                                    size={11}
+                                    className={isSaving ? 'animate-spin' : ''}
+                                  />
+                                  <span>
+                                    {isSaved
+                                      ? 'Saved to Song List'
+                                      : isSaving
+                                      ? 'Saving...'
+                                      : 'Add to Song List'}
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="lib-song-btn"
+                                  onClick={() => handleExportSongToPlaylist(track)}
+                                  title="Create or export to Spotify playlist"
+                                >
+                                  <Icon name="list-plus" size={11} />
+                                  <span>Export Playlist</span>
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mentioned Resources & Websites */}
+                  {mentionedResources.length > 0 && (
+                    <div className="lib-page-section">
+                      <div className="lib-page-section-header">
+                        <span className="lib-page-section-title-wrap">
+                          <Icon name="globe" size={13} />
+                          <span>Mentioned resources and websites</span>
+                        </span>
+                        <span className="lib-page-section-count">
+                          {mentionedResources.length} {mentionedResources.length === 1 ? 'item' : 'items'}
+                        </span>
+                      </div>
+
+                      <div className="lib-synthesis-resources-grid">
+                        {mentionedResources.map((res, i) => {
+                          const domain = getCleanDomain(res.url)
+                          const iconName = getResourceIcon(res.type, res.url)
+                          const isClickable = Boolean(res.url)
+
+                          const content = (
+                            <>
+                              <div className="lib-resource-card-left">
+                                <div className="lib-resource-icon">
+                                  <Icon name={iconName} size={13} />
+                                </div>
+                                <div className="lib-resource-info">
+                                  <div className="lib-resource-name-row">
+                                    <span className="lib-resource-name" title={res.name}>{res.name}</span>
+                                    {domain && <span className="lib-resource-domain">{domain}</span>}
+                                    {res.type && res.type !== 'other' && res.type !== 'link' && !domain && (
+                                      <span className="lib-resource-type-pill">{res.type}</span>
+                                    )}
+                                  </div>
+                                  {res.detail && (
+                                    <span className="lib-resource-detail" title={res.detail}>{res.detail}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {isClickable && (
+                                <div className="lib-resource-launch" title={`Open ${res.url}`}>
+                                  <Icon name="arrow-up-right" size={13} />
+                                </div>
+                              )}
+                            </>
+                          )
+
+                          return isClickable ? (
+                            <a
+                              key={i}
+                              href={res.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="lib-resource-card"
+                              title={`Open ${res.name} (${res.url})`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {content}
+                            </a>
+                          ) : (
+                            <div key={i} className="lib-resource-card lib-resource-card--static">
+                              {content}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="lib-synthesis-card lib-synthesis-card--pending">
-                  <div className="lib-synthesis-header">
-                    <div className="lib-synthesis-title-wrap">
-                      <div className="lib-synthesis-icon-badge lib-synthesis-icon-badge--pending">
-                        <Icon name="spark" size={13} />
+              )}
+
+              {/* TAB 2: CONTENT & TRANSCRIPTS */}
+              {activeTab === 'content' && (
+                <div className="lib-tab-pane" data-enter>
+                  {contentCount === 0 ? (
+                    <div className="lib-content-empty-card">
+                      <div className="lib-content-empty-icon">
+                        <Icon name="file-text" size={24} />
                       </div>
-                      <span className="lib-synthesis-heading">AI Synthesis Pending</span>
-                    </div>
-                    {isLlmFailure && (
-                      <span className="lib-detail-warning-tag">Offline during capture</span>
-                    )}
-                  </div>
-
-                  <div className="lib-synthesis-pending-content">
-                    <p className="lib-synthesis-pending-desc">
-                      {isLlmFailure
-                        ? 'The AI model was unavailable or timed out when this item arrived. Run synthesis now to transcribe speech and extract all referenced websites, tools, and takeaways.'
-                        : 'Synthesize this resource to automatically transcribe speech, extract key takeaways, and identify referenced websites & links.'}
-                    </p>
-
-                    {enrichError && (
-                      <div className="lib-detail-error-banner">
-                        <Icon name="alert" size={12} />
-                        <span>{enrichError}</span>
-                      </div>
-                    )}
-
-                    <div className="lib-synthesis-pending-actions">
+                      <h3 className="lib-content-empty-title">No raw transcripts or slides extracted yet</h3>
+                      <p className="lib-content-empty-desc">
+                        Synthesize this item with AI to automatically run Whisper speech-to-text on the audio track and Vision AI OCR frame analysis.
+                      </p>
                       <button
                         type="button"
                         className="lib-btn lib-btn--primary"
-                        disabled={Boolean(busyAction)}
-                        onClick={handleEnrich}
+                        disabled={Boolean(busyAction) || item.status === 'enriching'}
+                        onClick={() => handleEnrich()}
                       >
                         <Icon name="spark" size={13} />
-                        <span>Synthesize with AI</span>
+                        <span>Extract Transcripts & Visual Content</span>
                       </button>
-
-                      {item.enrichment_note && (
-                        <span className="lib-detail-pending-note" title={item.enrichment_note}>
-                          {formatFriendlyEnrichmentNote(item.enrichment_note)}
-                        </span>
-                      )}
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 5. Mentioned Resources & Websites */}
-              {item.resources?.length > 0 && (
-                <div className="lib-page-section">
-                  <div className="lib-page-section-header">
-                    <span className="lib-page-section-title-wrap">
-                      <Icon name="globe" size={13} />
-                      <span>Mentioned resources and websites</span>
-                    </span>
-                    <span className="lib-page-section-count">
-                      {item.resources.length} {item.resources.length === 1 ? 'item' : 'items'}
-                    </span>
-                  </div>
-
-                  <div className="lib-synthesis-resources-grid">
-                    {item.resources.map((res, i) => {
-                      const domain = getCleanDomain(res.url)
-                      const iconName = getResourceIcon(res.type, res.url)
-                      const isClickable = Boolean(res.url)
-
-                      const content = (
-                        <>
-                          <div className="lib-resource-card-left">
-                            <div className="lib-resource-icon">
-                              <Icon name={iconName} size={13} />
-                            </div>
-                            <div className="lib-resource-info">
-                              <div className="lib-resource-name-row">
-                                <span className="lib-resource-name" title={res.name}>{res.name}</span>
-                                {domain && <span className="lib-resource-domain">{domain}</span>}
-                                {res.type && res.type !== 'other' && res.type !== 'link' && !domain && (
-                                  <span className="lib-resource-type-pill">{res.type}</span>
-                                )}
-                              </div>
-                              {res.detail && (
-                                <span className="lib-resource-detail" title={res.detail}>{res.detail}</span>
+                  ) : (
+                    <>
+                      {/* Speech Transcript */}
+                      {transcript && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="quotes" size={13} />
+                              <span>Source Speech Transcript</span>
+                              {transcriptWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{transcriptWordCount} words</span>
                               )}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.92 }}
+                                type="button"
+                                className="lib-synthesis-action-btn"
+                                onClick={handleCopyTranscript}
+                                title="Copy full transcript"
+                              >
+                                <Icon name={copiedTranscript ? 'check' : 'copy'} size={12} />
+                                <span>{copiedTranscript ? 'Copied' : 'Copy'}</span>
+                              </motion.button>
                             </div>
                           </div>
 
-                          {isClickable && (
-                            <div className="lib-resource-launch" title={`Open ${res.url}`}>
-                              <Icon name="arrow-up-right" size={13} />
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{transcript}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="spark" size={10} />
+                              <span>Transcribed verbatim from reel audio via Whisper</span>
                             </div>
-                          )}
-                        </>
-                      )
-
-                      return isClickable ? (
-                        <a
-                          key={i}
-                          href={res.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="lib-resource-card"
-                          title={`Open ${res.name} (${res.url})`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {content}
-                        </a>
-                      ) : (
-                        <div key={i} className="lib-resource-card lib-resource-card--static">
-                          {content}
+                          </div>
                         </div>
-                      )
-                    })}
+                      )}
+
+                      {/* Visual Content & OCR Frames */}
+                      {visualContent && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="brain" size={13} />
+                              <span>Slide & Visual On-Screen Content</span>
+                              {visualWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{visualWordCount} words</span>
+                              )}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.92 }}
+                                type="button"
+                                className="lib-synthesis-action-btn"
+                                onClick={handleCopyVisuals}
+                                title="Copy visual text content"
+                              >
+                                <Icon name={copiedVisuals ? 'check' : 'copy'} size={12} />
+                                <span>{copiedVisuals ? 'Copied' : 'Copy'}</span>
+                              </motion.button>
+                            </div>
+                          </div>
+
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{visualContent}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="image" size={10} />
+                              <span>Extracted from video frames & slides via Vision AI OCR</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Creator Caption */}
+                      {caption && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="user" size={13} />
+                              <span>Creator Caption & Post Description</span>
+                              {captionWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{captionWordCount} words</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{caption}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="user" size={10} />
+                              <span>Original post caption from author</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Full-Text Document */}
+                      {textBody && (
+                        <div className="lib-page-section lib-transcript-panel">
+                          <div className="lib-page-section-header">
+                            <span className="lib-page-section-title-wrap">
+                              <Icon name="file-text" size={13} />
+                              <span>Captured Full Document Text</span>
+                              {textBodyWordCount > 0 && (
+                                <span className="lib-transcript-count-pill">{textBodyWordCount} words</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="lib-transcript-box lib-transcript-box--open">
+                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{textBody}</p>
+                            <div className="lib-transcript-badge">
+                              <Icon name="file" size={10} />
+                              <span>Full document markdown / text body</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: NOTES & METADATA */}
+              {activeTab === 'notes' && (
+                <div className="lib-tab-pane" data-enter>
+                  {/* Personal Notes & Synthesis */}
+                  <div className="lib-page-section">
+                    <div className="lib-page-notes-header">
+                      <label className="lib-page-section-title-wrap" htmlFor="lib-page-notes">
+                        <Icon name="edit" size={13} />
+                        <span>Personal notes and synthesis</span>
+                      </label>
+                      {notes !== (item.notes || '') && (
+                        <button
+                          type="button"
+                          className="lib-btn lib-btn--primary lib-page-save-notes-btn"
+                          disabled={savingNotes}
+                          onClick={handleSaveNotes}
+                        >
+                          <Icon name="check" size={12} />
+                          <span>{savingNotes ? 'Saving...' : 'Save notes'}</span>
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      id="lib-page-notes"
+                      className="lib-page-notes-input"
+                      placeholder="Record your personal notes, takeaways, code snippets, or key quotes..."
+                      rows={6}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      onBlur={handleSaveNotes}
+                    />
+                  </div>
+
+                  {/* Topics & Taxonomy Tags */}
+                  <div className="lib-page-section">
+                    <div className="lib-page-section-title-wrap">
+                      <Icon name="tag" size={13} />
+                      <span>Topics and taxonomy tags</span>
+                    </div>
+                    <div className="lib-page-tags-strip">
+                      {filteredTags.map((tag) => (
+                        <span key={tag} className="lib-page-tag-pill">
+                          <span>#{tag}</span>
+                          <button
+                            type="button"
+                            className="lib-page-tag-remove"
+                            onClick={() => handleRemoveTag(tag)}
+                            title={`Remove #${tag}`}
+                            aria-label={`Remove #${tag}`}
+                          >
+                            <Icon name="x" size={9} />
+                          </button>
+                        </span>
+                      ))}
+
+                      {isAddingTag ? (
+                        <form onSubmit={handleAddTag} className="lib-page-tag-form">
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="New tag..."
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onBlur={() => {
+                              if (!tagInput.trim()) setIsAddingTag(false)
+                            }}
+                            className="lib-page-tag-input"
+                          />
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          className="lib-page-tag-pill lib-page-tag-pill--add"
+                          onClick={() => setIsAddingTag(true)}
+                        >
+                          <Icon name="plus" size={11} />
+                          <span>Add tag</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Technical Provenance & System Specs */}
+                  <div className="lib-page-section">
+                    <div className="lib-page-section-title-wrap">
+                      <Icon name="info" size={13} />
+                      <span>Technical Provenance</span>
+                    </div>
+                    <div className="lib-provenance-card">
+                      <div className="lib-provenance-row">
+                        <span className="lib-provenance-label">Resource ID</span>
+                        <span className="lib-provenance-val mono">{item.id}</span>
+                      </div>
+                      <div className="lib-provenance-row">
+                        <span className="lib-provenance-label">Format / Kind</span>
+                        <span className="lib-provenance-val capitalize">{item.kind || 'link'} · {sourceInfo.platformName}</span>
+                      </div>
+                      {item.url && (
+                        <div className="lib-provenance-row">
+                          <span className="lib-provenance-label">Original URL</span>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="lib-provenance-link"
+                            title={item.url}
+                          >
+                            {item.url}
+                          </a>
+                        </div>
+                      )}
+                      {item.media_path && (
+                        <div className="lib-provenance-row">
+                          <span className="lib-provenance-label">Media Path</span>
+                          <span className="lib-provenance-val mono" title={item.media_path}>{item.media_path}</span>
+                        </div>
+                      )}
+                      <div className="lib-provenance-row">
+                        <span className="lib-provenance-label">Semantic Index</span>
+                        <span className="lib-provenance-val">
+                          {item.indexed ? 'Indexed in Chroma Vector Space' : 'Archived (unindexed)'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-
-              {/* 6. Speech Transcript Drawer */}
-              {transcript && (
-                <div className="lib-page-section">
-                  <button
-                    type="button"
-                    className="lib-transcript-toggle"
-                    onClick={() => setShowTranscript((prev) => !prev)}
-                    aria-expanded={showTranscript}
-                  >
-                    <div className="lib-transcript-toggle-left">
-                      <Icon name="quotes" size={12} />
-                      <span>Source Speech Transcript</span>
-                      {transcriptWordCount > 0 && (
-                        <span className="lib-transcript-count-pill">{transcriptWordCount} words</span>
-                      )}
-                    </div>
-                    <div className={`lib-transcript-toggle-chevron ${showTranscript ? 'lib-transcript-toggle-chevron--open' : ''}`}>
-                      <Icon name="chevron-down" size={12} />
-                    </div>
-                  </button>
-
-                  <AnimatePresence>
-                    {showTranscript && (
-                      <motion.div
-                        className="lib-transcript-box"
-                        initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                        animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
-                        exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                      >
-                        <p className="lib-transcript-text">{transcript}</p>
-                        <div className="lib-transcript-badge">
-                          <Icon name="spark" size={10} />
-                          <span>Transcribed verbatim from reel audio via Whisper</span>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-
-              {/* 7. Slide & Visual On-Screen Content Drawer */}
-              {visualContent && (
-                <div className="lib-page-section">
-                  <button
-                    type="button"
-                    className="lib-transcript-toggle"
-                    onClick={() => setShowVisualContent((prev) => !prev)}
-                    aria-expanded={showVisualContent}
-                  >
-                    <div className="lib-transcript-toggle-left">
-                      <Icon name="spark" size={12} />
-                      <span>Slide & Visual On-Screen Content</span>
-                      {visualWordCount > 0 && (
-                        <span className="lib-transcript-count-pill">{visualWordCount} words</span>
-                      )}
-                    </div>
-                    <div className={`lib-transcript-toggle-chevron ${showVisualContent ? 'lib-transcript-toggle-chevron--open' : ''}`}>
-                      <Icon name="chevron-down" size={12} />
-                    </div>
-                  </button>
-
-                  <AnimatePresence>
-                    {showVisualContent && (
-                      <motion.div
-                        className="lib-transcript-box"
-                        initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                        animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
-                        exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                      >
-                        <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{visualContent}</p>
-                        <div className="lib-transcript-badge">
-                          <Icon name="brain" size={10} />
-                          <span>Extracted from video frames and carousel slides via Vision AI</span>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-
-              {/* 8. Topics & Taxonomy Tags */}
-              <div className="lib-page-section">
-                <div className="lib-page-section-title">Topics and taxonomy tags</div>
-                <div className="lib-page-tags-strip">
-                  {filteredTags.map((tag) => (
-                    <span key={tag} className="lib-page-tag-pill">
-                      <span>#{tag}</span>
-                      <button
-                        type="button"
-                        className="lib-page-tag-remove"
-                        onClick={() => handleRemoveTag(tag)}
-                        title={`Remove #${tag}`}
-                        aria-label={`Remove #${tag}`}
-                      >
-                        <Icon name="x" size={9} />
-                      </button>
-                    </span>
-                  ))}
-
-                  {isAddingTag ? (
-                    <form onSubmit={handleAddTag} className="lib-page-tag-form">
-                      <input
-                        type="text"
-                        autoFocus
-                        placeholder="New tag..."
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onBlur={() => {
-                          if (!tagInput.trim()) setIsAddingTag(false)
-                        }}
-                        className="lib-page-tag-input"
-                      />
-                    </form>
-                  ) : (
-                    <button
-                      type="button"
-                      className="lib-page-tag-pill lib-page-tag-pill--add"
-                      onClick={() => setIsAddingTag(true)}
-                    >
-                      <Icon name="plus" size={11} />
-                      <span>Add tag</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 9. Personal Notes & Synthesis */}
-              <div className="lib-page-section">
-                <div className="lib-page-notes-header">
-                  <label className="lib-page-section-title" htmlFor="lib-page-notes">
-                    Personal notes and synthesis
-                  </label>
-                  {notes !== (item.notes || '') && (
-                    <button
-                      type="button"
-                      className="lib-btn lib-btn--primary lib-page-save-notes-btn"
-                      disabled={savingNotes}
-                      onClick={handleSaveNotes}
-                    >
-                      <Icon name="check" size={12} />
-                      <span>{savingNotes ? 'Saving...' : 'Save notes'}</span>
-                    </button>
-                  )}
-                </div>
-                <textarea
-                  id="lib-page-notes"
-                  className="lib-page-notes-input"
-                  placeholder="Record your personal notes, key synthesis, or quotes..."
-                  rows={4}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  onBlur={handleSaveNotes}
-                />
-              </div>
             </div>
           </motion.div>
         </div>
@@ -1564,6 +2057,16 @@ export default function LibraryDetailModal({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Standalone Export Playlist Modal for detected tracks */}
+      {showInternalExportModal && (
+        <ExportPlaylistModal
+          open={showInternalExportModal}
+          items={internalExportItems}
+          onClose={() => setShowInternalExportModal(false)}
+          toast={toast}
+        />
+      )}
     </>
   )
 }

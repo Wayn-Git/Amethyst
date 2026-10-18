@@ -148,6 +148,10 @@ _NO_STORE = (
 )
 
 
+_SECRET_CACHE: dict[tuple[str, str], tuple[float, str]] = {}
+_SECRET_TTL = 300.0
+
+
 def get_secret(ref: str) -> str | None:
     """Resolve a keychain reference like 'amethyst/openai' to its value."""
     import time as _time
@@ -157,6 +161,10 @@ def get_secret(ref: str) -> str | None:
         service, username = SERVICE, ref
 
     now = _time.monotonic()
+    cached = _SECRET_CACHE.get((service, username))
+    if cached is not None and now < cached[0]:
+        return cached[1]
+
     if now < _ABSENT_CACHE.get((service, username), 0):
         return None
 
@@ -164,6 +172,7 @@ def get_secret(ref: str) -> str | None:
         store = _store()
         val = store.get_password(service, username)
         if val:
+            _SECRET_CACHE[(service, username)] = (now + _SECRET_TTL, val)
             return val
 
         # Only check legacy psok fallback if service is amethyst or psok,
@@ -171,8 +180,12 @@ def get_secret(ref: str) -> str | None:
         if service in ("amethyst", "psok"):
             alt_s = "psok" if service == "amethyst" else "amethyst"
             try:
+                cached_alt = _SECRET_CACHE.get((alt_s, username))
+                if cached_alt is not None and now < cached_alt[0]:
+                    return cached_alt[1]
                 val = store.get_password(alt_s, username)
                 if val:
+                    _SECRET_CACHE[(alt_s, username)] = (now + _SECRET_TTL, val)
                     return val
             except Exception:
                 pass
@@ -188,6 +201,7 @@ def get_secret(ref: str) -> str | None:
                 if k_val:
                     with contextlib.suppress(Exception):
                         store.set_password(service, username, k_val)
+                    _SECRET_CACHE[(service, username)] = (now + _SECRET_TTL, k_val)
                     return k_val
             except Exception:
                 pass
@@ -248,14 +262,17 @@ def _forget_presence(ref: str | None = None) -> None:
     """
     if ref is None:
         _ABSENT_CACHE.clear()
+        _SECRET_CACHE.clear()
     else:
         service, _, username = ref.partition("/")
         if not username:
             service, username = SERVICE, ref
         _ABSENT_CACHE.pop((service, username), None)
+        _SECRET_CACHE.pop((service, username), None)
         if service in ("amethyst", "psok"):
             alt_s = "psok" if service == "amethyst" else "amethyst"
             _ABSENT_CACHE.pop((alt_s, username), None)
+            _SECRET_CACHE.pop((alt_s, username), None)
     try:
         from backend import config as _config
 

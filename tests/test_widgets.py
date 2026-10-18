@@ -765,4 +765,49 @@ def test_visualization_steer_instructions_coverage():
     assert "generate_sandboxed_ui" in VISUALIZATION_STEER_INSTRUCTIONS["simulation"]
 
 
+@pytest.mark.asyncio
+async def test_classify_and_extract_skips_connected_service_intents(monkeypatch):
+    """Messages with connected-service intents must skip classify_and_extract entirely."""
+    from backend.agent import widgets
+
+    def boom(*a, **kw):
+        raise AssertionError("Model was resolved for a connected-service query")
+
+    monkeypatch.setattr(widgets, "resolve", boom)
+
+    connected_queries = (
+        "what's on my calendar today",
+        "summarize my latest email",
+        "check my inbox for receipts",
+        "create a github issue for bug 123",
+        "post an update to slack",
+        "search notion for engineering docs",
+        "update my linear board",
+    )
+    for q in connected_queries:
+        res = await widgets.classify_and_extract(q)
+        assert res == ("none", None, []), f"Expected ('none', None, []) for {q!r}, got {res}"
+
+
+@pytest.mark.asyncio
+async def test_classify_and_extract_skips_missing_widget_signals(monkeypatch):
+    """Messages with no widget signals must skip classify_and_extract without model calls."""
+    from backend.agent import widgets
+
+    def boom(*a, **kw):
+        raise AssertionError("Model was resolved for a query without widget signals")
+
+    monkeypatch.setattr(widgets, "resolve", boom)
+
+    plain_queries = (
+        "what is the capital of Australia?",
+        "explain the theory of relativity briefly",
+        "search the web for python asyncio gather",
+    )
+    for q in plain_queries:
+        res = await widgets.classify_and_extract(q)
+        assert res == ("none", None, []), f"Expected ('none', None, []) for {q!r}, got {res}"
+
+
+
 

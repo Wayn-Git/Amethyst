@@ -7,14 +7,22 @@ run the same loop.
 
 from __future__ import annotations
 
+import hashlib
 import json
+from pathlib import Path
 import platform
 import re
+import time as _time
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
+from backend import brand
+from backend.brand import prompt_block
+from backend.capabilities import CapabilityService
 from backend.db.repositories import Message
+from backend.mcp import live
+from backend.mcp.guidance import ready_connectors_block
 from backend.runtime.types import ToolSchema
 from backend.skills.loader import format_catalogue, scan
 
@@ -116,7 +124,9 @@ The same call repeated is blocked.
 
 # Tools
 - Use only tool names from your tool list. If the one you need is not listed, find it with \
-tool_search, check it with tool_describe, run it with tool_call.
+tool_search. Matching tools are returned with their full schemas and promoted into your active \
+tools on the next step so you can call them directly by name. For connected services (Google \
+Calendar, Gmail, etc. via Composio), call the visible COMPOSIO_* tools directly.
 - Local files and OS work use the local tools. External services use their connector, but only \
 when it is listed as ready; an unlisted connector is unavailable, so do not call it or claim you \
 did. If a tool returns an authorization link, give it to the user.
@@ -178,9 +188,6 @@ def _prompt_hash(
     recent_conversations: str | None = None,
 ) -> str:
     """Stable hash of the inputs that determine a system prompt."""
-    import hashlib
-    from pathlib import Path
-
     h = hashlib.sha256()
     h.update((workspace_root or "").encode())
     h.update((conversation_id or "").encode())
@@ -198,8 +205,6 @@ def _prompt_hash(
     # cache. Cheap to include -- `ready_connectors` is itself a short-lived
     # cached dict, not a round trip.
     try:
-        from backend.mcp import live
-
         h.update(str(sorted((live.ready_connectors() or {}).items())).encode())
     except Exception:
         # No manager yet (boot, tests, CLI). An absent connector set is a
@@ -220,8 +225,6 @@ def _prompt_hash(
     # sound different, and the cache kept handing back the prompt from before
     # the edit. Any live input to this function belongs in this key.
     try:
-        from backend import brand
-
         h.update((brand.prompt_block() or "").encode())
     except Exception:
         h.update(b"no-brand")
@@ -249,9 +252,6 @@ def _static_hash(
     Volatile inputs change every turn and bust the full cache. Static key lets
     RAG turns reuse base+skills+connectors+brand assembly.
     """
-    import hashlib
-    from pathlib import Path
-
     h = hashlib.sha256()
     h.update((workspace_root or "").encode())
     h.update((conversation_id or "").encode())
@@ -263,8 +263,6 @@ def _static_hash(
     except Exception:
         h.update(b"no-client")
     try:
-        from backend.mcp import live
-
         h.update(str(sorted((live.ready_connectors() or {}).items())).encode())
     except Exception:
         h.update(b"no-connectors")
@@ -273,8 +271,6 @@ def _static_hash(
     except Exception:
         h.update(b"no-skills")
     try:
-        from backend import brand
-
         h.update((brand.prompt_block() or "").encode())
     except Exception:
         h.update(b"no-brand")
@@ -300,7 +296,6 @@ def _build_static_parts(
     parts = [override or BASE_PROMPT, environment_block(workspace_root, client_context)]
     if workspace_root:
         try:
-            from pathlib import Path
             agents_md = Path(workspace_root) / "AGENTS.md"
             if agents_md.is_file():
                 content = agents_md.read_text(encoding="utf-8", errors="replace")
@@ -323,19 +318,15 @@ def _build_static_parts(
         if skill.name in pinned:
             parts.append(_inline_skill(skill))
     try:
-        from backend.mcp.guidance import ready_connectors_block
-
         connectors = ready_connectors_block()
         if connectors:
             parts.append(connectors)
     except Exception:
         pass
     try:
-        from backend.brand import prompt_block
-
-        brand = prompt_block()
-        if brand:
-            parts.append(brand)
+        b_block = prompt_block()
+        if b_block:
+            parts.append(b_block)
     except Exception:
         pass
     return "\n\n".join(parts)
@@ -399,8 +390,6 @@ def build_system_prompt(
     recent_conversations: str | None = None,
     client_context: dict | None = None,
 ) -> str:
-    import time as _time
-
     # Full cache first (exact repeat turns).
     cache_key = _prompt_hash(
         workspace_root,
@@ -489,7 +478,6 @@ def build_system_prompt_parts(
 
     if workspace_root:
         try:
-            from pathlib import Path
             agents_md = Path(workspace_root) / "AGENTS.md"
             if agents_md.is_file():
                 content = agents_md.read_text(encoding="utf-8", errors="replace")
@@ -519,7 +507,6 @@ def build_system_prompt_parts(
             volatile_parts.append(_inline_skill(skill))
 
     try:
-        from backend.mcp.guidance import ready_connectors_block
         connectors = ready_connectors_block()
         if connectors:
             volatile_parts.append(connectors)
@@ -527,10 +514,9 @@ def build_system_prompt_parts(
         pass
 
     try:
-        from backend.brand import prompt_block
-        brand = prompt_block()
-        if brand:
-            volatile_parts.append(brand)
+        b_block = prompt_block()
+        if b_block:
+            volatile_parts.append(b_block)
     except Exception:
         pass
 
@@ -579,8 +565,6 @@ def extract_skill_invocations(message: str) -> tuple[list[str], str]:
 
 def _enabled_skill_names(conversation_id: str | None) -> set[str]:
     try:
-        from backend.capabilities import CapabilityService
-
         return CapabilityService().enabled_skill_names(conversation_id)
     except Exception:
         # Capability state is an optimisation, not a gate: if it cannot be read,

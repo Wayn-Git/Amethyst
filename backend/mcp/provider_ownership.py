@@ -8,6 +8,8 @@ path), and the corresponding Composio cloud toolkit is withheld and hidden.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
+from dataclasses import dataclass
 import logging
 import time
 from typing import Any
@@ -48,10 +50,107 @@ CACHE_TTL_SECONDS = 5.0
 _cache: tuple[float, set[str]] | None = None
 
 
+@dataclass(frozen=True)
+class ProviderOwnershipSnapshot:
+    withheld_servers: set[str]
+    withheld_tools: set[str]
+    composio_owned: set[str]
+    local_overridden: set[str]
+    active_targets: dict[str, str]
+
+
+current_ownership_snapshot: ContextVar[ProviderOwnershipSnapshot | None] = ContextVar(
+    "current_ownership_snapshot", default=None
+)
+
+
+def _build_snapshot(force: bool = False) -> ProviderOwnershipSnapshot:
+    """Build provider ownership snapshot data."""
+    db_targets: dict[str, str] = {}
+    try:
+        from backend.db.connection import get_connection
+
+        conn = get_connection()
+        rows = conn.execute("SELECT provider, active_target FROM provider_fallbacks").fetchall()
+        for row in rows:
+            if row["provider"] and row["active_target"]:
+                db_targets[str(row["provider"]).strip().lower()] = str(row["active_target"]).lower()
+    except Exception as exc:
+        log.debug("Error loading provider fallbacks for turn snapshot: %s", exc)
+
+    active_local = get_active_local_servers(force=force)
+
+    composio_conns: dict[str, Any] = {}
+    is_comp_configured = False
+    try:
+        from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
+
+        is_comp_configured = composio_service.is_configured()
+        if is_comp_configured:
+            composio_conns = composio_service.get_connections()
+    except Exception as exc:
+        log.debug("Error checking Composio connections for turn snapshot: %s", exc)
+
+    composio_owned: set[str] = set()
+    local_overridden: set[str] = set()
+    active_targets: dict[str, str] = {}
+    withheld_servers: set[str] = set()
+    withheld_tools: set[str] = set()
+
+    all_providers = set(PROVIDER_MAPPING.keys()) | set(PROVIDER_BUILTIN_TOOLS.keys())
+    for prov in all_providers:
+        target = db_targets.get(prov)
+        if target == "local":
+            is_overridden = True
+        elif target == "composio":
+            is_overridden = False
+        else:
+            equiv_servers = PROVIDER_MAPPING.get(prov, set())
+            is_overridden = bool(equiv_servers & active_local)
+
+        if is_overridden:
+            local_overridden.add(prov)
+            active_targets[prov] = "local"
+        else:
+            active_targets[prov] = "composio"
+
+        has_auth = (prov in composio_conns) or is_no_auth_toolkit(prov)
+        is_owned = is_comp_configured and has_auth and not is_overridden
+        if is_owned:
+            composio_owned.add(prov)
+            withheld_servers.update(PROVIDER_MAPPING.get(prov, set()))
+            withheld_tools.update(PROVIDER_BUILTIN_TOOLS.get(prov, set()))
+
+    return ProviderOwnershipSnapshot(
+        withheld_servers=withheld_servers,
+        withheld_tools=withheld_tools,
+        composio_owned=composio_owned,
+        local_overridden=local_overridden,
+        active_targets=active_targets,
+    )
+
+
+def compute_turn_ownership(force: bool = False) -> ProviderOwnershipSnapshot:
+    """Compute and cache provider ownership snapshot for the current turn synchronously."""
+    snapshot = _build_snapshot(force=force)
+    current_ownership_snapshot.set(snapshot)
+    return snapshot
+
+
+async def compute_turn_ownership_async(force: bool = False) -> ProviderOwnershipSnapshot:
+    """Compute provider ownership snapshot off the event loop and cache for the current turn."""
+    import asyncio
+
+    snapshot = await asyncio.to_thread(_build_snapshot, force)
+    current_ownership_snapshot.set(snapshot)
+    return snapshot
+
+
 def forget() -> None:
-    """Clear cached active local servers."""
+    """Clear cached active local servers and reset turn snapshot."""
     global _cache
     _cache = None
+    current_ownership_snapshot.set(None)
 
 
 def get_active_local_servers(force: bool = False) -> set[str]:
@@ -82,6 +181,10 @@ def get_active_local_servers(force: bool = False) -> set[str]:
 def is_provider_overridden_by_local(toolkit_slug: str) -> bool:
     """Return True if local MCP handles this provider instead of Composio."""
     normalized = toolkit_slug.strip().lower()
+    snap = current_ownership_snapshot.get()
+    if snap is not None:
+        return normalized in snap.local_overridden
+
     equivalent_local_servers = PROVIDER_MAPPING.get(normalized, set())
     if not equivalent_local_servers:
         return False
@@ -111,6 +214,10 @@ def is_provider_overridden_by_local(toolkit_slug: str) -> bool:
 def get_active_target(provider: str) -> str:
     """Return the active backend ('composio' or 'local') for a provider."""
     normalized = provider.strip().lower()
+    snap = current_ownership_snapshot.get()
+    if snap is not None:
+        return snap.active_targets.get(normalized, "composio")
+
     try:
         from backend.db.connection import get_connection
 
@@ -133,6 +240,10 @@ def get_active_target(provider: str) -> str:
 def is_provider_owned_by_composio(provider: str) -> bool:
     """Return True if Composio has active ownership of this provider (connected and not overridden by local)."""
     normalized = provider.strip().lower()
+    snap = current_ownership_snapshot.get()
+    if snap is not None:
+        return normalized in snap.composio_owned
+
     try:
         from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
 
@@ -149,6 +260,10 @@ def is_provider_owned_by_composio(provider: str) -> bool:
 
 def get_withheld_local_tool_names() -> set[str]:
     """Return set of local builtin tool names that must be withheld when Composio owns the provider."""
+    snap = current_ownership_snapshot.get()
+    if snap is not None:
+        return set(snap.withheld_tools)
+
     withheld: set[str] = set()
     for provider, builtin_tools in PROVIDER_BUILTIN_TOOLS.items():
         if is_provider_owned_by_composio(provider):
@@ -158,6 +273,10 @@ def get_withheld_local_tool_names() -> set[str]:
 
 def get_withheld_local_servers() -> set[str]:
     """Return set of local MCP server names that must be withheld when Composio owns the provider."""
+    snap = current_ownership_snapshot.get()
+    if snap is not None:
+        return set(snap.withheld_servers)
+
     withheld: set[str] = set()
     for provider, servers in PROVIDER_MAPPING.items():
         if is_provider_owned_by_composio(provider):
@@ -167,6 +286,19 @@ def get_withheld_local_servers() -> set[str]:
 
 def is_local_tool_owned_by_composio(tool_name: str) -> tuple[bool, str | None]:
     """Check if a tool name is a local tool belonging to a provider owned by Composio."""
+    snap = current_ownership_snapshot.get()
+    if snap is not None:
+        clean_name = tool_name.split("__mcp__")[0]
+        for provider, tools in PROVIDER_BUILTIN_TOOLS.items():
+            if clean_name in tools and provider in snap.composio_owned:
+                return True, provider
+        if "__mcp__" in tool_name:
+            server_suffix = tool_name.split("__mcp__")[-1]
+            for provider, servers in PROVIDER_MAPPING.items():
+                if server_suffix in servers and provider in snap.composio_owned:
+                    return True, provider
+        return False, None
+
     clean_name = tool_name.split("__mcp__")[0]
     for provider, tools in PROVIDER_BUILTIN_TOOLS.items():
         if clean_name in tools and is_provider_owned_by_composio(provider):
