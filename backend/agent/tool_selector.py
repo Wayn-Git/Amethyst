@@ -28,6 +28,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from backend.mcp.provider_ownership import (
+    get_withheld_local_servers,
+    get_withheld_local_tool_names,
+)
+
 #: Decoded out of the composite MCP key. See `prompt._server_of`, which this
 #: mirrors deliberately -- a `ToolSchema` carries no source (ADR-0005), so the
 #: name is the only place the server survives.
@@ -44,6 +49,8 @@ def _bare(name: str) -> str:
     """An MCP tool's own name, without the server suffix."""
     return name.split(_MCP_MARKER)[0]
 
+
+from backend.mcp.composio_service import ALL_FAST_LANE_SLUGS
 
 #: Offered on every turn, whatever the request looks like. These are the tools
 #: almost every task routes through; withholding one to save schema tokens is
@@ -68,6 +75,12 @@ CORE = (
     "COMPOSIO_MULTI_EXECUTE_TOOL",
     "COMPOSIO_GET_TOOL_SCHEMAS",
     "COMPOSIO_MANAGE_CONNECTIONS",
+    # Composio fast-lane direct tools
+    *ALL_FAST_LANE_SLUGS,
+    # Bridge tools
+    "tool_search",
+    "tool_describe",
+    "tool_call",
 )
 
 #: Builtin tools grouped by the kind of request that needs them, with the words
@@ -303,6 +316,7 @@ def select_tools(
     text: str,
     *,
     max_mcp_servers: int = MAX_MCP_SERVERS,
+    lane: str | None = None,
 ) -> tuple[list[Any], int]:
     """Narrow `schemas` to what this request plausibly needs.
 
@@ -317,6 +331,28 @@ def select_tools(
         haystack = (text or "").lower()
 
         wanted: set[str] = set(CORE)
+
+        # Lane-specific tuning
+        if lane == "widget":
+            wanted.add("generate_sandboxed_ui")
+        elif lane == "chat":
+            # Pure chat turns do not need heavy code-editing or local terminal execution
+            if not any(k in haystack for k in ("edit", "file", "run", "command", "shell", "bash")):
+                wanted.difference_update({
+                    "edit_file", "write_file", "delete_file", "run_shell_command",
+                    "patch_file_with_search", "apply_file_diff",
+                })
+        elif lane == "connector":
+            # Connector turns focus on MCP / external integrations
+            if not any(k in haystack for k in ("edit", "file", "run", "command", "shell", "bash")):
+                wanted.difference_update({
+                    "edit_file", "write_file", "delete_file", "run_shell_command",
+                    "patch_file_with_search", "apply_file_diff",
+                })
+            for s in schemas:
+                s_name = getattr(s, "name", "")
+                if s_name.startswith("COMPOSIO_") or s_name.startswith("composio_") or _server_of(s_name):
+                    wanted.add(s_name)
 
         # Phase 1: Task-intent matching. Multi-word phrases are higher-signal
         # than single keywords — "fix the bug" means grep+view+edit+shell, not
@@ -345,8 +381,6 @@ def select_tools(
             chosen_servers.append("composio")
 
         try:
-            from backend.mcp.provider_ownership import get_withheld_local_servers, get_withheld_local_tool_names
-
             withheld_servers = get_withheld_local_servers()
             withheld_local_tools = get_withheld_local_tool_names()
         except Exception:

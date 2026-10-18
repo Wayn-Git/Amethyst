@@ -8,10 +8,12 @@ separate untrusted submitter to defend against.
 
 from __future__ import annotations
 
+import copy
 import enum
 import logging
 import os
 import re
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -290,21 +292,53 @@ def expand_vars(value: str) -> str:
     return _VAR_RE.sub(lambda m: os.environ.get(m.group(1), m.group(0)), value)
 
 
+_servers_cache: tuple[Path, float, dict[str, ServerConfig]] | None = None
+_servers_cache_lock = threading.Lock()
+
+
+def clear_servers_cache() -> None:
+    """Clear in-memory cache of loaded MCP servers."""
+    global _servers_cache
+    with _servers_cache_lock:
+        _servers_cache = None
+
+
 def config_path() -> Path:
     return paths().mcp_yaml
 
 
 def load_servers(path: Path | None = None) -> dict[str, ServerConfig]:
+    global _servers_cache
     p = path or config_path()
     if not p.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(DEFAULT_MCP_YAML)
+        clear_servers_cache()
+
+    try:
+        mtime = p.stat().st_mtime
+    except Exception:
+        mtime = 0.0
+
+    with _servers_cache_lock:
+        if _servers_cache is not None:
+            c_path, c_mtime, c_servers = _servers_cache
+            if c_path == p and c_mtime == mtime:
+                servers = {name: copy.copy(cfg) for name, cfg in c_servers.items()}
+                _inject_composio_server(servers)
+                return servers
+
     raw = yaml.safe_load(p.read_text()) or {}
-    servers: dict[str, ServerConfig] = {}
+    base_servers: dict[str, ServerConfig] = {}
     for name, entry in (raw.get("mcpServers") or {}).items():
         config = ServerConfig.from_dict(name, entry or {})
         _fill_catalogue_env(config)
-        servers[name] = config
+        base_servers[name] = config
+
+    with _servers_cache_lock:
+        _servers_cache = (p, mtime, {name: copy.copy(cfg) for name, cfg in base_servers.items()})
+
+    servers = {name: copy.copy(cfg) for name, cfg in base_servers.items()}
     _inject_composio_server(servers)
     return servers
 
@@ -376,6 +410,7 @@ def save_servers(servers: dict[str, ServerConfig], path: Path | None = None) -> 
     # crash mid-write would not merely corrupt the file -- it would read as
     # "no servers configured" for as long as the truncated YAML parsed.
     write_atomic(p, yaml.safe_dump(body, sort_keys=False, default_flow_style=False))
+    clear_servers_cache()
 
 
 def add_server(config: ServerConfig, path: Path | None = None) -> None:

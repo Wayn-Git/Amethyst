@@ -106,7 +106,7 @@ function LibraryCardComponent({
   }, [avatarResource, app, item.author])
 
   const [thumbFailed, setThumbFailed] = useState(false)
-  const hasThumbnail = Boolean(item.thumbnail_path) && !thumbFailed
+  const hasThumbnail = Boolean((item.thumbnail_path || item.url) && !thumbFailed)
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)
@@ -159,12 +159,19 @@ function LibraryCardComponent({
     app === 'pinterest'
   )
 
+  const isSlidePost = (
+    (app === 'instagram' && !isVertical) ||
+    item.kind === 'post' ||
+    isCarousel
+  )
+
   const isNote = item.kind === 'note' || (!hasThumbnail && !item.url)
 
   const cardVariant = variant || (
     isFeatured ? 'wide' :
     isNote ? 'note' :
     isVertical ? 'portrait' :
+    isSlidePost ? 'square' :
     isVideo ? 'landscape' : 'standard'
   )
 
@@ -259,74 +266,12 @@ function LibraryCardComponent({
       {/* Spotlight glow layer */}
       <div className="lib-card-spotlight" aria-hidden="true" />
 
-      {/* Floating Action Dock */}
-      {!isOptimistic && (
-        <div className="lib-card-action-dock" role="toolbar" aria-label="Card quick actions">
-          {item.url && (
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              className="lib-dock-btn"
-              title="Open original website"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Icon name="link" size={13} />
-            </a>
-          )}
-          {item.indexed && !item.summary && (
-            <button
-              type="button"
-              className="lib-dock-btn"
-              disabled={busy}
-              title="Read & synthesize with AI"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEnrich?.(item)
-              }}
-            >
-              <Icon name="brain" size={13} />
-            </button>
-          )}
-          {item.indexed && (
-            <button
-              type="button"
-              className="lib-dock-btn"
-              disabled={busy}
-              title="Re-index embeddings"
-              onClick={(e) => {
-                e.stopPropagation()
-                onReindex?.(item)
-              }}
-            >
-              <Icon name="refresh" size={13} />
-            </button>
-          )}
-          <button
-            type="button"
-            className="lib-dock-btn lib-dock-btn--danger"
-            disabled={busy}
-            title="Delete from library"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete?.(item)
-            }}
-          >
-            <Icon name="trash" size={13} />
-          </button>
-        </div>
-      )}
+
 
       {/* Bento Media (Single clean card boundary, flush to edges) */}
       {hasThumbnail ? (
         <div className="lib-card-media-wrap">
-          <div className={`lib-card-media ${isPost ? 'lib-card-media--contain' : ''}`}>
-            {/* Ambient blurred backdrop for letterbox-free containment */}
-            <div
-              className="lib-card-media-backdrop"
-              style={{ backgroundImage: `url(${api.thumbnailUrl(item.id)})` }}
-              aria-hidden="true"
-            />
+          <div className="lib-card-media lib-card-media--contain">
             <img
               className="lib-card-media-img"
               src={api.thumbnailUrl(item.id)}
@@ -358,10 +303,15 @@ function LibraryCardComponent({
               </div>
             )}
 
-            {/* Center Frosted Play Button for Videos / Reels (never on multi-slide posts) */}
-            {!isCarousel && (isVideo || duration) && (
-              <div className="lib-card-play-btn" aria-hidden="true">
-                <Icon name="play" size={13} />
+            {/* Center Frosted Play Button for Videos / Reels */}
+            {(isVideo || duration || hasLocalVideo) && (
+              <div
+                className="lib-card-play-btn"
+                role="button"
+                aria-label="Play video"
+                title="Play video"
+              >
+                <Icon name="play" size={16} />
               </div>
             )}
 
@@ -431,6 +381,53 @@ function LibraryCardComponent({
               <span className="lib-card-kind-badge">
                 <span>{app ? app.toUpperCase() : (item.kind || 'article').toUpperCase()}</span>
               </span>
+            )}
+
+            {!isOptimistic && (
+              <div className="lib-card-inline-actions" role="toolbar" aria-label="Card quick actions" onClick={(e) => e.stopPropagation()}>
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-card-action-btn"
+                    title="Open original website"
+                  >
+                    <Icon name="link" size={12} />
+                  </a>
+                )}
+                {!item.summary && (
+                  <button
+                    type="button"
+                    className="lib-card-action-btn"
+                    disabled={busy}
+                    title="Read & synthesize with AI"
+                    onClick={() => onEnrich?.(item)}
+                  >
+                    <Icon name="spark" size={12} />
+                  </button>
+                )}
+                {item.indexed && (
+                  <button
+                    type="button"
+                    className="lib-card-action-btn"
+                    disabled={busy}
+                    title="Re-index embeddings"
+                    onClick={() => onReindex?.(item)}
+                  >
+                    <Icon name="refresh" size={12} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="lib-card-action-btn lib-card-action-btn--danger"
+                  disabled={busy}
+                  title="Delete from library"
+                  onClick={() => onDelete?.(item)}
+                >
+                  <Icon name="trash" size={12} />
+                </button>
+              </div>
             )}
           </div>
         </div>

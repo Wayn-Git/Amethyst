@@ -201,3 +201,62 @@ def test_a_summary_that_cannot_be_made_degrades_without_raising(monkeypatch):
     assert any(
         "compacted" in (m.get("content") or "") for m in out
     ), "the reader is told what happened to the middle"
+
+
+def test_tail_start_never_starts_on_tool_and_snaps_to_user_turn():
+    """Regression test for Mistral/OpenCode 400: tail_start must never land on role='tool'."""
+    c = ContextCompressor(context_length=128_000)
+    messages = [
+        {"role": "system", "content": "system prompt"},
+        {"role": "user", "content": "first message"},
+        {"role": "assistant", "content": "first response"},
+    ]
+    # Build conversation with tool calls
+    for i in range(10):
+        messages.extend([
+            {"role": "user", "content": f"query {i} " + "data " * 500},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": f"call_{i}", "function": {"name": "search", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": f"call_{i}", "content": f"tool result {i} " + "output " * 500},
+            {"role": "assistant", "content": f"answer {i} " + "words " * 500},
+        ])
+
+    head_end = c._find_head_end(messages)
+    tail_start = c._find_tail_start(messages, head_end)
+
+    # 1. Tail must never start with a tool message
+    assert messages[tail_start].get("role") != "tool"
+    # 2. Tail should snap to a user message
+    assert messages[tail_start].get("role") == "user"
+
+    # 3. Whole compression preserves role ordering without 'tool' after 'user'
+    compressed = c.compress(messages)
+    for idx in range(len(compressed) - 1):
+        curr_role = compressed[idx].get("role")
+        next_role = compressed[idx + 1].get("role")
+        assert not (curr_role == "user" and next_role == "tool"), (
+            f"Found invalid sequence: role '{curr_role}' followed by '{next_role}' at index {idx}"
+        )
+
+
+def test_to_openai_messages_sanitizes_orphaned_tools_and_consecutive_users():
+    """Test that _to_openai_messages transforms orphaned tool messages into user content."""
+    from backend.runtime.providers.openai_compat import _to_openai_messages
+
+    # Sliced conversation where a tool message has no preceding assistant tool_calls
+    orphaned_slice = [
+        {"role": "user", "content": "What was the result?"},
+        {"role": "tool", "tool_call_id": "call_old", "name": "GMAIL_SEARCH", "content": "2 emails found"},
+        {"role": "assistant", "content": "You had 2 emails."},
+    ]
+
+    wire = _to_openai_messages(orphaned_slice)
+
+    # Should not contain any 'tool' role because it was orphaned
+    roles = [m["role"] for m in wire]
+    assert "tool" not in roles
+    # The orphaned tool result should be merged into the preceding user message
+    assert len(wire) == 2
+    assert wire[0]["role"] == "user"
+    assert "2 emails found" in wire[0]["content"]
+    assert wire[1]["role"] == "assistant"
+

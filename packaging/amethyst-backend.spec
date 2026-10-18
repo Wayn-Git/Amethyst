@@ -33,8 +33,15 @@ hiddenimports = [
     'dotenv',
     'httpx',
     'aiosqlite',
+    'yt_dlp',
+    'yt_dlp.extractor',
+    'yt_dlp.extractor.instagram',
 ]
 hiddenimports += collect_submodules('backend')
+try:
+    hiddenimports += collect_submodules('yt_dlp')
+except Exception:
+    pass
 
 a = Analysis(
     ['freeze_entry.py'],

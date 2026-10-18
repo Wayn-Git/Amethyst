@@ -6,9 +6,13 @@ the one thing Khoj's otherwise-good adapters layer got wrong.
 
 from __future__ import annotations
 
+import asyncio
+import atexit
 import json
 import logging
+import queue
 import sqlite3
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -744,6 +748,141 @@ class McpTrustRepository:
         self.conn.commit()
 
 
+@dataclass
+class _RunWriteTask:
+    phase: str
+    state_version: int
+    state_json: str
+    link: str | None
+    error: str | None
+    checkpoint: int
+    updated_at: str
+    run_id: str
+    is_terminal: bool
+
+
+class _FlushSentinel:
+    def __init__(self) -> None:
+        self.event = threading.Event()
+
+
+class AgentRunWriter:
+    """Dedicated background worker thread for AgentRunRepository updates.
+
+    Offloads SQLite UPDATE and commit calls off the asyncio event loop
+    so checkpoints do not cause >50ms loop stalls.
+    """
+
+    def __init__(self) -> None:
+        self._queue: queue.Queue[_RunWriteTask | _FlushSentinel] = queue.Queue()
+        self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._started = False
+
+    def _ensure_started(self) -> None:
+        with self._lock:
+            if not self._started:
+                self._started = True
+                self._thread = threading.Thread(
+                    target=self._worker,
+                    name="amethyst-agent-run-writer",
+                    daemon=True,
+                )
+                self._thread.start()
+
+    def submit_update(
+        self,
+        phase: str,
+        state_version: int,
+        state_json: str,
+        link: str | None,
+        error: str | None,
+        checkpoint: int,
+        updated_at: str,
+        run_id: str,
+        is_terminal: bool,
+    ) -> None:
+        self._ensure_started()
+        task = _RunWriteTask(
+            phase=phase,
+            state_version=state_version,
+            state_json=state_json,
+            link=link,
+            error=error,
+            checkpoint=checkpoint,
+            updated_at=updated_at,
+            run_id=run_id,
+            is_terminal=is_terminal,
+        )
+        self._queue.put(task)
+
+    def flush(self, timeout: float = 2.0) -> None:
+        if not self._started:
+            return
+        sentinel = _FlushSentinel()
+        self._queue.put(sentinel)
+        sentinel.event.wait(timeout=timeout)
+
+    def _worker(self) -> None:
+        from backend.db.connection import get_connection
+
+        while True:
+            try:
+                item = self._queue.get()
+                if isinstance(item, _FlushSentinel):
+                    item.event.set()
+                    self._queue.task_done()
+                    continue
+
+                try:
+                    conn = get_connection()
+                    conn.execute(
+                        "UPDATE agent_runs SET phase = ?, state_version = ?, state = ?, link = ?,"
+                        " error = ?, checkpoint = ?, updated_at = ? WHERE id = ?",
+                        (
+                            item.phase,
+                            item.state_version,
+                            item.state_json,
+                            item.link,
+                            item.error,
+                            item.checkpoint,
+                            item.updated_at,
+                            item.run_id,
+                        ),
+                    )
+                    conn.commit()
+                    if item.is_terminal:
+                        conn.execute(
+                            "DELETE FROM agent_runs WHERE rowid <"
+                            " (SELECT COALESCE(MIN(rowid), 0) FROM"
+                            "  (SELECT rowid FROM agent_runs ORDER BY rowid DESC LIMIT ?))",
+                            (AgentRunRepository.KEEP,),
+                        )
+                        conn.commit()
+                except Exception as exc:
+                    log.warning("AgentRunWriter failed to update run %s: %s", item.run_id, exc)
+                finally:
+                    self._queue.task_done()
+            except Exception as exc:
+                log.debug("AgentRunWriter worker error: %s", exc)
+
+
+_run_writer: AgentRunWriter | None = None
+_run_writer_lock = threading.Lock()
+
+
+def _get_run_writer() -> AgentRunWriter:
+    global _run_writer
+    if _run_writer is None:
+        with _run_writer_lock:
+            if _run_writer is None:
+                _run_writer = AgentRunWriter()
+    return _run_writer
+
+
+atexit.register(lambda: _run_writer.flush() if _run_writer else None)
+
+
 class AgentRunRepository:
     """One row per turn, so a turn is not lost with the process running it.
 
@@ -764,6 +903,7 @@ class AgentRunRepository:
         self.conn = _conn(conn)
 
     def open(self, state: AgentState) -> None:
+        self.flush()
         self.conn.execute(
             "INSERT INTO agent_runs (id, conversation_id, phase, state_version, state, link,"
             " error, checkpoint, created_at, updated_at)"
@@ -783,6 +923,30 @@ class AgentRunRepository:
         )
         self.conn.commit()
 
+    def save_background(self, state: AgentState) -> None:
+        """Write the state as it now stands via background writer without blocking the event loop."""
+        state.checkpoint += 1
+        state.updated_at = _now()
+        _get_run_writer().submit_update(
+            phase=state.phase,
+            state_version=STATE_VERSION,
+            state_json=json.dumps(state.to_json()),
+            link=state.link,
+            error=state.error,
+            checkpoint=state.checkpoint,
+            updated_at=state.updated_at,
+            run_id=state.id,
+            is_terminal=state.terminal,
+        )
+
+    def flush(self, timeout: float = 2.0) -> None:
+        """Wait for pending background run writes to finish."""
+        _get_run_writer().flush(timeout=timeout)
+
+    async def flush_async(self, timeout: float = 2.0) -> None:
+        """Asynchronously wait for pending background run writes to finish."""
+        await asyncio.to_thread(self.flush, timeout)
+
     def save(self, state: AgentState) -> None:
         """Write the state as it now stands, and count the write.
 
@@ -790,6 +954,7 @@ class AgentRunRepository:
         durable version of a state is numbered, including the ones written by a
         code path that forgot it was checkpointing.
         """
+        self.flush()
         state.checkpoint += 1
         state.updated_at = _now()
         self.conn.execute(
@@ -811,10 +976,12 @@ class AgentRunRepository:
             self.prune()
 
     def get(self, run_id: str) -> AgentState | None:
+        self.flush()
         row = self.conn.execute("SELECT * FROM agent_runs WHERE id = ?", (run_id,)).fetchone()
         return self._load(row) if row else None
 
     def latest(self, conversation_id: str) -> AgentState | None:
+        self.flush()
         row = self.conn.execute(
             "SELECT * FROM agent_runs WHERE conversation_id = ?"
             " ORDER BY created_at DESC, rowid DESC LIMIT 1",
@@ -823,6 +990,7 @@ class AgentRunRepository:
         return self._load(row) if row else None
 
     def live(self) -> list[AgentState]:
+        self.flush()
         rows = self.conn.execute(
             f"SELECT * FROM agent_runs WHERE phase NOT IN ({_TERMINAL_SQL})"
             " ORDER BY created_at"
@@ -842,6 +1010,7 @@ class AgentRunRepository:
         also be holding a tool call nothing answered -- the `finally` that
         repairs that is skipped by a kill.
         """
+        self.flush()
         conversations: list[str] = []
         for row in self.conn.execute(
             f"SELECT * FROM agent_runs WHERE phase NOT IN ({_TERMINAL_SQL})"

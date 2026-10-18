@@ -7,9 +7,11 @@ sanitized on the way out, so the tool registry keeps exactly one representation.
 
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Any
 
+from backend.agent.trace import record_llm_call
 from backend.config import ProviderConfig
 from backend.runtime.http import MAX_RETRIES, post_json
 from backend.runtime.types import (
@@ -224,6 +226,7 @@ class GeminiClient:
         if gen:
             payload["generationConfig"] = gen
 
+        _t0 = time.perf_counter()
         data = await post_json(
             f"{self.base_url}/models/{self.model}:generateContent",
             headers={"Content-Type": "application/json"},
@@ -232,6 +235,7 @@ class GeminiClient:
             params={"key": self.api_key},
             max_retries=self.max_retries,
         )
+        _total_ms = (time.perf_counter() - _t0) * 1000.0
 
         candidate = (data.get("candidates") or [{}])[0]
         text_parts: list[str] = []
@@ -249,7 +253,7 @@ class GeminiClient:
                     )
                 )
         usage = data.get("usageMetadata") or {}
-        return ModelResponse(
+        resp = ModelResponse(
             text="\n".join(t for t in text_parts if t) or None,
             tool_calls=calls,
             stop_reason=candidate.get("finishReason"),
@@ -257,6 +261,15 @@ class GeminiClient:
             output_tokens=usage.get("candidatesTokenCount"),
             raw=data,
         )
+        record_llm_call(
+            provider="google",
+            model=self.model,
+            ttft_ms=_total_ms,
+            total_ms=_total_ms,
+            input_tokens=resp.input_tokens,
+            output_tokens=resp.output_tokens,
+        )
+        return resp
 
 
 def initialize(

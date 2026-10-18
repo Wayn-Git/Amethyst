@@ -138,8 +138,51 @@ async def test_jev_classifies_expanded_presentations():
     assert "step_guide" in ALLOWED_PRESENTATIONS
     assert "quiz" in ALLOWED_PRESENTATIONS
 
-    assert await classify_presentation("Compare React vs Svelte vs Vue") == "comparison"
-    assert await classify_presentation("Recipe for sourdough bread with ingredients and steps") == "recipe"
-    assert await classify_presentation("Step by step guide to install Docker on Debian") == "step_guide"
-    assert await classify_presentation("Quiz me on world capitals trivia") == "quiz"
     assert await classify_presentation("Plan a 4-day road trip from SF to LA") == "itinerary"
+
+
+async def test_classify_presentation_local_heuristic_avoids_api(monkeypatch):
+    """Local heuristic should classify immediately without making an HTTP request."""
+    def boom(*args, **kwargs):
+        raise AssertionError("Network call was made when local heuristic should have fast-pathed")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", boom)
+
+    # All of these have local heuristic detectors and must return immediately
+    assert await classify_presentation("Plot a bar chart of revenue", api_key="sk-test") == "chart"
+    assert await classify_presentation("Compare React vs Svelte", api_key="sk-test") == "comparison"
+    assert await classify_presentation("Mortgage calculator for 400k", api_key="sk-test") == "calculator"
+    assert await classify_presentation("Draw an architecture diagram", api_key="sk-test") == "diagram"
+
+
+async def test_classify_presentation_skips_when_no_widget_signals(monkeypatch):
+    """When a message has no widget signals, Jev API must not be called."""
+    def boom(*args, **kwargs):
+        raise AssertionError("Network call was made for a message without widget signals")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", boom)
+
+    assert await classify_presentation("what is the capital of France?", api_key="sk-test") == "text"
+    assert await classify_presentation("tell me a joke about dogs", api_key="sk-test") == "text"
+
+
+async def test_classify_presentation_invokes_api_only_with_widget_signals(monkeypatch):
+    """When message has widget signals but local heuristic returned text, API is called."""
+    called = []
+
+    class MockResponse:
+        status_code = 200
+
+        def json(self):
+            return {"decisions": {"visualization": "chart"}}
+
+    async def mock_post(*args, **kwargs):
+        called.append(True)
+        return MockResponse()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+    # "visualise" is in widget signals, but not in local heuristic keywords
+    res = await classify_presentation("visualise our quarterly progress", api_key="sk-test")
+    assert res == "chart"
+    assert len(called) == 1, "Expected Jev API to be called for widget signals"

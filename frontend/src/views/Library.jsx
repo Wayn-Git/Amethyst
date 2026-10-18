@@ -518,6 +518,10 @@ export default function Library() {
             onUpdate={handleItemUpdate}
             onDelete={handleDelete}
             toast={toast}
+            onExportPlaylist={(playlistItems) => {
+              setExportItems(playlistItems)
+              setShowExportModal(true)
+            }}
           />
         ) : (
           <motion.div

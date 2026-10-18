@@ -93,6 +93,54 @@ def _local_heuristic(text: str) -> str:
     return "text"
 
 
+WIDGET_SIGNALS = (
+    # interactive tools & presentations
+    "calculator", "calc", "splitter", "split bill", "mortgage", "tip", "counter", "converter",
+    "diagram", "flowchart", "wireframe", "architecture diagram",
+    "3d", "simulation", "simulator", "pitch", "roll", "yaw", "physics", "canvas",
+    "table", "matrix", "spreadsheet",
+    # recipe / step_guide
+    "recipe", "cook", "bake", "ingredient", "how do i", "how to", "how can i",
+    "teach me", "teach", "steps", "step by step", "guide", "walk me through", "instructions", "set up",
+    "install", "tutorial",
+    # quiz
+    "quiz", "test me", "flashcard", "practice question", "exam", "revise", "trivia",
+    # comparison
+    "compare", "comparison", " vs ", " versus ", "difference between", "which is better",
+    "pros and cons", "trade-off", "tradeoff",
+    # itinerary
+    "itinerary", "trip", "travel", "visit", "days in", "plan a", "holiday", "vacation", "sf to la", "highway 1",
+    # translation
+    "translate", "translation", "in spanish", "in french", "in german", "in japanese",
+    "in italian", "say in", "how do you say",
+    # chart
+    "chart", "graph", "plot", "visualise", "visualize", "bar chart", "line chart", "pie chart", "histogram", "trends",
+    # options
+    "options", "choose", "pick one", "suggest", "recommend", "ideas for", "alternatives",
+    # image_gallery (strictly opt-in via @images or /images)
+    "@images", "@image", "/images", "/image",
+)
+
+
+def has_widget_signals(text: str) -> bool:
+    """Check if the text contains any signals for widget or presentation formats."""
+    lower = f" {text.lower()} "
+    return any(sig in lower for sig in WIDGET_SIGNALS)
+
+
+def needs_remote_jev(messages: list[dict[str, Any]] | str, api_key: str | None = None) -> bool:
+    """Whether Jev API needs to be called for these messages."""
+    context = _format_context(messages)
+    if not context:
+        return False
+    if _local_heuristic(context) != "text":
+        return False
+    if not has_widget_signals(context):
+        return False
+    key = api_key or resolve_typesafe_key()
+    return bool(key and key not in _INVALID_TYPESAFE_KEYS)
+
+
 _INVALID_TYPESAFE_KEYS: set[str] = set()
 
 
@@ -117,16 +165,25 @@ async def classify_presentation(
       - "step_guide" (step-by-step tutorial or how-to guide)
       - "quiz" (interactive trivia or quiz questions)
 
-    If the API key is not configured, unauthorized, or if the API call fails or times out,
-    falls back seamlessly to local heuristic intent classification in sub-millisecond time.
+    Evaluates _local_heuristic first in sub-millisecond time.
+    Calls Jev API only when the message has widget signals and local heuristic was inconclusive ("text").
     """
     context = _format_context(messages)
     if not context:
         return "text"
 
+    # Fast path 1: Run local heuristic first in sub-millisecond time.
+    heuristic_decision = _local_heuristic(context)
+    if heuristic_decision != "text":
+        return heuristic_decision
+
+    # Fast path 2: If local heuristic is text and no widget signals exist, skip remote call.
+    if not has_widget_signals(context):
+        return "text"
+
     key = api_key or resolve_typesafe_key()
     if not key or key in _INVALID_TYPESAFE_KEYS:
-        return _local_heuristic(context)
+        return "text"
 
     selected_model = model or os.getenv("JEV_MODEL", "jev-latest")
 
@@ -170,17 +227,17 @@ async def classify_presentation(
             if res.status_code == 401:
                 log.warning("TypeSafe Jev API key is unauthorized (401); caching failure and using local heuristics")
                 _INVALID_TYPESAFE_KEYS.add(key)
-                return _local_heuristic(context)
+                return "text"
             if res.status_code != 200:
                 log.debug("TypeSafe Jev API returned status %s; using local heuristic", res.status_code)
-                return _local_heuristic(context)
+                return "text"
 
             data = res.json()
             decision = _parse_decision(data)
-            return decision if decision != "text" else _local_heuristic(context)
+            return decision
     except Exception as exc:
         log.debug("TypeSafe Jev classification skipped or timed out: %s; using local heuristic", exc)
-        return _local_heuristic(context)
+        return "text"
 
 
 def _parse_decision(data: Any) -> str:

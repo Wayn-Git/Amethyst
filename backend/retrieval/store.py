@@ -13,6 +13,11 @@ import logging
 import sqlite3
 import struct
 
+try:
+    import sqlite_vec
+except Exception:
+    sqlite_vec = None
+
 log = logging.getLogger(__name__)
 
 # Whether the sqlite_vec package can be imported at all: a process-wide fact.
@@ -40,12 +45,10 @@ def load_extension(conn: sqlite3.Connection) -> bool:
 
     if _is_loaded(conn):
         return True
-    if _package_available is False:
+    if _package_available is False or sqlite_vec is None:
         return False
 
     try:
-        import sqlite_vec
-
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)

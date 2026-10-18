@@ -446,7 +446,7 @@ def _read(raw: str) -> tuple[str, dict[str, Any] | None, MediaHint | None] | Non
 _WIDGET_SIGNALS = (
     # recipe / step_guide
     "recipe", "cook", "bake", "ingredient", "how do i", "how to", "how can i",
-    "steps", "step by step", "guide", "walk me through", "instructions", "set up",
+    "teach me", "teach", "steps", "step by step", "guide", "walk me through", "instructions", "set up",
     "install", "tutorial",
     # quiz
     "quiz", "test me", "flashcard", "practice question", "exam", "revise",
@@ -989,8 +989,52 @@ def _build_default_california_itinerary() -> dict[str, Any]:
     return _enrich_itinerary_data(raw_data, "plan a coastal trip from SF to LA")
 
 
+_CONNECTOR_SIGNALS: set[str] = {
+    "email", "gmail", "mail", "inbox",
+    "calendar", "event", "events", "meeting", "meetings", "schedule", "appointment",
+    "github", "slack", "notion", "linear", "jira", "asana", "trello",
+    "composio", "salesforce", "hubspot",
+}
+
+
+def is_connected_service_intent(message: str) -> bool:
+    """Whether the message explicitly targets an external connected service."""
+    tokens = set(re.findall(r"\b[a-zA-Z0-9_\-]+\b", message.lower()))
+    return bool(tokens & _CONNECTOR_SIGNALS)
+
+
+def has_widget_signals(message: str) -> bool:
+    """Whether the message contains any widget signal tokens."""
+    lowered_padded = f" {message.lower()} "
+    return any(signal in lowered_padded for signal in _WIDGET_SIGNALS)
+
+
+def should_run_classify_and_extract(
+    message: str,
+    mode: str = "agent",
+    attachments: list[Any] | None = None,
+) -> bool:
+    """Synchronous fast check whether classify_and_extract should even be called."""
+    if mode == "plan" or attachments:
+        return False
+    if not message or not message.strip():
+        return False
+    if len(message) > 500:
+        return False
+    if is_connected_service_intent(message):
+        return False
+    if not has_widget_signals(message):
+        return False
+    if _certainly_not_a_widget(message):
+        return False
+    return True
+
+
 def _certainly_not_a_widget(message: str) -> bool:
     """Whether to skip the classifier entirely for this message."""
+    # Fast path: connected-service intent is handled by connectors, not widgets
+    if is_connected_service_intent(message):
+        return True
     word_count = len(message.split())
     if word_count < 2:
         return True
@@ -1003,8 +1047,7 @@ def _certainly_not_a_widget(message: str) -> bool:
     lowered = message.lower()
     if any(marker in lowered for marker in _TECHNICAL_MARKERS):
         return True
-    lowered_padded = f" {lowered} "
-    return not any(signal in lowered_padded for signal in _WIDGET_SIGNALS)
+    return not has_widget_signals(message)
 
 
 async def classify_and_extract(
@@ -1016,6 +1059,14 @@ async def classify_and_extract(
     -- which is the signal to answer the turn normally.
     """
     if not user_message.strip():
+        return ("none", None, [])
+
+    # Fast skip: Connected service intents belong to connector lane, not widgets
+    if is_connected_service_intent(user_message):
+        return ("none", None, [])
+
+    # Fast skip: Messages without any widget signals never produce a widget
+    if not has_widget_signals(user_message):
         return ("none", None, [])
 
     # Check for direct image intent first

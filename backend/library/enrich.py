@@ -699,44 +699,55 @@ def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
 
 def _refusal(text: str, text_source: str | None) -> str | None:
     """The reason not to ask a model, when there is one."""
+    src = (text_source or "none").lower().strip()
+    if src not in REAL_TEXT_SOURCES and not any(
+        known in src
+        for known in (
+            "caption",
+            "transcript",
+            "visual",
+            "slide",
+            "page",
+            "note",
+            "desc",
+            "tweet",
+            "thread",
+            "post",
+            "doc",
+            "text",
+            "manual",
+            "user",
+            "file",
+        )
+    ):
+        return (
+            "there is no text for this one. A direct-message share carries the video"
+            " and a title, and no caption -- nothing was summarised because there"
+            " would have been nothing to summarise from."
+        )
     cleaned = (text or "").strip()
+    if not cleaned:
+        return (
+            "there was no readable text, transcript or caption available for this item to summarise."
+        )
     if len(cleaned) < MIN_ENRICHABLE_CHARS:
         return (
             "the text is a line or two, which is already the whole of it. Summarising"
             " it would just be repeating it."
         )
-    src = (text_source or "").lower().strip()
-    if src and src not in ("none", ""):
-        if not any(
-            known in src
-            for known in (
-                "caption",
-                "transcript",
-                "visual",
-                "slide",
-                "page",
-                "note",
-                "desc",
-                "tweet",
-                "thread",
-                "post",
-                "doc",
-                "text",
-                "manual",
-                "user",
-                "file",
-            )
-        ):
-            return (
-                "there is no text for this one. A direct-message share carries the video"
-                " and a title, and no caption -- nothing was summarised because there"
-                " would have been nothing to summarise from."
-            )
     return None
 
 
+
 async def enrich_text(
-    text: str, *, title: str, kind: str = "video", text_source: str = "none", client=None
+    text: str,
+    *,
+    title: str,
+    kind: str = "video",
+    text_source: str = "none",
+    client=None,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> Enrichment:
     """Summary, tags and resources for some text -- or a stated reason there are none."""
     refusal = _refusal(text, text_source)
@@ -764,7 +775,37 @@ async def enrich_text(
     if client is not None:
         return await _ask(client, messages, None, None, source_text=body)
 
-    links = default_chain(limit=BACKGROUND_FALLBACK_LINKS)
+    from backend.config import load_library
+    lib_settings = load_library()
+    target_provider = provider or (lib_settings.enrich_provider if lib_settings else None)
+    target_model = model or (lib_settings.enrich_model if lib_settings else None)
+
+    if target_provider and target_model:
+        try:
+            m = resolve(target_provider, target_model)
+            res = await _ask(m.client, messages, target_provider, target_model, source_text=body)
+            if not res.empty:
+                availability.record_success(target_provider)
+                return res
+            if res.provider and res.note is None:
+                availability.record_success(target_provider)
+                clean_fallback = body.strip() if (10 <= len(body.strip()) <= 320) else None
+                return Enrichment(
+                    category=res.category,
+                    summary=clean_fallback,
+                    tags=res.tags,
+                    resources=res.resources,
+                    provider=res.provider,
+                    model=res.model,
+                    note=None if clean_fallback else "the text was too brief to extract further insights from.",
+                )
+        except Exception as exc:
+            log.warning("explicit enrichment model %s:%s failed: %s; falling back to chain", target_provider, target_model, exc)
+
+    # Use default chain; check default tier first (often higher quality) then fast
+    links = default_chain(tier="default", limit=BACKGROUND_FALLBACK_LINKS)
+    if not links:
+        links = default_chain(tier="fast", limit=BACKGROUND_FALLBACK_LINKS)
     if not links:
         return Enrichment(
             note="no model is configured, so there is no summary. The text above is"
@@ -774,11 +815,11 @@ async def enrich_text(
     last: Enrichment | None = None
     for link in links:
         try:
-            model = resolve(link.provider, link.model)
+            m_resolved = resolve(link.provider, link.model)
         except Exception as exc:
             last = Enrichment(note=f"{link.provider} could not be resolved: {exc}")
             continue
-        result = await _ask(model.client, messages, link.provider, link.model, source_text=body)
+        result = await _ask(m_resolved.client, messages, link.provider, link.model, source_text=body)
         if not result.empty:
             availability.record_success(link.provider)
             return result
