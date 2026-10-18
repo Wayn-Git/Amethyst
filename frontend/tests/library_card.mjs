@@ -104,4 +104,5 @@ if (failures.length > 0) {
   process.exit(1)
 } else {
   console.log(`\n${passed} passed, 0 failed`)
+  process.exit(0)
 }
