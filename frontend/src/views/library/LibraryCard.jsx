@@ -232,7 +232,7 @@ function LibraryCardComponent({
     onSelect?.(item)
   }
 
-  // Reading time or word count
+  // Reading time or duration
   const readTimeMeta = useMemo(() => {
     if (item.word_count) {
       const mins = Math.max(1, Math.round(item.word_count / 200))
@@ -240,6 +240,11 @@ function LibraryCardComponent({
     }
     return null
   }, [item.word_count])
+
+  const durationMeta = useMemo(() => {
+    if (item.duration) return formatDuration(item.duration)
+    return null
+  }, [item.duration])
 
   // Semantic rating tier
   const ratingTier = useMemo(() => getRatingTier(item.rating), [item.rating])
@@ -551,19 +556,24 @@ function LibraryCardComponent({
           </div>
         )}
 
-        {/* Pinned Card Footer: Date, Reading time, and Meaningful Rating Badge */}
+        {/* Pinned Card Footer: Date, Duration / Reading time, and Rating Badge */}
         <div className="lib-card-footer">
           <div className="lib-card-footer-left">
             <Icon name="calendar" size={11} className="opacity-75" />
             <span className="lib-card-date">
               {dateFull || 'Undated'}
             </span>
-            {readTimeMeta && (
+            {durationMeta ? (
+              <>
+                <span className="lib-card-dot">·</span>
+                <span className="lib-card-duration">{durationMeta}</span>
+              </>
+            ) : readTimeMeta ? (
               <>
                 <span className="lib-card-dot">·</span>
                 <span className="lib-card-readtime">{readTimeMeta}</span>
               </>
-            )}
+            ) : null}
           </div>
 
           {/* Meaningful Semantic Rating Indicator */}

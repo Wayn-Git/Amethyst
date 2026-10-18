@@ -1615,7 +1615,21 @@ export default function LibraryDetailModal({
                         </div>
                       </div>
 
-                      <p className="lib-synthesis-prose">{summaryText}</p>
+                      <div className="lib-synthesis-prose">
+                        {summaryText.split(/\n+/).map((line, idx) => {
+                          const trimmed = line.trim()
+                          if (!trimmed) return null
+                          if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
+                            return (
+                              <div key={idx} className="lib-synthesis-bullet">
+                                <span className="lib-synthesis-bullet-dot" />
+                                <span>{trimmed.replace(/^[-•*]\s*/, '')}</span>
+                              </div>
+                            )
+                          }
+                          return <p key={idx}>{trimmed}</p>
+                        })}
+                      </div>
                     </div>
                   ) : (
                     <div className="lib-synthesis-card lib-synthesis-card--pending">
