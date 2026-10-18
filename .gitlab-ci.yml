@@ -1,0 +1,39 @@
+# GitLab CI for Amethyst Notifier
+# Runs scheduled Morning Briefing and Weekly Library Digest jobs with zero paid services.
+# Optimized for minimal runtime to stay well within GitLab's 400 free compute minutes/month.
+
+stages:
+  - notify
+
+default:
+  image: python:3.12-slim
+  interruptible: true
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  key: notifier-pip-v1
+  paths:
+    - .cache/pip
+
+before_script:
+  - python --version
+  - pip install --upgrade pip
+  - pip install -r requirements-notifier.txt
+
+brief:
+  stage: notify
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $JOB == "brief"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $JOB == "brief"'
+  script:
+    - python -m notifier.brief
+
+digest:
+  stage: notify
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $JOB == "digest"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $JOB == "digest"'
+  script:
+    - python -m notifier.digest
