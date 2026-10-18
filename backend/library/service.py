@@ -149,6 +149,16 @@ def _json_list(raw) -> list:
     return parsed if isinstance(parsed, list) else []
 
 
+def _json_dict(raw) -> dict | None:
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def as_dict(row) -> dict:
     """One item, as the interface and the model both see it."""
     from backend.library.enrich import infer_category
@@ -159,6 +169,7 @@ def as_dict(row) -> dict:
     # above this line has to know that.
     tags = _json_list(data.get("tags"))
     resources = _json_list(data.get("resources"))
+    data["entity"] = _json_dict(data.get("entity"))
 
     app_tag = app_tag_for_url(data.get("url"))
     if app_tag and app_tag not in tags:
