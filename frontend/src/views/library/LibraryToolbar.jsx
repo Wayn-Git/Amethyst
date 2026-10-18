@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
+import { IS_MAC } from '../../keys.js'
 
 export default function LibraryToolbar({
+  total = 0,
+  isProcessingCount = 0,
   query = '',
   onQueryChange,
   searchRef,
@@ -11,11 +14,18 @@ export default function LibraryToolbar({
   captureRef,
   order = 'desc',
   onOrderChange,
+  layout = 'grid',
+  onLayoutChange,
+  showShare = false,
+  onToggleShare,
+  hasMusic = false,
+  onOpenExport,
   onOpenAddModal,
 }) {
   const isMac =
-    typeof navigator !== 'undefined' &&
-    /Mac|iPod|iPhone|iPad/.test(navigator.platform || '')
+    IS_MAC ||
+    (typeof navigator !== 'undefined' &&
+      /Mac|iPod|iPhone|iPad/.test(navigator.platform || ''))
 
   const rawVal = quickCaptureText !== '' ? quickCaptureText : query
   const trimmed = rawVal.trim()
@@ -63,7 +73,23 @@ export default function LibraryToolbar({
   }
 
   return (
-    <div className="lib-command-bar-wrapper" data-enter>
+    <div className="lib-command-deck" data-enter>
+      {/* Left: Brand / Title & Live Item Count */}
+      <div className="lib-deck-brand">
+        <h1 className="lib-deck-title">Library</h1>
+        <div className="lib-deck-status" role="status" aria-live="polite">
+          {isProcessingCount > 0 ? (
+            <>
+              <span className="lib-header-live-dot" />
+              <span>Syncing {isProcessingCount}</span>
+            </>
+          ) : (
+            <span>{total} items</span>
+          )}
+        </div>
+      </div>
+
+      {/* Center: Search / Omnibar Quick Capture */}
       <form
         className={`lib-command-bar lib-capture ${isUrl ? 'lib-command-bar--capturing' : ''}`}
         onSubmit={handleSubmit}
@@ -72,9 +98,9 @@ export default function LibraryToolbar({
         <div className="lib-capture-row">
           <div className="lib-command-icon" aria-hidden="true">
             {isUrl ? (
-              <Icon name="link" size={15} className="lib-icon-accent" />
+              <Icon name="link" size={14} className="lib-icon-accent" />
             ) : (
-              <Icon name="search" size={15} />
+              <Icon name="search" size={14} />
             )}
           </div>
 
@@ -87,8 +113,8 @@ export default function LibraryToolbar({
             className="lib-capture-input lib-command-input"
             placeholder={
               isUrl
-                ? 'Press Enter or click Save to capture into library...'
-                : `Search knowledge by title, topic, domain... or paste URL to capture instantly (${isMac ? '⌘/' : 'Ctrl+/'})`
+                ? 'Press Enter to save to library...'
+                : `Search knowledge or paste URL to capture (${isMac ? '⌘/' : 'Ctrl+/'})`
             }
             value={rawVal}
             onChange={handleInputChange}
@@ -134,30 +160,87 @@ export default function LibraryToolbar({
             {/* Compact Integrated Sort Selector */}
             <div className="lib-select-container lib-select-container--compact" title="Change sort order">
               <Icon name="down" size={11} className="lib-select-icon" />
-              <span>{order === 'asc' ? 'Oldest first' : 'Newest first'}</span>
+              <span>{order === 'asc' ? 'Oldest' : 'Newest'}</span>
               <select
                 value={order}
                 onChange={(e) => onOrderChange?.(e.target.value)}
                 aria-label="Sort order"
               >
-                <option value="desc">Newest first</option>
-                <option value="asc">Oldest first</option>
+                <option value="desc">Newest</option>
+                <option value="asc">Oldest</option>
               </select>
             </div>
-
-            {/* Quick Capture More Modal Trigger */}
-            <button
-              type="button"
-              className="lib-command-more-btn"
-              title="More capture options (Upload File, Note, Wikipedia)"
-              onClick={() => onOpenAddModal?.('url')}
-              aria-label="More capture options"
-            >
-              <Icon name="more" size={15} />
-            </button>
           </div>
         </div>
       </form>
+
+      {/* Right: Layout Switcher + Secondary Tools + Primary Add */}
+      <div className="lib-deck-actions">
+        {/* Segmented Layout Toggle: Grid vs List */}
+        {onLayoutChange && (
+          <div className="lib-segmented-control" role="group" aria-label="View display">
+            <button
+              type="button"
+              className={`lib-segmented-btn ${layout === 'grid' ? 'lib-segmented-btn--active' : ''}`}
+              onClick={() => onLayoutChange('grid')}
+              title="Bento Grid view"
+              aria-label="Bento Grid view"
+              aria-pressed={layout === 'grid'}
+            >
+              <Icon name="grid" size={14} />
+            </button>
+            <button
+              type="button"
+              className={`lib-segmented-btn ${layout === 'list' ? 'lib-segmented-btn--active' : ''}`}
+              onClick={() => onLayoutChange('list')}
+              title="Dense Stream view"
+              aria-label="Dense Stream view"
+              aria-pressed={layout === 'list'}
+            >
+              <Icon name="list" size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Export to Spotify Playlist */}
+        {hasMusic && onOpenExport && (
+          <button
+            type="button"
+            className="lib-header-action-btn"
+            onClick={onOpenExport}
+            title="Export discovered audio to Spotify playlist"
+          >
+            <Icon name="music" size={14} />
+          </button>
+        )}
+
+        {/* External Capture & Integrations */}
+        {onToggleShare && (
+          <button
+            type="button"
+            className={`lib-header-action-btn ${showShare ? 'lib-header-action-btn--active' : ''}`}
+            onClick={onToggleShare}
+            title="External capture & integrations (browser, phone, relay)"
+            aria-expanded={showShare}
+          >
+            <Icon name="link" size={14} />
+          </button>
+        )}
+
+        {/* Primary Add Resource */}
+        <button
+          type="button"
+          className="lib-btn lib-btn--primary lib-deck-add-btn"
+          onClick={() => onOpenAddModal?.('url')}
+          title={`Add resource (${isMac ? '⌘K' : 'Ctrl+K'})`}
+        >
+          <Icon name="plus" size={14} />
+          <span>Add</span>
+          <kbd className="lib-kbd lib-kbd--primary">
+            {isMac ? '⌘K' : 'Ctrl+K'}
+          </kbd>
+        </button>
+      </div>
     </div>
   )
 }
