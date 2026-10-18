@@ -1,0 +1,258 @@
+/* Craftwork / beUI Tool Approval Card Stylesheet
+   Strict adherence to 30 Laws of UX, 44px minimum touch targets,
+   and design token system in index.css */
+
+.tool-approval-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 10px);
+  padding: 1.25rem;
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.2);
+  transition: border-color var(--menu, 180ms) var(--ease-out);
+  color: var(--text);
+  font-family: var(--font-body, var(--font-sans));
+}
+
+.tool-approval-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.875rem;
+}
+
+.tool-approval-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.tool-approval-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-cards, 8px);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.tool-approval-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.tool-approval-title {
+  font-size: var(--text-input, 15px);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--text);
+  line-height: 1.25;
+  margin: 0;
+}
+
+.tool-approval-tool-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption, 12.5px);
+  color: var(--text-dim);
+  line-height: 1.2;
+}
+
+.tool-approval-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-tags, 9999px);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--confirm);
+  background: var(--confirm-soft);
+  border: 1px solid var(--confirm-line);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tool-approval-description {
+  margin: 0.875rem 0 0 0;
+  font-size: var(--text-caption, 13px);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* Collapsible Details */
+.tool-approval-details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-height: 32px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  transition: color var(--press, 120ms) var(--ease-out);
+}
+
+.tool-approval-details-toggle:hover {
+  color: var(--text);
+}
+
+.tool-approval-details-toggle svg {
+  transition: transform var(--menu, 180ms) var(--ease-out);
+}
+
+.tool-approval-details-box {
+  margin-top: 0.75rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-cards, 8px);
+  padding: 0.875rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tool-approval-detail-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.tool-approval-detail-label {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.tool-approval-detail-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.tool-approval-command-pill {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.375rem 0.625rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Actions Group with 44px Minimum Touch Targets */
+.tool-approval-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.tool-approval-btn-primary {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-buttons, 9999px);
+  background: var(--text);
+  color: var(--canvas);
+  border: 1px solid transparent;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--press, 120ms) var(--ease-out), transform var(--press, 120ms);
+}
+
+.tool-approval-btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.tool-approval-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.tool-approval-btn-secondary {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 1.125rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-buttons, 9999px);
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--press, 120ms) var(--ease-out), transform var(--press, 120ms);
+}
+
+.tool-approval-btn-secondary:hover:not(:disabled) {
+  background: var(--raised, var(--surface));
+}
+
+.tool-approval-btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.tool-approval-btn-ghost {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-buttons, 9999px);
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--press, 120ms) var(--ease-out);
+}
+
+.tool-approval-btn-ghost:hover:not(:disabled) {
+  color: var(--stop);
+}
+
+.tool-approval-revocation-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+@media (max-width: 640px) {
+  .tool-approval-actions {
+    flex-wrap: wrap;
+  }
+  .tool-approval-revocation-hint {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 0.25rem;
+  }
+}
