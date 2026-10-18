@@ -2402,6 +2402,113 @@ def enable_keychain_fallback_route(body: KeychainFallbackRequest) -> dict[str, A
     }
 
 
+@app.post("/api/setup/runtimes/uv/install")
+async def install_uv_route() -> dict[str, Any]:
+    """Download and set up official standalone uv/uvx binary in ~/.amethyst/bin (R12)."""
+    import io
+    import platform
+    import shutil
+    import sys
+    import tarfile
+    import zipfile
+    from pathlib import Path
+
+    bin_dir = Path.home() / ".amethyst" / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    uv_dest = bin_dir / ("uv.exe" if sys.platform == "win32" else "uv")
+    uvx_dest = bin_dir / ("uvx.exe" if sys.platform == "win32" else "uvx")
+
+    os_name = sys.platform
+    arch = platform.machine().lower()
+    if arch in ("x86_64", "amd64"):
+        arch_tag = "x86_64"
+    elif arch in ("aarch64", "arm64"):
+        arch_tag = "aarch64"
+    elif arch in ("i386", "i686"):
+        arch_tag = "i686"
+    else:
+        arch_tag = "x86_64"
+
+    if os_name == "linux":
+        target = f"{arch_tag}-unknown-linux-gnu"
+        ext = "tar.gz"
+    elif os_name == "darwin":
+        target = f"{arch_tag}-apple-darwin"
+        ext = "tar.gz"
+    elif os_name == "win32":
+        target = f"{arch_tag}-pc-windows-msvc"
+        ext = "zip"
+    else:
+        target = f"{arch_tag}-unknown-linux-gnu"
+        ext = "tar.gz"
+
+    url = f"https://github.com/astral-sh/uv/releases/latest/download/uv-{target}.{ext}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            content = resp.content
+
+            extracted_uv = None
+            extracted_uvx = None
+
+            try:
+                if tarfile.is_tarfile(io.BytesIO(content)):
+                    with tarfile.open(fileobj=io.BytesIO(content), mode="r:*") as tar:
+                        for member in tar.getmembers():
+                            name = Path(member.name).name
+                            if name in ("uv", "uv.exe"):
+                                f = tar.extractfile(member)
+                                if f:
+                                    extracted_uv = f.read()
+                            elif name in ("uvx", "uvx.exe"):
+                                f = tar.extractfile(member)
+                                if f:
+                                    extracted_uvx = f.read()
+                elif zipfile.is_zipfile(io.BytesIO(content)):
+                    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                        for item in zf.namelist():
+                            name = Path(item).name
+                            if name in ("uv", "uv.exe"):
+                                extracted_uv = zf.read(item)
+                            elif name in ("uvx", "uvx.exe"):
+                                extracted_uvx = zf.read(item)
+            except Exception:
+                pass
+
+            if not extracted_uv:
+                extracted_uv = content
+
+            uv_dest.write_bytes(extracted_uv)
+            uv_dest.chmod(0o755)
+
+            if extracted_uvx:
+                uvx_dest.write_bytes(extracted_uvx)
+                uvx_dest.chmod(0o755)
+            elif not uvx_dest.exists():
+                try:
+                    uvx_dest.symlink_to(uv_dest)
+                except Exception:
+                    uvx_dest.write_bytes(extracted_uv)
+                    uvx_dest.chmod(0o755)
+
+            bin_str = str(bin_dir)
+            curr_path = os.environ.get("PATH", "")
+            if bin_str not in curr_path:
+                os.environ["PATH"] = f"{bin_str}{os.pathsep}{curr_path}"
+
+            return {
+                "ok": True,
+                "path": str(uv_dest),
+                "bin_dir": bin_str,
+                "message": "Standalone uv runtime installed successfully.",
+            }
+    except Exception as exc:
+        log.exception("Failed to install uv runtime: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to install uv: {exc}")
+
+
 class OllamaPullRequest(BaseModel):
     model: str = "llama3.2"
 
@@ -7056,13 +7163,33 @@ def delete_library_item(item_id: int) -> dict[str, Any]:
     return {"status": "deleted", "id": item_id}
 
 
+@app.get("/api/settings/library")
+def get_library_settings() -> dict[str, Any]:
+    """Library settings, including auto_enrich, enrich_provider, and enrich_model."""
+    from backend.config import load_library
+    return load_library().as_dict()
+
+
+@app.patch("/api/settings/library")
+def update_library_settings(body: dict[str, Any]) -> dict[str, Any]:
+    """Update library settings."""
+    from backend.config import save_library
+    return save_library(body).as_dict()
+
+
 @app.post("/api/library/{item_id}/enrich")
-async def enrich_library_item(item_id: int) -> dict[str, Any]:
+async def enrich_library_item(
+    item_id: int,
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Say what this item is about, from the text it has. The mirror of reindex."""
     from backend.library.service import LibraryError, LibraryService
 
+    provider = body.get("provider") if isinstance(body, dict) else None
+    model = body.get("model") if isinstance(body, dict) else None
+
     try:
-        return await LibraryService().enrich(item_id)
+        return await LibraryService().enrich(item_id, provider=provider, model=model)
     except LibraryError as exc:
         raise HTTPException(404, str(exc)) from exc
     except Exception as exc:
@@ -7097,6 +7224,20 @@ async def library_thumbnail(item_id: int) -> FileResponse:
             mime, _ = mimetypes.guess_type(str(path))
             return FileResponse(path, media_type=mime or "image/jpeg")
 
+    # Check if a thumbnail already exists on disk for this item
+    from backend.library.store import thumbnail_path
+    cand = thumbnail_path(item_id)
+    if cand.is_file():
+        import mimetypes
+        mime, _ = mimetypes.guess_type(str(cand))
+        return FileResponse(cand, media_type=mime or "image/jpeg")
+    for ext in (".jpg", ".jpeg", ".png", ".webp"):
+        alt_cand = cand.parent / f"{item_id:06d}-thumb{ext}"
+        if alt_cand.is_file():
+            import mimetypes
+            mime, _ = mimetypes.guess_type(str(alt_cand))
+            return FileResponse(alt_cand, media_type=mime or "image/jpeg")
+
     # If missing or not yet downloaded, try on-demand fetch once
     if row["url"]:
         service = LibraryService(store)
@@ -7113,7 +7254,7 @@ async def library_thumbnail(item_id: int) -> FileResponse:
     raise HTTPException(404, "there is no thumbnail for that item")
 
 
-@app.get("/api/library/{item_id}/slides/{index}")
+@app.api_route("/api/library/{item_id}/slides/{index}", methods=["GET", "HEAD"])
 async def library_slide(item_id: int, index: int) -> FileResponse:
     """One slide of a multi-image carousel post."""
     from backend.library.service import LibraryService
@@ -7137,7 +7278,7 @@ async def library_slide(item_id: int, index: int) -> FileResponse:
     raise HTTPException(404, f"slide {index} not found for item {item_id}")
 
 
-@app.get("/api/library/{item_id}/media")
+@app.api_route("/api/library/{item_id}/media", methods=["GET", "HEAD"])
 def library_media(item_id: int) -> FileResponse:
     """Stream raw media content, downloading on-demand if needed."""
     import mimetypes
