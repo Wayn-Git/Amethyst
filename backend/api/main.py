@@ -2402,6 +2402,44 @@ def enable_keychain_fallback_route(body: KeychainFallbackRequest) -> dict[str, A
     }
 
 
+class OllamaPullRequest(BaseModel):
+    model: str = "llama3.2"
+
+
+@app.post("/api/ollama/pull")
+async def pull_ollama_model(body: OllamaPullRequest) -> StreamingResponse:
+    """Stream model download progress from local Ollama and register on success (R10)."""
+    from backend.runtime.providers.ollama import stream_pull
+    from backend.config import add_provider, configured_providers, set_primary_provider
+
+    target_model = (body.model or "llama3.2").strip()
+
+    async def _generator():
+        success = False
+        async for chunk in stream_pull(target_model):
+            try:
+                line = chunk.decode("utf-8", errors="replace").strip()
+                if line:
+                    for l in line.split("\n"):
+                        data = json.loads(l)
+                        if data.get("status") == "success":
+                            success = True
+            except Exception:
+                pass
+            yield chunk
+
+        if success:
+            with contextlib.suppress(Exception):
+                entry = {"name": "ollama", "default_model": target_model, "enabled": True}
+                add_provider(entry)
+                configured = configured_providers()
+                if not any(cfg.enabled for name, cfg in configured.items() if name != "ollama"):
+                    set_primary_provider("ollama")
+
+    return StreamingResponse(_generator(), media_type="application/x-ndjson")
+
+
+
 
 @app.delete("/api/providers/{name}")
 def remove_provider_route(name: str) -> dict[str, Any]:
