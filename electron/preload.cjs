@@ -17,9 +17,12 @@ contextBridge.exposeInMainWorld('amethystDesktop', {
     return () => ipcRenderer.removeListener('desktop:update-downloaded', handler);
   },
   openExternal: (url) => ipcRenderer.invoke('desktop:open-external', url),
+  setTrayEnabled: (enabled) => ipcRenderer.invoke('desktop:set-tray-enabled', enabled),
+  openLogs: () => ipcRenderer.invoke('desktop:open-logs'),
 });
 
 contextBridge.exposeInMainWorld('electronSplash', {
   close: () => ipcRenderer.invoke('desktop:quit'),
   retry: () => ipcRenderer.invoke('desktop:retry-boot'),
+  openLogs: () => ipcRenderer.invoke('desktop:open-logs'),
 });
