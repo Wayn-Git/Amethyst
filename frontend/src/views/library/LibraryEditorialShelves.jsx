@@ -3,14 +3,14 @@ import { motion } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
 import LibraryCard, { getDomain } from './LibraryCard.jsx'
 
-function ShelfHeader({ icon, title, count, onNavigate, actionLabel = 'View all →' }) {
+function ShelfHeader({ id, icon, title, count, onNavigate, actionLabel = 'View all →' }) {
   return (
     <div className="lib-shelf-header">
       <div className="lib-shelf-title-group">
         <span className="lib-shelf-icon" aria-hidden="true">
           <Icon name={icon} size={15} />
         </span>
-        <h2 className="lib-shelf-title">{title}</h2>
+        <h2 id={id} className="lib-shelf-title">{title}</h2>
         {typeof count === 'number' && (
           <span className="lib-shelf-count">{count}</span>
         )}
@@ -29,16 +29,16 @@ function ShelfHeader({ icon, title, count, onNavigate, actionLabel = 'View all �
   )
 }
 
-function JumpBackInShelf({ items = [], onSelect, onNavigate }) {
+function JumpBackInShelf({ items = [], onSelect }) {
   if (!items || items.length === 0) return null
 
   return (
     <section className="lib-shelf lib-shelf--recent" aria-labelledby="shelf-jump-back-in">
       <ShelfHeader
+        id="shelf-jump-back-in"
         icon="spark"
         title="Jump Back In"
         count={items.length}
-        onNavigate={() => onNavigate?.('jumpBackIn')}
       />
       <div className="lib-shelf-scroll-track">
         {items.map((item, index) => {
@@ -108,6 +108,7 @@ function EssentialShelf({ items = [], busyId, onSelect, onReindex, onEnrich, onD
   return (
     <section className="lib-shelf lib-shelf--essential" aria-labelledby="shelf-essential">
       <ShelfHeader
+        id="shelf-essential"
         icon="star"
         title="Essential Knowledge"
         count={items.length}
@@ -154,6 +155,7 @@ function MediaShelf({ items = [], busyId, onSelect, onReindex, onEnrich, onDelet
   return (
     <section className="lib-shelf lib-shelf--media" aria-labelledby="shelf-media">
       <ShelfHeader
+        id="shelf-media"
         icon="play"
         title="Media & Watchlist"
         count={items.length}
@@ -162,13 +164,13 @@ function MediaShelf({ items = [], busyId, onSelect, onReindex, onEnrich, onDelet
       <div className="lib-shelf-grid lib-shelf-grid--media">
         {items.map((item, index) => {
           const url = (item.url || '').toLowerCase()
-          const isReel = url.includes('/reel/') || url.includes('/shorts/') || item.app === 'tiktok'
+          const isReel = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/') || item.app === 'tiktok'
           const variant = isReel ? 'portrait' : 'landscape'
 
           return (
             <motion.div
               key={item.id || index}
-              className={`lib-shelf-card-col ${isReel ? 'col-span-1' : 'col-span-1 sm:col-span-1'}`}
+              className="lib-shelf-card-col"
               initial={{ opacity: 0, y: 12 }}
               animate={{
                 opacity: 1,
@@ -205,6 +207,7 @@ function ReadingShelf({ items = [], busyId, onSelect, onReindex, onEnrich, onDel
   return (
     <section className="lib-shelf lib-shelf--reading" aria-labelledby="shelf-reading">
       <ShelfHeader
+        id="shelf-reading"
         icon="book"
         title="Reading & Insights"
         count={items.length}

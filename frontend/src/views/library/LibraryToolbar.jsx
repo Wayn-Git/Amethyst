@@ -2,6 +2,15 @@ import { useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { IS_MAC } from '../../keys.js'
 
+const BARE_DOMAIN_RE =
+  /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/.*)?$/i
+
+function checkIsUrl(str) {
+  if (!str) return false
+  const trimmed = str.trim()
+  return /^https?:\/\//i.test(trimmed) || BARE_DOMAIN_RE.test(trimmed)
+}
+
 export default function LibraryToolbar({
   total = 0,
   isProcessingCount = 0,
@@ -31,19 +40,11 @@ export default function LibraryToolbar({
   const trimmed = rawVal.trim()
 
   // Detect if current input text is a URL
-  const isUrl = useMemo(() => {
-    if (!trimmed) return false
-    return (
-      /^https?:\/\//i.test(trimmed) ||
-      (trimmed.includes('.') && !trimmed.includes(' ') && trimmed.length > 3)
-    )
-  }, [trimmed])
+  const isUrl = useMemo(() => checkIsUrl(trimmed), [trimmed])
 
   const handleInputChange = (e) => {
     const val = e.target.value
-    const looksUrl =
-      /^https?:\/\//i.test(val) ||
-      (val.includes('.') && !val.includes(' ') && val.length > 3)
+    const looksUrl = checkIsUrl(val)
 
     if (looksUrl) {
       onQuickCaptureChange?.(val)

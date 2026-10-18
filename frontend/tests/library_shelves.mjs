@@ -201,6 +201,45 @@ test('renders LibraryEditorialShelves with partitioned shelves', () => {
   assert.ok(html.includes('Reading &amp; Insights') || html.includes('Reading & Insights'), 'Must contain Reading header')
 })
 
+test('sets id on shelf heading matching section aria-labelledby', () => {
+  const sampleShelves = {
+    jumpBackIn: [{ id: '1', title: 'Recent Item', kind: 'article' }],
+    essential: [{ id: '2', title: 'Essential Item', rating: 5, kind: 'article' }],
+    media: [{ id: '3', title: 'Video Item', kind: 'video' }],
+    reading: [{ id: '4', title: 'Read Item', kind: 'article' }],
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryEditorialShelves, {
+      shelves: sampleShelves,
+      onNavigateShelf: () => {},
+      onSelect: () => {},
+    })
+  )
+
+  assert.ok(html.includes('id="shelf-jump-back-in"'), 'jump-back-in heading must have id="shelf-jump-back-in"')
+  assert.ok(html.includes('id="shelf-essential"'), 'essential heading must have id="shelf-essential"')
+  assert.ok(html.includes('id="shelf-media"'), 'media heading must have id="shelf-media"')
+  assert.ok(html.includes('id="shelf-reading"'), 'reading heading must have id="shelf-reading"')
+})
+
+test('jumpBackIn shelf does not render no-op View all button', () => {
+  const sampleShelves = {
+    jumpBackIn: [{ id: '1', title: 'Recent Item', kind: 'article' }],
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryEditorialShelves, {
+      shelves: sampleShelves,
+      onNavigateShelf: () => {},
+      onSelect: () => {},
+    })
+  )
+
+  assert.ok(!html.includes('View all'), 'Jump Back In shelf must not render a dead View all button')
+})
+
+
 if (failures.length > 0) {
   console.error(`${passed} passed, ${failures.length} failed:`)
   for (const f of failures) {

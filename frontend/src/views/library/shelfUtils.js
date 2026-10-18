@@ -48,13 +48,14 @@ export function partitionLibraryShelves(items = []) {
 
     if (item.rating === 5 && essential.length < 4) {
       essential.push(item)
-      essentialIds.add(item.id)
+      if (item.id) essentialIds.add(item.id)
     }
   }
 
   // 2. Second pass: Partition remaining non-essential items into Media vs Reading
   for (const item of items) {
-    if (!item || essentialIds.has(item.id)) continue
+    if (media.length >= 8 && reading.length >= 9) break
+    if (!item || (item.id && essentialIds.has(item.id))) continue
 
     const url = (item.url || '').toLowerCase()
     const app = item.app || ''
