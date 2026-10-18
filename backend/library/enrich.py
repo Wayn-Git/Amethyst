@@ -889,6 +889,7 @@ async def enrich_text(
                     summary=clean_fallback,
                     tags=res.tags,
                     resources=res.resources,
+                    entity=res.entity,
                     provider=res.provider,
                     model=res.model,
                     note=None if clean_fallback else "the text was too brief to extract further insights from.",
@@ -925,6 +926,7 @@ async def enrich_text(
                 summary=clean_fallback,
                 tags=result.tags,
                 resources=result.resources,
+                entity=result.entity,
                 provider=result.provider,
                 model=result.model,
                 note=None if clean_fallback else "the text was too brief to extract further insights from.",
@@ -1061,6 +1063,7 @@ async def _ask(
         summary=parsed.summary,
         tags=parsed.tags,
         resources=verified_resources,
+        entity=parsed.entity,
         provider=provider,
         model=model,
     )
