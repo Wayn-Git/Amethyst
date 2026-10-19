@@ -1,0 +1,431 @@
+/* Amethyst ClaudeActivity Stylesheet
+   Adheres to wayn-design-system and 30 Laws of UX:
+   - Fitts's Law: 42px touch/click target for effortless interaction
+   - Jakob's Law & Aesthetic-Usability Effect: Modern, elevated agent activity disclosure
+   - 12px squircle geometry (rounded-xl)
+   - Squircle indicators & badges (zero circular dots)
+   - Amethyst design tokens: --text, --surface-2, --surface-3, --hairline, --accent, --live */
+
+.claude-activity-root {
+  width: 100%;
+  margin: 4px 0 10px 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Inter", sans-serif);
+}
+
+/* ──────────────────────────────────────────────────────────
+   Comfortable 44px Trigger Bar (Fitts's Law 44px compliant)
+   ────────────────────────────────────────────────────────── */
+.claude-activity-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 12px; /* rounded-xl squircle */
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.45;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: background var(--press, 120ms) var(--ease-out),
+              border-color var(--press, 120ms) var(--ease-out),
+              box-shadow var(--press, 120ms) var(--ease-out),
+              transform var(--press, 120ms) var(--ease-out);
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.claude-activity-trigger:hover {
+  background: var(--surface-3);
+  border-color: var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+  transform: translateY(-1px);
+}
+
+.claude-activity-trigger:active {
+  transform: translateY(0);
+}
+
+.claude-activity-trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.claude-activity-trigger.is-open {
+  background: var(--surface-3);
+  border-color: var(--border);
+}
+
+.claude-activity-trigger.is-running {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 16px -2px var(--accent-soft);
+}
+
+/* Amber strictly reserved for waiting_approval */
+.claude-activity-trigger.is-approval {
+  border-color: var(--confirm-line);
+  box-shadow: 0 0 16px -2px var(--confirm-soft);
+}
+
+.claude-activity-trigger.is-approval .claude-dash {
+  background: var(--confirm);
+  box-shadow: 0 0 8px var(--confirm);
+}
+
+/* Red for error */
+.claude-activity-trigger.is-error {
+  border-color: var(--stop-line);
+}
+
+.claude-activity-trigger.is-error .claude-dash {
+  background: var(--stop);
+  box-shadow: 0 0 8px var(--stop);
+}
+
+/* ──────────────────────────────────────────────────────────
+   Squircle Activity Indicators (Zero Circular Dots)
+   ────────────────────────────────────────────────────────── */
+.claude-indicator-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.claude-dash-loader {
+  display: flex;
+  align-items: center;
+  gap: 3.5px;
+}
+
+.claude-dash {
+  width: 5px;
+  height: 11px;
+  border-radius: 2px; /* squircle dash */
+  background: var(--coral, var(--accent));
+  box-shadow: 0 0 8px var(--coral, var(--accent));
+}
+
+.claude-dash.is-pulse-1 {
+  animation: squircleDashPulse 1.2s ease-in-out infinite;
+}
+
+.claude-dash.is-pulse-2 {
+  animation: squircleDashPulse 1.2s ease-in-out infinite 0.25s;
+}
+
+@keyframes squircleDashPulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scaleY(0.75);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.2);
+  }
+}
+
+.claude-dash-settled {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px; /* squircle */
+  background: var(--live-soft);
+  color: var(--live);
+}
+
+/* Action Label */
+.claude-activity-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* Live duration counter */
+.claude-activity-duration {
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  padding: 2px 7px;
+  border-radius: 6px; /* squircle */
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  letter-spacing: 0;
+  margin-left: 2px;
+}
+
+/* Chevron */
+.claude-activity-chevron {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  margin-left: 2px;
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+              color 120ms ease;
+}
+
+.claude-activity-trigger:hover .claude-activity-chevron {
+  color: var(--text);
+}
+}
+
+.claude-activity-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+/* ──────────────────────────────────────────────────────────
+   Expanded Container: Clean Structured Timeline
+   ────────────────────────────────────────────────────────── */
+.claude-activity-panel {
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 12px; /* rounded-xl squircle */
+  background: var(--surface-2, #18191f);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 48rem;
+  box-sizing: border-box;
+}
+
+/* Section Header */
+.claude-section-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint, #64748b);
+  user-select: none;
+}
+
+.claude-section-head svg {
+  color: var(--text-dim, #94a3b8);
+}
+
+/* Reasoning Section */
+.claude-reasoning-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.claude-reasoning-prose {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-dim, #94a3b8);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 10px 14px;
+  border-radius: 8px; /* squircle */
+  background: var(--canvas, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+  font-family: var(--font-sans, inherit);
+}
+
+/* Tools Section */
+.claude-tools-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.claude-tools-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Individual Tool Row */
+.claude-tool-item {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px; /* squircle */
+  background: var(--canvas, rgba(0, 0, 0, 0.18));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+  overflow: hidden;
+  transition: border-color var(--press, 120ms);
+}
+
+.claude-tool-item:hover {
+  border-color: var(--border, rgba(255, 255, 255, 0.14));
+}
+
+.claude-tool-item.is-open {
+  border-color: var(--border, rgba(255, 255, 255, 0.18));
+}
+
+.claude-tool-item-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text, #f1f5f9);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+  transition: background var(--press, 120ms);
+}
+
+.claude-tool-item-trigger:hover {
+  background: var(--surface-3, rgba(255, 255, 255, 0.04));
+}
+
+.claude-tool-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* 6px Squircle tool badge */
+.claude-tool-icon-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px; /* squircle */
+  flex-shrink: 0;
+}
+
+.claude-tool-badge-search {
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+}
+
+.claude-tool-badge-read {
+  background: rgba(129, 140, 248, 0.14);
+  color: #818cf8;
+}
+
+.claude-tool-badge-edit {
+  background: rgba(251, 146, 60, 0.14);
+  color: #fb923c;
+}
+
+.claude-tool-badge-bash {
+  background: var(--live-soft, rgba(16, 185, 129, 0.14));
+  color: var(--live, #10b981);
+}
+
+.claude-tool-badge-other {
+  background: var(--surface-3, rgba(255, 255, 255, 0.08));
+  color: var(--text-dim, #94a3b8);
+}
+
+.claude-tool-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.claude-tool-target {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--text-dim, #94a3b8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.claude-tool-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.claude-tool-metric {
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  color: var(--text-faint, #64748b);
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+
+.claude-tool-chevron {
+  color: var(--text-faint);
+  transition: transform 140ms ease;
+}
+
+.claude-tool-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+/* Tool Payload (Expanded Code/JSON) */
+.claude-tool-payload {
+  padding: 10px 14px;
+  border-top: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+  background: rgba(0, 0, 0, 0.28);
+}
+
+/* Artifacts card */
+.claude-artifacts-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.claude-artifact-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px; /* squircle */
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--press, 120ms), background var(--press, 120ms);
+}
+
+.claude-artifact-pill:hover {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claude-dash.is-pulse-1,
+  .claude-dash.is-pulse-2 {
+    animation: none;
+    opacity: 0.85;
+    transform: none;
+  }
+  .claude-activity-trigger,
+  .claude-activity-chevron,
+  .claude-tool-item-trigger,
+  .claude-tool-chevron {
+    transition: none !important;
+  }
+}
