@@ -33,10 +33,10 @@
 - Create: `tests/test_launcher_windows.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_launcher_windows.py` testing `wmctrl -l -x` output parsing, fuzzy window title/class matching, and `wmctrl -i -a <win_id>` window raising.
-- [ ] Implement `WindowProvider` in `backend/launcher/providers/windows.py`.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(launcher): add native window switcher provider"`
+- [x] Write failing test in `tests/test_launcher_windows.py` testing `wmctrl -l -x` output parsing, fuzzy window title/class matching, and `wmctrl -i -a <win_id>` window raising.
+- [x] Implement `WindowProvider` in `backend/launcher/providers/windows.py`.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(launcher): add native window switcher provider"`
 
 ---
 
