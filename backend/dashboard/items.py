@@ -324,6 +324,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "task.focus":
+        from backend.dashboard.focus import apply as apply_focus
+
+        return apply_focus(conn, action, body)
     if widget_id == "agent.rules":
         from backend.dashboard.rules import apply as apply_rule
 

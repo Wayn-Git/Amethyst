@@ -158,3 +158,13 @@ CREATE TABLE IF NOT EXISTS dashboard_permission_rules (
 CREATE TABLE IF NOT EXISTS dashboard_library_collections (
     tag TEXT PRIMARY KEY NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_focus (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mode TEXT NOT NULL CHECK(mode IN ('focus','break')),
+    started_at TEXT NOT NULL,
+    duration_s INTEGER NOT NULL CHECK(duration_s > 0),
+    ended_at TEXT,
+    completed INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS dashboard_focus_active ON dashboard_focus((1)) WHERE ended_at IS NULL;

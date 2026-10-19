@@ -34,15 +34,19 @@ async def lifespan(app):
                 await tasks()
             await asyncio.sleep(60)
 
+    from backend.dashboard.focus import run as focus_run
     from backend.dashboard.jobs import Scheduler
     from backend.dashboard.watchers import run as watch
 
+    focus = asyncio.create_task(focus_run())
     watchers = asyncio.create_task(watch())
     jobs = asyncio.create_task(Scheduler().run())
     task = asyncio.create_task(scheduled_brief())
     try:
         yield
     finally:
+        focus.cancel()
+        await asyncio.gather(focus, return_exceptions=True)
         watchers.cancel()
         await asyncio.gather(watchers, return_exceptions=True)
         jobs.cancel()
@@ -211,6 +215,11 @@ class DraftDecision(StrictModel):
 async def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "task.focus":
+            from backend.dashboard.focus import FocusInput
+            from backend.dashboard.focus import draft as focus_draft
+
+            return focus_draft(action, FocusInput.model_validate(body))
         if widget_id in ("lib.readlater", "lib.highlights", "lib.daily", "lib.collections"):
             from backend.dashboard.library import INPUTS
             from backend.dashboard.library import draft as library_draft
