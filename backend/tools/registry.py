@@ -663,7 +663,7 @@ class ToolRegistry:
                     closest = lower_map[matches[0]]
                 else:
                     closest = "none"
-            return ToolResult.error(f"Unknown tool '{name}'. Valid tools: [{sample_valid}]. Closest match: '{closest}'.")
+            return ToolResult.error(f"Unknown tool '{name}' (unknown tool). Valid tools: [{sample_valid}]. Closest match: '{closest}'.")
 
         # A capability switched off for this conversation is not advertised and
         # not dispatchable. Withholding the schema is not enough on its own: the

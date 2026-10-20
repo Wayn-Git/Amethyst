@@ -26,7 +26,9 @@ from backend.agent.config import agent_config
 from backend.agent.read_cache import read_cache
 from backend.agent.defaults import apply_tool_defaults
 from backend.agent.projection import project_tool_result_content
-from backend.agent.prompt import build_system_prompt
+from backend.agent.prompt import build_system_prompt, enforce_token_budget
+from backend.agent.scratch_store import scratch_store
+from backend.agent.tool_repair import repair_and_validate_tool_call
 from backend.db.repositories import ConversationRepository
 from backend.runtime.types import (
     Capabilities,
@@ -35,7 +37,8 @@ from backend.runtime.types import (
     ToolCall,
     ToolSchema,
 )
-from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSource
+from backend.security.confirmation import ConfirmationService, GuardedConfirmationService
+from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSource, compute_idempotency_key
 from backend.tools.registry import ToolRegistry
 
 
@@ -419,3 +422,415 @@ async def test_scenario_10_in_turn_deduplication(monkeypatch):
     tool_results = [e.data for e in events if e.type == "tool_result"]
     assert len(tool_results) == 2
     assert any("[already fetched this turn: using cached result]" in r["content"] for r in tool_results)
+
+
+# -------------------------------------------------------------------------
+# Scenario 11: Calendar tomorrow + follow-up "and tomorrow?"
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_11_calendar_followup_and_tomorrow(monkeypatch):
+    registry = ToolRegistry()
+    cal_calls = []
+
+    async def _cal(args, ctx):
+        cal_calls.append(args)
+        return ToolResult.ok(json.dumps([{"summary": "Design Sync", "start": "2026-10-22T14:00:00Z"}]))
+
+    registry.register(Tool(name="GOOGLECALENDAR_FIND_EVENT", description="calendar", parameters={"type": "object"}, handler=_cal, risk=RiskLevel.LOW))
+
+    turn1_responses = iter([
+        ModelResponse(tool_calls=[ToolCall(id="c1", name="GOOGLECALENDAR_FIND_EVENT", arguments={"max_results": 5})]),
+        ModelResponse(text="Tomorrow you have Design Sync at 2 PM."),
+    ])
+
+    class Client1:
+        async def complete(self, messages, tools=None, params=None):
+            return next(turn1_responses)
+
+    monkeypatch.setattr(director_module, "resolve", lambda *a, **k: ResolvedModel("p", "m", Client1(), Capabilities(streaming=False)))
+
+    cid = ConversationRepository().create("p", "m")
+    director = Director(registry, stream=False, memory=False, retrieval=False)
+
+    # Turn 1
+    events1 = [e async for e in director.run(cid, "what is on my calendar tomorrow")]
+    assert any("Design Sync" in (e.data.get("text") or "") for e in events1)
+    assert len(cal_calls) == 1
+
+    # Turn 2: Follow-up "and tomorrow?"
+    turn2_responses = iter([
+        ModelResponse(tool_calls=[ToolCall(id="c2", name="GOOGLECALENDAR_FIND_EVENT", arguments={"max_results": 5})]),
+        ModelResponse(text="The day after you have Design Sync at 2 PM as well."),
+    ])
+
+    class Client2:
+        async def complete(self, messages, tools=None, params=None):
+            return next(turn2_responses)
+
+    monkeypatch.setattr(director_module, "resolve", lambda *a, **k: ResolvedModel("p", "m", Client2(), Capabilities(streaming=False)))
+
+    events2 = [e async for e in director.run(cid, "and tomorrow?")]
+    assert any("Design Sync" in (e.data.get("text") or "") for e in events2)
+    # Cross-turn read cache hit: calendar API only invoked once
+    assert len(cal_calls) == 1
+
+
+# -------------------------------------------------------------------------
+# Scenario 12: Confirmation-required write operation
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_12_confirmation_required_write(monkeypatch):
+    executed = False
+
+    async def _delete_item(args, ctx):
+        nonlocal executed
+        executed = True
+        return ToolResult.ok("deleted")
+
+    tool = Tool(name="delete_account", description="delete", parameters={"type": "object"}, handler=_delete_item, risk=RiskLevel.HIGH)
+
+    async def _user_denies(request):
+        return False
+
+    gate = GuardedConfirmationService("guard", callback=_user_denies)
+    registry = ToolRegistry(confirmation=gate)
+    registry.register(tool)
+
+    events_q = asyncio.Queue()
+    ctx = ToolContext(conversation_id="c_1", turn_id="t_1", events=events_q, extra={"state": None})
+    outcome = await gate.check(tool, {"confirm": True}, ctx)
+    assert outcome.allowed is False
+    assert outcome.decision == "denied"
+    assert executed is False
+    event_type, payload = events_q.get_nowait()
+    assert event_type == "confirmation_required"
+    assert payload["tool_name"] == "delete_account"
+
+
+# -------------------------------------------------------------------------
+# Scenario 13: Mutating write operation blocked in read-only mode
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_13_mutating_write_blocked_in_read_only():
+    async def _write(args, ctx):
+        return ToolResult.ok("written")
+
+    tool = Tool(name="update_db", description="update", parameters={"type": "object"}, handler=_write, risk=RiskLevel.HIGH)
+    registry = ToolRegistry(confirmation=GuardedConfirmationService("read-only"))
+    registry.register(tool)
+
+    ctx = ToolContext(conversation_id="c_1", turn_id="t_1", read_only=True)
+    outcome = await registry.confirmation.check(tool, {}, ctx)
+    assert outcome.allowed is False
+    assert outcome.decision == "blocked_by_mode"
+
+
+# -------------------------------------------------------------------------
+# Scenario 14: Unknown tool auto-repair for read-only tools
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_14_unknown_tool_repair_read_only(monkeypatch):
+    searched = False
+
+    async def _web(args, ctx):
+        nonlocal searched
+        searched = True
+        return ToolResult.ok("Search results for AI")
+
+    registry = ToolRegistry()
+    registry.register(Tool(name="search_web", description="web search", parameters={"type": "object"}, handler=_web, risk=RiskLevel.LOW))
+
+    # Model emits a known read-only alias from CAPABILITY_MAP
+    resolved = registry.resolve_tool("web_search")
+    assert resolved is not None
+    assert resolved.name == "search_web"
+
+    res = await registry.dispatch("web_search", {"query": "AI"}, ToolContext(conversation_id="c", turn_id="t"))
+    assert not res.is_error
+    assert searched is True
+
+
+# -------------------------------------------------------------------------
+# Scenario 15: Unknown tool auto-repair for write tools strictly blocked
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_15_unknown_tool_write_never_fuzzy_matched():
+    async def _dummy(a, c):
+        return ToolResult.ok("")
+
+    registry = ToolRegistry()
+    registry.register(Tool(name="send_email", description="send email", parameters={"type": "object"}, handler=_dummy, risk=RiskLevel.HIGH))
+
+    # Calling an unknown write tool name must NOT fuzzy match
+    resolved = registry.resolve_tool("send_mail")
+    assert resolved is None
+
+    res = await registry.dispatch("send_mail", {"to": "a@b.com"}, ToolContext(conversation_id="c", turn_id="t"))
+    assert res.is_error
+    assert "Unknown tool 'send_mail'" in res.content
+    assert "send_email" in res.content
+
+
+# -------------------------------------------------------------------------
+# Scenario 16: Unrepairable tool call returns exact bad/missing field
+# -------------------------------------------------------------------------
+def test_scenario_16_unrepairable_call_names_exact_field():
+    async def _dummy(a, c):
+        return ToolResult.ok("")
+
+    registry = ToolRegistry()
+    registry.register(Tool(
+        name="send_invite",
+        description="invite",
+        parameters={
+            "type": "object",
+            "properties": {"email": {"type": "string"}, "role": {"type": "string"}},
+            "required": ["email", "role"],
+        },
+        handler=_dummy,
+        risk=RiskLevel.MEDIUM,
+    ))
+
+    call = ToolCall(id="c1", name="send_invite", arguments={"email": "alice@example.com"})
+    _, err = repair_and_validate_tool_call(call, registry)
+    assert err is not None
+    assert "Missing required parameter 'role'" in err
+
+
+# -------------------------------------------------------------------------
+# Scenario 17: Large payload scratch store compaction
+# -------------------------------------------------------------------------
+def test_scenario_17_large_payload_scratch_store_compaction():
+    items = [{"id": f"item_{i}", "data": f"content_{i}"} for i in range(25)]
+    raw_json = json.dumps(items)
+    notice, handle = scratch_store.compact_payload(raw_json, tool_name="LIST_ITEMS", max_chars=100)
+    assert "truncated, 25 items total, showing first 10" in notice
+    assert handle is not None
+    assert f"Full payload stored under handle '{handle}'" in notice
+
+
+# -------------------------------------------------------------------------
+# Scenario 18: Token budget drop order under pressure
+# -------------------------------------------------------------------------
+def test_scenario_18_token_budget_drop_order():
+    history = [
+        {"role": "user", "content": "hello initial query"},
+        {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "function": {"name": "t1"}}]},
+        {"role": "tool", "content": "VERY LONG OLD TOOL RESULT " * 100, "tool_call_id": "c1", "tool_name": "t1"},
+        {"role": "assistant", "content": "summary of turn 1"},
+        {"role": "user", "content": "recent user query"},
+    ]
+    schemas = [ToolSchema(name="t1", description="desc", parameters={})]
+    # Enforce budget where step 1 compacts the old tool result without dropping turns
+    budgeted, kept_schemas, drops = enforce_token_budget(
+        wire_messages=history,
+        tool_schemas=schemas,
+        context_window=600,
+        threshold=0.85,
+    )
+    # The old tool result must be truncated first
+    tool_msg = next((m for m in budgeted if m.get("role") == "tool"), None)
+    assert tool_msg is not None
+    assert "[t1 executed, result consumed]" in tool_msg["content"]
+    # User message preserved
+    assert any(m.get("content") == "recent user query" for m in budgeted)
+
+
+# -------------------------------------------------------------------------
+# Scenario 19: Final round enforces tool_choice='none' and returns text
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_19_final_round_tool_choice_none(monkeypatch):
+    async def _dummy(a, c):
+        return ToolResult.ok("dummy output")
+
+    registry = ToolRegistry()
+    registry.register(Tool(name="dummy_tool", description="dummy", parameters={"type": "object"}, handler=_dummy, risk=RiskLevel.LOW))
+
+    received_tool_choices = []
+
+    # Round 1: Model calls a tool
+    # Round 2: Final step (hit budget), model must receive tool_choice="none"
+    turns = iter([
+        ModelResponse(tool_calls=[ToolCall(id="c1", name="dummy_tool", arguments={})]),
+        ModelResponse(text="Final synthesis answer after round cap."),
+    ])
+
+    class MockClient:
+        async def complete(self, messages, tools=None, params=None):
+            if params and hasattr(params, "tool_choice"):
+                received_tool_choices.append(params.tool_choice)
+            return next(turns)
+
+    monkeypatch.setattr(director_module, "resolve", lambda *a, **k: ResolvedModel("p", "m", MockClient(), Capabilities(streaming=False)))
+
+    cid = ConversationRepository().create("p", "m")
+    monkeypatch.setattr(agent_config, "default_step_budget", 2)
+    director = Director(registry, stream=False, memory=False, retrieval=False)
+
+    events = [e async for e in director.run(cid, "do something")]
+    assert "none" in received_tool_choices
+    assert any("Final synthesis answer" in (e.data.get("text") or "") for e in events)
+
+
+# -------------------------------------------------------------------------
+# Scenario 20: Model-initiated offset pagination blocked on web search
+# -------------------------------------------------------------------------
+def test_scenario_20_model_initiated_offset_blocked():
+    args = {"query": "deep learning", "offset": 30}
+    enforced = apply_tool_defaults("search_web", args, user_prompt="search deep learning")
+    assert enforced.get("offset") == 0
+
+
+# -------------------------------------------------------------------------
+# Scenario 21: User-requested pagination preserved
+# -------------------------------------------------------------------------
+def test_scenario_21_user_requested_pagination_preserved():
+    args = {"query": "deep learning", "offset": 30}
+    enforced = apply_tool_defaults("search_web", args, user_prompt="show more results starting at offset 30")
+    assert enforced.get("offset") == 30
+
+
+# -------------------------------------------------------------------------
+# Scenario 22: Intra-batch parallel deduplication for duplicate reads
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_22_intra_batch_parallel_deduplication(monkeypatch):
+    call_count = 0
+
+    async def _fetch(args, ctx):
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(0.01)
+        return ToolResult.ok(f"data for {args.get('id')}")
+
+    registry = ToolRegistry()
+    registry.register(Tool(name="fetch_record", description="fetch", parameters={"type": "object"}, handler=_fetch, risk=RiskLevel.LOW))
+
+    turns = iter([
+        ModelResponse(tool_calls=[
+            ToolCall(id="c1", name="fetch_record", arguments={"id": "rec_1"}),
+            ToolCall(id="c2", name="fetch_record", arguments={"id": "rec_1"}),
+        ]),
+        ModelResponse(text="Fetched successfully."),
+    ])
+
+    class MockClient:
+        async def complete(self, messages, tools=None, params=None):
+            return next(turns)
+
+    monkeypatch.setattr(director_module, "resolve", lambda *a, **k: ResolvedModel("p", "m", MockClient(), Capabilities(streaming=False)))
+
+    cid = ConversationRepository().create("p", "m")
+    director = Director(registry, stream=False, memory=False, retrieval=False)
+
+    events = [e async for e in director.run(cid, "fetch record")]
+    assert call_count == 1
+    tool_results = [e.data for e in events if e.type == "tool_result"]
+    assert len(tool_results) == 2
+
+
+# -------------------------------------------------------------------------
+# Scenario 23: Write idempotency blocks re-issued identical write
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_23_write_idempotency_blocks_reissued_write(monkeypatch):
+    write_count = 0
+
+    async def _save(args, ctx):
+        nonlocal write_count
+        write_count += 1
+        return ToolResult.ok("saved")
+
+    registry = ToolRegistry(confirmation=GuardedConfirmationService("full-access"))
+    registry.register(Tool(name="save_db", description="save", parameters={"type": "object"}, handler=_save, risk=RiskLevel.MEDIUM))
+
+    # Turn emits first write, then re-emits same write with different call_id
+    turns = iter([
+        ModelResponse(tool_calls=[ToolCall(id="w1", name="save_db", arguments={"key": "v1"})]),
+        ModelResponse(tool_calls=[ToolCall(id="w2_retry", name="save_db", arguments={"key": "v1"})]),
+        ModelResponse(text="Saved to database."),
+    ])
+
+    class MockClient:
+        async def complete(self, messages, tools=None, params=None):
+            return next(turns)
+
+    monkeypatch.setattr(director_module, "resolve", lambda *a, **k: ResolvedModel("p", "m", MockClient(), Capabilities(streaming=False)))
+
+    cid = ConversationRepository().create("p", "m")
+    director = Director(registry, stream=False, memory=False, retrieval=False)
+
+    events = [e async for e in director.run(cid, "save item")]
+    assert write_count == 1
+
+
+# -------------------------------------------------------------------------
+# Scenario 24: Expired OAuth returns immediate re-auth message
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_24_expired_oauth_immediate_guidance(monkeypatch):
+    async def _slack(args, ctx):
+        return ToolResult.error("Slack OAuth token expired (401 Unauthorized)")
+
+    registry = ToolRegistry()
+    registry.register(Tool(name="SLACK_POST_MESSAGE", description="post slack", parameters={"type": "object"}, handler=_slack, risk=RiskLevel.LOW))
+
+    turns = iter([
+        ModelResponse(tool_calls=[ToolCall(id="s1", name="SLACK_POST_MESSAGE", arguments={"channel": "general"})]),
+        ModelResponse(text="Your Slack connection has expired. Please reconnect in Capabilities."),
+    ])
+
+    class MockClient:
+        async def complete(self, messages, tools=None, params=None):
+            return next(turns)
+
+    monkeypatch.setattr(director_module, "resolve", lambda *a, **k: ResolvedModel("p", "m", MockClient(), Capabilities(streaming=False)))
+
+    cid = ConversationRepository().create("p", "m")
+    director = Director(registry, stream=False, memory=False, retrieval=False)
+
+    events = [e async for e in director.run(cid, "post to slack")]
+    assert any("expired" in (e.data.get("text") or "").lower() for e in events)
+
+
+# -------------------------------------------------------------------------
+# Scenario 25: Forced tool timeout in parallel batch yields partial answer
+# -------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_scenario_25_forced_tool_timeout_partial_answer(monkeypatch):
+    registry = ToolRegistry()
+
+    async def _fast(args, ctx):
+        return ToolResult.ok("Calendar: 1 meeting found")
+
+    async def _slow(args, ctx):
+        await asyncio.sleep(1.0)
+        return ToolResult.ok("Emails: 5 emails found")
+
+    registry.register(Tool(name="fast_cal", description="cal", parameters={"type": "object"}, handler=_fast, risk=RiskLevel.LOW))
+    registry.register(Tool(name="slow_mail", description="mail", parameters={"type": "object"}, handler=_slow, risk=RiskLevel.LOW))
+
+    monkeypatch.setattr(agent_config, "tool_timeout_seconds", 0.05)
+
+    turns = iter([
+        ModelResponse(tool_calls=[
+            ToolCall(id="t1", name="fast_cal", arguments={}),
+            ToolCall(id="t2", name="slow_mail", arguments={}),
+        ]),
+        ModelResponse(text="Calendar shows 1 meeting. Note: Email lookup timed out, so email details are not included."),
+    ])
+
+    class MockClient:
+        async def complete(self, messages, tools=None, params=None):
+            return next(turns)
+
+    monkeypatch.setattr(director_module, "resolve", lambda *a, **k: ResolvedModel("p", "m", MockClient(), Capabilities(streaming=False)))
+
+    cid = ConversationRepository().create("p", "m")
+    director = Director(registry, stream=False, memory=False, retrieval=False)
+
+    events = [e async for e in director.run(cid, "check calendar and mail")]
+    assert any("1 meeting" in (e.data.get("text") or "") for e in events)
+    assert any("timed out" in (e.data.get("text") or "").lower() for e in events)
+
