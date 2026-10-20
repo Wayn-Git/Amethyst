@@ -944,8 +944,12 @@ export const api = {
   // Which web-search API is set up, and setting one. Write-only for the key
   // itself: the GET says a provider has one, never what it is.
   searchProvider: () => j('/search/provider'),
-  setSearchProvider: (name, key) =>
-    j('/search/provider', { method: 'PUT', body: JSON.stringify({ name, key }) }),
+  setSearchProvider: (nameOrPayload, key, preferred) => {
+    const body = typeof nameOrPayload === 'object' && nameOrPayload !== null
+      ? nameOrPayload
+      : { name: nameOrPayload, key, preferred }
+    return j('/search/provider', { method: 'PUT', body: JSON.stringify(body) })
+  },
   // The palette passes the article list and wiki card it already shows as
   // the evidence, so an answer never re-searches what is already on screen.
   // `wiki` is only sent when the caller decided it: `null` means "no wiki
