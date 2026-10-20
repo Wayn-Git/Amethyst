@@ -171,10 +171,9 @@ CONTINUE_AFTER_TRUNCATION = (
 )
 
 FINAL_STEP_INSTRUCTION = (
-    "This is the last step available for this turn. You cannot call any more"
-    " tools. Answer the user now with what you already have: give the result if"
-    " you have it, and if the work is unfinished, say plainly what you did, what"
-    " you found, and what is left. Do not apologise for the limit."
+    "This is the last step available for this turn. Tools are disabled. "
+    "Answer from what you have. State clearly anything you could not retrieve. "
+    "Do not apologise for the limit."
 )
 
 VISUALIZATION_STEER_INSTRUCTIONS: dict[str, str] = {
@@ -1652,6 +1651,10 @@ class Director:
             elapsed = time.monotonic() - started
             if (self.guards.max_seconds > 0 and elapsed > self.guards.max_seconds) or elapsed > hard_timeout:
                 state.error = "time limit reached"
+                async for ev in self._guaranteed_final_answer(
+                    conversation_id, model, system_base or "", said, state, "time limit reached"
+                ):
+                    yield ev
                 self._checkpoint(state, "stopped", budget=budget)
                 yield _guard("time limit reached", said, iteration, state.tool_calls_made, started)
                 break
@@ -1969,6 +1972,13 @@ class Director:
                     wire.append({"role": "system", "content": state.presentation_steer})
                 if final_step:
                     wire.append({"role": "system", "content": FINAL_STEP_INSTRUCTION})
+                else:
+                    task_step = iteration - state.continuations
+                    steps_remaining = max(0, effective_budget - task_step - 1)
+                    wire.append({
+                        "role": "system",
+                        "content": f"steps remaining: {steps_remaining}",
+                    })
                 if state.failed_calls:
                     # Every round trip, not only the final step: the model
                     # decides whether to retry, work around it or report it at
@@ -2385,34 +2395,14 @@ class Director:
                     elif sandboxed_ui_env and FENCE not in partial:
                         partial = f"{sandboxed_ui_env}\n\n{partial}".strip()
 
+                    if not partial:
+                        fallback = self._summarise(conversation_id, said)
+                        if fallback and not fallback.startswith("I could not produce an answer"):
+                            partial = fallback
+
                     if partial:
                         # There is an answer. Deliver it, and do not call it a
                         # failure.
-                        #
-                        # This used to end on an `error` frame with
-                        # `[model error] ...` appended to the transcript under
-                        # the text -- so a turn that streamed a *complete*
-                        # answer and then had its stream fall over on the way
-                        # out showed the whole answer and a red card saying it
-                        # had failed. Which is the one thing the reader
-                        # believes: the work is done and the interface says it
-                        # is broken.
-                        #
-                        # A stream that dies after the content has arrived is a
-                        # transport failure, not a turn failure, and what
-                        # decides that is what is in hand rather than how the
-                        # connection ended.
-                        #
-                        # `stopped`, not `completed`, and a `guard` frame
-                        # rather than `done`. Both halves matter. `guard` is
-                        # the frame this codebase already has for "it ended
-                        # early, here is what it is worth" -- the interface
-                        # draws it as a neutral note rather than the red card.
-                        # And `AgentState.resumable` is `carried and phase !=
-                        # "completed"`, so `stopped` is what keeps the pickup
-                        # offer alive on reload (ADR-0021) for an answer that
-                        # really was cut short. Calling it `completed` would
-                        # have quietly deleted that.
                         state.carried = partial
                         state.error = message
                         self._persist(conversation_id, "assistant", partial)
@@ -2421,6 +2411,8 @@ class Director:
                             yield Event("step_done", {"number": state.step_open})
                             state.step_open = None
                         self._checkpoint(state, "stopped", budget=budget)
+                        yield Event("assistant_delta", {"content": partial})
+                        yield Event("done", {"text": partial})
                         yield _guard(
                             f"{message} What it had written is above",
                             [partial],
@@ -2872,6 +2864,10 @@ class Director:
                     for call in seg_calls:
                         if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
                             state.error = "tool call limit reached"
+                            async for ev in self._guaranteed_final_answer(
+                                conversation_id, model, system_base or "", said, state, "tool call limit reached"
+                            ):
+                                yield ev
                             self._checkpoint(state, "stopped", budget=budget)
                             yield _guard(
                                 "tool call limit reached", said, iteration, state.tool_calls_made, started
@@ -3112,6 +3108,10 @@ class Director:
                     return
         else:
             state.error = "iteration limit reached"
+            async for ev in self._guaranteed_final_answer(
+                conversation_id, model, system_base or "", said, state, "round budget reached"
+            ):
+                yield ev
             self._checkpoint(state, "stopped", budget=budget)
             yield _guard(
                 "iteration limit reached",
@@ -3122,6 +3122,52 @@ class Director:
             )
 
         self.conversations.touch(conversation_id)
+
+    async def _guaranteed_final_answer(
+        self,
+        conversation_id: str,
+        model: ResolvedModel | None,
+        system_prompt: str,
+        said: list[str],
+        state: AgentState,
+        terminal_reason: str,
+    ) -> AsyncIterator[Event]:
+        """Execute one final model call with tools=None to guarantee a synthesized answer."""
+        spoken = "".join(said).strip()
+        if spoken:
+            return
+
+        if model is not None:
+            try:
+                history_messages = self.messages.history(conversation_id)
+                wire_history = to_wire_messages(history_messages)
+                instruction = (
+                    f"This turn has reached its limit ({terminal_reason}). Tools are disabled. "
+                    "Answer from what you have. State clearly anything you could not retrieve."
+                )
+                prompt_text = system_prompt or "You are Amethyst, a personal AI assistant."
+                wire = [
+                    {"role": "system", "content": prompt_text},
+                    *wire_history,
+                    {"role": "system", "content": instruction},
+                ]
+                final_resp = await model.client.complete(wire, tools=None)
+                text = (final_resp.text or "").strip()
+                if text:
+                    said.append(text)
+                    self._persist(conversation_id, "assistant", text)
+                    yield Event("assistant_delta", {"content": text})
+                    yield Event("done", {"text": text})
+                    return
+            except Exception as exc:
+                log.warning("Guaranteed final answer model call failed: %s", exc)
+
+        fallback = self._summarise(conversation_id, said)
+        if fallback and not said:
+            said.append(fallback)
+            self._persist(conversation_id, "assistant", fallback)
+            yield Event("assistant_delta", {"content": fallback})
+            yield Event("done", {"text": fallback})
 
     #: How many tool results a fallback summary names before it stops listing.
     SUMMARY_TOOL_LIMIT = 8
