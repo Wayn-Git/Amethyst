@@ -11,7 +11,6 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     url.includes('youtube.') || url.includes('youtu.be') ? 'youtube' :
     url.includes('tiktok.') ? 'tiktok' : null
   )
-  const hasThumb = Boolean(item.thumbnail_path || item.url)
   const isReelOrShort = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/')
   const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
   const isVideo = (
@@ -22,81 +21,12 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     hasLocalVideo ||
     Boolean(item.duration_seconds)
   )
-  const isVertical = (
-    isReelOrShort ||
-    app === 'tiktok' ||
-    app === 'pinterest' ||
-    Boolean(item.is_reel) ||
-    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video' || hasLocalVideo))
-  )
-  const isSlidePost = (
-    (app === 'instagram' && !isVertical) ||
-    item.kind === 'post' ||
-    (Array.isArray(item.resources) && item.resources.some((r) => r?.type === 'slide'))
-  )
-  const isNote = item.kind === 'note' || (!hasThumb && !item.url)
-  const isEssential = item.rating === 5
+  const isNote = item.kind === 'note' || (!item.thumbnail_path && !item.url)
 
-  // Small groups (1 or 2 items): clean single or pair cards
-  if (totalInGroup <= 2) {
-    return {
-      spanClass: isVertical && hasThumb ? 'col-span-1 sm:row-span-2' : 'col-span-1',
-      variant: isNote ? 'note' : isVertical ? 'portrait' : isSlidePost ? 'square' : isVideo ? 'landscape' : 'standard',
-    }
-  }
-
-  // If item has no thumbnail, standard note/card
-  if (!hasThumb) {
-    return {
-      spanClass: 'col-span-1 sm:row-span-1',
-      variant: isNote ? 'note' : 'standard',
-    }
-  }
-
-  // 1) Vertical media (Instagram Reels, TikTok, Pinterest) with valid thumbnail: Tall Bento Card
-  if (isVertical) {
-    return {
-      spanClass: 'col-span-1 sm:row-span-2',
-      variant: 'portrait',
-    }
-  }
-
-  // 2) Hero / Featured first item (if horizontal or 5-star essential): Spans 2 columns
-  if ((index === 0 && totalInGroup >= 4 && !isVertical) || (isEssential && totalInGroup >= 4 && !isVertical && index < 3)) {
-    return {
-      spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
-      variant: 'wide',
-    }
-  }
-
-  // 3) Rhythmic Wide Card for horizontal items
-  if (index > 0 && index % 6 === 0 && !isVertical) {
-    return {
-      spanClass: 'col-span-1 sm:col-span-2 sm:row-span-1',
-      variant: 'wide',
-    }
-  }
-
-  // 4) Square Post cards (Instagram photo carousels, artwork)
-  if (isSlidePost) {
-    return {
-      spanClass: 'col-span-1 sm:row-span-1',
-      variant: 'square',
-    }
-  }
-
-  // 5) Note cards: Editorial typography bento block
-  if (isNote) {
-    return {
-      spanClass: 'col-span-1 sm:row-span-1',
-      variant: 'note',
-    }
-  }
-
-  // 6) Default standard/landscape bento cell
+  // Every card is strictly equally sized (col-span-1) in a uniform modern grid
   return {
-    spanClass: 'col-span-1 sm:row-span-1',
-    variant: isVideo ? 'landscape' : 'standard',
+    spanClass: 'col-span-1',
+    variant: isNote ? 'note' : isVideo ? 'video' : 'standard',
   }
 }
 
@@ -131,13 +61,7 @@ export default function LibraryGrid({
 
             <div
               style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
-              className={`lib-bento-grid ${
-                group.items.length === 1
-                  ? 'lib-bento-grid--single'
-                  : group.items.length === 2
-                  ? 'lib-bento-grid--pair'
-                  : ''
-              } w-full`}
+              className="lib-bento-grid w-full"
             >
               {group.items.map((item, index) => {
                 const { spanClass, variant } = getBentoItemConfig(item, index, group.items.length)
