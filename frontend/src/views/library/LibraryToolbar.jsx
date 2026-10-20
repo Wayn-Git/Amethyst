@@ -155,28 +155,27 @@ export default function LibraryToolbar({
                 {isMac ? '⌘/' : 'Ctrl+/'}
               </kbd>
             )}
-
-            <div className="lib-command-divider" aria-hidden="true" />
-
-            {/* Compact Integrated Sort Selector */}
-            <div className="lib-select-container lib-select-container--compact" title="Change sort order">
-              <Icon name="down" size={11} className="lib-select-icon" />
-              <span>{order === 'asc' ? 'Oldest' : 'Newest'}</span>
-              <select
-                value={order}
-                onChange={(e) => onOrderChange?.(e.target.value)}
-                aria-label="Sort order"
-              >
-                <option value="desc">Newest</option>
-                <option value="asc">Oldest</option>
-              </select>
-            </div>
           </div>
         </div>
       </form>
 
-      {/* Right: Layout Switcher + Secondary Tools + Primary Add */}
+      {/* Right: Sort Pill + Layout Switcher + Secondary Tools + Primary Add */}
       <div className="lib-deck-actions">
+        {/* Standalone Sort Pill */}
+        {onOrderChange && (
+          <div className="lib-deck-sort-pill" title="Change sort order">
+            <Icon name="down" size={11} className="lib-deck-sort-chevron" />
+            <span>{order === 'asc' ? 'Oldest' : 'Newest'}</span>
+            <select
+              value={order}
+              onChange={(e) => onOrderChange?.(e.target.value)}
+              aria-label="Sort order"
+            >
+              <option value="desc">Newest</option>
+              <option value="asc">Oldest</option>
+            </select>
+          </div>
+        )}
         {/* Segmented Layout Toggle: Grid vs List */}
         {onLayoutChange && (
           <div className="lib-segmented-control" role="group" aria-label="View display">
