@@ -49,6 +49,7 @@ from backend.agent.prompt import (
     tool_schema_tokens,
 )
 from backend.agent.config import agent_config
+from backend.agent.defaults import apply_tool_defaults
 from backend.agent.state import AgentState, IllegalTransition
 from backend.agent.tool_selector import _bare, _server_of, select_tools
 from backend.agent.tool_search import (
@@ -2652,6 +2653,9 @@ class Director:
             # concurrently (fastest path). Sequential segments run one-by-one
             # (safe for tools that mutate shared state or need user interaction).
             calls = list(response.tool_calls)
+            for c in calls:
+                if isinstance(c.arguments, dict):
+                    c.arguments = apply_tool_defaults(c.name, c.arguments)
             # Separate step notifications (instant) from real dispatches
             step_calls = [c for c in calls if c.name == STEP_TOOL_NAME]
             dispatch_calls = [c for c in calls if c.name != STEP_TOOL_NAME]
@@ -3700,6 +3704,8 @@ class Director:
         """
         _t_disp0 = time.perf_counter()
         _is_bridge = False
+        if isinstance(call.arguments, dict):
+            call.arguments = apply_tool_defaults(call.name, call.arguments)
         try:
             # --- Bridge tool dispatch (progressive tool disclosure) ---
             catalog = getattr(self, "_tool_search_catalog", None)

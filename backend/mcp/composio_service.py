@@ -929,15 +929,15 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GOOGLECALENDAR_FIND_EVENT",
             "name": "Find Calendar Events",
-            "description": "Search and list Google Calendar events within a time range or matching a search query.",
+            "description": "Search and list Google Calendar events within a time range or matching a search query. Defaults to upcoming 7 days, max 10 events. Do not paginate or loop over pages.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Free-text search terms to filter events."},
                     "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
-                    "time_min": {"type": "string", "description": "Lower bound for event start time (RFC3339 / ISO 8601 string, e.g. '2026-10-20T00:00:00Z')."},
-                    "time_max": {"type": "string", "description": "Upper bound for event start time (RFC3339 / ISO 8601 string)."},
-                    "max_results": {"type": "integer", "description": "Maximum number of events to return (default 10).", "default": 10},
+                    "time_min": {"type": "string", "description": "Lower bound for event start time (RFC3339 / ISO 8601 string, e.g. '2026-10-20T00:00:00Z'). Defaults to current time."},
+                    "time_max": {"type": "string", "description": "Upper bound for event start time (RFC3339 / ISO 8601 string). Defaults to 7 days from now."},
+                    "max_results": {"type": "integer", "description": "Maximum number of events to return (default 10). Do not paginate.", "default": 10},
                     "single_events": {"type": "boolean", "description": "Whether to expand recurring events into instances.", "default": True},
                 },
                 "required": [],
@@ -1008,12 +1008,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GMAIL_FETCH_EMAILS",
             "name": "Fetch Emails",
-            "description": "Search and fetch emails from Gmail matching a search query or label.",
+            "description": "Search and fetch emails from Gmail matching a search query or label. Defaults to 10 emails max with concise snippets. Do not paginate or loop over pages.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Gmail search query (e.g. 'from:github', 'is:unread', 'subject:meeting')."},
-                    "max_results": {"type": "integer", "description": "Maximum number of emails to return (default 10).", "default": 10},
+                    "max_results": {"type": "integer", "description": "Maximum number of emails to return (default 10). Do not paginate.", "default": 10},
                     "verbose": {"type": "boolean", "description": "Whether to fetch full body (false returns concise snippets).", "default": False},
                     "label_ids": {"type": "array", "items": {"type": "string"}, "description": "Filter by label IDs (e.g. ['INBOX', 'UNREAD'])."},
                 },
