@@ -8,6 +8,7 @@ truncated, and gets an audit row.
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 import logging
 import time
@@ -65,6 +66,40 @@ CAPABILITY_MAP: dict[str, str] = {
     "firecrawl": "fetch_url",
     "firecrawl_scrape": "fetch_url",
     "scrape__mcp__firecrawl": "fetch_url",
+
+    # Calendar capabilities
+    "google_calendar": "GOOGLECALENDAR_FIND_EVENT",
+    "googlecalendar": "GOOGLECALENDAR_FIND_EVENT",
+    "calendar": "GOOGLECALENDAR_FIND_EVENT",
+    "calendar_find": "GOOGLECALENDAR_FIND_EVENT",
+    "calendar_search": "GOOGLECALENDAR_FIND_EVENT",
+    "find_event": "GOOGLECALENDAR_FIND_EVENT",
+    "find_events": "GOOGLECALENDAR_FIND_EVENT",
+    "list_events": "GOOGLECALENDAR_FIND_EVENT",
+    "create_event": "GOOGLECALENDAR_CREATE_EVENT",
+
+    # Email / Gmail capabilities
+    "gmail": "GMAIL_FETCH_EMAILS",
+    "email": "GMAIL_FETCH_EMAILS",
+    "emails": "GMAIL_FETCH_EMAILS",
+    "search_emails": "GMAIL_FETCH_EMAILS",
+    "fetch_emails": "GMAIL_FETCH_EMAILS",
+    "fetch_email": "GMAIL_FETCH_EMAILS",
+    "read_emails": "GMAIL_FETCH_EMAILS",
+    "send_email": "GMAIL_SEND_EMAIL",
+
+    # GitHub capabilities
+    "github": "GITHUB_GET_A_REPOSITORY",
+    "create_issue": "GITHUB_CREATE_AN_ISSUE",
+    "create_pr": "GITHUB_CREATE_A_PULL_REQUEST",
+
+    # Slack capabilities
+    "slack": "SLACK_SEARCH_MESSAGES",
+    "slack_message": "SLACK_SEND_MESSAGE",
+
+    # Notion capabilities
+    "notion": "NOTION_SEARCH_NOTION_PAGE",
+    "notion_search": "NOTION_SEARCH_NOTION_PAGE",
 
     # Shell execution capabilities
     "bash": "run_shell_command",
@@ -194,7 +229,15 @@ class ToolRegistry:
             return self._tools[name]
 
         clean_name = name.strip()
-        # 2. Check MCP delimiter and prefix/suffix variations
+        if clean_name in self._tools:
+            return self._tools[clean_name]
+
+        # 2. Check normalized name (case, spaces, hyphens)
+        normalized = clean_name.lower().replace(" ", "_").replace("-", "_")
+        if normalized in self._tools:
+            return self._tools[normalized]
+
+        # 3. Check MCP delimiter and prefix/suffix variations
         # e.g. tavily__tavily_search -> tavily_search__mcp__tavily
         # e.g. firecrawl__scrape -> scrape__mcp__firecrawl
         if "__" in clean_name:
@@ -207,17 +250,33 @@ class ToolRegistry:
             if cand2 in self._tools:
                 return self._tools[cand2]
 
-        # 3. Check if any MCP tool has matching base name or server prefix
+        # 4. Check if any MCP tool has matching base name or server prefix
         for tool_name, tool in self._tools.items():
             if MCP_DELIMITER in tool_name:
                 t_base, s_name = tool_name.split(MCP_DELIMITER, 1)
                 if clean_name in (t_base, f"{s_name}_{t_base}", f"{s_name}__{t_base}"):
                     return tool
+                if normalized in (t_base.lower(), f"{s_name.lower()}_{t_base.lower()}"):
+                    return tool
 
-        # 4. Capability alias map
-        target = CAPABILITY_MAP.get(clean_name.lower())
-        if target and target in self._tools:
-            return self._tools[target]
+        # 5. Capability alias map
+        for cand in (clean_name.lower(), normalized):
+            target = CAPABILITY_MAP.get(cand)
+            if target:
+                if target in self._tools:
+                    return self._tools[target]
+                for t_name, tool in self._tools.items():
+                    if MCP_DELIMITER in t_name and t_name.split(MCP_DELIMITER)[0] == target:
+                        return tool
+                if target == "GOOGLECALENDAR_FIND_EVENT" and "list_calendar" in self._tools:
+                    return self._tools["list_calendar"]
+                if target == "GMAIL_FETCH_EMAILS" and "search_email" in self._tools:
+                    return self._tools["search_email"]
+
+        # 6. Case-insensitive match against all registered tools
+        for tool_name, tool in self._tools.items():
+            if tool_name.lower() in (clean_name.lower(), normalized):
+                return tool
 
         return None
 
@@ -525,8 +584,13 @@ class ToolRegistry:
         if tool is not None:
             arguments = self.normalize_arguments(tool, arguments)
         if tool is None:
-            known = ", ".join(sorted(self._tools)[:20]) or "none"
-            return ToolResult.error(f"unknown tool '{name}'. Available tools: {known}")
+            all_known = sorted(self._tools.keys())
+            sample_valid = ", ".join(all_known[:15]) or "none"
+            matches = difflib.get_close_matches(name, all_known, n=1, cutoff=0.3)
+            if not matches:
+                matches = difflib.get_close_matches(name.lower(), [k.lower() for k in all_known], n=1, cutoff=0.3)
+            closest = matches[0] if matches else "none"
+            return ToolResult.error(f"Unknown tool '{name}'. Valid tools: [{sample_valid}]. Closest match: '{closest}'.")
 
         # A capability switched off for this conversation is not advertised and
         # not dispatchable. Withholding the schema is not enough on its own: the
