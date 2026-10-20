@@ -2989,6 +2989,10 @@ class Director:
                 else:
                     result = task.result()
                     if result and result.content:
+                        from backend.agent.projection import project_tool_result_content
+                        result.content = project_tool_result_content(
+                            result.content, tool_name=call.name, arguments=call.arguments
+                        )
                         from backend.mcp.composio_sanitizer import cap_tool_result_content
                         result.content = cap_tool_result_content(
                             result.content, tool_name=call.name, arguments=call.arguments
