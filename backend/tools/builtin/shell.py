@@ -155,27 +155,13 @@ def _looks_like_sandbox_denial(stderr: str) -> bool:
 def tools() -> list[Tool]:
     sandbox_note = unavailable_reason()
     description = (
-        "Run a shell command.\n"
-        "WHEN TO USE: to verify your own work -- run the tests, the linter, the"
-        " type checker, `git status`, `git diff` -- after changing code, and to"
-        " do anything the filesystem tools cannot.\n"
-        "OUTPUT: stdout and stderr, with the exit code. A non-zero exit is"
-        " information to act on, not a dead end: read the error and adapt.\n"
-        "TIPS: set execution_mode='sandbox' (the default, OS-contained) unless"
-        " the command genuinely needs unrestricted access, in which case use"
-        " 'direct', which always asks the user. Set operation_type honestly --"
-        " it can only raise the confirmation requirement, never lower it. Use"
-        " cwd rather than prefixing `cd`.\n"
-        "LIMITS: never commit or push unless the user explicitly asked. Do not"
-        " use this to talk to the user -- text outside tool calls does that."
-        " Never read app databases through the shell (no sqlite3/cp against"
-        " amethyst.db or any *.db under ~/.amethyst): a live copy risks locks"
-        " and a snapshot without the WAL. Conversation history has first-class"
-        " tools -- list_conversations, read_conversation, search_conversations"
-        " -- use those; one call replaces a dozen shell probes."
+        "WHAT IT DOES: Executes a command in a bash subshell and returns stdout, stderr, and the return exit code.\n"
+        "WHEN TO USE: Running tests (pytest), linting, build tools, package managers (pip, uv, npm), git status/diff, or system operations after changing code.\n"
+        "WHEN NOT TO USE: Do not use for file reading or editing (use view_file, grep_files, edit_file). Do not use for interactive commands that require terminal input. Never commit or push without explicit user consent. Never inspect sqlite database files directly through shell.\n"
+        'EXAMPLE: {"command": "./.venv/bin/pytest tests/test_agent.py -v", "execution_mode": "sandbox"}'
     )
     if sandbox_note:
-        description += f" Note: {sandbox_note}."
+        description += f"\nNote: {sandbox_note}."
 
     return [
         Tool(

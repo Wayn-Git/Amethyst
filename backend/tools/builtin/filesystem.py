@@ -593,18 +593,10 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
         Tool(
             name="view_file",
             description=(
-                "Read a file and return its line-numbered content.\n"
-                "WHEN TO USE: before editing any file (edit_file needs the exact"
-                " current text); when a grep hit needs surrounding context; when"
-                " you need to know what a file actually contains rather than"
-                " guessing from its name.\n"
-                "OUTPUT: one line per line of the file, as `<number>\\t<text>`.\n"
-                "TIPS: use offset and limit to page through a long file instead of"
-                " reading it whole. PDF, .docx, .xlsx and .pptx are extracted to"
-                " markdown automatically, keeping page numbers, sheet names and"
-                " slide numbers so a passage can be cited.\n"
-                "LIMITS: 400KB of text, 40MB for a document; a directory is an"
-                " error -- use list_files."
+                "WHAT IT DOES: Reads a local file from disk and returns its line-numbered text content.\n"
+                "WHEN TO USE: Inspecting file contents, viewing code before editing, reading config files, or retrieving context around grep search hits.\n"
+                "WHEN NOT TO USE: Do not use on directories (use list_files). Do not use to search text across multiple files (use grep_files). Do not use if you only need file existence (use list_files).\n"
+                'EXAMPLE: {"path": "backend/agent/director.py", "offset": 100, "limit": 50}'
             ),
             parameters={
                 "type": "object",
@@ -622,16 +614,10 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
         Tool(
             name="list_files",
             description=(
-                "List files in a directory.\n"
-                "WHEN TO USE: to learn a project's shape before changing it, and"
-                " to find a real path instead of guessing one.\n"
-                "OUTPUT: one name per line; directories end in `/`. Recursive"
-                " listings are paths relative to the directory listed.\n"
-                "TIPS: set recursive for a whole tree and pattern to filter"
-                " (e.g. '*.py'). Build caches and VCS metadata (node_modules,"
-                " .venv, .git) are skipped, so the listing is the project.\n"
-                "LIMITS: recursive listings stop at 2000 entries. To search file"
-                " *contents* rather than names, use grep_files."
+                "WHAT IT DOES: Lists files and subdirectories in a workspace directory with optional glob matching and recursive traversal.\n"
+                "WHEN TO USE: Exploring directory structures, checking project layout, discovering file paths before opening them, or finding files matching a pattern.\n"
+                "WHEN NOT TO USE: Do not use to search the contents/text of files (use grep_files). Do not use if you already know the exact file path you want to read (use view_file).\n"
+                'EXAMPLE: {"path": "backend/agent", "recursive": false, "pattern": "*.py"}'
             ),
             parameters={
                 "type": "object",
@@ -648,16 +634,10 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
         Tool(
             name="grep_files",
             description=(
-                "Search file contents with a regular expression.\n"
-                "WHEN TO USE: first, on almost any question about a codebase --"
-                " to find where something is defined, used, or configured before"
-                " reading or editing anything. Prefer this over guessing paths.\n"
-                "OUTPUT: `path:line: matching text`, one hit per line.\n"
-                "TIPS: narrow with glob (e.g. '*.py') and path. Raise max_results"
-                " when a broad pattern matters. Follow a hit with view_file to"
-                " read around it. Build caches and VCS metadata are skipped.\n"
-                "LIMITS: 200 hits by default. Binary documents (PDF, .docx) are"
-                " not grepped -- search_documents indexes those."
+                "WHAT IT DOES: Searches file contents for regex or literal patterns across the workspace and returns matching lines with file paths and line numbers.\n"
+                "WHEN TO USE: Locating symbol definitions, function calls, imports, error messages, or config keys when the containing file is unknown.\n"
+                "WHEN NOT TO USE: Do not use if you already know the exact file and line number (use view_file). Do not use to list filenames without inspecting content (use list_files).\n"
+                'EXAMPLE: {"pattern": "def resolve_tool", "path": "backend", "glob": "*.py", "max_results": 10}'
             ),
             parameters={
                 "type": "object",
@@ -676,15 +656,10 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
         Tool(
             name="write_file",
             description=(
-                "Write text to a file, creating it or overwriting it whole.\n"
-                "WHEN TO USE: for a new file, or a rewrite so complete that"
-                " editing would be pointless. To change part of an existing"
-                " file use edit_file instead.\n"
-                "WHEN NOT TO USE: when the file is the thing the user asked you"
-                " to produce -- a document, README, script or report they will"
-                " read. Use create_artifact so it opens in the side panel.\n"
-                "LIMITS: overwrites without warning; parent directories are"
-                " created for you."
+                "WHAT IT DOES: Writes content to a file on disk, creating parent directories and overwriting existing files completely.\n"
+                "WHEN TO USE: Creating brand-new code files, scripts, or tests, or completely overwriting a file whose contents are being replaced wholesale.\n"
+                "WHEN NOT TO USE: Do not use to modify a small portion of an existing file (use edit_file). Do not use when the user asked for a document, report, or dashboard meant to open in the UI (use create_artifact).\n"
+                'EXAMPLE: {"path": "backend/agent/new_module.py", "content": "# Module implementation\\n..."}'
             ),
             parameters={
                 "type": "object",
@@ -698,16 +673,10 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
         Tool(
             name="create_artifact",
             description=(
-                "Write a file AND show it to the user in the side panel. Use this"
-                " instead of write_file whenever the file IS the thing the user"
-                " asked for -- a document, a README, an email draft, a script, a"
-                " report, a config they asked you to produce. Use plain write_file"
-                " for files you are only touching along the way. The panel renders"
-                " markdown as markdown and code with highlighting; HTML files run"
-                " live in a sandboxed iframe with full JavaScript and CDN access,"
-                " so charts, diagrams and interactive visualizations should use"
-                " Chart.js, D3, or Plotly from a CDN rather than hand-drawn SVG."
-                " Follow the interactive-artifacts skill for quality requirements."
+                "WHAT IT DOES: Creates a document or code artifact that is saved and displayed prominently to the user in the Amethyst side panel.\n"
+                "WHEN TO USE: Delivering user-requested documents, standalone scripts, markdown reports, interactive HTML/JS widgets, diagrams, or deliverables.\n"
+                "WHEN NOT TO USE: Do not use for internal project file edits, helper code, or temporary scratch files (use write_file or edit_file).\n"
+                'EXAMPLE: {"path": "summary_report.md", "title": "Quarterly Analysis", "content": "# Summary\\n..."}'
             ),
             parameters={
                 "type": "object",
@@ -732,17 +701,10 @@ def tools(workspace_root: str | None = None) -> list[Tool]:
         Tool(
             name="edit_file",
             description=(
-                "Replace an exact string in a file.\n"
-                "WHEN TO USE: for every change to an existing file. Prefer this"
-                " over write_file, which replaces the whole file and loses"
-                " anything you did not reproduce.\n"
-                "TIPS: read the file with view_file first and copy old_string"
-                " from what you read, including its indentation. Include enough"
-                " surrounding text to make it unique; set replace_all only when"
-                " you mean every occurrence.\n"
-                "LIMITS: old_string must appear exactly once unless replace_all"
-                " is set, and must match the file byte for byte -- a near miss"
-                " is an error, not a fuzzy match."
+                "WHAT IT DOES: Replaces an exact string in an existing file.\n"
+                "WHEN TO USE: Making targeted modifications, bug fixes, or incremental refactors in existing code files.\n"
+                "WHEN NOT TO USE: Do not use to create new files (use write_file). Do not use for complete file rewrites where replacing the entire content is cleaner (use write_file). Do not guess old_string; read the file with view_file first.\n"
+                'EXAMPLE: {"path": "backend/agent/config.py", "old_string": "timeout: float = 10.0", "new_string": "timeout: float = 15.0"}'
             ),
             parameters={
                 "type": "object",

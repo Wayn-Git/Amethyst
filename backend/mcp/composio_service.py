@@ -929,7 +929,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GOOGLECALENDAR_FIND_EVENT",
             "name": "Find Calendar Events",
-            "description": "Search and list Google Calendar events within a time range or matching a search query. Defaults to upcoming 7 days, max 10 events. Do not paginate or loop over pages.",
+            "description": (
+                "WHAT IT DOES: Searches and lists calendar events within a time window or matching a search query from the user's Google Calendar.\n"
+                "WHEN TO USE: Checking upcoming schedules, meetings, availability, or finding specific appointments.\n"
+                "WHEN NOT TO USE: Do not use to create or modify events (use GOOGLECALENDAR_CREATE_EVENT). Do not paginate or make repeated looping calls.\n"
+                'EXAMPLE: {"time_min": "2026-10-20T00:00:00Z", "time_max": "2026-10-27T23:59:59Z", "max_results": 10}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -946,7 +951,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GOOGLECALENDAR_CREATE_EVENT",
             "name": "Create Calendar Event",
-            "description": "Create a new event on Google Calendar.",
+            "description": (
+                "WHAT IT DOES: Creates and schedules a new calendar event on the user's Google Calendar with summary, start/end times, and optional attendees.\n"
+                "WHEN TO USE: Adding a new meeting, event, reminder, or appointment to the user's schedule.\n"
+                "WHEN NOT TO USE: Do not use to inspect or check existing schedule conflicts before creating (use GOOGLECALENDAR_FIND_EVENT first). Do not use to modify existing events.\n"
+                'EXAMPLE: {"summary": "Team Sync", "start_datetime": "2026-10-21T10:00:00Z", "end_datetime": "2026-10-21T10:30:00Z"}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1008,7 +1018,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GMAIL_FETCH_EMAILS",
             "name": "Fetch Emails",
-            "description": "Search and fetch emails from Gmail matching a search query or label. Defaults to 10 emails max with concise snippets. Do not paginate or loop over pages.",
+            "description": (
+                "WHAT IT DOES: Searches and retrieves recent email summaries and snippets from the user's Gmail inbox matching a query or label.\n"
+                "WHEN TO USE: Finding emails from specific senders, checking recent messages, or locating threads about a topic.\n"
+                "WHEN NOT TO USE: Do not use to send or draft replies (use GMAIL_SEND_EMAIL or GMAIL_CREATE_EMAIL_DRAFT). Do not paginate or query repeatedly.\n"
+                'EXAMPLE: {"query": "from:github is:unread", "max_results": 10}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1023,7 +1038,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GMAIL_SEND_EMAIL",
             "name": "Send Email",
-            "description": "Send an email from the user's Gmail account.",
+            "description": (
+                "WHAT IT DOES: Sends an email message from the user's Gmail account to specified recipients.\n"
+                "WHEN TO USE: Delivering confirmed outgoing emails to one or more recipients with subject and body.\n"
+                "WHEN NOT TO USE: Do not use without user confirmation if content has not been reviewed. Do not use for creating drafts without sending (use GMAIL_CREATE_EMAIL_DRAFT).\n"
+                'EXAMPLE: {"recipient_email": "colleague@example.com", "subject": "Project Status Update", "body": "Hi team, here is the weekly summary..."}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1080,7 +1100,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GITHUB_GET_AN_ISSUE",
             "name": "Get GitHub Issue",
-            "description": "Get details, state, and comments for a specific GitHub issue or pull request.",
+            "description": (
+                "WHAT IT DOES: Fetches details, state, author, labels, and discussion comments for a specific GitHub issue or pull request.\n"
+                "WHEN TO USE: Inspecting an open or closed issue/PR, reviewing bug reports, or reading discussion threads in a repository.\n"
+                "WHEN NOT TO USE: Do not use to create or comment on issues (use GITHUB_CREATE_AN_ISSUE or GITHUB_CREATE_AN_ISSUE_COMMENT).\n"
+                'EXAMPLE: {"owner": "octocat", "repo": "Hello-World", "issue_number": 42}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1094,7 +1119,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "GITHUB_CREATE_AN_ISSUE",
             "name": "Create GitHub Issue",
-            "description": "Create an issue in a GitHub repository.",
+            "description": (
+                "WHAT IT DOES: Creates a new issue in a specified GitHub repository with a title and body.\n"
+                "WHEN TO USE: Filing new bug reports, feature requests, or tracking tasks on a GitHub repository.\n"
+                "WHEN NOT TO USE: Do not use to comment on existing issues (use GITHUB_CREATE_AN_ISSUE_COMMENT). Do not use to create pull requests (use GITHUB_CREATE_A_PULL_REQUEST).\n"
+                'EXAMPLE: {"owner": "octocat", "repo": "Hello-World", "title": "Fix memory leak in parser", "body": "Observed high memory usage when..."}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1156,7 +1186,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "SLACK_SEND_MESSAGE",
             "name": "Send Slack Message",
-            "description": "Send a message to a Slack channel.",
+            "description": (
+                "WHAT IT DOES: Posts a message to a Slack channel or thread on behalf of the user.\n"
+                "WHEN TO USE: Sending updates, notifications, or replies to a team channel or thread in Slack.\n"
+                "WHEN NOT TO USE: Do not use to search or read conversation history (use SLACK_SEARCH_MESSAGES or SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION).\n"
+                'EXAMPLE: {"channel": "general", "text": "Meeting will start in 10 minutes."}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1170,7 +1205,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "SLACK_SEARCH_MESSAGES",
             "name": "Search Slack Messages",
-            "description": "Search messages across accessible Slack channels.",
+            "description": (
+                "WHAT IT DOES: Searches for messages across accessible Slack channels matching a text query.\n"
+                "WHEN TO USE: Locating past team discussions, decisions, links, or mentions in Slack workspaces.\n"
+                "WHEN NOT TO USE: Do not use to send messages (use SLACK_SEND_MESSAGE). Do not use if you already have the channel ID and thread timestamp (use SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION).\n"
+                'EXAMPLE: {"query": "deployment checklist", "count": 10}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1225,7 +1265,12 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         {
             "slug": "NOTION_SEARCH_NOTION_PAGE",
             "name": "Search Notion Pages",
-            "description": "Search for pages or databases in Notion by title or keyword.",
+            "description": (
+                "WHAT IT DOES: Searches Notion workspace pages and databases by title or keyword.\n"
+                "WHEN TO USE: Finding relevant documentation, notes, wikis, or project pages in Notion.\n"
+                "WHEN NOT TO USE: Do not use to retrieve page content once you have the page ID (use NOTION_GET_PAGE_MARKDOWN).\n"
+                'EXAMPLE: {"query": "Product Roadmap 2026", "page_size": 10}'
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {

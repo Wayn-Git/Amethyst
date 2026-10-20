@@ -1126,8 +1126,10 @@ class MCPManager:
                 if config.name == "composio":
                     if "COMPOSIO_SEARCH_TOOLS" in discovered.name:
                         desc = (
-                            f"[{config.name}] Required arguments: queries: [{{'use_case': '...'}}]. "
-                            "You may also pass use_case='...' or a bare search string.\n\n"
+                            f"[{config.name}] WHAT IT DOES: Searches and discovers available external integrations and tool schemas matching a high-level goal or query.\n"
+                            "WHEN TO USE: When a requested user action requires an external app or tool not currently loaded in the turn's active tool list.\n"
+                            "WHEN NOT TO USE: Do not use if the required tool is already present in your active tool list. Do not query repeatedly for tools that returned no results.\n"
+                            'EXAMPLE: {"queries": [{"use_case": "search spotify playlists"}]}\n\n'
                             + (discovered.description or "")
                         )
                         if isinstance(params, dict):
@@ -1138,8 +1140,10 @@ class MCPManager:
                             params["properties"] = props
                     elif "COMPOSIO_MULTI_EXECUTE_TOOL" in discovered.name:
                         desc = (
-                            f"[{config.name}] Required arguments: tools: [{{'tool_slug': '...', 'arguments': {{...}}}}]. "
-                            "sync_response_to_workbench is optional and defaults to false.\n\n"
+                            f"[{config.name}] WHAT IT DOES: Executes multiple independent external tool actions concurrently in a single round-trip.\n"
+                            "WHEN TO USE: Running multiple independent external read/fetch operations simultaneously (e.g. Calendar and Gmail) to save round-trips.\n"
+                            "WHEN NOT TO USE: Do not use for sequential operations where one tool depends on the output of another tool.\n"
+                            'EXAMPLE: {"tools": [{"tool_slug": "GOOGLECALENDAR_FIND_EVENT", "arguments": {"time_min": "2026-10-20T00:00:00Z"}}, {"tool_slug": "GMAIL_FETCH_EMAILS", "arguments": {"query": "is:unread"}}]}\n\n'
                             + (discovered.description or "")
                         )
                         if isinstance(params, dict):

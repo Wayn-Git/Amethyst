@@ -136,7 +136,12 @@ async def read_scratch_payload_handler(args: dict[str, Any], _: ToolContext) -> 
 def scratch_tool() -> Tool:
     return Tool(
         name="read_scratch_payload",
-        description="Retrieve the full payload of a large tool result offloaded to scratch storage using its handle.",
+        description=(
+            "WHAT IT DOES: Reads offloaded large tool result payloads from the scratch store using a unique scratch handle.\n"
+            "WHEN TO USE: Retrieving the full content of a tool execution when the initial response was truncated and saved with a scratch handle.\n"
+            "WHEN NOT TO USE: Do not call with arbitrary strings or file paths; only use valid handles returned by previous tools.\n"
+            'EXAMPLE: {"handle": "payload_gmail_abc123"}'
+        ),
         parameters={
             "type": "object",
             "properties": {
