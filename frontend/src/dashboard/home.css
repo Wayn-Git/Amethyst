@@ -139,7 +139,13 @@ li:hover .widget-row-menu summary, li:focus-within .widget-row-menu summary { op
 .home-needs .widget-list > li > div { flex: 1; display: grid; gap: var(--space-xs); }
 .home-needs .widget-list strong { display: block; font: 600 var(--text-md)/1.45 var(--home-heading-font); }
 .home-needs .widget-list .widget-chip { justify-self: start; color: var(--home-ink); background: var(--accent-wash); border-color: transparent; }
-.home-needs .widget-list > li > button { flex: none; }
+.chip-kind-mail { background: color-mix(in srgb, var(--accent) 15%, var(--canvas)) !important; color: var(--accent) !important; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent) !important; }
+.chip-kind-draft { background: color-mix(in srgb, #3b82f6 15%, var(--canvas)) !important; color: #2563eb !important; border: 1px solid color-mix(in srgb, #3b82f6 30%, transparent) !important; }
+.chip-kind-waiting { background: color-mix(in srgb, var(--warn) 18%, var(--canvas)) !important; color: var(--warn) !important; border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent) !important; }
+.chip-kind-mention { background: color-mix(in srgb, var(--home-ink) 14%, var(--canvas)) !important; color: var(--home-ink) !important; border: 1px solid color-mix(in srgb, var(--home-ink) 28%, transparent) !important; }
+.chip-kind-overdue { background: color-mix(in srgb, var(--stop) 16%, var(--canvas)) !important; color: var(--stop) !important; border: 1px solid color-mix(in srgb, var(--stop) 32%, transparent) !important; }
+.home-needs .widget-list > li > button { flex: none; transition: transform 120ms ease; }
+.home-needs .widget-list > li > button:hover { transform: translateY(-1px); border-color: var(--accent); }
 .home-needs .widget-connection { border-top: 1px solid var(--hairline); padding-top: var(--space-md); }
 .home-widget[data-widget="agent.brief"] { background: linear-gradient(135deg, var(--canvas) 30%, color-mix(in srgb, var(--accent) 7%, var(--canvas))); }
 .home-widget[data-widget="task.today"] .widget-list li { padding-block: var(--space-lg); }
