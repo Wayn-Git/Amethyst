@@ -148,6 +148,8 @@ class AgentState:
     #: Generative sandboxed UI envelope produced during this turn
     sandboxed_ui_envelope: str | None = None
     call_fingerprints: dict[str, int] = field(default_factory=dict)
+    #: In-turn tool call deduplication cache keyed by normalized (tool_name, sorted_json_args)
+    execution_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     warned_about_tools: bool = False
     warned_about_cap: bool = False
     #: Logged once per turn when tool selection narrowed what the model was shown.

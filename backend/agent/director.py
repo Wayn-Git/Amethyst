@@ -705,6 +705,19 @@ def _fingerprint(call: ToolCall) -> str:
     return f"{call.name}:{digest}"
 
 
+def execution_cache_key(tool_name: str, arguments: Any) -> str:
+    """Stable cache key for in-turn dedupe: (bare_tool_name, sorted_json_args)."""
+    norm_name = _bare(tool_name)
+    if isinstance(arguments, dict):
+        try:
+            args_str = json.dumps(arguments, sort_keys=True, default=str)
+        except Exception:
+            args_str = str(arguments)
+    else:
+        args_str = str(arguments)
+    return f"{norm_name}:{args_str}"
+
+
 def _guard(
     reason: str, said: list[str], iteration: int, tool_calls: int, started: float
 ) -> Event:
@@ -2718,7 +2731,24 @@ class Director:
                         ):
                             yield event
 
-                        if batch_future is not None and call in composio_calls:
+                        cache_key = execution_cache_key(call.name, call.arguments)
+                        if cache_key in state.execution_cache:
+                            cached_data = state.execution_cache[cache_key]
+                            cached_content = cached_data.get("content", "")
+                            note = "[already fetched this turn: using cached result]\n"
+                            content = note + cached_content if not cached_content.startswith(note) else cached_content
+                            cached_res = ToolResult(
+                                content=content,
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif batch_future is not None and call in composio_calls:
                             c_idx = composio_calls.index(call)
 
                             async def _await_batch_item(idx=c_idx, fut=batch_future):
@@ -2836,8 +2866,26 @@ class Director:
                             already_open=live_artifacts.opened(call),
                         ):
                             yield event
-                        # Execute sequentially and drain events inline
-                        task = self._spawn(self._execute(call, context))
+                        cache_key = execution_cache_key(call.name, call.arguments)
+                        if cache_key in state.execution_cache:
+                            cached_data = state.execution_cache[cache_key]
+                            cached_content = cached_data.get("content", "")
+                            note = "[already fetched this turn: using cached result]\n"
+                            content = note + cached_content if not cached_content.startswith(note) else cached_content
+                            cached_res = ToolResult(
+                                content=content,
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        else:
+                            # Execute sequentially and drain events inline
+                            task = self._spawn(self._execute(call, context))
                         dispatch_tasks.append((call, task))
                         token = object()
                         def _seq_done(_result, s=token):
@@ -2923,6 +2971,16 @@ class Director:
                             m = re.search(rf"```{re.escape(FENCE)}\s*\n(.*?)\n```", result.content, re.DOTALL)
                             if m:
                                 state.sandboxed_ui_envelope = f"```{FENCE}\n{m.group(1).strip()}\n```"
+
+                    if result and not result.is_error:
+                        cache_key = execution_cache_key(call.name, call.arguments)
+                        if cache_key not in state.execution_cache:
+                            state.execution_cache[cache_key] = {
+                                "content": result.content,
+                                "artifacts": getattr(result, "artifacts", []),
+                                "is_error": result.is_error,
+                                "recoverable": result.recoverable,
+                            }
 
                 answered = self._persist(
                     conversation_id,
