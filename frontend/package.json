@@ -15,7 +15,7 @@
     "test:media": "node tests/media.mjs",
     "test:spotlight": "node tests/spotlight.mjs",
     "test:sync": "node tests/sync.mjs",
-    "test:library": "node tests/library_card.mjs",
+    "test:library": "node tests/library_card.mjs && node tests/library_detail_modal.mjs",
     "test:shelves": "node tests/library_shelves.mjs"
   },
   "dependencies": {

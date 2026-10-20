@@ -24,6 +24,52 @@ export function formatDuration(seconds) {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
+export function formatInlineMarkdown(rawText) {
+  if (!rawText) return null
+  const lines = String(rawText).split(/\n+/).filter(Boolean)
+  return lines.map((line, lineIdx) => {
+    const cleanLine = line.replace(/^[-•*]\s*/, '').trim()
+    const parts = []
+    const regex = /(\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*)/g
+    let lastIndex = 0
+    let match
+    while ((match = regex.exec(cleanLine)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(cleanLine.slice(lastIndex, match.index))
+      }
+      if (match[2]) {
+        parts.push(
+          <strong key={`${lineIdx}-${match.index}`} className="lib-card-summary-strong">
+            {match[2]}
+          </strong>
+        )
+      } else if (match[3]) {
+        parts.push(
+          <code key={`${lineIdx}-${match.index}`} className="lib-card-summary-code">
+            {match[3]}
+          </code>
+        )
+      } else if (match[4]) {
+        parts.push(
+          <em key={`${lineIdx}-${match.index}`}>
+            {match[4]}
+          </em>
+        )
+      }
+      lastIndex = match.index + match[0].length
+    }
+    if (lastIndex < cleanLine.length) {
+      parts.push(cleanLine.slice(lastIndex))
+    }
+    return (
+      <span key={lineIdx} className="lib-card-summary-line">
+        {lineIdx > 0 && <span className="lib-card-summary-sep"> · </span>}
+        {parts.length > 0 ? parts : cleanLine}
+      </span>
+    )
+  })
+}
+
 export function getDomain(url, site) {
   if (site) return site.replace(/^www\./i, '').toLowerCase()
   if (!url) return ''
@@ -182,15 +228,7 @@ function LibraryCardComponent({
   const dateShort = useMemo(() => formatDisplayDate(rawDate, false), [rawDate])
   const dateFull = useMemo(() => formatDisplayDate(rawDate, true), [rawDate])
 
-  // Spotlight mouse tracking (MagicUI / Apple spotlight effect)
-  const handleMouseMove = useCallback((e) => {
-    if (!cardRef.current) return
-    const rect = cardRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    cardRef.current.style.setProperty('--mouse-x', `${x}px`)
-    cardRef.current.style.setProperty('--mouse-y', `${y}px`)
-  }, [])
+
 
   // Extract detected song / music track
   const musicResource = useMemo(() => {
@@ -257,7 +295,6 @@ function LibraryCardComponent({
       data-item-id={item.id}
       className={`lib-card lib-card--${cardVariant} ${isPost ? 'lib-card--post' : ''} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
       onClick={handleCardClick}
-      onMouseMove={handleMouseMove}
       tabIndex={0}
       role="button"
       aria-label={`Inspect ${item.title || 'knowledge resource'}`}
@@ -270,15 +307,10 @@ function LibraryCardComponent({
         }
       }}
     >
-      {/* Spotlight glow layer */}
-      <div className="lib-card-spotlight" aria-hidden="true" />
-
-
-
-      {/* Bento Media (Single clean card boundary, flush to edges) */}
+      {/* Flush Hero Media (Seamless top fit, zero border/margin, exactly 190px) */}
       {hasThumbnail ? (
         <div className="lib-card-media-wrap">
-          <div className="lib-card-media lib-card-media--cover">
+          <div className="lib-card-media">
             <img
               className="lib-card-media-img"
               src={api.thumbnailUrl(item.id)}
@@ -288,39 +320,6 @@ function LibraryCardComponent({
             />
             {/* Subtle bottom vignette only */}
             <div className="lib-card-media-scrim" aria-hidden="true" />
-
-            {/* Top-Left Platform Glass Badge */}
-            {(app || item.kind) && (
-              <div className="lib-card-platform-pill">
-                <Icon
-                  name={
-                    app === 'pinterest' ? 'pin' :
-                    app === 'youtube' ? 'play' :
-                    app === 'instagram' ? 'spark' :
-                    app === 'threads' ? 'threads' :
-                    app === 'tiktok' ? 'play' :
-                    app === 'spotify' ? 'music' :
-                    app === 'github' ? 'code' :
-                    app === 'x' ? 'chat' :
-                    KIND_ICON[item.kind] || 'link'
-                  }
-                  size={10}
-                />
-                <span>{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
-              </div>
-            )}
-
-            {/* Center Frosted Play Button for Videos / Reels */}
-            {(isVideo || duration || hasLocalVideo) && (
-              <div
-                className="lib-card-play-btn"
-                role="button"
-                aria-label="Play video"
-                title="Play video"
-              >
-                <Icon name="play" size={16} />
-              </div>
-            )}
 
             {/* Top-Right Multi-Image Carousel Pill */}
             {isCarousel && (
@@ -491,11 +490,11 @@ function LibraryCardComponent({
             </div>
           </div>
         ) : item.summary ? (
-          <p className="lib-card-summary">{item.summary}</p>
+          <p className="lib-card-summary">{formatInlineMarkdown(item.summary)}</p>
         ) : item.excerpt ? (
-          <p className="lib-card-summary">{item.excerpt}</p>
+          <p className="lib-card-summary">{formatInlineMarkdown(item.excerpt)}</p>
         ) : item.notes ? (
-          <p className="lib-card-summary lib-card-summary--notes">{item.notes}</p>
+          <p className="lib-card-summary lib-card-summary--notes">{formatInlineMarkdown(item.notes)}</p>
         ) : (
           <div className="lib-card-pending-chip">
             <Icon name="spark" size={10} />

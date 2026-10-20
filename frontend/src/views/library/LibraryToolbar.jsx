@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { IS_MAC } from '../../keys.js'
+import { Button } from '../../components/ui/button.tsx'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../components/ui/tooltip.tsx'
+import { motion } from 'framer-motion'
 
 const BARE_DOMAIN_RE =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/.*)?$/i
@@ -74,173 +77,188 @@ export default function LibraryToolbar({
   }
 
   return (
-    <div className="lib-command-deck" data-enter>
-      {/* Left: Brand / Title & Live Item Count */}
-      <div className="lib-deck-brand">
-        <h1 className="lib-deck-title">Library</h1>
-        <div className="lib-deck-status" role="status" aria-live="polite">
-          {isProcessingCount > 0 ? (
-            <>
-              <span className="lib-header-live-dot" />
-              <span>Syncing {isProcessingCount}</span>
-            </>
-          ) : (
-            <span>{total} items</span>
-          )}
-        </div>
-      </div>
-
-      {/* Center: Search / Omnibar Quick Capture */}
-      <form
-        className={`lib-command-bar lib-capture ${isUrl ? 'lib-command-bar--capturing' : ''}`}
-        onSubmit={handleSubmit}
-        role="search"
-      >
-        <div className="lib-capture-row">
-          <div className="lib-command-icon" aria-hidden="true">
-            {isUrl ? (
-              <Icon name="link" size={14} className="lib-icon-accent" />
+    <TooltipProvider delay={200}>
+      <header className="lib-command-deck" data-enter>
+        {/* Left: Brand / Title & Live Status */}
+        <div className="lib-deck-brand">
+          <h1 className="lib-deck-title">Library</h1>
+          <div className="lib-deck-status" role="status" aria-live="polite">
+            {isProcessingCount > 0 ? (
+              <>
+                <span className="lib-header-live-dot" />
+                <span>Syncing {isProcessingCount}</span>
+              </>
             ) : (
-              <Icon name="search" size={14} />
+              <span>{total} items</span>
             )}
           </div>
+        </div>
 
-          <input
-            ref={(node) => {
-              if (searchRef) searchRef.current = node
-              if (captureRef) captureRef.current = node
-            }}
-            type="text"
-            className="lib-capture-input lib-command-input"
-            placeholder={
-              isUrl
-                ? 'Press Enter to save to library...'
-                : `Search knowledge or paste URL to capture (${isMac ? '⌘/' : 'Ctrl+/'})`
-            }
-            value={rawVal}
-            onChange={handleInputChange}
-            aria-label="Search knowledge or paste URL to capture"
-          />
+        {/* Center: Search / Omnibar Quick Capture */}
+        <form
+          className={`lib-command-bar lib-capture ${isUrl ? 'lib-command-bar--capturing' : ''}`}
+          onSubmit={handleSubmit}
+          role="search"
+        >
+          <div className="lib-capture-row">
+            <div className="lib-command-icon" aria-hidden="true">
+              {isUrl ? (
+                <Icon name="link" size={14} className="lib-icon-accent" />
+              ) : (
+                <Icon name="search" size={14} />
+              )}
+            </div>
 
-          <div className="lib-command-actions">
-            {/* If URL detected, show primary Save button */}
-            {isUrl && (
-              <button
-                type="submit"
-                className="lib-capture-pill-btn"
-                title="Save directly to library (Enter)"
+            <input
+              ref={(node) => {
+                if (searchRef) searchRef.current = node
+                if (captureRef) captureRef.current = node
+              }}
+              type="text"
+              className="lib-capture-input lib-command-input"
+              placeholder={
+                isUrl
+                  ? 'Press Enter to save to library...'
+                  : `Search knowledge or paste URL to capture (${isMac ? '⌘/' : 'Ctrl+/'})`
+              }
+              value={rawVal}
+              onChange={handleInputChange}
+              aria-label="Search knowledge or paste URL to capture"
+            />
+
+            <div className="lib-command-actions">
+              {/* If URL detected, show primary Save button */}
+              {isUrl && (
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="lib-capture-pill-btn"
+                  title="Save directly to library (Enter)"
+                >
+                  <Icon name="plus" size={12} />
+                  <span>Save</span>
+                  <kbd className="lib-kbd-inline">↵</kbd>
+                </Button>
+              )}
+
+              {/* Clear button when search text entered */}
+              {rawVal && !isUrl && (
+                <button
+                  type="button"
+                  className="lib-command-clear"
+                  onClick={handleClear}
+                  title="Clear input"
+                  aria-label="Clear input"
+                >
+                  <Icon name="x" size={13} />
+                </button>
+              )}
+
+              {/* Keyboard shortcut hint when empty */}
+              {!rawVal && (
+                <kbd className="lib-kbd" title="Search shortcut">
+                  {isMac ? '⌘/' : 'Ctrl+/'}
+                </kbd>
+              )}
+            </div>
+          </div>
+        </form>
+
+        {/* Right: Sort Select + Layout Switcher + Action Tools + Primary Add */}
+        <div className="lib-deck-actions">
+          {/* Standalone Sort Dropdown */}
+          {onOrderChange && (
+            <div className="lib-deck-sort-pill" title="Change sort order">
+              <Icon name="down" size={11} className="lib-deck-sort-chevron" />
+              <span>{order === 'asc' ? 'Oldest' : order === 'rating' ? 'Top Rated' : 'Newest'}</span>
+              <select
+                value={order}
+                onChange={(e) => onOrderChange?.(e.target.value)}
+                aria-label="Sort order"
               >
-                <Icon name="plus" size={12} />
-                <span>Save</span>
-                <kbd className="lib-kbd-inline">↵</kbd>
-              </button>
-            )}
+                <option value="desc">Newest</option>
+                <option value="asc">Oldest</option>
+                <option value="rating">Top Rated</option>
+              </select>
+            </div>
+          )}
 
-            {/* Clear button when search text entered */}
-            {rawVal && !isUrl && (
+          {/* Segmented Layout Toggle: Grid vs List */}
+          {onLayoutChange && (
+            <div className="lib-segmented-control" role="group" aria-label="View display">
               <button
                 type="button"
-                className="lib-command-clear"
-                onClick={handleClear}
-                title="Clear input"
-                aria-label="Clear input"
+                className={`lib-segmented-btn ${layout === 'grid' ? 'lib-segmented-btn--active' : ''}`}
+                onClick={() => onLayoutChange('grid')}
+                title="Bento Grid view"
+                aria-label="Bento Grid view"
+                aria-pressed={layout === 'grid'}
               >
-                <Icon name="x" size={13} />
+                <Icon name="grid" size={14} />
               </button>
-            )}
+              <button
+                type="button"
+                className={`lib-segmented-btn ${layout === 'list' ? 'lib-segmented-btn--active' : ''}`}
+                onClick={() => onLayoutChange('list')}
+                title="Dense Stream view"
+                aria-label="Dense Stream view"
+                aria-pressed={layout === 'list'}
+              >
+                <Icon name="list" size={14} />
+              </button>
+            </div>
+          )}
 
-            {/* Keyboard shortcut hint when empty */}
-            {!rawVal && (
-              <kbd className="lib-kbd" title="Search shortcut">
-                {isMac ? '⌘/' : 'Ctrl+/'}
-              </kbd>
-            )}
-          </div>
+          {/* Export to Spotify Playlist */}
+          {hasMusic && onOpenExport && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="lib-header-action-btn"
+                  onClick={onOpenExport}
+                  aria-label="Export discovered audio to Spotify playlist"
+                >
+                  <Icon name="music" size={14} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Export audio to Spotify</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* External Capture & Integrations */}
+          {onToggleShare && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={`lib-header-action-btn ${showShare ? 'lib-header-action-btn--active' : ''}`}
+                  onClick={onToggleShare}
+                  aria-label="External capture & integrations (browser, phone, relay)"
+                  aria-expanded={showShare}
+                >
+                  <Icon name="link" size={14} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Capture & Integrations</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Primary Add Resource */}
+          <button
+            type="button"
+            className="lib-btn lib-btn--primary lib-deck-add-btn"
+            onClick={() => onOpenAddModal?.('url')}
+            title={`Add resource (${isMac ? '⌘K' : 'Ctrl+K'})`}
+          >
+            <Icon name="plus" size={14} />
+            <span>Add</span>
+            <kbd className="lib-kbd lib-kbd--primary">
+              {isMac ? '⌘K' : 'Ctrl+K'}
+            </kbd>
+          </button>
         </div>
-      </form>
-
-      {/* Right: Sort Pill + Layout Switcher + Secondary Tools + Primary Add */}
-      <div className="lib-deck-actions">
-        {/* Standalone Sort Pill */}
-        {onOrderChange && (
-          <div className="lib-deck-sort-pill" title="Change sort order">
-            <Icon name="down" size={11} className="lib-deck-sort-chevron" />
-            <span>{order === 'asc' ? 'Oldest' : 'Newest'}</span>
-            <select
-              value={order}
-              onChange={(e) => onOrderChange?.(e.target.value)}
-              aria-label="Sort order"
-            >
-              <option value="desc">Newest</option>
-              <option value="asc">Oldest</option>
-            </select>
-          </div>
-        )}
-        {/* Segmented Layout Toggle: Grid vs List */}
-        {onLayoutChange && (
-          <div className="lib-segmented-control" role="group" aria-label="View display">
-            <button
-              type="button"
-              className={`lib-segmented-btn ${layout === 'grid' ? 'lib-segmented-btn--active' : ''}`}
-              onClick={() => onLayoutChange('grid')}
-              title="Bento Grid view"
-              aria-label="Bento Grid view"
-              aria-pressed={layout === 'grid'}
-            >
-              <Icon name="grid" size={14} />
-            </button>
-            <button
-              type="button"
-              className={`lib-segmented-btn ${layout === 'list' ? 'lib-segmented-btn--active' : ''}`}
-              onClick={() => onLayoutChange('list')}
-              title="Dense Stream view"
-              aria-label="Dense Stream view"
-              aria-pressed={layout === 'list'}
-            >
-              <Icon name="list" size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* Export to Spotify Playlist */}
-        {hasMusic && onOpenExport && (
-          <button
-            type="button"
-            className="lib-header-action-btn"
-            onClick={onOpenExport}
-            title="Export discovered audio to Spotify playlist"
-          >
-            <Icon name="music" size={14} />
-          </button>
-        )}
-
-        {/* External Capture & Integrations */}
-        {onToggleShare && (
-          <button
-            type="button"
-            className={`lib-header-action-btn ${showShare ? 'lib-header-action-btn--active' : ''}`}
-            onClick={onToggleShare}
-            title="External capture & integrations (browser, phone, relay)"
-            aria-expanded={showShare}
-          >
-            <Icon name="link" size={14} />
-          </button>
-        )}
-
-        {/* Primary Add Resource */}
-        <button
-          type="button"
-          className="lib-btn lib-btn--primary lib-deck-add-btn"
-          onClick={() => onOpenAddModal?.('url')}
-          title={`Add resource (${isMac ? '⌘K' : 'Ctrl+K'})`}
-        >
-          <Icon name="plus" size={14} />
-          <span>Add</span>
-          <kbd className="lib-kbd lib-kbd--primary">
-            {isMac ? '⌘K' : 'Ctrl+K'}
-          </kbd>
-        </button>
-      </div>
-    </div>
+      </header>
+    </TooltipProvider>
   )
 }

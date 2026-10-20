@@ -135,8 +135,13 @@ class ReelCapture:
         is_music_intent = requested_kind == "music" or (
             bool(notes and notes.strip().lower() in ("music", "song", "#music", "audio"))
         )
+        is_reel_or_video = (
+            bool(reel.video_path or reel.direct_video_url)
+            or bool(reel.duration and reel.duration > 0)
+            or ("/reel/" in (reel.url or "") or "/reels/" in (reel.url or ""))
+        )
         has_slides = bool(reel.slide_urls and len(reel.slide_urls) > 1)
-        kind = "music" if is_music_intent else ("post" if has_slides else "video")
+        kind = "music" if is_music_intent else ("post" if (has_slides and not is_reel_or_video) else "video")
 
         captured = await self.library.capture_media(
             title=reel.title,

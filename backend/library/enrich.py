@@ -328,10 +328,15 @@ Rules:
     - For book/reading: Author, Genre, Publisher, Pages/Length, Published.
     - For food/travel: Location, Cuisine/Category, Best For, Hours/Season.
     - For general/article: Author, Publication, Topic, Read Time.
-- summary: Two to three dense, high-signal sentences stating the core thesis, actionable takeaway, technique, or valuable concepts directly.
-  CRITICAL NEGATIVE CONSTRAINTS:
-  * NEVER use meta-commentary: DO NOT say "This is a social media post/caption...", "The creator/author talks about...", "This video announces...", "The post features...", or "In this clip...".
-  * State the actual subject matter and insights directly as factual knowledge. Focus on what is useful, actionable, or notable (tools used, workflows explained, book/movie plot/analysis, key lessons).
+- summary: High-density, highly informative, structured synthesis.
+  Structure the summary with 2 to 4 crisp, high-signal bullet points using bold headers:
+  * **What it is:** The concrete subject, tool, film, paper, technique, or system being discussed.
+  * **Key Capability / Detail:** Specific mechanisms, syntax, workflows, plot mechanics, or distinctive elements.
+  * **Why it matters:** Concrete takeaway, practical value, or actionable insight.
+  CRITICAL CONSTRAINTS:
+  * ALWAYS use bold markdown headers (**Header:**) for each structured bullet point so it renders cleanly.
+  * NEVER use lazy meta-commentary: DO NOT say "This post describes...", "In this video...", "The author shares...", "The creator announces...", or "This clip features...".
+  * State factual, high-density, informative knowledge directly.
 - tags: two to three lowercase canonical topic words (e.g. ai, algorithms, programming, tools, design, cinema, streaming, data-science, reading). For movies/series/actors/films, always use "cinema" or "streaming" as primary tag.
 - resources: extract concrete named things the text names that the user could go and find, use, read, visit, or watch:
   - repo / codebase: open-source software, library, GitHub repository. Set type: "repo", name: "owner/repo" or project name, and url: "https://github.com/owner/repo" or the repo name. NEVER invent a synthetic ".com" domain for open-source repositories or code libraries.
@@ -587,6 +592,9 @@ KNOWN_TOOL_URLS = {
     "tremor": "https://tremor.so",
     "animata": "https://animata.design",
     "originui": "https://originui.com",
+    "fastapi": "https://github.com/fastapi/fastapi",
+    "vllm": "https://github.com/vllm-project/vllm",
+    "uv": "https://github.com/astral-sh/uv",
 }
 
 
@@ -653,18 +661,22 @@ def _clean_resource(entry: object, text_urls: list[str] | None = None) -> dict |
                 normalized = u
                 break
 
-    # If the model didn't provide a URL, auto-resolve to an authoritative platform link.
-    # If the model explicitly hallucinated prose (e.g. "probably somewhere in Bristol"),
-    # drop it unless it matches a known tool name.
+    # If the model didn't provide a URL, auto-resolve only if known tool or genuine repo pattern.
+    # Drop generic search queries.
     if not normalized:
-        if not raw_url:
-            normalized = resolve_entity_url(name, kind)
-        else:
-            name_clean = re.sub(r"[^a-z0-9]", "", raw_url.lower())
-            for tool_key, tool_url in KNOWN_TOOL_URLS.items():
-                if name_clean == re.sub(r"[^a-z0-9]", "", tool_key):
-                    normalized = tool_url
-                    break
+        name_clean = re.sub(r"[^a-z0-9]", "", name.lower())
+        for tool_key, tool_url in KNOWN_TOOL_URLS.items():
+            if name_clean == re.sub(r"[^a-z0-9]", "", tool_key):
+                normalized = tool_url
+                break
+        if not normalized and not raw_url and (kind in ("repo", "code") or re.match(repo_pattern, name.strip())):
+            resolved = resolve_entity_url(name, "code")
+            if resolved and "/search?" not in resolved:
+                normalized = resolved
+
+    # Drop search query URLs so resources don't navigate to misleading search pages
+    if normalized and ("/search?" in normalized or "google.com/search" in normalized or "search_query=" in normalized):
+        normalized = None
 
     return {
         "type": kind if kind in RESOURCE_TYPES else "other",
@@ -693,18 +705,14 @@ def _clean_entity(raw: object, category: str = "general", text_urls: list[str] |
         kind = str(a.get("kind") or "link").strip().lower()[:30]
         if label:
             if not url:
-                if kind in ("trailer", "video"):
-                    url = f"https://www.youtube.com/results?search_query={title}+trailer"
-                elif kind in ("details", "movie", "show", "film"):
-                    url = resolve_entity_url(title, "movie")
-                elif kind in ("repo", "github", "code"):
-                    url = resolve_entity_url(title, "code")
-                elif kind in ("paper", "book"):
-                    url = resolve_entity_url(title, "book")
-                else:
-                    url = resolve_entity_url(title, category)
-            actions.append({"label": label, "url": url, "kind": kind})
-            if len(actions) >= 4:
+                label_clean = re.sub(r"[^a-z0-9]", "", label.lower())
+                for tool_key, tool_url in KNOWN_TOOL_URLS.items():
+                    if label_clean == re.sub(r"[^a-z0-9]", "", tool_key):
+                        url = tool_url
+                        break
+            if url and not ("/search?" in url or "google.com/search" in url or "search_query=" in url):
+                actions.append({"label": label, "url": url, "kind": kind})
+            if len(actions) >= 2:
                 break
 
     attributes = {}

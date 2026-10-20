@@ -448,14 +448,19 @@ export default function Library() {
     return { '5': count5, '4+': count4plus, 'rated': countRated }
   }, [items])
 
-  // Filter items reactively by selectedRating
+  // Filter items reactively by selectedRating and order
   const displayedItems = useMemo(() => {
-    if (!selectedRating) return items
-    if (selectedRating === '5') return items.filter((it) => it.rating === 5)
-    if (selectedRating === '4+') return items.filter((it) => (it.rating || 0) >= 4)
-    if (selectedRating === 'rated') return items.filter((it) => (it.rating || 0) > 0)
-    return items
-  }, [items, selectedRating])
+    let result = items
+    if (selectedRating) {
+      if (selectedRating === '5') result = result.filter((it) => it.rating === 5)
+      else if (selectedRating === '4+') result = result.filter((it) => (it.rating || 0) >= 4)
+      else if (selectedRating === 'rated') result = result.filter((it) => (it.rating || 0) > 0)
+    }
+    if (order === 'rating') {
+      result = [...result].sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    }
+    return result
+  }, [items, selectedRating, order])
 
   const appCounts = useMemo(() => {
     const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify']
@@ -567,7 +572,7 @@ export default function Library() {
             />
 
             {/* Layout Area: Flush Segmented Filter Ribbon + Content Canvas */}
-            <div className="lib-layout w-full flex flex-col gap-3">
+            <div className="lib-layout w-full flex flex-col gap-4">
               <LibraryFilterBar
                 total={total}
                 counts={counts}
