@@ -1210,6 +1210,22 @@ class MCPManager:
                     arguments = normalize_composio_search_tools_args(arguments)
                 elif "COMPOSIO_REMOTE_WORKBENCH" in tool_name:
                     arguments = normalize_composio_remote_workbench_args(arguments)
+                elif "COMPOSIO_GET_TOOL_SCHEMAS" in tool_name:
+                    from backend.mcp.composio_service import get_cached_pinned_schema
+                    requested_slugs = arguments.get("tools") or arguments.get("tool_slugs") or []
+                    if isinstance(requested_slugs, str):
+                        requested_slugs = [requested_slugs]
+                    cached_schemas = []
+                    uncached = []
+                    for s in requested_slugs:
+                        s_name = s.get("tool_slug") if isinstance(s, dict) else s
+                        cs = get_cached_pinned_schema(str(s_name))
+                        if cs:
+                            cached_schemas.append(cs)
+                        else:
+                            uncached.append(s)
+                    if cached_schemas and not uncached:
+                        return ToolResult.ok(json.dumps({"tools": cached_schemas, "schemas": cached_schemas}))
             try:
                 raw = await connection.call(tool_name, arguments)
             except OAuthRequired:
@@ -1310,6 +1326,16 @@ class MCPManager:
                 from backend.mcp.composio_sanitizer import sanitize_composio_tool_result
 
                 result = sanitize_composio_tool_result(result, tool_name=tool_name, arguments=arguments)
+                if "COMPOSIO_GET_TOOL_SCHEMAS" in tool_name:
+                    from backend.mcp.composio_service import cache_resolved_schema
+                    try:
+                        parsed_raw = json.loads(result.content) if isinstance(result.content, str) else result.content
+                        tools_list = parsed_raw.get("tools") or parsed_raw.get("schemas") or []
+                        for t_item in tools_list:
+                            if isinstance(t_item, dict) and t_item.get("slug"):
+                                cache_resolved_schema(t_item["slug"], t_item)
+                    except Exception:
+                        pass
 
             if result.is_error and is_auth_failure_text(result.content):
                 log.warning("%s returned an authentication error in tool result: %s", server_name, result.content)
@@ -1338,7 +1364,7 @@ class MCPManager:
                 return 0
             connections = composio_service.get_connections()
             connected_toolkits = [
-                tk for tk in FAST_LANE_CONFIG if tk in connections
+                tk for tk in FAST_LANE_CONFIG if (not connections or tk in connections)
             ]
             if not connected_toolkits:
                 return 0
@@ -1351,25 +1377,38 @@ class MCPManager:
                 for tool_def in fast_tools:
                     slug = tool_def["slug"]
                     key = mcp_tool_key(slug, config.name)
-                    if self.registry.get(key):
-                        continue
+                    handler = self._make_composio_fast_lane_handler(config.name, slug)
                     cached = cached_by_name.get(key)
-                    if cached is not None:
-                        self.registry.register(cached)
-                        tools_for_cache.append(cached)
-                    else:
-                        tool = Tool(
-                            name=key,
+                    if not self.registry.get(key):
+                        if cached is not None:
+                            self.registry.register(cached)
+                            tools_for_cache.append(cached)
+                        else:
+                            tool = Tool(
+                                name=key,
+                                description=f"[{config.name}:{tk}] {tool_def['description']}",
+                                parameters=tool_def["parameters"],
+                                handler=handler,
+                                risk=classify(slug, {}),
+                                source=ToolSource.MCP,
+                                server_name=config.name,
+                            )
+                            self.registry.register(tool)
+                            tools_for_cache.append(tool)
+                        registered += 1
+                    if not self.registry.get(slug):
+                        direct_tool = Tool(
+                            name=slug,
                             description=f"[{config.name}:{tk}] {tool_def['description']}",
                             parameters=tool_def["parameters"],
-                            handler=self._make_composio_fast_lane_handler(config.name, slug),
+                            handler=handler,
                             risk=classify(slug, {}),
                             source=ToolSource.MCP,
                             server_name=config.name,
                         )
-                        self.registry.register(tool)
-                        tools_for_cache.append(tool)
-                    registered += 1
+                        self.registry.register(direct_tool)
+                        tools_for_cache.append(direct_tool)
+                        registered += 1
         except Exception as exc:
             log.warning("Could not register Composio fast-lane tools: %s", exc)
         return registered

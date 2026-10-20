@@ -924,6 +924,391 @@ def trim_composio_tool_schema(
     }
 
 
+STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
+    "googlecalendar": [
+        {
+            "slug": "GOOGLECALENDAR_FIND_EVENT",
+            "name": "Find Calendar Events",
+            "description": "Search and list Google Calendar events within a time range or matching a search query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Free-text search terms to filter events."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                    "time_min": {"type": "string", "description": "Lower bound for event start time (RFC3339 / ISO 8601 string, e.g. '2026-10-20T00:00:00Z')."},
+                    "time_max": {"type": "string", "description": "Upper bound for event start time (RFC3339 / ISO 8601 string)."},
+                    "max_results": {"type": "integer", "description": "Maximum number of events to return (default 10).", "default": 10},
+                    "single_events": {"type": "boolean", "description": "Whether to expand recurring events into instances.", "default": True},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_CREATE_EVENT",
+            "name": "Create Calendar Event",
+            "description": "Create a new event on Google Calendar.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "Title or summary of the event."},
+                    "start_datetime": {"type": "string", "description": "Start datetime in ISO 8601 format (e.g. '2026-10-20T10:00:00Z')."},
+                    "end_datetime": {"type": "string", "description": "End datetime in ISO 8601 format (e.g. '2026-10-20T11:00:00Z')."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                    "description": {"type": "string", "description": "Description or agenda of the event."},
+                    "location": {"type": "string", "description": "Location of the event."},
+                    "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses."},
+                },
+                "required": ["summary", "start_datetime", "end_datetime"],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_UPDATE_EVENT",
+            "name": "Update Calendar Event",
+            "description": "Update an existing event on Google Calendar.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string", "description": "ID of the event to update."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                    "summary": {"type": "string", "description": "New title or summary of the event."},
+                    "start_datetime": {"type": "string", "description": "New start datetime in ISO 8601 format."},
+                    "end_datetime": {"type": "string", "description": "New end datetime in ISO 8601 format."},
+                    "description": {"type": "string", "description": "New description of the event."},
+                },
+                "required": ["event_id"],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_DELETE_EVENT",
+            "name": "Delete Calendar Event",
+            "description": "Delete an event from Google Calendar.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string", "description": "ID of the event to delete."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                },
+                "required": ["event_id"],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_LIST_CALENDARS",
+            "name": "List Calendars",
+            "description": "List the calendars available on the user's Google account.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_results": {"type": "integer", "description": "Maximum number of calendars to return.", "default": 10},
+                },
+                "required": [],
+            },
+        },
+    ],
+    "gmail": [
+        {
+            "slug": "GMAIL_FETCH_EMAILS",
+            "name": "Fetch Emails",
+            "description": "Search and fetch emails from Gmail matching a search query or label.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Gmail search query (e.g. 'from:github', 'is:unread', 'subject:meeting')."},
+                    "max_results": {"type": "integer", "description": "Maximum number of emails to return (default 10).", "default": 10},
+                    "verbose": {"type": "boolean", "description": "Whether to fetch full body (false returns concise snippets).", "default": False},
+                    "label_ids": {"type": "array", "items": {"type": "string"}, "description": "Filter by label IDs (e.g. ['INBOX', 'UNREAD'])."},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "GMAIL_SEND_EMAIL",
+            "name": "Send Email",
+            "description": "Send an email from the user's Gmail account.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "recipient_email": {"type": "string", "description": "Primary recipient email address."},
+                    "subject": {"type": "string", "description": "Subject of the email."},
+                    "body": {"type": "string", "description": "Body content of the email."},
+                    "cc": {"type": "string", "description": "Optional CC recipient email address."},
+                    "bcc": {"type": "string", "description": "Optional BCC recipient email address."},
+                },
+                "required": ["recipient_email", "subject", "body"],
+            },
+        },
+        {
+            "slug": "GMAIL_CREATE_EMAIL_DRAFT",
+            "name": "Create Email Draft",
+            "description": "Create an email draft in Gmail without sending it immediately.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "recipient_email": {"type": "string", "description": "Recipient email address."},
+                    "subject": {"type": "string", "description": "Subject line of the draft."},
+                    "body": {"type": "string", "description": "Body content of the draft."},
+                },
+                "required": ["recipient_email", "subject", "body"],
+            },
+        },
+        {
+            "slug": "GMAIL_REPLY_TO_THREAD",
+            "name": "Reply to Email Thread",
+            "description": "Reply to an existing email thread in Gmail.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "string", "description": "ID of the email thread to reply to."},
+                    "body": {"type": "string", "description": "Reply message body."},
+                },
+                "required": ["thread_id", "body"],
+            },
+        },
+        {
+            "slug": "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+            "name": "Fetch Email by ID",
+            "description": "Fetch a specific email by its message ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {"type": "string", "description": "ID of the message to retrieve."},
+                },
+                "required": ["message_id"],
+            },
+        },
+    ],
+    "github": [
+        {
+            "slug": "GITHUB_GET_AN_ISSUE",
+            "name": "Get GitHub Issue",
+            "description": "Get details, state, and comments for a specific GitHub issue or pull request.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner or organization."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "issue_number": {"type": "integer", "description": "Issue or PR number."},
+                },
+                "required": ["owner", "repo", "issue_number"],
+            },
+        },
+        {
+            "slug": "GITHUB_CREATE_AN_ISSUE",
+            "name": "Create GitHub Issue",
+            "description": "Create an issue in a GitHub repository.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "title": {"type": "string", "description": "Issue title."},
+                    "body": {"type": "string", "description": "Issue description content."},
+                },
+                "required": ["owner", "repo", "title"],
+            },
+        },
+        {
+            "slug": "GITHUB_CREATE_AN_ISSUE_COMMENT",
+            "name": "Comment on GitHub Issue",
+            "description": "Add a comment to an existing GitHub issue or pull request.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "issue_number": {"type": "integer", "description": "Issue or PR number."},
+                    "body": {"type": "string", "description": "Comment content."},
+                },
+                "required": ["owner", "repo", "issue_number", "body"],
+            },
+        },
+        {
+            "slug": "GITHUB_CREATE_A_PULL_REQUEST",
+            "name": "Create GitHub Pull Request",
+            "description": "Create a pull request in a GitHub repository.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "title": {"type": "string", "description": "Pull request title."},
+                    "head": {"type": "string", "description": "Branch containing changes."},
+                    "base": {"type": "string", "description": "Branch to merge into."},
+                    "body": {"type": "string", "description": "Pull request description."},
+                },
+                "required": ["owner", "repo", "title", "head", "base"],
+            },
+        },
+        {
+            "slug": "GITHUB_GET_A_REPOSITORY",
+            "name": "Get GitHub Repository",
+            "description": "Get repository metadata and description.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                },
+                "required": ["owner", "repo"],
+            },
+        },
+    ],
+    "slack": [
+        {
+            "slug": "SLACK_SEND_MESSAGE",
+            "name": "Send Slack Message",
+            "description": "Send a message to a Slack channel.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Channel ID or channel name."},
+                    "text": {"type": "string", "description": "Message text to send."},
+                    "thread_ts": {"type": "string", "description": "Optional thread timestamp to reply to."},
+                },
+                "required": ["channel", "text"],
+            },
+        },
+        {
+            "slug": "SLACK_SEARCH_MESSAGES",
+            "name": "Search Slack Messages",
+            "description": "Search messages across accessible Slack channels.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query terms."},
+                    "count": {"type": "integer", "description": "Maximum messages to return (default 10).", "default": 10},
+                },
+                "required": ["query"],
+            },
+        },
+        {
+            "slug": "SLACK_LIST_ALL_CHANNELS",
+            "name": "List Slack Channels",
+            "description": "List public and private channels in the Slack workspace.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "types": {"type": "string", "description": "Comma-separated channel types.", "default": "public_channel,private_channel"},
+                    "limit": {"type": "integer", "description": "Maximum channels to return.", "default": 50},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION",
+            "name": "Fetch Slack Thread",
+            "description": "Fetch all messages in a specific Slack conversation thread.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Channel ID."},
+                    "ts": {"type": "string", "description": "Timestamp of the thread parent message."},
+                },
+                "required": ["channel", "ts"],
+            },
+        },
+        {
+            "slug": "SLACK_ADD_REACTION_TO_AN_ITEM",
+            "name": "Add Slack Reaction",
+            "description": "Add an emoji reaction to a Slack message.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Channel ID."},
+                    "timestamp": {"type": "string", "description": "Message timestamp."},
+                    "name": {"type": "string", "description": "Emoji name without colons."},
+                },
+                "required": ["channel", "timestamp", "name"],
+            },
+        },
+    ],
+    "notion": [
+        {
+            "slug": "NOTION_SEARCH_NOTION_PAGE",
+            "name": "Search Notion Pages",
+            "description": "Search for pages or databases in Notion by title or keyword.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search text to match in page titles."},
+                    "page_size": {"type": "integer", "description": "Maximum items to return (default 10).", "default": 10},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "NOTION_GET_PAGE_MARKDOWN",
+            "name": "Get Notion Page Markdown",
+            "description": "Retrieve the markdown content of a Notion page.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "page_id": {"type": "string", "description": "ID of the Notion page to retrieve."},
+                },
+                "required": ["page_id"],
+            },
+        },
+        {
+            "slug": "NOTION_CREATE_NOTION_PAGE",
+            "name": "Create Notion Page",
+            "description": "Create a new page in Notion.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "parent_id": {"type": "string", "description": "ID of parent page or database."},
+                    "title": {"type": "string", "description": "Page title."},
+                    "content": {"type": "string", "description": "Initial markdown content."},
+                },
+                "required": ["parent_id", "title"],
+            },
+        },
+        {
+            "slug": "NOTION_UPDATE_PAGE_MARKDOWN",
+            "name": "Update Notion Page",
+            "description": "Update or append markdown content to a Notion page.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "page_id": {"type": "string", "description": "ID of the page to update."},
+                    "content": {"type": "string", "description": "Markdown content to write."},
+                },
+                "required": ["page_id", "content"],
+            },
+        },
+        {
+            "slug": "NOTION_QUERY_DATABASE",
+            "name": "Query Notion Database",
+            "description": "Query items in a Notion database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "database_id": {"type": "string", "description": "ID of the database to query."},
+                    "page_size": {"type": "integer", "description": "Maximum items to return.", "default": 10},
+                },
+                "required": ["database_id"],
+            },
+        },
+    ],
+}
+
+# Process-lifetime in-memory cache of slug -> schema
+_PINNED_SCHEMAS_CACHE: dict[str, dict[str, Any]] = {
+    tool["slug"]: tool
+    for tk_tools in STATIC_PINNED_SCHEMAS.values()
+    for tool in tk_tools
+}
+
+
+def get_cached_pinned_schema(slug: str) -> dict[str, Any] | None:
+    """Retrieve schema from the process-lifetime cache."""
+    return _PINNED_SCHEMAS_CACHE.get(slug)
+
+
+def cache_resolved_schema(slug: str, schema: dict[str, Any]) -> None:
+    """Record a resolved tool schema into the process-lifetime cache."""
+    if slug and schema:
+        _PINNED_SCHEMAS_CACHE[slug] = schema
+
+
 class ComposioService:
     """Manages credentials, sessions, and hosted MCP configuration for Composio."""
 
@@ -2210,16 +2595,26 @@ class ComposioService:
             self._trigger_background_fast_lane_refresh([slug])
             return cached
 
-        # If cache is completely empty, fetch synchronously
-        try:
-            fetched = self._fetch_fast_lane_tools_sync([slug])
-            if slug in fetched:
-                self._fast_lane_cache[slug] = fetched[slug]
-                self._fast_lane_cache_time[slug] = now
-                return fetched[slug]
-        except Exception as exc:
-            log.warning("Failed to fetch fast-lane tools for %s: %s", slug, exc)
-            return []
+        # If cache is completely empty, attempt synchronous fetch if configured
+        if self.is_configured():
+            try:
+                fetched = self._fetch_fast_lane_tools_sync([slug])
+                if slug in fetched and fetched[slug]:
+                    self._fast_lane_cache[slug] = fetched[slug]
+                    self._fast_lane_cache_time[slug] = now
+                    for t in fetched[slug]:
+                        if t.get("slug"):
+                            cache_resolved_schema(t["slug"], t)
+                    return fetched[slug]
+            except Exception as exc:
+                log.warning("Failed to fetch fast-lane tools for %s: %s", slug, exc)
+
+        # Fall back to pre-pinned static schemas for guaranteed instant availability
+        if slug in STATIC_PINNED_SCHEMAS:
+            self._fast_lane_cache[slug] = list(STATIC_PINNED_SCHEMAS[slug])
+            self._fast_lane_cache_time[slug] = now
+            self._trigger_background_fast_lane_refresh([slug])
+            return self._fast_lane_cache[slug]
 
         return self._fast_lane_cache.get(slug, [])
 
