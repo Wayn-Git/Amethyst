@@ -6,9 +6,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api.js'
 import ExportPlaylistModal from './ExportPlaylistModal.jsx'
 import LibraryVideoPlayer from './LibraryVideoPlayer.jsx'
+import Markdown from '../../components/markdown/Markdown.jsx'
 import { formatDuration, getDomain, getFaviconUrl, KIND_ICON } from './LibraryCard.jsx'
 import { RATING_TIERS, getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate, formatFullDateTime, formatRelativeDate } from './dateUtils.js'
+import { CloseButton } from '../../components/base/buttons/close-button'
 
 export function formatModelDisplayName(modelStr) {
   if (!modelStr) return 'AI Synthesis'
@@ -229,12 +231,21 @@ export default function LibraryDetailModal({
   const [selectedEnrichModel, setSelectedEnrichModel] = useState('llama-3.3-70b-versatile')
   const [showModelMenu, setShowModelMenu] = useState(false)
   const modelPickerRef = useRef(null)
-  const [mediaMode, setMediaMode] = useState('video')
+  const [mediaMode, setMediaMode] = useState('slides')
   const [activeTab, setActiveTab] = useState('overview')
   const [copiedTranscript, setCopiedTranscript] = useState(false)
   const [copiedVisuals, setCopiedVisuals] = useState(false)
   const [isCaptionExpanded, setIsCaptionExpanded] = useState(false)
   const carouselTrackRef = useRef(null)
+
+  // Automatically select video or slides based on item capabilities
+  useEffect(() => {
+    if (item) {
+      const hasLocalVid = Boolean(item.media_path) && /\.(mp4|webm|mov)(\?|$)/i.test(item.media_path)
+      const hasYt = Boolean(item.url && /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)/i.test(item.url))
+      setMediaMode((hasLocalVid || hasYt) ? 'video' : 'slides')
+    }
+  }, [item?.id, item?.media_path, item?.url])
 
   // Load configured enrichment model from library settings
   useEffect(() => {
@@ -383,16 +394,49 @@ export default function LibraryDetailModal({
     )
   }, [item?.resources])
 
-  // Non-audio mentioned resources and websites
+  // Non-audio mentioned resources and websites with strict verification
   const mentionedResources = useMemo(() => {
     let res = item?.resources
     if (typeof res === 'string') {
       try { res = JSON.parse(res) } catch { res = [] }
     }
     if (!Array.isArray(res)) return []
-    return res.filter(
-      (r) => r && typeof r === 'object' && r.type !== 'music' && r.type !== 'song' && r.type !== 'slide' && r.type !== 'avatar'
-    )
+
+    const valid = []
+    const seenNames = new Set()
+
+    for (const r of res) {
+      if (!r || typeof r !== 'object') continue
+      if (r.type === 'music' || r.type === 'song' || r.type === 'slide' || r.type === 'avatar') continue
+      const name = (r.name || r.title || '').trim()
+      if (!name) continue
+      const nameKey = name.toLowerCase()
+      if (seenNames.has(nameKey)) continue
+      seenNames.add(nameKey)
+
+      let cleanUrl = r.url ? String(r.url).trim() : null
+      if (cleanUrl) {
+        const uLower = cleanUrl.toLowerCase()
+        if (
+          uLower.includes('/search?') ||
+          uLower.includes('search_query=') ||
+          uLower.includes('google.com/search') ||
+          uLower.includes('bing.com/search') ||
+          uLower.includes('themoviedb.org/search') ||
+          uLower.includes('goodreads.com/search')
+        ) {
+          cleanUrl = null
+        }
+      }
+
+      valid.push({
+        ...r,
+        name,
+        url: cleanUrl,
+      })
+    }
+
+    return valid
   }, [item?.resources])
 
   // Save detected song to library Song List
@@ -470,10 +514,10 @@ export default function LibraryDetailModal({
     return null
   }, [item?.url])
 
-  // Instagram embed detection
+  // Instagram embed detection (Only genuine video reels have embeds)
   const instagramEmbedUrl = useMemo(() => {
     if (!item?.url) return null
-    const m = item.url.match(/instagram\.com\/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/i)
+    const m = item.url.match(/instagram\.com\/(?:reel|reels)\/([A-Za-z0-9_-]+)/i)
     return m && m[1] ? `https://www.instagram.com/reel/${m[1]}/embed/` : null
   }, [item?.url])
 
@@ -497,25 +541,28 @@ export default function LibraryDetailModal({
     )
     const urlLower = (item.url || '').toLowerCase()
     const isDirectVideoUrl = /\.(mp4|webm|mov)(\?|$)/i.test(urlLower)
-    const isSocialVideo =
-      (app === 'instagram' && (urlLower.includes('/reel/') || urlLower.includes('/reels/') || item.kind === 'video' || item.duration_seconds)) ||
-      (app === 'tiktok') ||
-      (app === 'reddit' && (urlLower.includes('/comments/') || urlLower.includes('v.redd.it') || item.kind === 'video')) ||
-      (app === 'x' && (Boolean(videoResource) || item.kind === 'video')) ||
-      (item.duration_seconds > 0 && item.kind !== 'podcast' && item.kind !== 'music')
+    const isYouTube = Boolean(youtubeEmbedUrl)
 
-    const hasVideo = hasLocalVid || Boolean(videoResource) || isDirectVideoUrl || isSocialVideo || (item.kind === 'video' && !youtubeEmbedUrl)
+    // A playable video requires a genuine video file, direct stream, or YouTube embed
+    const hasActualVideo = Boolean(
+      hasLocalVid ||
+      Boolean(videoResource) ||
+      isDirectVideoUrl ||
+      isYouTube
+    )
+
     const videoStreamUrl = api.mediaUrl(item.id)
     const fallbackVideoUrl =
       (videoResource?.remote_url && videoResource.remote_url.startsWith('http') ? videoResource.remote_url : null) ||
       (videoResource?.url && videoResource.url.startsWith('http') ? videoResource.url : null) ||
       (isDirectVideoUrl ? item.url : null)
 
-    const vItem = (youtubeEmbedUrl || hasVideo || instagramEmbedUrl) ? {
-      type: youtubeEmbedUrl ? 'youtube' : (hasVideo ? 'video' : 'embed'),
-      url: youtubeEmbedUrl ? youtubeEmbedUrl : (hasVideo ? videoStreamUrl : instagramEmbedUrl),
+    const vItem = hasActualVideo ? {
+      type: isYouTube ? 'youtube' : 'video',
+      url: videoStreamUrl,
+      isYouTube,
       fallbackUrl: fallbackVideoUrl,
-      embedUrl: instagramEmbedUrl,
+      embedUrl: youtubeEmbedUrl,
       poster: hasThumbnail ? api.thumbnailUrl(item.id) : undefined,
       name: 'Video',
     } : null
@@ -553,8 +600,8 @@ export default function LibraryDetailModal({
       }
     }
 
-    return { videoItem: vItem, slideItems: sItems, isVid: hasVideo }
-  }, [item, app, youtubeEmbedUrl, instagramEmbedUrl, hasThumbnail])
+    return { videoItem: vItem, slideItems: sItems, isVid: hasActualVideo }
+  }, [item, youtubeEmbedUrl, hasThumbnail])
 
   const hasMultipleMediaModes = Boolean(videoItem && slideItems.length > 0)
   const isVideoMode = Boolean(videoItem && (mediaMode === 'video' || slideItems.length === 0))
@@ -638,13 +685,15 @@ export default function LibraryDetailModal({
     if (app && (appMatch || !cleanDomain)) {
       return {
         platformName: APP_NAMES[app] || (app.charAt(0).toUpperCase() + app.slice(1)),
-        icon: app === 'pinterest' ? 'pin' :
-              app === 'youtube' ? 'play' :
-              app === 'instagram' ? 'spark' :
+        icon: app === 'pinterest' ? 'pinterest' :
+              app === 'youtube' ? 'youtube' :
+              app === 'instagram' ? 'instagram' :
               app === 'threads' ? 'threads' :
-              app === 'spotify' ? 'music' :
-              app === 'github' ? 'code' :
-              app === 'x' ? 'chat' : KIND_ICON[item.kind] || 'link',
+              app === 'tiktok' ? 'tiktok' :
+              app === 'spotify' ? 'spotify' :
+              app === 'github' ? 'github' :
+              app === 'x' || app === 'twitter' ? 'x' :
+              app === 'reddit' ? 'reddit' : KIND_ICON[item.kind] || 'link',
         author: formattedAuthor,
         showFavicon: Boolean(favicon),
       }
@@ -712,37 +761,122 @@ export default function LibraryDetailModal({
     return avatarRes?.url || avatarRes?.remote_url || null
   }, [item?.resources])
 
-  // Context-adaptive action buttons
-  const adaptiveActions = useMemo(() => {
-    if (entity?.actions && Array.isArray(entity.actions) && entity.actions.length > 0) {
-      return entity.actions
+  // Extract verified project repository, discord, or official tool link from metadata/resources
+  const verifiedSecondaryAction = useMemo(() => {
+    const rawText = `${item?.content || ''} ${item?.excerpt || ''} ${caption || ''}`
+    const itemUrl = (item?.url || '').trim()
+
+    // 1. Check if item has an explicit project or repo URL in its entity metadata
+    if (entity?.repo_url && typeof entity.repo_url === 'string') {
+      const m = entity.repo_url.match(/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/i)
+      return {
+        label: m ? `${m[1]}/${m[2]}` : 'Project Repository',
+        url: entity.repo_url,
+        icon: 'github',
+      }
     }
+    if (entity?.github_url && typeof entity.github_url === 'string') {
+      const m = entity.github_url.match(/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/i)
+      return {
+        label: m ? `${m[1]}/${m[2]}` : 'Project Repository',
+        url: entity.github_url,
+        icon: 'github',
+      }
+    }
+    if (entity?.project_url && typeof entity.project_url === 'string' && !entity.project_url.includes('/search')) {
+      return {
+        label: 'Project Website',
+        url: entity.project_url,
+        icon: 'external-link',
+      }
+    }
+
+    // 2. Check resources explicitly labeled as repository or project (NOT third-party mentioned tools)
+    if (Array.isArray(item?.resources)) {
+      for (const r of item.resources) {
+        if (!r || typeof r !== 'object') continue
+        const rUrl = (r.url || '').trim()
+        if (!rUrl || rUrl.includes('/search?') || rUrl.includes('google.com/search') || rUrl.includes('bing.com/search')) continue
+        if (itemUrl && rUrl.toLowerCase().startsWith(itemUrl.toLowerCase())) continue
+
+        // Explicit repository resource
+        if (r.type === 'repository' || r.type === 'repo' || r.type === 'github') {
+          const m = rUrl.match(/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/i)
+          return {
+            label: r.name && r.name.includes('/') ? r.name : (m ? `${m[1]}/${m[2]}` : 'Repository'),
+            url: rUrl,
+            icon: 'github',
+          }
+        }
+
+        // Explicit project website resource (distinct from third-party tools)
+        if (r.type === 'project' || r.type === 'website') {
+          return {
+            label: r.name ? `Visit ${r.name}` : 'Project Website',
+            url: rUrl,
+            icon: 'external-link',
+          }
+        }
+      }
+    }
+
+    // 3. Check for genuine Discord community invite in text
+    const discordRegex = /https?:\/\/(?:discord\.gg|discord\.com\/invite)\/[a-zA-Z0-9_-]+/i
+    const discordMatch = rawText.match(discordRegex)
+    if (discordMatch) {
+      const discUrl = discordMatch[0].replace(/[.,;:)]+$/, '')
+      if (!itemUrl || !discUrl.toLowerCase().startsWith(itemUrl.toLowerCase())) {
+        return {
+          label: 'Discord Community',
+          url: discUrl,
+          icon: 'chat',
+        }
+      }
+    }
+
+    return null
+  }, [item?.content, item?.excerpt, caption, item?.url, item?.resources, entity])
+
+  // Context-adaptive action buttons (capped at max 2 strictly verified links: primary source + verified secondary)
+  const adaptiveActions = useMemo(() => {
     const actions = []
+
     if (item?.url) {
       let primaryLabel = 'Open Link'
       let primaryIcon = 'external-link'
       const kind = (item?.kind || '').toLowerCase()
-      const cat = (item?.category || '').toLowerCase()
       const host = (domain || '').toLowerCase()
 
-      if (kind === 'video' || cat === 'movie' || cat === 'video' || host.includes('youtube') || host.includes('tiktok') || host.includes('vimeo')) {
-        primaryLabel = host.includes('youtube') ? 'Watch on YouTube' : 'Watch Video'
-        primaryIcon = 'play'
-      } else if (kind === 'code' || cat === 'tool' || host.includes('github') || host.includes('gitlab')) {
+      if (host.includes('github.com')) {
         primaryLabel = 'View Repository'
-        primaryIcon = 'code'
-      } else if (cat === 'paper' || host.includes('arxiv')) {
+        primaryIcon = 'github'
+      } else if (host.includes('youtube.com') || host.includes('youtu.be')) {
+        primaryLabel = 'Watch on YouTube'
+        primaryIcon = 'youtube'
+      } else if (host.includes('instagram.com')) {
+        primaryLabel = isVertical ? 'Watch Reel' : 'View on Instagram'
+        primaryIcon = 'instagram'
+      } else if (host.includes('twitter.com') || host.includes('x.com')) {
+        primaryLabel = 'View on X'
+        primaryIcon = 'x'
+      } else if (host.includes('reddit.com')) {
+        primaryLabel = 'View on Reddit'
+        primaryIcon = 'reddit'
+      } else if (host.includes('threads.net')) {
+        primaryLabel = 'View on Threads'
+        primaryIcon = 'threads'
+      } else if (host.includes('spotify.com')) {
+        primaryLabel = 'Listen on Spotify'
+        primaryIcon = 'spotify'
+      } else if (kind === 'video' || isVertical) {
+        primaryLabel = 'Watch Video'
+        primaryIcon = 'play'
+      } else if (kind === 'paper') {
         primaryLabel = 'Read Paper'
         primaryIcon = 'file'
-      } else if (kind === 'music' || cat === 'music' || host.includes('spotify') || host.includes('soundcloud') || host.includes('bandcamp')) {
-        primaryLabel = 'Listen on Spotify'
-        primaryIcon = 'music'
-      } else if (kind === 'article' || cat === 'article' || host.includes('substack') || host.includes('medium')) {
+      } else if (kind === 'article') {
         primaryLabel = 'Read Article'
         primaryIcon = 'book'
-      } else if (host.includes('twitter') || host.includes('x.com') || host.includes('threads') || host.includes('reddit')) {
-        primaryLabel = 'View Post'
-        primaryIcon = 'chat'
       } else {
         primaryLabel = `Visit ${sourceInfo.platformName || 'Source'}`
         primaryIcon = 'external-link'
@@ -755,45 +889,20 @@ export default function LibraryDetailModal({
         primary: true,
       })
     }
-    return actions
-  }, [entity?.actions, item?.url, item?.kind, item?.category, domain, sourceInfo.platformName])
 
-  // Context-adaptive attributes table
-  const adaptiveAttributes = useMemo(() => {
-    if (entity?.attributes && typeof entity.attributes === 'object' && Object.keys(entity.attributes).length > 0) {
-      return Object.entries(entity.attributes).map(([k, v]) => ({ key: k, value: String(v) }))
+    // Secondary verified action if distinct from item.url (max 1 secondary)
+    if (verifiedSecondaryAction && verifiedSecondaryAction.url !== item?.url) {
+      actions.push({
+        label: verifiedSecondaryAction.label,
+        url: verifiedSecondaryAction.url,
+        icon: verifiedSecondaryAction.icon,
+        primary: false,
+      })
     }
-    const attrs = []
-    const kind = (item?.kind || '').toLowerCase()
-    const cat = (item?.category || '').toLowerCase()
-    const isSocialMedia = (sourceInfo.platformName || '').toLowerCase().includes('instagram') ||
-                          (sourceInfo.platformName || '').toLowerCase().includes('tiktok') ||
-                          (sourceInfo.platformName || '').toLowerCase().includes('threads')
 
-    if (item?.author) {
-      attrs.push({ key: 'Author / Creator', value: cleanAuthor || item.author })
-    }
-    if (sourceInfo.platformName && sourceInfo.platformName !== 'Resource') {
-      attrs.push({ key: 'Platform', value: sourceInfo.platformName })
-    }
-    if (duration) {
-      attrs.push({ key: 'Duration', value: duration })
-    }
-    const categoryLabel = cat && cat !== 'general'
-      ? (cat === 'movie' && (item?.is_reel || isSocialMedia)
-          ? 'Film Clip'
-          : (cat.charAt(0).toUpperCase() + cat.slice(1)))
-      : (kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : null)
+    return actions.slice(0, 2)
+  }, [item?.url, item?.kind, domain, isVertical, sourceInfo.platformName, verifiedSecondaryAction])
 
-    if (categoryLabel) {
-      attrs.push({ key: 'Content Type', value: categoryLabel })
-    }
-    if (dateFull) {
-      attrs.push({ key: 'Captured', value: dateFull })
-    }
-    attrs.push({ key: 'Knowledge Index', value: item?.indexed ? 'Vector indexed (Semantic search)' : 'Archive storage' })
-    return attrs
-  }, [entity?.attributes, item?.author, cleanAuthor, sourceInfo.platformName, duration, item?.category, item?.kind, dateFull, item?.indexed, item?.is_reel])
 
   // Keyboard navigation: left/right to move through slides or items, escape to close
   useEffect(() => {
@@ -921,7 +1030,7 @@ export default function LibraryDetailModal({
     }
   }
 
-  const handleCopyTranscript = useCallback(async () => {
+  const handleCopyTranscript = async () => {
     if (!transcript) return
     try {
       await navigator.clipboard.writeText(transcript)
@@ -931,9 +1040,9 @@ export default function LibraryDetailModal({
     } catch {
       toast('Failed to copy transcript', 'bad')
     }
-  }, [transcript, toast])
+  }
 
-  const handleCopyVisuals = useCallback(async () => {
+  const handleCopyVisuals = async () => {
     if (!visualContent) return
     try {
       await navigator.clipboard.writeText(visualContent)
@@ -943,7 +1052,7 @@ export default function LibraryDetailModal({
     } catch {
       toast('Failed to copy visual content', 'bad')
     }
-  }, [visualContent, toast])
+  }
 
   const handleEnrich = async (provOverride, modOverride) => {
     setEnrichError(null)
@@ -1016,8 +1125,7 @@ export default function LibraryDetailModal({
           <div className="lib-page-header-left">
             {/* Prominent Back to Library button */}
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-back-btn"
               onClick={onClose}
@@ -1049,8 +1157,7 @@ export default function LibraryDetailModal({
             {items && items.length > 0 && currentIndex !== -1 && (
               <div className="lib-page-pager">
                 <motion.button
-                  whileHover={{ scale: 1.15 }}
-                  whileTap={{ scale: 0.88 }}
+                  whileTap={{ scale: 0.95 }}
                   type="button"
                   className="lib-page-pager-btn"
                   onClick={handlePrev}
@@ -1064,8 +1171,7 @@ export default function LibraryDetailModal({
                   {currentIndex + 1} of {items.length}
                 </span>
                 <motion.button
-                  whileHover={{ scale: 1.15 }}
-                  whileTap={{ scale: 0.88 }}
+                  whileTap={{ scale: 0.95 }}
                   type="button"
                   className="lib-page-pager-btn"
                   onClick={handleNext}
@@ -1099,15 +1205,11 @@ export default function LibraryDetailModal({
               <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
             </button>
 
-            <button
-              type="button"
-              className="lib-page-icon-btn lib-page-icon-btn--close"
+            <CloseButton
+              size="sm"
               onClick={onClose}
-              title="Close (Esc)"
-              aria-label="Close"
-            >
-              <Icon name="x" size={14} />
-            </button>
+              slot={null}
+            />
           </div>
         </header>
 
@@ -1154,6 +1256,7 @@ export default function LibraryDetailModal({
             {isVideoMode && videoItem ? (
               <LibraryVideoPlayer
                 src={videoItem.url}
+                isYouTube={videoItem.isYouTube}
                 poster={videoItem.poster}
                 title={item.title}
                 fallbackUrl={videoItem.fallbackUrl}
@@ -1251,8 +1354,7 @@ export default function LibraryDetailModal({
             {!isVideoMode && (
               <div className="lib-page-media-actions">
                 <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ scale: 0.97 }}
                   type="button"
                   className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
                   onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
@@ -1264,8 +1366,7 @@ export default function LibraryDetailModal({
 
                 {hasThumbnail && (
                   <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.96 }}
+                    whileTap={{ scale: 0.97 }}
                     type="button"
                     className="lib-page-pill-btn"
                     onClick={() => setShowLightbox(true)}
@@ -1278,8 +1379,7 @@ export default function LibraryDetailModal({
 
                 {item.url && (
                   <motion.a
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.96 }}
+                    whileTap={{ scale: 0.97 }}
                     href={item.url}
                     target="_blank"
                     rel="noreferrer"
@@ -1413,7 +1513,7 @@ export default function LibraryDetailModal({
                 </div>
               </div>
 
-              {/* 3. Action Pill Buttons */}
+              {/* 3. Action Buttons (Clean, strictly verified, max 2 actions + copy + synthesize) */}
               <div className="lib-page-cta-row">
                 {adaptiveActions.map((act, i) => (
                   <a
@@ -1423,8 +1523,9 @@ export default function LibraryDetailModal({
                     rel="noreferrer"
                     className={`lib-page-cta-pill ${act.primary || i === 0 ? 'lib-page-cta-pill--primary' : 'lib-page-cta-pill--secondary'}`}
                   >
-                    <Icon name={act.icon || 'external-link'} size={14} />
-                    <span>{act.label} ↗</span>
+                    <Icon name={act.icon || 'external-link'} size={13} />
+                    <span>{act.label}</span>
+                    <Icon name="arrow-up-right" size={11} className="lib-page-cta-arrow" />
                   </a>
                 ))}
 
@@ -1433,7 +1534,6 @@ export default function LibraryDetailModal({
                     type="button"
                     className="lib-page-cta-pill lib-page-cta-pill--secondary"
                     onClick={handleCopyLink}
-                    title="Copy URL"
                   >
                     <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
                     <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
@@ -1445,7 +1545,6 @@ export default function LibraryDetailModal({
                   className="lib-page-cta-pill lib-page-cta-pill--secondary"
                   onClick={() => handleEnrich()}
                   disabled={Boolean(busyAction) || item.status === 'enriching'}
-                  title="Synthesize / Re-analyze with AI"
                 >
                   <Icon
                     name={isEnriching ? 'loader' : 'spark'}
@@ -1510,8 +1609,8 @@ export default function LibraryDetailModal({
                         return (
                           <motion.button
                             key={star}
-                            whileHover={{ scale: 1.25 }}
-                            whileTap={{ scale: 0.85 }}
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.92 }}
                             type="button"
                             className="lib-page-star-btn"
                             onMouseEnter={() => setHoveredStar(star)}
@@ -1626,8 +1725,7 @@ export default function LibraryDetailModal({
                           </div>
 
                           <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.92 }}
+                            whileTap={{ scale: 0.97 }}
                             type="button"
                             className="lib-synthesis-action-btn"
                             onClick={handleCopySummary}
@@ -1637,8 +1735,7 @@ export default function LibraryDetailModal({
                             <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
                           </motion.button>
                           <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.92 }}
+                            whileTap={{ scale: 0.97 }}
                             type="button"
                             className="lib-synthesis-action-btn"
                             onClick={() => handleEnrich()}
@@ -1651,7 +1748,9 @@ export default function LibraryDetailModal({
                         </div>
                       </div>
 
-                      <p className="lib-synthesis-prose">{summaryText}</p>
+                      <div className="lib-synthesis-prose">
+                        <Markdown text={summaryText} />
+                      </div>
                     </div>
                   ) : (
                     <div className="lib-synthesis-card lib-synthesis-card--pending">
@@ -1740,22 +1839,47 @@ export default function LibraryDetailModal({
                     </div>
                   )}
 
-                  {/* Type-Adaptive Specifications & Attributes */}
-                  {adaptiveAttributes.length > 0 && (
-                    <div className="lib-page-section">
+                  {/* Visual Content & Slide Analysis Breakdown (Crucial intelligence from vision OCR) */}
+                  {visualContent && (
+                    <div className="lib-page-section lib-visual-breakdown-section">
                       <div className="lib-page-section-header">
                         <span className="lib-page-section-title-wrap">
-                          <Icon name="info" size={13} />
-                          <span>Specifications & Attributes</span>
+                          <Icon name="brain" size={13} />
+                          <span>Slide & Visual Breakdown</span>
+                          {visualWordCount > 0 && (
+                            <span className="lib-transcript-count-pill">{visualWordCount} words</span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            type="button"
+                            className="lib-synthesis-action-btn"
+                            onClick={handleCopyVisuals}
+                            title="Copy visual breakdown text"
+                          >
+                            <Icon name={copiedVisuals ? 'check' : 'copy'} size={12} />
+                            <span>{copiedVisuals ? 'Copied' : 'Copy'}</span>
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      <div className="lib-visual-breakdown-body">
+                        <Markdown text={visualContent} />
+                      </div>
+                    </div>
+                  )}
+
+                  {!visualContent && textBody && (
+                    <div className="lib-page-section lib-visual-breakdown-section">
+                      <div className="lib-page-section-header">
+                        <span className="lib-page-section-title-wrap">
+                          <Icon name="file-text" size={13} />
+                          <span>Document Content</span>
                         </span>
                       </div>
-                      <div className="lib-page-spec-table">
-                        {adaptiveAttributes.map((attr, idx) => (
-                          <div key={idx} className="lib-page-spec-item">
-                            <span className="lib-page-spec-key">{attr.key}</span>
-                            <span className="lib-page-spec-val">{attr.value}</span>
-                          </div>
-                        ))}
+                      <div className="lib-visual-breakdown-body">
+                        <Markdown text={textBody} />
                       </div>
                     </div>
                   )}
@@ -1866,7 +1990,7 @@ export default function LibraryDetailModal({
                         </span>
                       </div>
 
-                      <div className="lib-synthesis-resources-grid">
+                      <div className="lib-resource-chips-wrap">
                         {mentionedResources.map((res, i) => {
                           const domain = getCleanDomain(res.url)
                           const iconName = getResourceIcon(res.type, res.url)
@@ -1874,28 +1998,13 @@ export default function LibraryDetailModal({
 
                           const content = (
                             <>
-                              <div className="lib-resource-card-left">
-                                <div className="lib-resource-icon">
-                                  <Icon name={iconName} size={13} />
-                                </div>
-                                <div className="lib-resource-info">
-                                  <div className="lib-resource-name-row">
-                                    <span className="lib-resource-name" title={res.name}>{res.name}</span>
-                                    {domain && <span className="lib-resource-domain">{domain}</span>}
-                                    {res.type && res.type !== 'other' && res.type !== 'link' && !domain && (
-                                      <span className="lib-resource-type-pill">{res.type}</span>
-                                    )}
-                                  </div>
-                                  {res.detail && (
-                                    <span className="lib-resource-detail" title={res.detail}>{res.detail}</span>
-                                  )}
-                                </div>
-                              </div>
-
+                              <span className="lib-resource-chip-icon">
+                                <Icon name={iconName} size={12} />
+                              </span>
+                              <span className="lib-resource-chip-name">{res.name}</span>
+                              {domain && <span className="lib-resource-chip-domain">{domain}</span>}
                               {isClickable && (
-                                <div className="lib-resource-launch" title={`Open ${res.url}`}>
-                                  <Icon name="arrow-up-right" size={13} />
-                                </div>
+                                <Icon name="arrow-up-right" size={10} className="lib-resource-chip-arrow" />
                               )}
                             </>
                           )
@@ -1906,14 +2015,18 @@ export default function LibraryDetailModal({
                               href={res.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="lib-resource-card"
-                              title={`Open ${res.name} (${res.url})`}
+                              className="lib-resource-chip"
+                              title={res.detail ? `${res.name}: ${res.detail}` : `Open ${res.name}`}
                               onClick={(e) => e.stopPropagation()}
                             >
                               {content}
                             </a>
                           ) : (
-                            <div key={i} className="lib-resource-card lib-resource-card--static">
+                            <div
+                              key={i}
+                              className="lib-resource-chip lib-resource-chip--static"
+                              title={res.detail ? `${res.name}: ${res.detail}` : res.name}
+                            >
                               {content}
                             </div>
                           )
@@ -1961,8 +2074,7 @@ export default function LibraryDetailModal({
                             </span>
                             <div className="flex items-center gap-2">
                               <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.92 }}
+                                whileTap={{ scale: 0.97 }}
                                 type="button"
                                 className="lib-synthesis-action-btn"
                                 onClick={handleCopyTranscript}
@@ -1997,8 +2109,7 @@ export default function LibraryDetailModal({
                             </span>
                             <div className="flex items-center gap-2">
                               <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.92 }}
+                                whileTap={{ scale: 0.97 }}
                                 type="button"
                                 className="lib-synthesis-action-btn"
                                 onClick={handleCopyVisuals}
@@ -2057,7 +2168,9 @@ export default function LibraryDetailModal({
                           </div>
 
                           <div className="lib-transcript-box lib-transcript-box--open">
-                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{textBody}</p>
+                            <div className="lib-transcript-markdown-body" style={{ padding: '4px 0' }}>
+                              <Markdown text={textBody} />
+                            </div>
                             <div className="lib-transcript-badge">
                               <Icon name="file" size={10} />
                               <span>Full document markdown / text body</span>
@@ -2207,8 +2320,7 @@ export default function LibraryDetailModal({
         <footer className="lib-page-footer">
           <div className="lib-page-footer-left">
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-dock-btn"
               disabled={Boolean(busyAction)}
@@ -2219,8 +2331,7 @@ export default function LibraryDetailModal({
               <span>Re-index</span>
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-dock-btn"
               disabled={Boolean(busyAction)}
@@ -2234,8 +2345,7 @@ export default function LibraryDetailModal({
 
           <div className="lib-page-footer-right">
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-dock-btn lib-page-dock-btn--danger"
               onClick={() => {
