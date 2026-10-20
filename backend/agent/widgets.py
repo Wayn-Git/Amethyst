@@ -1009,26 +1009,6 @@ def has_widget_signals(message: str) -> bool:
     return any(signal in lowered_padded for signal in _WIDGET_SIGNALS)
 
 
-def should_run_classify_and_extract(
-    message: str,
-    mode: str = "agent",
-    attachments: list[Any] | None = None,
-) -> bool:
-    """Synchronous fast check whether classify_and_extract should even be called."""
-    if mode == "plan" or attachments:
-        return False
-    if not message or not message.strip():
-        return False
-    if len(message) > 500:
-        return False
-    if is_connected_service_intent(message):
-        return False
-    if not has_widget_signals(message):
-        return False
-    if _certainly_not_a_widget(message):
-        return False
-    return True
-
 
 def _certainly_not_a_widget(message: str) -> bool:
     """Whether to skip the classifier entirely for this message."""
