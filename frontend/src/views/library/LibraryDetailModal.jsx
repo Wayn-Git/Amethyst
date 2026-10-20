@@ -982,8 +982,7 @@ export default function LibraryDetailModal({
           <div className="lib-page-header-left">
             {/* Prominent Back to Library button */}
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-back-btn"
               onClick={onClose}
@@ -1015,8 +1014,7 @@ export default function LibraryDetailModal({
             {items && items.length > 0 && currentIndex !== -1 && (
               <div className="lib-page-pager">
                 <motion.button
-                  whileHover={{ scale: 1.15 }}
-                  whileTap={{ scale: 0.88 }}
+                  whileTap={{ scale: 0.95 }}
                   type="button"
                   className="lib-page-pager-btn"
                   onClick={handlePrev}
@@ -1030,8 +1028,7 @@ export default function LibraryDetailModal({
                   {currentIndex + 1} of {items.length}
                 </span>
                 <motion.button
-                  whileHover={{ scale: 1.15 }}
-                  whileTap={{ scale: 0.88 }}
+                  whileTap={{ scale: 0.95 }}
                   type="button"
                   className="lib-page-pager-btn"
                   onClick={handleNext}
@@ -1218,8 +1215,7 @@ export default function LibraryDetailModal({
             {!isVideoMode && (
               <div className="lib-page-media-actions">
                 <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ scale: 0.97 }}
                   type="button"
                   className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
                   onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
@@ -1231,8 +1227,7 @@ export default function LibraryDetailModal({
 
                 {hasThumbnail && (
                   <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.96 }}
+                    whileTap={{ scale: 0.97 }}
                     type="button"
                     className="lib-page-pill-btn"
                     onClick={() => setShowLightbox(true)}
@@ -1245,8 +1240,7 @@ export default function LibraryDetailModal({
 
                 {item.url && (
                   <motion.a
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.96 }}
+                    whileTap={{ scale: 0.97 }}
                     href={item.url}
                     target="_blank"
                     rel="noreferrer"
@@ -1477,8 +1471,8 @@ export default function LibraryDetailModal({
                         return (
                           <motion.button
                             key={star}
-                            whileHover={{ scale: 1.25 }}
-                            whileTap={{ scale: 0.85 }}
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.92 }}
                             type="button"
                             className="lib-page-star-btn"
                             onMouseEnter={() => setHoveredStar(star)}
@@ -1593,8 +1587,7 @@ export default function LibraryDetailModal({
                           </div>
 
                           <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.92 }}
+                            whileTap={{ scale: 0.97 }}
                             type="button"
                             className="lib-synthesis-action-btn"
                             onClick={handleCopySummary}
@@ -1604,8 +1597,7 @@ export default function LibraryDetailModal({
                             <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
                           </motion.button>
                           <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.92 }}
+                            whileTap={{ scale: 0.97 }}
                             type="button"
                             className="lib-synthesis-action-btn"
                             onClick={() => handleEnrich()}
@@ -1922,8 +1914,7 @@ export default function LibraryDetailModal({
                             </span>
                             <div className="flex items-center gap-2">
                               <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.92 }}
+                                whileTap={{ scale: 0.97 }}
                                 type="button"
                                 className="lib-synthesis-action-btn"
                                 onClick={handleCopyTranscript}
@@ -1958,8 +1949,7 @@ export default function LibraryDetailModal({
                             </span>
                             <div className="flex items-center gap-2">
                               <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.92 }}
+                                whileTap={{ scale: 0.97 }}
                                 type="button"
                                 className="lib-synthesis-action-btn"
                                 onClick={handleCopyVisuals}
@@ -2168,8 +2158,7 @@ export default function LibraryDetailModal({
         <footer className="lib-page-footer">
           <div className="lib-page-footer-left">
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-dock-btn"
               disabled={Boolean(busyAction)}
@@ -2180,8 +2169,7 @@ export default function LibraryDetailModal({
               <span>Re-index</span>
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-dock-btn"
               disabled={Boolean(busyAction)}
@@ -2195,8 +2183,7 @@ export default function LibraryDetailModal({
 
           <div className="lib-page-footer-right">
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               className="lib-page-dock-btn lib-page-dock-btn--danger"
               onClick={() => {
