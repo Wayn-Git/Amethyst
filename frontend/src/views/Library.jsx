@@ -201,16 +201,23 @@ export default function Library() {
         if (cancelled) break
         try {
           const updated = await api.libraryItem(id)
+          const isStillBusy =
+            updated.status === 'received' ||
+            updated.status === 'processing' ||
+            updated.status === 'enriching'
+
           const isDone =
-            updated.status === 'ready' ||
             updated.status === 'failed' ||
-            Boolean(updated.enriched_at || updated.enrichment_note || updated.summary)
+            (updated.status === 'ready' && !isStillBusy)
+
           if (isDone) {
             activeProcessingIds.current.delete(id)
             setItems((prev) =>
               prev.map((it) => (it.id === id ? { ...updated, isProcessing: false } : it))
             )
-            toast(`Ready: ${updated.title}`, 'ok')
+            if (updated.status !== 'failed') {
+              toast(`Ready: ${updated.title}`, 'ok')
+            }
             api.library().then((res) => {
               setCounts(res.counts || {})
               setCategoryCounts(res.category_counts || {})

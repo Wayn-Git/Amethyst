@@ -241,6 +241,8 @@ RESOURCE_TYPES = (
     "recipe",
     "tool",
     "product",
+    "repo",
+    "code",
     "book",
     "place",
     "person",
@@ -332,6 +334,7 @@ Rules:
   * State the actual subject matter and insights directly as factual knowledge. Focus on what is useful, actionable, or notable (tools used, workflows explained, book/movie plot/analysis, key lessons).
 - tags: two to three lowercase canonical topic words (e.g. ai, algorithms, programming, tools, design, cinema, streaming, data-science, reading). For movies/series/actors/films, always use "cinema" or "streaming" as primary tag.
 - resources: extract concrete named things the text names that the user could go and find, use, read, visit, or watch:
+  - repo / codebase: open-source software, library, GitHub repository. Set type: "repo", name: "owner/repo" or project name, and url: "https://github.com/owner/repo" or the repo name. NEVER invent a synthetic ".com" domain for open-source repositories or code libraries.
   - book: title, author, key context.
   - tool/product: app/software/hardware name, what it does.
   - movie/show: title, genre/platform, key context.
@@ -339,7 +342,7 @@ Rules:
   - travel/destination: city/country, spot name.
   - link/person/place/other: exact named entity, handles, or external services.
   `type` must be one of movie|show|travel|destination|food|restaurant|cafe|\
-recipe|tool|product|book|place|person|link|other.
+recipe|tool|repo|code|product|book|place|person|link|other.
   `detail` is key information in ten words or fewer. For `url`, provide the direct link from the text or the official domain (e.g. "github.com", "goodreads.com", "chatgpt.com").
 - An empty list is the right answer when the text names nothing. Do not invent entities.
 - If the text is too thin to say anything true about, reply \
@@ -611,6 +614,8 @@ def resolve_entity_url(name: str, kind: str) -> str:
     if kind in ("music", "song", "artist", "album", "audio", "track", "podcast"):
         return f"https://open.spotify.com/search/{q}"
     if kind in ("code", "repo", "library", "framework", "package", "github"):
+        if re.match(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$", name.strip()):
+            return f"https://github.com/{name.strip()}"
         return f"https://github.com/search?q={q}"
 
     return f"https://www.google.com/search?q={q}"
@@ -626,6 +631,16 @@ def _clean_resource(entry: object, text_urls: list[str] | None = None) -> dict |
     raw_url = str(entry.get("url") or "").strip()
 
     normalized = normalize_url(raw_url)
+
+    # Check for direct github repository paths like "owner/repo"
+    repo_pattern = r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$"
+    if re.match(repo_pattern, raw_url):
+        normalized = f"https://github.com/{raw_url}"
+    elif not normalized and (kind in ("repo", "code") or re.match(repo_pattern, name)):
+        if re.match(repo_pattern, name):
+            normalized = f"https://github.com/{name}"
+        else:
+            normalized = resolve_entity_url(name, "code")
 
     # If url was display text (e.g. "Dust", "Relay") or empty, see if a matching
     # URL exists in the source text
