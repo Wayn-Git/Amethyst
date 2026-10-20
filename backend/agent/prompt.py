@@ -332,6 +332,51 @@ def _build_static_parts(
     return "\n\n".join(parts)
 
 
+def get_user_timezone(client: dict | None = None):
+    clean = sanitize_client_context(client)
+    tz_str = clean.get("client_tz")
+    if tz_str:
+        try:
+            import zoneinfo
+            return zoneinfo.ZoneInfo(tz_str)
+        except Exception:
+            pass
+    return datetime.now().astimezone().tzinfo
+
+
+def temporal_block(client: dict | None = None) -> str:
+    """Inject fresh temporal context with current date, time, weekday, user timezone,
+    and standard query default windows for the turn.
+    """
+    clean_client = sanitize_client_context(client)
+    tz = get_user_timezone(client)
+    now = datetime.now(tz)
+    weekday = now.strftime("%A")
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M:%S")
+    tz_name = clean_client.get("client_tz") or now.tzname() or "UTC"
+
+    from backend.agent.config import agent_config
+    window_days = agent_config.default_date_window_days
+
+    lines = [
+        "<temporal_context>",
+        f"  current_date: {date_str}",
+        f"  current_time: {time_str}",
+        f"  weekday: {weekday}",
+        f"  timezone: {tz_name}",
+        "  default_windows:",
+        f"    upcoming_calendar: next {window_days} days from current_date",
+        f"    recent_emails: past {window_days} days from current_date",
+        "  rules:",
+        '    - Use current_date, weekday, and timezone to resolve all relative dates ("today", "tomorrow", "this week", "upcoming").',
+        f'    - When searching upcoming calendar events without an explicit date range, default to the next {window_days} days.',
+        f'    - When searching recent emails or messages without an explicit date range, default to the past {window_days} days.',
+        "</temporal_context>",
+    ]
+    return "\n".join(lines)
+
+
 def environment_block(
     workspace_root: str | None, client: dict | None = None,
 ) -> str:
@@ -341,14 +386,21 @@ def environment_block(
     locale (BCP47), device_class (desktop|mobile|tablet), client_time (ISO).
     Anything else dropped. No geo, no UA, no hostname — local-first.
     """
-    now = datetime.now()
+    clean_client = sanitize_client_context(client)
+    tz = get_user_timezone(client)
+    now = datetime.now(tz)
+    weekday = now.strftime("%A")
+    tz_name = clean_client.get("client_tz") or now.tzname() or "UTC"
+
     lines = [
         "<environment>",
-        f"  date: {now:%Y-%m-%d %H:%M} ({now.astimezone().tzname()})",
+        f"  date: {now:%Y-%m-%d %H:%M} ({weekday}, {tz_name})",
+        f"  weekday: {weekday}",
+        f"  timezone: {tz_name}",
         f"  platform: {platform.system()} {platform.release()}",
         f"  workspace: {workspace_root or 'not set'}",
     ]
-    for key, val in sorted(sanitize_client_context(client).items()):
+    for key, val in sorted(clean_client.items()):
         lines.append(f"  {key}: {val}")
     lines.append("</environment>")
     return "\n".join(lines)
@@ -428,7 +480,7 @@ def build_system_prompt(
             del _STATIC_CACHE[oldest]
         _STATIC_CACHE[static_key] = (static_text, _time.monotonic())
 
-    parts = [static_text]
+    parts = [static_text, temporal_block(client_context)]
 
     if recent_conversations:
         parts.append(recent_conversations)
@@ -491,7 +543,7 @@ def build_system_prompt_parts(
             pass
 
     # Volatile section: everything that changes per turn
-    volatile_parts = []
+    volatile_parts = [temporal_block(client_context)]
 
     skills, _ = scan()
     pinned = set(pinned_skills or []) | _ALWAYS_PINNED
