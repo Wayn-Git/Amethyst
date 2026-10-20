@@ -806,6 +806,10 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
   const [showGithubPat, setShowGithubPat] = useState(false)
   const [githubPatDraft, setGithubPatDraft] = useState('')
   const [githubPatSaved, setGithubPatSaved] = useState(false)
+  const [searchStatus, setSearchStatus] = useState(null)
+  const [selectedSearchProv, setSelectedSearchProv] = useState('')
+  const [searchKeyDraft, setSearchKeyDraft] = useState('')
+  const [savingSearchKey, setSavingSearchKey] = useState(false)
 
   const handleInstallUv = async () => {
     setActionBusy('install-uv')
@@ -838,14 +842,34 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
     }
   }
 
+  const handleSaveSearchKey = async (name) => {
+    if (!searchKeyDraft.trim()) return
+    setSavingSearchKey(true)
+    try {
+      await api.setSearchProvider(name, searchKeyDraft.trim())
+      setSearchKeyDraft('')
+      setSelectedSearchProv('')
+      const updated = await api.searchProvider().catch(() => null)
+      if (updated) setSearchStatus(updated)
+      toast(`${name.toUpperCase()} search key saved!`, 'ok')
+      if (onRefreshStatus) await onRefreshStatus()
+    } catch (err) {
+      toast(err.message || 'Failed to save search key', 'bad')
+    } finally {
+      setSavingSearchKey(false)
+    }
+  }
+
   const loadData = useCallback(async () => {
     try {
-      const [compStatus, compToolkits] = await Promise.all([
+      const [compStatus, compToolkits, searchInfo] = await Promise.all([
         api.composioStatus().catch(() => null),
         api.composioToolkits().catch(() => ({ toolkits: [] })),
+        api.searchProvider().catch(() => null),
       ])
       if (compStatus) setComposioStatus(compStatus)
       if (compToolkits?.toolkits) setComposioToolkits(compToolkits.toolkits)
+      if (searchInfo) setSearchStatus(searchInfo)
     } catch {
       /* ignore */
     }
@@ -1037,6 +1061,76 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
           </div>
         </div>
       )}
+
+      {/* Web Search & Live Intelligence Card */}
+      <div className="splash-card" style={{ marginBottom: 16 }}>
+        <div className="splash-card-row">
+          <div className="splash-card-icon" style={{ background: 'rgba(16, 185, 129, 0.12)' }}>
+            <Icon name="search" size={20} />
+          </div>
+          <div className="splash-card-info">
+            <div className="splash-title-row">
+              <span className="splash-card-title">Live Web Search (Optional)</span>
+              <span className="splash-status-dot-text">
+                <span className={`splash-dot-indicator ${searchStatus?.active ? 'is-active' : ''}`} />
+                {searchStatus?.active ? `Active (${searchStatus.active.toUpperCase()})` : 'Using Scrapers'}
+              </span>
+            </div>
+            <p className="splash-card-desc">
+              Powers real-time search in Spotlight and research tasks. Free tiers available on LangSearch, Exa, or Tavily.
+            </p>
+          </div>
+          {searchStatus?.active ? (
+            <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Ready</span>
+          ) : (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['langsearch', 'exa', 'tavily'].map((provName) => (
+                <button
+                  key={provName}
+                  type="button"
+                  className="splash-btn-subtle"
+                  style={{
+                    fontSize: 11,
+                    padding: '3px 8px',
+                    borderColor: selectedSearchProv === provName ? 'var(--accent)' : undefined,
+                    background: selectedSearchProv === provName ? 'var(--accent-soft)' : undefined,
+                  }}
+                  onClick={() => {
+                    setSelectedSearchProv(selectedSearchProv === provName ? '' : provName)
+                    setSearchKeyDraft('')
+                  }}
+                >
+                  <span style={{ textTransform: 'capitalize' }}>{provName}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!searchStatus?.active && selectedSearchProv && (
+          <div className="splash-input-row" style={{ marginTop: 10 }}>
+            <input
+              type="password"
+              className="splash-input"
+              placeholder={`Paste ${selectedSearchProv} API key...`}
+              value={searchKeyDraft}
+              onChange={(e) => setSearchKeyDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveSearchKey(selectedSearchProv)
+              }}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="splash-btn-primary"
+              disabled={savingSearchKey || !searchKeyDraft.trim()}
+              onClick={() => handleSaveSearchKey(selectedSearchProv)}
+            >
+              {savingSearchKey ? 'Saving...' : 'Save & Enable'}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Composio Cloud Apps Card */}
       <div className="splash-card" style={{ marginBottom: 16 }}>
