@@ -451,23 +451,23 @@ def select_tools(
         wanted.add("COMPOSIO_MULTI_EXECUTE_TOOL")
         wanted.add("tool_search")
 
-        kept = [
-            s
-            for s in schemas
-            if getattr(s, "name", "") in wanted or _bare(getattr(s, "name", "")) in wanted
-        ]
+        def _match_tool_name(s: Any) -> bool:
+            raw_name = getattr(s, "name", "")
+            b = _bare(raw_name)
+            unprefixed = raw_name.removeprefix("COMPOSIO_").removeprefix("composio_")
+            return (
+                raw_name in wanted
+                or b in wanted
+                or unprefixed in wanted
+                or _bare(unprefixed) in wanted
+            )
+
+        kept = [s for s in schemas if _match_tool_name(s)]
 
         if not kept:
-            if lane in ("chat", "connector") and not has_code_signals:
-                kept = [
-                    s for s in schemas
-                    if getattr(s, "name", "") not in {
-                        "edit_file", "write_file", "delete_file", "run_shell_command",
-                        "patch_file_with_search", "apply_file_diff", "grep_files",
-                    }
-                ]
-            else:
-                return schemas, 0
+            if lane == "chat":
+                return [], len(schemas)
+            return schemas, 0
 
         # Cap to target ~10-15 tools if the selected set grew too large
         if len(kept) > 15:

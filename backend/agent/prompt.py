@@ -699,25 +699,27 @@ def to_wire_messages(history: list[Message]) -> list[dict]:
     return compact_consumed_tool_results(out)
 
 
-def compact_consumed_tool_results(wire_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def compact_consumed_tool_results(
+    wire_messages: list[dict[str, Any]],
+    *,
+    preserve_active_turn: bool = True,
+) -> list[dict[str, Any]]:
     """Replace old tool results in wire history with one-line stubs once consumed.
 
-    In a multi-turn conversation, a tool result message (`role: "tool"`) that
-    has already been followed by an `assistant` message has had its information
-    extracted and reasoned over. Keeping full multi-thousand-character tool outputs
-    in the wire history across subsequent iterations wastes tokens and context.
-
-    Replaces the consumed tool result's content with:
-        f"[{tool_name} executed, result consumed]"
-
-    Preserves the `role: "tool"`, `tool_call_id`, and `tool_name` so chat completion
-    schemas (e.g. OpenAI, Anthropic, Mistral) remain strictly valid.
-    Only tool results that have a subsequent `assistant` message later in the list
-    are compacted; the latest tool results (currently pending consumption by the
-    next assistant generation) are preserved in full.
+    When `preserve_active_turn` is True (default), tool results from the current
+    active turn (occurring after the latest user message) are preserved in full so
+    that the model never loses intermediate results or re-executes queries.
+    Only tool results from previous turns are compacted.
     """
     if not wire_messages:
         return wire_messages
+
+    last_user_idx = -1
+    if preserve_active_turn:
+        for i in range(len(wire_messages) - 1, -1, -1):
+            if wire_messages[i].get("role") == "user":
+                last_user_idx = i
+                break
 
     last_assistant_idx = -1
     for i in range(len(wire_messages) - 1, -1, -1):
@@ -730,6 +732,11 @@ def compact_consumed_tool_results(wire_messages: list[dict[str, Any]]) -> list[d
 
     compacted: list[dict[str, Any]] = []
     for i, msg in enumerate(wire_messages):
+        # Never compact tool results from the active turn (i > last_user_idx)
+        if preserve_active_turn and last_user_idx != -1 and i > last_user_idx:
+            compacted.append(msg)
+            continue
+
         if msg.get("role") == "tool" and i < last_assistant_idx:
             name = msg.get("tool_name") or msg.get("name") or "tool"
             stub = f"[{name} executed, result consumed]"
