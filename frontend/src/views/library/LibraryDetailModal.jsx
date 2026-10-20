@@ -511,11 +511,13 @@ export default function LibraryDetailModal({
       (videoResource?.url && videoResource.url.startsWith('http') ? videoResource.url : null) ||
       (isDirectVideoUrl ? item.url : null)
 
-    const vItem = (youtubeEmbedUrl || hasVideo || instagramEmbedUrl) ? {
-      type: youtubeEmbedUrl ? 'youtube' : (hasVideo ? 'video' : 'embed'),
-      url: youtubeEmbedUrl ? youtubeEmbedUrl : (hasVideo ? videoStreamUrl : instagramEmbedUrl),
+    const isYouTube = Boolean(youtubeEmbedUrl)
+    const vItem = (isYouTube || hasVideo || instagramEmbedUrl) ? {
+      type: isYouTube ? 'youtube' : (hasVideo ? 'video' : 'embed'),
+      url: isYouTube ? null : (hasVideo ? videoStreamUrl : null),
+      isYouTube,
       fallbackUrl: fallbackVideoUrl,
-      embedUrl: instagramEmbedUrl,
+      embedUrl: youtubeEmbedUrl || instagramEmbedUrl,
       poster: hasThumbnail ? api.thumbnailUrl(item.id) : undefined,
       name: 'Video',
     } : null
@@ -1118,6 +1120,7 @@ export default function LibraryDetailModal({
             {isVideoMode && videoItem ? (
               <LibraryVideoPlayer
                 src={videoItem.url}
+                isYouTube={videoItem.isYouTube}
                 poster={videoItem.poster}
                 title={item.title}
                 fallbackUrl={videoItem.fallbackUrl}

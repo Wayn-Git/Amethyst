@@ -15,6 +15,7 @@ export default function LibraryVideoPlayer({
   title,
   fallbackUrl,
   embedUrl,
+  isYouTube = false,
   isVertical = false,
   imageFitMode = 'contain',
   onToggleFit,
@@ -193,8 +194,8 @@ export default function LibraryVideoPlayer({
       role="region"
       aria-label={title || 'Video Player'}
     >
-      {/* 1. Embed mode (YouTube or Instagram web fallback) */}
-      {showEmbed && embedUrl ? (
+      {/* 1. Embed mode (YouTube direct embed or fallback embed) */}
+      {(isYouTube && embedUrl) || (showEmbed && embedUrl) ? (
         <div className="lib-player-embed-wrap">
           <iframe
             src={embedUrl}
@@ -213,7 +214,7 @@ export default function LibraryVideoPlayer({
         >
           <video
             ref={videoRef}
-            src={currentSrc}
+            src={currentSrc || fallbackUrl}
             playsInline
             loop
             poster={poster}
@@ -229,7 +230,7 @@ export default function LibraryVideoPlayer({
             onError={() => {
               if (fallbackUrl && currentSrc !== fallbackUrl) {
                 setCurrentSrc(fallbackUrl)
-              } else if (embedUrl) {
+              } else if (embedUrl && !isYouTube) {
                 setShowEmbed(true)
               }
             }}
