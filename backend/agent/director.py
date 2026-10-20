@@ -71,6 +71,9 @@ from backend.agent.jev import classify_presentation
 from backend.agent.trace import (
     finish_turn_trace,
     is_trace_enabled,
+    record_cache_hit,
+    record_error,
+    record_provider,
     record_step,
     record_tool_dispatch,
     start_turn_trace,
@@ -1095,7 +1098,7 @@ class Director:
         # conversation exists; until then this is an object nothing has stored,
         # and a checkpoint against it updates no rows.
         state = AgentState(conversation_id=conversation_id, mode=self.mode)
-        _trace, _watchdog, _trace_token = start_turn_trace(conversation_id, user_message)
+        _trace, _watchdog, _trace_token = start_turn_trace(conversation_id, user_message, turn_id=state.id)
         cancel_watcher: asyncio.Task | None = None
         if cancel is not None:
             async def _watch_cancel_and_abort():
@@ -1203,7 +1206,7 @@ class Director:
                 forget_ownership()
             except Exception:
                 pass
-            finish_turn_trace(_trace, _watchdog, _trace_token)
+            finish_turn_trace(_trace, _watchdog, _trace_token, state=state)
 
     async def _run(
         self,
@@ -2810,6 +2813,7 @@ class Director:
                         is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
                         idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
                         if not val_err and is_write and idem_key in state.idempotency_cache:
+                            record_cache_hit()
                             cached_data = state.idempotency_cache[idem_key]
                             cached_res = ToolResult(
                                 content=cached_data.get("content", ""),
@@ -2823,6 +2827,7 @@ class Director:
 
                             task = self._spawn(_cached_future())
                         elif not val_err and cache_key in state.execution_cache:
+                            record_cache_hit()
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
                             note = "[already fetched this turn: using cached result]\n"
@@ -2839,6 +2844,7 @@ class Director:
 
                             task = self._spawn(_cached_future())
                         elif not val_err and read_cached is not None:
+                            record_cache_hit()
                             cached_res = ToolResult(
                                 content=read_cached.content,
                                 artifacts=read_cached.artifacts,
@@ -2987,6 +2993,7 @@ class Director:
                         is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
                         idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
                         if not val_err and is_write and idem_key in state.idempotency_cache:
+                            record_cache_hit()
                             cached_data = state.idempotency_cache[idem_key]
                             cached_res = ToolResult(
                                 content=cached_data.get("content", ""),
@@ -3000,6 +3007,7 @@ class Director:
 
                             task = self._spawn(_cached_future())
                         elif not val_err and cache_key in state.execution_cache:
+                            record_cache_hit()
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
                             note = "[already fetched this turn: using cached result]\n"
@@ -3016,6 +3024,7 @@ class Director:
 
                             task = self._spawn(_cached_future())
                         elif not val_err and read_cached is not None:
+                            record_cache_hit()
                             cached_res = ToolResult(
                                 content=read_cached.content,
                                 artifacts=read_cached.artifacts,

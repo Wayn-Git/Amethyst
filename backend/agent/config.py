@@ -84,6 +84,10 @@ class AgentConfig:
     # Threshold ratio of context window to trigger proactive compaction
     token_budget_threshold: float = 0.85
 
+    # --- Tracing & Observability ---
+    enable_turn_tracing: bool = True
+    trace_log_path: str | None = None
+
     @classmethod
     def from_env(cls) -> AgentConfig:
         """Create configuration with environment variable overrides."""
@@ -120,6 +124,8 @@ class AgentConfig:
             enable_tool_repair=os.environ.get("AMETHYST_ENABLE_TOOL_REPAIR", "true").lower() in ("true", "1", "yes"),
             fast_summary_provider=os.environ.get("AMETHYST_FAST_SUMMARY_PROVIDER"),
             fast_summary_model=os.environ.get("AMETHYST_FAST_SUMMARY_MODEL"),
+            enable_turn_tracing=os.environ.get("AMETHYST_TRACE", "true").lower() in ("true", "1", "yes", "on"),
+            trace_log_path=os.environ.get("AMETHYST_TRACE_LOG_PATH"),
         )
 
 
