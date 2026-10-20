@@ -105,6 +105,7 @@ def test_budget_history_applies_compaction():
         context_window=32000,
         system_prompt="system",
         tools=None,
+        preserve_recent_turns=0,
     )
     # The old tool result at index 2 must be compacted in budgeted output
     assert budgeted[2]["content"] == "[search executed, result consumed]"

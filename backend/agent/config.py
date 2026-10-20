@@ -55,6 +55,10 @@ class AgentConfig:
     # Scratch store TTL in seconds
     scratch_store_ttl: float = 300.0
 
+    # --- History & Context Compaction ---
+    # Number of recent completed turns to keep completely verbatim before compacting older tools
+    history_verbatim_turns: int = 2
+
     # --- Provider Fallback & Circuit Breaker ---
     # Number of consecutive failures before tripping a provider circuit
     circuit_breaker_failures: int = 3
@@ -98,6 +102,7 @@ class AgentConfig:
             default_max_results=_get_int("AMETHYST_MAX_RESULTS", 10),
             default_date_window_days=_get_int("AMETHYST_DATE_WINDOW_DAYS", 7),
             max_payload_chars=_get_int("AMETHYST_MAX_PAYLOAD_CHARS", 4000),
+            history_verbatim_turns=_get_int("AMETHYST_HISTORY_VERBATIM_TURNS", 2),
             circuit_breaker_failures=_get_int("AMETHYST_CIRCUIT_BREAKER_FAILURES", 3),
             circuit_breaker_cooldown=_get_float("AMETHYST_CIRCUIT_BREAKER_COOLDOWN", 180.0),
         )

@@ -59,7 +59,7 @@ def test_previous_turn_tool_results_are_compacted_but_active_turn_preserved():
         {"role": "tool", "tool_call_id": "t3", "tool_name": "fetch_url", "content": "Clinic directions"},
     ]
 
-    compacted = compact_consumed_tool_results(messages, preserve_active_turn=True)
+    compacted = compact_consumed_tool_results(messages, preserve_active_turn=True, preserve_recent_turns=0)
 
     # Turn 1 tool result was followed by an assistant answer and a new user message: compacted
     assert compacted[2]["content"] == "[create_task executed, result consumed]"

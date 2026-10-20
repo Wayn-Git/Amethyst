@@ -699,27 +699,90 @@ def to_wire_messages(history: list[Message]) -> list[dict]:
     return compact_consumed_tool_results(out)
 
 
+def _summarize_tool_result_content(name: str, content: Any) -> str:
+    """Create a clean one-line summary stub for older completed tool results.
+
+    If item count can be detected from a list or dict structure, produces:
+        `[{name}: processed {count} items]`
+    Otherwise falls back to:
+        `[{name} executed, result consumed]`
+    """
+    if not content:
+        return f"[{name} executed, result consumed]"
+
+    if isinstance(content, str):
+        trimmed = content.strip()
+        if trimmed.startswith("[") and trimmed.endswith("]") and (
+            "processed" in trimmed or "executed" in trimmed or "consumed" in trimmed
+        ):
+            return trimmed
+
+    count = None
+    parsed = None
+    if isinstance(content, (list, dict)):
+        parsed = content
+    elif isinstance(content, str):
+        trimmed = content.strip()
+        if (trimmed.startswith("{") and trimmed.endswith("}")) or (
+            trimmed.startswith("[") and trimmed.endswith("]")
+        ):
+            try:
+                parsed = json.loads(trimmed)
+            except Exception:
+                parsed = None
+
+    if isinstance(parsed, list):
+        count = len(parsed)
+    elif isinstance(parsed, dict):
+        for key in ("items", "events", "messages", "results", "data", "files", "entries", "records"):
+            val = parsed.get(key)
+            if isinstance(val, list):
+                count = len(val)
+                break
+        if count is None:
+            for key in ("count", "total", "total_count"):
+                val = parsed.get(key)
+                if isinstance(val, int):
+                    count = val
+                    break
+
+    if count is not None:
+        item_word = "item" if count == 1 else "items"
+        return f"[{name}: processed {count} {item_word}]"
+    return f"[{name} executed, result consumed]"
+
+
 def compact_consumed_tool_results(
     wire_messages: list[dict[str, Any]],
     *,
     preserve_active_turn: bool = True,
+    preserve_recent_turns: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Replace old tool results in wire history with one-line stubs once consumed.
+    """Replace old tool results in wire history with clean one-line stubs once consumed.
 
     When `preserve_active_turn` is True (default), tool results from the current
     active turn (occurring after the latest user message) are preserved in full so
     that the model never loses intermediate results or re-executes queries.
-    Only tool results from previous turns are compacted.
+
+    When `preserve_recent_turns` is specified (defaults to `agent_config.history_verbatim_turns`,
+    typically 2), completed turns within that recent window are also preserved verbatim.
+    Only tool results from older completed turns are replaced with clean one-line summaries
+    (`[tool_name: processed N items]` or `[tool_name executed, result consumed]`).
+
+    Preserves `role: "tool"`, `tool_call_id`, and `tool_name` so chat completion
+    schemas remain strictly valid across providers.
     """
     if not wire_messages:
         return wire_messages
 
-    last_user_idx = -1
-    if preserve_active_turn:
-        for i in range(len(wire_messages) - 1, -1, -1):
-            if wire_messages[i].get("role") == "user":
-                last_user_idx = i
-                break
+    if preserve_recent_turns is None:
+        try:
+            from backend.agent.config import agent_config
+            recent_turns_to_preserve = agent_config.history_verbatim_turns
+        except Exception:
+            recent_turns_to_preserve = 2
+    else:
+        recent_turns_to_preserve = preserve_recent_turns
 
     last_assistant_idx = -1
     for i in range(len(wire_messages) - 1, -1, -1):
@@ -730,6 +793,20 @@ def compact_consumed_tool_results(
     if last_assistant_idx == -1:
         return wire_messages
 
+    user_indices = [i for i, m in enumerate(wire_messages) if m.get("role") == "user"]
+    last_user_idx = user_indices[-1] if user_indices else -1
+
+    if not preserve_active_turn:
+        cutoff_idx = len(wire_messages)
+    elif not user_indices:
+        cutoff_idx = -1
+    else:
+        target_turn_offset = recent_turns_to_preserve + 1
+        if len(user_indices) >= target_turn_offset:
+            cutoff_idx = user_indices[-target_turn_offset]
+        else:
+            cutoff_idx = 0
+
     compacted: list[dict[str, Any]] = []
     for i, msg in enumerate(wire_messages):
         # Never compact tool results from the active turn (i > last_user_idx)
@@ -737,9 +814,15 @@ def compact_consumed_tool_results(
             compacted.append(msg)
             continue
 
+        # In recent turns (>= cutoff_idx), keep verbatim
+        if i >= cutoff_idx:
+            compacted.append(msg)
+            continue
+
+        # Older turns (< cutoff_idx) that have been consumed (< last_assistant_idx)
         if msg.get("role") == "tool" and i < last_assistant_idx:
             name = msg.get("tool_name") or msg.get("name") or "tool"
-            stub = f"[{name} executed, result consumed]"
+            stub = _summarize_tool_result_content(name, msg.get("content"))
             new_msg = dict(msg)
             new_msg["content"] = stub
             compacted.append(new_msg)
@@ -992,6 +1075,7 @@ def budget_history(
     system_prompt: str,
     tools: Sequence[Any] | None = None,
     reserved: int = RESERVED_FOR_RESPONSE,
+    preserve_recent_turns: int | None = None,
 ) -> list[dict]:
     """Drop oldest messages until the assembly fits, keeping tool pairs coherent.
 
@@ -1006,7 +1090,9 @@ def budget_history(
             chosen = chosen[1:]
         return chosen
 
-    messages = compact_consumed_tool_results(messages)
+    messages = compact_consumed_tool_results(
+        messages, preserve_recent_turns=preserve_recent_turns
+    )
 
     available = (
         context_window - estimate_tokens(system_prompt) - tool_schema_tokens(tools) - reserved
