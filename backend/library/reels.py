@@ -110,9 +110,8 @@ class ReelCapture:
         no reason to keep the file, a thirty-megabyte download would be fetched
         and deleted unread.
         """
-        wants_video = settings.keep_video or (
-            ffmpeg_missing() is None and self._can_transcribe()
-        )
+        # Always fetch video so it can be streamed natively in the library player
+        wants_video = True
         return await self._fetch(
             url,
             scratch / "reel" if wants_video else None,
@@ -136,8 +135,13 @@ class ReelCapture:
         is_music_intent = requested_kind == "music" or (
             bool(notes and notes.strip().lower() in ("music", "song", "#music", "audio"))
         )
+        is_reel_or_video = (
+            bool(reel.video_path or reel.direct_video_url)
+            or bool(reel.duration and reel.duration > 0)
+            or ("/reel/" in (reel.url or "") or "/reels/" in (reel.url or ""))
+        )
         has_slides = bool(reel.slide_urls and len(reel.slide_urls) > 1)
-        kind = "music" if is_music_intent else ("post" if has_slides else "video")
+        kind = "music" if is_music_intent else ("post" if (has_slides and not is_reel_or_video) else "video")
 
         captured = await self.library.capture_media(
             title=reel.title,
@@ -379,8 +383,6 @@ class ReelCapture:
                         self.library.store.update(item_id, resources=_json.dumps(existing_res))
                 except Exception:
                     pass
-            elif not settings.keep_video and video and video.is_file():
-                video.unlink(missing_ok=True)
             if duration is not None:
                 self.library.store.update(item_id, duration_seconds=int(duration))
 

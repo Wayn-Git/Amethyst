@@ -15,6 +15,7 @@ export default function LibraryVideoPlayer({
   title,
   fallbackUrl,
   embedUrl,
+  isYouTube = false,
   isVertical = false,
   imageFitMode = 'contain',
   onToggleFit,
@@ -40,6 +41,7 @@ export default function LibraryVideoPlayer({
   // Sync src
   useEffect(() => {
     setCurrentSrc(src)
+    setShowEmbed(false)
     setIsPlaying(false)
     setHasStartedPlaying(false)
     setCurrentTime(0)
@@ -193,17 +195,32 @@ export default function LibraryVideoPlayer({
       role="region"
       aria-label={title || 'Video Player'}
     >
-      {/* 1. Embed mode (YouTube or Instagram web fallback) */}
-      {showEmbed && embedUrl ? (
-        <div className="lib-player-embed-wrap">
-          <iframe
-            src={embedUrl}
-            title={title || 'Web Video Player'}
-            className="lib-player-iframe"
-            allowFullScreen
-            scrolling="no"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          />
+      {/* 1. Embed mode (fallback embed or user selected web embed) */}
+      {((showEmbed || (!currentSrc && !fallbackUrl)) && embedUrl) ? (
+        <div className="lib-player-embed-container">
+          <div className="lib-player-embed-wrap">
+            <iframe
+              src={embedUrl}
+              title={title || 'Web Video Player'}
+              className="lib-player-iframe"
+              allowFullScreen
+              scrolling="no"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            />
+          </div>
+          {(currentSrc || fallbackUrl) && (
+            <div className="lib-player-switch-bar">
+              <button
+                type="button"
+                className="lib-player-switch-bar-btn"
+                onClick={() => setShowEmbed(false)}
+                title="Switch to Native Video Player"
+              >
+                <Icon name="play" size={12} />
+                <span>Switch to Native Player</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* 2. Direct Video Player with Custom Controls */
@@ -213,7 +230,7 @@ export default function LibraryVideoPlayer({
         >
           <video
             ref={videoRef}
-            src={currentSrc}
+            src={currentSrc || fallbackUrl}
             playsInline
             loop
             poster={poster}
