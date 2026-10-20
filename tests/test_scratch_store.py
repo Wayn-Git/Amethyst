@@ -31,7 +31,7 @@ def test_compact_payload_large_json_list():
     compacted, handle = scratch_store.compact_payload(full_json, tool_name="test_tool", max_chars=1000)
     assert handle is not None
     assert f"Full payload stored under handle '{handle}'" in compacted
-    assert "Found 50 items total" in compacted
+    assert "truncated, 50 items total, showing first 10" in compacted
 
     # The stored content is the original
     retrieved = scratch_store.get(handle)
@@ -114,4 +114,4 @@ async def test_director_offloads_large_tool_result_to_scratch(monkeypatch):
     assert len(tool_results) == 1
     content = tool_results[0]["content"]
     assert "Full payload stored under handle" in content
-    assert "Showing first 10 above" in content
+    assert "truncated, 40 items total, showing first 10" in content

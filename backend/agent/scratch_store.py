@@ -86,8 +86,8 @@ class ScratchStore:
                     preview_items = parsed[:10]
                     preview_json = json.dumps(preview_items, indent=2, ensure_ascii=False)
                     notice = (
-                        f"\n\n[Found {total_items} items total ({total_chars} chars). "
-                        f"Showing first {len(preview_items)} above. Full payload stored under handle '{handle}'.]"
+                        f"\n\n[truncated, {total_items} items total, showing first {min(10, total_items)}. "
+                        f"Full payload stored under handle '{handle}'.]"
                     )
                     return preview_json + notice, handle
                 elif isinstance(parsed, dict):
@@ -100,8 +100,8 @@ class ScratchStore:
                             preview_dict[k] = items[:10]
                             preview_json = json.dumps(preview_dict, indent=2, ensure_ascii=False)
                             notice = (
-                                f"\n\n[Found {total_items} items in '{k}' ({total_chars} chars). "
-                                f"Showing first {len(preview_dict[k])} above. Full payload stored under handle '{handle}'.]"
+                                f"\n\n[truncated, {total_items} items total in '{k}', showing first {min(10, total_items)}. "
+                                f"Full payload stored under handle '{handle}'.]"
                             )
                             return preview_json + notice, handle
             except Exception:
@@ -115,7 +115,7 @@ class ScratchStore:
         else:
             preview_text = content[:cut_point].strip()
 
-        notice = f"\n\n[Showing preview of {len(preview_text)} chars ({total_chars} chars total, truncated). Full payload stored under handle '{handle}'.]"
+        notice = f"\n\n[truncated, showing preview of {len(preview_text)} chars ({total_chars} chars total). Full payload stored under handle '{handle}'.]"
         return preview_text + notice, handle
 
 
