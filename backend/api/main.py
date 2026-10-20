@@ -26,6 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Str
 from pydantic import BaseModel, Field, ValidationError
 
 from backend import jobs
+from backend.agent.config import agent_config
 from backend.agent.director import Director, close_open_tool_calls
 from backend.automation import (
     JOB_KIND as AUTOMATION_JOB_KIND,
@@ -1015,7 +1016,7 @@ async def _say_the_agent_is_done(conversation_id: str, event: Any, elapsed: floa
 # stream between its `tool_call` and `tool_result` frames, and a silent stream
 # is one a proxy drops and the interface's watchdog gives up on. A frame every
 # few seconds keeps the socket demonstrably alive without inventing progress.
-HEARTBEAT_SECONDS = 10.0
+HEARTBEAT_SECONDS = getattr(agent_config, "sse_keepalive_interval_seconds", 15.0)
 
 # How long the head of a turn waits for connectors to come up before answering
 # on the ones that are ready. Their own ceilings (180s to answer, 300s waiting
@@ -1040,18 +1041,19 @@ _connectors_warm: bool = False
 _HEARTBEAT = object()
 
 
-async def _with_heartbeats(events, interval: float = HEARTBEAT_SECONDS):
+async def _with_heartbeats(events, interval: float | None = None):
     """Yield the turn's events, plus a `_HEARTBEAT` sentinel through any gap.
 
     The turn's own generator can legitimately go quiet for a minute or two
     while a tool runs; this races each `__anext__` against a timer and emits a
     keepalive when the wait wins, so the stream never actually falls silent.
     """
+    wait_interval = HEARTBEAT_SECONDS if interval is None else interval
     iterator = events.__aiter__()
     pending = asyncio.ensure_future(iterator.__anext__())
     try:
         while True:
-            done, _ = await asyncio.wait({pending}, timeout=interval)
+            done, _ = await asyncio.wait({pending}, timeout=wait_interval)
             if not done:
                 yield _HEARTBEAT
                 continue
@@ -3508,7 +3510,12 @@ def _waiting_on(conversation_id: str) -> str | None:
 
 
 @app.post("/api/conversations/{conversation_id}/turn")
-async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: BackgroundTasks) -> StreamingResponse:
+async def run_turn(
+    conversation_id: str,
+    body: TurnRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
+) -> StreamingResponse:
     global _connectors_warm
     if ConversationRepository().get(conversation_id) is None:
         raise HTTPException(404, "no such conversation")
@@ -3530,6 +3537,23 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
         raise HTTPException(409, "a turn is already running for this conversation")
     cancel = asyncio.Event()
     _active_turns[conversation_id] = cancel
+
+    disconnect_watcher: asyncio.Task | None = None
+    if request is not None:
+        async def _watch_disconnect():
+            try:
+                while not cancel.is_set():
+                    if await request.is_disconnected():
+                        log.info("client disconnected for conversation %s; cancelling turn", conversation_id)
+                        cancel.set()
+                        break
+                    await asyncio.sleep(0.5)
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                log.debug("disconnect watcher error: %s", e)
+
+        disconnect_watcher = asyncio.create_task(_watch_disconnect())
 
     def release() -> None:
         if _active_turns.get(conversation_id) is cancel:
@@ -3666,6 +3690,7 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
         except asyncio.CancelledError:
             # A shutdown, a reload, or Starlette dropping the task. The reader
             # is still there for one more frame.
+            cancel.set()
             if not settled:
                 yield _frame("error", message="the server stopped this turn")
             raise
@@ -3675,6 +3700,9 @@ async def run_turn(conversation_id: str, body: TurnRequest, background_tasks: Ba
                 clean_msg = "The model connection was interrupted." if "input stream" in str(exc).lower() else f"Turn failed: {exc}"
                 yield _frame("error", message=clean_msg)
         finally:
+            if disconnect_watcher and not disconnect_watcher.done():
+                disconnect_watcher.cancel()
+            cancel.set()
             # A backstop for the stream that ends without a terminal frame at
             # all -- a client that hangs up, or a generator closed early.
             release()
@@ -7479,12 +7507,28 @@ def library_media(item_id: int) -> FileResponse:
     )
     if url and is_social_or_video:
         try:
+            from backend.library.store import media_dir
+            m_dir = media_dir()
+            # Check if any video file for this item_id already exists in media_dir
+            for existing in m_dir.glob(f"{item_id:06d}.*"):
+                if existing.is_file() and existing.stat().st_size > 1000 and not existing.name.endswith("-thumb.jpg"):
+                    if existing.name.endswith(".mp4.mp4"):
+                        fixed_path = existing.with_name(f"{item_id:06d}.mp4")
+                        if not fixed_path.exists():
+                            existing.rename(fixed_path)
+                            existing = fixed_path
+                    with get_connection() as conn:
+                        conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(existing), item_id))
+                        conn.commit()
+                    mime_type, _ = mimetypes.guess_type(str(existing))
+                    return FileResponse(existing, media_type=mime_type or "video/mp4")
+
             import yt_dlp
             from backend.config import load_instagram
             settings = load_instagram()
-            target = media_path(item_id, ".mp4")
+            outtmpl = str(m_dir / f"{item_id:06d}.%(ext)s")
             ydl_opts = {
-                "outtmpl": str(target),
+                "outtmpl": outtmpl,
                 "format": "mp4/best[ext=mp4]/best",
                 "quiet": True,
                 "socket_timeout": 30,
@@ -7500,9 +7544,13 @@ def library_media(item_id: int) -> FileResponse:
                     ydl_opts.pop("cookiesfrombrowser", None)
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         ydl.download([url])
-            for ext in (".mp4", ".webm", ".mov", ".mkv"):
-                cand = media_path(item_id, ext)
-                if cand.is_file() and cand.stat().st_size > 1000:
+            for cand in m_dir.glob(f"{item_id:06d}.*"):
+                if cand.is_file() and cand.stat().st_size > 1000 and not cand.name.endswith("-thumb.jpg"):
+                    if cand.name.endswith(".mp4.mp4"):
+                        fixed = cand.with_name(f"{item_id:06d}.mp4")
+                        if not fixed.exists():
+                            cand.rename(fixed)
+                            cand = fixed
                     with get_connection() as conn:
                         conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(cand), item_id))
                         conn.commit()

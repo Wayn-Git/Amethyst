@@ -1096,6 +1096,17 @@ class Director:
         # and a checkpoint against it updates no rows.
         state = AgentState(conversation_id=conversation_id, mode=self.mode)
         _trace, _watchdog, _trace_token = start_turn_trace(conversation_id, user_message)
+        cancel_watcher: asyncio.Task | None = None
+        if cancel is not None:
+            async def _watch_cancel_and_abort():
+                try:
+                    await cancel.wait()
+                    for task in list(self._inflight):
+                        if not task.done():
+                            task.cancel()
+                except asyncio.CancelledError:
+                    pass
+            cancel_watcher = asyncio.create_task(_watch_cancel_and_abort())
         try:
             async for event in self._run(
                 state, conversation_id, user_message, cancel, attachments, client_context
@@ -1157,6 +1168,8 @@ class Director:
             )
             raise
         finally:
+            if cancel_watcher and not cancel_watcher.done():
+                cancel_watcher.cancel()
             # However this turn ended, it does not get to leave a tool call
             # nobody answered behind it. See `close_open_tool_calls`.
             #
@@ -1175,15 +1188,13 @@ class Director:
             # leave through an exception or a closed generator, which is exactly
             # the case a reader cannot tell from a turn still thinking.
             if not state.terminal:
-                # The error must land with the phase: a row of phase='failed'
-                # and error=NULL has no reason attached, and the interface can
-                # only fall back to "The turn ended without a result". The
-                # GeneratorExit path is the common producer -- the reader
-                # hung up, the handler re-raises without touching
-                # state.error, and the row opened at `_open` is left here.
-                if not state.error:
-                    state.error = "the turn ended without a result"
-                self._checkpoint(state, "failed")
+                if cancel is not None and cancel.is_set():
+                    state.error = "the turn was cancelled"
+                    self._checkpoint(state, "cancelled")
+                else:
+                    if not state.error:
+                        state.error = "the turn ended without a result"
+                    self._checkpoint(state, "failed")
             try:
                 await self.runs.flush_async()
             except Exception:

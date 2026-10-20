@@ -36,6 +36,8 @@ class AgentConfig:
     wall_clock_cap: float = 45.0
     # Hard turn timeout (forces final answer)
     hard_timeout: float = 60.0
+    # SSE keepalive/ping interval in seconds during long operations
+    sse_keepalive_interval_seconds: float = 15.0
 
     # --- Read Cache TTLs (seconds) ---
     # Short-lived read cache for calendar lookups
@@ -104,6 +106,7 @@ class AgentConfig:
             tool_timeout_seconds=_get_float("AMETHYST_TOOL_TIMEOUT", 15.0),
             wall_clock_cap=_get_float("AMETHYST_WALL_CLOCK_CAP", 45.0),
             hard_timeout=_get_float("AMETHYST_HARD_TIMEOUT", 60.0),
+            sse_keepalive_interval_seconds=_get_float("AMETHYST_SSE_KEEPALIVE_INTERVAL", 15.0),
             calendar_cache_ttl=_get_float("AMETHYST_CALENDAR_CACHE_TTL", 60.0),
             email_cache_ttl=_get_float("AMETHYST_EMAIL_CACHE_TTL", 180.0),
             default_max_results=_get_int("AMETHYST_MAX_RESULTS", 10),
