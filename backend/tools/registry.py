@@ -78,7 +78,6 @@ CAPABILITY_MAP: dict[str, str] = {
     "find_event": "GOOGLECALENDAR_FIND_EVENT",
     "find_events": "GOOGLECALENDAR_FIND_EVENT",
     "list_events": "GOOGLECALENDAR_FIND_EVENT",
-    "create_event": "GOOGLECALENDAR_CREATE_EVENT",
 
     # Email / Gmail capabilities
     "gmail": "GMAIL_FETCH_EMAILS",
@@ -88,16 +87,12 @@ CAPABILITY_MAP: dict[str, str] = {
     "fetch_emails": "GMAIL_FETCH_EMAILS",
     "fetch_email": "GMAIL_FETCH_EMAILS",
     "read_emails": "GMAIL_FETCH_EMAILS",
-    "send_email": "GMAIL_SEND_EMAIL",
 
     # GitHub capabilities
     "github": "GITHUB_GET_A_REPOSITORY",
-    "create_issue": "GITHUB_CREATE_AN_ISSUE",
-    "create_pr": "GITHUB_CREATE_A_PULL_REQUEST",
 
     # Slack capabilities
     "slack": "SLACK_SEARCH_MESSAGES",
-    "slack_message": "SLACK_SEND_MESSAGE",
 
     # Notion capabilities
     "notion": "NOTION_SEARCH_NOTION_PAGE",
@@ -172,6 +167,39 @@ def truncate(
     return compacted
 
 
+WRITE_ACTION_KEYWORDS: frozenset[str] = frozenset({
+    "send",
+    "delete",
+    "create",
+    "update",
+    "write",
+    "post",
+    "remove",
+    "patch",
+    "modify",
+    "drop",
+    "destroy",
+    "insert",
+    "edit",
+})
+
+
+def is_write_action(name: str, tool: Tool | None = None) -> bool:
+    """Whether a tool or tool name represents a mutating/write operation."""
+    tokens = set(name.lower().replace("-", "_").split("_"))
+    if tokens & WRITE_ACTION_KEYWORDS:
+        return True
+    if tool is not None:
+        if tool.risk is RiskLevel.HIGH:
+            return True
+        t_tokens = set(tool.name.lower().replace("-", "_").split("_"))
+        if t_tokens & WRITE_ACTION_KEYWORDS:
+            return True
+        if tool.risk is not RiskLevel.LOW:
+            return getattr(tool, "touches_paths", False)
+    return False
+
+
 class ToolRegistry:
     def __init__(
         self,
@@ -230,7 +258,7 @@ class ToolRegistry:
     def resolve_tool(self, name: str) -> Tool | None:
         if not name:
             return None
-        # 1. Exact match
+        # 1. Exact match (allowed for both read and write tools when explicitly called by exact name)
         if name in self._tools:
             return self._tools[name]
 
@@ -238,10 +266,22 @@ class ToolRegistry:
         if clean_name in self._tools:
             return self._tools[clean_name]
 
+        # Auto-repair and fuzzy matching applies ONLY to read-only tools (Task 5).
+        # Write tools (send/delete/create/update) must never be fuzzy-matched.
+        if is_write_action(clean_name):
+            return None
+
+        def _check_readonly(cand: Tool | None) -> Tool | None:
+            if cand is None:
+                return None
+            if is_write_action(cand.name, cand):
+                return None
+            return cand
+
         # 2. Check normalized name (case, spaces, hyphens)
         normalized = clean_name.lower().replace(" ", "_").replace("-", "_")
         if normalized in self._tools:
-            return self._tools[normalized]
+            return _check_readonly(self._tools[normalized])
 
         # 3. Check MCP delimiter and prefix/suffix variations
         # e.g. tavily__tavily_search -> tavily_search__mcp__tavily
@@ -251,38 +291,38 @@ class ToolRegistry:
             s, t = parts[0], parts[-1]
             cand1 = f"{t}__mcp__{s}"
             if cand1 in self._tools:
-                return self._tools[cand1]
+                return _check_readonly(self._tools[cand1])
             cand2 = f"{s}__mcp__{t}"
             if cand2 in self._tools:
-                return self._tools[cand2]
+                return _check_readonly(self._tools[cand2])
 
         # 4. Check if any MCP tool has matching base name or server prefix
         for tool_name, tool in self._tools.items():
             if MCP_DELIMITER in tool_name:
                 t_base, s_name = tool_name.split(MCP_DELIMITER, 1)
                 if clean_name in (t_base, f"{s_name}_{t_base}", f"{s_name}__{t_base}"):
-                    return tool
+                    return _check_readonly(tool)
                 if normalized in (t_base.lower(), f"{s_name.lower()}_{t_base.lower()}"):
-                    return tool
+                    return _check_readonly(tool)
 
         # 5. Capability alias map
         for cand in (clean_name.lower(), normalized):
             target = CAPABILITY_MAP.get(cand)
             if target:
                 if target in self._tools:
-                    return self._tools[target]
+                    return _check_readonly(self._tools[target])
                 for t_name, tool in self._tools.items():
                     if MCP_DELIMITER in t_name and t_name.split(MCP_DELIMITER)[0] == target:
-                        return tool
+                        return _check_readonly(tool)
                 if target == "GOOGLECALENDAR_FIND_EVENT" and "list_calendar" in self._tools:
-                    return self._tools["list_calendar"]
+                    return _check_readonly(self._tools["list_calendar"])
                 if target == "GMAIL_FETCH_EMAILS" and "search_email" in self._tools:
-                    return self._tools["search_email"]
+                    return _check_readonly(self._tools["search_email"])
 
         # 6. Case-insensitive match against all registered tools
         for tool_name, tool in self._tools.items():
             if tool_name.lower() in (clean_name.lower(), normalized):
-                return tool
+                return _check_readonly(tool)
 
         return None
 
@@ -601,10 +641,28 @@ class ToolRegistry:
         if tool is None:
             all_known = sorted(self._tools.keys())
             sample_valid = ", ".join(all_known[:15]) or "none"
-            matches = difflib.get_close_matches(name, all_known, n=1, cutoff=0.3)
-            if not matches:
-                matches = difflib.get_close_matches(name.lower(), [k.lower() for k in all_known], n=1, cutoff=0.3)
-            closest = matches[0] if matches else "none"
+            lower_map = {k.lower(): k for k in all_known}
+            bare_map: dict[str, str] = {}
+            for k in all_known:
+                bare = k.split(MCP_DELIMITER)[0].lower()
+                bare_map[bare] = k
+                if "_" in bare:
+                    for part_idx in range(1, bare.count("_") + 1):
+                        sub = "_".join(bare.split("_")[part_idx:])
+                        if sub not in bare_map:
+                            bare_map[sub] = k
+
+            name_lower = name.lower().strip()
+            if name_lower in lower_map:
+                closest = lower_map[name_lower]
+            elif name_lower in bare_map:
+                closest = bare_map[name_lower]
+            else:
+                matches = difflib.get_close_matches(name_lower, list(lower_map.keys()), n=1, cutoff=0.25)
+                if matches:
+                    closest = lower_map[matches[0]]
+                else:
+                    closest = "none"
             return ToolResult.error(f"Unknown tool '{name}'. Valid tools: [{sample_valid}]. Closest match: '{closest}'.")
 
         # A capability switched off for this conversation is not advertised and
