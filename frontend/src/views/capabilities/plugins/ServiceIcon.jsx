@@ -133,8 +133,15 @@ export default function ServiceIcon({ card, size = 'default' }) {
 
   const slug = (card?.slug || card?.name || '').toLowerCase().trim()
   const sizeClass =
-    size === 'large' ? 'is-large' : size === 'small' ? 'is-small' : ''
-  const vectorIconSize = size === 'large' ? 36 : size === 'small' ? 16 : 24
+    size === 'hero' || size === 'large'
+      ? 'is-large'
+      : size === 'tiny'
+        ? 'is-tiny'
+        : size === 'small'
+          ? 'is-small'
+          : ''
+  const vectorIconSize =
+    size === 'hero' || size === 'large' ? 36 : size === 'tiny' ? 12 : size === 'small' ? 16 : 24
 
   // Resolve URLs
   const composioLogo =

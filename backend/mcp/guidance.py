@@ -204,6 +204,10 @@ def ready_connectors_block() -> str | None:
                 "   - Call 2: Synthesize and return the final user-facing answer from the tool response.\n"
                 "   Result: queries like 'what\\'s on my calendar' should be exactly one direct tool call plus the answer.\n"
                 "4. NEVER use local mock/dummy tools (e.g. create_calendar_event) when Composio has active connections for the requested service.\n"
+                "5. Sub-Toolkit Connection Gating & Actionable Setup:\n"
+                "   - Note the difference between user accounts and bots: Discord user OAuth is `discord` (guilds list only), while reading messages, channels, and threads requires `discordbot`. Slack user is `slack`, bot actions require `slackbot`.\n"
+                "   - Connection First, Schema Second: NEVER call `COMPOSIO_GET_TOOL_SCHEMAS` or repeatedly rephrase searches for tools on a toolkit that is not active in `<connectors>`. If an action requires an unconnected toolkit (e.g. `discordbot`), do NOT loop or repeat searches.\n"
+                "   - Actionable Connection Setup: When an unconnected toolkit is needed, call `COMPOSIO_MANAGE_CONNECTIONS(action='initiate', toolkit=...)` immediately in that same turn to provide the authorization URL, rather than asking a passive text question asking if the user wants you to connect.\n"
                 "</composio_instructions>"
             )
         if slow_lines:
@@ -237,6 +241,10 @@ _COMPOSIO_PURPOSES: dict[str, str] = {
     "jira": "create and update issues in Atlassian Jira",
     "asana": "manage tasks, projects, and team workflows",
     "spotify": "control playback, search music, and manage playlists",
+    "discord": "user profile, guilds/servers list, and basic permissions",
+    "discordbot": "read guild channel messages, list channels, threads, and send bot messages",
+    "telegram": "user profile, dialogs, and contacts",
+    "telegrambot": "post bot messages, handle commands, and webhook updates",
     "web_scraper": "scrape webpage content and clean text",
     "calculator": "evaluate mathematical expressions and numeric calculations",
     "weather": "current weather forecasts and conditions",

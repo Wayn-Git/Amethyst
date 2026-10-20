@@ -12,13 +12,15 @@ import {
   Server,
   Monitor,
   Plus,
+  Search,
 } from 'lucide-react'
 import { api } from '../../api.js'
 import { useApp } from '../../store.jsx'
 import PluginsDirectory from './plugins/PluginsDirectory.jsx'
 import CategoryView from './plugins/CategoryView.jsx'
 import PluginDetailView from './plugins/PluginDetailView.jsx'
-import SystemConnectorsPanel from './SystemConnectorsPanel.jsx'
+import SystemConnectorsPanel, { SYSTEM_TOOLS } from './SystemConnectorsPanel.jsx'
+import { CONNECTOR_CATEGORIES } from './plugins/categoryConstants.js'
 import '../../styles/connectors.css'
 
 // Module-level cache with short TTL so reopening never flashes empty but stays real-time
@@ -483,7 +485,23 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
           Boolean(status[c.slug]?.accounts?.length)
       )
     }
-    return cards.filter((c) => c.category === activeCategory)
+    const catDef = CONNECTOR_CATEGORIES.find(
+      (c) =>
+        c.id === activeCategory ||
+        c.title.toLowerCase() === activeCategory.toLowerCase() ||
+        c.shortTitle.toLowerCase() === activeCategory.toLowerCase()
+    )
+    if (catDef) {
+      return cards.filter((c) => {
+        const slug = (c.slug || c.name || '').toLowerCase()
+        const cat = (c.category || '').toLowerCase()
+        return (
+          catDef.matchCategories.includes(cat) ||
+          catDef.matchSlugs.includes(slug)
+        )
+      })
+    }
+    return cards.filter((c) => (c.category || '').toLowerCase() === activeCategory.toLowerCase())
   }, [cards, activeCategory, status])
 
   const installedCardsCount = useMemo(() => {
@@ -500,47 +518,73 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       {/* ── Unified Modern Connectors Toolbar ── */}
       {viewMode === 'directory' && (
         <div className="connectors-unified-toolbar">
-          <div className="connectors-filter-segment">
+          <div className="connectors-filter-tabs">
             <button
               type="button"
-              className={`connectors-segment-btn ${tabFilter === 'all' ? 'is-active' : ''}`}
+              className={`connectors-tab-btn ${tabFilter === 'all' ? 'is-active' : ''}`}
               onClick={() => setTabFilter('all')}
             >
-              <span>All Connectors</span>
+              <span>All</span>
+              <span className="connectors-tab-badge">530+</span>
             </button>
             <button
               type="button"
-              className={`connectors-segment-btn ${tabFilter === 'system' ? 'is-active' : ''}`}
-              onClick={() => setTabFilter('system')}
-            >
-              <Monitor size={13} />
-              <span>Local &amp; System</span>
-            </button>
-            <button
-              type="button"
-              className={`connectors-segment-btn ${tabFilter === 'cloud' ? 'is-active' : ''}`}
-              onClick={() => setTabFilter('cloud')}
-            >
-              <Globe size={13} />
-              <span>Cloud Apps</span>
-            </button>
-            <button
-              type="button"
-              className={`connectors-segment-btn ${tabFilter === 'installed' ? 'is-active' : ''}`}
+              className={`connectors-tab-btn ${tabFilter === 'installed' ? 'is-active' : ''}`}
               onClick={() => setTabFilter('installed')}
             >
               <span>Installed</span>
               {installedCardsCount > 0 && (
-                <span className="connectors-segment-badge">{installedCardsCount}</span>
+                <span className="connectors-tab-badge">{installedCardsCount}</span>
               )}
+            </button>
+            {CONNECTOR_CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                className={`connectors-tab-btn ${tabFilter === cat.id ? 'is-active' : ''}`}
+                onClick={() => setTabFilter(cat.id)}
+              >
+                <span>{cat.shortTitle || cat.title}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`connectors-tab-btn ${tabFilter === 'system' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('system')}
+            >
+              <Monitor size={12} />
+              <span>Local &amp; System</span>
+              <span className="connectors-tab-badge">{SYSTEM_TOOLS.length}</span>
             </button>
           </div>
 
           <div className="connectors-toolbar-right">
+            <div className="connectors-search-box">
+              <Search size={14} className="text-dim shrink-0" />
+              <input
+                type="text"
+                placeholder="Search tools…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="connectors-search-input"
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="connectors-search-clear"
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Gateway Health (Borderless, Understated) */}
             {gatewayHealth.status === 'ok' ? (
               <div className="connectors-gateway-chip is-live" title="Composio Gateway connected in real time">
                 <span className="connectors-chip-dot is-live" />
-                <span className="connectors-chip-label">Composio Online</span>
+                <span className="connectors-chip-label">Composio</span>
                 <span className="connectors-chip-ms">{gatewayHealth.latency || 78}ms</span>
                 <button
                   type="button"
@@ -569,7 +613,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             ) : gatewayHealth.status === 'error' ? (
               <div className="connectors-gateway-chip is-warning">
                 <span className="connectors-chip-dot is-warning" />
-                <span className="connectors-chip-label">Gateway Offline</span>
+                <span className="connectors-chip-label">Offline</span>
                 <button
                   type="button"
                   className="connectors-chip-refresh"
@@ -829,6 +873,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             <PluginDetailView
               card={activeCard}
               status={activeCard ? status[activeCard.slug] : null}
+              allStatus={status}
               onBack={handleBack}
               onConnect={connect}
               onDisconnectAccount={disconnectAccount}

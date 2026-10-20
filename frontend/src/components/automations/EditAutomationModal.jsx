@@ -39,11 +39,20 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
   const [busy, setBusy] = useState('')
   const [runs, setRuns] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [emailConfigured, setEmailConfigured] = useState(false)
 
   // Fetch grantable actions
   useEffect(() => {
     api.automationActions().then((data) => {
       setGrantable(data.actions || [])
+    }).catch(() => {})
+
+    api.notifierSettings().then((data) => {
+      if (data?.recipient_email) {
+        setRecipientEmail(data.recipient_email)
+      }
+      setEmailConfigured(Boolean(data?.agentmail_configured || data?.agentmail_api_key))
     }).catch(() => {})
   }, [])
 
@@ -79,13 +88,16 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
         body.every_minutes = 1440 * 7
       }
       await api.updateAutomation(automation.id, body)
+      if (notification.includes('email') && recipientEmail.trim()) {
+        api.updateNotifierSettings({ recipient_email: recipientEmail.trim() }).catch(() => {})
+      }
       onSaved?.()
     } catch {
       // toast handled by parent
     } finally {
       setBusy('')
     }
-  }, [automation.id, name, description, prompt, scheduleType, dailyTime, weeklyDay, intervalMinutes, notification, enabled, actions, onSaved])
+  }, [automation.id, name, description, prompt, scheduleType, dailyTime, weeklyDay, intervalMinutes, notification, recipientEmail, enabled, actions, onSaved])
 
   const toggle = useCallback(async () => {
     setBusy('toggle')
@@ -295,6 +307,25 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+
+              {notification.includes('email') && (
+                <div style={{ marginTop: 12 }}>
+                  <Field label="Recipient Email" id="auto-edit-email-recipient">
+                    <input
+                      id="auto-edit-email-recipient"
+                      type="email"
+                      value={recipientEmail}
+                      placeholder="e.g. your-email@example.com"
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                    />
+                  </Field>
+                  {!emailConfigured && (
+                    <p className="auto-actions-hint" style={{ marginTop: 4 }}>
+                      Email delivery uses AgentMail. Configure your key in Settings → Integrations.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

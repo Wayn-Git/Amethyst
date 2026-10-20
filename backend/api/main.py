@@ -4222,6 +4222,43 @@ def automation_run_detail(run_id: int) -> dict[str, Any]:
     return data
 
 
+@app.get("/api/notifier/settings")
+def get_notifier_config() -> dict[str, Any]:
+    """Retrieve current notifier configuration and status."""
+    from notifier.settings import get_notifier_settings
+
+    return get_notifier_settings()
+
+
+@app.post("/api/notifier/settings")
+def save_notifier_config(body: dict[str, Any]) -> dict[str, Any]:
+    """Save notifier configuration and update .env."""
+    from notifier.settings import update_notifier_settings
+
+    return update_notifier_settings(body)
+
+
+@app.post("/api/notifier/test-send")
+def trigger_notifier_test(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Send an immediate test email to verify credentials."""
+    from notifier.settings import test_notifier_send
+
+    recipient = (body or {}).get("recipient")
+    res = test_notifier_send(recipient)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error", "Failed to send test email"))
+    return res
+
+
+@app.post("/api/notifier/run-briefing")
+async def trigger_notifier_briefing() -> dict[str, Any]:
+    """Trigger the morning briefing workflow on demand."""
+    from notifier.brief import run_briefing
+
+    code = await run_briefing()
+    return {"ok": code == 0, "exit_code": code}
+
+
 @app.get("/api/automations/templates")
 def list_automation_templates(category: str | None = None) -> dict[str, Any]:
     """Available automation templates."""

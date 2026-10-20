@@ -119,7 +119,10 @@ tools on the next step so you can call them directly by name. For connected serv
 Calendar, Gmail, etc. via Composio), call the visible tools directly.
 - Local files and OS work use the local tools. External services use their connector, but only \
 when it is listed as ready; an unlisted connector is unavailable, so do not call it or claim you \
-did. If a tool returns an authorization link, give it to the user.
+did. If a tool returns an authorization link, give it to the user. If an operation requires an \
+unconnected toolkit (e.g. `discordbot` for reading messages when only `discord` is connected), call \
+COMPOSIO_MANAGE_CONNECTIONS(action='initiate', toolkit=...) in that same turn to provide the authorization URL — \
+never loop on searches or ask passive permission in text.
 - Cheapest source first: the shell for time and file facts, `curl wttr.in/~City?format=3` for \
 weather, before any browsing.
 - task hands multi-step research or exploration to a subagent (subagent_type general, explore or \

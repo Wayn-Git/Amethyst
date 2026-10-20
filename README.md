@@ -248,6 +248,41 @@ docs/             Guides, architecture notes, ADRs, screenshots (docs/README.md)
 tests/            99 pytest files — permissions, sandbox, retrieval, streaming
 ```
 
+## Automated Cloud Notifier (Zero Paid Services)
+
+The `notifier` package delivers automated morning briefings, weekly library digests, and batched library-save emails locally and in GitLab CI without needing an always-on server or paid subscriptions.
+
+### One-Time Setup
+
+1. **AgentMail (Email Delivery)**:
+   - Create a free account at [agentmail.to](https://agentmail.to) (free tier allows 100 sends/day).
+   - Create an inbox and obtain your `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID`.
+   - Set `NOTIFIER_RECIPIENT_EMAIL` to your destination email address. (Recipients are strictly env-configured; the LLM never chooses recipients).
+
+2. **Turso (Cloud State & Deduplication)**:
+   - Create a free database at [turso.tech](https://turso.tech) (`turso db create amethyst-notifier`).
+   - Copy your database URL (`TURSO_DATABASE_URL`) and create an auth token (`turso db tokens create amethyst-notifier` -> `TURSO_AUTH_TOKEN`).
+
+3. **GitLab CI Variables & Schedules**:
+   - In your GitLab repository, go to **Settings > CI/CD > Variables** and add:
+     - `NOTIFIER_RECIPIENT_EMAIL`, `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`
+     - `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`
+     - `COMPOSIO_API_KEY`, `GROQ_API_KEY` (or `GEMINI_API_KEY`)
+     - `DISCORD_BOT_TOKEN` (optional)
+   - Go to **Build > Pipeline schedules** and create two schedules:
+     - **Morning Briefing**: Cron `30 2 * * *` (08:00 IST), Variable: `JOB` = `brief`.
+     - **Weekly Digest**: Cron `0 3 * * 0` (Sunday mornings), Variable: `JOB` = `digest`.
+
+### Running Locally
+
+```bash
+# Morning briefing
+python -m notifier.brief
+
+# Weekly library digest
+python -m notifier.digest
+```
+
 ## Contributing
 
 PRs welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first — it documents the

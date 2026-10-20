@@ -262,6 +262,69 @@ export default function Integrations() {
     { value: 'tavily', label: 'Tavily (Fact Verification)', icon: 'shield-check' },
   ], [])
 
+  // ---------------------------------------------------------------------------
+  // 3. EMAIL NOTIFICATIONS & BRIEFINGS
+  // ---------------------------------------------------------------------------
+  const [notifier, setNotifier] = useState(null)
+  const [editingNotifier, setEditingNotifier] = useState(null) // 'recipient' | 'agentmail' | 'turso'
+  const [notifierDraft, setNotifierDraft] = useState({
+    recipient_email: '',
+    agentmail_api_key: '',
+    agentmail_inbox_id: '',
+    turso_database_url: '',
+    turso_auth_token: '',
+  })
+  const [savingNotifier, setSavingNotifier] = useState(false)
+  const [testingNotifier, setTestingNotifier] = useState(false)
+
+  const loadNotifier = useCallback(async () => {
+    try {
+      const data = await api.notifierSettings()
+      if (data) {
+        setNotifier(data)
+        setNotifierDraft({
+          recipient_email: data.recipient_email || '',
+          agentmail_api_key: data.agentmail_api_key || '',
+          agentmail_inbox_id: data.agentmail_inbox_id || '',
+          turso_database_url: data.turso_database_url || '',
+          turso_auth_token: data.turso_auth_token || '',
+        })
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    loadNotifier()
+  }, [loadNotifier])
+
+  const handleSaveNotifierSection = async (patch) => {
+    setSavingNotifier(true)
+    try {
+      const updated = await api.updateNotifierSettings(patch)
+      setNotifier((prev) => ({ ...prev, ...updated }))
+      setEditingNotifier(null)
+      toast('Notification settings saved', 'ok')
+    } catch (e) {
+      toast(e.message || 'Failed to save settings', 'bad')
+    } finally {
+      setSavingNotifier(false)
+    }
+  }
+
+  const handleTestEmail = async () => {
+    setTestingNotifier(true)
+    try {
+      const res = await api.testNotifierSend({ recipient: notifierDraft.recipient_email })
+      toast(res.message || 'Test email sent successfully!', 'ok')
+    } catch (e) {
+      toast(e.message || 'Test email failed', 'bad')
+    } finally {
+      setTestingNotifier(false)
+    }
+  }
+
   return (
     <div className="set-panel int-panel">
       {/* ====================================================================
@@ -626,6 +689,262 @@ export default function Integrations() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ====================================================================
+          3. EMAIL NOTIFICATIONS & BRIEFINGS
+          ==================================================================== */}
+      <div>
+        <div className="set-section-label">Email &amp; Automated Briefings</div>
+
+        <div className="set-box">
+          {/* Recipient Row */}
+          <div className="int-provider-group">
+            <div className="int-provider-row">
+              <div className="int-provider-main">
+                <Icon name="user" size={18} style={{ color: 'var(--text-dim)' }} />
+                <div className="int-provider-info">
+                  <div className="int-provider-title-line">
+                    <span className="int-provider-name">Notification Recipient</span>
+                    {notifier?.recipient_email ? (
+                      <span className="int-status-pill is-active">
+                        <span className="int-status-dot is-live" />
+                        {notifier.recipient_email}
+                      </span>
+                    ) : (
+                      <span className="int-status-pill">Not Set</span>
+                    )}
+                  </div>
+                  <span className="int-provider-desc">
+                    Destination address for morning briefings and digests. Hardcoded to prevent AI redirection.
+                  </span>
+                </div>
+              </div>
+
+              <div className="int-provider-actions">
+                <button
+                  type="button"
+                  className={`set-btn-sm ${editingNotifier === 'recipient' ? 'is-active' : ''}`}
+                  onClick={() => setEditingNotifier(editingNotifier === 'recipient' ? null : 'recipient')}
+                >
+                  {notifier?.recipient_email ? 'Change' : 'Set Email'}
+                </button>
+              </div>
+            </div>
+
+            {editingNotifier === 'recipient' && (
+              <div className="int-edit-drawer">
+                <div className="int-drawer-helper">
+                  <span>Enter destination email address:</span>
+                </div>
+                <div className="int-drawer-form">
+                  <div className="int-input-wrap">
+                    <input
+                      type="email"
+                      className="set-input"
+                      placeholder="your-email@example.com"
+                      value={notifierDraft.recipient_email}
+                      onChange={(e) => setNotifierDraft(prev => ({ ...prev, recipient_email: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveNotifierSection({ recipient_email: notifierDraft.recipient_email })
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="int-drawer-actions">
+                    <button
+                      type="button"
+                      className="set-btn-sm is-primary"
+                      disabled={savingNotifier || !notifierDraft.recipient_email.trim()}
+                      onClick={() => handleSaveNotifierSection({ recipient_email: notifierDraft.recipient_email })}
+                    >
+                      {savingNotifier ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      className="set-btn-sm"
+                      onClick={() => setEditingNotifier(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AgentMail Outbound Delivery Row */}
+          <div className="int-provider-group">
+            <div className="int-provider-row">
+              <div className="int-provider-main">
+                <Icon name="mail" size={18} style={{ color: 'var(--accent)' }} />
+                <div className="int-provider-info">
+                  <div className="int-provider-title-line">
+                    <span className="int-provider-name">AgentMail (Outbound Delivery)</span>
+                    {notifier?.agentmail_configured ? (
+                      <span className="int-status-pill is-active">
+                        <span className="int-status-dot is-live" />
+                        Connected {notifier.agentmail_inbox_id ? `· ${notifier.agentmail_inbox_id}` : ''}
+                      </span>
+                    ) : (
+                      <span className="int-status-pill">Not Configured</span>
+                    )}
+                  </div>
+                  <span className="int-provider-desc">
+                    Free outbound transactional email (100 sends/day). Outbound-only with zero inbound attack surface.
+                  </span>
+                </div>
+              </div>
+
+              <div className="int-provider-actions">
+                {notifier?.agentmail_configured && (
+                  <button
+                    type="button"
+                    className="set-btn-sm"
+                    disabled={testingNotifier}
+                    onClick={handleTestEmail}
+                  >
+                    {testingNotifier ? 'Sending…' : 'Test Send'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`set-btn-sm ${editingNotifier === 'agentmail' ? 'is-active' : ''}`}
+                  onClick={() => setEditingNotifier(editingNotifier === 'agentmail' ? null : 'agentmail')}
+                >
+                  {notifier?.agentmail_configured ? 'Configure' : 'Set API Key'}
+                </button>
+              </div>
+            </div>
+
+            {editingNotifier === 'agentmail' && (
+              <div className="int-edit-drawer">
+                <div className="int-drawer-helper">
+                  <span>Enter AgentMail credentials from agentmail.to:</span>
+                </div>
+                <div className="int-drawer-form" style={{ flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%' }}>
+                    <input
+                      type="password"
+                      className="set-input"
+                      placeholder="API Key (am_live_...)"
+                      value={notifierDraft.agentmail_api_key}
+                      onChange={(e) => setNotifierDraft(prev => ({ ...prev, agentmail_api_key: e.target.value }))}
+                    />
+                    <input
+                      type="text"
+                      className="set-input"
+                      placeholder="Inbox ID (inbox_...)"
+                      value={notifierDraft.agentmail_inbox_id}
+                      onChange={(e) => setNotifierDraft(prev => ({ ...prev, agentmail_inbox_id: e.target.value }))}
+                    />
+                  </div>
+                  <div className="int-drawer-actions">
+                    <button
+                      type="button"
+                      className="set-btn-sm is-primary"
+                      disabled={savingNotifier}
+                      onClick={() => handleSaveNotifierSection({
+                        agentmail_api_key: notifierDraft.agentmail_api_key,
+                        agentmail_inbox_id: notifierDraft.agentmail_inbox_id,
+                      })}
+                    >
+                      {savingNotifier ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      className="set-btn-sm"
+                      onClick={() => setEditingNotifier(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Cloud Database (Turso) Row */}
+          <div className="int-provider-group">
+            <div className="int-provider-row">
+              <div className="int-provider-main">
+                <Icon name="database" size={18} style={{ color: 'var(--text-dim)' }} />
+                <div className="int-provider-info">
+                  <div className="int-provider-title-line">
+                    <span className="int-provider-name">Turso Cloud State (Deduplication)</span>
+                    {notifier?.turso_configured ? (
+                      <span className="int-status-pill is-active">
+                        <span className="int-status-dot is-live" />
+                        Connected
+                      </span>
+                    ) : (
+                      <span className="int-status-pill">Local SQLite Fallback</span>
+                    )}
+                  </div>
+                  <span className="int-provider-desc">
+                    Free libSQL database (9GB). Prevents duplicate emails when scheduled runs execute in CI with your PC turned off.
+                  </span>
+                </div>
+              </div>
+
+              <div className="int-provider-actions">
+                <button
+                  type="button"
+                  className={`set-btn-sm ${editingNotifier === 'turso' ? 'is-active' : ''}`}
+                  onClick={() => setEditingNotifier(editingNotifier === 'turso' ? null : 'turso')}
+                >
+                  {notifier?.turso_configured ? 'Configure' : 'Set Up Cloud'}
+                </button>
+              </div>
+            </div>
+
+            {editingNotifier === 'turso' && (
+              <div className="int-edit-drawer">
+                <div className="int-drawer-helper">
+                  <span>Enter Turso database URL and token from turso.tech (optional for 24/7 CI):</span>
+                </div>
+                <div className="int-drawer-form" style={{ flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%' }}>
+                    <input
+                      type="text"
+                      className="set-input"
+                      placeholder="libsql://your-db.turso.io"
+                      value={notifierDraft.turso_database_url}
+                      onChange={(e) => setNotifierDraft(prev => ({ ...prev, turso_database_url: e.target.value }))}
+                    />
+                    <input
+                      type="password"
+                      className="set-input"
+                      placeholder="Auth Token"
+                      value={notifierDraft.turso_auth_token}
+                      onChange={(e) => setNotifierDraft(prev => ({ ...prev, turso_auth_token: e.target.value }))}
+                    />
+                  </div>
+                  <div className="int-drawer-actions">
+                    <button
+                      type="button"
+                      className="set-btn-sm is-primary"
+                      disabled={savingNotifier}
+                      onClick={() => handleSaveNotifierSection({
+                        turso_database_url: notifierDraft.turso_database_url,
+                        turso_auth_token: notifierDraft.turso_auth_token,
+                      })}
+                    >
+                      {savingNotifier ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      className="set-btn-sm"
+                      onClick={() => setEditingNotifier(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

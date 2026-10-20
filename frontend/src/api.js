@@ -685,6 +685,12 @@ export const api = {
   // Due automations (for GitHub Actions scheduler).
   dueAutomations: () => j('/automations/due'),
 
+  // Cloud Notifier & 24/7 Briefings
+  notifierSettings: () => j('/notifier/settings'),
+  updateNotifierSettings: (body) => j('/notifier/settings', json('POST', body)),
+  testNotifierSend: (body = {}) => j('/notifier/test-send', json('POST', body)),
+  runNotifierBriefing: () => j('/notifier/run-briefing', json('POST', {})),
+
   logs: (limit = 100) => j(`/logs?limit=${limit}`),
 
   memory: (conversationId) =>

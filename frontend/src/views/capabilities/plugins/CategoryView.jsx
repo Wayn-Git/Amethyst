@@ -2,17 +2,19 @@ import { useState, useMemo } from 'react'
 import { ChevronLeft, Search, X } from 'lucide-react'
 import PluginCard from './PluginCard.jsx'
 import { PluginGridSkeleton } from './PluginSkeletons.jsx'
+import { CONNECTOR_CATEGORIES } from './categoryConstants.js'
 
 const CATEGORY_SUBTITLES = {
   'Installed': 'Manage your connected integrations, active credentials, and tool permissions.',
-  'Communication': 'Stay in sync with messaging, email, and real-time collaboration tools.',
-  'Developer Tools': 'Tools to help developers ship faster, track issues, and automate git workflows.',
-  'Productivity': 'Organize tasks, docs, spreadsheets, and project roadmaps seamlessly.',
-  'Web & Data': 'Search the live web, extract articles, scrape data, and compute answers.',
-  'CRM & Sales': 'Tools to help businesses run, grow, and manage customer relationships.',
-  'Small Business': 'Tools to help small businesses run, grow, and get paid.',
-  'Media & Social': 'Manage music playback, media publishing, and community channels.',
-  'Utilities': 'Direct calculation, weather, encyclopedia, and system assistance tools.',
+  'developer': 'Tools to help developers ship faster, track issues, and automate git workflows.',
+  'ai': 'Intelligent model providers, autonomous agents, prompt execution, and multimodal AI.',
+  'communication': 'Stay in sync with messaging, email, and real-time collaboration tools.',
+  'productivity': 'Organize tasks, docs, spreadsheets, and project roadmaps seamlessly.',
+  'web': 'Search the live web, extract articles, scrape data, and compute answers.',
+  'crm_commerce': 'Tools to help businesses run, grow, and manage customer relationships.',
+  'media_social': 'Manage music playback, media publishing, and community channels.',
+  'analytics': 'Product telemetry, event tracking, performance diagnostics, and metrics.',
+  'other': 'Calculators, weather, encyclopedia, and system assistance tools.',
 }
 
 export default function CategoryView({
@@ -29,7 +31,16 @@ export default function CategoryView({
 }) {
   const [categoryQuery, setCategoryQuery] = useState('')
 
+  const catDef = CONNECTOR_CATEGORIES.find(
+    (c) =>
+      c.id === category ||
+      c.title.toLowerCase() === category.toLowerCase() ||
+      c.shortTitle.toLowerCase() === category.toLowerCase()
+  )
+
+  const categoryTitle = catDef ? catDef.title : category
   const subtitle =
+    catDef?.desc ||
     CATEGORY_SUBTITLES[category] ||
     `Browse tools and integrations designed for ${category.toLowerCase()}.`
 
@@ -52,17 +63,17 @@ export default function CategoryView({
           type="button"
           className="plugin-back-btn"
           onClick={onBack}
-          aria-label="Back to plugins"
+          aria-label="Back to connectors"
         >
           <ChevronLeft size={18} />
-          <span>Plugins</span>
+          <span>All Connectors</span>
         </button>
       </div>
 
       {/* Category Header Row with Title and Search Input */}
       <div className="plugin-category-header-row">
         <div className="plugin-category-header-info">
-          <h1 className="plugin-category-title">{category}</h1>
+          <h1 className="plugin-category-title">{categoryTitle}</h1>
           <p className="plugin-category-subtitle">{subtitle}</p>
         </div>
 
