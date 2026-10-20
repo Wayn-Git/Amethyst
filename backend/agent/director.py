@@ -84,7 +84,13 @@ from backend.db.repositories import (
 )
 from backend.runtime import availability
 from backend.runtime.chain import AttemptBudget, Link, announcement, build_chain, reason_for
-from backend.runtime.failures import FailureKind, looks_like_quota, should_fall_back, should_retry
+from backend.runtime.failures import (
+    FailureKind,
+    classify_status,
+    looks_like_quota,
+    should_fall_back,
+    should_retry,
+)
 from backend.runtime.http import ProviderError, ProviderHTTPError, ProviderStreamError
 from backend.runtime.registry import resolve
 from backend.runtime.router import AUTO, RouteRequest, route
@@ -1652,7 +1658,7 @@ class Director:
             if (self.guards.max_seconds > 0 and elapsed > self.guards.max_seconds) or elapsed > hard_timeout:
                 state.error = "time limit reached"
                 async for ev in self._guaranteed_final_answer(
-                    conversation_id, model, system_base or "", said, state, "time limit reached"
+                    conversation_id, model, system_base or "", said, state, "time limit reached", chain=chain
                 ):
                     yield ev
                 self._checkpoint(state, "stopped", budget=budget)
@@ -1860,7 +1866,7 @@ class Director:
                     # enough" looks like from the outside.
                     if not state.warned_about_cap:
                         state.warned_about_cap = True
-                        if hit_wall_clock or state.tool_calls_made > 0 or intent_route.lane != "chat":
+                        if (hit_wall_clock or (hit_step_limit and effective_budget > 1)) and (state.tool_calls_made > 0 or intent_route.lane != "chat"):
                             cap_desc = f"{int(wall_clock_cap)}s" if hit_wall_clock else f"{effective_budget}-step"
                             yield Event(
                                 "warning",
@@ -2190,7 +2196,19 @@ class Director:
                     # A failure that was never classified is a bad request as
                     # far as anything downstream is concerned: it stops rather
                     # than spending another provider on a guess.
-                    kind = getattr(exc, "kind", FailureKind.NON_RETRYABLE)
+                    kind = getattr(exc, "kind", None)
+                    if kind is None:
+                        exc_str = f"{type(exc).__name__} {exc}".lower()
+                        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or "timeout" in exc_str:
+                            kind = FailureKind.UNREACHABLE
+                        elif isinstance(exc, (ConnectionError, OSError)) or "connection" in exc_str or "connect" in exc_str:
+                            kind = FailureKind.UNREACHABLE
+                        else:
+                            status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+                            if status_code:
+                                kind = classify_status(status_code, str(exc))
+                            else:
+                                kind = FailureKind.NON_RETRYABLE
 
                     # An answer that was already being written is picked up
                     # again rather than abandoned.
@@ -2865,7 +2883,7 @@ class Director:
                         if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
                             state.error = "tool call limit reached"
                             async for ev in self._guaranteed_final_answer(
-                                conversation_id, model, system_base or "", said, state, "tool call limit reached"
+                                conversation_id, model, system_base or "", said, state, "tool call limit reached", chain=chain
                             ):
                                 yield ev
                             self._checkpoint(state, "stopped", budget=budget)
@@ -3109,7 +3127,7 @@ class Director:
         else:
             state.error = "iteration limit reached"
             async for ev in self._guaranteed_final_answer(
-                conversation_id, model, system_base or "", said, state, "round budget reached"
+                conversation_id, model, system_base or "", said, state, "round budget reached", chain=chain
             ):
                 yield ev
             self._checkpoint(state, "stopped", budget=budget)
@@ -3131,27 +3149,50 @@ class Director:
         said: list[str],
         state: AgentState,
         terminal_reason: str,
+        *,
+        chain: list[Link] | None = None,
     ) -> AsyncIterator[Event]:
         """Execute one final model call with tools=None to guarantee a synthesized answer."""
         spoken = "".join(said).strip()
         if spoken:
             return
 
-        if model is not None:
+        instruction = (
+            f"This turn has reached its limit ({terminal_reason}). Tools are disabled. "
+            "Answer from what you have. State clearly anything you could not retrieve."
+        )
+        prompt_text = system_prompt or "You are Amethyst, a personal AI assistant."
+
+        try:
+            history_messages = self.messages.history(conversation_id)
+            wire_history = to_wire_messages(history_messages)
+        except Exception:
+            wire_history = []
+
+        wire = [
+            {"role": "system", "content": prompt_text},
+            *wire_history,
+            {"role": "system", "content": instruction},
+        ]
+
+        candidates: list[ResolvedModel] = []
+        if agent_config.fast_summary_provider and agent_config.fast_summary_model:
             try:
-                history_messages = self.messages.history(conversation_id)
-                wire_history = to_wire_messages(history_messages)
-                instruction = (
-                    f"This turn has reached its limit ({terminal_reason}). Tools are disabled. "
-                    "Answer from what you have. State clearly anything you could not retrieve."
+                fast_m = await asyncio.to_thread(
+                    resolve,
+                    agent_config.fast_summary_provider,
+                    agent_config.fast_summary_model,
                 )
-                prompt_text = system_prompt or "You are Amethyst, a personal AI assistant."
-                wire = [
-                    {"role": "system", "content": prompt_text},
-                    *wire_history,
-                    {"role": "system", "content": instruction},
-                ]
-                final_resp = await model.client.complete(wire, tools=None)
+                candidates.append(fast_m)
+            except Exception as f_err:
+                log.debug("Fast summary model could not be resolved: %s", f_err)
+
+        if model is not None and model not in candidates:
+            candidates.append(model)
+
+        for cand in candidates:
+            try:
+                final_resp = await cand.client.complete(wire, tools=None)
                 text = (final_resp.text or "").strip()
                 if text:
                     said.append(text)
@@ -3160,7 +3201,27 @@ class Director:
                     yield Event("done", {"text": text})
                     return
             except Exception as exc:
-                log.warning("Guaranteed final answer model call failed: %s", exc)
+                log.warning("Final answer synthesis call failed on %s: %s", getattr(cand, "name", "candidate"), exc)
+
+        # Fallback chain for synthesis: try remaining healthy links if primary failed
+        if chain:
+            start_idx = getattr(state, "active", 0) + 1
+            for idx in range(start_idx, len(chain)):
+                link = chain[idx]
+                if availability.is_circuit_open(link.provider):
+                    continue
+                try:
+                    fb_model = await asyncio.to_thread(resolve, link.provider, link.model)
+                    final_resp = await fb_model.client.complete(wire, tools=None)
+                    text = (final_resp.text or "").strip()
+                    if text:
+                        said.append(text)
+                        self._persist(conversation_id, "assistant", text)
+                        yield Event("assistant_delta", {"content": text})
+                        yield Event("done", {"text": text})
+                        return
+                except Exception as fb_exc:
+                    log.warning("Fallback synthesis failed on %s: %s", link, fb_exc)
 
         fallback = self._summarise(conversation_id, said)
         if fallback and not said:
@@ -3691,7 +3752,9 @@ class Director:
         would rule out providers that would have answered fine.
         """
         tools = self.registry.schemas(read_only=self.mode == "plan") if self.registry else []
+        tier = agent_config.tool_round_tier if tools else agent_config.summary_round_tier
         return RouteRequest(
+            tier=tier,
             context_tokens=estimate_tokens(user_message) + tool_schema_tokens(tools),
             tool_count=len(tools),
             needs_tools=bool(tools),

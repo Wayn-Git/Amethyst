@@ -64,6 +64,11 @@ class AgentConfig:
     circuit_breaker_failures: int = 3
     # Cooldown duration in seconds when a provider circuit is tripped
     circuit_breaker_cooldown: float = 180.0
+    # Model routing preferences: stronger models for tool rounds, fast/cheap for summaries
+    tool_round_tier: str = "heavy"
+    summary_round_tier: str = "fast"
+    fast_summary_provider: str | None = None
+    fast_summary_model: str | None = None
     # Network retry settings
     max_network_retries: int = 3
     retry_base_delay: float = 1.0
@@ -105,6 +110,10 @@ class AgentConfig:
             history_verbatim_turns=_get_int("AMETHYST_HISTORY_VERBATIM_TURNS", 2),
             circuit_breaker_failures=_get_int("AMETHYST_CIRCUIT_BREAKER_FAILURES", 3),
             circuit_breaker_cooldown=_get_float("AMETHYST_CIRCUIT_BREAKER_COOLDOWN", 180.0),
+            tool_round_tier=os.environ.get("AMETHYST_TOOL_ROUND_TIER", "heavy"),
+            summary_round_tier=os.environ.get("AMETHYST_SUMMARY_ROUND_TIER", "fast"),
+            fast_summary_provider=os.environ.get("AMETHYST_FAST_SUMMARY_PROVIDER"),
+            fast_summary_model=os.environ.get("AMETHYST_FAST_SUMMARY_MODEL"),
         )
 
 
