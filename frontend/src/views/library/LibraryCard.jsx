@@ -24,50 +24,12 @@ export function formatDuration(seconds) {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
-export function formatInlineMarkdown(rawText) {
-  if (!rawText) return null
-  const lines = String(rawText).split(/\n+/).filter(Boolean)
-  return lines.map((line, lineIdx) => {
-    const cleanLine = line.replace(/^[-•*]\s*/, '').trim()
-    const parts = []
-    const regex = /(\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*)/g
-    let lastIndex = 0
-    let match
-    while ((match = regex.exec(cleanLine)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(cleanLine.slice(lastIndex, match.index))
-      }
-      if (match[2]) {
-        parts.push(
-          <strong key={`${lineIdx}-${match.index}`} className="lib-card-summary-strong">
-            {match[2]}
-          </strong>
-        )
-      } else if (match[3]) {
-        parts.push(
-          <code key={`${lineIdx}-${match.index}`} className="lib-card-summary-code">
-            {match[3]}
-          </code>
-        )
-      } else if (match[4]) {
-        parts.push(
-          <em key={`${lineIdx}-${match.index}`}>
-            {match[4]}
-          </em>
-        )
-      }
-      lastIndex = match.index + match[0].length
-    }
-    if (lastIndex < cleanLine.length) {
-      parts.push(cleanLine.slice(lastIndex))
-    }
-    return (
-      <span key={lineIdx} className="lib-card-summary-line">
-        {lineIdx > 0 && <span className="lib-card-summary-sep"> · </span>}
-        {parts.length > 0 ? parts : cleanLine}
-      </span>
-    )
-  })
+export function cleanSummary(rawText) {
+  if (!rawText) return ''
+  return String(rawText)
+    .replace(/^[-*•]\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .trim()
 }
 
 export function getDomain(url, site) {
@@ -321,7 +283,40 @@ function LibraryCardComponent({
             {/* Subtle bottom vignette only */}
             <div className="lib-card-media-scrim" aria-hidden="true" />
 
-            {/* Top-Right Multi-Image Carousel Pill */}
+            {/* Top-Left Platform Badge */}
+            {(app || item.kind) && (
+              <div className="lib-card-platform-pill">
+                <Icon
+                  name={
+                    app === 'pinterest' ? 'pin' :
+                    app === 'youtube' ? 'play' :
+                    app === 'instagram' ? 'spark' :
+                    app === 'threads' ? 'threads' :
+                    app === 'tiktok' ? 'play' :
+                    app === 'spotify' ? 'music' :
+                    app === 'github' ? 'code' :
+                    app === 'x' ? 'chat' :
+                    KIND_ICON[item.kind] || 'link'
+                  }
+                  size={10}
+                />
+                <span>{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
+              </div>
+            )}
+
+            {/* Center Frosted Play Button for Videos / Reels */}
+            {(isVideo || duration || hasLocalVideo) && (
+              <div
+                className="lib-card-play-btn"
+                role="button"
+                aria-label="Play video"
+                title="Play video"
+              >
+                <Icon name="play" size={16} />
+              </div>
+            )}
+
+            {/* Top-Right Multi-Image Carousel Badge */}
             {isCarousel && (
               <div className="lib-card-carousel-pill" aria-label={`${slideCount} images`}>
                 <Icon name="copy" size={10} />
@@ -490,11 +485,11 @@ function LibraryCardComponent({
             </div>
           </div>
         ) : item.summary ? (
-          <p className="lib-card-summary">{formatInlineMarkdown(item.summary)}</p>
+          <p className="lib-card-summary">{cleanSummary(item.summary)}</p>
         ) : item.excerpt ? (
-          <p className="lib-card-summary">{formatInlineMarkdown(item.excerpt)}</p>
+          <p className="lib-card-summary">{cleanSummary(item.excerpt)}</p>
         ) : item.notes ? (
-          <p className="lib-card-summary lib-card-summary--notes">{formatInlineMarkdown(item.notes)}</p>
+          <p className="lib-card-summary lib-card-summary--notes">{cleanSummary(item.notes)}</p>
         ) : (
           <div className="lib-card-pending-chip">
             <Icon name="spark" size={10} />

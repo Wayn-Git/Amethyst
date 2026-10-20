@@ -96,6 +96,37 @@ test('renders post item with author without throwing', () => {
   assert.ok(html.includes('Tweet title'))
 })
 
+test('renders vertical reel with play button overlay and platform badge', () => {
+  const item = {
+    id: 4,
+    url: 'https://www.instagram.com/reel/12345/',
+    title: 'Instagram Reel Title',
+    kind: 'video',
+    app: 'instagram',
+    duration_seconds: 45,
+    thumbnail_path: '/path/to/thumb.jpg',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('Instagram Reel Title'))
+  assert.ok(html.includes('lib-card-play-btn'), 'Expected play button on video media')
+  assert.ok(html.includes('lib-card-platform-pill'), 'Expected platform badge on media')
+})
+
+test('renders summary directly without ugly dot-concatenation', () => {
+  const item = {
+    id: 5,
+    title: 'Article With Summary',
+    summary: 'First takeaway point.\nSecond key detail.\nThird conclusion.',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(!html.includes('lib-card-summary-sep'), 'Summary should not have artificial separator dots')
+  assert.ok(html.includes('First takeaway point.'))
+})
+
 if (failures.length > 0) {
   console.error(`\n${failures.length} failed:`)
   for (const f of failures) {
