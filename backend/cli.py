@@ -973,7 +973,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         from pathlib import Path
 
         root = Path(__file__).resolve().parents[1]
-        uvicorn_kwargs["reload_dirs"] = [str(root / "backend")]
+        uvicorn_kwargs["reload_dirs"] = [str(root / "backend"), str(root / "notifier")]
         uvicorn_kwargs["reload_excludes"] = [
             ".venv", "frontend", "storage", "*.db", "*.sqlite", "logs", "*.log", "tests", "*.tmp"
         ]

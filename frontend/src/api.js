@@ -456,6 +456,8 @@ export const api = {
   connectorsAuthorize: (slug, alias) => j(`/connectors/${encodeURIComponent(slug)}/authorize`, json('POST', alias ? { alias } : {})),
   connectorsDisconnectAccount: (slug, accountId) => j(`/connectors/${encodeURIComponent(slug)}/accounts/${encodeURIComponent(accountId)}`, json('DELETE')),
   connectorsDisconnectService: (slug) => j(`/connectors/${encodeURIComponent(slug)}`, json('DELETE')),
+  testConnector: (slug) => j(`/connectors/${encodeURIComponent(slug)}/test`, json('POST', {})),
+
 
   // Custom MCP servers (OpenMausBot interface)
   mcpServersList: () => j('/mcp/servers'),
@@ -682,6 +684,12 @@ export const api = {
   automationTemplates: (category) => j(`/automations/templates${category ? `?category=${category}` : ''}`),
   // Due automations (for GitHub Actions scheduler).
   dueAutomations: () => j('/automations/due'),
+
+  // Cloud Notifier & 24/7 Briefings
+  notifierSettings: () => j('/notifier/settings'),
+  updateNotifierSettings: (body) => j('/notifier/settings', json('POST', body)),
+  testNotifierSend: (body = {}) => j('/notifier/test-send', json('POST', body)),
+  runNotifierBriefing: () => j('/notifier/run-briefing', json('POST', {})),
 
   logs: (limit = 100) => j(`/logs?limit=${limit}`),
 
@@ -944,8 +952,12 @@ export const api = {
   // Which web-search API is set up, and setting one. Write-only for the key
   // itself: the GET says a provider has one, never what it is.
   searchProvider: () => j('/search/provider'),
-  setSearchProvider: (name, key) =>
-    j('/search/provider', { method: 'PUT', body: JSON.stringify({ name, key }) }),
+  setSearchProvider: (nameOrPayload, key, preferred) => {
+    const body = typeof nameOrPayload === 'object' && nameOrPayload !== null
+      ? nameOrPayload
+      : { name: nameOrPayload, key, preferred }
+    return j('/search/provider', { method: 'PUT', body: JSON.stringify(body) })
+  },
   // The palette passes the article list and wiki card it already shows as
   // the evidence, so an answer never re-searches what is already on screen.
   // `wiki` is only sent when the caller decided it: `null` means "no wiki
