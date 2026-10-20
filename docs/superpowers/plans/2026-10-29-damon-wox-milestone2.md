@@ -61,10 +61,10 @@
 - Create: `tests/test_launcher_files.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_launcher_files.py` testing user directory scanning, extension/name filtering, score ranking, and file open action via `gio open` / `xdg-open`.
-- [ ] Implement `FileProvider` in `backend/launcher/providers/files.py` with bounded depth and path caching.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(launcher): add fast local file search provider"`
+- [x] Write failing test in `tests/test_launcher_files.py` testing user directory scanning, extension/name filtering, score ranking, and file open action via `gio open` / `xdg-open`.
+- [x] Implement `FileProvider` in `backend/launcher/providers/files.py` with bounded depth and path caching.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(launcher): add fast local file search provider"`
 
 ---
 
