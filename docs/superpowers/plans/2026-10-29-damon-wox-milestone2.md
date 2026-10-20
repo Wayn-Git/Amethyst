@@ -47,10 +47,10 @@
 - Create: `tests/test_launcher_clipboard.py`
 
 **Steps:**
-- [ ] Write failing test in `tests/test_launcher_clipboard.py` testing clipboard history insertion, deduplication, search, and copy-back action.
-- [ ] Implement `ClipboardHistoryStore` and `ClipboardProvider` in `backend/launcher/providers/clipboard.py`.
-- [ ] Run test to verify it passes.
-- [ ] Commit: `git commit -m "feat(launcher): add clipboard history store and provider"`
+- [x] Write failing test in `tests/test_launcher_clipboard.py` testing clipboard history insertion, deduplication, search, and copy-back action.
+- [x] Implement `ClipboardHistoryStore` and `ClipboardProvider` in `backend/launcher/providers/clipboard.py`.
+- [x] Run test to verify it passes.
+- [x] Commit: `git commit -m "feat(launcher): add clipboard history store and provider"`
 
 ---
 
