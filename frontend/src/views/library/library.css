@@ -1245,25 +1245,29 @@
 .lib-bento-grid {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 16px;
+  grid-auto-flow: dense;
+  gap: 18px;
   width: 100%;
 }
 
 @media (min-width: 580px) {
   .lib-bento-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
   }
 }
 
 @media (min-width: 960px) {
   .lib-bento-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: auto;
   }
 }
 
 @media (min-width: 1360px) {
   .lib-bento-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: auto;
   }
 }
 
@@ -1330,8 +1334,11 @@
   50%      { border-color: rgba(113, 50, 245, 0.55); }
 }
 
-/* All cards are flex column and uniformly sized */
-.lib-card--wide,
+/* --------------------------------------------------------------------------
+   Dynamic Bento Media System
+   Native Aspect Ratios: 9:16 for Reels/Shorts, 16:9 for Videos, 1:1 for Posts
+   -------------------------------------------------------------------------- */
+
 .lib-card--portrait,
 .lib-card--square,
 .lib-card--landscape,
@@ -1340,20 +1347,103 @@
   flex-direction: column !important;
 }
 
-/* Uniform Media Hero (Strictly 160px height across ALL cards with media) */
+/* Portrait Bento Card (Instagram Reels, TikTok, Shorts - 9:16 vertical ratio) */
+.lib-card--portrait {
+  justify-content: space-between;
+}
+
+.lib-card--portrait .lib-card-media-wrap,
+.lib-card--portrait .lib-card-media {
+  width: 100% !important;
+  aspect-ratio: 9 / 16 !important;
+  min-height: 280px !important;
+  max-height: 440px !important;
+  height: auto !important;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  flex-shrink: 0 !important;
+  border-radius: var(--radius-cards, 6px) var(--radius-cards, 6px) 0 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.lib-card--portrait .lib-card-media-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center top !important;
+  display: block;
+  transition: transform 200ms var(--lib-ease-out);
+}
+
+.lib-card--portrait .lib-card-body {
+  padding: 12px 14px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Square Post Bento Card (Instagram Carousels, Artwork - 1:1 ratio) */
+.lib-card--square .lib-card-media-wrap,
+.lib-card--square .lib-card-media {
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  min-height: 200px !important;
+  max-height: 280px !important;
+  height: auto !important;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  flex-shrink: 0 !important;
+  border-radius: var(--radius-cards, 6px) var(--radius-cards, 6px) 0 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.lib-card--square .lib-card-media-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  display: block;
+  transition: transform 200ms var(--lib-ease-out);
+}
+
+/* Landscape Videos (YouTube, web videos - 16:9 ratio) */
+.lib-card--landscape .lib-card-media-wrap,
+.lib-card--landscape .lib-card-media {
+  width: 100% !important;
+  aspect-ratio: 16 / 9 !important;
+  min-height: 180px !important;
+  max-height: 230px !important;
+  height: auto !important;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  flex-shrink: 0 !important;
+  border-radius: var(--radius-cards, 6px) var(--radius-cards, 6px) 0 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.lib-card--landscape .lib-card-media-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  display: block;
+  transition: transform 200ms var(--lib-ease-out);
+}
+
+/* Standard Bento Media (Default 16:10 ratio) */
 .lib-card-media-wrap,
 .lib-card-media-framed,
 .lib-card-media,
-.lib-card--wide .lib-card-media,
-.lib-card--portrait .lib-card-media,
-.lib-card--square .lib-card-media,
-.lib-card--landscape .lib-card-media,
 .lib-card--standard .lib-card-media {
-  width: 100% !important;
-  height: 160px !important;
-  min-height: 160px !important;
-  max-height: 160px !important;
-  aspect-ratio: unset !important;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 180px;
+  max-height: 230px;
   position: relative;
   overflow: hidden;
   background: var(--surface-2);
@@ -1363,10 +1453,10 @@
 }
 
 .lib-card-media-img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  object-position: center !important;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   display: block;
   transition: transform 200ms var(--lib-ease-out);
 }

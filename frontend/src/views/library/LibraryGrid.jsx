@@ -11,6 +11,7 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     url.includes('youtube.') || url.includes('youtu.be') ? 'youtube' :
     url.includes('tiktok.') ? 'tiktok' : null
   )
+  const hasThumb = Boolean(item.thumbnail_path || item.url)
   const isReelOrShort = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/')
   const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
   const isVideo = (
@@ -21,12 +22,47 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     hasLocalVideo ||
     Boolean(item.duration_seconds)
   )
-  const isNote = item.kind === 'note' || (!item.thumbnail_path && !item.url)
+  const isVertical = (
+    isReelOrShort ||
+    app === 'tiktok' ||
+    app === 'pinterest' ||
+    Boolean(item.is_reel) ||
+    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video' || hasLocalVideo))
+  )
+  const isSlidePost = (
+    (app === 'instagram' && !isVertical) ||
+    item.kind === 'post' ||
+    (Array.isArray(item.resources) && item.resources.some((r) => r?.type === 'slide'))
+  )
+  const isNote = item.kind === 'note' || (!hasThumb && !item.url)
 
-  // Every card is strictly equally sized (col-span-1) in a uniform modern grid
+  if (isNote) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-1',
+      variant: 'note',
+    }
+  }
+
+  // Vertical Reels & Shorts: tall 9:16 card spanning 2 rows in the grid
+  if (isVertical && hasThumb) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-2',
+      variant: 'portrait',
+    }
+  }
+
+  // Square Posts & Carousels: 1:1 square card spanning 1 row
+  if (isSlidePost) {
+    return {
+      spanClass: 'col-span-1 sm:row-span-1',
+      variant: 'square',
+    }
+  }
+
+  // Landscape Videos (YouTube etc.) & Articles: 16:9 card spanning 1 row
   return {
-    spanClass: 'col-span-1',
-    variant: isNote ? 'note' : isVideo ? 'video' : 'standard',
+    spanClass: 'col-span-1 sm:row-span-1',
+    variant: isVideo ? 'landscape' : 'standard',
   }
 }
 
