@@ -13,20 +13,21 @@ export function getBentoItemConfig(item, index, totalInGroup) {
   )
   const hasThumb = Boolean(item.thumbnail_path || item.url)
   const isReelOrShort = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/')
-  const isVertical = (
-    isReelOrShort ||
-    app === 'tiktok' ||
-    app === 'pinterest' ||
-    Boolean(item.is_reel) ||
-    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video'))
-  )
+  const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
   const isVideo = (
     item.kind === 'video' ||
     app === 'youtube' ||
     app === 'tiktok' ||
     isReelOrShort ||
-    Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path)) ||
+    hasLocalVideo ||
     Boolean(item.duration_seconds)
+  )
+  const isVertical = (
+    isReelOrShort ||
+    app === 'tiktok' ||
+    app === 'pinterest' ||
+    Boolean(item.is_reel) ||
+    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video' || hasLocalVideo))
   )
   const isSlidePost = (
     (app === 'instagram' && !isVertical) ||

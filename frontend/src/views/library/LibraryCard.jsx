@@ -158,7 +158,7 @@ function LibraryCardComponent({
     app === 'tiktok' ||
     app === 'pinterest' ||
     Boolean(item.is_reel) ||
-    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video'))
+    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video' || hasLocalVideo))
   )
 
   const isSlidePost = (
