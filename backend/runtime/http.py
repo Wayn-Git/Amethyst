@@ -18,6 +18,7 @@ from typing import Any
 
 import httpx
 
+from backend.agent.config import agent_config
 from backend.runtime.failures import (
     FailureKind,
     classify_status,
@@ -25,7 +26,7 @@ from backend.runtime.failures import (
     should_retry,
 )
 
-MAX_RETRIES = 3
+MAX_RETRIES = agent_config.max_network_retries
 #: Mid-stream errors get an extra attempt. The request already passed auth and
 #: routing to open a 200, so the provider was working moments ago; one more try
 #: is cheap and often succeeds. Separate from MAX_RETRIES so non-stream paths
@@ -171,9 +172,13 @@ def reset_after(headers: Any) -> float | None:
     return None
 
 
-def backoff(attempt: int) -> float:
-    """Exponential backoff with jitter, so retries do not synchronise."""
-    return min(2.0**attempt, 8.0) * (0.5 + random.random() / 2)
+def backoff(attempt: int, base: float | None = None, max_delay: float | None = None) -> float:
+    """Exponential backoff with jitter on 429, 5xx, and network timeouts."""
+    b = base if base is not None else agent_config.retry_base_delay
+    m = max_delay if max_delay is not None else agent_config.retry_max_delay
+    delay = min(b * (2.0**attempt), m)
+    # Jitter factor between 0.5 and 1.0 so retries never synchronize
+    return delay * (0.5 + random.random() / 2)
 
 
 def stream_backoff(attempt: int) -> float:
@@ -254,12 +259,10 @@ def is_retryable(status: int, body: str | None = None) -> bool:
 
 def _delay_for(response: httpx.Response, attempt: int) -> float:
     delay = backoff(attempt)
-    retry_after = response.headers.get("retry-after")
-    if retry_after:
-        try:
-            return max(delay, float(retry_after))
-        except ValueError:
-            pass
+    retry_after = reset_after(response.headers)
+    if retry_after is not None:
+        # Add small jitter to avoid thundering herd on reset timestamp
+        return max(delay, retry_after + (random.random() * 0.5))
     return delay
 
 
