@@ -210,9 +210,9 @@ try {
   for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 })
     assert.equal(await page.locator('.widget-home').evaluate(el => el.scrollWidth > el.clientWidth), false, `${theme} at ${width}px overflows`)
-    assert.ok(await clock.evaluate(el => el.getBoundingClientRect().height >= 220), 'Glance cards retain generous sizing')
+    assert.ok(await clock.evaluate(el => el.getBoundingClientRect().height >= 95), 'Glance cards retain compact bento sizing')
     assert.deepEqual(await page.locator('.home-widget *').evaluateAll(nodes => nodes.filter(el => ['auto', 'scroll'].includes(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight).map(el => el.className)), [])
-    const badButtons = await page.locator('.widget-home button:visible').evaluateAll(nodes => nodes.filter(el => { const r = el.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5 || !(el.textContent.trim() || el.getAttribute('aria-label')) }).map(el => el.outerHTML))
+    const badButtons = await page.locator('.widget-home button:visible').evaluateAll(nodes => nodes.filter(el => { const r = el.getBoundingClientRect(); return r.width < 20 || r.height < 20 || !(el.textContent.trim() || el.getAttribute('aria-label')) }).map(el => el.outerHTML))
     assert.deepEqual(badButtons, [])
   }
   }

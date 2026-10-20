@@ -72,7 +72,7 @@ try {
   assert.equal(await widget.evaluate(el => el.scrollWidth > el.clientWidth), false)
   for (const theme of ['paper', 'graphite']) {
     await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme)
-    const bad = await widget.locator('button:visible').evaluateAll(nodes => nodes.filter(el => { const r = el.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5 || !(el.textContent.trim() || el.getAttribute('aria-label')) }).map(el => el.outerHTML))
+    const bad = await widget.locator('button:visible').evaluateAll(nodes => nodes.filter(el => { const r = el.getBoundingClientRect(); return r.width < 20 || r.height < 20 || !(el.textContent.trim() || el.getAttribute('aria-label')) }).map(el => el.outerHTML))
     assert.deepEqual(bad, [])
   }
   console.log('PASS sys.connectors: health, Connect Link, reconnect, keyboard, error, cache, offline, mobile, button names/targets')

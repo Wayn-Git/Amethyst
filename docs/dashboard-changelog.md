@@ -5,6 +5,7 @@
 - Redesigned Home view into Apple-inspired 12-column Bento Grid with live preview Gallery studio (S/M/L variants), fixed SimpleNamespace risk access in items.py, guarded conversations and layout queries against unhandled undefined filters, added menu icon in Icon.jsx.
 - Polished Today dashboard and Add Widgets studio: Spotlight search bar with clear action, capsule category pills with count badges, radial stage background, ambient bento card gradients, and fluid micro-animations (soundwaves, cascade entrances, hover lifts).
 - Fixed 1-column collapse bug for M widgets, replaced 44px box styles with modern pill/squircle touch targets, and streamlined Add Widget drawer into 1-click catalog cards with inline size selectors.
+- Scaled down Today dashboard sizing across headings (24px), glance tiles (110px), buttons (32px), cards, and drawer (500px) to match standard desktop density in Tasks and Library.
 
 ## 2026-10-24 — Day 1 shell
 
