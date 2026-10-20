@@ -35,8 +35,10 @@ def apply_tool_defaults(
     args = dict(arguments or {})
     name = (tool_name or "").lower()
 
-    # Block model-initiated offset/page pagination unless the user explicitly requested more
-    if not is_pagination_requested(user_prompt):
+    # Block model-initiated offset/page pagination unless the user explicitly requested more.
+    # File tools (e.g. view_file) use offset/StartLine for line seeking rather than listing pagination.
+    is_file_tool = any(k in name for k in ("file", "artifact", "editor"))
+    if not is_file_tool and not is_pagination_requested(user_prompt):
         if "offset" in args:
             try:
                 if int(args["offset"]) > 0:
