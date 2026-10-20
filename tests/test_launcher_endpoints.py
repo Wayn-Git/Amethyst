@@ -52,3 +52,20 @@ def test_launcher_action_unknown_provider():
         },
     )
     assert res.status_code == 404
+
+
+def test_launcher_action_clipboard():
+    client = TestClient(app)
+    from unittest.mock import patch
+    with patch("backend.launcher.providers.clipboard.set_clipboard", return_value={"ok": True}):
+        res = client.post(
+            "/api/launcher/action",
+            json={
+                "provider_id": "clipboard",
+                "action_id": "copy",
+                "payload": {"text": "hello test clipboard"},
+            },
+        )
+        assert res.status_code == 200
+        assert res.json().get("copied") is True
+

@@ -75,10 +75,10 @@
 - Modify: `tests/test_launcher_endpoints.py`
 
 **Steps:**
-- [ ] Update `tests/test_launcher_endpoints.py` to verify all providers stream results.
-- [ ] Register `SystemProvider`, `WindowProvider`, `ClipboardProvider`, and `FileProvider` in `backend/api/main.py`.
-- [ ] Run tests to verify all endpoints handle new providers and actions.
-- [ ] Commit: `git commit -m "feat(api): register window, system, clipboard, and file providers in launcher engine"`
+- [x] Update `tests/test_launcher_endpoints.py` to verify all providers stream results.
+- [x] Register `SystemProvider`, `WindowProvider`, `ClipboardProvider`, and `FileProvider` in `backend/api/main.py`.
+- [x] Run tests to verify all endpoints handle new providers and actions.
+- [x] Commit: `git commit -m "feat(api): register window, system, clipboard, and file providers in launcher engine"`
 
 ---
 

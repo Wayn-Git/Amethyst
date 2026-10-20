@@ -8757,11 +8757,19 @@ def get_launcher_engine():
         from backend.launcher.providers.apps import AppProvider
         from backend.launcher.providers.commands import CommandProvider
         from backend.launcher.providers.library import LibraryProvider
+        from backend.launcher.providers.system import SystemProvider
+        from backend.launcher.providers.windows import WindowProvider
+        from backend.launcher.providers.clipboard import ClipboardProvider
+        from backend.launcher.providers.files import FileProvider
 
         engine = LauncherEngine()
         engine.register_provider(AppProvider())
         engine.register_provider(CommandProvider())
         engine.register_provider(LibraryProvider())
+        engine.register_provider(SystemProvider())
+        engine.register_provider(WindowProvider())
+        engine.register_provider(ClipboardProvider())
+        engine.register_provider(FileProvider())
         _launcher_engine = engine
     return _launcher_engine
 
