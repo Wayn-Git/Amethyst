@@ -76,6 +76,7 @@ class ModelParameters:
     thinking_budget: int | None = None
     stop: list[str] | None = None
     seed: int | None = None
+    tool_choice: str | None = None
 
 
 @dataclass

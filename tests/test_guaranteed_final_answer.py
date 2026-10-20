@@ -93,20 +93,22 @@ async def test_guaranteed_final_answer_synthesizes_on_iteration_limit(monkeypatc
     monkeypatch.setattr(agent_config, "max_continuations", 0)
 
     final_call_received_tools = "uncalled"
+    final_call_received_params = None
 
     class Client:
         def __init__(self):
             self.turn = 0
 
         async def complete(self, messages, tools=None, params=None):
-            nonlocal final_call_received_tools
+            nonlocal final_call_received_tools, final_call_received_params
             self.turn += 1
             if tools is not None:
                 # Model keeps wanting to call tools without providing final answer
                 return ModelResponse(tool_calls=[ToolCall(id=f"c{self.turn}", name="do_work", arguments={"step": self.turn})])
             else:
-                # Terminal final answer call: tools=None
+                # Terminal final answer call: tools=None, tool_choice="none"
                 final_call_received_tools = tools
+                final_call_received_params = params
                 return ModelResponse(text="Synthesized final answer from 2 pieces of data.")
 
     monkeypatch.setattr(
@@ -124,6 +126,8 @@ async def test_guaranteed_final_answer_synthesizes_on_iteration_limit(monkeypatc
 
     # Verify tools=None was passed to the guaranteed final answer call
     assert final_call_received_tools is None
+    assert final_call_received_params is not None
+    assert getattr(final_call_received_params, "tool_choice", None) == "none"
 
     # Verify a synthesized final answer was delivered
     done_events = [e.data for e in events if e.type == "done"]

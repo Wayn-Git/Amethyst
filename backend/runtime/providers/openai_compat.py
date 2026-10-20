@@ -440,8 +440,11 @@ class OpenAICompatClient:
             payload["max_tokens"] = p.answer_tokens
         if p.stop:
             payload["stop"] = p.stop
-        if p.seed is not None:
-            payload["seed"] = p.seed
+        if getattr(p, "tool_choice", None) is not None:
+            payload["tool_choice"] = p.tool_choice
+        elif isinstance(params, dict) and "tool_choice" in params:
+            payload["tool_choice"] = params["tool_choice"]
+
         # Gateways and non-reasoning models reject reasoning_effort
         is_gateway = any(gw in (self.base_url or "") for gw in ("kilo.ai", "opencode.ai", "openrouter.ai"))
         if p.reasoning_effort and p.reasoning_effort != "none":

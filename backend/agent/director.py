@@ -17,7 +17,7 @@ import os
 import re
 import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -2151,6 +2151,16 @@ class Director:
                     model.client.session_id = conversation_id
                 if hasattr(model.client, "_build_payload"):
                     model.client._cache_system = True
+                effective_params = self.params
+                if final_step:
+                    if isinstance(self.params, ModelParameters):
+                        effective_params = replace(self.params, tool_choice="none")
+                    elif isinstance(self.params, dict):
+                        effective_params = dict(self.params)
+                        effective_params["tool_choice"] = "none"
+                    else:
+                        effective_params = ModelParameters(tool_choice="none")
+
                 try:
                     if (
                         self.stream
@@ -2160,7 +2170,7 @@ class Director:
                         # Deltas go out as they arrive so the interface can render
                         # progressively; tool calls are only actionable once assembled.
                         async for chunk in _stream_until_cancelled(
-                            model.client.stream(wire, tools=tool_schemas, params=self.params),
+                            model.client.stream(wire, tools=tool_schemas, params=effective_params),
                             cancel,
                         ):
                             if chunk.type == "text" and chunk.text:
@@ -2196,7 +2206,7 @@ class Director:
                             )
                     else:
                         response = await _race_cancel(
-                            model.client.complete(wire, tools=tool_schemas, params=self.params),
+                            model.client.complete(wire, tools=tool_schemas, params=effective_params),
                             cancel,
                         )
                 except Stopped:
@@ -3280,7 +3290,7 @@ class Director:
 
         for cand in candidates:
             try:
-                final_resp = await cand.client.complete(wire, tools=None)
+                final_resp = await cand.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
                 text = (final_resp.text or "").strip()
                 if text:
                     said.append(text)
@@ -3300,7 +3310,7 @@ class Director:
                     continue
                 try:
                     fb_model = await asyncio.to_thread(resolve, link.provider, link.model)
-                    final_resp = await fb_model.client.complete(wire, tools=None)
+                    final_resp = await fb_model.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
                     text = (final_resp.text or "").strip()
                     if text:
                         said.append(text)
