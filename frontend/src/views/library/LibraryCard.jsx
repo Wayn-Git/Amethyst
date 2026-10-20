@@ -24,12 +24,82 @@ export function formatDuration(seconds) {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
+export function cleanSummary(rawText) {
+  if (!rawText) return ''
+  return String(rawText)
+    .replace(/^[-*•]\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .trim()
+}
+
+export function extractYoutubeId(url) {
+  if (!url) return null
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/i)
+  return m ? m[1] : null
+}
+
+export function getDeduplicatedSummary(item) {
+  if (!item) return null
+
+  const rawTitle = (item.title || '').trim()
+  const titleNorm = rawTitle
+    .toLowerCase()
+    .replace(/^[@#\s]+/, '')
+    .replace(/[\s\-_.:;!?]+$/, '')
+    .trim()
+
+  // Prefer summary, then notes, then excerpt
+  let candidate = item.summary
+  if (!candidate && item.notes) {
+    candidate = item.notes
+  }
+  if (!candidate && item.excerpt) {
+    candidate = item.excerpt
+  }
+  if (!candidate) return null
+
+  let cleaned = cleanSummary(candidate)
+  if (!cleaned) return null
+
+  // Remove generic scraper boilerplate
+  if (
+    cleaned.startsWith('Post by @') &&
+    (cleaned.includes('could not be retrieved') || cleaned.includes('formerly Twitter'))
+  ) {
+    return null
+  }
+
+  const cleanedNorm = cleaned
+    .toLowerCase()
+    .replace(/^[@#\s]+/, '')
+    .replace(/[\s\-_.:;!?]+$/, '')
+    .trim()
+
+  // 1. Exact match or identical normalized text
+  if (titleNorm && (cleanedNorm === titleNorm || titleNorm.startsWith(cleanedNorm) || titleNorm.endsWith(cleanedNorm))) {
+    return null
+  }
+
+  // 2. Summary starts with exact title text (e.g. Title: "Slop Monster", Summary: "Slop Monster is a tool...")
+  if (rawTitle.length >= 5) {
+    if (cleaned.toLowerCase().startsWith(rawTitle.toLowerCase())) {
+      const remainder = cleaned.slice(rawTitle.length).replace(/^[\s—–:.-]+/, '').trim()
+      if (!remainder || remainder.length < 12) {
+        return null
+      }
+      return remainder.charAt(0).toUpperCase() + remainder.slice(1)
+    }
+  }
+
+  return cleaned
+}
+
 export function getDomain(url, site) {
-  if (site) return site.replace(/^www\./i, '').toUpperCase()
+  if (site) return site.replace(/^www\./i, '').toLowerCase()
   if (!url) return ''
   try {
     const parsed = new URL(url)
-    return (parsed.hostname || '').replace(/^www\./i, '').toUpperCase()
+    return (parsed.hostname || '').replace(/^www\./i, '').toLowerCase()
   } catch {
     return ''
   }
@@ -106,23 +176,57 @@ function LibraryCardComponent({
   }, [avatarResource, app, item.author])
 
   const [thumbFailed, setThumbFailed] = useState(false)
-  const hasThumbnail = Boolean((item.thumbnail_path || item.url) && !thumbFailed)
-  const domain = getDomain(item.url, item.site)
-  const duration = formatDuration(item.duration_seconds)
-  const favicon = getFaviconUrl(item.url)
+  const [isPlayingVideo, setIsPlayingVideo] = useState(false)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
 
-  const slideCount = useMemo(() => {
+  // Multi-image slides / carousel extraction
+  const slides = useMemo(() => {
     let res = item.resources
     if (typeof res === 'string') {
       try { res = JSON.parse(res) } catch { res = [] }
     }
-    if (Array.isArray(res)) {
-      return res.filter((r) => r && (r.type === 'slide' || r.type === 'image')).length
-    }
-    return 0
-  }, [item.resources])
+    if (!Array.isArray(res)) return []
+    const slideRes = res.filter((r) => r && typeof r === 'object' && (r.type === 'slide' || r.type === 'image'))
+    return slideRes.map((s, idx) => {
+      const slideIdx = s.index !== undefined ? s.index : idx
+      let sUrl = s.url
+      if (!sUrl || (!sUrl.startsWith('http') && !sUrl.startsWith('/api/'))) {
+        sUrl = api.slideUrl(item.id, slideIdx)
+      }
+      return {
+        url: sUrl,
+        remoteUrl: s.remote_url || (s.url && s.url.startsWith('http') ? s.url : null),
+        index: slideIdx,
+      }
+    })
+  }, [item.id, item.resources])
 
+  const slideCount = slides.length
   const isCarousel = slideCount > 1
+
+  const currentImageUrl = useMemo(() => {
+    if (isCarousel && slides[currentSlideIndex]) {
+      return slides[currentSlideIndex].url
+    }
+    return api.thumbnailUrl(item.id)
+  }, [isCarousel, slides, currentSlideIndex, item.id])
+
+  const handleImageError = useCallback((e) => {
+    const cur = slides[currentSlideIndex]
+    if (cur?.remoteUrl && e.currentTarget.src !== cur.remoteUrl) {
+      e.currentTarget.src = cur.remoteUrl
+    } else if (e.currentTarget.src !== api.thumbnailUrl(item.id)) {
+      e.currentTarget.src = api.thumbnailUrl(item.id)
+    } else {
+      setThumbFailed(true)
+    }
+  }, [slides, currentSlideIndex, item.id])
+
+  const hasThumbnail = Boolean((item.thumbnail_path || item.url || slides.length > 0) && !thumbFailed)
+  const domain = getDomain(item.url, item.site)
+  const duration = formatDuration(item.duration_seconds)
+  const favicon = getFaviconUrl(item.url)
+  const deduplicatedSummary = useMemo(() => getDeduplicatedSummary(item), [item])
 
   const hasVideoResource = useMemo(() => {
     let res = item.resources
@@ -138,6 +242,8 @@ function LibraryCardComponent({
   const urlLower = (item.url || '').toLowerCase()
   const isDirectVideoUrl = /\.(mp4|mov|webm)(\?|$)/i.test(urlLower)
   const isReelOrShort = urlLower.includes('/reel/') || urlLower.includes('/reels/') || urlLower.includes('/shorts/')
+  const youtubeId = useMemo(() => extractYoutubeId(item.url), [item.url])
+  const isYouTube = app === 'youtube' || Boolean(youtubeId)
 
   const isVideo = (
     item.kind === 'video' ||
@@ -156,7 +262,9 @@ function LibraryCardComponent({
   const isVertical = (
     isReelOrShort ||
     app === 'tiktok' ||
-    app === 'pinterest'
+    app === 'pinterest' ||
+    Boolean(item.is_reel) ||
+    (app === 'instagram' && (item.duration_seconds > 0 || item.kind === 'video' || hasLocalVideo))
   )
 
   const isSlidePost = (
@@ -180,15 +288,7 @@ function LibraryCardComponent({
   const dateShort = useMemo(() => formatDisplayDate(rawDate, false), [rawDate])
   const dateFull = useMemo(() => formatDisplayDate(rawDate, true), [rawDate])
 
-  // Spotlight mouse tracking (MagicUI / Apple spotlight effect)
-  const handleMouseMove = useCallback((e) => {
-    if (!cardRef.current) return
-    const rect = cardRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    cardRef.current.style.setProperty('--mouse-x', `${x}px`)
-    cardRef.current.style.setProperty('--mouse-y', `${y}px`)
-  }, [])
+
 
   // Extract detected song / music track
   const musicResource = useMemo(() => {
@@ -210,12 +310,15 @@ function LibraryCardComponent({
     if (!item.tags || !Array.isArray(item.tags)) return { visibleTags: [], extraTagsCount: 0 }
     const appLower = (app || '').toLowerCase()
     const catLower = (item.category || '').toLowerCase()
+    const kindLower = (item.kind || '').toLowerCase()
+    const authorLower = (item.author || '').toLowerCase().replace(/^[@/u/]+/, '')
     const deduped = []
     for (const t of item.tags) {
       if (!t || typeof t !== 'string') continue
-      const clean = t.trim().toLowerCase()
-      if (clean === appLower || clean === catLower) continue
-      if (clean === 'general' || clean === 'post' || clean === 'other') continue
+      const clean = t.trim().toLowerCase().replace(/^#+/, '')
+      if (!clean || clean.length < 2) continue
+      if (clean === appLower || clean === catLower || clean === kindLower || clean === authorLower) continue
+      if (clean === 'general' || clean === 'post' || clean === 'other' || clean === 'video' || clean === 'article') continue
       if (!deduped.includes(clean)) {
         deduped.push(clean)
       }
@@ -225,14 +328,33 @@ function LibraryCardComponent({
       visibleTags: deduped.slice(0, maxVisible),
       extraTagsCount: Math.max(0, deduped.length - maxVisible),
     }
-  }, [item.tags, app, item.category, cardVariant])
+  }, [item.tags, app, item.category, item.kind, item.author, cardVariant])
+
+  const sourceLabel = useMemo(() => {
+    if (app === 'reddit') {
+      if (item.subreddit) return `r/${item.subreddit.replace(/^r\//, '')}`
+      return domain || 'reddit.com'
+    }
+    if (item.author) {
+      const a = item.author.trim()
+      if (a.startsWith('@') || a.startsWith('/u/')) return a
+      if (app === 'x' || app === 'instagram' || app === 'tiktok' || app === 'threads') {
+        return `@${a}`
+      }
+      return a
+    }
+    if (domain) return domain
+    if (item.site) return item.site
+    if (isNote) return 'Personal Note'
+    return 'Resource'
+  }, [app, item.subreddit, item.author, domain, item.site, isNote])
 
   const handleCardClick = (e) => {
     if (e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn, .lib-card-link-chip, .lib-card-tag-badge')) return
     onSelect?.(item)
   }
 
-  // Reading time or word count
+  // Reading time or duration
   const readTimeMeta = useMemo(() => {
     if (item.word_count) {
       const mins = Math.max(1, Math.round(item.word_count / 200))
@@ -240,6 +362,11 @@ function LibraryCardComponent({
     }
     return null
   }, [item.word_count])
+
+  const durationMeta = useMemo(() => {
+    if (item.duration) return formatDuration(item.duration)
+    return null
+  }, [item.duration])
 
   // Semantic rating tier
   const ratingTier = useMemo(() => getRatingTier(item.rating), [item.rating])
@@ -250,7 +377,6 @@ function LibraryCardComponent({
       data-item-id={item.id}
       className={`lib-card lib-card--${cardVariant} ${isPost ? 'lib-card--post' : ''} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
       onClick={handleCardClick}
-      onMouseMove={handleMouseMove}
       tabIndex={0}
       role="button"
       aria-label={`Inspect ${item.title || 'knowledge resource'}`}
@@ -263,71 +389,156 @@ function LibraryCardComponent({
         }
       }}
     >
-      {/* Spotlight glow layer */}
-      <div className="lib-card-spotlight" aria-hidden="true" />
-
-
-
-      {/* Bento Media (Single clean card boundary, flush to edges) */}
+      {/* Flush Hero Media with Native Video and Carousel Navigation */}
       {hasThumbnail ? (
         <div className="lib-card-media-wrap">
-          <div className="lib-card-media lib-card-media--contain">
-            <img
-              className="lib-card-media-img"
-              src={api.thumbnailUrl(item.id)}
-              alt=""
-              loading="lazy"
-              onError={() => setThumbFailed(true)}
-            />
-            {/* Subtle bottom vignette only */}
-            <div className="lib-card-media-scrim" aria-hidden="true" />
-
-            {/* Top-Left Platform Glass Badge */}
-            {(app || item.kind) && (
-              <div className="lib-card-platform-pill">
-                <Icon
-                  name={
-                    app === 'pinterest' ? 'pin' :
-                    app === 'youtube' ? 'play' :
-                    app === 'instagram' ? 'spark' :
-                    app === 'threads' ? 'threads' :
-                    app === 'tiktok' ? 'play' :
-                    app === 'spotify' ? 'music' :
-                    app === 'github' ? 'code' :
-                    app === 'x' ? 'chat' :
-                    KIND_ICON[item.kind] || 'link'
-                  }
-                  size={10}
+          <div className="lib-card-media">
+            {isPlayingVideo ? (
+              <div className="lib-card-video-active-wrap" onClick={(e) => e.stopPropagation()}>
+                {isYouTube && youtubeId && !hasLocalVideo ? (
+                  <iframe
+                    className="lib-card-native-video"
+                    src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&playsinline=1`}
+                    title={item.title || 'Video player'}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    className="lib-card-native-video"
+                    src={api.mediaUrl(item.id)}
+                    controls
+                    autoPlay
+                    playsInline
+                    preload="metadata"
+                    onEnded={() => setIsPlayingVideo(false)}
+                  />
+                )}
+                <button
+                  type="button"
+                  className="lib-card-video-close-btn"
+                  aria-label="Close video player"
+                  title="Close video"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsPlayingVideo(false)
+                  }}
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <img
+                  className="lib-card-media-img"
+                  src={currentImageUrl}
+                  alt=""
+                  loading="lazy"
+                  onError={handleImageError}
                 />
-                <span>{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
-              </div>
-            )}
+                {/* Subtle bottom vignette only */}
+                <div className="lib-card-media-scrim" aria-hidden="true" />
 
-            {/* Center Frosted Play Button for Videos / Reels */}
-            {(isVideo || duration || hasLocalVideo) && (
-              <div
-                className="lib-card-play-btn"
-                role="button"
-                aria-label="Play video"
-                title="Play video"
-              >
-                <Icon name="play" size={16} />
-              </div>
-            )}
+                {/* Top-Left Platform Badge */}
+                {(app || item.kind) && (
+                  <div className="lib-card-platform-pill">
+                    <Icon
+                      name={
+                        app === 'pinterest' ? 'pin' :
+                        app === 'youtube' ? 'play' :
+                        app === 'instagram' ? 'spark' :
+                        app === 'threads' ? 'threads' :
+                        app === 'tiktok' ? 'play' :
+                        app === 'spotify' ? 'music' :
+                        app === 'github' ? 'code' :
+                        app === 'x' ? 'chat' :
+                        KIND_ICON[item.kind] || 'link'
+                      }
+                      size={10}
+                    />
+                    <span>{app ? app.toUpperCase() : item.kind.toUpperCase()}</span>
+                  </div>
+                )}
 
-            {/* Top-Right Multi-Image Carousel Pill */}
-            {isCarousel && (
-              <div className="lib-card-carousel-pill" aria-label={`${slideCount} images`}>
-                <Icon name="copy" size={10} />
-                <span>{slideCount}</span>
-              </div>
-            )}
+                {/* Center Frosted Play Button for Videos / Reels */}
+                {(isVideo || duration || hasLocalVideo) && (
+                  <button
+                    type="button"
+                    className="lib-card-play-btn"
+                    aria-label="Play video"
+                    title="Play video"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIsPlayingVideo(true)
+                    }}
+                  >
+                    <Icon name="play" size={16} />
+                  </button>
+                )}
 
-            {/* Bottom-Right Duration Badge */}
-            {duration && (
-              <div className="lib-card-media-overlay">
-                <span className="lib-card-duration-badge">{duration}</span>
-              </div>
+                {/* Top-Right Multi-Image Carousel Badge & Slide Controls */}
+                {isCarousel && (
+                  <>
+                    <div className="lib-card-carousel-pill" aria-label={`Slide ${currentSlideIndex + 1} of ${slideCount}`}>
+                      <Icon name="copy" size={10} />
+                      <span>{currentSlideIndex + 1}/{slideCount}</span>
+                    </div>
+
+                    {currentSlideIndex > 0 && (
+                      <button
+                        type="button"
+                        className="lib-card-slide-nav lib-card-slide-nav--prev"
+                        aria-label="Previous slide"
+                        title="Previous slide"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setCurrentSlideIndex((idx) => Math.max(0, idx - 1))
+                        }}
+                      >
+                        <Icon name="chevron-left" size={12} />
+                      </button>
+                    )}
+
+                    {currentSlideIndex < slideCount - 1 && (
+                      <button
+                        type="button"
+                        className="lib-card-slide-nav lib-card-slide-nav--next"
+                        aria-label="Next slide"
+                        title="Next slide"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setCurrentSlideIndex((idx) => Math.min(slideCount - 1, idx + 1))
+                        }}
+                      >
+                        <Icon name="chevron-right" size={12} />
+                      </button>
+                    )}
+
+                    {/* Bottom Slide Dots */}
+                    <div className="lib-card-slide-dots" onClick={(e) => e.stopPropagation()}>
+                      {slides.map((_, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          aria-label={`Slide ${idx + 1}`}
+                          className={`lib-card-slide-dot ${idx === currentSlideIndex ? 'lib-card-slide-dot--active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setCurrentSlideIndex(idx)
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Bottom-Right Duration Badge */}
+                {duration && (
+                  <div className="lib-card-media-overlay">
+                    <span className="lib-card-duration-badge">{duration}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -362,11 +573,7 @@ function LibraryCardComponent({
               </span>
             )}
             <span className="lib-card-domain">
-              {app === 'reddit' && (item.subreddit || domain)
-                ? (item.subreddit ? `r/${item.subreddit.replace(/^r\//, '')}` : domain)
-                : item.author
-                ? (item.author.startsWith('@') || item.author.startsWith('/u/') ? item.author : `@${item.author}`)
-                : (domain || item.site || (isNote ? 'NOTE' : 'RESOURCE'))}
+              {sourceLabel}
             </span>
 
             {item.author && app === 'reddit' && (
@@ -393,7 +600,7 @@ function LibraryCardComponent({
                     className="lib-card-action-btn"
                     title="Open original website"
                   >
-                    <Icon name="link" size={13} />
+                    <Icon name="link" size={12} />
                   </a>
                 )}
                 {!item.summary && (
@@ -404,7 +611,7 @@ function LibraryCardComponent({
                     title="Read & synthesize with AI"
                     onClick={() => onEnrich?.(item)}
                   >
-                    <Icon name="spark" size={13} />
+                    <Icon name="spark" size={12} />
                   </button>
                 )}
                 {item.indexed && (
@@ -415,7 +622,7 @@ function LibraryCardComponent({
                     title="Re-index embeddings"
                     onClick={() => onReindex?.(item)}
                   >
-                    <Icon name="refresh" size={13} />
+                    <Icon name="refresh" size={12} />
                   </button>
                 )}
                 <button
@@ -425,7 +632,7 @@ function LibraryCardComponent({
                   title="Delete from library"
                   onClick={() => onDelete?.(item)}
                 >
-                  <Icon name="trash" size={13} />
+                  <Icon name="trash" size={12} />
                 </button>
               </div>
             )}
@@ -483,44 +690,11 @@ function LibraryCardComponent({
               <span className="lib-skel" style={{ width: '65%', height: 8 }} />
             </div>
           </div>
-        ) : item.summary ? (
-          <p className="lib-card-summary">{item.summary}</p>
-        ) : item.excerpt ? (
-          <p className="lib-card-summary">{item.excerpt}</p>
-        ) : item.notes ? (
-          <p className="lib-card-summary lib-card-summary--notes">{item.notes}</p>
-        ) : (
-          <div className="lib-card-pending-chip">
-            <Icon name="spark" size={10} />
-            <span>AI summary pending</span>
-          </div>
-        )}
-
-        {/* Discovered External Links (compact) */}
-        {linkResources.length > 0 && (
-          <div className="lib-card-link-resources" onClick={(e) => e.stopPropagation()}>
-            <a
-              href={linkResources[0].url}
-              target="_blank"
-              rel="noreferrer"
-              className="lib-card-link-chip"
-              title={`${linkResources[0].name}: ${linkResources[0].url}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Icon name="link" size={10} />
-              <span className="lib-card-link-name">{linkResources[0].name}</span>
-              <span className="lib-card-link-arrow">↗</span>
-            </a>
-            {linkResources.length > 1 && (
-              <span
-                className="lib-card-extra-links-chip"
-                title={linkResources.slice(1).map((r) => r.name || r.url).join(', ')}
-              >
-                +{linkResources.length - 1}
-              </span>
-            )}
-          </div>
-        )}
+        ) : deduplicatedSummary ? (
+          <p className={`lib-card-summary ${!item.summary && item.notes ? 'lib-card-summary--notes' : ''}`}>
+            {deduplicatedSummary}
+          </p>
+        ) : null}
 
         {/* Tags Row with +N anti-clipping protection */}
         {visibleTags.length > 0 && (
@@ -551,19 +725,24 @@ function LibraryCardComponent({
           </div>
         )}
 
-        {/* Pinned Card Footer: Date, Reading time, and Meaningful Rating Badge */}
+        {/* Pinned Card Footer: Date, Duration / Reading time, and Rating Badge */}
         <div className="lib-card-footer">
           <div className="lib-card-footer-left">
             <Icon name="calendar" size={11} className="opacity-75" />
             <span className="lib-card-date">
               {dateFull || 'Undated'}
             </span>
-            {readTimeMeta && (
+            {durationMeta ? (
+              <>
+                <span className="lib-card-dot">·</span>
+                <span className="lib-card-duration">{durationMeta}</span>
+              </>
+            ) : readTimeMeta ? (
               <>
                 <span className="lib-card-dot">·</span>
                 <span className="lib-card-readtime">{readTimeMeta}</span>
               </>
-            )}
+            ) : null}
           </div>
 
           {/* Meaningful Semantic Rating Indicator */}
