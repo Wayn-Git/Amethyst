@@ -569,17 +569,25 @@ export default function Library() {
                 setAddModalMode(mode || 'url')
                 setShowAddModal(true)
               }}
+              counts={counts}
+              categoryCounts={categoryCounts}
+              tagCounts={tagCounts}
+              appCounts={appCounts}
+              ratingCounts={ratingCounts}
+              selectedKind={selectedKind}
+              selectedCategory={selectedCategory}
+              selectedTag={selectedTag}
+              selectedRating={selectedRating}
+              onSelectKind={setSelectedKind}
+              onSelectCategory={setSelectedCategory}
+              onSelectTag={setSelectedTag}
+              onSelectRating={setSelectedRating}
+              onClearFilters={handleClearFilters}
             />
 
-            {/* Layout Area: Flush Segmented Filter Ribbon + Content Canvas */}
+            {/* Layout Area: Active Filter Strip (when active) + Content Canvas */}
             <div className="lib-layout w-full flex flex-col gap-4">
               <LibraryFilterBar
-                total={total}
-                counts={counts}
-                categoryCounts={categoryCounts}
-                tagCounts={tagCounts}
-                appCounts={appCounts}
-                ratingCounts={ratingCounts}
                 selectedKind={selectedKind}
                 selectedCategory={selectedCategory}
                 selectedTag={selectedTag}
@@ -591,7 +599,6 @@ export default function Library() {
                 onSelectRating={setSelectedRating}
                 onClearQuery={() => setQuery('')}
                 onClearFilters={handleClearFilters}
-                isOpen={railOpen}
               />
 
               <main className="lib-content-main w-full">

@@ -6810,11 +6810,20 @@
   color: var(--text-dim);
 }
 
+.lib-deck-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  max-width: 820px;
+  min-width: 0;
+}
+
 .lib-command-deck .lib-command-bar {
-  flex: 1 1 320px;
-  max-width: 520px;
-  height: 38px;
-  border-radius: 9px;
+  flex: 1 1 240px;
+  max-width: 360px;
+  height: 36px;
+  border-radius: var(--radius-cards, 6px);
   background: var(--raised);
   border: 1px solid var(--hairline);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -6822,6 +6831,17 @@
   align-items: center;
   margin: 0;
   transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.lib-deck-center .lib-segmented-tabs {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards, 6px);
+  padding: 2.5px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .lib-command-deck .lib-command-bar:focus-within {
@@ -6849,6 +6869,34 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.lib-deck-actions .lib-filter-menu-btn {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-cards, 6px);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 130ms var(--lib-ease-out);
+}
+
+.lib-deck-actions .lib-filter-menu-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--hairline-strong);
+}
+
+.lib-deck-actions .lib-filter-menu-btn--active {
+  background: var(--accent-wash, rgba(113, 50, 245, 0.1));
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Standalone Sort Pill Dropdown */
