@@ -2818,9 +2818,14 @@ class Director:
                         elif batch_future is not None and call in composio_calls:
                             c_idx = composio_calls.index(call)
 
-                            async def _await_batch_item(idx=c_idx, fut=batch_future):
-                                res_list = await fut
-                                return res_list[idx]
+                            async def _await_batch_item(idx=c_idx, fut=batch_future, tool_name=call.name):
+                                try:
+                                    res_list = await asyncio.wait_for(fut, timeout=agent_config.tool_timeout_seconds)
+                                    return res_list[idx]
+                                except (TimeoutError, asyncio.TimeoutError):
+                                    return ToolResult.error(
+                                        f"'{tool_name}' timed out after {int(agent_config.tool_timeout_seconds)}s and was stopped."
+                                    )
 
                             task = self._spawn(_await_batch_item())
                         else:
@@ -3889,7 +3894,12 @@ class Director:
                 return ToolResult.error(val_err)
         if isinstance(call.arguments, dict):
             call.arguments = apply_tool_defaults(call.name, call.arguments)
-        try:
+        tool = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+        tool_timeout = getattr(tool, "timeout", None) if tool else None
+        timeout = tool_timeout if tool_timeout is not None and tool_timeout > 0 else agent_config.tool_timeout_seconds
+
+        async def _run_dispatch() -> ToolResult:
+            nonlocal _is_bridge
             # --- Bridge tool dispatch (progressive tool disclosure) ---
             catalog = getattr(self, "_tool_search_catalog", None)
             if call.name == "tool_search" and catalog is not None:
@@ -3961,6 +3971,20 @@ class Director:
                     " tool and tell the user which part of the task it cost.",
                     recoverable=True,
                 )
+
+        try:
+            if timeout and timeout > 0:
+                return await asyncio.wait_for(_run_dispatch(), timeout=timeout)
+            return await _run_dispatch()
+        except asyncio.CancelledError:
+            raise
+        except (TimeoutError, asyncio.TimeoutError):
+            log.warning("tool %s timed out after %.1fs", call.name, timeout)
+            return ToolResult.error(
+                f"'{call.name}' timed out after {int(timeout)}s and was stopped."
+                " Other tools and tasks will continue. Report this timeout to the user"
+                " rather than retrying the same call unchanged."
+            )
         finally:
             record_tool_dispatch(
                 call.name,

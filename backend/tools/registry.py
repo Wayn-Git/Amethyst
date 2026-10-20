@@ -16,6 +16,7 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+from backend.agent.config import agent_config
 from backend.db.repositories import ExecutionLogRepository
 from backend.runtime.types import ToolSchema
 from backend.security.confirmation import ConfirmationOutcome, ConfirmationService
@@ -34,7 +35,7 @@ MCP_DELIMITER = "__mcp__"
 #:
 #: A tool may override it with `Tool.timeout`; there is no way to opt out
 #: entirely, because "wait forever" is not a thing a tool gets to decide.
-TOOL_TIMEOUT_SECONDS = 600.0
+TOOL_TIMEOUT_SECONDS = agent_config.tool_timeout_seconds
 
 #: Canonical capability routing table.
 #: Decouples the model's high-level intent from the physical tool name.
