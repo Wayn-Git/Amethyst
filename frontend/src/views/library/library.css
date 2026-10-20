@@ -1243,7 +1243,8 @@
 .lib-bento-grid {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 24px;
+  grid-auto-flow: dense;
+  gap: 22px;
   width: 100%;
 }
 
