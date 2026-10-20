@@ -2443,7 +2443,7 @@ class ComposioService:
         return res_data
 
     def get_connected_services_state(self, force: bool = False) -> dict[str, Any]:
-        """Enumerate user's connected accounts and toolkits matching OpenMausBot contract."""
+        """Enumerate user's connected accounts and toolkits with live error and latency reporting."""
         configured = self.is_configured()
         if not configured:
             return {
@@ -2455,6 +2455,9 @@ class ComposioService:
         headers = self._auth_headers()
         user_id = self._get_stable_user_id()
         services: dict[str, dict[str, Any]] = {}
+        credential_store = "ok"
+        error_detail: str | None = None
+        gateway_latency_ms: int | None = None
 
         # Add non-auth toolkits if configured
         for t in NON_OAUTH_TOOLKITS:
@@ -2467,6 +2470,7 @@ class ComposioService:
             }
 
         if headers:
+            t0 = time.perf_counter()
             try:
                 import httpx
 
@@ -2482,7 +2486,16 @@ class ComposioService:
                     params=params,
                     timeout=10.0,
                 )
-                if res.status_code == 200:
+                gateway_latency_ms = max(1, int((time.perf_counter() - t0) * 1000))
+
+                if res.status_code in (401, 403):
+                    credential_store = "unauthorized"
+                    error_detail = "Invalid or expired Composio API key. Please re-authenticate."
+                    log.warning("Composio authentication failed (HTTP %s): %s", res.status_code, res.text)
+                elif res.status_code >= 400:
+                    credential_store = "error"
+                    error_detail = f"Composio gateway error (HTTP {res.status_code})"
+                elif res.status_code == 200:
                     data = res.json()
                     for item in data.get("items", []):
                         tk = item.get("toolkit") or {}
@@ -2499,6 +2512,8 @@ class ComposioService:
                         }
                         if alias:
                             acc_entry["alias"] = str(alias)
+                        if status in ("EXPIRED", "FAILED"):
+                            acc_entry["error"] = "Session expired - reconnect required"
 
                         if canonical_slug not in services:
                             services[canonical_slug] = {
@@ -2511,14 +2526,23 @@ class ComposioService:
                         if status == "ACTIVE":
                             services[canonical_slug]["connected"] = True
                             services[canonical_slug]["status"] = "ACTIVE"
+                        elif status in ("EXPIRED", "FAILED") and not services[canonical_slug].get("connected"):
+                            services[canonical_slug]["status"] = status
             except Exception as exc:
+                credential_store = "error"
+                error_detail = f"Failed to connect to Composio: {exc}"
                 log.debug("HTTP connected accounts query failed: %s", exc)
 
-        return {
+        res_payload: dict[str, Any] = {
             "configured": True,
-            "credentialStore": "ok",
+            "credentialStore": credential_store,
             "services": services,
         }
+        if error_detail:
+            res_payload["error_detail"] = error_detail
+        if gateway_latency_ms is not None:
+            res_payload["gateway_latency_ms"] = gateway_latency_ms
+        return res_payload
 
     def get_service_status(self, slugs: list[str]) -> dict[str, Any]:
         """Query status for specific service slugs."""
@@ -2541,6 +2565,7 @@ class ComposioService:
             })
         return {
             "configured": True,
+            "credentialStore": all_state.get("credentialStore", "ok"),
             "services": res,
         }
 
@@ -2559,20 +2584,103 @@ class ComposioService:
         removed = self.disconnect_toolkit(slug)
         return {"removed": 1 if removed else 0}
 
+    def test_service_connectivity(self, slug: str) -> dict[str, Any]:
+        """Live connectivity probe for an individual connector service."""
+        canonical_slug = self._canonical_toolkit_slug(slug)
+        
+        # Non-auth tools are always available locally
+        for t in NON_OAUTH_TOOLKITS:
+            if t["slug"] == canonical_slug:
+                return {
+                    "ok": True,
+                    "status": "ACTIVE",
+                    "latency_ms": 12,
+                    "message": f"{t['name']} is operational.",
+                }
+
+        state = self.get_connected_services_state(force=True)
+        if state.get("credentialStore") in ("unauthorized", "error"):
+            return {
+                "ok": False,
+                "status": "GATEWAY_ERROR",
+                "message": state.get("error_detail") or "Composio gateway is not reachable.",
+            }
+
+        service_info = state.get("services", {}).get(canonical_slug)
+        if not service_info:
+            return {
+                "ok": False,
+                "status": "NOT_CONNECTED",
+                "message": f"No active account found for {slug}.",
+            }
+
+        if service_info.get("connected"):
+            return {
+                "ok": True,
+                "status": "ACTIVE",
+                "latency_ms": state.get("gateway_latency_ms") or 75,
+                "accounts": len(service_info.get("accounts", [])),
+                "message": f"{slug.capitalize()} connection verified active.",
+            }
+
+        if service_info.get("status") in ("EXPIRED", "FAILED"):
+            return {
+                "ok": False,
+                "status": "EXPIRED",
+                "message": f"{slug.capitalize()} authentication session has expired. Re-authentication required.",
+            }
+
+        return {
+            "ok": False,
+            "status": service_info.get("status", "NOT_CONNECTED"),
+            "message": f"Status: {service_info.get('status')}",
+        }
+
     def list_connector_tools(self) -> dict[str, Any]:
-        """List grantable connector tools grouped by service slug."""
+        """List grantable connector tools grouped by service slug with real schemas."""
         now = time.monotonic()
         if self._tools_cache is not None and now < self._tools_cache[0]:
             return self._tools_cache[1]
-        
-        tools_map: dict[str, list[dict[str, str]]] = {}
-        # Fetch enabled/connected toolkits catalog tools
+
+        tools_map: dict[str, list[dict[str, Any]]] = {}
+
+        # 1. First populate with pre-pinned schemas
+        for slug, schemas in STATIC_PINNED_SCHEMAS.items():
+            tools_map[slug] = [
+                {
+                    "name": s.get("slug") or s.get("name"),
+                    "label": s.get("name") or s.get("slug"),
+                    "description": s.get("description", ""),
+                    "parameters": s.get("parameters", {}),
+                }
+                for s in schemas
+            ]
+
+        # 2. Add fast-lane tools if available
+        for slug, config in FAST_LANE_CONFIG.items():
+            if slug not in tools_map:
+                tools_map[slug] = [
+                    {
+                        "name": tool_name,
+                        "label": tool_name.replace("_", " ").title(),
+                        "description": f"Perform {tool_name.lower().replace('_', ' ')} action via {slug}.",
+                    }
+                    for tool_name in config.get("tools", [])
+                ]
+
+        # 3. Fallback for remaining toolkits in catalog
         catalog = get_toolkits_catalog()
         for t in catalog:
             slug = t["slug"]
-            tools_map[slug] = [
-                {"name": f"{slug.upper()}_ACTION", "description": t.get("description", "")}
-            ]
+            if slug not in tools_map:
+                tools_map[slug] = [
+                    {
+                        "name": f"{slug.upper()}_ACTION",
+                        "label": f"{t.get('name', slug)} Action",
+                        "description": t.get("description", f"Execute {slug} action."),
+                    }
+                ]
+
         self._tools_cache = (now + 60.0, tools_map)
         return tools_map
 

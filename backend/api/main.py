@@ -5553,6 +5553,17 @@ async def delete_connector_service(slug: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.post("/api/connectors/{slug}/test")
+async def test_connector_connectivity(slug: str) -> dict[str, Any]:
+    from backend.mcp.composio_service import composio_service
+
+    try:
+        return await asyncio.to_thread(composio_service.test_service_connectivity, slug)
+    except Exception as exc:
+        return {"ok": False, "status": "ERROR", "message": str(exc)}
+
+
+
 @app.get("/api/capabilities")
 def list_capabilities(conversation_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
     from backend.capabilities import CapabilityService, Kind
