@@ -2767,6 +2767,8 @@ class Director:
                         self._spawn(_run_batch())
 
                     seg_tasks: list[asyncio.Task] = []
+                    batch_inflight_reads: dict[str, asyncio.Task] = {}
+                    batch_inflight_writes: dict[str, asyncio.Task] = {}
                     # Launch all calls in this segment concurrently
                     for call in seg_calls:
                         if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
@@ -2821,7 +2823,7 @@ class Director:
 
                         tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
                         is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
-                        idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
+                        idem_key = compute_idempotency_key(state.id, call.name, call.arguments if isinstance(call.arguments, dict) else {})
                         if not val_err and is_write and idem_key in state.idempotency_cache:
                             record_cache_hit()
                             cached_data = state.idempotency_cache[idem_key]
@@ -2836,7 +2838,15 @@ class Director:
                                 return res
 
                             task = self._spawn(_cached_future())
-                        elif not val_err and cache_key in state.execution_cache:
+                        elif not val_err and is_write and idem_key in batch_inflight_writes:
+                            record_cache_hit()
+                            shared_write_task = batch_inflight_writes[idem_key]
+
+                            async def _await_shared_write(t=shared_write_task):
+                                return await t
+
+                            task = self._spawn(_await_shared_write())
+                        elif not val_err and not is_write and cache_key in state.execution_cache:
                             record_cache_hit()
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
@@ -2853,7 +2863,23 @@ class Director:
                                 return res
 
                             task = self._spawn(_cached_future())
-                        elif not val_err and read_cached is not None:
+                        elif not val_err and not is_write and cache_key in batch_inflight_reads:
+                            record_cache_hit()
+                            shared_read_task = batch_inflight_reads[cache_key]
+
+                            async def _await_shared_read(t=shared_read_task):
+                                res = await t
+                                note = "[already fetched this turn: using cached result]\n"
+                                content = note + res.content if not res.content.startswith(note) else res.content
+                                return ToolResult(
+                                    content=content,
+                                    artifacts=res.artifacts,
+                                    is_error=res.is_error,
+                                    recoverable=res.recoverable,
+                                )
+
+                            task = self._spawn(_await_shared_read())
+                        elif not val_err and not is_write and read_cached is not None:
                             record_cache_hit()
                             cached_res = ToolResult(
                                 content=read_cached.content,
@@ -2879,8 +2905,18 @@ class Director:
                                     )
 
                             task = self._spawn(_await_batch_item())
+                            if not val_err:
+                                if is_write:
+                                    batch_inflight_writes[idem_key] = task
+                                else:
+                                    batch_inflight_reads[cache_key] = task
                         else:
                             task = self._spawn(self._execute(call, context))
+                            if not val_err:
+                                if is_write:
+                                    batch_inflight_writes[idem_key] = task
+                                else:
+                                    batch_inflight_reads[cache_key] = task
 
                         dispatch_tasks.append((call, task))
                         seg_tasks.append(task)
@@ -3001,7 +3037,7 @@ class Director:
 
                         tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
                         is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
-                        idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
+                        idem_key = compute_idempotency_key(state.id, call.name, call.arguments if isinstance(call.arguments, dict) else {})
                         if not val_err and is_write and idem_key in state.idempotency_cache:
                             record_cache_hit()
                             cached_data = state.idempotency_cache[idem_key]
@@ -3148,7 +3184,7 @@ class Director:
 
                     tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
                     is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
-                    idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
+                    idem_key = compute_idempotency_key(state.id, call.name, call.arguments if isinstance(call.arguments, dict) else {})
                     if is_write and result and not result.is_error:
                         state.idempotency_cache[idem_key] = {
                             "content": result.content,
@@ -3981,7 +4017,7 @@ class Director:
         timeout = tool_timeout if tool_timeout is not None and tool_timeout > 0 else agent_config.tool_timeout_seconds
 
         idem_key = getattr(context, "idempotency_key", None) or compute_idempotency_key(
-            context.turn_id, call.id, call.arguments if isinstance(call.arguments, dict) else {}
+            context.turn_id, call.name, call.arguments if isinstance(call.arguments, dict) else {}
         )
         call_context = context.clone_for_call(call.id, idempotency_key=idem_key)
         is_write = not (tool and tool.risk is RiskLevel.LOW)

@@ -18,18 +18,22 @@ from typing import Any
 
 def compute_idempotency_key(
     turn_id: str | None,
-    call_id: str | None,
+    tool_name: str | None,
     arguments: dict[str, Any] | None,
 ) -> str:
-    """Generate a deterministic idempotency key: turn_id + call_id + hash(args)."""
+    """Generate a deterministic idempotency key: turn_id + tool + hash(args).
+
+    Deliberately excludes call_id so that re-issuing an identical write operation
+    with a different call_id in the same turn is identified as duplicate and blocked.
+    """
     t_id = str(turn_id or "")
-    c_id = str(call_id or "")
+    t_name = str(tool_name or "").strip()
     try:
         args_str = json.dumps(arguments or {}, sort_keys=True, default=str)
     except Exception:
         args_str = str(sorted((arguments or {}).items()))
     args_hash = hashlib.sha256(args_str.encode("utf-8")).hexdigest()[:16]
-    return f"{t_id}:{c_id}:{args_hash}"
+    return f"{t_id}:{t_name}:{args_hash}"
 
 
 class RiskLevel(enum.StrEnum):

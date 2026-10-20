@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import pytest
 
+from backend.agent.director import Director
 from backend.agent.state import AgentState
+from backend.runtime.types import ToolCall
 from backend.security.confirmation import (
     ConfirmationService,
     GuardedConfirmationService,
@@ -34,29 +36,33 @@ def make_tool(name: str = "write_test", risk: RiskLevel = RiskLevel.MEDIUM, hand
 
 
 def test_compute_idempotency_key_deterministic():
-    """Ensure idempotency key format is turn_id:call_id:hash and deterministic with key ordering."""
+    """Ensure idempotency key format is turn_id:tool:hash and deterministic with key ordering (NOT call_id)."""
     turn_id = "turn_123"
-    call_id = "call_abc"
+    tool_name = "write_db"
     args1 = {"b": 2, "a": 1}
     args2 = {"a": 1, "b": 2}
 
-    key1 = compute_idempotency_key(turn_id, call_id, args1)
-    key2 = compute_idempotency_key(turn_id, call_id, args2)
+    key1 = compute_idempotency_key(turn_id, tool_name, args1)
+    key2 = compute_idempotency_key(turn_id, tool_name, args2)
 
     assert key1 == key2
     parts = key1.split(":")
     assert len(parts) == 3
     assert parts[0] == "turn_123"
-    assert parts[1] == "call_abc"
+    assert parts[1] == "write_db"
     assert len(parts[2]) == 16  # 16-char hex prefix
 
     # Different arguments produce different keys
-    key3 = compute_idempotency_key(turn_id, call_id, {"a": 2, "b": 2})
+    key3 = compute_idempotency_key(turn_id, tool_name, {"a": 2, "b": 2})
     assert key1 != key3
 
     # Different turn_id produces different keys
-    key4 = compute_idempotency_key("turn_456", call_id, args1)
+    key4 = compute_idempotency_key("turn_456", tool_name, args1)
     assert key1 != key4
+
+    # Different tool name produces different keys
+    key5 = compute_idempotency_key(turn_id, "other_tool", args1)
+    assert key1 != key5
 
 
 def test_tool_context_clone_for_call():
@@ -67,7 +73,7 @@ def test_tool_context_clone_for_call():
         turn_id="turn_999",
         extra={"state": "dummy"},
     )
-    idem_key = compute_idempotency_key(ctx.turn_id, "call_1", {"x": "y"})
+    idem_key = compute_idempotency_key(ctx.turn_id, "my_tool", {"x": "y"})
     cloned = ctx.clone_for_call("call_1", idempotency_key=idem_key)
 
     assert cloned.conversation_id == "c_1"
@@ -190,9 +196,9 @@ async def test_retried_tool_calls_return_cached_results_without_reexecuting():
     registry.register(tool)
 
     state = AgentState(conversation_id="c_1")
-    call_id = "call_write_1"
+    call_id1 = "call_write_1"
     args = {"data": "my_value"}
-    idem_key = compute_idempotency_key(state.id, call_id, args)
+    idem_key = compute_idempotency_key(state.id, "write_db", args)
 
     ctx = ToolContext(
         conversation_id="c_1",
@@ -208,8 +214,8 @@ async def test_retried_tool_calls_return_cached_results_without_reexecuting():
     )
 
     # First execution
-    call = ToolCall(id=call_id, name="write_db", arguments=args)
-    result1 = await director._execute(call, ctx)
+    call1 = ToolCall(id=call_id1, name="write_db", arguments=args)
+    result1 = await director._execute(call1, ctx)
 
     assert not result1.is_error
     assert "count=1" in result1.content
@@ -218,10 +224,77 @@ async def test_retried_tool_calls_return_cached_results_without_reexecuting():
     assert idem_key in state.idempotency_cache
     assert state.idempotency_cache[idem_key]["content"] == result1.content
 
-    # Second execution (retry with same call_id and args -> same idem_key)
-    result2 = await director._execute(call, ctx)
+    # Second execution (re-issued write with a DIFFERENT call_id in the same turn)
+    call2 = ToolCall(id="call_write_2_different", name="write_db", arguments=args)
+    result2 = await director._execute(call2, ctx)
 
     assert not result2.is_error
     assert result2.content == result1.content
     # The handler was NOT called again! execution_count remains 1!
     assert execution_count == 1
+
+
+@pytest.mark.asyncio
+async def test_parallel_batch_intra_turn_deduplication_for_reads_and_writes(monkeypatch):
+    """Duplicates within a single parallel batch deduplicate immediately without spawning duplicate executions."""
+    read_count = 0
+    write_count = 0
+
+    async def _read_handler(args, ctx):
+        nonlocal read_count
+        read_count += 1
+        await asyncio.sleep(0.01)
+        return ToolResult.ok(f"read item {args.get('q')}, count={read_count}")
+
+    async def _write_handler(args, ctx):
+        nonlocal write_count
+        write_count += 1
+        await asyncio.sleep(0.01)
+        return ToolResult.ok(f"wrote item {args.get('v')}, count={write_count}")
+
+    read_tool = Tool(name="fetch_item", description="fetch", parameters={"q": {"type": "string"}}, handler=_read_handler, risk=RiskLevel.LOW)
+    write_tool = Tool(name="save_item", description="save", parameters={"v": {"type": "string"}}, handler=_write_handler, risk=RiskLevel.HIGH)
+
+    registry = ToolRegistry(confirmation=GuardedConfirmationService("full-access"))
+    registry.register(read_tool)
+    registry.register(write_tool)
+
+    import backend.agent.director as director_module
+    from backend.db.repositories import ConversationRepository
+    from backend.runtime.types import Capabilities, ModelResponse, ResolvedModel
+
+    # Model emits a parallel batch with two identical reads and two identical writes in ONE turn
+    responses = iter([
+        ModelResponse(tool_calls=[
+            ToolCall(id="r1", name="fetch_item", arguments={"q": "same_query"}),
+            ToolCall(id="r2", name="fetch_item", arguments={"q": "same_query"}),
+            ToolCall(id="w1", name="save_item", arguments={"v": "same_val"}),
+            ToolCall(id="w2", name="save_item", arguments={"v": "same_val"}),
+        ]),
+        ModelResponse(text="Batch work finished."),
+    ])
+
+    class Client:
+        async def complete(self, messages, tools=None, params=None):
+            return next(responses)
+
+    monkeypatch.setattr(
+        director_module,
+        "resolve",
+        lambda *a, **k: ResolvedModel("f", "f", Client(), Capabilities(streaming=False)),
+    )
+
+    cid = ConversationRepository().create("f", "f")
+    director = Director(registry=registry, stream=False, memory=False, retrieval=False)
+
+    events = []
+    async for ev in director.run(cid, "run batch"):
+        events.append(ev)
+
+    tool_results = [e.data for e in events if e.type == "tool_result"]
+    assert len(tool_results) == 4
+
+    # The handlers were only called ONCE for read and ONCE for write despite duplicate calls in the batch
+    assert read_count == 1
+    assert write_count == 1
+
