@@ -457,7 +457,16 @@ def select_tools(
         ]
 
         if not kept:
-            return schemas, 0
+            if lane in ("chat", "connector") and not has_code_signals:
+                kept = [
+                    s for s in schemas
+                    if getattr(s, "name", "") not in {
+                        "edit_file", "write_file", "delete_file", "run_shell_command",
+                        "patch_file_with_search", "apply_file_diff", "grep_files",
+                    }
+                ]
+            else:
+                return schemas, 0
 
         # Cap to target ~10-15 tools if the selected set grew too large
         if len(kept) > 15:

@@ -48,6 +48,7 @@ from backend.agent.prompt import (
     to_wire_messages,
     tool_schema_tokens,
 )
+from backend.agent.config import agent_config
 from backend.agent.state import AgentState, IllegalTransition
 from backend.agent.tool_selector import _bare, _server_of, select_tools
 from backend.agent.tool_search import (
@@ -1239,7 +1240,11 @@ class Director:
         # it saves a model call (0.5-2s) per turn.
         # Fast synchronous intent routing (< 0.02ms)
         history_raw = self.messages.history(conversation_id)
-        max_iters_configured = self.guards.max_iterations or 40
+        max_iters_configured = (
+            self.guards.max_iterations
+            if (self.guards.max_iterations is not None and self.guards.max_iterations > 0)
+            else agent_config.max_iterations
+        )
         intent_route, need_remote_jev, need_widget_extract = route_intent_fast(
             user_message,
             history_raw=history_raw,
@@ -1611,12 +1616,29 @@ class Director:
         self._tool_search_catalog = None  # for bridge tool dispatch in _execute()
         self._promoted_tools: dict[str, ToolSchema] = {}  # promoted from tool_search for live invocation
 
-        base_max_iters = 1000 if (self.guards.max_iterations is None or self.guards.max_iterations <= 0) else self.guards.max_iterations
-        effective_budget = intent_route.step_budget
-        max_continuations = self.guards.max_continuations or 0
+        base_max_iters = (
+            agent_config.max_iterations
+            if (self.guards.max_iterations is None or self.guards.max_iterations <= 0)
+            else self.guards.max_iterations
+        )
+        effective_budget = (
+            intent_route.step_budget
+            if intent_route.lane in ("chat", "widget")
+            else agent_config.default_step_budget
+        )
+        effective_budget = min(base_max_iters, effective_budget)
+        max_continuations = self.guards.max_continuations if self.guards.max_continuations is not None else agent_config.max_continuations
         max_iters = min(base_max_iters, effective_budget + max_continuations)
-        wall_clock_cap = min(self.guards.max_seconds, 45.0) if self.guards.max_seconds > 0 else 45.0
-        hard_timeout = max(self.guards.max_seconds, 60.0) if self.guards.max_seconds > 0 else 60.0
+        wall_clock_cap = (
+            min(self.guards.max_seconds, agent_config.wall_clock_cap)
+            if self.guards.max_seconds > 0
+            else agent_config.wall_clock_cap
+        )
+        hard_timeout = (
+            max(self.guards.max_seconds, agent_config.hard_timeout)
+            if self.guards.max_seconds > 0
+            else agent_config.hard_timeout
+        )
         final_step_attempted = False
 
         for iteration in range(max_iters):
@@ -1833,8 +1855,8 @@ class Director:
                     # enough" looks like from the outside.
                     if not state.warned_about_cap:
                         state.warned_about_cap = True
-                        if hit_wall_clock or intent_route.lane != "chat":
-                            cap_desc = f"{int(wall_clock_cap)}s" if hit_wall_clock else f"{max_iters}-step"
+                        if hit_wall_clock or state.tool_calls_made > 0 or intent_route.lane != "chat":
+                            cap_desc = f"{int(wall_clock_cap)}s" if hit_wall_clock else f"{effective_budget}-step"
                             yield Event(
                                 "warning",
                                 {
