@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 from backend.agent.config import agent_config
 from backend.db.repositories import ExecutionLogRepository
+from backend.mcp.client import is_auth_failure_text
 from backend.runtime.types import ToolSchema
 from backend.security.confirmation import ConfirmationOutcome, ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext, ToolResult, ToolSource
@@ -639,7 +640,11 @@ class ToolRegistry:
         # Check Composio toolkit authentication and local overrides
         tk = extract_composio_toolkit(tool)
         if tk:
-            from backend.mcp.guidance import composio_sign_in_instruction
+            from backend.mcp.guidance import (
+                auth_failure_instruction,
+                composio_sign_in_instruction,
+                extract_service_name,
+            )
 
             try:
                 from backend.mcp.provider_ownership import is_provider_overridden_by_local
@@ -654,6 +659,10 @@ class ToolRegistry:
 
             try:
                 from backend.mcp.composio_service import composio_service, is_no_auth_toolkit
+
+                if composio_service.is_reauth_required(tk):
+                    service = extract_service_name(tool)
+                    return ToolResult.error(auth_failure_instruction(service))
 
                 if not composio_service.is_configured():
                     return ToolResult.error(
@@ -738,7 +747,34 @@ class ToolRegistry:
                 " user rather than retrying the same call unchanged."
             )
         except Exception as exc:  # errors are data, never exceptions (see ai-runtime.md)
-            result = ToolResult.error(f"{name} failed: {type(exc).__name__}: {exc}")
+            if is_auth_failure_text(str(exc)):
+                from backend.mcp.guidance import auth_failure_instruction, extract_service_name
+
+                service = extract_service_name(tool, server_name=tool.server_name, arguments=arguments)
+                if tk:
+                    try:
+                        from backend.mcp.composio_service import composio_service
+
+                        composio_service.mark_reauth_required(tk, reason=str(exc))
+                    except Exception:
+                        pass
+                result = ToolResult.error(auth_failure_instruction(service))
+            else:
+                result = ToolResult.error(f"{name} failed: {type(exc).__name__}: {exc}")
+
+        if result.is_error and is_auth_failure_text(result.content):
+            if "needs re-auth:" not in result.content:
+                from backend.mcp.guidance import auth_failure_instruction, extract_service_name
+
+                service = extract_service_name(tool, server_name=tool.server_name, arguments=arguments)
+                if tk:
+                    try:
+                        from backend.mcp.composio_service import composio_service
+
+                        composio_service.mark_reauth_required(tk, reason=result.content)
+                    except Exception:
+                        pass
+                result.content = auth_failure_instruction(service)
 
         if tk and result.is_error:
             try:
@@ -857,10 +893,17 @@ def extract_composio_toolkit(tool_or_name: Tool | str) -> str | None:
     else:
         name = tool_or_name.name
         server_name = tool_or_name.server_name
-    if server_name != "composio" and not name.endswith(f"{MCP_DELIMITER}composio"):
+    if server_name is not None and server_name != "composio":
         return None
     bare = name.split(MCP_DELIMITER)[0]
-    return bare.split("_")[0].lower() if "_" in bare else "app"
+    if server_name == "composio" or name.endswith(f"{MCP_DELIMITER}composio"):
+        return bare.split("_")[0].lower() if "_" in bare else "app"
+    prefix = bare.split("_")[0].lower() if "_" in bare else bare.lower()
+    from backend.mcp.composio_service import FAST_LANE_CONFIG
+
+    if prefix in FAST_LANE_CONFIG:
+        return prefix
+    return None
 
 
 def build_default_registry(

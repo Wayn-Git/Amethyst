@@ -1328,6 +1328,7 @@ class ComposioService:
         self._fast_lane_cache: dict[str, list[dict[str, Any]]] = {}
         self._fast_lane_cache_time: dict[str, float] = {}
         self._key_mode: str | None = None
+        self._reauth_required: dict[str, str] = {}
 
     def _detect_key_mode(self, key: str) -> str:
         k = key.strip()
@@ -1400,6 +1401,7 @@ class ComposioService:
         self._cached_api_key = cleaned
         self._enabled_toolkits_cache = None
         self._catalog_cache = None
+        self._reauth_required = {}
 
         target_mode = mode or getattr(self, "_key_mode", None) or self._detect_key_mode(cleaned)
         self._key_mode = target_mode
@@ -1850,7 +1852,7 @@ class ComposioService:
         """
         _t0 = time.perf_counter()
         try:
-            return self._get_connections_inner(force=force)
+            return self._filter_reauth(self._get_connections_inner(force=force))
         finally:
             if is_trace_enabled():
                 elapsed_ms = (time.perf_counter() - _t0) * 1000.0
@@ -1861,6 +1863,12 @@ class ComposioService:
                         "backend/mcp/composio_service.py:get_connections",
                         detail="(synchronous connected accounts HTTP/SDK call)",
                     )
+
+    def _filter_reauth(self, conns: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        reauth = getattr(self, "_reauth_required", None)
+        if not reauth:
+            return conns
+        return {k: v for k, v in conns.items() if k.lower() not in reauth}
 
     def _get_connections_inner(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """Return dict of {toolkit_slug: connection_details} for ACTIVE accounts only."""
@@ -1899,18 +1907,56 @@ class ComposioService:
         # Outside event loop (synchronous context, CLI, or test): run synchronous fetch
         return self._fetch_connections_sync()
 
+    def mark_reauth_required(self, toolkit: str, reason: str | None = None) -> None:
+        """Mark a connected toolkit as requiring re-authentication."""
+        tk = toolkit.lower()
+        if not hasattr(self, "_reauth_required"):
+            self._reauth_required = {}
+        self._reauth_required[tk] = reason or "re-auth required"
+        if hasattr(self, "_last_good_connections") and tk in self._last_good_connections:
+            self._last_good_connections.pop(tk, None)
+        if hasattr(self, "_connections_cache") and self._connections_cache and self._connections_cache[1]:
+            if tk in self._connections_cache[1]:
+                conns = dict(self._connections_cache[1])
+                conns.pop(tk, None)
+                self._connections_cache = (self._connections_cache[0], conns)
+        try:
+            from backend.mcp import guidance
+            guidance.forget()
+        except Exception:
+            pass
+
+    def is_reauth_required(self, toolkit: str) -> bool:
+        """Check if a toolkit has been marked as requiring re-authentication."""
+        return toolkit.lower() in getattr(self, "_reauth_required", {})
+
+    def clear_reauth_required(self, toolkit: str | None = None) -> None:
+        """Clear re-authentication requirement for a toolkit (or all toolkits)."""
+        if not hasattr(self, "_reauth_required"):
+            return
+        if toolkit is None:
+            self._reauth_required.clear()
+        else:
+            self._reauth_required.pop(toolkit.lower(), None)
+        try:
+            from backend.mcp import guidance
+            guidance.forget()
+        except Exception:
+            pass
+
     async def get_connections_async(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """Asynchronously return or refresh connected accounts."""
         if not self.is_configured():
             return {}
         now = time.monotonic()
         if not force and now < self._connections_expires_at and self._last_good_connections:
-            return dict(self._last_good_connections)
+            return self._filter_reauth(dict(self._last_good_connections))
 
         if not force and now < self._connections_backoff_until and self._last_good_connections:
-            return dict(self._last_good_connections)
+            return self._filter_reauth(dict(self._last_good_connections))
 
-        return await self.fetch_connections_async()
+        conns = await self.fetch_connections_async()
+        return self._filter_reauth(conns)
 
     async def fetch_connections_async(self) -> dict[str, dict[str, Any]]:
         """Perform non-blocking fetch of connected accounts."""

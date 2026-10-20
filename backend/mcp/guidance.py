@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 from backend.mcp import live
 from backend.mcp.config import load_servers
@@ -324,3 +325,108 @@ def dropped_instruction(server_name: str, detail: str) -> str:
         " Do not retry this tool. Do the rest of the task without it and say what you"
         " could not do."
     )
+
+
+SERVICE_DISPLAY_NAMES: dict[str, str] = {
+    "gmail": "Gmail",
+    "googlecalendar": "Google Calendar",
+    "google_calendar": "Google Calendar",
+    "google-calendar": "Google Calendar",
+    "google-workspace": "Google Workspace",
+    "google_workspace": "Google Workspace",
+    "github": "GitHub",
+    "slack": "Slack",
+    "notion": "Notion",
+    "jira": "Jira",
+    "asana": "Asana",
+    "linear": "Linear",
+    "spotify": "Spotify",
+    "microsoft-todo": "Microsoft To Do",
+    "microsoft_todo": "Microsoft To Do",
+    "microsofttodo": "Microsoft To Do",
+    "vercel": "Vercel",
+    "tavily": "Tavily",
+    "firecrawl": "Firecrawl",
+    "exa": "Exa",
+    "linkedin": "LinkedIn",
+    "composio": "Composio",
+}
+
+
+def extract_service_name(
+    tool_or_name: Any,
+    server_name: str | None = None,
+    arguments: dict[str, Any] | None = None,
+) -> str:
+    """Extract a human-friendly service name (e.g. 'Gmail', 'Google Calendar', 'GitHub') from a tool or call."""
+    name = getattr(tool_or_name, "name", tool_or_name) if tool_or_name else ""
+    if not isinstance(name, str):
+        name = str(name or "")
+    server = server_name or getattr(tool_or_name, "server_name", None)
+
+    # If it's a Composio multi-execute tool, inspect inner tool slugs in arguments
+    if ("MULTI_EXECUTE" in name or name == "COMPOSIO_MULTI_EXECUTE_TOOL") and arguments and isinstance(arguments, dict):
+        inner_tools = arguments.get("tools")
+        if isinstance(inner_tools, list) and inner_tools:
+            first_tool = inner_tools[0]
+            if isinstance(first_tool, dict) and first_tool.get("tool_slug"):
+                return extract_service_name(first_tool["tool_slug"])
+
+    # If server is google-workspace or name contains google-workspace, specialize based on tool action
+    if (server and ("google-workspace" in server or "google_workspace" in server)) or "google-workspace" in name:
+        lowered_name = name.lower()
+        if any(k in lowered_name for k in ("calendar", "event")):
+            return "Google Calendar"
+        if any(k in lowered_name for k in ("mail", "message", "draft", "thread", "inbox")):
+            return "Gmail"
+        if "drive" in lowered_name:
+            return "Google Drive"
+        if "doc" in lowered_name:
+            return "Google Docs"
+        if "sheet" in lowered_name:
+            return "Google Sheets"
+        return "Google Workspace"
+
+    bare = name.split("__mcp__")[0] if "__mcp__" in name else name
+
+    # Check for Composio / upper snake case pattern e.g. GMAIL_FETCH_EMAILS, GOOGLECALENDAR_FIND_EVENT
+    if "_" in bare:
+        prefix = bare.split("_")[0].lower()
+        if prefix in SERVICE_DISPLAY_NAMES:
+            return SERVICE_DISPLAY_NAMES[prefix]
+
+    # Check if bare name matches a known service
+    bare_clean = bare.replace("-", "").replace("_", "").lower()
+    for key, display in SERVICE_DISPLAY_NAMES.items():
+        if bare_clean == key.replace("-", "").replace("_", ""):
+            return display
+
+    # If server is known
+    if server:
+        server_clean = server.lower().replace("-", "").replace("_", "")
+        for key, display in SERVICE_DISPLAY_NAMES.items():
+            if server_clean == key.replace("-", "").replace("_", ""):
+                return display
+        return server.replace("-", " ").replace("_", " ").title()
+
+    if "_" in bare:
+        prefix = bare.split("_")[0]
+        return prefix.replace("-", " ").title()
+    return bare.replace("-", " ").title() if bare else "External Service"
+
+
+def auth_failure_instruction(
+    service_name: str,
+    instructions: str | None = None,
+) -> str:
+    """Told to the model when an MCP tool or Composio toolkit fails due to an authentication failure.
+
+    Format: "<service> needs re-auth: <link/instructions>. Do not retry this tool in this turn."
+    Instructs the model explicitly to continue answering with other available information rather than looping or retrying.
+    """
+    link = instructions or f"open {CONNECTORS_SCREEN} and reconnect {service_name}"
+    return (
+        f"{service_name} needs re-auth: {link}. Do not retry this tool in this turn. "
+        "Continue answering the user's request using any other available information and tools rather than looping or retrying."
+    )
+

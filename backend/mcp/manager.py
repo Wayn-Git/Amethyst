@@ -27,7 +27,7 @@ from backend.mcp.config import ServerConfig, load_servers
 from backend.mcp.risk import classify
 from backend.mcp.status import AuthoritativeMCPStatus, HealthStatus, MCPState
 from backend.tools.base import Tool, ToolContext, ToolResult, ToolSource
-from backend.tools.registry import ToolRegistry, mcp_tool_key
+from backend.tools.registry import ToolRegistry, extract_composio_toolkit, mcp_tool_key
 
 log = logging.getLogger(__name__)
 
@@ -1229,27 +1229,27 @@ class MCPManager:
                         return ToolResult.ok(json.dumps({"tools": cached_schemas, "schemas": cached_schemas}))
             try:
                 raw = await connection.call(tool_name, arguments)
-            except OAuthRequired:
-                # Was a CLI command. The user is in a browser; sending them to a
-                # terminal for a button that is two clicks away is the interface
-                # telling on itself.
-                self.errors[server_name] = f"Authentication required for {server_name}"
+            except OAuthRequired as exc:
+                service = guidance.extract_service_name(tool_name, server_name=server_name, arguments=arguments)
+                self.errors[server_name] = f"Authentication required for {service}"
                 await self.disconnect_server(server_name)
                 self._hold_off(server_name)
                 self._log_connector_event(server_name, "auth_failed", error="OAuthRequired")
                 guidance.forget()
-                return ToolResult.error(guidance.sign_in_instruction(server_name))
+                auth_link = getattr(exc, "auth_url", None)
+                return ToolResult.error(guidance.auth_failure_instruction(service, instructions=auth_link))
             except TimeoutError:
                 return ToolResult.error(f"'{tool_name}' on '{server_name}' timed out.")
             except Exception as exc:
                 if _is_auth_failure(exc):
+                    service = guidance.extract_service_name(tool_name, server_name=server_name, arguments=arguments)
                     log.warning("%s failed authentication during %s: %s", server_name, tool_name, exc)
                     self.errors[server_name] = f"Authentication failed: {exc}"
                     await self.disconnect_server(server_name)
                     self._hold_off(server_name)
                     self._log_connector_event(server_name, "auth_failed", error=str(exc))
                     guidance.forget()
-                    return ToolResult.error(guidance.sign_in_instruction(server_name))
+                    return ToolResult.error(guidance.auth_failure_instruction(service))
 
                 if not _is_transport_failure(exc):
                     # `_is_transport_failure` matches wordings that have been
@@ -1339,13 +1339,14 @@ class MCPManager:
                         pass
 
             if result.is_error and is_auth_failure_text(result.content):
+                service = guidance.extract_service_name(tool_name, server_name=server_name, arguments=arguments)
                 log.warning("%s returned an authentication error in tool result: %s", server_name, result.content)
-                self.errors[server_name] = f"Authentication error: {result.content}"
+                self.errors[server_name] = f"Authentication error for {service}: {result.content}"
                 await self.disconnect_server(server_name)
                 self._hold_off(server_name)
                 self._log_connector_event(server_name, "auth_failed", error=result.content)
                 guidance.forget()
-                return ToolResult.error(guidance.sign_in_instruction(server_name))
+                return ToolResult.error(guidance.auth_failure_instruction(service))
 
             connection.breaker.record_success()
             return result
@@ -1430,26 +1431,33 @@ class MCPManager:
             }
             try:
                 raw = await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", exec_args)
-            except OAuthRequired:
-                self.errors[server_name] = f"Authentication required for {server_name}"
-                await self.disconnect_server(server_name)
-                self._hold_off(server_name)
-                guidance.forget()
-                return ToolResult.error(guidance.sign_in_instruction(server_name))
+            except OAuthRequired as exc:
+                service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                from backend.mcp.composio_service import composio_service
+                composio_service.mark_reauth_required(tk, reason="OAuthRequired")
+                auth_link = getattr(exc, "auth_url", None)
+                return ToolResult.error(guidance.auth_failure_instruction(service, instructions=auth_link))
             except TimeoutError:
                 return ToolResult.error(f"'{slug}' on '{server_name}' timed out.")
             except Exception as exc:
                 if _is_auth_failure(exc):
-                    log.warning("%s failed authentication during %s: %s", server_name, slug, exc)
-                    self.errors[server_name] = f"Authentication failed: {exc}"
-                    await self.disconnect_server(server_name)
-                    self._hold_off(server_name)
-                    guidance.forget()
-                    return ToolResult.error(guidance.sign_in_instruction(server_name))
+                    service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    log.warning("Composio %s (%s) failed authentication: %s", tk, slug, exc)
+                    from backend.mcp.composio_service import composio_service
+                    composio_service.mark_reauth_required(tk, reason=str(exc))
+                    return ToolResult.error(guidance.auth_failure_instruction(service))
                 return ToolResult.error(f"'{slug}' on '{server_name}' failed: {exc}")
 
             norm = normalize_result(raw)
             if norm.is_error:
+                if is_auth_failure_text(norm.content):
+                    service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    from backend.mcp.composio_service import composio_service
+                    composio_service.mark_reauth_required(tk, reason=norm.content)
+                    return ToolResult.error(guidance.auth_failure_instruction(service))
                 return norm
 
             # Unpack response from COMPOSIO_MULTI_EXECUTE_TOOL payload
@@ -1463,6 +1471,13 @@ class MCPManager:
                         if isinstance(resp_obj, dict):
                             if not resp_obj.get("successful", True):
                                 err_msg = resp_obj.get("error") or resp_obj.get("data", {}).get("message") or f"{slug} failed"
+                                if is_auth_failure_text(str(err_msg)):
+                                    service = guidance.extract_service_name(slug, server_name=server_name, arguments=arguments)
+                                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                                    log.warning("Composio %s (%s) returned auth error: %s", tk, slug, err_msg)
+                                    from backend.mcp.composio_service import composio_service
+                                    composio_service.mark_reauth_required(tk, reason=str(err_msg))
+                                    return ToolResult.error(guidance.auth_failure_instruction(service))
                                 return ToolResult.error(str(err_msg))
                             inner_data = resp_obj.get("data")
                             if inner_data is not None:
@@ -1499,30 +1514,49 @@ class MCPManager:
 
         try:
             raw = await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", exec_args)
-        except OAuthRequired:
-            self.errors[server_name] = f"Authentication required for {server_name}"
-            await self.disconnect_server(server_name)
-            self._hold_off(server_name)
-            guidance.forget()
-            auth_err = ToolResult.error(guidance.sign_in_instruction(server_name))
-            return [auth_err for _ in calls]
+        except OAuthRequired as exc:
+            auth_link = getattr(exc, "auth_url", None)
+            from backend.mcp.composio_service import composio_service
+            results = []
+            for c in calls:
+                c_name = getattr(c, "name", "")
+                slug = c_name.split("__mcp__")[0]
+                service = guidance.extract_service_name(slug, server_name=server_name)
+                tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                composio_service.mark_reauth_required(tk, reason="OAuthRequired")
+                results.append(ToolResult.error(guidance.auth_failure_instruction(service, instructions=auth_link)))
+            return results
         except TimeoutError:
             timeout_err = ToolResult.error("Composio batch execution timed out.")
             return [timeout_err for _ in calls]
         except Exception as exc:
             if _is_auth_failure(exc):
-                log.warning("%s failed authentication during batch execution: %s", server_name, exc)
-                self.errors[server_name] = f"Authentication failed: {exc}"
-                await self.disconnect_server(server_name)
-                self._hold_off(server_name)
-                guidance.forget()
-                auth_err = ToolResult.error(guidance.sign_in_instruction(server_name))
-                return [auth_err for _ in calls]
+                from backend.mcp.composio_service import composio_service
+                results = []
+                for c in calls:
+                    c_name = getattr(c, "name", "")
+                    slug = c_name.split("__mcp__")[0]
+                    service = guidance.extract_service_name(slug, server_name=server_name)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    composio_service.mark_reauth_required(tk, reason=str(exc))
+                    results.append(ToolResult.error(guidance.auth_failure_instruction(service)))
+                return results
             batch_err = ToolResult.error(f"Composio batch execution failed: {exc}")
             return [batch_err for _ in calls]
 
         norm = normalize_result(raw)
         if norm.is_error:
+            if is_auth_failure_text(norm.content):
+                from backend.mcp.composio_service import composio_service
+                results = []
+                for c in calls:
+                    c_name = getattr(c, "name", "")
+                    slug = c_name.split("__mcp__")[0]
+                    service = guidance.extract_service_name(slug, server_name=server_name)
+                    tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                    composio_service.mark_reauth_required(tk, reason=norm.content)
+                    results.append(ToolResult.error(guidance.auth_failure_instruction(service)))
+                return results
             return [norm for _ in calls]
 
         results_list: list[ToolResult] = []
@@ -1544,7 +1578,14 @@ class MCPManager:
                                         or resp_obj.get("data", {}).get("message")
                                         or f"{slug} failed"
                                     )
-                                    results_list.append(ToolResult.error(str(err_msg)))
+                                    if is_auth_failure_text(str(err_msg)):
+                                        service = guidance.extract_service_name(slug, server_name=server_name)
+                                        tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                                        from backend.mcp.composio_service import composio_service
+                                        composio_service.mark_reauth_required(tk, reason=str(err_msg))
+                                        results_list.append(ToolResult.error(guidance.auth_failure_instruction(service)))
+                                    else:
+                                        results_list.append(ToolResult.error(str(err_msg)))
                                 else:
                                     inner_data = resp_obj.get("data")
                                     results_list.append(
