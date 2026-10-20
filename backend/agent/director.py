@@ -51,6 +51,7 @@ from backend.agent.prompt import (
 )
 from backend.agent.config import agent_config
 from backend.agent.defaults import apply_tool_defaults
+from backend.agent.tool_repair import repair_and_validate_tool_call
 from backend.agent.state import AgentState, IllegalTransition
 from backend.agent.tool_selector import _bare, _server_of, select_tools
 from backend.agent.tool_search import (
@@ -2616,6 +2617,13 @@ class Director:
                     log.warning("post-turn memory/summary background task failed: %s", exc)
                 return
 
+            if response.tool_calls and agent_config.enable_tool_repair:
+                for c in response.tool_calls:
+                    c, val_err = repair_and_validate_tool_call(c, self.registry)
+                    if val_err:
+                        setattr(c, "_validation_error", val_err)
+                    setattr(c, "_repaired", True)
+
             if planning:
                 submitted = next(
                     (c for c in response.tool_calls if c.name == PLAN_TOOL_NAME), None
@@ -2709,6 +2717,7 @@ class Director:
                         composio_calls = [
                             c for c in seg_calls
                             if _is_composio_call(c, self.registry)
+                            and not getattr(c, "_validation_error", None)
                         ]
 
                     batch_future: asyncio.Future | None = None
@@ -2777,7 +2786,8 @@ class Director:
 
                         cache_key = execution_cache_key(call.name, call.arguments)
                         read_cached = read_cache.get(call.name, call.arguments)
-                        if cache_key in state.execution_cache:
+                        val_err = getattr(call, "_validation_error", None)
+                        if not val_err and cache_key in state.execution_cache:
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
                             note = "[already fetched this turn: using cached result]\n"
@@ -2793,7 +2803,7 @@ class Director:
                                 return res
 
                             task = self._spawn(_cached_future())
-                        elif read_cached is not None:
+                        elif not val_err and read_cached is not None:
                             cached_res = ToolResult(
                                 content=read_cached.content,
                                 artifacts=read_cached.artifacts,
@@ -2931,7 +2941,8 @@ class Director:
 
                         cache_key = execution_cache_key(call.name, call.arguments)
                         read_cached = read_cache.get(call.name, call.arguments)
-                        if cache_key in state.execution_cache:
+                        val_err = getattr(call, "_validation_error", None)
+                        if not val_err and cache_key in state.execution_cache:
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
                             note = "[already fetched this turn: using cached result]\n"
@@ -2947,7 +2958,7 @@ class Director:
                                 return res
 
                             task = self._spawn(_cached_future())
-                        elif read_cached is not None:
+                        elif not val_err and read_cached is not None:
                             cached_res = ToolResult(
                                 content=read_cached.content,
                                 artifacts=read_cached.artifacts,
@@ -3869,6 +3880,13 @@ class Director:
         """
         _t_disp0 = time.perf_counter()
         _is_bridge = False
+        val_err = getattr(call, "_validation_error", None)
+        if val_err:
+            return ToolResult.error(val_err)
+        if agent_config.enable_tool_repair and not getattr(call, "_repaired", False):
+            call, val_err = repair_and_validate_tool_call(call, self.registry)
+            if val_err:
+                return ToolResult.error(val_err)
         if isinstance(call.arguments, dict):
             call.arguments = apply_tool_defaults(call.name, call.arguments)
         try:

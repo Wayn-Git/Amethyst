@@ -54,6 +54,8 @@ class AgentConfig:
     max_payload_chars: int = 4000
     # Scratch store TTL in seconds
     scratch_store_ttl: float = 300.0
+    # Whether to validate, repair JSON, and coerce types on tool call arguments
+    enable_tool_repair: bool = True
 
     # --- History & Context Compaction ---
     # Number of recent completed turns to keep completely verbatim before compacting older tools
@@ -112,6 +114,7 @@ class AgentConfig:
             circuit_breaker_cooldown=_get_float("AMETHYST_CIRCUIT_BREAKER_COOLDOWN", 180.0),
             tool_round_tier=os.environ.get("AMETHYST_TOOL_ROUND_TIER", "heavy"),
             summary_round_tier=os.environ.get("AMETHYST_SUMMARY_ROUND_TIER", "fast"),
+            enable_tool_repair=os.environ.get("AMETHYST_ENABLE_TOOL_REPAIR", "true").lower() in ("true", "1", "yes"),
             fast_summary_provider=os.environ.get("AMETHYST_FAST_SUMMARY_PROVIDER"),
             fast_summary_model=os.environ.get("AMETHYST_FAST_SUMMARY_MODEL"),
         )

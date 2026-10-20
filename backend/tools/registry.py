@@ -378,6 +378,15 @@ class ToolRegistry:
 
     @staticmethod
     def normalize_arguments(tool: Tool, arguments: dict[str, Any]) -> dict[str, Any]:
+        if isinstance(arguments, str) or (isinstance(arguments, dict) and "_raw" in arguments):
+            try:
+                from backend.agent.tool_repair import parse_and_repair_json
+
+                parsed, _ = parse_and_repair_json(arguments)
+                if isinstance(parsed, dict):
+                    arguments = parsed
+            except Exception:
+                pass
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments)

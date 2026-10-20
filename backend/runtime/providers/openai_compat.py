@@ -704,8 +704,16 @@ def _parse_arguments(raw: Any) -> dict[str, Any]:
     if not raw:
         return {}
     try:
+        from backend.agent.tool_repair import parse_and_repair_json
+
+        parsed, _ = parse_and_repair_json(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+    try:
         parsed = json.loads(raw)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, TypeError):
         return {"_raw": raw}
     return parsed if isinstance(parsed, dict) else {"_value": parsed}
 
