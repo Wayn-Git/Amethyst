@@ -50,11 +50,9 @@ def _bare(name: str) -> str:
     return name.split(_MCP_MARKER)[0]
 
 
-from backend.mcp.composio_service import ALL_FAST_LANE_SLUGS
+from backend.mcp.composio_service import ALL_FAST_LANE_SLUGS, FAST_LANE_CONFIG
 
-#: Offered on every turn, whatever the request looks like. These are the tools
-#: almost every task routes through; withholding one to save schema tokens is
-#: how a capable agent starts looking incapable.
+#: Universal core tools offered across turns.
 CORE = (
     "view_file",
     "list_files",
@@ -64,24 +62,36 @@ CORE = (
     "create_artifact",
     "run_shell_command",
     "ask_user",
-    "dispatch_parallel_jobs",
-    "collect_jobs",
-    "task",
     "search_web",
     "fetch_url",
-    "generate_sandboxed_ui",
-    # Composio default tools for agent
+    # Discovery and execution fallback tools (always present)
     "COMPOSIO_SEARCH_TOOLS",
     "COMPOSIO_MULTI_EXECUTE_TOOL",
-    "COMPOSIO_GET_TOOL_SCHEMAS",
-    "COMPOSIO_MANAGE_CONNECTIONS",
-    # Composio fast-lane direct tools
-    *ALL_FAST_LANE_SLUGS,
-    # Bridge tools
     "tool_search",
-    "tool_describe",
-    "tool_call",
 )
+
+#: Toolkit-level intent keywords for cheap (0ms, zero-LLM) routing
+TOOLKIT_INTENT_WORDS: dict[str, tuple[str, ...]] = {
+    "googlecalendar": (
+        "calendar", "calendars", "event", "events", "meeting", "meetings",
+        "schedule", "schedules", "appointment", "appointments", "invite", "invites",
+        "tomorrow", "today", "slot", "slots", "free slot", "book", "agenda",
+    ),
+    "gmail": (
+        "email", "emails", "mail", "mails", "gmail", "inbox", "message", "messages",
+        "reply", "draft", "drafts", "sender", "unread", "subject", "thread", "threads",
+    ),
+    "github": (
+        "github", "repo", "repos", "repository", "repositories", "pull request", "pull requests",
+        "pr", "prs", "issue", "issues", "commit", "commits", "branch", "branches",
+    ),
+    "slack": (
+        "slack", "channel", "channels", "message", "messages", "dm", "dms", "workspace", "thread", "threads",
+    ),
+    "notion": (
+        "notion", "page", "pages", "database", "databases", "doc", "docs", "workspace",
+    ),
+}
 
 #: Builtin tools grouped by the kind of request that needs them, with the words
 #: that signal that kind. Matching is generous on purpose: a category included
@@ -341,46 +351,44 @@ def select_tools(
         wanted: set[str] = set(CORE)
 
         # Lane-specific tuning
+        has_code_signals = any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash", "fix", "code", "directory"))
         if lane == "widget":
             wanted.add("generate_sandboxed_ui")
-        elif lane == "chat":
-            # Pure chat turns do not need heavy code-editing or local terminal execution
-            if not any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash")):
-                wanted.difference_update({
-                    "edit_file", "write_file", "delete_file", "run_shell_command",
-                    "patch_file_with_search", "apply_file_diff",
-                })
-        elif lane == "connector":
-            # Connector turns focus on MCP / external integrations
-            if not any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash")):
-                wanted.difference_update({
-                    "edit_file", "write_file", "delete_file", "run_shell_command",
-                    "patch_file_with_search", "apply_file_diff",
-                })
-            for s in schemas:
-                s_name = getattr(s, "name", "")
-                if s_name.startswith("COMPOSIO_") or s_name.startswith("composio_") or _server_of(s_name):
-                    wanted.add(s_name)
-        elif lane == "research":
+        elif lane in ("chat", "connector") and not has_code_signals:
+            # Pure chat or connector turns do not need heavy code-editing or local terminal execution
+            wanted.difference_update({
+                "edit_file", "write_file", "delete_file", "run_shell_command",
+                "patch_file_with_search", "apply_file_diff", "grep_files",
+            })
+        elif lane == "research" and not has_code_signals:
             # Research turns focus on search / reading / web / docs
-            if not any(re.search(rf"\b{k}\b", haystack) for k in ("edit", "file", "run", "command", "shell", "bash")):
-                wanted.difference_update({
-                    "edit_file", "write_file", "delete_file", "run_shell_command",
-                    "patch_file_with_search", "apply_file_diff",
-                })
+            wanted.difference_update({
+                "edit_file", "write_file", "delete_file", "run_shell_command",
+                "patch_file_with_search", "apply_file_diff",
+            })
 
-        # Phase 1: Task-intent matching using word boundaries
+        # Phase 1: Toolkit intent matching for connected services (0ms regex matching)
+        for tk_name, tk_words in TOOLKIT_INTENT_WORDS.items():
+            if any(re.search(rf"\b{re.escape(w.strip())}\b", haystack) for w in tk_words):
+                if tk_name in FAST_LANE_CONFIG:
+                    wanted.update(FAST_LANE_CONFIG[tk_name].keys())
+                if tk_name == "googlecalendar":
+                    wanted.update({"list_calendar", "create_calendar_event"})
+                elif tk_name == "gmail":
+                    wanted.update({"search_email", "read_email", "send_email"})
+
+        # Phase 2: Task-intent matching using word boundaries
         for pat, tools in _TASK_INTENT_PATTERNS:
             if pat.search(haystack):
                 wanted.update(tools)
 
-        # Phase 2: Category keyword matching driven by lane
+        # Phase 3: Category keyword matching driven by lane
         allowed_cats = LANE_CATEGORIES.get(lane, set(CATEGORIES.keys())) if lane else set(CATEGORIES.keys())
         for cat_name, rx in _CATEGORY_REGEXES.items():
             if cat_name in allowed_cats and rx.search(haystack):
                 wanted.update(CATEGORIES[cat_name]["tools"])
 
-        # Phase 3: Connector matching. A connector is offered when its name is
+        # Phase 4: Connector matching. A connector is offered when its name is
         # said, when one of its own tool names is said, or when a hint word for
         # it appears.
         by_server: dict[str, list[Any]] = {}
@@ -390,7 +398,6 @@ def select_tools(
                 by_server.setdefault(server, []).append(schema)
 
         chosen_servers: list[str] = []
-        # Composio is the default cloud connector: always prioritize it when available
         if "composio" in by_server:
             chosen_servers.append("composio")
 
@@ -416,13 +423,18 @@ def select_tools(
             if hit:
                 chosen_servers.append(server)
 
-        # Allow max_mcp_servers with composio included
         composio_offset = 1 if "composio" in chosen_servers else 0
         chosen_servers = chosen_servers[:max_mcp_servers + composio_offset]
         for server in chosen_servers:
-            wanted.update(getattr(t, "name", "") for t in by_server[server])
+            server_tools = by_server.get(server, [])
+            if server == "composio":
+                # For composio, keep meta tools; individual toolkits are handled via TOOLKIT_INTENT_WORDS
+                wanted.update({"COMPOSIO_SEARCH_TOOLS", "COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_GET_TOOL_SCHEMAS"})
+            else:
+                for t in server_tools[:5]:
+                    wanted.add(getattr(t, "name", ""))
 
-        # search_images is strictly opt-in: only offered when @images, @image, or /images is requested
+        # search_images is strictly opt-in
         has_images_tag = any(tag in haystack for tag in ("@images", "@image", "/images", "/image"))
         if has_images_tag:
             wanted.add("search_images")
@@ -433,15 +445,33 @@ def select_tools(
         if withheld_local_tools:
             wanted.difference_update(withheld_local_tools)
 
+        # Discovery and fallback tools must ALWAYS be included
+        wanted.add("COMPOSIO_SEARCH_TOOLS")
+        wanted.add("COMPOSIO_MULTI_EXECUTE_TOOL")
+        wanted.add("tool_search")
+
         kept = [
             s
             for s in schemas
             if getattr(s, "name", "") in wanted or _bare(getattr(s, "name", "")) in wanted
         ]
-        # Nothing matched at all: the request is too vague to narrow safely, so
-        # do not narrow. Better to spend tokens than to answer without the tool.
+
         if not kept:
             return schemas, 0
+
+        # Cap to target ~10-15 tools if the selected set grew too large
+        if len(kept) > 15:
+            def _tool_priority(s: Any) -> int:
+                b = _bare(getattr(s, "name", ""))
+                if b in ("COMPOSIO_SEARCH_TOOLS", "COMPOSIO_MULTI_EXECUTE_TOOL", "tool_search", "ask_user"):
+                    return 3
+                if b in ALL_FAST_LANE_SLUGS or b in ("GOOGLECALENDAR_FIND_EVENT", "GMAIL_FETCH_EMAILS"):
+                    return 2
+                if b in CORE:
+                    return 1
+                return 0
+
+            kept = sorted(kept, key=_tool_priority, reverse=True)[:15]
 
         return kept, len(schemas) - len(kept)
     except Exception:  # noqa: BLE001 - selection must never take the turn down

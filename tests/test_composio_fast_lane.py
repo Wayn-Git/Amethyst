@@ -111,12 +111,13 @@ def test_fast_lane_cache_ttl_and_refresh(monkeypatch):
     assert bg_called == [["googlecalendar"]]
 
 
-def test_fast_lane_slugs_in_core_and_not_deferrable():
+def test_fast_lane_slugs_not_deferrable():
     for slug in ALL_FAST_LANE_SLUGS:
-        assert slug in CORE
         full_name = f"{slug}__mcp__composio"
         assert not _is_deferrable(full_name, "composio")
         assert not _is_deferrable(slug, None)
+    assert "COMPOSIO_SEARCH_TOOLS" in CORE
+    assert "COMPOSIO_MULTI_EXECUTE_TOOL" in CORE
 
 
 def test_fast_lane_tools_always_visible_under_deferral(monkeypatch):

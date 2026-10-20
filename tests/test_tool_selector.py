@@ -93,6 +93,31 @@ def test_image_request_requires_images_tag():
     assert "run_shell_command" in names
 
 
+def test_discovery_fallback_tools_and_bounding():
+    """Verify discovery tools are always kept and tool count is bounded to <= 15."""
+    discovery_schemas = [
+        _S("COMPOSIO_SEARCH_TOOLS"),
+        _S("COMPOSIO_MULTI_EXECUTE_TOOL"),
+        _S("tool_search"),
+        _S("GOOGLECALENDAR_FIND_EVENT"),
+        _S("GMAIL_FETCH_EMAILS"),
+    ]
+    # Add 30 other schemas
+    other_schemas = [_S(f"extra_tool_{i}") for i in range(30)]
+    all_schemas = _schemas() + discovery_schemas + other_schemas
+
+    kept, _ = select_tools(all_schemas, "check my calendar and search all emails related to github")
+    names = _names(kept)
+    assert len(kept) <= 15
+    # Discovery tools must be preserved
+    assert "COMPOSIO_SEARCH_TOOLS" in names
+    assert "COMPOSIO_MULTI_EXECUTE_TOOL" in names
+    assert "tool_search" in names
+    # Fast lane / intent tools
+    assert "GOOGLECALENDAR_FIND_EVENT" in names
+    assert "GMAIL_FETCH_EMAILS" in names
+
+
 # ------------------------------------------------- system prompt is built once
 
 
