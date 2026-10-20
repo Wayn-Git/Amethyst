@@ -38,6 +38,7 @@ from backend.agent.prompt import (
     compact_consumed_tool_results,
     compress_tool_schemas,
     dropped_summary,
+    enforce_token_budget,
     environment_block,
     estimate_tokens,
     extract_skill_invocations,
@@ -2008,21 +2009,26 @@ class Director:
                 # small client on the same free tier does implicitly. The skip
                 # below now only fires when the system prompt *alone* is over
                 # budget, which trimming cannot help.
-                if model.capabilities.tokens_per_minute and tool_schemas is not None:
-                    tool_schemas, tpm_dropped = fit_tools_to_budget(
-                        tool_schemas,
-                        system_prompt=system_prompt,
-                        token_budget=model.capabilities.tokens_per_minute,
-                        margin=TPM_SAFETY_MARGIN,
-                        priority_servers=ready_servers,
-                    )
-                    if tpm_dropped and not state.warned_about_tools:
-                        state.warned_about_tools = True
-                        yield Event("warning", {"message": dropped_summary(tpm_dropped)})
+                wire, tool_schemas, budget_dropped = enforce_token_budget(
+                    wire,
+                    tool_schemas=tool_schemas,
+                    context_window=model.capabilities.context_window,
+                    tokens_per_minute=model.capabilities.tokens_per_minute,
+                    priority_servers=ready_servers,
+                    threshold=agent_config.token_budget_threshold,
+                    margin=agent_config.tpm_safety_margin,
+                )
+                if budget_dropped and not state.warned_about_tools:
+                    state.warned_about_tools = True
+                    yield Event("warning", {"message": dropped_summary(budget_dropped)})
+
                 if model.capabilities.tokens_per_minute:
                     baseline = round(
-                        (estimate_tokens(system_prompt) + tool_schema_tokens(tool_schemas))
-                        * TPM_SAFETY_MARGIN
+                        (
+                            sum(message_tokens(m) for m in wire)
+                            + (tool_schema_tokens(tool_schemas) if tool_schemas else 0)
+                        )
+                        * agent_config.tpm_safety_margin
                     )
                     if baseline > model.capabilities.tokens_per_minute:
                         kind = FailureKind.NON_RETRYABLE_RATE_LIMIT

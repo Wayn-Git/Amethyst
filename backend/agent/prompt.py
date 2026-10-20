@@ -1115,3 +1115,113 @@ def budget_history(
     kept.reverse()
 
     return drop_leading_orphans(kept)
+
+
+def estimate_prompt_tokens(
+    messages: list[dict[str, Any]], tools: Sequence[Any] | None = None
+) -> int:
+    """Estimate total prompt tokens across wire messages and tool schemas."""
+    msg_cost = sum(message_tokens(m) for m in messages)
+    tool_cost = tool_schema_tokens(tools) if tools else 0
+    return msg_cost + tool_cost
+
+
+def enforce_token_budget(
+    wire_messages: list[dict[str, Any]],
+    *,
+    tool_schemas: list[Any] | None = None,
+    context_window: int,
+    tokens_per_minute: int | None = None,
+    priority_servers: set[str] | None = None,
+    threshold: float = 0.85,
+    margin: float = 1.25,
+) -> tuple[list[dict[str, Any]], list[Any] | None, list[str]]:
+    """Proactively budget prompt tokens before each model call.
+
+    Ceilings:
+    - Context ceiling: `context_window * threshold` (typically 85% of context window)
+    - TPM ceiling: `tokens_per_minute / margin` if model has a TPM limit
+
+    If total prompt tokens exceed the target ceiling, drops context in strict order:
+      1. Old tool results (compact all completed turns with `preserve_recent_turns=0`)
+      2. Old turns (drop oldest completed turns, preserving tool pair coherence)
+      3. Low-priority tool schemas (trim tool schemas to fit remaining allowance)
+
+    Returns:
+      (budgeted_wire_messages, budgeted_tool_schemas, dropped_tool_names)
+    """
+    if not wire_messages:
+        return wire_messages, tool_schemas, []
+
+    context_ceiling = int(context_window * threshold)
+    if tokens_per_minute and tokens_per_minute > 0:
+        tpm_ceiling = int(tokens_per_minute / margin)
+        target_ceiling = min(context_ceiling, tpm_ceiling)
+    else:
+        target_ceiling = context_ceiling
+
+    current_messages = list(wire_messages)
+    current_tools = list(tool_schemas) if tool_schemas is not None else []
+
+    cost = estimate_prompt_tokens(current_messages, current_tools)
+    if cost <= target_ceiling:
+        return current_messages, tool_schemas, []
+
+    # --- Step 1: Drop/compact old tool results ---
+    # Compact all tool results from completed turns (preserve_recent_turns=0, preserve_active_turn=True)
+    current_messages = compact_consumed_tool_results(
+        current_messages,
+        preserve_active_turn=True,
+        preserve_recent_turns=0,
+    )
+    cost = estimate_prompt_tokens(current_messages, current_tools)
+    if cost <= target_ceiling:
+        return current_messages, (current_tools if tool_schemas is not None else None), []
+
+    # --- Step 2: Drop oldest turns ---
+    # Progressively drop oldest turns until cost fits or only active turn remains
+    user_indices = [i for i, m in enumerate(current_messages) if m.get("role") == "user"]
+    while len(user_indices) > 1 and cost > target_ceiling:
+        start_drop = user_indices[0]
+        end_drop = user_indices[1]
+        current_messages = current_messages[:start_drop] + current_messages[end_drop:]
+        user_indices = [i for i, m in enumerate(current_messages) if m.get("role") == "user"]
+        cost = estimate_prompt_tokens(current_messages, current_tools)
+
+    if cost <= target_ceiling:
+        return current_messages, (current_tools if tool_schemas is not None else None), []
+
+    # --- Step 3: Low-priority tool schemas ---
+    # If still over budget, trim tool schemas to fit in remaining budget
+    dropped_tools: list[str] = []
+    if current_tools:
+        msg_cost = sum(message_tokens(m) for m in current_messages)
+        tool_allowance = max(0, target_ceiling - msg_cost)
+
+        ready = priority_servers or set()
+        builtin = [t for t in current_tools if _MCP_MARKER not in getattr(t, "name", "")]
+        preferred = [t for t in current_tools if _server_of(t) and _server_of(t) in ready]
+        chosen = {id(t) for t in preferred}
+        rest = [t for t in current_tools if _MCP_MARKER in getattr(t, "name", "") and id(t) not in chosen]
+        ordered = [*builtin, *_interleave_by_server(preferred), *_interleave_by_server(rest)]
+
+        if tool_schema_tokens(ordered) > tool_allowance:
+            compressed = compress_tool_schemas(ordered)
+            ordered = compressed
+
+        kept: list[Any] = []
+        used = 0.0
+        for tool in ordered:
+            t_cost = tool_schema_tokens([tool])
+            if used + t_cost <= tool_allowance:
+                kept.append(tool)
+                used += t_cost
+
+        while kept and tool_schema_tokens(kept) > tool_allowance:
+            kept.pop()
+
+        kept_names = {getattr(t, "name", "?") for t in kept}
+        dropped_tools = [n for t in current_tools if (n := getattr(t, "name", "?")) not in kept_names]
+        current_tools = kept
+
+    return current_messages, (current_tools if tool_schemas is not None else None), dropped_tools
