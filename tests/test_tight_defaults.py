@@ -113,3 +113,97 @@ async def test_director_applies_defaults_to_dispatched_tool(monkeypatch):
     assert "time_min" in received_args
     assert "time_max" in received_args
     assert received_args["max_results"] == 10
+
+
+def test_model_initiated_offset_pagination_blocked_by_default():
+    # 1. Model tries offset pagination without user asking
+    args = apply_tool_defaults("search_web", {"query": "python", "offset": 10})
+    assert args.get("offset") == 0
+
+    # 2. Model tries page / token pagination without user asking
+    args2 = apply_tool_defaults(
+        "GMAIL_FETCH_EMAILS",
+        {"query": "github", "page_token": "token123", "page": 2, "offset": 20},
+    )
+    assert "page_token" not in args2
+    assert args2.get("page") == 1
+    assert args2.get("offset") == 0
+
+    # 3. Model tries cursor / skip / startIndex pagination
+    args3 = apply_tool_defaults(
+        "NOTION_SEARCH_NOTION_PAGE",
+        {"query": "notes", "cursor": "cur_abc", "skip": 15, "startIndex": 30},
+    )
+    assert "cursor" not in args3
+    assert args3.get("skip") == 0
+    assert args3.get("startIndex") == 0
+
+
+def test_user_requested_pagination_allowed():
+    # When user explicitly asks for more, pagination arguments are preserved
+    more_args = apply_tool_defaults(
+        "search_web",
+        {"query": "python", "offset": 10},
+        user_prompt="show more results please",
+    )
+    assert more_args.get("offset") == 10
+
+    next_page_args = apply_tool_defaults(
+        "GMAIL_FETCH_EMAILS",
+        {"query": "github", "page_token": "token123", "page": 2},
+        user_prompt="load the next page of emails",
+    )
+    assert next_page_args.get("page_token") == "token123"
+    assert next_page_args.get("page") == 2
+
+
+@pytest.mark.asyncio
+async def test_director_blocks_model_initiated_offset_pagination_during_run(monkeypatch):
+    registry = ToolRegistry(ConfirmationService(auto_approve))
+    received_args = {}
+
+    async def search_handler(args, ctx):
+        received_args.update(args)
+        return ToolResult.ok("[]")
+
+    registry.register(Tool(
+        name="search_web",
+        description="Search web",
+        parameters={},
+        handler=search_handler,
+    ))
+
+    import backend.agent.director as director_module
+    from backend.db.repositories import ConversationRepository
+
+    turns = iter([
+        ModelResponse(
+            tool_calls=[
+                ToolCall(id="1", name="search_web", arguments={"query": "python", "offset": 50, "page": 3})
+            ]
+        ),
+        ModelResponse(text="Found results."),
+    ])
+
+    class Client:
+        async def complete(self, messages, tools=None, params=None):
+            return next(turns)
+
+    monkeypatch.setattr(
+        director_module,
+        "resolve",
+        lambda *a, **k: ResolvedModel("f", "f", Client(), Capabilities(streaming=False)),
+    )
+
+    cid = ConversationRepository().create("f", "f")
+    director = Director(registry, stream=False, memory=False, retrieval=False)
+
+    events = []
+    # User did NOT ask for more/next page
+    async for ev in director.run(cid, "what is python?"):
+        events.append(ev)
+
+    # Offset pagination was neutralized
+    assert received_args.get("offset") == 0
+    assert received_args.get("page") == 1
+

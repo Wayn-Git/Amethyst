@@ -12,10 +12,76 @@ from typing import Any
 from backend.agent.config import agent_config
 
 
-def apply_tool_defaults(tool_name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
+def is_pagination_requested(user_prompt: str | None) -> bool:
+    """Return True if the user explicitly asked for pagination or additional items."""
+    if not user_prompt:
+        return False
+    lower = user_prompt.lower()
+    keywords = (
+        "more", "next page", "page 2", "page 3", "page 4", "page 5",
+        "second page", "third page", "fourth page", "load more", "show more",
+        "get more", "fetch more", "older", "previous page", "paginate",
+        "offset", "continue", "next "
+    )
+    return any(kw in lower for kw in keywords)
+
+
+def apply_tool_defaults(
+    tool_name: str,
+    arguments: dict[str, Any] | None,
+    user_prompt: str | None = None,
+) -> dict[str, Any]:
     """Return a new dict with tight defaults applied based on tool intent."""
     args = dict(arguments or {})
     name = (tool_name or "").lower()
+
+    # Block model-initiated offset/page pagination unless the user explicitly requested more
+    if not is_pagination_requested(user_prompt):
+        if "offset" in args:
+            try:
+                if int(args["offset"]) > 0:
+                    args["offset"] = 0
+            except (ValueError, TypeError):
+                args.pop("offset", None)
+        if "skip" in args:
+            try:
+                if int(args["skip"]) > 0:
+                    args["skip"] = 0
+            except (ValueError, TypeError):
+                args.pop("skip", None)
+        if "start_index" in args:
+            try:
+                if int(args["start_index"]) > 0:
+                    args["start_index"] = 0
+            except (ValueError, TypeError):
+                args.pop("start_index", None)
+        if "startIndex" in args:
+            try:
+                if int(args["startIndex"]) > 0:
+                    args["startIndex"] = 0
+            except (ValueError, TypeError):
+                args.pop("startIndex", None)
+        if "page" in args:
+            try:
+                if int(args["page"]) > 1:
+                    args["page"] = 1
+            except (ValueError, TypeError):
+                args.pop("page", None)
+        if "page_number" in args:
+            try:
+                if int(args["page_number"]) > 1:
+                    args["page_number"] = 1
+            except (ValueError, TypeError):
+                args.pop("page_number", None)
+        if "pageNumber" in args:
+            try:
+                if int(args["pageNumber"]) > 1:
+                    args["pageNumber"] = 1
+            except (ValueError, TypeError):
+                args.pop("pageNumber", None)
+        for token_key in ("page_token", "pageToken", "next_page_token", "nextPageToken", "cursor", "after"):
+            if token_key in args:
+                args.pop(token_key, None)
 
     max_results = agent_config.default_max_results
 

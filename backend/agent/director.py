@@ -1607,7 +1607,7 @@ class Director:
             # is what refuses a mutating tool named anyway.
             read_only=planning,
             turn_id=state.id,
-            extra={"state": state},
+            extra={"state": state, "user_message": user_message},
         )
         # The one piece of turn state deliberately left off `state`:
         # `time.monotonic()` counts from an arbitrary point in *this* process, so
@@ -2710,7 +2710,7 @@ class Director:
             calls = list(response.tool_calls)
             for c in calls:
                 if isinstance(c.arguments, dict):
-                    c.arguments = apply_tool_defaults(c.name, c.arguments)
+                    c.arguments = apply_tool_defaults(c.name, c.arguments, user_prompt=user_message)
             # Separate step notifications (instant) from real dispatches
             step_calls = [c for c in calls if c.name == STEP_TOOL_NAME]
             dispatch_calls = [c for c in calls if c.name != STEP_TOOL_NAME]
@@ -4011,7 +4011,8 @@ class Director:
             if val_err:
                 return ToolResult.error(val_err)
         if isinstance(call.arguments, dict):
-            call.arguments = apply_tool_defaults(call.name, call.arguments)
+            user_msg = context.extra.get("user_message") if hasattr(context, "extra") and isinstance(context.extra, dict) else None
+            call.arguments = apply_tool_defaults(call.name, call.arguments, user_prompt=user_msg)
         tool = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
         tool_timeout = getattr(tool, "timeout", None) if tool else None
         timeout = tool_timeout if tool_timeout is not None and tool_timeout > 0 else agent_config.tool_timeout_seconds
