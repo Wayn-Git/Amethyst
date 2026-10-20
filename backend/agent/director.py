@@ -2763,7 +2763,10 @@ class Director:
                         ):
                             yield event
 
+                        from backend.agent.read_cache import read_cache
+
                         cache_key = execution_cache_key(call.name, call.arguments)
+                        read_cached = read_cache.get(call.name, call.arguments)
                         if cache_key in state.execution_cache:
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
@@ -2774,6 +2777,18 @@ class Director:
                                 artifacts=cached_data.get("artifacts", []),
                                 is_error=cached_data.get("is_error", False),
                                 recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif read_cached is not None:
+                            cached_res = ToolResult(
+                                content=read_cached.content,
+                                artifacts=read_cached.artifacts,
+                                is_error=read_cached.is_error,
+                                recoverable=read_cached.recoverable,
                             )
 
                             async def _cached_future(res=cached_res):
@@ -2898,7 +2913,10 @@ class Director:
                             already_open=live_artifacts.opened(call),
                         ):
                             yield event
+                        from backend.agent.read_cache import read_cache
+
                         cache_key = execution_cache_key(call.name, call.arguments)
+                        read_cached = read_cache.get(call.name, call.arguments)
                         if cache_key in state.execution_cache:
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
@@ -2909,6 +2927,18 @@ class Director:
                                 artifacts=cached_data.get("artifacts", []),
                                 is_error=cached_data.get("is_error", False),
                                 recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif read_cached is not None:
+                            cached_res = ToolResult(
+                                content=read_cached.content,
+                                artifacts=read_cached.artifacts,
+                                is_error=read_cached.is_error,
+                                recoverable=read_cached.recoverable,
                             )
 
                             async def _cached_future(res=cached_res):
@@ -3013,6 +3043,8 @@ class Director:
                             if m:
                                 state.sandboxed_ui_envelope = f"```{FENCE}\n{m.group(1).strip()}\n```"
 
+                    from backend.agent.read_cache import read_cache
+
                     if result and not result.is_error:
                         cache_key = execution_cache_key(call.name, call.arguments)
                         if cache_key not in state.execution_cache:
@@ -3022,6 +3054,15 @@ class Director:
                                 "is_error": result.is_error,
                                 "recoverable": result.recoverable,
                             }
+                        read_cache.set(
+                            call.name,
+                            call.arguments,
+                            result.content,
+                            artifacts=getattr(result, "artifacts", []),
+                            is_error=result.is_error,
+                            recoverable=result.recoverable,
+                        )
+                    read_cache.invalidate_for_tool(call.name)
 
                 answered = self._persist(
                     conversation_id,

@@ -48,7 +48,10 @@ def amethyst_home(tmp_path, monkeypatch):
     keyring = _MemoryKeyring()
     monkeypatch.setattr(secrets, "_keyring", lambda: keyring)
     connection.reset_connection()
+    from backend.agent.read_cache import read_cache
+    read_cache.clear()
     yield home
+    read_cache.clear()
     secrets._forget_presence()
     forget_key_presence()
     connection.reset_connection()
