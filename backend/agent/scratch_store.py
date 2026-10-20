@@ -115,7 +115,7 @@ class ScratchStore:
         else:
             preview_text = content[:cut_point].strip()
 
-        notice = f"\n\n[Showing preview of {len(preview_text)} chars ({total_chars} chars total). Full payload stored under handle '{handle}'.]"
+        notice = f"\n\n[Showing preview of {len(preview_text)} chars ({total_chars} chars total, truncated). Full payload stored under handle '{handle}'.]"
         return preview_text + notice, handle
 
 

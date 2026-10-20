@@ -93,10 +93,10 @@ from backend.runtime.failures import (
     should_retry,
 )
 from backend.runtime.http import ProviderError, ProviderHTTPError, ProviderStreamError
-from backend.runtime.registry import resolve
+from backend.runtime.registry import ProviderNotConfigured, resolve
 from backend.runtime.router import AUTO, RouteRequest, route
 from backend.runtime.types import ModelParameters, ModelResponse, ToolCall, ToolSchema
-from backend.tools.base import ToolContext, ToolResult
+from backend.tools.base import RiskLevel, ToolContext, ToolResult, compute_idempotency_key
 from backend.tools.registry import ToolRegistry
 from backend.capabilities import CapabilityService, Kind
 from backend.conversations import summaries as convo_summaries
@@ -1527,6 +1527,8 @@ class Director:
                 except Exception:
                     log.debug("failed to persist fallback model to conversation", exc_info=True)
                 break
+            except ProviderNotConfigured:
+                raise
             except Exception as exc:
                 last_error = exc
                 failed = chain[state.active]
@@ -1590,6 +1592,8 @@ class Director:
             # Plan mode's enforcement half. The schemas are withheld below; this
             # is what refuses a mutating tool named anyway.
             read_only=planning,
+            turn_id=state.id,
+            extra={"state": state},
         )
         # The one piece of turn state deliberately left off `state`:
         # `time.monotonic()` counts from an arbitrary point in *this* process, so
@@ -1982,10 +1986,13 @@ class Director:
                 else:
                     task_step = iteration - state.continuations
                     steps_remaining = max(0, effective_budget - task_step - 1)
-                    wire.append({
-                        "role": "system",
-                        "content": f"steps remaining: {steps_remaining}",
-                    })
+                    if wire and wire[0]["role"] == "system":
+                        wire[0]["content"] = f"{wire[0]['content']}\n\n[steps remaining: {steps_remaining}]"
+                    else:
+                        wire.append({
+                            "role": "system",
+                            "content": f"steps remaining: {steps_remaining}",
+                        })
                 if state.failed_calls:
                     # Every round trip, not only the final step: the model
                     # decides whether to retry, work around it or report it at
@@ -2787,7 +2794,24 @@ class Director:
                         cache_key = execution_cache_key(call.name, call.arguments)
                         read_cached = read_cache.get(call.name, call.arguments)
                         val_err = getattr(call, "_validation_error", None)
-                        if not val_err and cache_key in state.execution_cache:
+
+                        tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+                        is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
+                        idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
+                        if not val_err and is_write and idem_key in state.idempotency_cache:
+                            cached_data = state.idempotency_cache[idem_key]
+                            cached_res = ToolResult(
+                                content=cached_data.get("content", ""),
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif not val_err and cache_key in state.execution_cache:
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
                             note = "[already fetched this turn: using cached result]\n"
@@ -2947,7 +2971,24 @@ class Director:
                         cache_key = execution_cache_key(call.name, call.arguments)
                         read_cached = read_cache.get(call.name, call.arguments)
                         val_err = getattr(call, "_validation_error", None)
-                        if not val_err and cache_key in state.execution_cache:
+
+                        tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+                        is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
+                        idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
+                        if not val_err and is_write and idem_key in state.idempotency_cache:
+                            cached_data = state.idempotency_cache[idem_key]
+                            cached_res = ToolResult(
+                                content=cached_data.get("content", ""),
+                                artifacts=cached_data.get("artifacts", []),
+                                is_error=cached_data.get("is_error", False),
+                                recoverable=cached_data.get("recoverable", True),
+                            )
+
+                            async def _cached_future(res=cached_res):
+                                return res
+
+                            task = self._spawn(_cached_future())
+                        elif not val_err and cache_key in state.execution_cache:
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")
                             note = "[already fetched this turn: using cached result]\n"
@@ -3074,6 +3115,17 @@ class Director:
                                 state.sandboxed_ui_envelope = f"```{FENCE}\n{m.group(1).strip()}\n```"
 
                     from backend.agent.read_cache import read_cache
+
+                    tool_obj = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
+                    is_write = not (tool_obj and tool_obj.risk is RiskLevel.LOW)
+                    idem_key = compute_idempotency_key(state.id, call.id, call.arguments if isinstance(call.arguments, dict) else {})
+                    if is_write and result and not result.is_error:
+                        state.idempotency_cache[idem_key] = {
+                            "content": result.content,
+                            "artifacts": getattr(result, "artifacts", []),
+                            "is_error": result.is_error,
+                            "recoverable": result.recoverable,
+                        }
 
                     if result and not result.is_error:
                         cache_key = execution_cache_key(call.name, call.arguments)
@@ -3898,6 +3950,21 @@ class Director:
         tool_timeout = getattr(tool, "timeout", None) if tool else None
         timeout = tool_timeout if tool_timeout is not None and tool_timeout > 0 else agent_config.tool_timeout_seconds
 
+        idem_key = getattr(context, "idempotency_key", None) or compute_idempotency_key(
+            context.turn_id, call.id, call.arguments if isinstance(call.arguments, dict) else {}
+        )
+        call_context = context.clone_for_call(call.id, idempotency_key=idem_key)
+        is_write = not (tool and tool.risk is RiskLevel.LOW)
+        state_ref = context.extra.get("state") if hasattr(context, "extra") and isinstance(context.extra, dict) else None
+        if is_write and state_ref and idem_key in state_ref.idempotency_cache:
+            cached_data = state_ref.idempotency_cache[idem_key]
+            return ToolResult(
+                content=cached_data.get("content", ""),
+                artifacts=cached_data.get("artifacts", []),
+                is_error=cached_data.get("is_error", False),
+                recoverable=cached_data.get("recoverable", True),
+            )
+
         async def _run_dispatch() -> ToolResult:
             nonlocal _is_bridge
             # --- Bridge tool dispatch (progressive tool disclosure) ---
@@ -3952,7 +4019,7 @@ class Director:
                     elif isinstance(calls, dict):
                         calls = [calls]
                     results = await dispatch_tool_call(
-                        calls, catalog, self.registry, context
+                        calls, catalog, self.registry, call_context
                     )
                     return ToolResult.ok(json.dumps(results, indent=2))
                 except Exception as exc:
@@ -3960,7 +4027,15 @@ class Director:
 
             # --- Normal dispatch ---
             try:
-                return await self.registry.dispatch(call.name, call.arguments, context)
+                res = await self.registry.dispatch(call.name, call.arguments, call_context)
+                if is_write and state_ref and not res.is_error:
+                    state_ref.idempotency_cache[idem_key] = {
+                        "content": res.content,
+                        "artifacts": getattr(res, "artifacts", []),
+                        "is_error": res.is_error,
+                        "recoverable": res.recoverable,
+                    }
+                return res
             except asyncio.CancelledError:
                 raise
             except BaseException as exc:

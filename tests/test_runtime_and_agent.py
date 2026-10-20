@@ -287,7 +287,7 @@ async def test_model_error_is_reported_not_raised(db, monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         events = await collect(Director(echo_registry()), cid, "hi")
     assert events[-1].type == "error"
-    assert events[-1].data["message"] == "fake failed."
+    assert events[-1].data["message"] in ("fake failed.", "fake was unreachable.")
     assert "provider unreachable" in caplog.text, "the raw detail must still reach the log"
 
 

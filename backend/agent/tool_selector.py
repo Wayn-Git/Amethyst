@@ -67,6 +67,8 @@ CORE = (
     # Discovery and execution fallback tools (always present)
     "COMPOSIO_SEARCH_TOOLS",
     "COMPOSIO_MULTI_EXECUTE_TOOL",
+    "COMPOSIO_GET_TOOL_SCHEMAS",
+    "COMPOSIO_MANAGE_CONNECTIONS",
     "tool_search",
     "read_scratch_payload",
 )
@@ -465,8 +467,6 @@ def select_tools(
         kept = [s for s in schemas if _match_tool_name(s)]
 
         if not kept:
-            if lane == "chat":
-                return [], len(schemas)
             return schemas, 0
 
         # Cap to target ~10-15 tools if the selected set grew too large

@@ -150,6 +150,8 @@ class AgentState:
     call_fingerprints: dict[str, int] = field(default_factory=dict)
     #: In-turn tool call deduplication cache keyed by normalized (tool_name, sorted_json_args)
     execution_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Idempotency cache for mutating operations keyed by idempotency_key (turn_id:call_id:args_hash)
+    idempotency_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     warned_about_tools: bool = False
     warned_about_cap: bool = False
     #: Logged once per turn when tool selection narrowed what the model was shown.
@@ -270,7 +272,10 @@ class AgentState:
     # ---- serialization
 
     def to_json(self) -> dict[str, Any]:
-        return {"version": STATE_VERSION, **asdict(self)}
+        data = asdict(self)
+        data.pop("execution_cache", None)
+        data.pop("idempotency_cache", None)
+        return {"version": STATE_VERSION, **data}
 
     @classmethod
     def from_json(cls, payload: dict[str, Any]) -> AgentState:

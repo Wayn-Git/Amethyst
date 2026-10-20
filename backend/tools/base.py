@@ -9,9 +9,27 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import hashlib
+import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+
+def compute_idempotency_key(
+    turn_id: str | None,
+    call_id: str | None,
+    arguments: dict[str, Any] | None,
+) -> str:
+    """Generate a deterministic idempotency key: turn_id + call_id + hash(args)."""
+    t_id = str(turn_id or "")
+    c_id = str(call_id or "")
+    try:
+        args_str = json.dumps(arguments or {}, sort_keys=True, default=str)
+    except Exception:
+        args_str = str(sorted((arguments or {}).items()))
+    args_hash = hashlib.sha256(args_str.encode("utf-8")).hexdigest()[:16]
+    return f"{t_id}:{c_id}:{args_hash}"
 
 
 class RiskLevel(enum.StrEnum):
@@ -71,6 +89,25 @@ class ToolContext:
     # suspends the turn and cannot wait for the tool result to be reported.
     # Items are (event_type, data) pairs; the agent loop drains them.
     events: asyncio.Queue | None = None
+    turn_id: str | None = None
+    call_id: str | None = None
+    idempotency_key: str | None = None
+
+    def clone_for_call(self, call_id: str, idempotency_key: str | None = None) -> ToolContext:
+        """Create a dedicated ToolContext for a specific tool call with deterministic idempotency key."""
+        new_extra = dict(self.extra)
+        if idempotency_key:
+            new_extra["idempotency_key"] = idempotency_key
+        return ToolContext(
+            conversation_id=self.conversation_id,
+            workspace_root=self.workspace_root,
+            extra=new_extra,
+            read_only=self.read_only,
+            events=self.events,
+            turn_id=self.turn_id,
+            call_id=call_id,
+            idempotency_key=idempotency_key or self.idempotency_key,
+        )
 
 
 ToolHandler = Callable[[dict[str, Any], ToolContext], Awaitable[ToolResult]]

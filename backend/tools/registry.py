@@ -890,10 +890,14 @@ def extract_composio_toolkit(tool_or_name: Tool | str) -> str | None:
     if isinstance(tool_or_name, str):
         name = tool_or_name
         server_name = None
+        source = None
     else:
         name = tool_or_name.name
         server_name = tool_or_name.server_name
+        source = getattr(tool_or_name, "source", None)
     if server_name is not None and server_name != "composio":
+        return None
+    if not isinstance(tool_or_name, str) and server_name is None and source == ToolSource.BUILTIN:
         return None
     bare = name.split(MCP_DELIMITER)[0]
     if server_name == "composio" or name.endswith(f"{MCP_DELIMITER}composio"):
