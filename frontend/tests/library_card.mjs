@@ -127,6 +127,42 @@ test('renders summary directly without ugly dot-concatenation', () => {
   assert.ok(html.includes('First takeaway point.'))
 })
 
+test('deduplicates content when excerpt or summary matches title exactly', () => {
+  const item = {
+    id: 6,
+    title: 'Test Hook Item',
+    excerpt: 'Test Hook Item',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('Test Hook Item'))
+  // The summary element should NOT exist with identical duplicate text
+  assert.ok(!html.includes('lib-card-summary'), 'Duplicate title in excerpt should be suppressed from summary')
+})
+
+test('renders carousel slide controls and dots for multi-slide posts', () => {
+  const item = {
+    id: 7,
+    title: 'Multi-slide Post',
+    kind: 'post',
+    app: 'instagram',
+    thumbnail_path: '/thumb.jpg',
+    resources: [
+      { type: 'slide', index: 0, url: 'https://example.com/slide1.jpg' },
+      { type: 'slide', index: 1, url: 'https://example.com/slide2.jpg' },
+      { type: 'slide', index: 2, url: 'https://example.com/slide3.jpg' },
+    ],
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('lib-card-carousel-pill'), 'Expected carousel counter pill')
+  assert.ok(html.includes('1/3'), 'Expected slide 1/3 indicator')
+  assert.ok(html.includes('lib-card-slide-nav--next'), 'Expected next slide navigation button')
+  assert.ok(html.includes('lib-card-slide-dots'), 'Expected slide dots container')
+})
+
 if (failures.length > 0) {
   console.error(`\n${failures.length} failed:`)
   for (const f of failures) {

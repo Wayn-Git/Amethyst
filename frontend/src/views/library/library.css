@@ -1639,35 +1639,173 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.95);
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-cards, 6px);
-  background: rgba(10, 14, 23, 0.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(10, 14, 23, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.95;
-  transition: all 140ms var(--lib-ease-out);
-  z-index: 2;
+  opacity: 0.92;
+  transition: all 160ms var(--lib-ease-out);
+  z-index: 3;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   cursor: pointer;
+  padding: 0;
 }
 
 .lib-card:hover .lib-card-play-btn {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1.08);
-  background: #ffffff;
-  color: #0b0f19;
-  border-color: #ffffff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.3);
+  background: rgba(113, 50, 245, 0.88);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 24px rgba(113, 50, 245, 0.45);
+}
+
+.lib-card-play-btn:hover {
+  transform: translate(-50%, -50%) scale(1.14) !important;
 }
 
 .lib-card-play-btn:active {
-  transform: translate(-50%, -50%) scale(0.94);
+  transform: translate(-50%, -50%) scale(0.94) !important;
+}
+
+/* Slide Navigation Arrows on Hover */
+.lib-card-slide-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(10, 14, 23, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms var(--lib-ease-out), transform 140ms var(--lib-ease-out), background-color 140ms ease;
+  z-index: 4;
+  padding: 0;
+}
+
+.lib-card:hover .lib-card-slide-nav,
+.lib-card:focus-within .lib-card-slide-nav {
+  opacity: 0.92;
+}
+
+.lib-card-slide-nav:hover {
+  opacity: 1 !important;
+  background: rgba(10, 14, 23, 0.9);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.lib-card-slide-nav:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.lib-card-slide-nav--prev {
+  left: 8px;
+}
+
+.lib-card-slide-nav--next {
+  right: 8px;
+}
+
+/* Slide Indicator Dots */
+.lib-card-slide-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 3px 6px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.lib-card-slide-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.4);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: width 160ms var(--lib-ease-out), background-color 160ms ease;
+}
+
+.lib-card-slide-dot--active {
+  width: 13px;
+  background: #ffffff;
+}
+
+/* Active Inline Video Player */
+.lib-card-video-active-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lib-card-native-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000000;
+  border: none;
+}
+
+.lib-card-video-close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(10, 14, 23, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
+  transition: all 120ms var(--lib-ease-out);
+}
+
+.lib-card-video-close-btn:hover {
+  background: rgba(239, 68, 68, 0.85);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.08);
+}
+
+.lib-card-video-close-btn:active {
+  transform: scale(0.92);
 }
 
 /* Media Overlay Badges */
@@ -1694,27 +1832,27 @@
 
 /* Card Inner Content - Refined, Proportional & Modern */
 .lib-card-body {
-  padding: 12px 14px 12px 14px;
+  padding: 10px 12px 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
   min-width: 0;
   justify-content: space-between;
 }
 
 .lib-card-body--textonly {
-  padding: 14px 14px 12px 14px;
-  gap: 8px;
+  padding: 12px 12px 10px 12px;
+  gap: 6px;
 }
 
 .lib-card-kind-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
   background: var(--surface-2);
   color: var(--text-muted);
   flex-shrink: 0;
@@ -1725,8 +1863,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 10.5px;
   flex-shrink: 0;
 }
 
@@ -1744,7 +1882,7 @@
 .lib-card-source-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   flex-shrink: 0;
   position: relative;
 }
@@ -1752,7 +1890,7 @@
 .lib-card-inline-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   opacity: 0;
   transform: translateX(4px);
   transition: opacity 140ms var(--lib-ease-out), transform 140ms var(--lib-ease-out);
@@ -1775,38 +1913,39 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius-sm, 4px);
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
-  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
-  transition: all 120ms ease;
+  transition: all 120ms var(--lib-ease-out);
   text-decoration: none;
 }
 
 .lib-card-action-btn:hover {
   background: var(--surface-3);
   color: var(--text);
-  border-color: var(--hairline-strong);
+  border-color: var(--hairline);
+  transform: scale(1.08);
 }
 
 .lib-card-action-btn:active {
-  transform: scale(0.93);
+  transform: scale(0.92);
 }
 
 .lib-card-action-btn--danger:hover {
   color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .lib-card-favicon {
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
   flex-shrink: 0;
 }
 
@@ -1855,16 +1994,16 @@
 
 /* Card Title - Crisp & Proportional */
 .lib-card-title {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.32;
   color: var(--text);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.012em;
 }
 
 .lib-card-title a {
@@ -1880,13 +2019,13 @@
 .lib-card-music-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: var(--radius-cards, 6px);
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm, 4px);
   background: rgba(29, 185, 84, 0.08);
   border: 1px solid rgba(29, 185, 84, 0.25);
   color: #1ed760;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1901,13 +2040,13 @@
 
 .lib-card-music-artist {
   opacity: 0.85;
-  font-size: 10px;
+  font-size: 9.5px;
 }
 
-/* Card Summary - Modern 12px Body Text */
+/* Card Summary - Modern 11.5px Body Text */
 .lib-card-summary {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--text-dim);
   margin: 0;
   display: -webkit-box;
@@ -1924,8 +2063,8 @@
 .lib-card--post .lib-card-summary,
 .lib-card-body--post .lib-card-summary,
 .lib-card-body--textonly .lib-card-summary {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--text-dim);
   -webkit-line-clamp: 3;
 }
@@ -2082,7 +2221,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   padding-top: 2px;
 }
 
@@ -2090,12 +2229,12 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 2px 6px;
-  border-radius: 5px;
+  padding: 1.5px 5px;
+  border-radius: var(--radius-sm, 4px);
   background: rgba(148, 151, 169, 0.08);
   border: 1px solid rgba(148, 151, 169, 0.16);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 500;
   color: var(--text-dim);
   cursor: pointer;
@@ -2117,7 +2256,7 @@
 .lib-tag-hash {
   color: var(--accent);
   opacity: 0.75;
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 600;
 }
 
@@ -2126,8 +2265,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding-top: 12px;
+  gap: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--hairline);
   margin-top: auto;
   flex-shrink: 0;
@@ -2136,9 +2275,9 @@
 .lib-card-footer-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-faint);
 }
 
@@ -2156,11 +2295,11 @@
 .lib-card-rating-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2.5px 7px;
+  gap: 3px;
+  padding: 2px 6px;
   border-radius: var(--radius-sm, 4px);
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.01em;
