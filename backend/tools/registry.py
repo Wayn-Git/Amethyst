@@ -155,15 +155,19 @@ NEVER_CACHE = frozenset({
 
 def truncate(
     text: str,
-    limit: int = MAX_RESULT_CHARS,
+    limit: int | None = None,
     tool_name: str = "",
     arguments: dict[str, Any] | None = None,
 ) -> str:
-    if len(text) <= limit:
+    if not text:
         return text
-    from backend.mcp.composio_sanitizer import cap_tool_result_content
-
-    return cap_tool_result_content(text, tool_name=tool_name, arguments=arguments, max_chars=limit)
+    from backend.agent.config import agent_config
+    eff_limit = limit if limit is not None else agent_config.max_payload_chars
+    from backend.agent.projection import project_tool_result_content
+    projected = project_tool_result_content(text, tool_name=tool_name, arguments=arguments)
+    from backend.agent.scratch_store import scratch_store
+    compacted, _ = scratch_store.compact_payload(projected, tool_name=tool_name, max_chars=eff_limit)
+    return compacted
 
 
 class ToolRegistry:
@@ -899,6 +903,8 @@ def build_default_registry(
     registry.register_all(workers.tools())
     registry.register_all(task.tools())
     registry.register_all(generative_ui.tools())
+    from backend.agent.scratch_store import scratch_tool
+    registry.register(scratch_tool())
     return registry
 
 

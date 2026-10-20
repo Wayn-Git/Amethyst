@@ -2993,6 +2993,11 @@ class Director:
                         result.content = project_tool_result_content(
                             result.content, tool_name=call.name, arguments=call.arguments
                         )
+                        from backend.agent.scratch_store import scratch_store
+                        compacted, handle = scratch_store.compact_payload(
+                            result.content, tool_name=call.name
+                        )
+                        result.content = compacted
                         from backend.mcp.composio_sanitizer import cap_tool_result_content
                         result.content = cap_tool_result_content(
                             result.content, tool_name=call.name, arguments=call.arguments

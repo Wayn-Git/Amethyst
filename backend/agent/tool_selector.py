@@ -68,6 +68,7 @@ CORE = (
     "COMPOSIO_SEARCH_TOOLS",
     "COMPOSIO_MULTI_EXECUTE_TOOL",
     "tool_search",
+    "read_scratch_payload",
 )
 
 #: Toolkit-level intent keywords for cheap (0ms, zero-LLM) routing
