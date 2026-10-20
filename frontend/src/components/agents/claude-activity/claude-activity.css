@@ -180,7 +180,6 @@
 .claude-activity-trigger:hover .claude-activity-chevron {
   color: var(--text);
 }
-}
 
 .claude-activity-chevron.is-open {
   transform: rotate(90deg);
