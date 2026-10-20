@@ -110,9 +110,8 @@ class ReelCapture:
         no reason to keep the file, a thirty-megabyte download would be fetched
         and deleted unread.
         """
-        wants_video = settings.keep_video or (
-            ffmpeg_missing() is None and self._can_transcribe()
-        )
+        # Always fetch video so it can be streamed natively in the library player
+        wants_video = True
         return await self._fetch(
             url,
             scratch / "reel" if wants_video else None,
@@ -379,8 +378,6 @@ class ReelCapture:
                         self.library.store.update(item_id, resources=_json.dumps(existing_res))
                 except Exception:
                     pass
-            elif not settings.keep_video and video and video.is_file():
-                video.unlink(missing_ok=True)
             if duration is not None:
                 self.library.store.update(item_id, duration_seconds=int(duration))
 

@@ -7459,9 +7459,14 @@ def library_media(item_id: int) -> FileResponse:
         except Exception:
             pass
 
-    # 2. General yt-dlp on-demand extractor (only for video/audio kinds)
+    # 2. General yt-dlp on-demand extractor (for video, audio, or social media links)
     url = row.get("url")
-    if url and row.get("kind") in ("video", "podcast", "music"):
+    url_lower = (url or "").lower()
+    is_social_or_video = (
+        row.get("kind") in ("video", "podcast", "music", "post", "other")
+        or any(dom in url_lower for dom in ("instagram.", "tiktok.", "youtube.", "youtu.be", "twitter.", "x.com", "reddit.", "v.redd.it", "vimeo."))
+    )
+    if url and is_social_or_video:
         try:
             import yt_dlp
             from backend.config import load_instagram
