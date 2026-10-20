@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
-import Badge from '../../components/ui/Badge.jsx'
 import AnimatedSelect from '../../components/ui/AnimatedSelect.jsx'
 import ServiceIcon from '../capabilities/plugins/ServiceIcon.jsx'
 import { api } from '../../api.js'
@@ -14,33 +13,33 @@ const SEARCH_ENGINES = [
     slug: 'langsearch',
     name: 'LangSearch',
     domain: 'langsearch.com',
-    roleTag: 'General Search',
     desc: 'Fast hybrid vector & keyword retrieval with direct full-text extraction.',
+    signup: 'https://langsearch.com',
   },
   {
     slug: 'exa',
     name: 'Exa',
     domain: 'exa.ai',
-    roleTag: 'Semantic & Neural',
     desc: 'Neural search specialized for deep research, topic discovery, and clean source context.',
+    signup: 'https://exa.ai',
   },
   {
     slug: 'firecrawl',
     name: 'Firecrawl',
     domain: 'firecrawl.dev',
-    roleTag: 'Web Scrape & Markdown',
     desc: 'Documentation and page crawler that extracts clean, structured markdown.',
+    signup: 'https://firecrawl.dev',
   },
   {
     slug: 'tavily',
     name: 'Tavily',
     domain: 'tavily.com',
-    roleTag: 'Fact Verification',
     desc: 'Research search engine optimized for fact-checking and real-time claim verification.',
+    signup: 'https://tavily.com',
   },
 ]
 
-/* Top Curated Cloud Apps for Showcase */
+/* Curated Cloud Apps for Showcase */
 const SHOWCASE_APPS = [
   { slug: 'gmail', name: 'Gmail', domain: 'mail.google.com' },
   { slug: 'googlecalendar', name: 'Google Calendar', domain: 'calendar.google.com' },
@@ -112,6 +111,8 @@ export default function Integrations() {
     setSavingSearch(name)
     try {
       await api.setSearchProvider(name, '')
+      setEditingProvider(null)
+      setDraftKey('')
       await loadSearch()
       toast(`${name.toUpperCase()} API key cleared`, 'ok')
     } catch (e) {
@@ -129,10 +130,10 @@ export default function Integrations() {
       const latency = Math.round(performance.now() - t0)
       setTestResult((prev) => ({
         ...prev,
-        [name]: { ok: true, latency: latency || 95 },
+        [name]: { ok: true, latency: latency || 88 },
       }))
-      toast(`${name.toUpperCase()} verified (${latency || 95}ms)`, 'ok')
-    } catch (e) {
+      toast(`${name.toUpperCase()} verified (${latency || 88}ms)`, 'ok')
+    } catch {
       setTestResult((prev) => ({
         ...prev,
         [name]: { ok: false },
@@ -221,7 +222,7 @@ export default function Integrations() {
       setComposioKeyDraft('')
       setShowManualKey(false)
       await loadComposio()
-      toast('Composio API key saved & tested successfully', 'ok')
+      toast('Composio linked successfully', 'ok')
     } catch (e) {
       toast(e.message || 'Failed to save Composio key', 'bad')
     } finally {
@@ -237,7 +238,7 @@ export default function Integrations() {
       await loadComposio()
       toast('Composio disconnected', 'ok')
     } catch (e) {
-      toast(e.message || 'Failed to remove Composio key', 'bad')
+      toast(e.message || 'Failed to disconnect Composio', 'bad')
     } finally {
       setSavingComposio(false)
     }
@@ -255,8 +256,8 @@ export default function Integrations() {
 
   const searchSelectOptions = useMemo(() => [
     { value: 'auto', label: 'Auto (Intelligent Cascade)', icon: 'cpu' },
-    { value: 'exa', label: 'Exa (Semantic & Neural)', icon: 'sparkle' },
-    { value: 'langsearch', label: 'LangSearch (Hybrid Full-Text)', icon: 'search' },
+    { value: 'exa', label: 'Exa (Neural Search)', icon: 'sparkle' },
+    { value: 'langsearch', label: 'LangSearch (Hybrid Vector)', icon: 'search' },
     { value: 'firecrawl', label: 'Firecrawl (Web Scrape)', icon: 'file-text' },
     { value: 'tavily', label: 'Tavily (Fact Verification)', icon: 'shield-check' },
   ], [])
@@ -275,7 +276,7 @@ export default function Integrations() {
             <div className="set-row-text">
               <span className="set-row-title">Spotlight Search Engine</span>
               <span className="set-row-desc">
-                Default engine used for real-time web context and spotlight queries. When rate-limited, Spotlight automatically cascades to configured fallbacks.
+                Primary engine for real-time web context. Amethyst automatically cascades to configured fallbacks if rate limits occur.
               </span>
             </div>
             <AnimatedSelect
@@ -287,7 +288,7 @@ export default function Integrations() {
             />
           </div>
 
-          {/* Engine Cards List */}
+          {/* Engine Rows List */}
           {SEARCH_ENGINES.map((engine) => {
             const configuredOpt = searchData.options.find((o) => o.name === engine.slug)
             const isConfigured = Boolean(configuredOpt?.configured)
@@ -297,21 +298,18 @@ export default function Integrations() {
             const cardObj = { slug: engine.slug, name: engine.name, domain: engine.domain }
 
             return (
-              <div key={engine.slug}>
+              <div key={engine.slug} className="int-provider-group">
                 <div className={`int-provider-row ${isPrimary ? 'is-primary' : ''}`}>
                   <div className="int-provider-main">
                     <ServiceIcon card={cardObj} size="default" />
                     <div className="int-provider-info">
                       <div className="int-provider-title-line">
                         <span className="int-provider-name">{engine.name}</span>
-                        <span className="int-provider-tag">{engine.roleTag}</span>
-                        {isPrimary ? (
-                          <Badge tone="ok">Primary</Badge>
-                        ) : isConfigured ? (
-                          <Badge tone="dim">Configured</Badge>
-                        ) : null}
-                        {test?.ok && (
-                          <Badge tone="ok">{test.latency}ms</Badge>
+                        {isPrimary && (
+                          <span className="int-status-pill is-active">
+                            <span className="int-status-dot is-live" />
+                            Active
+                          </span>
                         )}
                       </div>
                       <span className="int-provider-desc">{engine.desc}</span>
@@ -319,119 +317,124 @@ export default function Integrations() {
                   </div>
 
                   <div className="int-provider-actions">
-                    {isConfigured && !isEditing ? (
+                    {test?.ok && (
+                      <span className="int-latency-text">{test.latency}ms</span>
+                    )}
+
+                    {isConfigured ? (
                       <>
-                        <span className="int-key-pill">••••••••••••••••</span>
                         <button
                           type="button"
                           className="set-btn-sm"
                           disabled={testingSearch === engine.slug}
                           onClick={() => handleTestProvider(engine.slug)}
+                          title={`Test connectivity to ${engine.name}`}
                         >
                           {testingSearch === engine.slug ? 'Testing…' : 'Test'}
                         </button>
                         <button
                           type="button"
-                          className="set-btn-sm"
+                          className={`set-btn-sm ${isEditing ? 'is-active' : ''}`}
                           onClick={() => {
-                            setEditingProvider(engine.slug)
+                            setEditingProvider(isEditing ? null : engine.slug)
                             setDraftKey('')
                           }}
                         >
-                          Change
-                        </button>
-                        <button
-                          type="button"
-                          className="set-btn-sm"
-                          onClick={() => handleClearKey(engine.slug)}
-                        >
-                          Remove
+                          Configure
                         </button>
                       </>
-                    ) : !isEditing ? (
-                      <>
-                        {configuredOpt?.signup && (
-                          <a
-                            href={configuredOpt.signup}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="set-btn-sm"
-                            style={{ textDecoration: 'none' }}
-                          >
-                            <span>Get free key</span>
-                            <Icon name="arrow-up-right" size={11} />
-                          </a>
-                        )}
-                        <button
-                          type="button"
-                          className="set-btn-sm is-primary"
-                          onClick={() => {
-                            setEditingProvider(engine.slug)
-                            setDraftKey('')
-                          }}
-                        >
-                          <Icon name="plus" size={12} />
-                          <span>Connect</span>
-                        </button>
-                      </>
-                    ) : null}
+                    ) : (
+                      <button
+                        type="button"
+                        className="set-btn-sm is-primary"
+                        onClick={() => {
+                          setEditingProvider(isEditing ? null : engine.slug)
+                          setDraftKey('')
+                        }}
+                      >
+                        <Icon name="plus" size={12} />
+                        <span>Connect</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Inline Expandable Key Form */}
+                {/* Inline Drawer for Key Configuration */}
                 {isEditing && (
-                  <div className="int-edit-box">
-                    <div style={{ position: 'relative', flex: 1, maxWidth: 420 }}>
-                      <input
-                        type={showKey ? 'text' : 'password'}
-                        className="set-input"
-                        style={{ width: '100%', paddingRight: 32 }}
-                        placeholder={`Paste ${engine.name} API key…`}
-                        value={draftKey}
-                        onChange={(e) => setDraftKey(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveSearchKey(engine.slug)
-                          if (e.key === 'Escape') setEditingProvider(null)
-                        }}
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowKey((s) => !s)}
-                        style={{
-                          position: 'absolute',
-                          right: 8,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--text-dim)',
-                        }}
-                      >
-                        <Icon name={showKey ? 'eye-slash' : 'eye'} size={13} />
-                      </button>
+                  <div className="int-edit-drawer">
+                    <div className="int-drawer-helper">
+                      <span>{isConfigured ? 'Update your API key or remove it:' : `Enter your ${engine.name} API key:`}</span>
+                      {engine.signup && (
+                        <a
+                          href={engine.signup}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="int-link-external"
+                        >
+                          <span>Get key at {engine.domain}</span>
+                          <Icon name="arrow-up-right" size={10} />
+                        </a>
+                      )}
                     </div>
 
-                    <button
-                      type="button"
-                      className="set-btn-sm is-primary"
-                      disabled={savingSearch === engine.slug || !draftKey.trim()}
-                      onClick={() => handleSaveSearchKey(engine.slug)}
-                    >
-                      {savingSearch === engine.slug ? 'Saving…' : 'Save & Test'}
-                    </button>
+                    <div className="int-drawer-form">
+                      <div className="int-input-wrap">
+                        <input
+                          type={showKey ? 'text' : 'password'}
+                          className="set-input"
+                          style={{ width: '100%', paddingRight: 32 }}
+                          placeholder={`Paste ${engine.name} API key…`}
+                          value={draftKey}
+                          onChange={(e) => setDraftKey(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveSearchKey(engine.slug)
+                            if (e.key === 'Escape') setEditingProvider(null)
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="int-eye-btn"
+                          onClick={() => setShowKey((s) => !s)}
+                          title={showKey ? 'Hide key' : 'Show key'}
+                        >
+                          <Icon name={showKey ? 'eye-slash' : 'eye'} size={13} />
+                        </button>
+                      </div>
 
-                    <button
-                      type="button"
-                      className="set-btn-sm"
-                      onClick={() => {
-                        setEditingProvider(null)
-                        setDraftKey('')
-                      }}
-                    >
-                      Cancel
-                    </button>
+                      <div className="int-drawer-actions">
+                        <button
+                          type="button"
+                          className="set-btn-sm is-primary"
+                          disabled={savingSearch === engine.slug || !draftKey.trim()}
+                          onClick={() => handleSaveSearchKey(engine.slug)}
+                        >
+                          {savingSearch === engine.slug ? 'Saving…' : 'Save Key'}
+                        </button>
+
+                        {isConfigured && (
+                          <button
+                            type="button"
+                            className="set-btn-sm is-danger"
+                            disabled={savingSearch === engine.slug}
+                            onClick={() => handleClearKey(engine.slug)}
+                          >
+                            Remove
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className="set-btn-sm"
+                          onClick={() => {
+                            setEditingProvider(null)
+                            setDraftKey('')
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -441,37 +444,38 @@ export default function Integrations() {
       </div>
 
       {/* ====================================================================
-          2. CLOUD INTEGRATIONS (COMPOSIO PLATFORM HUB)
+          2. CLOUD INTEGRATIONS (COMPOSIO)
           ==================================================================== */}
       <div>
-        <div className="set-section-label">Cloud Integrations &amp; Connectors</div>
+        <div className="set-section-label">Cloud Integrations</div>
 
         <div className="set-box">
-          {/* Composio Header Row */}
-          <div className="set-box-row" style={{ alignItems: 'flex-start' }}>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flex: 1 }}>
+          {/* Main Composio Row */}
+          <div className="int-provider-row" style={{ alignItems: 'flex-start' }}>
+            <div className="int-provider-main" style={{ alignItems: 'flex-start' }}>
               <ServiceIcon card={{ slug: 'composio', name: 'Composio', domain: 'composio.dev' }} size="default" />
-              <div className="set-row-text">
-                <span className="set-row-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span>Composio Cloud Platform</span>
+              <div className="int-provider-info">
+                <div className="int-provider-title-line">
+                  <span className="int-provider-name">Composio</span>
                   {isComposioConnected ? (
-                    <Badge tone="ok">Connected</Badge>
+                    <span className="int-status-pill is-active">
+                      <span className="int-status-dot is-live" />
+                      Connected
+                    </span>
                   ) : (
-                    <Badge tone="dim">Not configured</Badge>
-                  )}
-                  {isComposioConnected && composioStatus?.key_mode && (
-                    <span className="int-provider-tag" style={{ textTransform: 'uppercase' }}>
-                      {composioStatus.key_mode === 'consumer' ? 'Consumer Key' : `${composioStatus.key_mode} key`}
+                    <span className="int-status-pill is-muted">
+                      <span className="int-status-dot" />
+                      Not connected
                     </span>
                   )}
-                </span>
-                <span className="set-row-desc">
+                </div>
+                <span className="int-provider-desc">
                   Connect 100+ cloud tools with local privacy. Authorize accounts to give your assistant read and write access across your workspace tools.
                 </span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="int-provider-actions" style={{ marginTop: 2 }}>
               {isComposioConnected ? (
                 <>
                   <button
@@ -479,18 +483,9 @@ export default function Integrations() {
                     className="set-btn-sm is-primary"
                     onClick={handleNavigateToConnectors}
                   >
-                    <span>Manage in Connectors ↗</span>
-                  </button>
-                  <a
-                    href="https://dashboard.composio.dev"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="set-btn-sm"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <span>Dashboard</span>
+                    <span>Open Connectors</span>
                     <Icon name="arrow-up-right" size={11} />
-                  </a>
+                  </button>
                   <button
                     type="button"
                     className="set-btn-sm"
@@ -502,94 +497,138 @@ export default function Integrations() {
                 </>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    className="set-btn-sm is-primary"
-                    disabled={savingComposio || loginPolling}
-                    onClick={handleStartBrowserLogin}
-                  >
-                    <Icon name="zap" size={12} />
-                    <span>{loginPolling ? `Waiting (${pollCountdown}s)…` : 'Sign In in Browser'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="set-btn-sm"
-                    onClick={() => setShowManualKey(!showManualKey)}
-                  >
-                    {showManualKey ? 'Hide Key' : 'API Key'}
-                  </button>
-                  {loginPolling && (
-                    <button type="button" className="set-btn-sm" onClick={handleCancelLogin}>
-                      Cancel
-                    </button>
+                  {loginPolling ? (
+                    <>
+                      <span className="int-status-pill">
+                        Waiting ({pollCountdown}s)
+                      </span>
+                      <button type="button" className="set-btn-sm" onClick={handleCancelLogin}>
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="set-btn-sm is-primary"
+                        disabled={savingComposio}
+                        onClick={handleStartBrowserLogin}
+                      >
+                        <Icon name="arrow-up-right" size={12} />
+                        <span>Sign In in Browser</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`set-btn-sm ${showManualKey ? 'is-active' : ''}`}
+                        onClick={() => setShowManualKey(!showManualKey)}
+                      >
+                        {showManualKey ? 'Hide Key' : 'API Key'}
+                      </button>
+                    </>
                   )}
                 </>
               )}
             </div>
           </div>
 
-          {/* Manual Key Input Row */}
+          {/* Manual API Key Drawer */}
           {!isComposioConnected && showManualKey && (
-            <div className="int-edit-box">
-              <input
-                type="password"
-                className="set-input"
-                style={{ flex: 1, maxWidth: 420 }}
-                placeholder="Paste Composio API Key…"
-                value={composioKeyDraft}
-                onChange={(e) => setComposioKeyDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveComposioKey()
-                }}
-                autoFocus
-              />
-              <button
-                type="button"
-                className="set-btn-sm is-primary"
-                disabled={savingComposio || !composioKeyDraft.trim()}
-                onClick={handleSaveComposioKey}
-              >
-                {savingComposio ? 'Testing…' : 'Save & Test'}
-              </button>
-              <button
-                type="button"
-                className="set-btn-sm"
-                onClick={() => setShowManualKey(false)}
-              >
-                Cancel
-              </button>
+            <div className="int-edit-drawer">
+              <div className="int-drawer-helper">
+                <span>Enter your Composio API key from dashboard.composio.dev:</span>
+              </div>
+              <div className="int-drawer-form">
+                <div className="int-input-wrap">
+                  <input
+                    type="password"
+                    className="set-input"
+                    placeholder="Paste Composio API key…"
+                    value={composioKeyDraft}
+                    onChange={(e) => setComposioKeyDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveComposioKey()
+                    }}
+                    autoFocus
+                  />
+                </div>
+                <div className="int-drawer-actions">
+                  <button
+                    type="button"
+                    className="set-btn-sm is-primary"
+                    disabled={savingComposio || !composioKeyDraft.trim()}
+                    onClick={handleSaveComposioKey}
+                  >
+                    {savingComposio ? 'Connecting…' : 'Save & Connect'}
+                  </button>
+                  <button
+                    type="button"
+                    className="set-btn-sm"
+                    onClick={() => setShowManualKey(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Connected Toolkits Showcase */}
+          {/* Connected Toolkits Ribbon */}
           {isComposioConnected && connectedToolkits.length > 0 ? (
-            <div className="int-apps-showcase">
-              {connectedToolkits.map((toolkit) => (
-                <div
-                  key={toolkit.slug}
-                  className="int-app-card-item"
+            <div className="int-connected-strip">
+              <div className="int-strip-header">
+                <span className="int-strip-title">Active Tools ({connectedToolkits.length})</span>
+                <button
+                  type="button"
+                  className="int-strip-link"
                   onClick={handleNavigateToConnectors}
-                  title={`Manage ${toolkit.name} in Connectors`}
-                  style={{ cursor: 'pointer' }}
                 >
-                  <ServiceIcon card={toolkit} size="small" />
-                  <span className="int-app-name">{toolkit.name}</span>
-                </div>
-              ))}
+                  Manage in Connectors ↗
+                </button>
+              </div>
+              <div className="int-tool-chips">
+                {connectedToolkits.map((toolkit) => (
+                  <button
+                    key={toolkit.slug}
+                    type="button"
+                    className="int-tool-chip"
+                    onClick={handleNavigateToConnectors}
+                    title={`Manage ${toolkit.name} in Connectors`}
+                  >
+                    <ServiceIcon card={toolkit} size="small" />
+                    <span className="int-tool-name">{toolkit.name}</span>
+                    <span className="int-status-dot is-live" />
+                  </button>
+                ))}
+              </div>
             </div>
-          ) : !isComposioConnected ? (
-            /* Supported Apps Showcase */
-            <div className="int-apps-showcase">
-              {SHOWCASE_APPS.map((app) => (
-                <div key={app.slug} className="int-app-card-item">
-                  <ServiceIcon card={app} size="small" />
-                  <span className="int-app-name">{app.name}</span>
-                </div>
-              ))}
+          ) : isComposioConnected ? (
+            <div className="int-empty-tools-card">
+              <span>Composio is connected. Link individual tools (Gmail, Slack, GitHub) to grant access.</span>
+              <button
+                type="button"
+                className="set-btn-sm is-primary"
+                onClick={handleNavigateToConnectors}
+              >
+                Browse Connectors ↗
+              </button>
             </div>
-          ) : null}
+          ) : (
+            /* Supported Tools Preview */
+            <div className="int-preview-strip">
+              <span className="int-preview-label">Supported Workspace Tools</span>
+              <div className="int-tool-chips is-preview">
+                {SHOWCASE_APPS.map((app) => (
+                  <div key={app.slug} className="int-tool-chip is-muted">
+                    <ServiceIcon card={app} size="small" />
+                    <span className="int-tool-name">{app.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
+
