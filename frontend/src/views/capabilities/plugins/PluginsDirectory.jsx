@@ -6,10 +6,12 @@ import {
   ChevronRight,
   Server,
   ArrowRight,
+  Monitor,
+  Terminal,
 } from 'lucide-react'
 import PluginCard from './PluginCard.jsx'
 import ServiceIcon from './ServiceIcon.jsx'
-import McpServersPanel from '../McpServersPanel.jsx'
+import { SYSTEM_TOOLS, SystemToolCard } from '../SystemConnectorsPanel.jsx'
 import {
   PluginGridSkeleton,
   PluginsDirectorySkeleton,
@@ -49,6 +51,7 @@ export default function PluginsDirectory({
   searchQuery = '',
   setSearchQuery,
   tabFilter = 'all',
+  onSwitchFilter,
   onOpenDetail,
   onOpenCategory,
   onOpenAuthModal,
@@ -132,21 +135,39 @@ export default function PluginsDirectory({
     return cards.filter((c) => c.category === 'Developer Tools').slice(0, 3)
   }, [cards])
 
-  // Instant global search results
+  // Instant search across system tools & cloud apps
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    if (!q) return []
+    if (!q) return { system: [], cloud: [] }
+
+    const systemMatches =
+      tabFilter === 'cloud'
+        ? []
+        : SYSTEM_TOOLS.filter(
+            (t) =>
+              t.name.toLowerCase().includes(q) ||
+              t.desc.toLowerCase().includes(q) ||
+              t.category.toLowerCase().includes(q) ||
+              t.capabilities.some((c) => c.toLowerCase().includes(q))
+          )
+
     const pool = tabFilter === 'installed' ? installedCards : cards
-    return pool.filter(
-      (c) =>
-        (c.label || c.name || '').toLowerCase().includes(q) ||
-        (c.blurb || c.description || '').toLowerCase().includes(q) ||
-        (c.slug || '').toLowerCase().includes(q) ||
-        (c.category || '').toLowerCase().includes(q)
-    )
+    const cloudMatches =
+      tabFilter === 'system'
+        ? []
+        : pool.filter(
+            (c) =>
+              (c.label || c.name || '').toLowerCase().includes(q) ||
+              (c.blurb || c.description || '').toLowerCase().includes(q) ||
+              (c.slug || '').toLowerCase().includes(q) ||
+              (c.category || '').toLowerCase().includes(q)
+          )
+
+    return { system: systemMatches, cloud: cloudMatches }
   }, [cards, installedCards, searchQuery, tabFilter])
 
   const hasSearch = searchQuery.trim().length > 0
+  const totalSearchCount = searchResults.system.length + searchResults.cloud.length
 
   return (
     <div className="plugin-directory-root">
@@ -157,15 +178,15 @@ export default function PluginsDirectory({
             {tabFilter === 'installed'
               ? 'Installed Connectors'
               : tabFilter === 'cloud'
-                ? 'Cloud Apps'
-                : 'Plugins'}
+                ? 'Cloud Apps (Composio)'
+                : 'Connectors Directory'}
           </h1>
           <p className="plugin-directory-main-subtitle">
             {tabFilter === 'installed'
               ? 'Active integrations currently connected to your Amethyst environment.'
               : tabFilter === 'cloud'
                 ? 'OAuth & API integrations authenticated through Composio.'
-                : 'Work with Amethyst across your favorite tools.'}
+                : 'Built-in system tools, desktop actuators, and 100+ cloud integrations.'}
           </p>
         </div>
 
@@ -174,7 +195,7 @@ export default function PluginsDirectory({
             <Search size={15} className="text-dim shrink-0" />
             <input
               type="text"
-              placeholder="Search plugins"
+              placeholder="Search tools and apps…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="plugin-directory-search-input"
@@ -208,34 +229,61 @@ export default function PluginsDirectory({
           <div className="plugin-section-header">
             <span className="plugin-section-title">
               {searchLoading
-                ? 'Searching plugins…'
-                : `Search Results (${searchResults.length})`}
+                ? 'Searching connectors…'
+                : `Search Results (${totalSearchCount})`}
             </span>
           </div>
 
           {searchLoading ? (
             <PluginGridSkeleton count={4} />
-          ) : searchResults.length === 0 ? (
+          ) : totalSearchCount === 0 ? (
             <div className="plugin-empty-search-state">
-              <p className="text-base font-medium text-ink">No plugins found</p>
+              <p className="text-base font-medium text-ink">No connectors found</p>
               <p className="text-xs text-dim mt-1">
-                No apps matched &ldquo;{searchQuery}&rdquo;. Try another term or add a custom integration.
+                No tools matched &ldquo;{searchQuery}&rdquo;. Try another term or add a custom integration.
               </p>
             </div>
           ) : (
-            <div className="plugin-two-col-grid">
-              {searchResults.map((card) => (
-                <PluginCard
-                  key={card.slug}
-                  card={card}
-                  status={statusMap[card.slug]}
-                  onOpenDetail={onOpenDetail}
-                  onConnect={onConnect}
-                  onDisconnect={onDisconnect}
-                  onChat={onChat}
-                  busy={busySlug === card.slug}
-                />
-              ))}
+            <div className="flex flex-col gap-6">
+              {searchResults.system.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-dim uppercase tracking-wider mb-3">
+                    Local &amp; System Tools ({searchResults.system.length})
+                  </h3>
+                  <div className="system-tools-grid">
+                    {searchResults.system.map((tool) => (
+                      <SystemToolCard
+                        key={tool.slug}
+                        tool={tool}
+                        onLaunchChat={(prompt) => onChat?.({ prompt })}
+                        onOpenNewMcp={() => setNewOpen(true)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {searchResults.cloud.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-dim uppercase tracking-wider mb-3">
+                    Cloud Apps ({searchResults.cloud.length})
+                  </h3>
+                  <div className="plugin-two-col-grid">
+                    {searchResults.cloud.map((card) => (
+                      <PluginCard
+                        key={card.slug}
+                        card={card}
+                        status={statusMap[card.slug]}
+                        onOpenDetail={onOpenDetail}
+                        onConnect={onConnect}
+                        onDisconnect={onDisconnect}
+                        onChat={onChat}
+                        busy={busySlug === card.slug}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -271,28 +319,6 @@ export default function PluginsDirectory({
               ))}
             </div>
           </section>
-
-          {/* ── Local & MCP Servers (Bottom Dedicated Section) ── */}
-          {tabFilter !== 'cloud' && (
-            <section className="plugin-directory-mcp-section">
-              <div className="plugin-section-header">
-                <div className="flex items-center gap-2">
-                  <Server size={17} className="text-accent" />
-                  <h2 className="plugin-section-title">Local & System Connectors</h2>
-                </div>
-                <span className="text-xs text-dim">
-                  Direct agent tools and custom stdio MCP servers
-                </span>
-              </div>
-
-              <McpServersPanel
-                embedded={true}
-                newOpen={newOpen}
-                setNewOpen={setNewOpen}
-                query=""
-              />
-            </section>
-          )}
         </>
       ) : tabFilter === 'installed' ? (
         installedCards.length === 0 ? (
@@ -331,7 +357,7 @@ export default function PluginsDirectory({
               <button
                 type="button"
                 className="plugin-installed-strip-header"
-                onClick={() => onOpenCategory('Installed')}
+                onClick={() => (onSwitchFilter ? onSwitchFilter('installed') : onOpenCategory('Installed'))}
                 title="View all installed plugins"
               >
                 <span>Installed</span>
@@ -354,10 +380,60 @@ export default function PluginsDirectory({
             </section>
           )}
 
-          {/* ── Popular Section (2-Column Grid + Category Bridge Link) ── */}
+          {/* ── Local & System Connectors (Prominent Featured Section) ── */}
+          {tabFilter !== 'cloud' && (
+            <section className="plugin-directory-section">
+              <div className="plugin-section-header">
+                <div>
+                  <h2 className="plugin-section-title">Local &amp; System Connectors</h2>
+                  <p className="plugin-section-desc">
+                    Native host capabilities, terminal actuators, and runtime tools running on your machine.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="plugin-section-more-btn"
+                  onClick={() => onSwitchFilter?.('system')}
+                >
+                  <span>Manage System Tools</span>
+                  <ArrowRight size={13} />
+                </button>
+              </div>
+
+              <div className="system-tools-grid">
+                {SYSTEM_TOOLS.map((tool) => (
+                  <SystemToolCard
+                    key={tool.slug}
+                    tool={tool}
+                    onLaunchChat={(prompt) => onChat?.({ prompt })}
+                    onOpenNewMcp={() => setNewOpen(true)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── Popular Cloud Apps (Composio) ── */}
           <section className="plugin-directory-section">
             <div className="plugin-section-header">
-              <h2 className="plugin-section-title">Popular</h2>
+              <div>
+                <h2 className="plugin-section-title">
+                  {tabFilter === 'cloud' ? 'Cloud Apps (Composio)' : 'Popular Cloud Apps (Composio)'}
+                </h2>
+                <p className="plugin-section-desc">
+                  Connect external workspace tools, issue trackers, and cloud services.
+                </p>
+              </div>
+              {tabFilter === 'all' && (
+                <button
+                  type="button"
+                  className="plugin-section-more-btn"
+                  onClick={() => onSwitchFilter?.('cloud')}
+                >
+                  <span>Browse All Cloud Apps</span>
+                  <ArrowRight size={13} />
+                </button>
+              )}
             </div>
 
             <div className="plugin-two-col-grid">
@@ -399,7 +475,7 @@ export default function PluginsDirectory({
           {/* ── New & Noteworthy Section (2-Column Grid + Category Bridge Link) ── */}
           <section className="plugin-directory-section">
             <div className="plugin-section-header">
-              <h2 className="plugin-section-title">New & Noteworthy</h2>
+              <h2 className="plugin-section-title">New &amp; Noteworthy</h2>
             </div>
 
             <div className="plugin-two-col-grid">
@@ -432,7 +508,7 @@ export default function PluginsDirectory({
                   ))}
                 </div>
                 <span className="plugin-bridge-text">
-                  See Developer Tools, Web & Data, and more
+                  See Developer Tools, Web &amp; Data, and more
                 </span>
               </button>
             </div>
@@ -466,28 +542,6 @@ export default function PluginsDirectory({
               ))}
             </div>
           </section>
-
-          {/* ── Local & MCP Servers (Bottom Dedicated Section) ── */}
-          {tabFilter !== 'cloud' && (
-            <section className="plugin-directory-mcp-section">
-              <div className="plugin-section-header">
-                <div className="flex items-center gap-2">
-                  <Server size={17} className="text-accent" />
-                  <h2 className="plugin-section-title">Local & System Connectors</h2>
-                </div>
-                <span className="text-xs text-dim">
-                  Direct agent tools and custom stdio MCP servers
-                </span>
-              </div>
-
-              <McpServersPanel
-                embedded={true}
-                newOpen={newOpen}
-                setNewOpen={setNewOpen}
-                query=""
-              />
-            </section>
-          )}
         </>
       )}
     </div>

@@ -5,27 +5,25 @@ import {
   FolderTree,
   Globe,
   Cpu,
-  CheckCircle2,
-  ExternalLink,
   MessageSquare,
-  ShieldCheck,
   Server,
+  Plus,
 } from 'lucide-react'
 import { useApp } from '../../store.jsx'
 import McpServersPanel from './McpServersPanel.jsx'
 import '../../styles/connectors.css'
 
-const SYSTEM_TOOLS = [
+export const SYSTEM_TOOLS = [
   {
     slug: 'cua-driver',
     name: 'Desktop Automation (CUA Driver)',
     category: 'Native OS',
-    desc: 'Direct GUI automation across macOS, Windows, and Linux via accessibility tree, mouse & keyboard simulation, and window frame management.',
+    desc: 'Direct GUI automation across macOS, Windows, and Linux via accessibility tree, mouse & keyboard actuator, and window frame tracking.',
     icon: Monitor,
     iconBg: 'rgba(113, 50, 245, 0.12)',
     iconColor: 'var(--accent, #7132f5)',
     status: 'Built-in · Active',
-    capabilities: ['Screen Control', 'Accessibility Tree', 'Window Management'],
+    capabilities: ['Screen Control', 'Accessibility Tree', 'Window Manager'],
     prompt: 'Check current desktop windows and show active applications using CUA driver.',
   },
   {
@@ -37,7 +35,7 @@ const SYSTEM_TOOLS = [
     iconBg: 'rgba(20, 158, 97, 0.12)',
     iconColor: 'var(--live, #149e61)',
     status: 'Built-in · Active',
-    capabilities: ['Subprocesses', 'Persistent Terminals', 'Background Jobs'],
+    capabilities: ['Subprocesses', 'PTY Terminals', 'Background Daemons'],
     prompt: 'Run git status and summarize the latest changes in the repository.',
   },
   {
@@ -61,7 +59,7 @@ const SYSTEM_TOOLS = [
     iconBg: 'rgba(245, 158, 11, 0.12)',
     iconColor: '#f59e0b',
     status: 'Built-in · Active',
-    capabilities: ['DOM Navigation', 'Markdown Extraction', 'Screenshotting'],
+    capabilities: ['DOM Navigation', 'Markdown Extraction', 'Screenshots'],
     prompt: 'Extract and summarize the main documentation from https://modelcontextprotocol.io',
   },
   {
@@ -76,11 +74,88 @@ const SYSTEM_TOOLS = [
     capabilities: ['Hermetic venv', 'Fast Package Runner', 'PEP 508'],
     prompt: 'Verify Python and uv environment and check installed packages.',
   },
+  {
+    slug: 'mcp-servers',
+    name: 'Custom MCP Servers',
+    category: 'Model Context Protocol',
+    desc: 'Extend Amethyst with custom stdio command tools or remote HTTP/SSE Model Context Protocol servers.',
+    icon: Server,
+    iconBg: 'rgba(99, 102, 241, 0.12)',
+    iconColor: '#6366f1',
+    status: 'Extensible · Ready',
+    capabilities: ['stdio Subprocesses', 'SSE Transports', 'JSON-RPC 2.0'],
+    prompt: 'List all registered MCP servers and report their active tools.',
+    isMcp: true,
+  },
 ]
 
-export default function SystemConnectorsPanel({ query = '', newOpen, setNewOpen }) {
+export function SystemToolCard({ tool, onLaunchChat, onOpenNewMcp }) {
+  const IconComponent = tool.icon
+
+  return (
+    <div key={tool.slug} className="system-tool-card">
+      <div className="system-card-head">
+        <div
+          className="system-card-icon"
+          style={{ background: tool.iconBg, color: tool.iconColor }}
+        >
+          <IconComponent size={20} />
+        </div>
+        <div className="system-card-meta">
+          <div className="system-card-title-row">
+            <span className="system-card-title">{tool.name}</span>
+            <span className="system-status-pill is-active">
+              <span className="system-status-dot is-live" />
+              <span>{tool.status}</span>
+            </span>
+          </div>
+          <span className="system-card-category">{tool.category}</span>
+        </div>
+      </div>
+
+      <p className="system-card-desc">{tool.desc}</p>
+
+      <div className="system-card-caps">
+        {tool.capabilities.map((cap) => (
+          <span key={cap} className="system-cap-tag">
+            {cap}
+          </span>
+        ))}
+      </div>
+
+      <div className="system-card-footer">
+        {tool.isMcp ? (
+          <button
+            type="button"
+            className="system-btn-action is-primary"
+            onClick={onOpenNewMcp}
+          >
+            <Plus size={13} />
+            <span>Add MCP Server</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="system-btn-action"
+            onClick={() => onLaunchChat?.(tool.prompt)}
+            title={`Test ${tool.name} in chat`}
+          >
+            <MessageSquare size={13} />
+            <span>Test in Chat</span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function SystemConnectorsPanel({
+  query = '',
+  newOpen,
+  setNewOpen,
+  embedded = false,
+}) {
   const { openChatWithPrompt } = useApp()
-  const [selectedTool, setSelectedTool] = useState(null)
 
   const effectiveQuery = query.trim().toLowerCase()
 
@@ -102,90 +177,55 @@ export default function SystemConnectorsPanel({ query = '', newOpen, setNewOpen 
     <div className="system-connectors-root">
       {/* ── Native System Capabilities Section ── */}
       <section className="system-connectors-section">
-        <div className="system-section-header">
-          <div>
-            <h2 className="system-section-title">Built-in System Tools</h2>
-            <p className="system-section-desc">
-              Core platform tools running natively on your local machine with zero external account requirements.
-            </p>
-          </div>
-          <span className="system-badge-count">
-            {filteredTools.length} {filteredTools.length === 1 ? 'tool' : 'tools'}
-          </span>
-        </div>
-
-        <div className="system-tools-grid">
-          {filteredTools.map((tool) => {
-            const IconComponent = tool.icon
-            return (
-              <div key={tool.slug} className="system-tool-card">
-                <div className="system-card-head">
-                  <div
-                    className="system-card-icon"
-                    style={{ background: tool.iconBg, color: tool.iconColor }}
-                  >
-                    <IconComponent size={20} />
-                  </div>
-                  <div className="system-card-meta">
-                    <div className="system-card-title-row">
-                      <span className="system-card-title">{tool.name}</span>
-                      <span className="system-status-pill is-active">
-                        <span className="system-status-dot is-live" />
-                        {tool.status}
-                      </span>
-                    </div>
-                    <span className="system-card-category">{tool.category}</span>
-                  </div>
-                </div>
-
-                <p className="system-card-desc">{tool.desc}</p>
-
-                <div className="system-card-caps">
-                  {tool.capabilities.map((cap) => (
-                    <span key={cap} className="system-cap-tag">
-                      {cap}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="system-card-footer">
-                  <button
-                    type="button"
-                    className="system-btn-action"
-                    onClick={() => handleLaunchChat(tool.prompt)}
-                    title={`Test ${tool.name} in chat`}
-                  >
-                    <MessageSquare size={13} />
-                    <span>Test in Chat</span>
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* ── Custom MCP Servers Section ── */}
-      <section className="system-mcp-section">
-        <div className="system-section-header">
-          <div className="flex items-center gap-2">
-            <Server size={18} className="text-accent" />
+        {!embedded && (
+          <div className="system-section-header">
             <div>
-              <h2 className="system-section-title">Custom MCP Servers</h2>
+              <h2 className="system-section-title">Local &amp; System Connectors</h2>
               <p className="system-section-desc">
-                Extend Amethyst with custom stdio command tools or remote HTTP/SSE Model Context Protocol servers.
+                Core host platform tools and runtimes executing directly on your local machine with zero external account requirements.
               </p>
             </div>
+            <span className="system-badge-count">
+              {filteredTools.length} {filteredTools.length === 1 ? 'tool' : 'tools'} active
+            </span>
           </div>
-        </div>
+        )}
 
-        <McpServersPanel
-          embedded={true}
-          newOpen={newOpen}
-          setNewOpen={setNewOpen}
-          query={query}
-        />
+        <div className="system-tools-grid">
+          {filteredTools.map((tool) => (
+            <SystemToolCard
+              key={tool.slug}
+              tool={tool}
+              onLaunchChat={handleLaunchChat}
+              onOpenNewMcp={() => setNewOpen(true)}
+            />
+          ))}
+        </div>
       </section>
+
+      {/* ── Custom MCP Servers Section (Only shown when not embedded) ── */}
+      {!embedded && (
+        <section className="system-mcp-section">
+          <div className="system-section-header">
+            <div className="flex items-center gap-2">
+              <Server size={18} className="text-accent" />
+              <div>
+                <h2 className="system-section-title">Custom MCP Servers</h2>
+                <p className="system-section-desc">
+                  Register custom stdio command tools or remote HTTP/SSE Model Context Protocol servers.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <McpServersPanel
+            embedded={true}
+            newOpen={newOpen}
+            setNewOpen={setNewOpen}
+            query={query}
+          />
+        </section>
+      )}
     </div>
   )
 }

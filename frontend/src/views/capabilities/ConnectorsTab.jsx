@@ -10,6 +10,8 @@ import {
   Trash2,
   RefreshCw,
   Server,
+  Monitor,
+  Plus,
 } from 'lucide-react'
 import { api } from '../../api.js'
 import { useApp } from '../../store.jsx'
@@ -495,98 +497,113 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   return (
     <div className="connectors-tab-orchestrator">
-      {/* ── Live Gateway Health Bar ── */}
+      {/* ── Unified Modern Connectors Toolbar ── */}
       {viewMode === 'directory' && (
-        <div className="connector-health-bar">
-          <div className="connector-health-left">
+        <div className="connectors-unified-toolbar">
+          <div className="connectors-filter-segment">
+            <button
+              type="button"
+              className={`connectors-segment-btn ${tabFilter === 'all' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('all')}
+            >
+              <span>All Connectors</span>
+            </button>
+            <button
+              type="button"
+              className={`connectors-segment-btn ${tabFilter === 'system' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('system')}
+            >
+              <Monitor size={13} />
+              <span>Local &amp; System</span>
+            </button>
+            <button
+              type="button"
+              className={`connectors-segment-btn ${tabFilter === 'cloud' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('cloud')}
+            >
+              <Globe size={13} />
+              <span>Cloud Apps</span>
+            </button>
+            <button
+              type="button"
+              className={`connectors-segment-btn ${tabFilter === 'installed' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('installed')}
+            >
+              <span>Installed</span>
+              {installedCardsCount > 0 && (
+                <span className="connectors-segment-badge">{installedCardsCount}</span>
+              )}
+            </button>
+          </div>
+
+          <div className="connectors-toolbar-right">
             {gatewayHealth.status === 'ok' ? (
-              <span className="system-status-pill is-active">
-                <span className="system-status-dot is-live" />
-                <span>Composio Gateway: Connected ({gatewayHealth.latency || 78}ms)</span>
-              </span>
+              <div className="connectors-gateway-chip is-live" title="Composio Gateway connected in real time">
+                <span className="connectors-chip-dot is-live" />
+                <span className="connectors-chip-label">Composio Online</span>
+                <span className="connectors-chip-ms">{gatewayHealth.latency || 78}ms</span>
+                <button
+                  type="button"
+                  className="connectors-chip-refresh"
+                  onClick={handleManualSync}
+                  disabled={syncing}
+                  title="Test real-time connection with Composio"
+                >
+                  <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
+                </button>
+              </div>
             ) : gatewayHealth.status === 'unauthorized' ? (
               <button
                 type="button"
-                className="system-status-pill is-warning"
+                className="connectors-gateway-chip is-warning"
                 onClick={() => {
                   setModalPrompt(gatewayHealth.error || 'Composio token expired. Please re-authenticate.')
                   setLoginTab('browser')
                   setKeyModalOpen(true)
                 }}
-                style={{ cursor: 'pointer' }}
-                title="Click to re-authenticate"
+                title="Composio token expired — Click to re-authenticate"
               >
-                <span className="system-status-dot is-warning" />
-                <span>Composio: Token Expired — Click to Re-authenticate ↗</span>
+                <span className="connectors-chip-dot is-warning" />
+                <span className="connectors-chip-label">Token Expired ↗</span>
               </button>
             ) : gatewayHealth.status === 'error' ? (
-              <span className="system-status-pill is-warning">
-                <span className="system-status-dot is-warning" />
-                <span>Composio: Offline / Retrying</span>
-              </span>
+              <div className="connectors-gateway-chip is-warning">
+                <span className="connectors-chip-dot is-warning" />
+                <span className="connectors-chip-label">Gateway Offline</span>
+                <button
+                  type="button"
+                  className="connectors-chip-refresh"
+                  onClick={handleManualSync}
+                  disabled={syncing}
+                  title="Retry Composio gateway"
+                >
+                  <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
-                className="system-status-pill"
+                className="connectors-gateway-chip"
                 onClick={() => {
                   setModalPrompt(null)
                   setLoginTab('browser')
                   setKeyModalOpen(true)
                 }}
-                style={{ cursor: 'pointer' }}
+                title="Link Composio Account"
               >
-                <span className="system-status-dot" />
-                <span>Composio: Not Linked — Connect ↗</span>
+                <span className="connectors-chip-dot" />
+                <span className="connectors-chip-label">Connect Composio ↗</span>
               </button>
             )}
-          </div>
 
-          <div className="connector-health-right">
             <button
               type="button"
-              className="connector-sync-btn"
-              onClick={handleManualSync}
-              disabled={syncing}
-              title="Test real-time connection with Composio"
+              className="connectors-add-mcp-btn"
+              onClick={() => setNewOpen(true)}
+              title="Add Custom MCP Server"
             >
-              <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-              <span>{syncing ? 'Syncing…' : 'Sync Status'}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Top Filter Strip ── */}
-      {viewMode === 'directory' && (
-        <div className="connector-filter-strip">
-          <div className="connector-filter-pills">
-            <button
-              type="button"
-              className={`connector-filter-pill ${tabFilter === 'all' ? 'is-active' : ''}`}
-              onClick={() => setTabFilter('all')}
-            >
-              All Tools
-            </button>
-            <button
-              type="button"
-              className={`connector-filter-pill ${tabFilter === 'cloud' ? 'is-active' : ''}`}
-              onClick={() => setTabFilter('cloud')}
-            >
-              Cloud Apps (Composio)
-            </button>
-            <button
-              type="button"
-              className={`connector-filter-pill ${tabFilter === 'system' ? 'is-active' : ''}`}
-              onClick={() => setTabFilter('system')}
-            >
-              System &amp; Local Tools
-            </button>
-            <button
-              type="button"
-              className={`connector-filter-pill ${tabFilter === 'installed' ? 'is-active' : ''}`}
-              onClick={() => setTabFilter('installed')}
-            >
-              Installed ({installedCardsCount})
+              <Plus size={13} />
+              <span>Add Custom MCP</span>
             </button>
           </div>
         </div>
@@ -870,6 +887,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               searchQuery={query}
               setSearchQuery={setQuery}
               tabFilter={tabFilter}
+              onSwitchFilter={setTabFilter}
               onOpenDetail={handleOpenDetail}
               onOpenCategory={handleOpenCategory}
               onOpenAuthModal={() => {
