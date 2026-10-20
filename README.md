@@ -47,11 +47,6 @@ See [docs/architecture/library.md](docs/architecture/library.md).
 
 Beyond the screenshots:
 
-- **Code mode** — a second working surface next to the chat. It embeds a real
-  [OpenCode](https://opencode.ai) session: its own process, proxied and
-  supervised by the backend, with Amethyst's providers synced into it and live
-  sessions listed in the sidebar. Toggle between *Work* and *Code* without
-  leaving the app. See `backend/opencode/`.
 - **Task-aware search** — a router that classifies the question first (factoid,
   comparison, freshness-sensitive, URL extraction, deep research) and dispatches
   to LangSearch, Exa, Firecrawl or Tavily through a circuit breaker with a live
@@ -236,7 +231,6 @@ backend/          FastAPI app, agent loop, tools, connectors, CLI
   instagram/      Webhook handling, reel capture, the relay poll
   browser/        Firefox-family bookmark capture (places.sqlite)
   mcp/            Connector config, catalogue, OAuth, Composio service
-  opencode/       Code mode: OpenCode process manager and reverse proxy
   sync/           Microsoft To Do, multi-device sync and intents
   scheduling/     Date resolution, conflicts, free-slot search
   skills/         Skill loader + the built-in SKILL.md files it seeds

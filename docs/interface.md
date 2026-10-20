@@ -288,25 +288,6 @@ approving those deliberately rather than exempting scheduled work from the gate.
 Both decisions, and what is deliberately absent, are argued in
 [architecture/automation.md](architecture/automation.md).
 
-## Code mode
-
-The sidebar carries a **Work / Code** control. Work is the chat; Code is a
-second working surface over a real [OpenCode](https://opencode.ai) session, and
-the two share nothing but the window — a turn running in Work is unaffected by
-opening Code.
-
-Code is not an emulation. `backend/opencode/manager.py` spawns `opencode web` as
-a supervised subprocess on first use and tears it down with the server;
-`backend/opencode/router.py` reverse-proxies `/api/opencode/*` to its port,
-passing `text/event-stream` responses through unbuffered so OpenCode's own
-streaming arrives live instead of in batches. The view itself
-(`frontend/src/views/Code.jsx`) embeds that server's UI in an iframe and lists
-sessions and projects beside it, with Amethyst's providers synced in through
-`POST /api/opencode/sync_amethyst` so the model picker agrees across both.
-
-It has no digit and no place in the `⌘1…9` row: it is a place you switch *into*,
-not one you jump to.
-
 ## File Converter
 
 `/converter`, in the rail under utilities, and deliberately local. Ten tools,
