@@ -49,7 +49,7 @@ from backend.agent.prompt import (
     tool_schema_tokens,
 )
 from backend.agent.state import AgentState, IllegalTransition
-from backend.agent.tool_selector import select_tools
+from backend.agent.tool_selector import _bare, _server_of, select_tools
 from backend.agent.tool_search import (
     ToolSearchConfig,
     assemble_tool_defs,
@@ -544,6 +544,46 @@ _ALWAYS_PARALLEL = frozenset({
 #: Name prefixes that indicate a read-only MCP tool safe for parallel dispatch.
 #: Checked when a tool is not in _ALWAYS_PARALLEL and not in _PATH_SCOPED.
 _PARALLEL_PREFIXES = ("search_", "read_", "list_", "get_", "fetch_")
+_READ_VERBS = ("search", "find", "read", "list", "get", "fetch", "query", "scan", "check")
+_WRITE_VERBS = (
+    "create", "update", "delete", "send", "reply", "add", "post",
+    "edit", "write", "patch", "remove", "insert", "drop", "apply", "execute", "run",
+)
+
+
+def _is_parallel_read_tool(name: str) -> bool:
+    """True if tool is read-only and safe to run in parallel with other reads."""
+    if name in _NEVER_PARALLEL:
+        return False
+    bare = _bare(name).lower()
+    if bare in _ALWAYS_PARALLEL or name in _ALWAYS_PARALLEL:
+        return True
+    if bare in _PATH_WRITERS or name in _PATH_WRITERS or bare in _NEVER_PARALLEL:
+        return False
+    tokens = [t for t in re.split(r"[_\-]", bare) if t]
+    if any(t in _WRITE_VERBS for t in tokens):
+        return False
+    if any(bare.startswith(p) for p in _PARALLEL_PREFIXES):
+        return True
+    if any(t in _READ_VERBS for t in tokens):
+        return True
+    return False
+
+
+def _is_composio_call(call: ToolCall, registry: ToolRegistry) -> bool:
+    """True if a call targets Composio (excluding meta discovery tools)."""
+    b = _bare(call.name)
+    if b in ("COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_MULTI_EXECUTE_TOOL"):
+        return False
+    tool = registry.get(call.name)
+    if tool and getattr(tool, "server_name", None) == "composio":
+        return True
+    if _server_of(call.name) == "composio":
+        return True
+    from backend.mcp.composio_service import ALL_FAST_LANE_SLUGS
+    if call.name in ALL_FAST_LANE_SLUGS or b in ALL_FAST_LANE_SLUGS:
+        return True
+    return False
 
 # Filesystem tools that mutate state — path overlap forces sequential.
 _PATH_WRITERS = frozenset({"edit_file", "write_file", "create_file"})
@@ -617,9 +657,7 @@ def _plan_tool_segments(
         is_writer = call.name in _PATH_WRITERS
 
         if not scoped and call.name not in _ALWAYS_PARALLEL and call.name not in _PATH_SCOPED:
-            # MCP tools with read-only prefixes are safe to parallelize.
-            # Unknown tools without a recognized prefix stay sequential.
-            if not any(call.name.startswith(p) for p in _PARALLEL_PREFIXES):
+            if not _is_parallel_read_tool(call.name):
                 _close_parallel()
                 if segments and segments[-1][0] == "sequential":
                     segments[-1][1].append(call)
@@ -2609,6 +2647,31 @@ class Director:
 
             for seg_type, seg_calls in segments:
                 if seg_type == "parallel":
+                    # Check if multiple calls in this segment target Composio
+                    mcp_mgr = getattr(self.registry, "mcp_manager", None)
+                    composio_calls: list[ToolCall] = []
+                    if mcp_mgr and hasattr(mcp_mgr, "execute_composio_batch"):
+                        composio_calls = [
+                            c for c in seg_calls
+                            if _is_composio_call(c, self.registry)
+                        ]
+
+                    batch_future: asyncio.Future | None = None
+                    if len(composio_calls) >= 2:
+                        batch_future = asyncio.get_running_loop().create_future()
+
+                        async def _run_batch(calls=composio_calls, fut=batch_future):
+                            try:
+                                res = await mcp_mgr.execute_composio_batch(calls)
+                                if not fut.done():
+                                    fut.set_result(res)
+                            except Exception as ex:
+                                if not fut.done():
+                                    fut.set_exception(ex)
+
+                        self._spawn(_run_batch())
+
+                    seg_tasks: list[asyncio.Task] = []
                     # Launch all calls in this segment concurrently
                     for call in seg_calls:
                         if self.guards.max_tool_calls > 0 and state.tool_calls_made >= self.guards.max_tool_calls:
@@ -2654,12 +2717,23 @@ class Director:
                             already_open=live_artifacts.opened(call),
                         ):
                             yield event
-                        task = self._spawn(self._execute(call, context))
+
+                        if batch_future is not None and call in composio_calls:
+                            c_idx = composio_calls.index(call)
+
+                            async def _await_batch_item(idx=c_idx, fut=batch_future):
+                                res_list = await fut
+                                return res_list[idx]
+
+                            task = self._spawn(_await_batch_item())
+                        else:
+                            task = self._spawn(self._execute(call, context))
+
                         dispatch_tasks.append((call, task))
+                        seg_tasks.append(task)
 
                     # Drain events from parallel tasks
-                    parallel_tasks = [t for _, t in dispatch_tasks if t is not None]
-                    pending = [t for t in parallel_tasks if not t.done()]
+                    pending = [t for t in seg_tasks if not t.done()]
                     if pending:
                         # One token per task, and only *that* token ends its
                         # wait. Counting "a sentinel arrived" instead is what

@@ -453,6 +453,7 @@ class MCPManager:
 
     def __init__(self, registry: ToolRegistry, *, open_browser: bool = True):
         self.registry = registry
+        self.registry.mcp_manager = self
         self.open_browser = open_browser
         self.connections: dict[str, MCPConnection] = {}
         self.errors: dict[str, str] = {}
@@ -1476,6 +1477,92 @@ class MCPManager:
             return norm
 
         return handler
+
+    async def execute_composio_batch(self, calls: list[Any]) -> list[ToolResult]:
+        """Execute a batch of Composio tool calls in a single COMPOSIO_MULTI_EXECUTE_TOOL request."""
+        server_name = "composio"
+        connection = self.connections.get(server_name)
+        if connection is None or not connection.connected:
+            err = ToolResult.error(guidance.not_connected_instruction(server_name))
+            return [err for _ in calls]
+
+        tools_payload = []
+        for c in calls:
+            c_name = getattr(c, "name", "")
+            slug = c_name.split("__mcp__")[0]
+            args = getattr(c, "arguments", {})
+            if not isinstance(args, dict):
+                args = {}
+            tools_payload.append({"tool_slug": slug, "arguments": args})
+
+        exec_args = {"tools": tools_payload}
+
+        try:
+            raw = await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", exec_args)
+        except OAuthRequired:
+            self.errors[server_name] = f"Authentication required for {server_name}"
+            await self.disconnect_server(server_name)
+            self._hold_off(server_name)
+            guidance.forget()
+            auth_err = ToolResult.error(guidance.sign_in_instruction(server_name))
+            return [auth_err for _ in calls]
+        except TimeoutError:
+            timeout_err = ToolResult.error("Composio batch execution timed out.")
+            return [timeout_err for _ in calls]
+        except Exception as exc:
+            if _is_auth_failure(exc):
+                log.warning("%s failed authentication during batch execution: %s", server_name, exc)
+                self.errors[server_name] = f"Authentication failed: {exc}"
+                await self.disconnect_server(server_name)
+                self._hold_off(server_name)
+                guidance.forget()
+                auth_err = ToolResult.error(guidance.sign_in_instruction(server_name))
+                return [auth_err for _ in calls]
+            batch_err = ToolResult.error(f"Composio batch execution failed: {exc}")
+            return [batch_err for _ in calls]
+
+        norm = normalize_result(raw)
+        if norm.is_error:
+            return [norm for _ in calls]
+
+        results_list: list[ToolResult] = []
+        try:
+            data = json.loads(norm.content) if isinstance(norm.content, str) else norm.content
+            if isinstance(data, dict):
+                results = data.get("data", {}).get("results") or data.get("results")
+                if isinstance(results, list):
+                    for idx, c in enumerate(calls):
+                        c_name = getattr(c, "name", "")
+                        slug = c_name.split("__mcp__")[0]
+                        if idx < len(results):
+                            res_item = results[idx]
+                            resp_obj = res_item.get("response", {}) if isinstance(res_item, dict) else {}
+                            if isinstance(resp_obj, dict):
+                                if not resp_obj.get("successful", True):
+                                    err_msg = (
+                                        resp_obj.get("error")
+                                        or resp_obj.get("data", {}).get("message")
+                                        or f"{slug} failed"
+                                    )
+                                    results_list.append(ToolResult.error(str(err_msg)))
+                                else:
+                                    inner_data = resp_obj.get("data")
+                                    results_list.append(
+                                        ToolResult.ok(
+                                            json.dumps(inner_data, indent=2)
+                                            if isinstance(inner_data, (dict, list))
+                                            else str(inner_data)
+                                        )
+                                    )
+                            else:
+                                results_list.append(ToolResult.ok(str(res_item)))
+        except Exception as exc:
+            log.debug("Composio batch result unpacking failed: %s", exc)
+
+        while len(results_list) < len(calls):
+            results_list.append(norm)
+
+        return results_list
 
     # --------------------------------------------------------------- lifecycle
 

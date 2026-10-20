@@ -142,6 +142,7 @@ class ToolRegistry:
         self._logs = logs
         # Repeated reads within a turn, answered once. See RESULT_CACHE_TTL_SECONDS.
         self._result_cache: dict[str, tuple[float, ToolResult]] = {}
+        self.mcp_manager: Any = None
 
     @property
     def logs(self) -> ExecutionLogRepository:
@@ -166,6 +167,7 @@ class ToolRegistry:
         # an unattended turn's edit leaves an interactive turn reading the file
         # as it used to be.
         view._result_cache = self._result_cache
+        view.mcp_manager = getattr(self, "mcp_manager", None)
         return view
 
     def register(self, tool: Tool) -> None:
