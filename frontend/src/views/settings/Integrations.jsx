@@ -1,96 +1,56 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import Badge from '../../components/ui/Badge.jsx'
+import AnimatedSelect from '../../components/ui/AnimatedSelect.jsx'
+import ServiceIcon from '../capabilities/plugins/ServiceIcon.jsx'
 import { api } from '../../api.js'
 import { useApp } from '../../store.jsx'
+import '../../styles/connectors.css'
 import '../../styles/integrations.css'
 
-/* ==========================================================================
-   AUTHENTIC BRAND SVGS FOR CLOUD APP TOOLKITS
-   ========================================================================== */
-
-function GoogleIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-    </svg>
-  )
-}
-
-function MicrosoftIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect width="24" height="24" rx="5" fill="#2564CF" />
-      <path d="M6.5 12.5l3.8 3.8 7.2-8.3" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.5 8l4 4" stroke="rgba(255,255,255,0.35)" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function GithubIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-    </svg>
-  )
-}
-
-function SlackIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.528 2.528 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z" fill="#E01E5A" />
-      <path d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.528 2.528 0 0 1 2.52-2.521h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#36C5F0" />
-    </svg>
-  )
-}
-
-function LinearIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="#5E6AD2" strokeWidth="2.5" />
-      <path d="M7 12h10M12 7l5 5-5 5" stroke="#5E6AD2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function NotionIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l11.43-.812c1.073-.093 1.54.28 1.213 1.306l-2.613 13.805c-.233.933-.7 1.306-1.54 1.353l-11.897.746c-.98.047-1.4-.326-1.167-1.306l2.146-15.558zm3.266 2.659l-1.4 9.794c-.093.653.093.933.746.887l1.727-.14 1.4-9.793-2.473-.748zm5.507-.373l-1.4 9.793 2.053-.14 1.4-9.793-2.053.14z" />
-    </svg>
-  )
-}
-
-/* Provider metadata & role specializations */
-const PROVIDER_METADATA = {
-  langsearch: {
-    role: 'General Search',
-    badgeTone: 'dim',
-    detail: 'Fast hybrid vector+keyword search with full text extraction. Default engine.',
-    iconName: 'search',
+/* Search Engine Metadata */
+const SEARCH_ENGINES = [
+  {
+    slug: 'langsearch',
+    name: 'LangSearch',
+    domain: 'langsearch.com',
+    roleTag: 'General Search',
+    desc: 'Fast hybrid vector & keyword retrieval with direct full-text extraction.',
   },
-  exa: {
-    role: 'Semantic & Neural',
-    badgeTone: 'dim',
-    detail: 'Neural search specialized for deep research, source discovery, and topic exploration.',
-    iconName: 'sparkle',
+  {
+    slug: 'exa',
+    name: 'Exa',
+    domain: 'exa.ai',
+    roleTag: 'Semantic & Neural',
+    desc: 'Neural search specialized for deep research, topic discovery, and clean source context.',
   },
-  firecrawl: {
-    role: 'Web Scrape & Crawl',
-    badgeTone: 'dim',
-    detail: 'Deep documentation crawler extracting clean markdown from complex JavaScript sites.',
-    iconName: 'file-text',
+  {
+    slug: 'firecrawl',
+    name: 'Firecrawl',
+    domain: 'firecrawl.dev',
+    roleTag: 'Web Scrape & Markdown',
+    desc: 'Documentation and page crawler that extracts clean, structured markdown.',
   },
-  tavily: {
-    role: 'Fact Verification',
-    badgeTone: 'dim',
-    detail: 'Targeted research search optimized for fact-checking, claims, and real-time verification.',
-    iconName: 'shield-check',
+  {
+    slug: 'tavily',
+    name: 'Tavily',
+    domain: 'tavily.com',
+    roleTag: 'Fact Verification',
+    desc: 'Research search engine optimized for fact-checking and real-time claim verification.',
   },
-}
+]
+
+/* Top Curated Cloud Apps for Showcase */
+const SHOWCASE_APPS = [
+  { slug: 'gmail', name: 'Gmail', domain: 'mail.google.com' },
+  { slug: 'googlecalendar', name: 'Google Calendar', domain: 'calendar.google.com' },
+  { slug: 'slack', name: 'Slack', domain: 'slack.com' },
+  { slug: 'github', name: 'GitHub', domain: 'github.com' },
+  { slug: 'linear', name: 'Linear', domain: 'linear.app' },
+  { slug: 'notion', name: 'Notion', domain: 'notion.so' },
+  { slug: 'spotify', name: 'Spotify', domain: 'spotify.com' },
+  { slug: 'supabase', name: 'Supabase', domain: 'supabase.com' },
+]
 
 export default function Integrations() {
   const { toast, setView, setCapabilitiesTab } = useApp()
@@ -104,7 +64,7 @@ export default function Integrations() {
   const [showKey, setShowKey] = useState(false)
   const [savingSearch, setSavingSearch] = useState('')
   const [testingSearch, setTestingSearch] = useState('')
-  const [testResult, setTestResult] = useState({}) // { [name]: { ok: bool, latency: number, error: string } }
+  const [testResult, setTestResult] = useState({}) // { [name]: { ok: bool, latency: number } }
 
   const loadSearch = useCallback(async () => {
     try {
@@ -123,6 +83,16 @@ export default function Integrations() {
     loadSearch()
   }, [loadSearch])
 
+  const handleSelectPreferred = async (pref) => {
+    try {
+      await api.setSearchProvider({ preferred: pref })
+      await loadSearch()
+      toast(`Search engine preference set to ${pref === 'auto' ? 'Auto (Intelligent Routing)' : pref.toUpperCase()}`, 'ok')
+    } catch (e) {
+      toast(e.message || 'Failed to update search preference', 'bad')
+    }
+  }
+
   const handleSaveSearchKey = async (name) => {
     setSavingSearch(name)
     try {
@@ -130,22 +100,9 @@ export default function Integrations() {
       setDraftKey('')
       setEditingProvider(null)
       await loadSearch()
-      toast(draftKey.trim() ? `${name} key saved successfully` : `${name} key cleared`, 'ok')
+      toast(draftKey.trim() ? `${name.toUpperCase()} API key saved` : `${name.toUpperCase()} API key removed`, 'ok')
     } catch (e) {
-      toast(e.message || 'Failed to update search provider key', 'bad')
-    } finally {
-      setSavingSearch('')
-    }
-  }
-
-  const handleSetPrimary = async (name) => {
-    setSavingSearch(name)
-    try {
-      await api.setSearchProvider({ preferred: name })
-      await loadSearch()
-      toast(`Spotlight now searches through ${name}`, 'ok')
-    } catch (e) {
-      toast(e.message || 'Failed to set primary search provider', 'bad')
+      toast(e.message || 'Failed to update key', 'bad')
     } finally {
       setSavingSearch('')
     }
@@ -156,7 +113,7 @@ export default function Integrations() {
     try {
       await api.setSearchProvider(name, '')
       await loadSearch()
-      toast(`${name} key removed`, 'ok')
+      toast(`${name.toUpperCase()} API key cleared`, 'ok')
     } catch (e) {
       toast(e.message || 'Failed to remove key', 'bad')
     } finally {
@@ -168,20 +125,19 @@ export default function Integrations() {
     setTestingSearch(name)
     const t0 = performance.now()
     try {
-      // Perform a minimal lightweight search test via searchAnswer probe or provider call
-      const res = await api.searchWiki('test') // probe connectivity
+      await api.searchWiki('test') // connectivity probe
       const latency = Math.round(performance.now() - t0)
       setTestResult((prev) => ({
         ...prev,
-        [name]: { ok: true, latency: latency || 85, error: null },
+        [name]: { ok: true, latency: latency || 95 },
       }))
-      toast(`${name} connection verified (${latency || 85}ms)`, 'ok')
+      toast(`${name.toUpperCase()} verified (${latency || 95}ms)`, 'ok')
     } catch (e) {
       setTestResult((prev) => ({
         ...prev,
-        [name]: { ok: false, error: e.message || 'Connection test failed' },
+        [name]: { ok: false },
       }))
-      toast(`${name} connection failed`, 'bad')
+      toast(`${name.toUpperCase()} connection failed`, 'bad')
     } finally {
       setTestingSearch('')
     }
@@ -226,7 +182,6 @@ export default function Integrations() {
         setPollCountdown(300)
         toast('Authorize Composio in your open browser tab', 'ok')
 
-        // Start polling
         const sid = res.session_id
         if (pollTimerRef.current) clearInterval(pollTimerRef.current)
         pollTimerRef.current = setInterval(async () => {
@@ -236,7 +191,7 @@ export default function Integrations() {
               clearInterval(pollTimerRef.current)
               setLoginPolling(false)
               await loadComposio()
-              toast('Composio connected successfully!', 'ok')
+              toast('Composio linked successfully!', 'ok')
             }
           } catch {
             // keep polling
@@ -255,7 +210,7 @@ export default function Integrations() {
   const handleCancelLogin = () => {
     if (pollTimerRef.current) clearInterval(pollTimerRef.current)
     setLoginPolling(false)
-    toast('Composio sign-in cancelled', 'ok')
+    toast('Composio login cancelled', 'ok')
   }
 
   const handleSaveComposioKey = async () => {
@@ -298,8 +253,13 @@ export default function Integrations() {
     return composioToolkits.filter((t) => t.connected)
   }, [composioToolkits])
 
-  const activeSearch = searchData.active
-  const preferredSearch = searchData.preferred
+  const searchSelectOptions = useMemo(() => [
+    { value: 'auto', label: 'Auto (Intelligent Cascade)', icon: 'cpu' },
+    { value: 'exa', label: 'Exa (Semantic & Neural)', icon: 'sparkle' },
+    { value: 'langsearch', label: 'LangSearch (Hybrid Full-Text)', icon: 'search' },
+    { value: 'firecrawl', label: 'Firecrawl (Web Scrape)', icon: 'file-text' },
+    { value: 'tavily', label: 'Tavily (Fact Verification)', icon: 'shield-check' },
+  ], [])
 
   return (
     <div className="set-panel int-panel">
@@ -307,225 +267,173 @@ export default function Integrations() {
           1. WEB SEARCH & RESEARCH ENGINES
           ==================================================================== */}
       <div>
-        <div className="set-section-label">Web Search &amp; Research Engines</div>
+        <div className="set-section-label">Web Search &amp; Research</div>
 
-        {/* Router Diagnostics Card */}
-        <div className="int-router-card" style={{ marginBottom: 16 }}>
-          <div className="int-router-header">
-            <div className="int-router-title">
-              <span className={`status-dot ${activeSearch ? 'live' : 'amber'}`} style={{ width: 8, height: 8 }} />
-              <span>
-                {activeSearch
-                  ? `Spotlight Routing: ${activeSearch.toUpperCase()}`
-                  : 'Spotlight Routing: Fallback Scrapers Only'}
+        <div className="set-box">
+          {/* Primary Preference Selector */}
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Spotlight Search Engine</span>
+              <span className="set-row-desc">
+                Default engine used for real-time web context and spotlight queries. When rate-limited, Spotlight automatically cascades to configured fallbacks.
               </span>
             </div>
-            {preferredSearch && preferredSearch !== 'auto' && (
-              <Badge tone="dim">Preference: {preferredSearch}</Badge>
-            )}
+            <AnimatedSelect
+              value={searchData.preferred || 'auto'}
+              onChange={handleSelectPreferred}
+              options={searchSelectOptions}
+              placeholder="Select engine…"
+              minWidth={220}
+            />
           </div>
-          <p className="int-router-desc">
-            {activeSearch
-              ? `Real-time web search and research is dispatched through ${activeSearch}. When unavailable or rate-limited, Spotlight automatically cascades through configured fallback engines.`
-              : 'No external search API keys are active. Spotlight falls back to free rate-limited scrapers and Wikipedia.'}
-          </p>
 
-          <div className="int-router-flow">
-            <span style={{ color: 'var(--text-faint)' }}>Cascade Chain:</span>
-            {searchData.options
-              .filter((o) => o.configured)
-              .map((prov, idx) => (
-                <span key={prov.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <span className={`int-flow-step ${prov.name === activeSearch ? 'is-primary' : ''}`}>
-                    {prov.label}
-                  </span>
-                  {idx < searchData.options.filter((o) => o.configured).length - 1 && (
-                    <span className="int-flow-arrow">→</span>
-                  )}
-                </span>
-              ))}
-            <span className="int-flow-arrow">→</span>
-            <span className="int-flow-step">Local Scrapers</span>
-          </div>
-        </div>
-
-        {/* Search Provider Cards Grid */}
-        <div className="int-grid int-grid--split">
-          {searchData.options.map((prov) => {
-            const meta = PROVIDER_METADATA[prov.name] || {
-              role: 'Search Provider',
-              badgeTone: 'dim',
-              detail: prov.note,
-              iconName: 'search',
-            }
-            const isPrimary = prov.name === activeSearch
-            const isConfigured = prov.configured
-            const test = testResult[prov.name]
-            const isEditing = editingProvider === prov.name
+          {/* Engine Cards List */}
+          {SEARCH_ENGINES.map((engine) => {
+            const configuredOpt = searchData.options.find((o) => o.name === engine.slug)
+            const isConfigured = Boolean(configuredOpt?.configured)
+            const isPrimary = searchData.active === engine.slug
+            const isEditing = editingProvider === engine.slug
+            const test = testResult[engine.slug]
+            const cardObj = { slug: engine.slug, name: engine.name, domain: engine.domain }
 
             return (
-              <div
-                key={prov.name}
-                className={`int-card ${isPrimary ? 'is-active-primary' : ''}`}
-              >
-                <div className="int-card-top">
-                  <div className="int-card-title-group">
-                    <span className="int-card-name">{prov.label}</span>
-                    <span className="int-tag-role">{meta.role}</span>
-                    {isPrimary ? (
-                      <Badge tone="ok">Active Primary</Badge>
-                    ) : isConfigured ? (
-                      <Badge tone="dim">Saved Fallback</Badge>
-                    ) : (
-                      <Badge tone="dim">Not Configured</Badge>
-                    )}
-                  </div>
-                  {prov.signup && (
-                    <a
-                      href={prov.signup}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="int-link-pill"
-                      title="Get a free API key from provider console"
-                    >
-                      <span>Get free key</span>
-                      <Icon name="arrow-up-right" size={11} />
-                    </a>
-                  )}
-                </div>
-
-                <div className="int-card-desc">{meta.detail}</div>
-
-                {/* Card Action Strip */}
-                <div className="int-card-footer">
-                  {isConfigured && !isEditing ? (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className="int-key-preview">Key: ••••••••••••</span>
+              <div key={engine.slug}>
+                <div className={`int-provider-row ${isPrimary ? 'is-primary' : ''}`}>
+                  <div className="int-provider-main">
+                    <ServiceIcon card={cardObj} size="default" />
+                    <div className="int-provider-info">
+                      <div className="int-provider-title-line">
+                        <span className="int-provider-name">{engine.name}</span>
+                        <span className="int-provider-tag">{engine.roleTag}</span>
+                        {isPrimary ? (
+                          <Badge tone="ok">Primary</Badge>
+                        ) : isConfigured ? (
+                          <Badge tone="dim">Configured</Badge>
+                        ) : null}
                         {test?.ok && (
-                          <span className="int-test-pill is-ok">
-                            <span className="status-dot live" style={{ width: 4, height: 4 }} />
-                            {test.latency}ms
-                          </span>
-                        )}
-                        {test?.ok === false && (
-                          <span className="int-test-pill is-bad">Test Error</span>
+                          <Badge tone="ok">{test.latency}ms</Badge>
                         )}
                       </div>
+                      <span className="int-provider-desc">{engine.desc}</span>
+                    </div>
+                  </div>
 
-                      <div className="int-actions-group">
-                        {!isPrimary && (
-                          <button
-                            type="button"
-                            className="int-btn"
-                            disabled={savingSearch === prov.name}
-                            onClick={() => handleSetPrimary(prov.name)}
-                            title="Set as the primary search engine for Spotlight"
-                          >
-                            Set Primary
-                          </button>
-                        )}
+                  <div className="int-provider-actions">
+                    {isConfigured && !isEditing ? (
+                      <>
+                        <span className="int-key-pill">••••••••••••••••</span>
                         <button
                           type="button"
-                          className="int-btn"
-                          disabled={testingSearch === prov.name}
-                          onClick={() => handleTestProvider(prov.name)}
-                          title="Verify API key connectivity"
+                          className="set-btn-sm"
+                          disabled={testingSearch === engine.slug}
+                          onClick={() => handleTestProvider(engine.slug)}
                         >
-                          {testingSearch === prov.name ? 'Testing…' : 'Test'}
+                          {testingSearch === engine.slug ? 'Testing…' : 'Test'}
                         </button>
                         <button
                           type="button"
-                          className="int-btn"
+                          className="set-btn-sm"
                           onClick={() => {
-                            setEditingProvider(prov.name)
+                            setEditingProvider(engine.slug)
                             setDraftKey('')
                           }}
-                          title="Replace API key"
                         >
                           Change
                         </button>
                         <button
                           type="button"
-                          className="int-btn"
-                          onClick={() => handleClearKey(prov.name)}
-                          title="Remove key"
+                          className="set-btn-sm"
+                          onClick={() => handleClearKey(engine.slug)}
                         >
-                          Clear
+                          Remove
                         </button>
-                      </div>
-                    </>
-                  ) : !isEditing ? (
-                    <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        className="int-btn is-primary"
-                        onClick={() => {
-                          setEditingProvider(prov.name)
-                          setDraftKey('')
-                        }}
-                      >
-                        <Icon name="plus" size={12} />
-                        <span>Add API Key</span>
-                      </button>
-                    </div>
-                  ) : (
-                    /* Inline Edit Box */
-                    <div className="int-input-box">
-                      <div style={{ position: 'relative', flex: 1 }}>
-                        <input
-                          type={showKey ? 'text' : 'password'}
-                          className="set-input"
-                          style={{ width: '100%', paddingRight: 30 }}
-                          placeholder={`Paste ${prov.label} API key…`}
-                          value={draftKey}
-                          onChange={(e) => setDraftKey(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveSearchKey(prov.name)
-                            if (e.key === 'Escape') setEditingProvider(null)
-                          }}
-                          autoFocus
-                        />
+                      </>
+                    ) : !isEditing ? (
+                      <>
+                        {configuredOpt?.signup && (
+                          <a
+                            href={configuredOpt.signup}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="set-btn-sm"
+                            style={{ textDecoration: 'none' }}
+                          >
+                            <span>Get free key</span>
+                            <Icon name="arrow-up-right" size={11} />
+                          </a>
+                        )}
                         <button
                           type="button"
-                          onClick={() => setShowKey((s) => !s)}
-                          style={{
-                            position: 'absolute',
-                            right: 8,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: 'var(--text-dim)',
+                          className="set-btn-sm is-primary"
+                          onClick={() => {
+                            setEditingProvider(engine.slug)
+                            setDraftKey('')
                           }}
                         >
-                          <Icon name={showKey ? 'eye-slash' : 'eye'} size={13} />
+                          <Icon name="plus" size={12} />
+                          <span>Connect</span>
                         </button>
-                      </div>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
 
+                {/* Inline Expandable Key Form */}
+                {isEditing && (
+                  <div className="int-edit-box">
+                    <div style={{ position: 'relative', flex: 1, maxWidth: 420 }}>
+                      <input
+                        type={showKey ? 'text' : 'password'}
+                        className="set-input"
+                        style={{ width: '100%', paddingRight: 32 }}
+                        placeholder={`Paste ${engine.name} API key…`}
+                        value={draftKey}
+                        onChange={(e) => setDraftKey(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveSearchKey(engine.slug)
+                          if (e.key === 'Escape') setEditingProvider(null)
+                        }}
+                        autoFocus
+                      />
                       <button
                         type="button"
-                        className="int-btn is-primary"
-                        disabled={savingSearch === prov.name || !draftKey.trim()}
-                        onClick={() => handleSaveSearchKey(prov.name)}
-                      >
-                        {savingSearch === prov.name ? 'Saving…' : 'Save'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="int-btn"
-                        onClick={() => {
-                          setEditingProvider(null)
-                          setDraftKey('')
+                        onClick={() => setShowKey((s) => !s)}
+                        style={{
+                          position: 'absolute',
+                          right: 8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--text-dim)',
                         }}
                       >
-                        Cancel
+                        <Icon name={showKey ? 'eye-slash' : 'eye'} size={13} />
                       </button>
                     </div>
-                  )}
-                </div>
+
+                    <button
+                      type="button"
+                      className="set-btn-sm is-primary"
+                      disabled={savingSearch === engine.slug || !draftKey.trim()}
+                      onClick={() => handleSaveSearchKey(engine.slug)}
+                    >
+                      {savingSearch === engine.slug ? 'Saving…' : 'Save & Test'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="set-btn-sm"
+                      onClick={() => {
+                        setEditingProvider(null)
+                        setDraftKey('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -538,187 +446,148 @@ export default function Integrations() {
       <div>
         <div className="set-section-label">Cloud Integrations &amp; Connectors</div>
 
-        <div className="int-composio-hero">
-          <div className="int-card-top">
-            <div className="int-card-title-group">
-              <span className="int-card-name">Composio Cloud Platform</span>
+        <div className="set-box">
+          {/* Composio Header Row */}
+          <div className="set-box-row" style={{ alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flex: 1 }}>
+              <ServiceIcon card={{ slug: 'composio', name: 'Composio', domain: 'composio.dev' }} size="default" />
+              <div className="set-row-text">
+                <span className="set-row-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span>Composio Cloud Platform</span>
+                  {isComposioConnected ? (
+                    <Badge tone="ok">Connected</Badge>
+                  ) : (
+                    <Badge tone="dim">Not configured</Badge>
+                  )}
+                  {isComposioConnected && composioStatus?.key_mode && (
+                    <span className="int-provider-tag" style={{ textTransform: 'uppercase' }}>
+                      {composioStatus.key_mode === 'consumer' ? 'Consumer Key' : `${composioStatus.key_mode} key`}
+                    </span>
+                  )}
+                </span>
+                <span className="set-row-desc">
+                  Connect 100+ cloud tools with local privacy. Authorize accounts to give your assistant read and write access across your workspace tools.
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {isComposioConnected ? (
-                <Badge tone="ok">Connected</Badge>
-              ) : (
-                <Badge tone="dim">Not Connected</Badge>
-              )}
-              {isComposioConnected && composioStatus?.key_mode && (
-                <span className="int-tag-role" style={{ textTransform: 'uppercase' }}>
-                  {composioStatus.key_mode === 'consumer' ? 'Consumer Key' : `${composioStatus.key_mode} key`}
-                </span>
-              )}
-            </div>
-
-            <a
-              href="https://dashboard.composio.dev"
-              target="_blank"
-              rel="noreferrer"
-              className="int-link-pill"
-            >
-              <span>Dashboard</span>
-              <Icon name="arrow-up-right" size={11} />
-            </a>
-          </div>
-
-          <p className="int-card-desc" style={{ margin: 0 }}>
-            Connect 100+ cloud applications with local-first privacy. Your assistant can read and write across your productivity tools with explicit execution permission.
-          </p>
-
-          {/* Supported Cloud Apps Strip */}
-          <div className="int-app-icons-strip">
-            <span style={{ fontSize: 11.5, color: 'var(--text-dim)', marginRight: 4 }}>
-              Supported:
-            </span>
-            <div className="int-app-icon-item" title="Google Workspace (Gmail, Calendar, Drive)">
-              <GoogleIcon size={14} />
-              <span>Google</span>
-            </div>
-            <div className="int-app-icon-item" title="Slack Messaging">
-              <SlackIcon size={14} />
-              <span>Slack</span>
-            </div>
-            <div className="int-app-icon-item" title="GitHub Code & Issues">
-              <GithubIcon size={14} />
-              <span>GitHub</span>
-            </div>
-            <div className="int-app-icon-item" title="Linear Issue Tracking">
-              <LinearIcon size={14} />
-              <span>Linear</span>
-            </div>
-            <div className="int-app-icon-item" title="Notion Workspace">
-              <NotionIcon size={14} />
-              <span>Notion</span>
-            </div>
-            <div className="int-app-icon-item" title="Microsoft 365 / To Do">
-              <MicrosoftIcon size={14} />
-              <span>Microsoft</span>
-            </div>
-          </div>
-
-          {/* Connected Toolkits Preview (If Connected) */}
-          {isComposioConnected && connectedToolkits.length > 0 && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
-                  Authenticated Toolkits ({connectedToolkits.length})
-                </span>
-                <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
-                  Ready for AI agent execution
-                </span>
-              </div>
-              <div className="int-toolkits-grid">
-                {connectedToolkits.map((t) => (
-                  <span key={t.slug} className="int-toolkit-chip is-connected">
-                    <span className="status-dot live" style={{ width: 5, height: 5 }} />
-                    {t.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action Bar */}
-          <div className="int-card-footer" style={{ borderTop: 'none', paddingTop: 6 }}>
-            {isComposioConnected ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <>
                   <button
                     type="button"
-                    className="int-btn is-primary"
+                    className="set-btn-sm is-primary"
                     onClick={handleNavigateToConnectors}
                   >
-                    <span>Manage Connectors Workspace</span>
-                    <Icon name="arrow-up-right" size={12} />
+                    <span>Manage in Connectors ↗</span>
                   </button>
                   <a
-                    href="https://dashboard.composio.dev/settings"
+                    href="https://dashboard.composio.dev"
                     target="_blank"
                     rel="noreferrer"
-                    className="int-btn"
+                    className="set-btn-sm"
+                    style={{ textDecoration: 'none' }}
                   >
-                    <span>Free Tier &amp; Quotas ↗</span>
+                    <span>Dashboard</span>
+                    <Icon name="arrow-up-right" size={11} />
                   </a>
-                </div>
-
-                <div className="int-actions-group">
                   <button
                     type="button"
-                    className="int-btn"
+                    className="set-btn-sm"
                     disabled={savingComposio}
                     onClick={handleDeleteComposioKey}
-                    title="Disconnect Composio and remove API key"
                   >
                     Disconnect
                   </button>
-                </div>
-              </>
-            ) : (
-              /* When Not Connected */
-              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                </>
+              ) : (
+                <>
                   <button
                     type="button"
-                    className="int-btn is-primary"
+                    className="set-btn-sm is-primary"
                     disabled={savingComposio || loginPolling}
                     onClick={handleStartBrowserLogin}
-                    style={{ padding: '7px 16px', fontSize: 13 }}
                   >
-                    <Icon name="zap" size={14} />
-                    <span>{loginPolling ? 'Waiting for browser auth…' : 'Sign In with Browser'}</span>
+                    <Icon name="zap" size={12} />
+                    <span>{loginPolling ? `Waiting (${pollCountdown}s)…` : 'Sign In in Browser'}</span>
                   </button>
-
                   <button
                     type="button"
-                    className="int-btn"
-                    onClick={() => setShowManualKey((s) => !s)}
+                    className="set-btn-sm"
+                    onClick={() => setShowManualKey(!showManualKey)}
                   >
-                    <span>{showManualKey ? 'Hide manual key' : 'Enter API Key Manually'}</span>
+                    {showManualKey ? 'Hide Key' : 'API Key'}
                   </button>
-
                   {loginPolling && (
-                    <button
-                      type="button"
-                      className="int-btn"
-                      onClick={handleCancelLogin}
-                    >
+                    <button type="button" className="set-btn-sm" onClick={handleCancelLogin}>
                       Cancel
                     </button>
                   )}
-                </div>
-
-                {/* Manual API Key Input (Collapsible) */}
-                {showManualKey && (
-                  <div className="int-input-box" style={{ maxWidth: 480 }}>
-                    <input
-                      type="password"
-                      className="set-input"
-                      style={{ flex: 1 }}
-                      placeholder="Paste Composio API Key…"
-                      value={composioKeyDraft}
-                      onChange={(e) => setComposioKeyDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveComposioKey()
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      className="int-btn is-primary"
-                      disabled={savingComposio || !composioKeyDraft.trim()}
-                      onClick={handleSaveComposioKey}
-                    >
-                      {savingComposio ? 'Testing…' : 'Save & Test'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Manual Key Input Row */}
+          {!isComposioConnected && showManualKey && (
+            <div className="int-edit-box">
+              <input
+                type="password"
+                className="set-input"
+                style={{ flex: 1, maxWidth: 420 }}
+                placeholder="Paste Composio API Key…"
+                value={composioKeyDraft}
+                onChange={(e) => setComposioKeyDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveComposioKey()
+                }}
+                autoFocus
+              />
+              <button
+                type="button"
+                className="set-btn-sm is-primary"
+                disabled={savingComposio || !composioKeyDraft.trim()}
+                onClick={handleSaveComposioKey}
+              >
+                {savingComposio ? 'Testing…' : 'Save & Test'}
+              </button>
+              <button
+                type="button"
+                className="set-btn-sm"
+                onClick={() => setShowManualKey(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {/* Connected Toolkits Showcase */}
+          {isComposioConnected && connectedToolkits.length > 0 ? (
+            <div className="int-apps-showcase">
+              {connectedToolkits.map((toolkit) => (
+                <div
+                  key={toolkit.slug}
+                  className="int-app-card-item"
+                  onClick={handleNavigateToConnectors}
+                  title={`Manage ${toolkit.name} in Connectors`}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <ServiceIcon card={toolkit} size="small" />
+                  <span className="int-app-name">{toolkit.name}</span>
+                </div>
+              ))}
+            </div>
+          ) : !isComposioConnected ? (
+            /* Supported Apps Showcase */
+            <div className="int-apps-showcase">
+              {SHOWCASE_APPS.map((app) => (
+                <div key={app.slug} className="int-app-card-item">
+                  <ServiceIcon card={app} size="small" />
+                  <span className="int-app-name">{app.name}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

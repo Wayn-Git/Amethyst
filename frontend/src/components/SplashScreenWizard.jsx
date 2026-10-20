@@ -4,6 +4,7 @@ import Icon from './Icon.jsx'
 import BrandMark from './BrandMark.jsx'
 import AiProviderIcon from './AiProviderIcon.jsx'
 import { LoaderIcon } from './LoaderIcon.jsx'
+import ServiceIcon from '../views/capabilities/plugins/ServiceIcon.jsx'
 import { api } from '../api.js'
 import { useApp } from '../store.jsx'
 
@@ -1083,24 +1084,31 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
           {searchStatus?.active ? (
             <span className="splash-field-note-ok" style={{ fontSize: 12 }}>✓ Ready</span>
           ) : (
-            <div style={{ display: 'flex', gap: 6 }}>
-              {['langsearch', 'exa', 'tavily'].map((provName) => (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {[
+                { slug: 'langsearch', name: 'LangSearch', domain: 'langsearch.com' },
+                { slug: 'exa', name: 'Exa', domain: 'exa.ai' },
+                { slug: 'tavily', name: 'Tavily', domain: 'tavily.com' },
+              ].map((prov) => (
                 <button
-                  key={provName}
+                  key={prov.slug}
                   type="button"
                   className="splash-btn-subtle"
                   style={{
-                    fontSize: 11,
-                    padding: '3px 8px',
-                    borderColor: selectedSearchProv === provName ? 'var(--accent)' : undefined,
-                    background: selectedSearchProv === provName ? 'var(--accent-soft)' : undefined,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 10px',
+                    borderColor: selectedSearchProv === prov.slug ? 'var(--accent)' : undefined,
+                    background: selectedSearchProv === prov.slug ? 'var(--accent-soft)' : undefined,
                   }}
                   onClick={() => {
-                    setSelectedSearchProv(selectedSearchProv === provName ? '' : provName)
+                    setSelectedSearchProv(selectedSearchProv === prov.slug ? '' : prov.slug)
                     setSearchKeyDraft('')
                   }}
                 >
-                  <span style={{ textTransform: 'capitalize' }}>{provName}</span>
+                  <ServiceIcon card={prov} size="small" />
+                  <span style={{ fontSize: 12 }}>{prov.name}</span>
                 </button>
               ))}
             </div>
@@ -1135,8 +1143,8 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
       {/* Composio Cloud Apps Card */}
       <div className="splash-card" style={{ marginBottom: 16 }}>
         <div className="splash-card-row">
-          <div className="splash-card-icon" style={{ background: 'rgba(113, 50, 245, 0.12)' }}>
-            <Icon name="cloud" size={22} />
+          <div style={{ marginRight: 8, flexShrink: 0 }}>
+            <ServiceIcon card={{ slug: 'composio', name: 'Composio', domain: 'composio.dev' }} size="default" />
           </div>
           <div className="splash-card-info">
             <div className="splash-title-row">
@@ -1219,8 +1227,8 @@ function StepConnectors({ toast, setupStatus, onRefreshStatus }) {
               return (
                 <div key={slug} className="splash-connector-card">
                   <div className="splash-connector-head">
-                    <div className="splash-connector-icon">
-                      <IconComp size={20} />
+                    <div className="splash-connector-icon" style={{ background: 'none', padding: 0 }}>
+                      <ServiceIcon card={{ slug, name }} size="small" />
                     </div>
                     <div className="splash-connector-meta">
                       <span className="splash-connector-title">{name}</span>

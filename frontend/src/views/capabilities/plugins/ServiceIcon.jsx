@@ -88,6 +88,8 @@ const DOMAIN_MAPPINGS = {
   tavily: 'tavily.com',
   firecrawl: 'firecrawl.dev',
   exa: 'exa.ai',
+  langsearch: 'langsearch.com',
+  composio: 'composio.dev',
   duckduckgo: 'duckduckgo.com',
   wikipedia: 'wikipedia.org',
   hackernews: 'news.ycombinator.com',
