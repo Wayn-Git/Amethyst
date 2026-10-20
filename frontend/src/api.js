@@ -456,6 +456,8 @@ export const api = {
   connectorsAuthorize: (slug, alias) => j(`/connectors/${encodeURIComponent(slug)}/authorize`, json('POST', alias ? { alias } : {})),
   connectorsDisconnectAccount: (slug, accountId) => j(`/connectors/${encodeURIComponent(slug)}/accounts/${encodeURIComponent(accountId)}`, json('DELETE')),
   connectorsDisconnectService: (slug) => j(`/connectors/${encodeURIComponent(slug)}`, json('DELETE')),
+  testConnector: (slug) => j(`/connectors/${encodeURIComponent(slug)}/test`, json('POST', {})),
+
 
   // Custom MCP servers (OpenMausBot interface)
   mcpServersList: () => j('/mcp/servers'),

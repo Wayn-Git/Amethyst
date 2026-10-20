@@ -2357,10 +2357,380 @@
   .plugin-context-popover {
     animation: none !important;
   }
+
+  .connector-filter-pill,
+  .connector-sync-btn,
+  .system-tool-btn {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
+/* ── Live Gateway Health Bar & Sync Controls ── */
+.connector-health-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards, 6px);
+  padding: 0.5rem 0.85rem;
+  margin-bottom: 1rem;
+}
 
+.connector-health-left,
+.connector-health-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 
+.connector-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 500;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-buttons, 9999px);
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--press, 120ms) ease;
+  user-select: none;
+}
 
+.connector-sync-btn:hover {
+  color: var(--text);
+  border-color: var(--hairline-strong);
+}
 
+.connector-sync-btn:active {
+  transform: scale(0.97);
+}
 
+.connector-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Top Filter Strip & Segmented Pills ── */
+.connector-filter-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.connector-filter-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  padding: 0.25rem;
+  border-radius: var(--radius-buttons, 9999px);
+}
+
+.connector-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  font-size: calc(12.5px * var(--text-scale, 1));
+  font-weight: 500;
+  border-radius: var(--radius-buttons, 9999px);
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--press, 120ms) ease;
+  user-select: none;
+}
+
+.connector-filter-pill:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+
+.connector-filter-pill.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.connector-filter-pill:active {
+  transform: scale(0.97);
+}
+
+/* ── Semantic System Status Pill (Token-adherent) ── */
+.system-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: var(--radius-tags, 9999px);
+  font-size: calc(11.5px * var(--text-scale, 1));
+  font-weight: 500;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  line-height: 1.2;
+}
+
+.system-status-pill.is-active {
+  background: var(--live-soft, rgba(20, 158, 97, 0.12));
+  border-color: var(--live-line, rgba(20, 158, 97, 0.3));
+  color: var(--live, #149e61);
+}
+
+.system-status-pill.is-warning {
+  background: var(--confirm-soft, rgba(245, 158, 11, 0.12));
+  border-color: var(--confirm-line, rgba(245, 158, 11, 0.3));
+  color: var(--confirm, #f59e0b);
+}
+
+.system-status-pill.is-configuring {
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+  color: var(--text-dim);
+}
+
+.system-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.system-status-dot.is-live {
+  background: var(--live, #149e61);
+}
+
+.system-status-dot.is-warning {
+  background: var(--confirm, #f59e0b);
+}
+
+.system-status-dot.is-pulse {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
+
+/* ── System & Local Connectors Panel ── */
+.system-connectors-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.system-connectors-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.system-connectors-title {
+  font-size: calc(22px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.system-connectors-subtitle {
+  font-size: calc(13px * var(--text-scale, 1));
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.system-connectors-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.system-summary-stat {
+  font-size: calc(12px * var(--text-scale, 1));
+  color: var(--text-dim);
+}
+
+.system-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.system-tool-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards, 6px);
+  padding: 1.15rem;
+  transition: border-color var(--press, 120ms) ease, background var(--press, 120ms) ease;
+}
+
+.system-tool-card:hover {
+  border-color: var(--hairline-strong);
+  background: var(--raised);
+}
+
+.system-tool-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.system-tool-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+
+.system-tool-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+}
+
+.system-tool-name {
+  font-size: calc(14px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+}
+
+.system-tool-sub {
+  font-size: calc(11px * var(--text-scale, 1));
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+.system-tool-desc {
+  font-size: calc(12.5px * var(--text-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.5;
+  flex: 1;
+  margin: 0 0 0.85rem 0;
+}
+
+.system-tool-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.system-tool-badge {
+  font-size: calc(11px * var(--text-scale, 1));
+  font-family: var(--font-mono);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-links, 4px);
+  background: var(--raised);
+  color: var(--text-dim);
+  border: 1px solid var(--hairline);
+}
+
+.system-tool-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.system-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-buttons, 9999px);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--press, 120ms) ease;
+}
+
+.system-tool-btn:hover {
+  color: var(--text);
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+}
+
+.system-tool-btn:active {
+  transform: scale(0.97);
+}
+
+.system-mcp-servers-wrap {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ── Granted Actions & Agent Tools Catalog (PluginDetailView) ── */
+.plugin-tools-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.plugin-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.plugin-tool-item {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cards, 6px);
+  padding: 0.75rem 0.85rem;
+}
+
+.plugin-tool-badge {
+  display: inline-block;
+  font-size: calc(11px * var(--text-scale, 1));
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: var(--accent-wash);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-links, 4px);
+  word-break: break-all;
+}
+
+.plugin-tool-desc {
+  font-size: calc(12px * var(--text-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.45;
+  margin: 0;
+}

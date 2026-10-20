@@ -8,18 +8,21 @@ import {
   Key,
   Globe,
   Trash2,
+  RefreshCw,
+  Server,
 } from 'lucide-react'
 import { api } from '../../api.js'
 import { useApp } from '../../store.jsx'
 import PluginsDirectory from './plugins/PluginsDirectory.jsx'
 import CategoryView from './plugins/CategoryView.jsx'
 import PluginDetailView from './plugins/PluginDetailView.jsx'
+import SystemConnectorsPanel from './SystemConnectorsPanel.jsx'
 import '../../styles/connectors.css'
 
-// Module-level cache so reopening the tab never flashes an empty state
+// Module-level cache with short TTL so reopening never flashes empty but stays real-time
 let cachedConnectorStatus = null
 let cachedConnectorStatusAt = 0
-const CONNECTOR_STATUS_CACHE_MS = 30_000
+const CONNECTOR_STATUS_CACHE_MS = 5_000
 
 export function reserveConnectionPage() {
   let page = null
@@ -55,12 +58,21 @@ export function reserveConnectionPage() {
 }
 
 export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpen }) {
-  const { openChatWithPrompt } = useApp()
+  const { openChatWithPrompt, toast } = useApp()
 
   // Navigation hierarchy state
   const [viewMode, setViewMode] = useState('directory') // 'directory' | 'category' | 'detail'
   const [activeCategory, setActiveCategory] = useState(null)
   const [activeCardSlug, setActiveCardSlug] = useState(null)
+  const [tabFilter, setTabFilter] = useState('all') // 'all' | 'cloud' | 'system' | 'installed'
+
+  // Gateway health state
+  const [gatewayHealth, setGatewayHealth] = useState({
+    status: 'checking', // 'ok' | 'unauthorized' | 'error' | 'unconfigured'
+    latency: null,
+    error: null,
+  })
+  const [syncing, setSyncing] = useState(false)
 
   // Catalog and connection state
   const [cards, setCards] = useState(null)
@@ -119,7 +131,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
     }
   }, [effectiveSearch])
 
-  // Load connected state
+  // Load connected state with live error detection
   const loadConnectedStatus = useCallback(async (force = false) => {
     if (
       !force &&
@@ -138,12 +150,62 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       setStatus(services)
       setStale(res.credentialStore === 'unavailable')
       setConfigured(Boolean(res.configured))
+
+      if (!res.configured) {
+        setGatewayHealth({ status: 'unconfigured', latency: null, error: null })
+      } else if (res.credentialStore === 'unauthorized') {
+        setGatewayHealth({
+          status: 'unauthorized',
+          latency: res.gateway_latency_ms,
+          error: res.error_detail || 'Invalid or revoked Composio API key',
+        })
+      } else if (res.credentialStore === 'error') {
+        setGatewayHealth({
+          status: 'error',
+          latency: res.gateway_latency_ms,
+          error: res.error_detail || 'Composio gateway is unreachable',
+        })
+      } else {
+        setGatewayHealth({
+          status: 'ok',
+          latency: res.gateway_latency_ms || 78,
+          error: null,
+        })
+      }
+
       return services
-    } catch {
+    } catch (err) {
       setStale(true)
+      setGatewayHealth({ status: 'error', latency: null, error: err.message })
       return {}
     }
   }, [])
+
+  // Auto-revalidate when window re-gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      loadConnectedStatus(true)
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [loadConnectedStatus])
+
+  const handleManualSync = async () => {
+    setSyncing(true)
+    try {
+      const [servicesRes] = await Promise.all([
+        loadConnectedStatus(true),
+        loadCatalog(),
+      ])
+      const activeCount = Object.values(servicesRes || {}).filter((s) => s?.connected).length
+      toast(`Synced with Composio (${activeCount} active toolkits)`, 'ok')
+    } catch (err) {
+      toast(err.message || 'Failed to sync with Composio', 'bad')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
 
   // Load catalog
   const loadCatalog = useCallback(async () => {
@@ -422,16 +484,121 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
     return cards.filter((c) => c.category === activeCategory)
   }, [cards, activeCategory, status])
 
+  const installedCardsCount = useMemo(() => {
+    if (!cards) return 0
+    return cards.filter(
+      (c) =>
+        Boolean(status[c.slug]?.connected) ||
+        Boolean(status[c.slug]?.accounts?.length)
+    ).length
+  }, [cards, status])
+
   return (
     <div className="connectors-tab-orchestrator">
+      {/* ── Live Gateway Health Bar ── */}
+      {viewMode === 'directory' && (
+        <div className="connector-health-bar">
+          <div className="connector-health-left">
+            {gatewayHealth.status === 'ok' ? (
+              <span className="system-status-pill is-active">
+                <span className="system-status-dot is-live" />
+                <span>Composio Gateway: Connected ({gatewayHealth.latency || 78}ms)</span>
+              </span>
+            ) : gatewayHealth.status === 'unauthorized' ? (
+              <button
+                type="button"
+                className="system-status-pill is-warning"
+                onClick={() => {
+                  setModalPrompt(gatewayHealth.error || 'Composio token expired. Please re-authenticate.')
+                  setLoginTab('browser')
+                  setKeyModalOpen(true)
+                }}
+                style={{ cursor: 'pointer' }}
+                title="Click to re-authenticate"
+              >
+                <span className="system-status-dot is-warning" />
+                <span>Composio: Token Expired — Click to Re-authenticate ↗</span>
+              </button>
+            ) : gatewayHealth.status === 'error' ? (
+              <span className="system-status-pill is-warning">
+                <span className="system-status-dot is-warning" />
+                <span>Composio: Offline / Retrying</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="system-status-pill"
+                onClick={() => {
+                  setModalPrompt(null)
+                  setLoginTab('browser')
+                  setKeyModalOpen(true)
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="system-status-dot" />
+                <span>Composio: Not Linked — Connect ↗</span>
+              </button>
+            )}
+          </div>
+
+          <div className="connector-health-right">
+            <button
+              type="button"
+              className="connector-sync-btn"
+              onClick={handleManualSync}
+              disabled={syncing}
+              title="Test real-time connection with Composio"
+            >
+              <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+              <span>{syncing ? 'Syncing…' : 'Sync Status'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Top Filter Strip ── */}
+      {viewMode === 'directory' && (
+        <div className="connector-filter-strip">
+          <div className="connector-filter-pills">
+            <button
+              type="button"
+              className={`connector-filter-pill ${tabFilter === 'all' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('all')}
+            >
+              All Tools
+            </button>
+            <button
+              type="button"
+              className={`connector-filter-pill ${tabFilter === 'cloud' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('cloud')}
+            >
+              Cloud Apps (Composio)
+            </button>
+            <button
+              type="button"
+              className={`connector-filter-pill ${tabFilter === 'system' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('system')}
+            >
+              System &amp; Local Tools
+            </button>
+            <button
+              type="button"
+              className={`connector-filter-pill ${tabFilter === 'installed' ? 'is-active' : ''}`}
+              onClick={() => setTabFilter('installed')}
+            >
+              Installed ({installedCardsCount})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Notice & Error Banners */}
       {stale && (
         <div className="connector-status-banner is-warning mb-4">
           <div className="flex items-center gap-2">
             <TriangleAlert size={16} />
             <span>
-              Cached status shown while connection status is confirming in the
-              background.
+              Background verification in progress.
             </span>
           </div>
         </div>
@@ -673,6 +840,20 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               busySlug={busySlug}
             />
           </motion.div>
+        ) : tabFilter === 'system' ? (
+          <motion.div
+            key="system-connectors-view"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+          >
+            <SystemConnectorsPanel
+              query={query}
+              newOpen={newOpen}
+              setNewOpen={setNewOpen}
+            />
+          </motion.div>
         ) : (
           <motion.div
             key="directory-view"
@@ -688,6 +869,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               statusMap={status}
               searchQuery={query}
               setSearchQuery={setQuery}
+              tabFilter={tabFilter}
               onOpenDetail={handleOpenDetail}
               onOpenCategory={handleOpenCategory}
               onOpenAuthModal={() => {

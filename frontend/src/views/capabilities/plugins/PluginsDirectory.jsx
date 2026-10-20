@@ -48,6 +48,7 @@ export default function PluginsDirectory({
   statusMap = {},
   searchQuery = '',
   setSearchQuery,
+  tabFilter = 'all',
   onOpenDetail,
   onOpenCategory,
   onOpenAuthModal,
@@ -135,14 +136,15 @@ export default function PluginsDirectory({
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
-    return cards.filter(
+    const pool = tabFilter === 'installed' ? installedCards : cards
+    return pool.filter(
       (c) =>
         (c.label || c.name || '').toLowerCase().includes(q) ||
         (c.blurb || c.description || '').toLowerCase().includes(q) ||
         (c.slug || '').toLowerCase().includes(q) ||
         (c.category || '').toLowerCase().includes(q)
     )
-  }, [cards, searchQuery])
+  }, [cards, installedCards, searchQuery, tabFilter])
 
   const hasSearch = searchQuery.trim().length > 0
 
@@ -151,9 +153,19 @@ export default function PluginsDirectory({
       {/* ── Main Header Row (Title, Subtitle, Search, Plus Button) ── */}
       <div className="plugin-directory-header-row">
         <div className="plugin-directory-title-block">
-          <h1 className="plugin-directory-main-title">Plugins</h1>
+          <h1 className="plugin-directory-main-title">
+            {tabFilter === 'installed'
+              ? 'Installed Connectors'
+              : tabFilter === 'cloud'
+                ? 'Cloud Apps'
+                : 'Plugins'}
+          </h1>
           <p className="plugin-directory-main-subtitle">
-            Work with Amethyst across your favorite tools.
+            {tabFilter === 'installed'
+              ? 'Active integrations currently connected to your Amethyst environment.'
+              : tabFilter === 'cloud'
+                ? 'OAuth & API integrations authenticated through Composio.'
+                : 'Work with Amethyst across your favorite tools.'}
           </p>
         </div>
 
@@ -261,25 +273,56 @@ export default function PluginsDirectory({
           </section>
 
           {/* ── Local & MCP Servers (Bottom Dedicated Section) ── */}
-          <section className="plugin-directory-mcp-section">
-            <div className="plugin-section-header">
-              <div className="flex items-center gap-2">
-                <Server size={17} className="text-accent" />
-                <h2 className="plugin-section-title">Local & System Connectors</h2>
+          {tabFilter !== 'cloud' && (
+            <section className="plugin-directory-mcp-section">
+              <div className="plugin-section-header">
+                <div className="flex items-center gap-2">
+                  <Server size={17} className="text-accent" />
+                  <h2 className="plugin-section-title">Local & System Connectors</h2>
+                </div>
+                <span className="text-xs text-dim">
+                  Direct agent tools and custom stdio MCP servers
+                </span>
               </div>
-              <span className="text-xs text-dim">
-                Direct agent tools and custom stdio MCP servers
-              </span>
-            </div>
 
-            <McpServersPanel
-              embedded={true}
-              newOpen={newOpen}
-              setNewOpen={setNewOpen}
-              query=""
-            />
-          </section>
+              <McpServersPanel
+                embedded={true}
+                newOpen={newOpen}
+                setNewOpen={setNewOpen}
+                query=""
+              />
+            </section>
+          )}
         </>
+      ) : tabFilter === 'installed' ? (
+        installedCards.length === 0 ? (
+          <div className="plugin-empty-installed-state">
+            <p className="text-base font-medium text-ink">No installed connectors</p>
+            <p className="text-xs text-dim mt-1">
+              You haven&rsquo;t connected any apps yet. Switch to &ldquo;All Tools&rdquo; or &ldquo;Cloud Apps&rdquo; to connect integrations.
+            </p>
+          </div>
+        ) : (
+          <section className="plugin-directory-section">
+            <div className="plugin-section-header">
+              <h2 className="plugin-section-title">Connected Tools ({installedCards.length})</h2>
+            </div>
+            <div className="plugin-two-col-grid">
+              {installedCards.map((card) => (
+                <PluginCard
+                  key={card.slug}
+                  card={card}
+                  status={statusMap[card.slug]}
+                  onOpenDetail={onOpenDetail}
+                  onConnect={onConnect}
+                  onDisconnect={onDisconnect}
+                  onChat={onChat}
+                  busy={busySlug === card.slug}
+                />
+              ))}
+            </div>
+          </section>
+        )
       ) : (
         <>
           {/* ── "Installed >" Horizontal Squircle Strip (Screenshot 3) ── */}
@@ -425,24 +468,26 @@ export default function PluginsDirectory({
           </section>
 
           {/* ── Local & MCP Servers (Bottom Dedicated Section) ── */}
-          <section className="plugin-directory-mcp-section">
-            <div className="plugin-section-header">
-              <div className="flex items-center gap-2">
-                <Server size={17} className="text-accent" />
-                <h2 className="plugin-section-title">Local & System Connectors</h2>
+          {tabFilter !== 'cloud' && (
+            <section className="plugin-directory-mcp-section">
+              <div className="plugin-section-header">
+                <div className="flex items-center gap-2">
+                  <Server size={17} className="text-accent" />
+                  <h2 className="plugin-section-title">Local & System Connectors</h2>
+                </div>
+                <span className="text-xs text-dim">
+                  Direct agent tools and custom stdio MCP servers
+                </span>
               </div>
-              <span className="text-xs text-dim">
-                Direct agent tools and custom stdio MCP servers
-              </span>
-            </div>
 
-            <McpServersPanel
-              embedded={true}
-              newOpen={newOpen}
-              setNewOpen={setNewOpen}
-              query=""
-            />
-          </section>
+              <McpServersPanel
+                embedded={true}
+                newOpen={newOpen}
+                setNewOpen={setNewOpen}
+                query=""
+              />
+            </section>
+          )}
         </>
       )}
     </div>

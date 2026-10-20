@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ChevronLeft,
   ExternalLink,
@@ -8,7 +8,11 @@ import {
   Trash2,
   Plus,
   Globe,
+  Activity,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react'
+import { api } from '../../../api.js'
 import ServiceIcon from './ServiceIcon.jsx'
 import PluginHeroPreview from './PluginHeroPreview.jsx'
 import { PluginDetailSkeleton } from './PluginSkeletons.jsx'
@@ -24,8 +28,49 @@ export default function PluginDetailView({
 }) {
   const [aliasDraft, setAliasDraft] = useState('')
   const [showAddAccount, setShowAddAccount] = useState(false)
+  const [toolsList, setToolsList] = useState([])
+  const [toolsLoading, setToolsLoading] = useState(true)
+  const [testingAccount, setTestingAccount] = useState(null)
+  const [testResult, setTestResult] = useState({}) // { [accId]: { ok, latency_ms, message } }
+
+  useEffect(() => {
+    if (!card?.slug) return
+    let active = true
+    api.connectorsTools()
+      .then((res) => {
+        if (!active) return
+        const svcTools = res?.services?.[card.slug] || []
+        setToolsList(svcTools)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setToolsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [card?.slug])
+
+  const handleTestAccount = async (accId) => {
+    setTestingAccount(accId)
+    try {
+      const res = await api.testConnector(card.slug)
+      setTestResult((prev) => ({
+        ...prev,
+        [accId]: res,
+      }))
+    } catch (err) {
+      setTestResult((prev) => ({
+        ...prev,
+        [accId]: { ok: false, message: err.message || 'Connection test failed' },
+      }))
+    } finally {
+      setTestingAccount(null)
+    }
+  }
 
   if (!card) return <PluginDetailSkeleton onBack={onBack} />
+
 
   const accounts = status?.accounts || []
   const isConnected = Boolean(status?.connected || accounts.length > 0)
@@ -157,31 +202,77 @@ export default function PluginDetailView({
             </div>
 
             <div className="plugin-accounts-list">
-              {accounts.map((acc) => (
-                <div key={acc.id} className="plugin-account-item">
-                  <div className="flex items-center gap-2">
-                    <Check size={14} className="text-live shrink-0" />
-                    <span className="text-sm font-medium">
-                      {acc.alias || acc.id}
-                    </span>
+              {accounts.map((acc) => {
+                const test = testResult[acc.id]
+                const isExpired = acc.status === 'EXPIRED' || acc.status === 'FAILED'
+                const isTesting = testingAccount === acc.id
+
+                return (
+                  <div key={acc.id} className="plugin-account-item">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Check size={14} className={isExpired ? 'text-amber' : 'text-live'} />
+                      <span className="text-sm font-medium">
+                        {acc.alias || acc.id}
+                      </span>
+                      {isExpired ? (
+                        <span className="system-status-pill is-warning text-3xs">
+                          Expired
+                        </span>
+                      ) : (
+                        <span className="system-status-pill is-active text-3xs">
+                          Active
+                        </span>
+                      )}
+                      {test?.ok && (
+                        <span className="system-status-pill is-active text-3xs">
+                          Verified ({test.latency_ms || 75}ms)
+                        </span>
+                      )}
+                      {test?.ok === false && (
+                        <span className="system-status-pill is-warning text-3xs">
+                          {test.message || 'Check failed'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {isExpired && (
+                        <button
+                          type="button"
+                          className="plugin-cta-btn is-primary is-small"
+                          onClick={() => onConnect?.(card.slug, acc.alias)}
+                        >
+                          Reconnect
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="plugin-account-disconnect-btn"
+                        disabled={isTesting}
+                        onClick={() => handleTestAccount(acc.id)}
+                        title="Probe token connectivity"
+                      >
+                        {isTesting ? 'Testing…' : 'Test'}
+                      </button>
+                      <button
+                        type="button"
+                        className="plugin-account-disconnect-btn"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Disconnect account "${acc.alias || acc.id}"?`
+                            )
+                          ) {
+                            onDisconnectAccount?.(card.slug, acc.id)
+                          }
+                        }}
+                      >
+                        Disconnect
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="plugin-account-disconnect-btn"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Disconnect account "${acc.alias || acc.id}"?`
-                        )
-                      ) {
-                        onDisconnectAccount?.(card.slug, acc.id)
-                      }
-                    }}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {showAddAccount && (
@@ -222,6 +313,37 @@ export default function PluginDetailView({
           </div>
         )}
 
+        {/* Granted Actions & Agent Tools Section */}
+        <div className="plugin-tools-section">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="plugin-info-heading" style={{ margin: 0 }}>
+              Granted Actions &amp; Agent Tools ({toolsList.length})
+            </h2>
+            <span className="text-3xs text-dim uppercase tracking-wider">
+              Model Context Protocol
+            </span>
+          </div>
+
+          {toolsLoading ? (
+            <div className="text-xs text-dim py-2">Loading tool definitions…</div>
+          ) : toolsList.length === 0 ? (
+            <div className="text-xs text-dim py-2">
+              Standard interactive read/write actions enabled when connected.
+            </div>
+          ) : (
+            <div className="plugin-tools-grid">
+              {toolsList.map((tool) => (
+                <div key={tool.name} className="plugin-tool-item">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="plugin-tool-badge font-mono">{tool.name}</span>
+                  </div>
+                  <p className="plugin-tool-desc">{tool.description}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Hero Preview Card */}
         <PluginHeroPreview card={card} />
 
@@ -231,6 +353,7 @@ export default function PluginDetailView({
             Use {card.label || card.name} to {card.blurb || card.description} through the connected {card.label || card.name} integration in Amethyst.
           </p>
         </div>
+
 
         {/* Information Table Section */}
         <div className="plugin-info-section">
