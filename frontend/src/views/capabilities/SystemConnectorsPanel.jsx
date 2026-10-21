@@ -84,7 +84,7 @@ export function SystemToolCard({ tool, onLaunchChat, onOpenNewMcp }) {
     <div key={tool.slug} className="system-tool-card">
       <div className="system-card-head">
         <div className="system-card-icon">
-          <IconComponent size={18} />
+          <IconComponent size={22} />
         </div>
         <div className="system-card-meta">
           <div className="system-card-title-row">

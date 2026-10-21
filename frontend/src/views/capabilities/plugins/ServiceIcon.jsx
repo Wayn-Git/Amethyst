@@ -141,7 +141,7 @@ export default function ServiceIcon({ card, size = 'default' }) {
           ? 'is-small'
           : ''
   const vectorIconSize =
-    size === 'hero' || size === 'large' ? 36 : size === 'tiny' ? 12 : size === 'small' ? 16 : 24
+    size === 'hero' || size === 'large' ? 40 : size === 'tiny' ? 14 : size === 'small' ? 16 : 28
 
   // Resolve URLs
   const composioLogo =
