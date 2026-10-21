@@ -17,11 +17,11 @@ export type BlurredTextProps = {
 
 export const BlurredText: React.FC<BlurredTextProps> = ({
   text,
-  className = "font-satoshi text-sm text-muted-foreground/80 leading-relaxed",
+  className = "text-[15.5px] text-[var(--text)] leading-[1.6]",
   wordClassName = "",
-  blurFrom = "5px",
+  blurFrom = "3px",
   blurTo = "0px",
-  duration = 0.18,
+  duration = 0.14,
   live = true,
   as: Tag = "p",
 }) => {
