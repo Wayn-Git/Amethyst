@@ -4,7 +4,7 @@ import Icon from '../Icon.jsx'
 import { copyText } from '../../api.js'
 import { parseBlocks, parseInline, SAFE_PROTOCOL } from './parse.js'
 import { grammarFor, loadGrammar, tokenize } from './highlight.js'
-import { CodeBlock } from '../agents/code-block.tsx'
+import { CodeBlock as AgentCodeBlock } from '../agents/code-block.tsx'
 import { TreeView } from '../arc/tree-view/tree-view'
 import { JsonViewer } from '../arc/json-viewer/json-viewer'
 import { isAsciiTree, parseAsciiTree } from '../arc/tree-view/tree-parser'
@@ -557,7 +557,7 @@ function CodeBlock({ lang, file, text: code, open }) {
           </button>
         </div>
       )}
-      <CodeBlock
+      <AgentCodeBlock
         code={code}
         filename={file}
         language={lang || 'text'}
