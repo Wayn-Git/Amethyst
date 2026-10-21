@@ -22,8 +22,8 @@ export function PluginCardSkeleton({ index = 0, style }) {
       style={style}
     >
       <div className="plugin-card-main-col">
-        {/* Squircle Icon placeholder matching ServiceIcon (44x44, border-radius: 12px) */}
-        <Skeleton w={44} h={44} r={12} className="shrink-0" />
+        {/* Icon placeholder matching ServiceIcon (44x44, border-radius: 8px) */}
+        <Skeleton w={44} h={44} r={8} className="shrink-0" />
 
         <div className="plugin-card-text-block" style={{ width: '100%', minWidth: 0 }}>
           <div className="plugin-card-title-row">
@@ -131,74 +131,96 @@ export function PluginsDirectorySkeleton() {
  */
 export function PluginDetailSkeleton({ onBack }) {
   return (
-    <div className="plugin-detail-root is-skeleton" aria-hidden="true">
-      {/* Top back navigation */}
-      <div className="plugin-detail-top-nav">
-        <button
-          type="button"
-          className="plugin-back-btn"
-          onClick={onBack}
-          aria-label="Back to plugins"
-        >
-          <ChevronLeft size={18} />
-          <span>Plugins</span>
-        </button>
+    <div className="plugin-detail-page-wrapper" aria-hidden="true">
+      {/* Top Breadcrumb Skeleton */}
+      <div className="plugin-detail-breadcrumb-bar">
+        <div className="plugin-detail-sidebar-icon">
+          <Skeleton w={16} h={16} r={3} />
+        </div>
+        <div className="plugin-detail-breadcrumbs">
+          <button type="button" className="plugin-breadcrumb-link" onClick={onBack}>
+            Plugins
+          </button>
+          <span className="plugin-breadcrumb-sep">&gt;</span>
+          <Skeleton w={90} h={14} r={3} />
+        </div>
       </div>
 
-      <div className="plugin-detail-container">
-        {/* Header Block */}
-        <div className="plugin-detail-header">
-          <div className="plugin-detail-header-left">
-            <Skeleton w={64} h={64} r={16} className="shrink-0" />
-            <div className="plugin-detail-title-block" style={{ width: '100%', minWidth: 200 }}>
-              <Skeleton w={180} h={26} r={6} />
-              <Skeleton w="75%" h={14} r={4} style={{ marginTop: 8 }} />
-            </div>
+      <div className="plugin-detail-content-column">
+        {/* Avatar Skeleton */}
+        <div className="plugin-detail-avatar-container">
+          <Skeleton w={72} h={72} r={18} className="shrink-0" />
+        </div>
+
+        {/* Title and Actions Row Skeleton */}
+        <div className="plugin-detail-hero-row">
+          <div className="plugin-detail-title-col" style={{ width: '100%', maxWidth: 280 }}>
+            <Skeleton w={160} h={28} r={6} />
+            <Skeleton w={95} h={14} r={4} style={{ marginTop: 6 }} />
           </div>
 
-          <div className="plugin-detail-header-actions">
-            <Skeleton w={104} h={38} r={99} />
+          <div className="plugin-detail-actions-col">
+            <Skeleton w={34} h={34} r={99} />
+            <Skeleton w={88} h={34} r={99} />
+            <Skeleton w={108} h={34} r={99} />
           </div>
         </div>
 
-        {/* Hero Preview Card Skeleton */}
-        <div className="plugin-hero-preview-wrapper">
-          <div className="plugin-hero-preview-backdrop">
-            <div className="plugin-hero-user-bubble">
-              <Skeleton w="65%" h={14} r={4} />
-            </div>
-            <div className="plugin-hero-assistant-card">
-              <div className="plugin-hero-execution-meta" style={{ gap: 8 }}>
-                <Skeleton w={14} h={14} r={99} />
-                <Skeleton w={120} h={12} r={3} />
-              </div>
-              <div className="plugin-hero-response-body" style={{ marginTop: 12 }}>
-                <Skeleton w="88%" h={13} r={3} style={{ marginBottom: 12 }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <Skeleton w="40%" h={12} r={3} />
-                  <Skeleton w="95%" h={12} r={3} />
-                  <Skeleton w="80%" h={12} r={3} />
+        {/* Hero Prompt Box Skeleton */}
+        <div className="plugin-detail-hero-box">
+          <div className="plugin-hero-prompt-list">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="plugin-hero-prompt-card"
+                style={{ pointerEvents: 'none', opacity: 0.7 }}
+              >
+                <div className="plugin-hero-prompt-left" style={{ width: '85%' }}>
+                  <Skeleton w={18} h={18} r={4} className="shrink-0" />
+                  <Skeleton w={60} h={13} r={3} className="shrink-0" />
+                  <Skeleton w={`${75 - i * 10}%`} h={13} r={3} />
                 </div>
+                <Skeleton w={26} h={26} r={99} className="shrink-0" />
               </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Long Description Skeleton */}
-        <div className="plugin-detail-description" style={{ marginTop: 24 }}>
+        {/* Description Skeleton */}
+        <div className="plugin-detail-desc-block">
           <Skeleton w="100%" h={14} r={4} />
-          <Skeleton w="90%" h={14} r={4} style={{ marginTop: 8 }} />
-          <Skeleton w="55%" h={14} r={4} style={{ marginTop: 8 }} />
+          <Skeleton w="88%" h={14} r={4} style={{ marginTop: 8 }} />
+        </div>
+
+        {/* Apps Section Skeleton */}
+        <div className="plugin-detail-apps-section">
+          <div className="plugin-detail-section-header">
+            <Skeleton w={75} h={18} r={4} />
+          </div>
+          <div className="plugin-detail-apps-list">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="plugin-app-row">
+                <div className="plugin-app-row-left">
+                  <Skeleton w={36} h={36} r={8} className="shrink-0" />
+                  <div className="plugin-app-text-block" style={{ width: '100%', minWidth: 200 }}>
+                    <Skeleton w={110} h={15} r={4} />
+                    <Skeleton w="70%" h={12} r={3} style={{ marginTop: 6 }} />
+                  </div>
+                </div>
+                <Skeleton w={80} h={28} r={99} className="shrink-0" />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Info Table Section Skeleton */}
-        <div className="plugin-info-section" style={{ marginTop: 32 }}>
-          <Skeleton w={110} h={18} r={4} style={{ marginBottom: 16 }} />
-          <div className="plugin-info-table">
+        <div className="plugin-detail-info-section">
+          <Skeleton w={110} h={18} r={4} style={{ marginBottom: 12 }} />
+          <div className="plugin-detail-info-table">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="plugin-info-row">
+              <div key={i} className="plugin-detail-info-row">
                 <Skeleton w={100} h={13} r={4} />
-                <Skeleton w={140} h={13} r={4} />
+                <Skeleton w={130} h={13} r={4} />
               </div>
             ))}
           </div>

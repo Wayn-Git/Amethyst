@@ -456,6 +456,8 @@ export const api = {
   connectorsAuthorize: (slug, alias) => j(`/connectors/${encodeURIComponent(slug)}/authorize`, json('POST', alias ? { alias } : {})),
   connectorsDisconnectAccount: (slug, accountId) => j(`/connectors/${encodeURIComponent(slug)}/accounts/${encodeURIComponent(accountId)}`, json('DELETE')),
   connectorsDisconnectService: (slug) => j(`/connectors/${encodeURIComponent(slug)}`, json('DELETE')),
+  testConnector: (slug) => j(`/connectors/${encodeURIComponent(slug)}/test`, json('POST', {})),
+
 
   // Custom MCP servers (OpenMausBot interface)
   mcpServersList: () => j('/mcp/servers'),
@@ -683,15 +685,27 @@ export const api = {
   // Due automations (for GitHub Actions scheduler).
   dueAutomations: () => j('/automations/due'),
 
+  // Cloud Notifier & 24/7 Briefings
+  notifierSettings: () => j('/notifier/settings'),
+  updateNotifierSettings: (body) => j('/notifier/settings', json('POST', body)),
+  testNotifierSend: (body = {}) => j('/notifier/test-send', json('POST', body)),
+  runNotifierBriefing: () => j('/notifier/run-briefing', json('POST', {})),
+
   logs: (limit = 100) => j(`/logs?limit=${limit}`),
 
-  memory: (conversationId) =>
-    j(`/memory${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
+  memory: (conversationId, includeRetired = true) => {
+    const params = new URLSearchParams()
+    if (conversationId) params.set('conversation_id', conversationId)
+    if (includeRetired) params.set('include_retired', 'true')
+    const qs = params.toString()
+    return j(`/memory${qs ? `?${qs}` : ''}`)
+  },
   addMemory: (fact, conversationId) =>
     j('/memory', json('POST', { fact, conversation_id: conversationId || null })),
   toggleMemory: (enabled, conversationId) =>
     j('/memory/toggle', json('POST', { enabled, conversation_id: conversationId || null })),
   forgetMemory: (id) => j(`/memory/${id}`, json('DELETE')),
+  restoreMemory: (id) => j(`/memory/${id}/restore`, json('POST', {})),
   forgetAllMemories: () => j('/memory', json('DELETE')),
 
   skills: () => j('/skills'),
@@ -861,7 +875,7 @@ export const api = {
 
   // With `q`, a hybrid search over captured text; without it, the most recent
   // items. Both come back as items rather than passages.
-  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 50, offset = 0 } = {}) =>
+  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 300, offset = 0 } = {}) =>
     j(`/library?limit=${limit}&offset=${offset}`
       + (q ? `&q=${encodeURIComponent(q)}` : '')
       + (kind ? `&kind=${encodeURIComponent(kind)}` : '')
@@ -944,8 +958,12 @@ export const api = {
   // Which web-search API is set up, and setting one. Write-only for the key
   // itself: the GET says a provider has one, never what it is.
   searchProvider: () => j('/search/provider'),
-  setSearchProvider: (name, key) =>
-    j('/search/provider', { method: 'PUT', body: JSON.stringify({ name, key }) }),
+  setSearchProvider: (nameOrPayload, key, preferred) => {
+    const body = typeof nameOrPayload === 'object' && nameOrPayload !== null
+      ? nameOrPayload
+      : { name: nameOrPayload, key, preferred }
+    return j('/search/provider', { method: 'PUT', body: JSON.stringify(body) })
+  },
   // The palette passes the article list and wiki card it already shows as
   // the evidence, so an answer never re-searches what is already on screen.
   // `wiki` is only sent when the caller decided it: `null` means "no wiki

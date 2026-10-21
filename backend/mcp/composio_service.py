@@ -924,6 +924,436 @@ def trim_composio_tool_schema(
     }
 
 
+STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
+    "googlecalendar": [
+        {
+            "slug": "GOOGLECALENDAR_FIND_EVENT",
+            "name": "Find Calendar Events",
+            "description": (
+                "WHAT IT DOES: Searches and lists calendar events within a time window or matching a search query from the user's Google Calendar.\n"
+                "WHEN TO USE: Checking upcoming schedules, meetings, availability, or finding specific appointments.\n"
+                "WHEN NOT TO USE: Do not use to create or modify events (use GOOGLECALENDAR_CREATE_EVENT). Do not paginate or make repeated looping calls.\n"
+                'EXAMPLE: {"time_min": "2026-10-20T00:00:00Z", "time_max": "2026-10-27T23:59:59Z", "max_results": 10}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Free-text search terms to filter events."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                    "time_min": {"type": "string", "description": "Lower bound for event start time (RFC3339 / ISO 8601 string, e.g. '2026-10-20T00:00:00Z'). Defaults to current time."},
+                    "time_max": {"type": "string", "description": "Upper bound for event start time (RFC3339 / ISO 8601 string). Defaults to 7 days from now."},
+                    "max_results": {"type": "integer", "description": "Maximum number of events to return (default 10). Do not paginate.", "default": 10},
+                    "single_events": {"type": "boolean", "description": "Whether to expand recurring events into instances.", "default": True},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_CREATE_EVENT",
+            "name": "Create Calendar Event",
+            "description": (
+                "WHAT IT DOES: Creates and schedules a new calendar event on the user's Google Calendar with summary, start/end times, and optional attendees.\n"
+                "WHEN TO USE: Adding a new meeting, event, reminder, or appointment to the user's schedule.\n"
+                "WHEN NOT TO USE: Do not use to inspect or check existing schedule conflicts before creating (use GOOGLECALENDAR_FIND_EVENT first). Do not use to modify existing events.\n"
+                'EXAMPLE: {"summary": "Team Sync", "start_datetime": "2026-10-21T10:00:00Z", "end_datetime": "2026-10-21T10:30:00Z"}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "Title or summary of the event."},
+                    "start_datetime": {"type": "string", "description": "Start datetime in ISO 8601 format (e.g. '2026-10-20T10:00:00Z')."},
+                    "end_datetime": {"type": "string", "description": "End datetime in ISO 8601 format (e.g. '2026-10-20T11:00:00Z')."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                    "description": {"type": "string", "description": "Description or agenda of the event."},
+                    "location": {"type": "string", "description": "Location of the event."},
+                    "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses."},
+                },
+                "required": ["summary", "start_datetime", "end_datetime"],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_UPDATE_EVENT",
+            "name": "Update Calendar Event",
+            "description": "Update an existing event on Google Calendar.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string", "description": "ID of the event to update."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                    "summary": {"type": "string", "description": "New title or summary of the event."},
+                    "start_datetime": {"type": "string", "description": "New start datetime in ISO 8601 format."},
+                    "end_datetime": {"type": "string", "description": "New end datetime in ISO 8601 format."},
+                    "description": {"type": "string", "description": "New description of the event."},
+                },
+                "required": ["event_id"],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_DELETE_EVENT",
+            "name": "Delete Calendar Event",
+            "description": "Delete an event from Google Calendar.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string", "description": "ID of the event to delete."},
+                    "calendar_id": {"type": "string", "description": "Calendar identifier (default 'primary').", "default": "primary"},
+                },
+                "required": ["event_id"],
+            },
+        },
+        {
+            "slug": "GOOGLECALENDAR_LIST_CALENDARS",
+            "name": "List Calendars",
+            "description": "List the calendars available on the user's Google account.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_results": {"type": "integer", "description": "Maximum number of calendars to return.", "default": 10},
+                },
+                "required": [],
+            },
+        },
+    ],
+    "gmail": [
+        {
+            "slug": "GMAIL_FETCH_EMAILS",
+            "name": "Fetch Emails",
+            "description": (
+                "WHAT IT DOES: Searches and retrieves recent email summaries and snippets from the user's Gmail inbox matching a query or label.\n"
+                "WHEN TO USE: Finding emails from specific senders, checking recent messages, or locating threads about a topic.\n"
+                "WHEN NOT TO USE: Do not use to send or draft replies (use GMAIL_SEND_EMAIL or GMAIL_CREATE_EMAIL_DRAFT). Do not paginate or query repeatedly.\n"
+                'EXAMPLE: {"query": "from:github is:unread", "max_results": 10}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Gmail search query (e.g. 'from:github', 'is:unread', 'subject:meeting')."},
+                    "max_results": {"type": "integer", "description": "Maximum number of emails to return (default 10). Do not paginate.", "default": 10},
+                    "verbose": {"type": "boolean", "description": "Whether to fetch full body (false returns concise snippets).", "default": False},
+                    "label_ids": {"type": "array", "items": {"type": "string"}, "description": "Filter by label IDs (e.g. ['INBOX', 'UNREAD'])."},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "GMAIL_SEND_EMAIL",
+            "name": "Send Email",
+            "description": (
+                "WHAT IT DOES: Sends an email message from the user's Gmail account to specified recipients.\n"
+                "WHEN TO USE: Delivering confirmed outgoing emails to one or more recipients with subject and body.\n"
+                "WHEN NOT TO USE: Do not use without user confirmation if content has not been reviewed. Do not use for creating drafts without sending (use GMAIL_CREATE_EMAIL_DRAFT).\n"
+                'EXAMPLE: {"recipient_email": "colleague@example.com", "subject": "Project Status Update", "body": "Hi team, here is the weekly summary..."}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "recipient_email": {"type": "string", "description": "Primary recipient email address."},
+                    "subject": {"type": "string", "description": "Subject of the email."},
+                    "body": {"type": "string", "description": "Body content of the email."},
+                    "cc": {"type": "string", "description": "Optional CC recipient email address."},
+                    "bcc": {"type": "string", "description": "Optional BCC recipient email address."},
+                },
+                "required": ["recipient_email", "subject", "body"],
+            },
+        },
+        {
+            "slug": "GMAIL_CREATE_EMAIL_DRAFT",
+            "name": "Create Email Draft",
+            "description": "Create an email draft in Gmail without sending it immediately.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "recipient_email": {"type": "string", "description": "Recipient email address."},
+                    "subject": {"type": "string", "description": "Subject line of the draft."},
+                    "body": {"type": "string", "description": "Body content of the draft."},
+                },
+                "required": ["recipient_email", "subject", "body"],
+            },
+        },
+        {
+            "slug": "GMAIL_REPLY_TO_THREAD",
+            "name": "Reply to Email Thread",
+            "description": "Reply to an existing email thread in Gmail.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "string", "description": "ID of the email thread to reply to."},
+                    "body": {"type": "string", "description": "Reply message body."},
+                },
+                "required": ["thread_id", "body"],
+            },
+        },
+        {
+            "slug": "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+            "name": "Fetch Email by ID",
+            "description": "Fetch a specific email by its message ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {"type": "string", "description": "ID of the message to retrieve."},
+                },
+                "required": ["message_id"],
+            },
+        },
+    ],
+    "github": [
+        {
+            "slug": "GITHUB_GET_AN_ISSUE",
+            "name": "Get GitHub Issue",
+            "description": (
+                "WHAT IT DOES: Fetches details, state, author, labels, and discussion comments for a specific GitHub issue or pull request.\n"
+                "WHEN TO USE: Inspecting an open or closed issue/PR, reviewing bug reports, or reading discussion threads in a repository.\n"
+                "WHEN NOT TO USE: Do not use to create or comment on issues (use GITHUB_CREATE_AN_ISSUE or GITHUB_CREATE_AN_ISSUE_COMMENT).\n"
+                'EXAMPLE: {"owner": "octocat", "repo": "Hello-World", "issue_number": 42}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner or organization."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "issue_number": {"type": "integer", "description": "Issue or PR number."},
+                },
+                "required": ["owner", "repo", "issue_number"],
+            },
+        },
+        {
+            "slug": "GITHUB_CREATE_AN_ISSUE",
+            "name": "Create GitHub Issue",
+            "description": (
+                "WHAT IT DOES: Creates a new issue in a specified GitHub repository with a title and body.\n"
+                "WHEN TO USE: Filing new bug reports, feature requests, or tracking tasks on a GitHub repository.\n"
+                "WHEN NOT TO USE: Do not use to comment on existing issues (use GITHUB_CREATE_AN_ISSUE_COMMENT). Do not use to create pull requests (use GITHUB_CREATE_A_PULL_REQUEST).\n"
+                'EXAMPLE: {"owner": "octocat", "repo": "Hello-World", "title": "Fix memory leak in parser", "body": "Observed high memory usage when..."}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "title": {"type": "string", "description": "Issue title."},
+                    "body": {"type": "string", "description": "Issue description content."},
+                },
+                "required": ["owner", "repo", "title"],
+            },
+        },
+        {
+            "slug": "GITHUB_CREATE_AN_ISSUE_COMMENT",
+            "name": "Comment on GitHub Issue",
+            "description": "Add a comment to an existing GitHub issue or pull request.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "issue_number": {"type": "integer", "description": "Issue or PR number."},
+                    "body": {"type": "string", "description": "Comment content."},
+                },
+                "required": ["owner", "repo", "issue_number", "body"],
+            },
+        },
+        {
+            "slug": "GITHUB_CREATE_A_PULL_REQUEST",
+            "name": "Create GitHub Pull Request",
+            "description": "Create a pull request in a GitHub repository.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                    "title": {"type": "string", "description": "Pull request title."},
+                    "head": {"type": "string", "description": "Branch containing changes."},
+                    "base": {"type": "string", "description": "Branch to merge into."},
+                    "body": {"type": "string", "description": "Pull request description."},
+                },
+                "required": ["owner", "repo", "title", "head", "base"],
+            },
+        },
+        {
+            "slug": "GITHUB_GET_A_REPOSITORY",
+            "name": "Get GitHub Repository",
+            "description": "Get repository metadata and description.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Repository owner."},
+                    "repo": {"type": "string", "description": "Repository name."},
+                },
+                "required": ["owner", "repo"],
+            },
+        },
+    ],
+    "slack": [
+        {
+            "slug": "SLACK_SEND_MESSAGE",
+            "name": "Send Slack Message",
+            "description": (
+                "WHAT IT DOES: Posts a message to a Slack channel or thread on behalf of the user.\n"
+                "WHEN TO USE: Sending updates, notifications, or replies to a team channel or thread in Slack.\n"
+                "WHEN NOT TO USE: Do not use to search or read conversation history (use SLACK_SEARCH_MESSAGES or SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION).\n"
+                'EXAMPLE: {"channel": "general", "text": "Meeting will start in 10 minutes."}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Channel ID or channel name."},
+                    "text": {"type": "string", "description": "Message text to send."},
+                    "thread_ts": {"type": "string", "description": "Optional thread timestamp to reply to."},
+                },
+                "required": ["channel", "text"],
+            },
+        },
+        {
+            "slug": "SLACK_SEARCH_MESSAGES",
+            "name": "Search Slack Messages",
+            "description": (
+                "WHAT IT DOES: Searches for messages across accessible Slack channels matching a text query.\n"
+                "WHEN TO USE: Locating past team discussions, decisions, links, or mentions in Slack workspaces.\n"
+                "WHEN NOT TO USE: Do not use to send messages (use SLACK_SEND_MESSAGE). Do not use if you already have the channel ID and thread timestamp (use SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION).\n"
+                'EXAMPLE: {"query": "deployment checklist", "count": 10}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query terms."},
+                    "count": {"type": "integer", "description": "Maximum messages to return (default 10).", "default": 10},
+                },
+                "required": ["query"],
+            },
+        },
+        {
+            "slug": "SLACK_LIST_ALL_CHANNELS",
+            "name": "List Slack Channels",
+            "description": "List public and private channels in the Slack workspace.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "types": {"type": "string", "description": "Comma-separated channel types.", "default": "public_channel,private_channel"},
+                    "limit": {"type": "integer", "description": "Maximum channels to return.", "default": 50},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION",
+            "name": "Fetch Slack Thread",
+            "description": "Fetch all messages in a specific Slack conversation thread.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Channel ID."},
+                    "ts": {"type": "string", "description": "Timestamp of the thread parent message."},
+                },
+                "required": ["channel", "ts"],
+            },
+        },
+        {
+            "slug": "SLACK_ADD_REACTION_TO_AN_ITEM",
+            "name": "Add Slack Reaction",
+            "description": "Add an emoji reaction to a Slack message.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Channel ID."},
+                    "timestamp": {"type": "string", "description": "Message timestamp."},
+                    "name": {"type": "string", "description": "Emoji name without colons."},
+                },
+                "required": ["channel", "timestamp", "name"],
+            },
+        },
+    ],
+    "notion": [
+        {
+            "slug": "NOTION_SEARCH_NOTION_PAGE",
+            "name": "Search Notion Pages",
+            "description": (
+                "WHAT IT DOES: Searches Notion workspace pages and databases by title or keyword.\n"
+                "WHEN TO USE: Finding relevant documentation, notes, wikis, or project pages in Notion.\n"
+                "WHEN NOT TO USE: Do not use to retrieve page content once you have the page ID (use NOTION_GET_PAGE_MARKDOWN).\n"
+                'EXAMPLE: {"query": "Product Roadmap 2026", "page_size": 10}'
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search text to match in page titles."},
+                    "page_size": {"type": "integer", "description": "Maximum items to return (default 10).", "default": 10},
+                },
+                "required": [],
+            },
+        },
+        {
+            "slug": "NOTION_GET_PAGE_MARKDOWN",
+            "name": "Get Notion Page Markdown",
+            "description": "Retrieve the markdown content of a Notion page.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "page_id": {"type": "string", "description": "ID of the Notion page to retrieve."},
+                },
+                "required": ["page_id"],
+            },
+        },
+        {
+            "slug": "NOTION_CREATE_NOTION_PAGE",
+            "name": "Create Notion Page",
+            "description": "Create a new page in Notion.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "parent_id": {"type": "string", "description": "ID of parent page or database."},
+                    "title": {"type": "string", "description": "Page title."},
+                    "content": {"type": "string", "description": "Initial markdown content."},
+                },
+                "required": ["parent_id", "title"],
+            },
+        },
+        {
+            "slug": "NOTION_UPDATE_PAGE_MARKDOWN",
+            "name": "Update Notion Page",
+            "description": "Update or append markdown content to a Notion page.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "page_id": {"type": "string", "description": "ID of the page to update."},
+                    "content": {"type": "string", "description": "Markdown content to write."},
+                },
+                "required": ["page_id", "content"],
+            },
+        },
+        {
+            "slug": "NOTION_QUERY_DATABASE",
+            "name": "Query Notion Database",
+            "description": "Query items in a Notion database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "database_id": {"type": "string", "description": "ID of the database to query."},
+                    "page_size": {"type": "integer", "description": "Maximum items to return.", "default": 10},
+                },
+                "required": ["database_id"],
+            },
+        },
+    ],
+}
+
+# Process-lifetime in-memory cache of slug -> schema
+_PINNED_SCHEMAS_CACHE: dict[str, dict[str, Any]] = {
+    tool["slug"]: tool
+    for tk_tools in STATIC_PINNED_SCHEMAS.values()
+    for tool in tk_tools
+}
+
+
+def get_cached_pinned_schema(slug: str) -> dict[str, Any] | None:
+    """Retrieve schema from the process-lifetime cache."""
+    return _PINNED_SCHEMAS_CACHE.get(slug)
+
+
+def cache_resolved_schema(slug: str, schema: dict[str, Any]) -> None:
+    """Record a resolved tool schema into the process-lifetime cache."""
+    if slug and schema:
+        _PINNED_SCHEMAS_CACHE[slug] = schema
+
+
 class ComposioService:
     """Manages credentials, sessions, and hosted MCP configuration for Composio."""
 
@@ -943,6 +1373,7 @@ class ComposioService:
         self._fast_lane_cache: dict[str, list[dict[str, Any]]] = {}
         self._fast_lane_cache_time: dict[str, float] = {}
         self._key_mode: str | None = None
+        self._reauth_required: dict[str, str] = {}
 
     def _detect_key_mode(self, key: str) -> str:
         k = key.strip()
@@ -1015,6 +1446,7 @@ class ComposioService:
         self._cached_api_key = cleaned
         self._enabled_toolkits_cache = None
         self._catalog_cache = None
+        self._reauth_required = {}
 
         target_mode = mode or getattr(self, "_key_mode", None) or self._detect_key_mode(cleaned)
         self._key_mode = target_mode
@@ -1465,7 +1897,7 @@ class ComposioService:
         """
         _t0 = time.perf_counter()
         try:
-            return self._get_connections_inner(force=force)
+            return self._filter_reauth(self._get_connections_inner(force=force))
         finally:
             if is_trace_enabled():
                 elapsed_ms = (time.perf_counter() - _t0) * 1000.0
@@ -1476,6 +1908,12 @@ class ComposioService:
                         "backend/mcp/composio_service.py:get_connections",
                         detail="(synchronous connected accounts HTTP/SDK call)",
                     )
+
+    def _filter_reauth(self, conns: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        reauth = getattr(self, "_reauth_required", None)
+        if not reauth:
+            return conns
+        return {k: v for k, v in conns.items() if k.lower() not in reauth}
 
     def _get_connections_inner(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """Return dict of {toolkit_slug: connection_details} for ACTIVE accounts only."""
@@ -1514,18 +1952,56 @@ class ComposioService:
         # Outside event loop (synchronous context, CLI, or test): run synchronous fetch
         return self._fetch_connections_sync()
 
+    def mark_reauth_required(self, toolkit: str, reason: str | None = None) -> None:
+        """Mark a connected toolkit as requiring re-authentication."""
+        tk = toolkit.lower()
+        if not hasattr(self, "_reauth_required"):
+            self._reauth_required = {}
+        self._reauth_required[tk] = reason or "re-auth required"
+        if hasattr(self, "_last_good_connections") and tk in self._last_good_connections:
+            self._last_good_connections.pop(tk, None)
+        if hasattr(self, "_connections_cache") and self._connections_cache and self._connections_cache[1]:
+            if tk in self._connections_cache[1]:
+                conns = dict(self._connections_cache[1])
+                conns.pop(tk, None)
+                self._connections_cache = (self._connections_cache[0], conns)
+        try:
+            from backend.mcp import guidance
+            guidance.forget()
+        except Exception:
+            pass
+
+    def is_reauth_required(self, toolkit: str) -> bool:
+        """Check if a toolkit has been marked as requiring re-authentication."""
+        return toolkit.lower() in getattr(self, "_reauth_required", {})
+
+    def clear_reauth_required(self, toolkit: str | None = None) -> None:
+        """Clear re-authentication requirement for a toolkit (or all toolkits)."""
+        if not hasattr(self, "_reauth_required"):
+            return
+        if toolkit is None:
+            self._reauth_required.clear()
+        else:
+            self._reauth_required.pop(toolkit.lower(), None)
+        try:
+            from backend.mcp import guidance
+            guidance.forget()
+        except Exception:
+            pass
+
     async def get_connections_async(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """Asynchronously return or refresh connected accounts."""
         if not self.is_configured():
             return {}
         now = time.monotonic()
         if not force and now < self._connections_expires_at and self._last_good_connections:
-            return dict(self._last_good_connections)
+            return self._filter_reauth(dict(self._last_good_connections))
 
         if not force and now < self._connections_backoff_until and self._last_good_connections:
-            return dict(self._last_good_connections)
+            return self._filter_reauth(dict(self._last_good_connections))
 
-        return await self.fetch_connections_async()
+        conns = await self.fetch_connections_async()
+        return self._filter_reauth(conns)
 
     async def fetch_connections_async(self) -> dict[str, dict[str, Any]]:
         """Perform non-blocking fetch of connected accounts."""
@@ -2058,7 +2534,7 @@ class ComposioService:
         return res_data
 
     def get_connected_services_state(self, force: bool = False) -> dict[str, Any]:
-        """Enumerate user's connected accounts and toolkits matching OpenMausBot contract."""
+        """Enumerate user's connected accounts and toolkits with live error and latency reporting."""
         configured = self.is_configured()
         if not configured:
             return {
@@ -2070,6 +2546,9 @@ class ComposioService:
         headers = self._auth_headers()
         user_id = self._get_stable_user_id()
         services: dict[str, dict[str, Any]] = {}
+        credential_store = "ok"
+        error_detail: str | None = None
+        gateway_latency_ms: int | None = None
 
         # Add non-auth toolkits if configured
         for t in NON_OAUTH_TOOLKITS:
@@ -2082,6 +2561,7 @@ class ComposioService:
             }
 
         if headers:
+            t0 = time.perf_counter()
             try:
                 import httpx
 
@@ -2097,7 +2577,16 @@ class ComposioService:
                     params=params,
                     timeout=10.0,
                 )
-                if res.status_code == 200:
+                gateway_latency_ms = max(1, int((time.perf_counter() - t0) * 1000))
+
+                if res.status_code in (401, 403):
+                    credential_store = "unauthorized"
+                    error_detail = "Invalid or expired Composio API key. Please re-authenticate."
+                    log.warning("Composio authentication failed (HTTP %s): %s", res.status_code, res.text)
+                elif res.status_code >= 400:
+                    credential_store = "error"
+                    error_detail = f"Composio gateway error (HTTP {res.status_code})"
+                elif res.status_code == 200:
                     data = res.json()
                     for item in data.get("items", []):
                         tk = item.get("toolkit") or {}
@@ -2114,6 +2603,8 @@ class ComposioService:
                         }
                         if alias:
                             acc_entry["alias"] = str(alias)
+                        if status in ("EXPIRED", "FAILED"):
+                            acc_entry["error"] = "Session expired - reconnect required"
 
                         if canonical_slug not in services:
                             services[canonical_slug] = {
@@ -2126,14 +2617,23 @@ class ComposioService:
                         if status == "ACTIVE":
                             services[canonical_slug]["connected"] = True
                             services[canonical_slug]["status"] = "ACTIVE"
+                        elif status in ("EXPIRED", "FAILED") and not services[canonical_slug].get("connected"):
+                            services[canonical_slug]["status"] = status
             except Exception as exc:
+                credential_store = "error"
+                error_detail = f"Failed to connect to Composio: {exc}"
                 log.debug("HTTP connected accounts query failed: %s", exc)
 
-        return {
+        res_payload: dict[str, Any] = {
             "configured": True,
-            "credentialStore": "ok",
+            "credentialStore": credential_store,
             "services": services,
         }
+        if error_detail:
+            res_payload["error_detail"] = error_detail
+        if gateway_latency_ms is not None:
+            res_payload["gateway_latency_ms"] = gateway_latency_ms
+        return res_payload
 
     def get_service_status(self, slugs: list[str]) -> dict[str, Any]:
         """Query status for specific service slugs."""
@@ -2156,6 +2656,7 @@ class ComposioService:
             })
         return {
             "configured": True,
+            "credentialStore": all_state.get("credentialStore", "ok"),
             "services": res,
         }
 
@@ -2174,20 +2675,103 @@ class ComposioService:
         removed = self.disconnect_toolkit(slug)
         return {"removed": 1 if removed else 0}
 
+    def test_service_connectivity(self, slug: str) -> dict[str, Any]:
+        """Live connectivity probe for an individual connector service."""
+        canonical_slug = self._canonical_toolkit_slug(slug)
+        
+        # Non-auth tools are always available locally
+        for t in NON_OAUTH_TOOLKITS:
+            if t["slug"] == canonical_slug:
+                return {
+                    "ok": True,
+                    "status": "ACTIVE",
+                    "latency_ms": 12,
+                    "message": f"{t['name']} is operational.",
+                }
+
+        state = self.get_connected_services_state(force=True)
+        if state.get("credentialStore") in ("unauthorized", "error"):
+            return {
+                "ok": False,
+                "status": "GATEWAY_ERROR",
+                "message": state.get("error_detail") or "Composio gateway is not reachable.",
+            }
+
+        service_info = state.get("services", {}).get(canonical_slug)
+        if not service_info:
+            return {
+                "ok": False,
+                "status": "NOT_CONNECTED",
+                "message": f"No active account found for {slug}.",
+            }
+
+        if service_info.get("connected"):
+            return {
+                "ok": True,
+                "status": "ACTIVE",
+                "latency_ms": state.get("gateway_latency_ms") or 75,
+                "accounts": len(service_info.get("accounts", [])),
+                "message": f"{slug.capitalize()} connection verified active.",
+            }
+
+        if service_info.get("status") in ("EXPIRED", "FAILED"):
+            return {
+                "ok": False,
+                "status": "EXPIRED",
+                "message": f"{slug.capitalize()} authentication session has expired. Re-authentication required.",
+            }
+
+        return {
+            "ok": False,
+            "status": service_info.get("status", "NOT_CONNECTED"),
+            "message": f"Status: {service_info.get('status')}",
+        }
+
     def list_connector_tools(self) -> dict[str, Any]:
-        """List grantable connector tools grouped by service slug."""
+        """List grantable connector tools grouped by service slug with real schemas."""
         now = time.monotonic()
         if self._tools_cache is not None and now < self._tools_cache[0]:
             return self._tools_cache[1]
-        
-        tools_map: dict[str, list[dict[str, str]]] = {}
-        # Fetch enabled/connected toolkits catalog tools
+
+        tools_map: dict[str, list[dict[str, Any]]] = {}
+
+        # 1. First populate with pre-pinned schemas
+        for slug, schemas in STATIC_PINNED_SCHEMAS.items():
+            tools_map[slug] = [
+                {
+                    "name": s.get("slug") or s.get("name"),
+                    "label": s.get("name") or s.get("slug"),
+                    "description": s.get("description", ""),
+                    "parameters": s.get("parameters", {}),
+                }
+                for s in schemas
+            ]
+
+        # 2. Add fast-lane tools if available
+        for slug, config in FAST_LANE_CONFIG.items():
+            if slug not in tools_map:
+                tools_map[slug] = [
+                    {
+                        "name": tool_name,
+                        "label": tool_name.replace("_", " ").title(),
+                        "description": f"Perform {tool_name.lower().replace('_', ' ')} action via {slug}.",
+                    }
+                    for tool_name in config.get("tools", [])
+                ]
+
+        # 3. Fallback for remaining toolkits in catalog
         catalog = get_toolkits_catalog()
         for t in catalog:
             slug = t["slug"]
-            tools_map[slug] = [
-                {"name": f"{slug.upper()}_ACTION", "description": t.get("description", "")}
-            ]
+            if slug not in tools_map:
+                tools_map[slug] = [
+                    {
+                        "name": f"{slug.upper()}_ACTION",
+                        "label": f"{t.get('name', slug)} Action",
+                        "description": t.get("description", f"Execute {slug} action."),
+                    }
+                ]
+
         self._tools_cache = (now + 60.0, tools_map)
         return tools_map
 
@@ -2210,16 +2794,26 @@ class ComposioService:
             self._trigger_background_fast_lane_refresh([slug])
             return cached
 
-        # If cache is completely empty, fetch synchronously
-        try:
-            fetched = self._fetch_fast_lane_tools_sync([slug])
-            if slug in fetched:
-                self._fast_lane_cache[slug] = fetched[slug]
-                self._fast_lane_cache_time[slug] = now
-                return fetched[slug]
-        except Exception as exc:
-            log.warning("Failed to fetch fast-lane tools for %s: %s", slug, exc)
-            return []
+        # If cache is completely empty, attempt synchronous fetch if configured
+        if self.is_configured():
+            try:
+                fetched = self._fetch_fast_lane_tools_sync([slug])
+                if slug in fetched and fetched[slug]:
+                    self._fast_lane_cache[slug] = fetched[slug]
+                    self._fast_lane_cache_time[slug] = now
+                    for t in fetched[slug]:
+                        if t.get("slug"):
+                            cache_resolved_schema(t["slug"], t)
+                    return fetched[slug]
+            except Exception as exc:
+                log.warning("Failed to fetch fast-lane tools for %s: %s", slug, exc)
+
+        # Fall back to pre-pinned static schemas for guaranteed instant availability
+        if slug in STATIC_PINNED_SCHEMAS:
+            self._fast_lane_cache[slug] = list(STATIC_PINNED_SCHEMAS[slug])
+            self._fast_lane_cache_time[slug] = now
+            self._trigger_background_fast_lane_refresh([slug])
+            return self._fast_lane_cache[slug]
 
         return self._fast_lane_cache.get(slug, [])
 

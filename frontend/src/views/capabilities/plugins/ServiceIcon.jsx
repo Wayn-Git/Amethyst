@@ -88,6 +88,8 @@ const DOMAIN_MAPPINGS = {
   tavily: 'tavily.com',
   firecrawl: 'firecrawl.dev',
   exa: 'exa.ai',
+  langsearch: 'langsearch.com',
+  composio: 'composio.dev',
   duckduckgo: 'duckduckgo.com',
   wikipedia: 'wikipedia.org',
   hackernews: 'news.ycombinator.com',
@@ -131,8 +133,15 @@ export default function ServiceIcon({ card, size = 'default' }) {
 
   const slug = (card?.slug || card?.name || '').toLowerCase().trim()
   const sizeClass =
-    size === 'large' ? 'is-large' : size === 'small' ? 'is-small' : ''
-  const vectorIconSize = size === 'large' ? 36 : size === 'small' ? 16 : 24
+    size === 'hero' || size === 'large'
+      ? 'is-large'
+      : size === 'tiny'
+        ? 'is-tiny'
+        : size === 'small'
+          ? 'is-small'
+          : ''
+  const vectorIconSize =
+    size === 'hero' || size === 'large' ? 40 : size === 'tiny' ? 14 : size === 'small' ? 16 : 28
 
   // Resolve URLs
   const composioLogo =

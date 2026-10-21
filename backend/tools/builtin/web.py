@@ -430,8 +430,10 @@ def tools() -> list[Tool]:
     search_tool = Tool(
         name="search_web",
         description=(
-            "Search the web with intelligent query planning, recency awareness, and"
-            " source authority weighting. Supports single query or multiple queries in parallel."
+            "WHAT IT DOES: Searches the live internet across search providers and returns structured search snippets with titles, URLs, and summaries.\n"
+            "WHEN TO USE: Finding current news, live facts, documentation, API references, or external knowledge not in the local workspace.\n"
+            "WHEN NOT TO USE: Do not use to inspect local codebase files or user documents (use grep_files, view_file). Do not search if you already have the target URL (use fetch_url).\n"
+            'EXAMPLE: {"query": "FastAPI client disconnect detection starlette", "limit": 5}'
         ),
         parameters={
             "type": "object",
@@ -517,8 +519,10 @@ def tools() -> list[Tool]:
         Tool(
             name="fetch_url",
             description=(
-                "Fetch a web page or file and return its text. HTML is reduced to"
-                " readable text. Use after search_web, or when the user gives a URL."
+                "WHAT IT DOES: Downloads and parses a webpage or online document into clean, readable text.\n"
+                "WHEN TO USE: Reading full articles, online API documentation, GitHub pull requests, or reference materials when you have a specific URL.\n"
+                "WHEN NOT TO USE: Do not use to discover URLs (use search_web first). Do not use on local file paths (use view_file).\n"
+                'EXAMPLE: {"url": "https://fastapi.tiangolo.com/tutorial/bigger-applications/"}'
             ),
             parameters={
                 "type": "object",

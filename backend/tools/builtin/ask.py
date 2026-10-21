@@ -63,18 +63,10 @@ def tools() -> list[Tool]:
         Tool(
             name="ask_user",
             description=(
-                "THE ONLY WAY TO ASK THE USER ANYTHING. Pauses the turn, shows"
-                " them your choices as buttons, and returns what they picked so"
-                " you can carry on with everything you have already worked out."
-                " A question written in your reply instead ends the turn with"
-                " nobody able to answer it. So whenever you would write 'would"
-                " you like me to', 'should I', or 'which of these', call this"
-                " instead. Use it BEFORE doing the work: the point is to avoid"
-                " building the wrong thing. Do NOT use it for anything another"
-                " tool could tell you, for permission (the system asks about"
-                " that separately), or to confirm something you are already"
-                " confident about. Give real options with short descriptions;"
-                " the user can always write their own answer instead."
+                "WHAT IT DOES: Prompts the user with structured choices or an input modal in the chat UI, suspending the turn until answered.\n"
+                "WHEN TO USE: Resolving genuine ambiguity, major architectural decisions, or preference choices where different paths lead to vastly different work.\n"
+                "WHEN NOT TO USE: Do not ask trivial questions or ask for permission to run read-only tools. Do not narrate your next step as a question in chat.\n"
+                'EXAMPLE: {"questions": [{"question": "Which database engine would you prefer?", "options": [{"label": "SQLite"}, {"label": "PostgreSQL"}]}]}'
             ),
             parameters={
                 "type": "object",

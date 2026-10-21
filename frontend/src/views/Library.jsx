@@ -47,10 +47,10 @@ export default function Library() {
 
   // Filter & layout state
   const [query, setQuery] = useState('')
-  const [selectedKind, setSelectedKind] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('')
-  const [selectedTag, setSelectedTag] = useState('')
-  const [selectedRating, setSelectedRating] = useState('')
+  const [selectedKinds, setSelectedKinds] = useState([])
+  const [selectedCategories, setSelectedCategories] = useState([])
+  const [selectedTags, setSelectedTags] = useState([])
+  const [selectedRatings, setSelectedRatings] = useState([])
   const [order, setOrder] = useState('desc')
   const [layout, setLayout] = useState(() => safeStorage.getItem('amethyst_lib_layout', 'grid'))
   const [railOpen, setRailOpen] = useState(() => safeStorage.getItem('amethyst_lib_rail') !== 'false')
@@ -90,9 +90,9 @@ export default function Library() {
     try {
       const data = await api.library({
         q: query,
-        kind: selectedKind,
-        category: selectedCategory,
-        tag: selectedTag,
+        kind: selectedKinds.join(','),
+        category: selectedCategories.join(','),
+        tag: selectedTags.join(','),
         order,
       })
       if (loadToken.current !== token) return
@@ -136,7 +136,7 @@ export default function Library() {
       setError(err.message)
       setLoaded(true)
     }
-  }, [query, selectedKind, selectedCategory, selectedTag, order])
+  }, [query, selectedKinds, selectedCategories, selectedTags, order])
 
   // Sync params with URL state
   useEffect(() => {
@@ -146,10 +146,10 @@ export default function Library() {
     const tag = params.get('tag') || ''
     const ratingParam = params.get('rating') || ''
     if (q !== query) setQuery(q)
-    if (kind !== selectedKind) setSelectedKind(kind)
-    if (cat !== selectedCategory) setSelectedCategory(cat)
-    if (tag !== selectedTag) setSelectedTag(tag)
-    if (ratingParam !== selectedRating) setSelectedRating(ratingParam)
+    if (kind) setSelectedKinds(kind.split(',').filter(Boolean))
+    if (cat) setSelectedCategories(cat.split(',').filter(Boolean))
+    if (tag) setSelectedTags(tag.split(',').filter(Boolean))
+    if (ratingParam) setSelectedRatings(ratingParam.split(',').filter(Boolean))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -157,12 +157,12 @@ export default function Library() {
   useEffect(() => {
     const next = new URLSearchParams()
     if (query) next.set('q', query)
-    if (selectedKind) next.set('kind', selectedKind)
-    if (selectedCategory) next.set('category', selectedCategory)
-    if (selectedTag) next.set('tag', selectedTag)
-    if (selectedRating) next.set('rating', selectedRating)
+    if (selectedKinds.length) next.set('kind', selectedKinds.join(','))
+    if (selectedCategories.length) next.set('category', selectedCategories.join(','))
+    if (selectedTags.length) next.set('tag', selectedTags.join(','))
+    if (selectedRatings.length) next.set('rating', selectedRatings.join(','))
     setParams(next, { replace: true })
-  }, [query, selectedKind, selectedCategory, selectedTag, selectedRating, setParams])
+  }, [query, selectedKinds, selectedCategories, selectedTags, selectedRatings, setParams])
 
   // Trigger data load
   useEffect(() => {
@@ -201,16 +201,23 @@ export default function Library() {
         if (cancelled) break
         try {
           const updated = await api.libraryItem(id)
+          const isStillBusy =
+            updated.status === 'received' ||
+            updated.status === 'processing' ||
+            updated.status === 'enriching'
+
           const isDone =
-            updated.status === 'ready' ||
             updated.status === 'failed' ||
-            Boolean(updated.enriched_at || updated.enrichment_note || updated.summary)
+            (updated.status === 'ready' && !isStillBusy)
+
           if (isDone) {
             activeProcessingIds.current.delete(id)
             setItems((prev) =>
               prev.map((it) => (it.id === id ? { ...updated, isProcessing: false } : it))
             )
-            toast(`Ready: ${updated.title}`, 'ok')
+            if (updated.status !== 'failed') {
+              toast(`Ready: ${updated.title}`, 'ok')
+            }
             api.library().then((res) => {
               setCounts(res.counts || {})
               setCategoryCounts(res.category_counts || {})
@@ -415,10 +422,10 @@ export default function Library() {
   }, [])
 
   const handleClearFilters = useCallback(() => {
-    setSelectedKind('')
-    setSelectedCategory('')
-    setSelectedTag('')
-    setSelectedRating('')
+    setSelectedKinds([])
+    setSelectedCategories([])
+    setSelectedTags([])
+    setSelectedRatings([])
     setQuery('')
   }, [])
 
@@ -441,17 +448,22 @@ export default function Library() {
     return { '5': count5, '4+': count4plus, 'rated': countRated }
   }, [items])
 
-  // Filter items reactively by selectedRating
+  // Filter items reactively by selectedRating and order
   const displayedItems = useMemo(() => {
-    if (!selectedRating) return items
-    if (selectedRating === '5') return items.filter((it) => it.rating === 5)
-    if (selectedRating === '4+') return items.filter((it) => (it.rating || 0) >= 4)
-    if (selectedRating === 'rated') return items.filter((it) => (it.rating || 0) > 0)
-    return items
-  }, [items, selectedRating])
+    let result = items
+    if (selectedRatings.length) {
+      result = result.filter((it) => selectedRatings.some((rating) =>
+        rating === '5' ? it.rating === 5 : rating === '4+' ? (it.rating || 0) >= 4 : (it.rating || 0) > 0
+      ))
+    }
+    if (order === 'rating') {
+      result = [...result].sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    }
+    return result
+  }, [items, selectedRatings, order])
 
   const appCounts = useMemo(() => {
-    const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify']
+    const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify', 'threads']
     const countsMap = {}
     for (const app of known) {
       if (tagCounts[app]) countsMap[app] = tagCounts[app]
@@ -465,11 +477,13 @@ export default function Library() {
   }, [tagCounts, items])
 
   const activeFilterCount =
-    (selectedKind ? 1 : 0) +
-    (selectedCategory ? 1 : 0) +
-    (selectedTag ? 1 : 0) +
-    (selectedRating ? 1 : 0) +
+    selectedKinds.length +
+    selectedCategories.length +
+    selectedTags.length +
+    selectedRatings.length +
     (query ? 1 : 0)
+
+  const hasFilter = Boolean(activeFilterCount > 0)
 
   const hasMusic = Boolean(
     counts?.music ||
@@ -532,202 +546,128 @@ export default function Library() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }}
           >
-            {/* Modern Minimalist Page Header with Unified Action Center */}
-            <header className="lib-header" data-enter>
-          <div className="lib-header-left">
-            <div className="lib-header-title-row">
-              <h1 className="lib-header-title">Library</h1>
-              <div className="lib-header-badge" role="status" aria-live="polite">
-                {isProcessingCount > 0 ? (
-                  <>
-                    <span className="lib-header-live-dot" />
-                    <span>Syncing {isProcessingCount} item{isProcessingCount > 1 ? 's' : ''}</span>
-                  </>
-                ) : (
-                  <span>{total} indexed artifacts</span>
-                )}
-              </div>
-            </div>
-            <p className="lib-header-subtitle">
-              High-recall knowledge base with automatic AI transcriptions, key entity extraction, and semantic search.
-            </p>
-          </div>
-
-          <div className="lib-header-actions">
-            {/* External Capture & Integrations */}
-            <button
-              type="button"
-              className={`lib-header-action-btn ${showShare ? 'lib-header-action-btn--active' : ''}`}
-              onClick={() => setShowShare((prev) => !prev)}
-              title="External capture & integrations (browser, phone, relay)"
-              aria-expanded={showShare}
-            >
-              <Icon name="link" size={14} />
-              <span>Sync & Capture</span>
-            </button>
-
-            {/* Export to Spotify Playlist */}
-            {hasMusic && (
-              <button
-                type="button"
-                className="lib-header-action-btn"
-                onClick={handleOpenExport}
-                title="Export discovered audio to Spotify playlist"
-              >
-                <Icon name="music" size={14} />
-                <span>Playlist</span>
-              </button>
-            )}
-
-            {/* Segmented Layout Toggle: Grid vs List */}
-            <div className="lib-segmented-control" role="group" aria-label="View display">
-              <button
-                type="button"
-                className={`lib-segmented-btn ${layout === 'grid' ? 'lib-segmented-btn--active' : ''}`}
-                onClick={() => handleLayoutChange('grid')}
-                title="Bento Grid view"
-                aria-label="Bento Grid view"
-                aria-pressed={layout === 'grid'}
-              >
-                <Icon name="grid" size={14} />
-              </button>
-              <button
-                type="button"
-                className={`lib-segmented-btn ${layout === 'list' ? 'lib-segmented-btn--active' : ''}`}
-                onClick={() => handleLayoutChange('list')}
-                title="Dense Stream view"
-                aria-label="Dense Stream view"
-                aria-pressed={layout === 'list'}
-              >
-                <Icon name="list" size={14} />
-              </button>
-            </div>
-
-            {/* Primary Add Resource */}
-            <button
-              type="button"
-              className="lib-btn lib-btn--primary"
-              onClick={() => {
-                setAddModalMode('url')
+            {/* Unified Studio Command Deck */}
+            <LibraryToolbar
+              total={total}
+              showing={displayedItems.length}
+              isProcessingCount={isProcessingCount}
+              query={query}
+              onQueryChange={setQuery}
+              searchRef={searchInputRef}
+              quickCaptureText={quickCaptureText}
+              onQuickCaptureChange={setQuickCaptureText}
+              onQuickCaptureSubmit={handleQuickCaptureSubmit}
+              captureRef={captureInputRef}
+              order={order}
+              onOrderChange={setOrder}
+              layout={layout}
+              onLayoutChange={handleLayoutChange}
+              showShare={showShare}
+              onToggleShare={() => setShowShare((prev) => !prev)}
+              hasMusic={hasMusic}
+              onOpenExport={handleOpenExport}
+              onOpenAddModal={(mode) => {
+                setAddModalMode(mode || 'url')
                 setShowAddModal(true)
               }}
-              title={`Add resource (${IS_MAC ? '⌘K' : 'Ctrl+K'})`}
-            >
-              <Icon name="plus" size={14} />
-              <span>Add Resource</span>
-              <kbd className="lib-kbd lib-kbd--primary">
-                {IS_MAC ? '⌘K' : 'Ctrl+K'}
-              </kbd>
-            </button>
-          </div>
-        </header>
+              counts={counts}
+              categoryCounts={categoryCounts}
+              tagCounts={tagCounts}
+              appCounts={appCounts}
+              ratingCounts={ratingCounts}
+              selectedKinds={selectedKinds}
+              selectedCategories={selectedCategories}
+              selectedTags={selectedTags}
+              selectedRatings={selectedRatings}
+              onSelectKinds={setSelectedKinds}
+              onSelectCategories={setSelectedCategories}
+              onSelectTags={setSelectedTags}
+              onSelectRatings={setSelectedRatings}
+              onClearFilters={handleClearFilters}
+            />
 
-        {/* Smart Command & Search Omnibar */}
-        <LibraryToolbar
-          query={query}
-          onQueryChange={setQuery}
-          searchRef={searchInputRef}
-          quickCaptureText={quickCaptureText}
-          onQuickCaptureChange={setQuickCaptureText}
-          onQuickCaptureSubmit={handleQuickCaptureSubmit}
-          captureRef={captureInputRef}
-          order={order}
-          onOrderChange={setOrder}
-          onOpenAddModal={(mode) => {
-            setAddModalMode(mode || 'url')
-            setShowAddModal(true)
-          }}
-        />
-
-        {/* Layout Area: Modern Segmented Filter Hub + Full-Width Content Canvas */}
-        <div className="lib-layout w-full flex flex-col gap-3">
-          <LibraryFilterBar
-            total={total}
-            counts={counts}
-            categoryCounts={categoryCounts}
-            tagCounts={tagCounts}
-            appCounts={appCounts}
-            ratingCounts={ratingCounts}
-            selectedKind={selectedKind}
-            selectedCategory={selectedCategory}
-            selectedTag={selectedTag}
-            selectedRating={selectedRating}
-            query={query}
-            onSelectKind={setSelectedKind}
-            onSelectCategory={setSelectedCategory}
-            onSelectTag={setSelectedTag}
-            onSelectRating={setSelectedRating}
-            onClearQuery={() => setQuery('')}
-            onClearFilters={handleClearFilters}
-            isOpen={railOpen}
-          />
-
-          <main className="lib-content-main w-full">
-            {!loaded && items.length === 0 ? (
-              <SkeletonLibraryGrid cards={8} />
-            ) : error ? (
-              <ErrorState message={error} onRetry={load} />
-            ) : displayedItems.length === 0 ? (
-              <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-                <EmptyState size="md">
-                  <EmptyState.Header>
-                    <EmptyState.Title>
-                      {activeFilterCount > 0 ? 'No matching knowledge found' : 'Your library is empty'}
-                    </EmptyState.Title>
-                    <EmptyState.Description>
-                      {activeFilterCount > 0
-                        ? 'Try modifying your search or clearing active filters to see all resources.'
-                        : 'Paste an article, YouTube video, PDF, or note above to start building your personal library.'}
-                    </EmptyState.Description>
-                  </EmptyState.Header>
-                  <EmptyState.Footer>
-                    {activeFilterCount > 0 ? (
-                      <button
-                        type="button"
-                        className="lib-btn"
-                        onClick={handleClearFilters}
-                      >
-                        Reset filters
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="lib-btn lib-btn--primary"
-                        onClick={() => {
-                          setAddModalMode('url')
-                          setShowAddModal(true)
-                        }}
-                      >
-                        <Icon name="plus" size={14} />
-                        <span>Add first resource</span>
-                      </button>
-                    )}
-                  </EmptyState.Footer>
-                </EmptyState>
-              </div>
-            ) : layout === 'grid' ? (
-              <LibraryGrid
-                items={displayedItems}
-                busyId={busyId}
-                onSelect={(item) => setActiveModalItem(item)}
-                onReindex={handleReindex}
-                onEnrich={handleEnrich}
-                onDelete={handleDelete}
-                onTagClick={(tag) => setSelectedTag(tag)}
+            {/* Layout Area: Active Filter Strip (when active) + Content Canvas */}
+            <div className="lib-layout w-full flex flex-col gap-4">
+              <LibraryFilterBar
+                selectedKinds={selectedKinds}
+                selectedCategories={selectedCategories}
+                selectedTags={selectedTags}
+                selectedRatings={selectedRatings}
+                query={query}
+                onSelectKinds={setSelectedKinds}
+                onSelectCategories={setSelectedCategories}
+                onSelectTags={setSelectedTags}
+                onSelectRatings={setSelectedRatings}
+                onClearQuery={() => setQuery('')}
+                onClearFilters={handleClearFilters}
               />
-            ) : (
-              <LibraryListView
-                items={displayedItems}
-                busyId={busyId}
-                onSelect={(item) => setActiveModalItem(item)}
-                onReindex={handleReindex}
-                onEnrich={handleEnrich}
-                onDelete={handleDelete}
-                onTagClick={(tag) => setSelectedTag(tag)}
-              />
-            )}
-          </main>
-        </div>
+
+              <main className="lib-content-main w-full">
+                {!loaded && items.length === 0 ? (
+                  <SkeletonLibraryGrid cards={8} />
+                ) : error ? (
+                  <ErrorState message={error} onRetry={load} />
+                ) : displayedItems.length === 0 ? (
+                  <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+                    <EmptyState size="md">
+                      <EmptyState.Header>
+                        <EmptyState.Title>
+                          {activeFilterCount > 0 ? 'No matching knowledge found' : 'Your library is empty'}
+                        </EmptyState.Title>
+                        <EmptyState.Description>
+                          {activeFilterCount > 0
+                            ? 'Try modifying your search or clearing active filters to see all resources.'
+                            : 'Paste an article, YouTube video, PDF, or note above to start building your personal library.'}
+                        </EmptyState.Description>
+                      </EmptyState.Header>
+                      <EmptyState.Footer>
+                        {activeFilterCount > 0 ? (
+                          <button
+                            type="button"
+                            className="lib-btn"
+                            onClick={handleClearFilters}
+                          >
+                            Reset filters
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="lib-btn lib-btn--primary"
+                            onClick={() => {
+                              setAddModalMode('url')
+                              setShowAddModal(true)
+                            }}
+                          >
+                            <Icon name="plus" size={14} />
+                            <span>Add first resource</span>
+                          </button>
+                        )}
+                      </EmptyState.Footer>
+                    </EmptyState>
+                  </div>
+                ) : layout === 'grid' ? (
+                  <LibraryGrid
+                    items={displayedItems}
+                    busyId={busyId}
+                    onSelect={(item) => setActiveModalItem(item)}
+                    onReindex={handleReindex}
+                    onEnrich={handleEnrich}
+                    onDelete={handleDelete}
+                    onTagClick={(tag) => setSelectedTags([tag])}
+                  />
+                ) : (
+                  <LibraryListView
+                    items={displayedItems}
+                    busyId={busyId}
+                    onSelect={(item) => setActiveModalItem(item)}
+                    onReindex={handleReindex}
+                    onEnrich={handleEnrich}
+                    onDelete={handleDelete}
+                    onTagClick={(tag) => setSelectedTags([tag])}
+                  />
+                )}
+              </main>
+            </div>
 
         {/* Add Content Modal */}
         <AddContentModal

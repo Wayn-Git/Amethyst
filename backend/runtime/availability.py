@@ -31,6 +31,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 
+from backend.agent.config import agent_config
 from backend.config import ProviderConfig
 from backend.runtime.failures import FailureKind
 from backend.runtime.providers import anthropic, google, ollama, openai_compat
@@ -109,6 +110,8 @@ class Availability:
 
 _cache: dict[str, tuple[float, Availability]] = {}
 _locks: dict[str, asyncio.Lock] = {}
+_consecutive_failures: dict[str, int] = {}
+_circuit_tripped_until: dict[str, float] = {}
 
 #: How long a minute is, for the purpose of a tokens-per-minute ceiling. The
 #: providers that publish one mean a rolling window rather than a wall-clock
@@ -142,8 +145,12 @@ def forget(name: str | None = None) -> None:
     """
     if name is None:
         _cache.clear()
+        _consecutive_failures.clear()
+        _circuit_tripped_until.clear()
     else:
         _cache.pop(name, None)
+        _consecutive_failures.pop(name, None)
+        _circuit_tripped_until.pop(name, None)
 
 
 def forget_usage(name: str | None = None) -> None:
@@ -202,6 +209,48 @@ def headroom(config: ProviderConfig) -> float:
     return max(0.0, 1.0 - used / ceiling)
 
 
+def consecutive_failures(name: str) -> int:
+    """Number of consecutive failures recorded for this provider."""
+    return _consecutive_failures.get(name, 0)
+
+
+def is_circuit_open(name: str) -> bool:
+    """Whether the circuit breaker is currently open (tripped) for this provider."""
+    tripped_until = _circuit_tripped_until.get(name)
+    if tripped_until is None:
+        return False
+    if time.monotonic() < tripped_until:
+        return True
+    # Cooldown has elapsed -> circuit half-opens / closes
+    _circuit_tripped_until.pop(name, None)
+    _consecutive_failures[name] = 0
+    return False
+
+
+def trip_circuit(name: str, cooldown: float | None = None) -> None:
+    """Trip the circuit breaker for this provider, skipping it for cooldown seconds."""
+    duration = cooldown if cooldown is not None else agent_config.circuit_breaker_cooldown
+    _circuit_tripped_until[name] = time.monotonic() + duration
+    fails = consecutive_failures(name)
+    reason = f"circuit breaker open ({fails} consecutive failures)"
+    _cache[name] = (
+        time.monotonic() + duration,
+        Availability(name=name, available=False, reason=reason, source="observed"),
+    )
+    log.warning(
+        "Circuit breaker tripped for %s (%d consecutive failures); skipping for %.0fs",
+        name,
+        fails,
+        duration,
+    )
+
+
+def reset_circuit(name: str) -> None:
+    """Reset the circuit breaker and consecutive failure count for this provider."""
+    _consecutive_failures[name] = 0
+    _circuit_tripped_until.pop(name, None)
+
+
 def record_failure(name: str, kind: FailureKind, message: str = "") -> None:
     """Remember that a real turn could not reach this provider.
 
@@ -213,6 +262,9 @@ def record_failure(name: str, kind: FailureKind, message: str = "") -> None:
     fail the same way on the next turn, and a picker that keeps offering it
     anyway is what turned three near-identical 413s into three separate
     real conversations.
+
+    Consecutive failures trip the circuit breaker for `agent_config.circuit_breaker_cooldown`
+    (default 180s) once `agent_config.circuit_breaker_failures` (default 3) is reached.
     """
     if kind not in (
         FailureKind.UNREACHABLE,
@@ -220,6 +272,13 @@ def record_failure(name: str, kind: FailureKind, message: str = "") -> None:
         FailureKind.NON_RETRYABLE_RATE_LIMIT,
     ):
         return
+
+    fails = _consecutive_failures.get(name, 0) + 1
+    _consecutive_failures[name] = fails
+    if fails >= agent_config.circuit_breaker_failures:
+        trip_circuit(name)
+        return
+
     reason = {
         FailureKind.UNREACHABLE: "nothing answered at its endpoint",
         FailureKind.UPSTREAM_UNHEALTHY: "the provider is returning server errors",
@@ -245,6 +304,12 @@ def record_exhausted(name: str, *, retry_after: float | None, message: str = "")
     retry that lands 800ms later, and clamped by `FAILURE_TTL_SECONDS` because a
     remembered failure is a guess about the future and a long guess is a bad one.
     """
+    fails = _consecutive_failures.get(name, 0) + 1
+    _consecutive_failures[name] = fails
+    if fails >= agent_config.circuit_breaker_failures:
+        trip_circuit(name)
+        return
+
     wait = (
         FAILURE_TTL_SECONDS
         if retry_after is None
@@ -272,6 +337,7 @@ def record_exhausted(name: str, *, retry_after: float | None, message: str = "")
 
 def record_success(name: str) -> None:
     """A provider that just answered is available, whatever was remembered."""
+    reset_circuit(name)
     _cache[name] = (
         time.monotonic() + PROBE_TTL_SECONDS,
         Availability(name=name, available=True, source="observed"),
@@ -285,6 +351,8 @@ def clears_in(name: str) -> float | None:
     47 seconds" is a fact nobody can act on -- it cannot tell waiting from
     something being genuinely broken.
     """
+    if is_circuit_open(name):
+        return max(0.0, _circuit_tripped_until[name] - time.monotonic())
     entry = _cache.get(name)
     if entry is None:
         return None
@@ -295,6 +363,13 @@ def clears_in(name: str) -> float | None:
 
 
 def cached(name: str) -> Availability | None:
+    if is_circuit_open(name):
+        return Availability(
+            name=name,
+            available=False,
+            reason=f"circuit breaker open ({consecutive_failures(name)} consecutive failures)",
+            source="observed",
+        )
     entry = _cache.get(name)
     if entry is None:
         return None

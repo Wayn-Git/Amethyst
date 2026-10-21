@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+import json
 import logging
 import os
 import sys
@@ -27,13 +28,21 @@ import time
 import traceback
 from typing import Any
 
+import uuid
+
 log = logging.getLogger("amethyst.trace")
 
 
 def is_trace_enabled() -> bool:
-    """Return True if AMETHYST_TRACE is set to '1' or 'true'."""
+    """Return True if AMETHYST_TRACE is set or agent_config.enable_turn_tracing is True."""
     val = os.environ.get("AMETHYST_TRACE", "").strip().lower()
-    return val in ("1", "true", "yes", "on")
+    if val:
+        return val in ("1", "true", "yes", "on")
+    try:
+        from backend.agent.config import agent_config
+        return agent_config.enable_turn_tracing
+    except Exception:
+        return True
 
 
 @dataclass
@@ -67,6 +76,7 @@ class BlockingCallRecord:
 class TurnTrace:
     conversation_id: str
     user_message: str
+    turn_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     start_time: float = field(default_factory=time.perf_counter)
     classify_presentation_ms: float = 0.0
     classify_and_extract_ms: float = 0.0
@@ -78,10 +88,45 @@ class TurnTrace:
     tool_deferral_active: bool = False
     catalog_size: int = 0
     visible_tools_count: int = 0
+    steps_used: int = 0
+    errors: list[str] = field(default_factory=list)
+    provider_used: str = ""
+    cache_hits: int = 0
     llm_calls: list[LLMCallRecord] = field(default_factory=list)
     tool_dispatches: list[ToolDispatchRecord] = field(default_factory=list)
     blocking_calls: list[BlockingCallRecord] = field(default_factory=list)
     end_time: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert trace to structured turn metrics dictionary."""
+        effective_provider = self.provider_used
+        if not effective_provider and self.llm_calls:
+            effective_provider = self.llm_calls[0].provider
+        return {
+            "turn_id": self.turn_id,
+            "conversation_id": self.conversation_id,
+            "user_message": self.user_message,
+            "steps_used": self.steps_used if self.steps_used > 0 else self.final_llm_call_count,
+            "tool_calls": self.tool_call_sequence,
+            "latencies": {
+                "total_ms": round(self.total_duration_ms, 2),
+                "classify_presentation_ms": round(self.classify_presentation_ms, 2),
+                "route_ms": round(self.route_ms, 2),
+                "resolve_ms": round(self.resolve_ms, 2),
+                "prefetch_ms": round(self.prefetch_ms, 2),
+                "assemble_tool_defs_ms": round(self.assemble_tool_defs_ms, 2),
+                "llm_total_ms": round(sum(c.total_ms for c in self.llm_calls), 2),
+                "tools_total_ms": round(sum(t.duration_ms for t in self.tool_dispatches), 2),
+            },
+            "errors": list(self.errors),
+            "tokens": {
+                "input_tokens": sum((c.input_tokens or 0) for c in self.llm_calls),
+                "output_tokens": sum((c.output_tokens or 0) for c in self.llm_calls),
+                "total_tokens": sum(((c.input_tokens or 0) + (c.output_tokens or 0)) for c in self.llm_calls),
+            },
+            "provider_used": effective_provider,
+            "cache_hits": self.cache_hits,
+        }
 
     @property
     def total_duration_ms(self) -> float:
@@ -364,16 +409,53 @@ class LoopWatchdog:
             time.sleep(check_interval_s)
 
 
+def record_error(error: str) -> None:
+    if not is_trace_enabled():
+        return
+    trace = current_turn_trace.get()
+    if trace and error:
+        trace.errors.append(str(error))
+
+
+def record_cache_hit() -> None:
+    if not is_trace_enabled():
+        return
+    trace = current_turn_trace.get()
+    if trace:
+        trace.cache_hits += 1
+
+
+def record_provider(provider: str) -> None:
+    if not is_trace_enabled():
+        return
+    trace = current_turn_trace.get()
+    if trace and provider:
+        trace.provider_used = str(provider)
+
+
+def record_steps_used(steps: int) -> None:
+    if not is_trace_enabled():
+        return
+    trace = current_turn_trace.get()
+    if trace:
+        trace.steps_used = steps
+
+
 def start_turn_trace(
     conversation_id: str,
     user_message: str,
+    turn_id: str | None = None,
     loop: asyncio.AbstractEventLoop | None = None,
 ) -> tuple[TurnTrace | None, LoopWatchdog | None, Any]:
     """Start a new turn trace if AMETHYST_TRACE is enabled."""
     if not is_trace_enabled():
         return None, None, None
 
-    trace = TurnTrace(conversation_id=conversation_id, user_message=user_message)
+    trace = TurnTrace(
+        conversation_id=conversation_id,
+        user_message=user_message,
+        turn_id=turn_id or str(uuid.uuid4()),
+    )
     token = current_turn_trace.set(trace)
 
     watchdog = None
@@ -391,8 +473,9 @@ def finish_turn_trace(
     trace: TurnTrace | None,
     watchdog: LoopWatchdog | None,
     token: Any,
+    state: Any = None,
 ) -> None:
-    """Finish the turn trace, stop the watchdog, log the summary, and store."""
+    """Finish the turn trace, stop the watchdog, persist metrics, and store."""
     if not trace:
         return
 
@@ -404,10 +487,40 @@ def finish_turn_trace(
 
     trace.end_time = time.perf_counter()
 
+    if state is not None:
+        if getattr(state, "id", None):
+            trace.turn_id = state.id
+        spent = getattr(state, "budget_spent", 0)
+        if spent > 0:
+            trace.steps_used = spent
+        for f in getattr(state, "failed_calls", []):
+            reason = f.get("reason") or f.get("error")
+            if reason and reason not in trace.errors:
+                trace.errors.append(str(reason))
+        if getattr(state, "error", None) and state.error not in trace.errors:
+            trace.errors.append(str(state.error))
+
     with _traces_lock:
         _recent_traces.append(trace)
         if len(_recent_traces) > 100:
             _recent_traces.pop(0)
+
+    # Persist structured turn metrics to JSONL
+    try:
+        from pathlib import Path
+        from backend.agent.config import agent_config
+        from backend.config import paths
+
+        log_path_str = agent_config.trace_log_path
+        if log_path_str:
+            trace_file = Path(log_path_str)
+        else:
+            trace_file = paths().logs_dir / "turn_traces.jsonl"
+        trace_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(trace_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(trace.to_dict()) + "\n")
+    except Exception as exc:
+        log.debug("Could not persist turn trace: %s", exc)
 
     # Log turn summary
     summary_text = trace.summary()

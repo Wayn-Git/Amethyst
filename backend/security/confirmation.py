@@ -62,6 +62,7 @@ class ConfirmationRequest:
     # so without it an interface recovering one after a reload cannot tell
     # whether it belongs to the conversation on screen or another one.
     conversation_id: str | None = None
+    idempotency_key: str | None = None
 
 
 @dataclass
@@ -74,6 +75,7 @@ class ConfirmationOutcome:
     #: because the log page groups on the decision prefix and a message would
     #: split it into one group per conversation.
     detail: str = ""
+    idempotency_key: str | None = None
 
 
 # Return True to allow. Raise or return False to deny.
@@ -167,6 +169,7 @@ class ConfirmationService:
                         "reason": request.reason,
                         "arguments": request.arguments,
                         "conversation_id": request.conversation_id,
+                        "idempotency_key": request.idempotency_key,
                     },
                 )
             )
@@ -179,6 +182,7 @@ class ConfirmationService:
         context: ToolContext | None = None,
     ) -> ConfirmationOutcome:
         risk, reason = self.evaluate_risk(tool, arguments)
+        idem_key = getattr(context, "idempotency_key", None) if context else None
 
         # First call to a not-yet-trusted MCP server always confirms. This is a
         # one-time trust event, orthogonal to the per-call risk gate.
@@ -191,24 +195,25 @@ class ConfirmationService:
                     reason=f"first use of MCP server '{tool.server_name}'",
                     arguments=arguments,
                     conversation_id=context.conversation_id if context else None,
+                    idempotency_key=idem_key,
                 )
                 if await self._ask(request, context):
                     self.mcp_trust.trust(tool.server_name)
                 else:
-                    return ConfirmationOutcome(False, "denied", RiskLevel.HIGH)
+                    return ConfirmationOutcome(False, "denied", RiskLevel.HIGH, idempotency_key=idem_key)
 
         sensitive = reason.startswith("touches sensitive path")
         if risk is RiskLevel.LOW and not sensitive:
-            return ConfirmationOutcome(True, "auto", risk)
+            return ConfirmationOutcome(True, "auto", risk, idempotency_key=idem_key)
 
         operation_key = tool.operation_key(arguments)
         if not sensitive:
             # A standing preference cannot silence the sensitive-path check.
             remembered = self.preferences.get(operation_key)
             if remembered == "allow":
-                return ConfirmationOutcome(True, "skipped_by_pref", risk)
+                return ConfirmationOutcome(True, "skipped_by_pref", risk, idempotency_key=idem_key)
             if remembered == "deny":
-                return ConfirmationOutcome(False, "denied_by_pref", risk)
+                return ConfirmationOutcome(False, "denied_by_pref", risk, idempotency_key=idem_key)
 
         request = ConfirmationRequest(
             tool_name=tool.name,
@@ -217,9 +222,10 @@ class ConfirmationService:
             reason=reason,
             arguments=arguments,
             conversation_id=context.conversation_id if context else None,
+            idempotency_key=idem_key,
         )
         allowed = await self._ask(request, context)
-        return ConfirmationOutcome(allowed, "approved" if allowed else "denied", risk)
+        return ConfirmationOutcome(allowed, "approved" if allowed else "denied", risk, idempotency_key=idem_key)
 
 
 #: File-writing tools that `guard-auto-edit` runs without asking. Named rather
@@ -278,9 +284,10 @@ class GuardedConfirmationService(ConfirmationService):
         context: ToolContext | None = None,
     ) -> ConfirmationOutcome:
         risk, _reason = self.evaluate_risk(tool, arguments)
+        idem_key = getattr(context, "idempotency_key", None) if context else None
 
         if self.guard == "full-access":
-            return ConfirmationOutcome(True, "full_access", risk)
+            return ConfirmationOutcome(True, "full_access", risk, idempotency_key=idem_key)
 
         if self.guard == "read-only":
             if risk is RiskLevel.LOW:
@@ -288,14 +295,14 @@ class GuardedConfirmationService(ConfirmationService):
                 # trust check above it in the base class.
                 return await super().check(tool, arguments, context)
             return ConfirmationOutcome(
-                False, "blocked_by_mode", risk, detail=f"guard mode '{self.guard}'"
+                False, "blocked_by_mode", risk, detail=f"guard mode '{self.guard}'", idempotency_key=idem_key
             )
 
         if self.guard == "guard-auto-edit":
             if risk is RiskLevel.LOW:
                 return await super().check(tool, arguments, context)
             if tool.name in AUTO_EDIT_TOOLS:
-                return ConfirmationOutcome(True, "auto_edit", risk)
+                return ConfirmationOutcome(True, "auto_edit", risk, idempotency_key=idem_key)
 
         return await super().check(tool, arguments, context)
 

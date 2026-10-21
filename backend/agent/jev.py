@@ -128,19 +128,6 @@ def has_widget_signals(text: str) -> bool:
     return any(sig in lower for sig in WIDGET_SIGNALS)
 
 
-def needs_remote_jev(messages: list[dict[str, Any]] | str, api_key: str | None = None) -> bool:
-    """Whether Jev API needs to be called for these messages."""
-    context = _format_context(messages)
-    if not context:
-        return False
-    if _local_heuristic(context) != "text":
-        return False
-    if not has_widget_signals(context):
-        return False
-    key = api_key or resolve_typesafe_key()
-    return bool(key and key not in _INVALID_TYPESAFE_KEYS)
-
-
 _INVALID_TYPESAFE_KEYS: set[str] = set()
 
 

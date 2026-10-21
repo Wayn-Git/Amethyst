@@ -76,48 +76,6 @@ def _is_deny(rule: Any) -> bool:
     return False
 
 
-def merge_permissions(
-    base: dict[str, Any],
-    override: dict[str, Any],
-) -> dict[str, Any]:
-    """Merge two permission dicts. Override wins on conflict."""
-    result = dict(base)
-    for tool, rule in override.items():
-        if tool in result and isinstance(result[tool], dict) and isinstance(rule, dict):
-            # Merge nested dicts
-            result[tool] = {**result[tool], **rule}
-        else:
-            result[tool] = rule
-    return result
-
-
-def check_permission(
-    tool_name: str,
-    arguments: dict[str, Any],
-    permissions: dict[str, Any],
-) -> str:
-    """Evaluate the effective action for a tool call.
-
-    Returns: "allow" | "deny" | "ask"
-    """
-    # Check exact tool match first
-    if tool_name in permissions:
-        rule = permissions[tool_name]
-        if isinstance(rule, str):
-            return rule
-        if isinstance(rule, dict):
-            # Check nested patterns
-            return _match_nested(tool_name, arguments, rule)
-
-    # Check wildcard
-    if "*" in permissions:
-        rule = permissions["*"]
-        if isinstance(rule, str):
-            return rule
-
-    # Default: allow (fail open)
-    return "allow"
-
 
 def _match_nested(
     tool_name: str,

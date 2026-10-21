@@ -7,6 +7,7 @@ local-naive timestamps written by Python rather than by SQLite's UTC `now`.
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -14,6 +15,8 @@ from pathlib import Path
 
 from backend.config import paths
 from backend.db.connection import get_connection
+
+log = logging.getLogger(__name__)
 
 #: What a library item can be. Not a CHECK constraint -- SQLite cannot alter one
 #: in place, and this list will grow. The service validates against it and names
@@ -290,7 +293,14 @@ class LibraryStore:
             ),
         )
         self.conn.commit()
-        return int(cursor.lastrowid)
+        item_id = int(cursor.lastrowid)
+        try:
+            from notifier.library_hook import on_library_item_saved
+
+            on_library_item_saved(item_id=item_id, title=title, url=url, kind=kind)
+        except Exception as hook_err:
+            log.debug("Notifier library hook failed (ignored): %s", hook_err)
+        return item_id
 
     def update(self, item_id: int, **fields) -> None:
         allowed = {k: v for k, v in fields.items() if k in _UPDATABLE}

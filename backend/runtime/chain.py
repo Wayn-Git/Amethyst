@@ -138,6 +138,8 @@ def _usable(name: str, config: ProviderConfig) -> bool:
         return False
     if not config.default_model:
         return False
+    if availability.is_circuit_open(name):
+        return False
     known = availability.cached(name)
     return known is None or known.available
 
