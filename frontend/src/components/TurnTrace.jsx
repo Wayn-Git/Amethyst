@@ -10,6 +10,8 @@ import { BlurredText } from './arc/streaming-text/blurred-text'
 import { AgentRun } from './arc/agent-run/agent-run'
 import ToolChipsTrace from './ToolChipsTrace.jsx'
 import ComposioConnectCard, { extractComposioAuth } from './ComposioConnectCard.jsx'
+import { AgentActivity } from './agents/agent-activity/index.tsx'
+import { mapEventsToActivityItems } from './agents/agent-activity/map-events.js'
 import { useApp } from '../store.jsx'
 
 /* What the agent did, represented as the Worked pill and expandable tool execution tree.
@@ -494,7 +496,13 @@ export default function TurnTrace({ events, live, reasoning, running, ms, onOpen
       {documents.map((call, i) => (
         <ArtifactCard key={`doc${i}`} call={call} onOpen={onOpenArtifact} />
       ))}
-      {thinkingStyle === 'chips' ? (
+      {thinkingStyle === 'activity' ? (
+        <AgentActivity
+          items={mapEventsToActivityItems(cleanEvents, cleanLive)}
+          status={running ? 'working' : 'complete'}
+          duration={ms ? ms / 1000 : undefined}
+        />
+      ) : thinkingStyle === 'chips' ? (
         <ToolChipsTrace
           events={cleanEvents}
           live={cleanLive}
