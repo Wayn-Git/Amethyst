@@ -38,6 +38,19 @@ import { motion } from 'framer-motion'
 import { Blobatar } from "@blobatar/react"
 import "blobatar/motion.css"
 import { ApprovalCard } from '../components/agents/approval-card/index.tsx'
+import {
+  MessageGroup,
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageHeader,
+  MessageFooter,
+} from '../components/agents/message.tsx'
+import {
+  MessageBubble,
+  MessageBubbleContent,
+  MessageBubbleCollapsible,
+} from '../components/agents/message-bubble.tsx'
 
 /* The composer is the interface. Everything else — which skills are live, which
    connectors it may reach, what it remembers, where it may work — hangs off the
@@ -622,10 +635,12 @@ const Msg = memo(function Msg({
 
     if (!item.text && item.toolCalls?.length) {
       return (
-        <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
-          {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
-          <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
-        </div>
+        <Message from="assistant" className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+          <MessageContent className="w-full max-w-full">
+            {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+            <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
+          </MessageContent>
+        </Message>
       )
     }
 
@@ -633,40 +648,44 @@ const Msg = memo(function Msg({
     const hasWidgetBlock = blocks.some((b) => b.type === 'widget')
 
     return (
-      <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
-        {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
-        {item.toolCalls?.length > 0 && (
-          <TurnTrace
-            events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
-            ms={item.ms}
-            onOpenArtifact={onOpenArtifact}
-          />
-        )}
-        <ResponseArtifactBox
-          text={item.text}
-          widget={item.widget}
-          blocks={hasWidgetBlock ? blocks : null}
-          item={item}
-          minimalToolbar={minimalToolbar}
-          conversationId={conversationId}
-          isEditing={isEditing}
-          onStartEdit={onStartEdit}
-          onCancelEdit={onCancelEdit}
-          onSaveEdit={onSaveEdit}
-          onOpenFullScreen={onOpenFullScreen}
-          onRegenerate={onRegenerate}
-          onPin={onPin}
-          onExportDocx={onExportDocx}
-          onViewSources={() => onViewSources?.(item)}
-          onBranchInNewChat={onBranchInNewChat}
-          onFollowUp={(followUpText) => {
-            setInput(followUpText)
-            textareaRef.current?.focus()
-          }}
-          onRefer={onRefer}
-          onAskQuote={onAskQuote}
-        />
-      </div>
+      <Message from="assistant" className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+        <MessageContent className="w-full max-w-full">
+          {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+          {item.toolCalls?.length > 0 && (
+            <TurnTrace
+              events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
+              ms={item.ms}
+              onOpenArtifact={onOpenArtifact}
+            />
+          )}
+          <MessageBubble variant="ghost" className="w-full">
+            <ResponseArtifactBox
+              text={item.text}
+              widget={item.widget}
+              blocks={hasWidgetBlock ? blocks : null}
+              item={item}
+              minimalToolbar={minimalToolbar}
+              conversationId={conversationId}
+              isEditing={isEditing}
+              onStartEdit={onStartEdit}
+              onCancelEdit={onCancelEdit}
+              onSaveEdit={onSaveEdit}
+              onOpenFullScreen={onOpenFullScreen}
+              onRegenerate={onRegenerate}
+              onPin={onPin}
+              onExportDocx={onExportDocx}
+              onViewSources={() => onViewSources?.(item)}
+              onBranchInNewChat={onBranchInNewChat}
+              onFollowUp={(followUpText) => {
+                setInput(followUpText)
+                textareaRef.current?.focus()
+              }}
+              onRefer={onRefer}
+              onAskQuote={onAskQuote}
+            />
+          </MessageBubble>
+        </MessageContent>
+      </Message>
     )
 
   }
@@ -675,10 +694,14 @@ const Msg = memo(function Msg({
     : null
 
   return (
-    <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
+    <Message from="user" className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
       <div className="msg-user-row">
-        <div className="msg-user-content">
-          <div className="msg-body msg-body--plain">{item.text}</div>
+        <MessageContent className="msg-user-content">
+          <MessageBubble variant="solid" animateIn={true}>
+            <MessageBubbleContent className="msg-body msg-body--plain">
+              {item.text}
+            </MessageBubbleContent>
+          </MessageBubble>
           <div className="msg-user-meta">
             {timeStr && <span className="msg-time">{timeStr}</span>}
             <CopyButton text={item.text} label="Copy" />
@@ -693,12 +716,12 @@ const Msg = memo(function Msg({
             </button>
             <PinButton item={item} onPin={onPin} />
           </div>
-        </div>
-        <div className="msg-user-avatar" title="That's you!">
+        </MessageContent>
+        <MessageAvatar className="msg-user-avatar" title="That's you!">
           <Blobatar name="alain00" animate="hover" />
-        </div>
+        </MessageAvatar>
       </div>
-    </div>
+    </Message>
   )
 })
 
@@ -3327,37 +3350,39 @@ export default function Chat() {
                     </span>
                   </div>
                 )}
-                {transcript.map((item, idx) => (
-                  <div key={item.id} data-item={item.id} className="stream-item">
-                    <Msg
-                      item={item}
-                      minimalToolbar={item.kind === 'assistant' && !lastAssistantIndices.has(idx)}
-                      onOpenArtifact={openArtifacts}
-                      onPin={onPin}
-                      busy={turnState !== 'idle'}
-                      onApprovePlan={approvePlan}
-                      onAnswerQuestion={answerQuestion}
-                      onDismissQuestion={dismissQuestion}
-                      onDiscardPlan={discardPlan}
-                      onEditPlanStep={editPlanStep}
-                      onResume={resumeAnswer}
-                      setInput={setInput}
-                      textareaRef={textareaRef}
-                      conversationId={activeId}
-                      isEditing={editingMessageId === item.rowId || (item.id && editingMessageId === item.id)}
-                      onStartEdit={() => setEditingMessageId(item.rowId || item.id)}
-                      onCancelEdit={() => setEditingMessageId(null)}
-                      onSaveEdit={handleSaveMessageEdit}
-                      onOpenFullScreen={() => setFullScreenMessage(item)}
-                      onRegenerate={() => handleRegenerateAnswer(item)}
-                      onExportDocx={handleExportDocx}
-                      onBranchInNewChat={handleBranchInNewChat}
-                      onViewSources={handleViewSources}
-                      onRefer={handleQuoteRefer}
-                      onAskQuote={handleAskQuote}
-                    />
-                  </div>
-                ))}
+                <MessageGroup spacing="default" className="chat-message-group">
+                  {transcript.map((item, idx) => (
+                    <div key={item.id} data-item={item.id} className="stream-item">
+                      <Msg
+                        item={item}
+                        minimalToolbar={item.kind === 'assistant' && !lastAssistantIndices.has(idx)}
+                        onOpenArtifact={openArtifacts}
+                        onPin={onPin}
+                        busy={turnState !== 'idle'}
+                        onApprovePlan={approvePlan}
+                        onAnswerQuestion={answerQuestion}
+                        onDismissQuestion={dismissQuestion}
+                        onDiscardPlan={discardPlan}
+                        onEditPlanStep={editPlanStep}
+                        onResume={resumeAnswer}
+                        setInput={setInput}
+                        textareaRef={textareaRef}
+                        conversationId={activeId}
+                        isEditing={editingMessageId === item.rowId || (item.id && editingMessageId === item.id)}
+                        onStartEdit={() => setEditingMessageId(item.rowId || item.id)}
+                        onCancelEdit={() => setEditingMessageId(null)}
+                        onSaveEdit={handleSaveMessageEdit}
+                        onOpenFullScreen={() => setFullScreenMessage(item)}
+                        onRegenerate={() => handleRegenerateAnswer(item)}
+                        onExportDocx={handleExportDocx}
+                        onBranchInNewChat={handleBranchInNewChat}
+                        onViewSources={handleViewSources}
+                        onRefer={handleQuoteRefer}
+                        onAskQuote={handleAskQuote}
+                      />
+                    </div>
+                  ))}
+                </MessageGroup>
                 {turnState === 'running' && (liveTool || liveBuffer || liveReasoning) && (
                   <div className="msg msg-assistant is-live">
                     {liveReasoning && !liveBuffer && (
