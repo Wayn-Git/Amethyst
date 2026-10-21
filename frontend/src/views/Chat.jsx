@@ -37,26 +37,7 @@ import { MOD_LABEL } from '../keys.js'
 import { motion } from 'framer-motion'
 import { Blobatar } from "@blobatar/react"
 import "blobatar/motion.css"
-import {
-  Questions,
-  QuestionsHeader,
-  QuestionsTitle,
-  QuestionsDismiss,
-  QuestionsCarousel,
-  QuestionsCarouselContent,
-  QuestionsCarouselItem,
-  QuestionsCarouselPagination,
-  QuestionsCarouselPrev,
-  QuestionsCarouselIndex,
-  QuestionsCarouselNext,
-  Question,
-  QuestionOptions,
-  QuestionOption,
-  QuestionOther,
-  QuestionsFooter,
-  QuestionsSkip,
-  QuestionsSubmit,
-} from '../components/nexus-ui/questions.tsx'
+import { ApprovalCard } from '../components/agents/approval-card/index.tsx'
 
 /* The composer is the interface. Everything else — which skills are live, which
    connectors it may reach, what it remembers, where it may work — hangs off the
@@ -518,12 +499,17 @@ const OTHER = '\u0000other'
    The turn is suspended while this is open. Answering resumes it with
    everything it had already read still in context, which is why this is a card
    in the transcript and not a new message the user has to compose. */
-function QuestionCard({ item, onAnswer, onDismiss, disabled }) {
-  const questions = item.questions ?? []
+const Msg = memo(function Msg({
+  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, busy, onOpenArtifact,
+  onResume, setInput, textareaRef, minimalToolbar = false,
+  conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
+  onRefer, onAskQuote,
+}) {
+  const msgRef = useRef(null)
+  const role = item.kind
 
-  const questionInputs = useMemo(() => {
-    const list = item.questions ?? []
-    return list.map((q, idx) => ({
+  if (role === 'question') {
+    const questionInputs = (item.questions ?? []).map((q, idx) => ({
       id: q.id || `q-${idx}`,
       type: q.multi_select ? 'multiple' : 'single',
       prompt: q.question,
@@ -535,182 +521,38 @@ function QuestionCard({ item, onAnswer, onDismiss, disabled }) {
         description: o.description,
       })),
     }))
-  }, [item.questions])
 
-  const handleSubmit = useCallback(async (submission) => {
-    const answersList = submission.map((entry) => {
-      if (entry.status === 'skipped') {
-        return '[No Preference]'
-      }
-      if (entry.type === 'single') {
-        return typeof entry.answer?.label === 'string'
-          ? entry.answer.label
-          : String(entry.answer?.value ?? '')
-      }
-      const list = entry.answer || []
-      return list
-        .map((a) => (typeof a.label === 'string' ? a.label : String(a.value ?? '')))
-        .filter(Boolean)
-        .join(', ')
-    })
-    await onAnswer(item.askId, answersList)
-  }, [onAnswer, item.askId])
-
-  if (item.settled) {
     return (
-      <div className="plan-card question-card is-settled">
-        <div className="plan-head">
-          <Icon name="check" size={13} />
-          <span>Answered</span>
-        </div>
-        {questions.map((q, i) => (
-          <p className="question-recap" key={i}>
-            <span className="question-recap-q">{q.header || q.question}</span>
-            <span className="question-recap-a">{item.settled[i] || '—'}</span>
-          </p>
-        ))}
+      <div className="w-full my-4 flex justify-center">
+        <ApprovalCard
+          mode="questions"
+          questions={questionInputs}
+          settledAnswers={item.settled}
+          disabled={busy && !item.askId}
+          onSubmitQuestions={async (answersList) => {
+            await onAnswerQuestion(item.askId, answersList)
+          }}
+          onDismissQuestions={() => onDismissQuestion?.(item.askId)}
+        />
       </div>
     )
   }
-
-  if (questionInputs.length === 0) return null
-
-  const isMulti = questionInputs.length > 1
-
-  return (
-    <div className="w-full my-4 flex justify-center">
-      <Questions
-        items={questionInputs}
-        onSubmit={handleSubmit}
-        onDismiss={() => onDismiss?.(item.askId)}
-        className="w-full max-w-xl"
-      >
-        <QuestionsHeader>
-          <QuestionsTitle />
-          <div className="flex items-center gap-1 shrink-0">
-            {isMulti && (
-              <QuestionsCarouselPagination>
-                <QuestionsCarouselPrev />
-                <QuestionsCarouselIndex format="of" />
-                <QuestionsCarouselNext />
-              </QuestionsCarouselPagination>
-            )}
-            <QuestionsDismiss />
-          </div>
-        </QuestionsHeader>
-
-        {isMulti ? (
-          <QuestionsCarousel>
-            <QuestionsCarouselContent>
-              {questionInputs.map((q) => (
-                <QuestionsCarouselItem key={q.id}>
-                  <Question id={q.id}>
-                    <QuestionOptions>
-                      {q.options.map((opt) => (
-                        <QuestionOption key={opt.value} value={opt.value} description={opt.description}>
-                          {opt.label}
-                        </QuestionOption>
-                      ))}
-                      <QuestionOther placeholder="Something else / In your own words..." />
-                    </QuestionOptions>
-                  </Question>
-                </QuestionsCarouselItem>
-              ))}
-            </QuestionsCarouselContent>
-          </QuestionsCarousel>
-        ) : (
-          <Question id={questionInputs[0].id}>
-            <QuestionOptions>
-              {questionInputs[0].options.map((opt) => (
-                <QuestionOption key={opt.value} value={opt.value} description={opt.description}>
-                  {opt.label}
-                </QuestionOption>
-              ))}
-              <QuestionOther placeholder="Something else / In your own words..." />
-            </QuestionOptions>
-          </Question>
-        )}
-
-        <QuestionsFooter>
-          {isMulti && <QuestionsSkip />}
-          <QuestionsSubmit disabled={disabled} disableUntilLastQuestion={isMulti} />
-        </QuestionsFooter>
-      </Questions>
-    </div>
-  )
-}
-
-function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
-  return (
-    <div className="plan-card">
-      <div className="plan-head">
-        <Icon name="check" size={14} />
-        <span>Plan</span>
-        <span className="plan-count">{item.steps.length} steps</span>
-      </div>
-      {item.summary && <p className="plan-summary">{item.summary}</p>}
-      <ol className="plan-steps">
-        {item.steps.map((step, i) => (
-          <li key={`${item.id}-${i}`} className={stepClass(item, i)}>
-            {/* Editable in place. The spec asked for approve, edit or discard,
-                and an edited plan travels with the approval -- the model's
-                original is already in the transcript, so approving without
-                sending the edit would approve the wrong thing. */}
-            {item.settled ? (
-              <span className="plan-step-title">{step.title}</span>
-            ) : (
-              <input
-                className="plan-step-input"
-                value={step.title}
-                aria-label={`Step ${i + 1}`}
-                onChange={(e) => onEditStep?.(item.id, i, e.target.value)}
-              />
-            )}
-            {step.detail && <span className="plan-step-detail">{step.detail}</span>}
-            {step.tools?.length > 0 && (
-              <span className="plan-step-tools">{step.tools.join(' · ')}</span>
-            )}
-          </li>
-        ))}
-      </ol>
-      {item.settled ? (
-        <p className="plan-settled">{item.settled === 'approved' ? 'Approved.' : 'Discarded.'}</p>
-      ) : (
-        <div className="plan-actions">
-          <button type="button" className="btn btn--primary btn--small" disabled={disabled} onClick={onApprove}>
-            Approve and run
-          </button>
-          <button type="button" className="btn btn--ghost btn--small" disabled={disabled} onClick={onDiscard}>
-            Discard
-          </button>
-          <span className="plan-hint">Nothing has run yet. Edit the request and plan again to change it.</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-const Msg = memo(function Msg({
-  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, busy, onOpenArtifact,
-  onResume, setInput, textareaRef, minimalToolbar = false,
-  conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
-  onRefer, onAskQuote,
-}) {
-  const msgRef = useRef(null)
-  const role = item.kind
-
-  if (role === 'question') {
-    return <QuestionCard item={item} onAnswer={onAnswerQuestion} onDismiss={onDismissQuestion} disabled={busy && !item.askId} />
-  }
   if (role === 'plan') {
     return (
-      <PlanCard
-        item={item}
-        disabled={busy}
-        onApprove={() => onApprovePlan?.(item.id)}
-        onDiscard={() => onDiscardPlan?.(item.id)}
-        onEditStep={onEditPlanStep}
-      />
+      <div className="w-full my-4 flex justify-center">
+        <ApprovalCard
+          mode="plan"
+          planId={item.id}
+          title="Plan"
+          summary={item.summary}
+          steps={item.steps}
+          settledStatus={item.settled}
+          disabled={busy}
+          onApprovePlan={() => onApprovePlan?.(item.id)}
+          onDiscardPlan={() => onDiscardPlan?.(item.id)}
+          onEditPlanStep={(stepIdx, val) => onEditPlanStep?.(item.id, stepIdx, val)}
+        />
+      </div>
     )
   }
   if (role === 'cost') {
