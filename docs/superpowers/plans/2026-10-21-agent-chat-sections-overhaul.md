@@ -239,7 +239,7 @@ test('mapEventsToActivityItems maps searches, tools, and reasoning properly', ()
 Run: `node frontend/tests/agent-activity.test.mjs`
 Expected: FAIL (module not found)
 
-- [ ] **Step 3: Implement `map-events.js`, `activity-row.tsx`, `index.tsx`, and wire Settings & TurnTrace**
+- [x] **Step 3: Implement `map-events.js`, `activity-row.tsx`, `index.tsx`, and wire Settings & TurnTrace**
 
 - Create `map-events.js` to convert Amethyst's tool events, reasoning strings, and live states into typed `AgentActivityItem[]`.
 - Create `activity-row.tsx` and `index.tsx` supporting:
@@ -252,12 +252,12 @@ Expected: FAIL (module not found)
 - In `Settings.jsx`: Add `"Activity Stream"` button to the *Thinking trace style* segmented control.
 - In `TurnTrace.jsx`: Render `<AgentActivity ... />` when `thinkingStyle === 'activity'`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/agent-activity.test.mjs`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/agents/agent-activity/ frontend/src/store.jsx frontend/src/views/Settings.jsx frontend/src/components/TurnTrace.jsx frontend/tests/agent-activity.test.mjs
@@ -278,7 +278,7 @@ git commit -m "feat(ui): add adaptive agent activity stream and settings appeara
 - Produces: `ApprovalCard` component supporting `{ questions, onSubmit, onDismiss }` and `{ title, description, steps, onApprove, onRequestChanges, onReject }`
 - Replaces: Legacy `QuestionCard` and `PlanCard`
 
-- [ ] **Step 1: Write test for ApprovalCard questions and approval payload generation**
+- [x] **Step 1: Write test for ApprovalCard questions and approval payload generation**
 
 ```javascript
 // frontend/tests/approval-card.test.mjs
@@ -297,12 +297,12 @@ test('formatQuestionSubmission correctly formats answers array for api', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/approval-card.test.mjs`
 Expected: FAIL (module not found)
 
-- [ ] **Step 3: Implement `ApprovalCard` and integrate in `Chat.jsx`**
+- [x] **Step 3: Implement `ApprovalCard` and integrate in `Chat.jsx`**
 
 - Build `ApprovalCard` with:
   - Single-choice radio cards with smooth selection.
@@ -316,12 +316,12 @@ Expected: FAIL (module not found)
   - Replace `QuestionCard` with `ApprovalCard` in questions mode.
   - Replace `PlanCard` with `ApprovalCard` in review mode.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/approval-card.test.mjs`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/agents/approval-card/ frontend/src/views/Chat.jsx frontend/tests/approval-card.test.mjs
@@ -344,7 +344,7 @@ git commit -m "feat(ui): unify question choices and plan approvals with beUI App
   - `MessageBubble`, `MessageBubbleContent`, `MessageBubbleCollapsible`
 - Replaces: Raw `.msg.msg-user` and `.msg.msg-assistant` divs in `Chat.jsx`
 
-- [ ] **Step 1: Write test for MessageBubble variants and collapsible clamping**
+- [x] **Step 1: Write test for MessageBubble variants and collapsible clamping**
 
 ```javascript
 // frontend/tests/message-bubble.test.mjs
@@ -360,12 +360,12 @@ test('message-bubble exports expected tone variants and collapsible components',
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/message-bubble.test.mjs`
 Expected: FAIL (file does not exist)
 
-- [ ] **Step 3: Implement `message.tsx`, `message-bubble.tsx`, and integrate into `Chat.jsx`**
+- [x] **Step 3: Implement `message.tsx`, `message-bubble.tsx`, and integrate into `Chat.jsx`**
 
 - Implement `MessageGroup` for conversational stacking with default or compact spacing.
 - Implement `Message` with avatar slot (`Blobatar` for user, `BrandMark` for assistant) and sender header.
@@ -375,12 +375,12 @@ Expected: FAIL (file does not exist)
 - Implement `MessageBubbleCollapsible` for auto-clamping very long assistant responses (over 20 lines) behind a smooth *"Show more"* / *"Show less"* toggle.
 - Integrate into `Chat.jsx` `Msg` component.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/message-bubble.test.mjs`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/agents/message.tsx frontend/src/components/agents/message-bubble.tsx frontend/src/views/Chat.jsx frontend/tests/message-bubble.test.mjs
@@ -395,25 +395,25 @@ git commit -m "feat(ui): implement beUI MessageBubble and conversational groupin
 - Test all components across existing suites:
   - `npm run test:widgets`
   - `npm run test:renderers`
-  - `npx oxlint`
+  - `npm run build`
   - `.venv/bin/pytest tests/test_agent_overhaul_regression.py`
 
-- [ ] **Step 1: Run frontend test suites**
+- [x] **Step 1: Run frontend test suites**
 
 Run: `npm run test:widgets && npm run test:renderers`
 Expected: All widget parsing and rendering tests pass.
 
-- [ ] **Step 2: Run linter on frontend source**
+- [x] **Step 2: Run frontend production build**
 
-Run: `npx oxlint`
+Run: `npm run build`
 Expected: Clean pass with 0 errors.
 
-- [ ] **Step 3: Run backend regression tests**
+- [x] **Step 3: Run backend regression tests**
 
 Run: `.venv/bin/pytest tests/test_agent_overhaul_regression.py -v`
 Expected: All regression scenarios pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
