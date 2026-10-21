@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -201,6 +202,7 @@ function QuestionsView({
   onSubmit?: (formattedAnswers: string[]) => void | Promise<void>;
   onDismiss?: () => void;
 }) {
+  const cardRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [customText, setCustomText] = useState<Record<string, string>>({});
@@ -210,14 +212,19 @@ function QuestionsView({
   const isMulti = total > 1;
   const currentQ = questions[currentIndex] || questions[0];
 
-  const isSettled = Boolean(settledAnswers && settledAnswers.length > 0);
+  const isSettled = Boolean(
+    settledAnswers &&
+      (Array.isArray(settledAnswers)
+        ? settledAnswers.length > 0 && settledAnswers.some((a) => a && a !== "—" && a !== "")
+        : Boolean(settledAnswers))
+  );
 
   // Settled card summary
   if (isSettled) {
     return (
       <div
         className={cn(
-          "w-full max-w-xl my-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[var(--text)]",
+          "w-full max-w-2xl my-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[var(--text)]",
           className
         )}
       >
@@ -308,7 +315,13 @@ function QuestionsView({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (disabled || isSubmitting) return;
-      // Don't intercept if typing in an input
+
+      // Only handle keyboard navigation if focus is inside this card
+      if (!cardRef.current || !cardRef.current.contains(document.activeElement)) {
+        return;
+      }
+
+      // If typing in the write-in text input inside the card:
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
@@ -357,8 +370,9 @@ function QuestionsView({
 
   return (
     <div
+      ref={cardRef}
       className={cn(
-        "w-full max-w-xl my-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[var(--text)] transition-all",
+        "w-full max-w-2xl my-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[var(--text)] transition-all",
         className
       )}
     >

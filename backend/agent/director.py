@@ -4015,7 +4015,10 @@ class Director:
             call.arguments = apply_tool_defaults(call.name, call.arguments, user_prompt=user_msg)
         tool = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
         tool_timeout = getattr(tool, "timeout", None) if tool else None
-        timeout = tool_timeout if tool_timeout is not None and tool_timeout > 0 else agent_config.tool_timeout_seconds
+        if tool_timeout is not None:
+            timeout = tool_timeout
+        else:
+            timeout = agent_config.tool_timeout_seconds
 
         idem_key = getattr(context, "idempotency_key", None) or compute_idempotency_key(
             context.turn_id, call.name, call.arguments if isinstance(call.arguments, dict) else {}
