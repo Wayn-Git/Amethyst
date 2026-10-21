@@ -1184,38 +1184,39 @@
   color: var(--accent);
 }
 
-/* ── Squircle Service Icon ── */
+/* ── Clean Service Icon (Borderless) ── */
 .plugin-squircle-icon-box {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
-  overflow: hidden;
+  background: transparent;
+  border: none;
+  overflow: visible;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 
 .plugin-squircle-icon-box.is-large {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  width: 64px;
+  height: 64px;
+  box-shadow: none;
+  background: transparent;
+  border: none;
 }
 
 .plugin-squircle-icon-box.is-small {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .plugin-squircle-icon-box.is-tiny {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
   border: none;
   background: transparent;
   box-shadow: none;
@@ -1225,33 +1226,43 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 6px;
+  padding: 0;
 }
 
 .plugin-squircle-icon-box.is-large .plugin-squircle-icon-img {
-  padding: 10px;
+  padding: 0;
 }
 
 .plugin-squircle-icon-box.is-small .plugin-squircle-icon-img {
-  padding: 3.5px;
+  padding: 0;
 }
 
 .plugin-squircle-icon-box.is-tiny .plugin-squircle-icon-img {
-  padding: 1px;
+  padding: 0;
 }
 
 .plugin-squircle-icon-monogram {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
   font-weight: 700;
-  font-size: 18px;
+  font-size: 17px;
   color: var(--text);
 }
 
 .plugin-squircle-icon-box.is-large .plugin-squircle-icon-monogram {
-  font-size: 28px;
+  font-size: 26px;
+  border-radius: 12px;
 }
 
 .plugin-squircle-icon-box.is-small .plugin-squircle-icon-monogram {
-  font-size: 12px;
+  font-size: 11px;
+  border-radius: 6px;
 }
 
 /* ── Plugin Card Row (2-Column Grid Item) ── */
@@ -2874,8 +2885,8 @@
 }
 
 [data-theme-mode='light'] .plugin-squircle-icon-box {
-  background: #f8fafc;
-  border-color: rgba(0, 0, 0, 0.08);
+  background: transparent;
+  border-color: transparent;
 }
 
 /* ── Reduced Motion Support (AGENTS.md & emil-design-eng) ── */
@@ -3298,13 +3309,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-cards, 6px);
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
-  color: var(--text);
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .system-card-meta {

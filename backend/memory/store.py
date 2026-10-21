@@ -31,14 +31,17 @@ class Memory:
     fact: str
     conversation_id: str | None
     created_at: str
+    superseded_at: str | None = None
 
 
 def _row(row: sqlite3.Row) -> Memory:
+    keys = row.keys()
     return Memory(
         id=row["id"],
         fact=row["fact"],
         conversation_id=row["conversation_id"],
         created_at=row["created_at"],
+        superseded_at=row["superseded_at"] if "superseded_at" in keys else None,
     )
 
 
@@ -99,6 +102,26 @@ class MemoryStore:
             (limit,),
         ).fetchall()
         return [_row(r) for r in rows]
+
+    def all(self, limit: int = 500) -> list[Memory]:
+        """All memories, both live and retired, for audit and history."""
+        rows = self.conn.execute(
+            "SELECT * FROM memories ORDER BY created_at DESC, id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [_row(r) for r in rows]
+
+    def restore(self, memory_ids: list[int]) -> int:
+        """Un-retire facts. Returns how many were restored."""
+        if not memory_ids:
+            return 0
+        placeholders = ",".join("?" * len(memory_ids))
+        cursor = self.conn.execute(
+            f"UPDATE memories SET superseded_at = NULL WHERE id IN ({placeholders}) AND superseded_at IS NOT NULL",
+            memory_ids,
+        )
+        self.conn.commit()
+        return cursor.rowcount
 
     def recent(self, days: int, limit: int) -> list[Memory]:
         """The recency half of recall."""

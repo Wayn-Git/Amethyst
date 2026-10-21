@@ -22,8 +22,8 @@ export function PluginCardSkeleton({ index = 0, style }) {
       style={style}
     >
       <div className="plugin-card-main-col">
-        {/* Squircle Icon placeholder matching ServiceIcon (44x44, border-radius: 12px) */}
-        <Skeleton w={44} h={44} r={12} className="shrink-0" />
+        {/* Icon placeholder matching ServiceIcon (44x44, border-radius: 8px) */}
+        <Skeleton w={44} h={44} r={8} className="shrink-0" />
 
         <div className="plugin-card-text-block" style={{ width: '100%', minWidth: 0 }}>
           <div className="plugin-card-title-row">

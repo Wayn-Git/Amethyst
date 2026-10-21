@@ -6014,7 +6014,7 @@ def list_tools() -> list[dict[str, Any]]:
 @app.get("/api/subagents")
 def list_subagents(
     conversation_id: str | None = None,
-    limit: int = 50,
+    limit: int = 300,
 ) -> dict[str, Any]:
     """List subagent sessions, optionally filtered by parent conversation."""
     from backend.db.repositories import SubagentSessionRepository
@@ -6610,10 +6610,15 @@ class MemoryToggle(BaseModel):
 
 
 @app.get("/api/memory")
-def list_memories(conversation_id: str | None = None, limit: int = 200) -> dict[str, Any]:
+def list_memories(
+    conversation_id: str | None = None,
+    limit: int = 500,
+    include_retired: bool = False,
+) -> dict[str, Any]:
     from backend.memory import MemoryStore
 
     store = MemoryStore()
+    facts = store.all(limit) if include_retired else store.live(limit)
     return {
         "enabled": store.is_enabled(conversation_id),
         "scope": conversation_id or "global",
@@ -6623,8 +6628,9 @@ def list_memories(conversation_id: str | None = None, limit: int = 200) -> dict[
                 "fact": m.fact,
                 "conversation_id": m.conversation_id,
                 "created_at": m.created_at,
+                "superseded_at": m.superseded_at,
             }
-            for m in store.live(limit)
+            for m in facts
         ],
     }
 
@@ -7146,6 +7152,16 @@ def forget_memory(memory_id: int) -> dict[str, Any]:
     return {"status": "superseded", "id": memory_id}
 
 
+@app.post("/api/memory/{memory_id}/restore")
+def restore_memory(memory_id: int) -> dict[str, Any]:
+    """Restore a superseded fact so it is live and recalled again."""
+    from backend.memory import MemoryStore
+
+    if not MemoryStore().restore([memory_id]):
+        raise HTTPException(404, f"no retired memory with id {memory_id}")
+    return {"status": "restored", "id": memory_id}
+
+
 # ----------------------------------------------------------------- brand
 #
 # Voice, values, palette, fonts. The point of storing them is that they change
@@ -7239,21 +7255,39 @@ async def list_library(
         _library.nudge()
 
     service = LibraryService()
-    limit = max(1, min(limit, 200))
+    limit = max(1, min(limit, 500))
+    # Comma-delimited values are intentional: choices within one facet are OR,
+    # while different facets remain AND. This lets the library's facet desk
+    # combine, for example, Instagram + YouTube with a single category.
+    kinds = {value.strip() for value in (kind or "").split(",") if value.strip()}
+    categories = {value.strip() for value in (category or "").split(",") if value.strip()}
+    tags = {value.strip() for value in (tag or "").split(",") if value.strip()}
+
     if q and q.strip():
-        items = await service.search(q, limit=limit)
-        if kind:
-            items = [it for it in items if it.get("kind") == kind]
-        if category:
-            items = [it for it in items if it.get("category") == category]
-        if tag:
-            items = [it for it in items if tag in (it.get("tags") or [])]
+        items = await service.search(q, limit=max(limit, 200))
+        if kinds:
+            items = [it for it in items if it.get("kind") in kinds]
+        if categories:
+            items = [it for it in items if it.get("category") in categories]
+        if tags:
+            items = [it for it in items if tags.intersection((it.get("tags") or []) + ([it.get("app")] if it.get("app") else []))]
         if str(order).lower() == "asc":
             items.reverse()
     else:
-        items = service.recent(
-            kind=kind, category=category, tag=tag, order=order, limit=limit, offset=offset
-        )
+        # The store's indexed path is still used for the ordinary one-value
+        # case. Multi-select needs an OR within a facet, so filter the bounded
+        # full library result after it has applied category inference.
+        if len(kinds) <= 1 and len(categories) <= 1 and len(tags) <= 1:
+            items = service.recent(kind=next(iter(kinds), None), category=next(iter(categories), None), tag=next(iter(tags), None), order=order, limit=limit, offset=offset)
+        else:
+            items = service.recent(order=order, limit=5000)
+            if kinds:
+                items = [it for it in items if it.get("kind") in kinds]
+            if categories:
+                items = [it for it in items if it.get("category") in categories]
+            if tags:
+                items = [it for it in items if tags.intersection((it.get("tags") or []) + ([it.get("app")] if it.get("app") else []))]
+            items = items[offset : offset + limit]
     return {
         "items": items,
         "counts": service.counts(),

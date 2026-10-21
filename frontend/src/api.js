@@ -693,13 +693,19 @@ export const api = {
 
   logs: (limit = 100) => j(`/logs?limit=${limit}`),
 
-  memory: (conversationId) =>
-    j(`/memory${conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : ''}`),
+  memory: (conversationId, includeRetired = true) => {
+    const params = new URLSearchParams()
+    if (conversationId) params.set('conversation_id', conversationId)
+    if (includeRetired) params.set('include_retired', 'true')
+    const qs = params.toString()
+    return j(`/memory${qs ? `?${qs}` : ''}`)
+  },
   addMemory: (fact, conversationId) =>
     j('/memory', json('POST', { fact, conversation_id: conversationId || null })),
   toggleMemory: (enabled, conversationId) =>
     j('/memory/toggle', json('POST', { enabled, conversation_id: conversationId || null })),
   forgetMemory: (id) => j(`/memory/${id}`, json('DELETE')),
+  restoreMemory: (id) => j(`/memory/${id}/restore`, json('POST', {})),
   forgetAllMemories: () => j('/memory', json('DELETE')),
 
   skills: () => j('/skills'),
@@ -869,7 +875,7 @@ export const api = {
 
   // With `q`, a hybrid search over captured text; without it, the most recent
   // items. Both come back as items rather than passages.
-  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 50, offset = 0 } = {}) =>
+  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 300, offset = 0 } = {}) =>
     j(`/library?limit=${limit}&offset=${offset}`
       + (q ? `&q=${encodeURIComponent(q)}` : '')
       + (kind ? `&kind=${encodeURIComponent(kind)}` : '')
