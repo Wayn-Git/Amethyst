@@ -4,6 +4,7 @@ import type React from "react";
 import { type ReactNode, useMemo } from "react";
 import { BlurredText } from "../arc/streaming-text/blurred-text";
 import { cn } from "@/lib/utils.js";
+import "./message.css";
 
 export interface StreamingResponseProps {
   /** Text content to stream or display */

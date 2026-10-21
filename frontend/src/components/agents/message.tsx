@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils.js";
+import "./message.css";
 
 interface MessageContextValue {
   from: "user" | "assistant";

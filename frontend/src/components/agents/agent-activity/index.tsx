@@ -14,6 +14,7 @@ import { ActivityRow } from "./activity-row";
 import { AgentDisclosure } from "../agent-disclosure";
 import { TextShimmer } from "@/components/motion/text-shimmer";
 import { cn } from "@/lib/utils.js";
+import "./agent-activity.css";
 
 function deriveSummary(items: AgentActivityProps["items"], duration?: number): string {
   const toolCount = items.filter((it) => it.type === "tool").length;
@@ -85,7 +86,7 @@ export function AgentActivity({
   return (
     <div
       className={cn(
-        "agent-activity-root my-2 w-full max-w-2xl rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden text-[var(--text)] transition-all duration-200",
+        "agent-activity-root",
         className
       )}
     >
@@ -95,26 +96,23 @@ export function AgentActivity({
         onClick={toggle}
         disabled={isWorking}
         aria-expanded={isOpen}
-        className={cn(
-          "flex w-full items-center justify-between px-3 py-2 text-left text-[12.5px] transition-colors select-none",
-          !isWorking && "hover:bg-[var(--surface-3)] cursor-pointer"
-        )}
+        className="agent-activity-header"
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="agent-activity-header-left">
           <Sparkles
             className={cn(
-              "size-3.5 shrink-0 text-[var(--accent)]",
-              isWorking && "animate-pulse"
+              "agent-activity-sparkle",
+              isWorking && "is-working"
             )}
           />
           {isWorking ? (
-            <span className="font-medium">
+            <span className="agent-activity-title font-medium">
               <TextShimmer duration={1.6}>
                 {activeLabel || "Agent is working…"}
               </TextShimmer>
             </span>
           ) : (
-            <span className="font-medium text-[var(--text-dim)] hover:text-[var(--text)]">
+            <span className="agent-activity-title">
               {summary}
             </span>
           )}
@@ -123,8 +121,8 @@ export function AgentActivity({
         {!isWorking && (
           <ChevronDown
             className={cn(
-              "size-3.5 text-[var(--text-faint)] transition-transform duration-200",
-              isOpen && "rotate-180"
+              "agent-activity-chevron",
+              isOpen && "is-open"
             )}
           />
         )}
@@ -135,7 +133,7 @@ export function AgentActivity({
         <div
           ref={viewportRef}
           style={{ maxHeight: `${maxHeight}px` }}
-          className="overflow-y-auto px-3 pb-2.5 pt-0.5 border-t border-[var(--border)] flex flex-col gap-0.5"
+          className="agent-activity-viewport"
         >
           {items.map((item) => (
             <ActivityRow key={item.id} item={item} />
