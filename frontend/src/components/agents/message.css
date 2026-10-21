@@ -1,0 +1,62 @@
+/* Amethyst Agent Message & Bubble Stylesheet
+   Follows Design System tokens from index.css & AGENTS.md */
+
+.agent-msg-root {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  margin: 0.75rem 0;
+}
+
+.agent-msg-root.is-user {
+  justify-content: flex-end;
+}
+
+.agent-msg-root.is-assistant {
+  justify-content: flex-start;
+}
+
+.agent-msg-bubble {
+  max-width: 85%;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: var(--text-body, 15px);
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.agent-msg-bubble.variant-surface {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.agent-msg-bubble.variant-ghost {
+  background: transparent;
+  padding: 0;
+  max-width: 100%;
+}
+
+.agent-msg-bubble.is-user {
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  color: var(--text);
+}
+
+/* Streaming indicator */
+.agent-streaming-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 15px;
+  margin-left: 4px;
+  vertical-align: -2px;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: agent-cursor-blink 900ms infinite;
+}
+
+@keyframes agent-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

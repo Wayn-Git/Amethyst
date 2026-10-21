@@ -1,0 +1,103 @@
+/* Amethyst Agent CodeBlock Stylesheet
+   Follows Design System tokens from index.css & AGENTS.md */
+
+.agent-code-block-root {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--canvas-deep, #0a0a0c);
+  color: var(--text);
+  overflow: hidden;
+  margin: 0.5rem 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+}
+
+.agent-code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 12px;
+}
+
+.agent-code-block-fileinfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-code-block-filename {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.agent-code-block-lang {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-faint);
+  border: 1px solid var(--hairline);
+}
+
+.agent-code-block-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all var(--press, 120ms);
+}
+
+.agent-code-block-copy-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.agent-code-block-content {
+  overflow-x: auto;
+  padding: 12px 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.agent-code-block-line {
+  display: flex;
+  padding: 0 16px;
+  transition: background-color 100ms;
+}
+
+.agent-code-block-line:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.agent-code-block-line.is-highlighted {
+  background: var(--accent-wash);
+  border-left: 2px solid var(--accent);
+}
+
+.agent-code-block-line-number {
+  width: 36px;
+  flex-shrink: 0;
+  user-select: none;
+  text-align: right;
+  padding-right: 16px;
+  color: var(--text-faint);
+  font-size: 11px;
+  opacity: 0.6;
+}

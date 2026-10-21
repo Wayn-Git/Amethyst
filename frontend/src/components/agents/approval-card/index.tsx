@@ -23,6 +23,7 @@ import type {
 } from "./types";
 import { formatQuestionSubmission } from "./format-submission.js";
 import { cn } from "@/lib/utils.js";
+import "./approval-card.css";
 
 export function ApprovalCard({
   mode = "questions",

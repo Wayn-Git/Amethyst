@@ -10,6 +10,7 @@ import { Check, Copy } from "lucide-react";
 import { copyText } from "@/api.js";
 import { TextShimmer } from "@/components/motion/text-shimmer";
 import { cn } from "@/lib/utils.js";
+import "./code-block.css";
 
 export type CodeBlockLanguage =
   | "text"

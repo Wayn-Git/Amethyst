@@ -17,6 +17,11 @@ export default function PanelResizer() {
   const { panelWidth, setPanelWidth, panelExpanded } = useApp()
   const [dragging, setDragging] = useState(false)
   const start = useRef({ x: 0, w: 0 })
+  const latestW = useRef(panelWidth)
+
+  useEffect(() => {
+    latestW.current = panelWidth
+  }, [panelWidth])
 
   const onPointerDown = useCallback((e) => {
     // Left button only; a right-click on the edge should open a context menu.
@@ -24,20 +29,23 @@ export default function PanelResizer() {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
     start.current = { x: e.clientX, w: panelWidth }
+    latestW.current = panelWidth
     setDragging(true)
   }, [panelWidth])
 
   const onPointerMove = useCallback((e) => {
     if (!dragging) return
     // The panel is on the right, so dragging left makes it wider.
-    setPanelWidth(start.current.w - (e.clientX - start.current.x), { persist: false })
+    const w = start.current.w - (e.clientX - start.current.x)
+    latestW.current = w
+    setPanelWidth(w, { persist: false })
   }, [dragging, setPanelWidth])
 
   const end = useCallback(() => {
     if (!dragging) return
     setDragging(false)
-    setPanelWidth(panelWidth)
-  }, [dragging, panelWidth, setPanelWidth])
+    setPanelWidth(latestW.current, { persist: true })
+  }, [dragging, setPanelWidth])
 
   /* While a drag is live the whole window gets the resize cursor and stops
      selecting text -- otherwise dragging across the transcript highlights it,

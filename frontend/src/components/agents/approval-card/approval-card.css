@@ -1,0 +1,251 @@
+/* Amethyst ApprovalCard Stylesheet
+   Follows Design System tokens from index.css & AGENTS.md */
+
+.approval-card-root {
+  width: 100%;
+  max-width: 42rem;
+  margin: 0.5rem 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18), 0 0 0 1px var(--hairline);
+  transition: border-color var(--press, 120ms) var(--ease-out), box-shadow var(--press, 120ms) var(--ease-out);
+}
+
+.approval-card-root.is-settled {
+  background: var(--canvas);
+  opacity: 0.94;
+}
+
+/* Header */
+.approval-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.approval-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.approval-card-icon-pill {
+  display: flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.approval-card-heading {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* Risk Badges */
+.approval-risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+
+.approval-risk-badge.is-low {
+  background: var(--live-soft, rgba(20, 158, 97, 0.1));
+  color: var(--live, #149e61);
+  border-color: var(--live-line, rgba(20, 158, 97, 0.25));
+}
+
+.approval-risk-badge.is-medium {
+  background: var(--confirm-soft, rgba(245, 158, 11, 0.1));
+  color: var(--confirm, #f59e0b);
+  border-color: var(--confirm-line, rgba(245, 158, 11, 0.25));
+}
+
+.approval-risk-badge.is-high {
+  background: var(--stop-soft, rgba(239, 68, 68, 0.12));
+  color: var(--stop, #ef4444);
+  border-color: var(--stop-line, rgba(239, 68, 68, 0.25));
+}
+
+/* Parameters section */
+.approval-params-box {
+  margin-top: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  overflow: hidden;
+}
+
+.approval-params-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.approval-params-content {
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+/* Options / Questionnaire Cards */
+.approval-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.approval-option-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--canvas);
+  cursor: pointer;
+  transition: all var(--press, 120ms) var(--ease-out);
+  user-select: none;
+}
+
+.approval-option-card:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.approval-option-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.approval-option-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.approval-option-indicator {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  flex-shrink: 0;
+  transition: border-color var(--press, 120ms), background-color var(--press, 120ms);
+}
+
+.approval-option-card.is-selected .approval-option-indicator {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.approval-option-keyhint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-left: 8px;
+}
+
+/* Custom write-in */
+.approval-custom-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--press, 120ms), box-shadow var(--press, 120ms);
+}
+
+.approval-custom-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-wash);
+}
+
+/* Footers / Buttons */
+.approval-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.approval-btn-decline {
+  padding: 6px 16px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--press, 120ms), color var(--press, 120ms);
+}
+
+.approval-btn-decline:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.approval-btn-execute {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 18px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: background-color var(--press, 120ms), transform var(--press, 120ms);
+}
+
+.approval-btn-execute:hover {
+  background: var(--accent-hover);
+  transform: translateY(-0.5px);
+}
+
+.approval-btn-execute:active {
+  transform: scale(0.98);
+}

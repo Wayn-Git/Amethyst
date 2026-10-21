@@ -1,6 +1,22 @@
 /**
  * Maps Amethyst turn events into AgentActivityItem[] for the adaptive stream
  */
+function extractSubject(args) {
+  if (!args || typeof args !== 'object') return '';
+  const keys = ['query', 'q', 'search_query', 'pattern', 'command', 'CommandLine', 'path', 'file_path', 'AbsolutePath', 'TargetFile', 'title', 'subject', 'to', 'url'];
+  for (const k of keys) {
+    const val = args[k];
+    if (typeof val === 'string' && val.trim()) {
+      return val.trim();
+    }
+  }
+  for (const [k, v] of Object.entries(args)) {
+    if (typeof v === 'string' && v.trim() && v.length < 60) return `${k}: ${v.trim()}`;
+    if (typeof v === 'number' || typeof v === 'boolean') return `${k}: ${v}`;
+  }
+  return '';
+}
+
 export function mapEventsToActivityItems(events = [], live = null) {
   const items = [];
 
@@ -9,10 +25,17 @@ export function mapEventsToActivityItems(events = [], live = null) {
     if (!ev) continue;
 
     if (ev.type === 'thought') {
+      const text = (ev.text || '').trim();
+      if (!text) continue;
+      const firstLine = text.split('\n')[0] || 'Reasoning';
+      const summary = firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine;
       items.push({
         id: `thought-${i}`,
-        type: 'step',
-        label: ev.text || 'Thinking',
+        type: 'trace',
+        kind: 'thinking',
+        label: 'Thought',
+        detail: summary,
+        content: text,
         status: 'complete',
       });
       continue;
@@ -44,11 +67,11 @@ export function mapEventsToActivityItems(events = [], live = null) {
       continue;
     }
 
-    // Tools (edit, write, read, run)
+    // Tools (edit, write, read, run, etc.)
     let action = 'tool';
     let target = '';
-    let additions = call.additions;
-    let deletions = call.deletions;
+    const additions = call.additions;
+    const deletions = call.deletions;
 
     if (name.includes('shell') || name.includes('bash') || name.includes('command') || name === 'run') {
       action = 'run';
@@ -64,14 +87,14 @@ export function mapEventsToActivityItems(events = [], live = null) {
       target = args.AbsolutePath || args.path || args.file_path || '';
     } else {
       action = name.replace(/_/g, ' ');
-      target = args.query || args.pattern || args.title || '';
+      target = extractSubject(args);
     }
 
     items.push({
       id: `tool-${i}-${name}`,
       type: 'tool',
       action,
-      target: target ? String(target).trim() : name,
+      target: target && target.toLowerCase() !== action.toLowerCase() ? String(target).trim() : '',
       additions,
       deletions,
       status: call.status === 'error' ? 'error' : 'complete',
@@ -102,14 +125,14 @@ export function mapEventsToActivityItems(events = [], live = null) {
       target = liveArgs.query || liveArgs.q || '';
     } else {
       action = liveName.replace(/_/g, ' ');
-      target = liveArgs.title || liveArgs.name || '';
+      target = extractSubject(liveArgs);
     }
 
     items.push({
       id: 'live-activity',
       type: 'tool',
       action,
-      target: target ? String(target).trim() : liveName,
+      target: target && target.toLowerCase() !== action.toLowerCase() ? String(target).trim() : '',
       status: 'active',
     });
   }
