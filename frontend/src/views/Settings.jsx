@@ -966,7 +966,7 @@ function Appearance() {
           <div className="set-row-text">
             <span className="set-row-title">Thinking trace style</span>
             <span className="set-row-desc">
-              Choose between detailed execution cards or compact tool chips with collapsible inline diffs.
+              Choose between detailed execution cards, compact tool chips, or an adaptive chronological activity stream.
             </span>
           </div>
           <div className="set-seg-ctrl">
@@ -983,6 +983,13 @@ function Appearance() {
               onClick={() => setThinkingStyle?.('chips')}
             >
               Tool Chips
+            </button>
+            <button
+              type="button"
+              className={`set-seg-btn${thinkingStyle === 'activity' ? ' is-active' : ''}`}
+              onClick={() => setThinkingStyle?.('activity')}
+            >
+              Activity Stream
             </button>
           </div>
         </div>
