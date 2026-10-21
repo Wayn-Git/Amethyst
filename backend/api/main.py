@@ -2159,6 +2159,56 @@ async def ping_provider(name: str) -> dict[str, Any]:
     }
 
 
+class WarmupRequest(BaseModel):
+    provider: str
+    model: str | None = None
+
+
+@app.post("/api/providers/warmup")
+async def warmup_provider(body: WarmupRequest) -> dict[str, Any]:
+    """Eagerly warm up a selected provider and model, and ensure connector registry is warm.
+
+    Called when the user selects a provider/model in the UI so that by the time
+    the user types their first prompt, the model client is instantiated, any obsolete
+    model identifier has been remapped to a valid default, and background connector
+    registries are warm, eliminating turn-1 latency and first-call race conditions.
+    """
+    global _connectors_warm
+    if not is_known_provider(body.provider):
+        return {"warmed": False, "reason": f"unknown provider '{body.provider}'"}
+
+    target_model = None
+    try:
+        from backend.runtime.registry import resolve
+        from backend.runtime.router import AUTO
+
+        target_model = _validate_model(body.provider, body.model or "")
+        if body.provider != AUTO:
+            await asyncio.to_thread(resolve, body.provider, target_model)
+    except Exception as exc:
+        log.warning("Warmup for %s (%s) failed: %s", body.provider, body.model, exc)
+        return {"warmed": False, "provider": body.provider, "model": body.model, "reason": str(exc)}
+
+    # Ensure background connector registry initialization is running or completed
+    if not _connectors_warm:
+        async def _warm_connectors_bg():
+            global _connectors_warm
+            try:
+                await _registry_for(None, reconcile_deadline=5.0)
+                _connectors_warm = True
+            except Exception as e:
+                log.debug("Warmup background connector registry failed: %s", e)
+
+        asyncio.create_task(_warm_connectors_bg())
+
+    return {
+        "warmed": True,
+        "provider": body.provider,
+        "model": target_model,
+        "connectors_warm": _connectors_warm,
+    }
+
+
 _PROVIDER_MODELS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PROVIDER_MODELS_CACHE_TTL = 300.0  # 5 minutes
 
@@ -2729,6 +2779,15 @@ def list_conversations(include_automations: bool = False, archived: bool = False
 # every turn in that conversation fails forever with no way to correct it.
 PLACEHOLDER_MODELS = frozenset({"default", "", "null", "undefined", "none"})
 
+KNOWN_MODEL_REMAPS: dict[str, dict[str, str]] = {
+    "opencode-zen": {
+        "space-bunny-free": "mimo-v2.6-flash-free",
+    },
+    "nvidia": {
+        "nvidia/nemotron-3-super-120b-a12b": "deepseek-ai/deepseek-v4.1-flash",
+    },
+}
+
 
 def _validate_model(provider: str, model: str) -> str:
     """The model to store, or a 400 saying why not.
@@ -2741,6 +2800,11 @@ def _validate_model(provider: str, model: str) -> str:
         raise HTTPException(400, f"provider '{provider}' is not configured")
 
     name = (model or "").strip()
+    if provider in KNOWN_MODEL_REMAPS and name in KNOWN_MODEL_REMAPS[provider]:
+        remapped = KNOWN_MODEL_REMAPS[provider][name]
+        log.info("Remapped obsolete model %s/%s -> %s", provider, name, remapped)
+        name = remapped
+
     if provider == AUTO:
         # "auto" declares no model, because choosing one is the whole point of
         # it. A name sent alongside is kept rather than rejected -- it is what
@@ -3677,6 +3741,7 @@ async def run_turn(
                     # the user's to unblock. Tagged so an interface can say so
                     # instead of spinning.
                     waiting = _waiting_on(conversation_id)
+                    yield ": keepalive\n\n"
                     yield _frame("ping", **({"waiting_on": waiting} if waiting else {}))
                     continue
                 # default=str so one unexpected value in a tool argument degrades
@@ -3794,6 +3859,7 @@ async def list_confirmations() -> list[PendingConfirmation]:
 class ConfirmationDecision(BaseModel):
     allow: bool
     remember: bool = False
+    scope: dict[str, Any] | None = None
 
 
 @app.get("/api/confirmations/preferences")
