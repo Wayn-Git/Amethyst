@@ -254,7 +254,8 @@ async def ask(conversation_id: str | None, questions: list[Question], events) ->
     _waiting[ask_id] = {"future": future, "loop": loop, "ask": pending, "settled": False}
     events.put_nowait(("question_required", pending.as_dict()))
     try:
-        return await asyncio.wait_for(future, timeout=ANSWER_TIMEOUT_SECONDS)
+        answers = await asyncio.wait_for(future, timeout=ANSWER_TIMEOUT_SECONDS)
+        return answers
     except TimeoutError:
         log.info("nobody answered %s within %ss", ask_id, ANSWER_TIMEOUT_SECONDS)
         return [UNANSWERED]
@@ -264,4 +265,4 @@ async def ask(conversation_id: str | None, questions: list[Question], events) ->
         raise
     finally:
         _waiting.pop(ask_id, None)
-        events.put_nowait(("question_settled", {"id": ask_id}))
+        events.put_nowait(("question_settled", {"id": ask_id, "answers": answers if "answers" in locals() else []}))

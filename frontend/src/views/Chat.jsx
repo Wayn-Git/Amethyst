@@ -536,7 +536,7 @@ const Msg = memo(function Msg({
     }))
 
     return (
-      <div className="w-full my-4 flex justify-center">
+      <div className="w-full my-2 flex justify-start">
         <ApprovalCard
           mode="questions"
           questions={questionInputs}
@@ -552,7 +552,7 @@ const Msg = memo(function Msg({
   }
   if (role === 'plan') {
     return (
-      <div className="w-full my-4 flex justify-center">
+      <div className="w-full my-2 flex justify-start">
         <ApprovalCard
           mode="plan"
           planId={item.id}
@@ -1369,7 +1369,7 @@ export default function Chat() {
       // future nothing is holding.
       case 'question_settled':
         setItems((prev) => prev.map((it) => (
-          it.askId === evt.id && !it.settled ? { ...it, settled: it.answers ?? [] } : it
+          it.askId === evt.id && !it.settled ? { ...it, settled: (evt.answers && evt.answers.length > 0) ? evt.answers : (it.settled || []) } : it
         )))
         // Suspended no more. The loop's own `status` frame overwrites this as
         // soon as it has one; until then the line should not still be claiming
