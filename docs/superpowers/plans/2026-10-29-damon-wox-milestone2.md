@@ -89,7 +89,7 @@
 - Modify: `docs/dashboard-changelog.md`
 
 **Steps:**
-- [ ] Verify icons and preview rendering for window, system, clipboard, and file items.
-- [ ] Run all launcher backend and frontend test suites.
-- [ ] Update `docs/dashboard-changelog.md` and tick all plan checkboxes.
-- [ ] Commit: `git commit -m "feat(damon): complete Milestone 2 native utilities and providers"`
+- [x] Verify icons and preview rendering for window, system, clipboard, and file items.
+- [x] Run all launcher backend and frontend test suites.
+- [x] Update `docs/dashboard-changelog.md` and tick all plan checkboxes.
+- [x] Commit: `git commit -m "feat(damon): complete Milestone 2 native utilities and providers"`

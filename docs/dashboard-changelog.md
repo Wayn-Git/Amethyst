@@ -492,3 +492,4 @@ Shared card/detail composition keeps editors mounted across resizing, preserves 
 
 - 2026-10-29 — Astra mobile research: added `docs/plans/astra-mobile-research.md` with repository evidence, framework/reuse comparison, remote-control security gaps and phased acceptance gates; documentation only, no widget changes.
 - 2026-10-29 — Damon launcher redesign (Milestone 1): single-instance socket lock, async streaming LauncherEngine (apps, library, commands), split-pane preview layout, and Cmd+K action panel with Esc hierarchy; 45 pytest tests and 3 frontend node tests pass.
+- 2026-10-29 — Damon launcher native utilities (Milestone 2): system power/volume commands (`loginctl`, `systemctl`, `pactl`, `gio`), open window switcher via `wmctrl`, clipboard history SQLite store and copy actions, and fast local file search with preview reader; 55 pytest tests and 3 frontend node tests pass.

@@ -65,12 +65,13 @@ export default function DamonPreview({ item, onAction }) {
   }
 
   if (preview_type === 'markdown') {
+    const textContent = preview_data.excerpt || preview_data.markdown || 'No description available.'
     return (
       <div className="damon-preview-content damon-preview-reader">
         <div className="damon-preview-reader-header">
           <div className="damon-preview-reader-badge">
             <Icon name={icon || 'book'} />
-            <span>{preview_data.kind || 'Library'}</span>
+            <span>{preview_data.kind || item.badge || 'Item'}</span>
           </div>
           <h3 className="damon-preview-reader-title">{title}</h3>
           {preview_data.site && (
@@ -79,7 +80,9 @@ export default function DamonPreview({ item, onAction }) {
         </div>
 
         <div className="damon-preview-reader-body">
-          <p>{preview_data.excerpt || 'No description available.'}</p>
+          <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5', fontSize: '13px' }}>
+            {textContent}
+          </div>
         </div>
 
         {actions.length > 0 && (
