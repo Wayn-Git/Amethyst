@@ -11,9 +11,13 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     url.includes('youtube.') || url.includes('youtu.be') ? 'youtube' :
     url.includes('tiktok.') ? 'tiktok' : null
   )
-  const hasThumb = Boolean(item.thumbnail_path || item.url)
-  const isReelOrShort = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/')
   const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
+  const hasRealMedia = Boolean(
+    item.thumbnail_path ||
+    hasLocalVideo ||
+    (Array.isArray(item.resources) && item.resources.some((r) => r && (r.type === 'slide' || r.type === 'video' || r.type === 'image')))
+  )
+  const isReelOrShort = url.includes('/reel/') || url.includes('/reels/') || url.includes('/shorts/')
   const isVideo = (
     item.kind === 'video' ||
     app === 'youtube' ||
@@ -34,34 +38,34 @@ export function getBentoItemConfig(item, index, totalInGroup) {
     item.kind === 'post' ||
     (Array.isArray(item.resources) && item.resources.some((r) => r?.type === 'slide'))
   )
-  const isNote = item.kind === 'note' || (!hasThumb && !item.url)
+  const isNote = item.kind === 'note' || (!hasRealMedia && !item.url)
 
-  if (isNote) {
+  if (isNote || (!hasRealMedia && !isVideo)) {
     return {
-      spanClass: 'col-span-1 sm:row-span-1',
-      variant: 'note',
+      spanClass: 'col-span-1',
+      variant: isNote ? 'note' : 'standard',
     }
   }
 
-  // Vertical Reels & Shorts: tall 9:16 card spanning 2 rows in the grid
-  if (isVertical && hasThumb) {
+  // Vertical Reels & Shorts with real media
+  if (isVertical && hasRealMedia) {
     return {
-      spanClass: 'col-span-1 sm:row-span-2',
+      spanClass: 'col-span-1',
       variant: 'portrait',
     }
   }
 
-  // Square Posts & Carousels: 1:1 square card spanning 1 row
+  // Square Posts & Carousels: 1:1 square card
   if (isSlidePost) {
     return {
-      spanClass: 'col-span-1 sm:row-span-1',
+      spanClass: 'col-span-1',
       variant: 'square',
     }
   }
 
-  // Landscape Videos (YouTube etc.) & Articles: 16:9 card spanning 1 row
+  // Landscape Videos (YouTube etc.) & Articles
   return {
-    spanClass: 'col-span-1 sm:row-span-1',
+    spanClass: 'col-span-1',
     variant: isVideo ? 'landscape' : 'standard',
   }
 }
@@ -96,7 +100,7 @@ export default function LibraryGrid({
             </header>
 
             <div
-              style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
+              style={columns ? { columnCount: columns } : undefined}
               className="lib-bento-grid w-full"
             >
               {group.items.map((item, index) => {
@@ -104,7 +108,7 @@ export default function LibraryGrid({
                 return (
                   <motion.div
                     key={item.id || index}
-                    className={`h-full ${spanClass}`}
+                    className={`lib-bento-grid-item ${spanClass}`}
                     initial={{ opacity: 0, y: 16 }}
                     animate={{
                       opacity: 1,
@@ -115,7 +119,6 @@ export default function LibraryGrid({
                         ease: [0.16, 1, 0.3, 1],
                       },
                     }}
-                    whileHover={{ y: -3 }}
                   >
                     <LibraryCard
                       item={item}
