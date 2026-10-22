@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { CodeBlock } from "../code-block";
 import { JsonViewer } from "../../arc/json-viewer/json-viewer";
+import BrandMark from "../../BrandMark.jsx";
 import { cn } from "@/lib/utils.js";
 import { useAgentStage } from "../../../hooks/useAgentStage.js";
 import "./claude-activity.css";
@@ -111,6 +112,26 @@ function getToolTarget(name, args = {}) {
   return "";
 }
 
+function FormattedReasoning({ text }) {
+  if (!text) return null;
+  const cleaned = text
+    .replace(/^<thought>\s*/i, "")
+    .replace(/\s*<\/thought>$/i, "")
+    .trim();
+
+  const paragraphs = cleaned.split(/\n\n+/).filter(Boolean);
+
+  return (
+    <div className="claude-reasoning-prose">
+      {paragraphs.map((p, idx) => (
+        <p key={idx} className="claude-reasoning-p">
+          {p.trim()}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function ToolItem({ item, onOpenArtifact }) {
   const [open, setOpen] = useState(false);
   const args = safeArgs(item.arguments);
@@ -149,7 +170,7 @@ function ToolItem({ item, onOpenArtifact }) {
       >
         <div className="claude-tool-item-left">
           <span className={cn("claude-tool-icon-pill", cat.badgeClass)}>
-            <cat.Icon size={13} />
+            <cat.Icon size={12} />
           </span>
           <span className="claude-tool-name">{cat.label}</span>
           {target && <span className="claude-tool-target">{target}</span>}
@@ -158,13 +179,13 @@ function ToolItem({ item, onOpenArtifact }) {
         <div className="claude-tool-item-right">
           {metric && <span className="claude-tool-metric">{metric}</span>}
           {isErr ? (
-            <AlertCircle size={13} style={{ color: "var(--stop)" }} />
+            <AlertCircle size={12} style={{ color: "var(--stop)" }} />
           ) : (
-            <Check size={13} style={{ color: "var(--live)" }} />
+            <Check size={12} style={{ color: "var(--live)" }} />
           )}
           {hasPayload && (
             <ChevronRight
-              size={13}
+              size={12}
               className={cn("claude-tool-chevron", open && "is-open")}
             />
           )}
@@ -189,7 +210,7 @@ function ToolItem({ item, onOpenArtifact }) {
           ) : typeof item.content === "object" && item.content !== null ? (
             <JsonViewer data={item.content} rootName={item.name} defaultExpandDepth={2} />
           ) : (
-            <pre className="text-[12.5px] font-mono text-[var(--text-dim)] whitespace-pre-wrap m-0">
+            <pre className="text-[12px] font-mono text-[var(--text-dim)] whitespace-pre-wrap m-0">
               {typeof item.content === "string" ? item.content : JSON.stringify(args, null, 2)}
             </pre>
           )}
@@ -276,7 +297,7 @@ export const ClaudeActivity = memo(function ClaudeActivity({
     // Settled summary
     const toolCount = tools.length;
     const durSec = ms ? (ms / 1000).toFixed(1) : elapsedSeconds > 0 ? `${elapsedSeconds}s` : "";
-    const durStr = durSec ? (typeof durSec === 'number' || !String(durSec).endsWith('s') ? `${durSec}s` : durSec) : "";
+    const durStr = durSec ? (typeof durSec === "number" || !String(durSec).endsWith("s") ? `${durSec}s` : durSec) : "";
 
     const hasSearch = tools.some((t) => {
       const n = String(t.name || "").toLowerCase();
@@ -323,8 +344,8 @@ export const ClaudeActivity = memo(function ClaudeActivity({
   return (
     <div className={cn("claude-activity-root", className)}>
       {/* ──────────────────────────────────────────────────────────
-          44px Minimum Touch Target Trigger Bar (Fitts's Law compliant)
-          Squircle indicators, crisp token borders, generous click target
+          Seamless Text-Integrated Trigger (Zero Boxy Card Borders)
+          Fitts's Law 44px hit-target with transparent padding
           ────────────────────────────────────────────────────────── */}
       <button
         type="button"
@@ -337,14 +358,13 @@ export const ClaudeActivity = memo(function ClaudeActivity({
           isApprovalStage && "is-approval",
           isErrorStage && "is-error"
         )}
-        title={isOpen ? "Click to collapse" : "Click to inspect activity & reasoning"}
+        title={isOpen ? "Click to collapse details" : "Click to view thoughts & tools"}
       >
-        {/* Squircle Activity Indicator */}
+        {/* Animated Amethyst Logo or Settled Checkmark */}
         <div className="claude-indicator-wrap" aria-hidden="true">
           {running ? (
-            <div className="claude-dash-loader">
-              <span className="claude-dash is-pulse-1" />
-              <span className="claude-dash is-pulse-2" />
+            <div className="claude-brand-loader">
+              <BrandMark size={16} glow className="amethyst-pulse-mark" />
             </div>
           ) : (
             <span className="claude-dash-settled">
@@ -361,7 +381,7 @@ export const ClaudeActivity = memo(function ClaudeActivity({
           <span className="claude-activity-duration">{durationBadge}</span>
         )}
 
-        {/* Disclosure Chevron */}
+        {/* Subtle Chevron */}
         <ChevronRight
           size={14}
           className={cn("claude-activity-chevron", isOpen && "is-open")}
@@ -369,7 +389,8 @@ export const ClaudeActivity = memo(function ClaudeActivity({
       </button>
 
       {/* ──────────────────────────────────────────────────────────
-          The Expanded Accordion: Full Structured Activity Ledger
+          The Expanded Accordion Directly Under the Text Trigger
+          Clean minimalist layout with formatted reasoning & sleek tools
           ────────────────────────────────────────────────────────── */}
       <AnimatePresence initial={false}>
         {isOpen && (
@@ -380,24 +401,22 @@ export const ClaudeActivity = memo(function ClaudeActivity({
             exit={isReducedMotion ? false : { opacity: 0, height: 0 }}
             transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
           >
-            {/* Thinking / Reasoning Block */}
+            {/* Thinking / Reasoning Block (Formatted, not slop of text) */}
             {reasoningText && (
               <div className="claude-reasoning-block">
                 <div className="claude-section-head">
-                  <Brain size={13} style={{ color: "var(--coral)" }} />
+                  <Brain size={12} style={{ color: "var(--coral)" }} />
                   <span>Thinking process</span>
                 </div>
-                <div className="claude-reasoning-prose">
-                  {reasoningText}
-                </div>
+                <FormattedReasoning text={reasoningText} />
               </div>
             )}
 
-            {/* Tools Executed Block */}
+            {/* Tools Executed Block (Sleek rows under the text) */}
             {tools.length > 0 && (
               <div className="claude-tools-block">
                 <div className="claude-section-head">
-                  <Terminal size={13} />
+                  <Terminal size={12} />
                   <span>Tools executed ({tools.length})</span>
                 </div>
                 <div className="claude-tools-list">
@@ -416,7 +435,7 @@ export const ClaudeActivity = memo(function ClaudeActivity({
             {artifacts.length > 0 && (
               <div className="claude-artifacts-block">
                 <div className="claude-section-head">
-                  <FileCode size={13} style={{ color: "var(--accent)" }} />
+                  <FileCode size={12} style={{ color: "var(--accent)" }} />
                   <span>Artifacts created</span>
                 </div>
                 <div className="flex flex-col gap-1.5">
