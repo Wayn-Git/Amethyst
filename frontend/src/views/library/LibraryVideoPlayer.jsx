@@ -18,12 +18,11 @@ export default function LibraryVideoPlayer({
   embedUrl,
   isYouTube = false,
   isVertical = false,
-  imageFitMode = 'contain',
-  onToggleFit,
   cleanCoverSlug = 'video',
   isTheater = false,
-  onToggleTheater = null,
   subtitles = null,
+  onTimeUpdate = null,
+  seekToTime = null,
 }) {
   const containerRef = useRef(null)
   const videoRef = useRef(null)
@@ -145,10 +144,20 @@ export default function LibraryVideoPlayer({
     }
   }, [])
 
+  // Sync external seek
+  useEffect(() => {
+    if (seekToTime != null && Number.isFinite(seekToTime) && videoRef.current) {
+      videoRef.current.currentTime = seekToTime
+      setCurrentTime(seekToTime)
+    }
+  }, [seekToTime])
+
   // Time & progress update
   const handleTimeUpdate = () => {
     if (!videoRef.current || isScrubbing) return
-    setCurrentTime(videoRef.current.currentTime)
+    const t = videoRef.current.currentTime
+    setCurrentTime(t)
+    onTimeUpdate?.(t)
   }
 
   const handleLoadedMetadata = () => {
@@ -208,9 +217,6 @@ export default function LibraryVideoPlayer({
     } else if (e.key === 'f') {
       e.preventDefault()
       toggleFullscreen()
-    } else if ((e.key === 't' || e.key === 'T') && onToggleTheater) {
-      e.preventDefault()
-      onToggleTheater()
     } else if ((e.key === 'c' || e.key === 'C') && captionSentences.length > 0) {
       e.preventDefault()
       setShowCaptions((prev) => !prev)
@@ -228,22 +234,6 @@ export default function LibraryVideoPlayer({
       role="region"
       aria-label={title || 'Video Player'}
     >
-      {/* Corner Quick Theater Toggle Button */}
-      {onToggleTheater && (
-        <HouseButton
-          type="button"
-          className={`lib-player-corner-theater-btn ${isTheater ? 'lib-player-corner-theater-btn--active' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleTheater()
-          }}
-          title={isTheater ? 'Exit Theater Mode (T)' : 'Theater Mode (T)'}
-          aria-label={isTheater ? 'Exit Theater Mode' : 'Enter Theater Mode'}
-        >
-          <Icon name={isTheater ? 'collapse' : 'desktop'} size={13} />
-          <span>{isTheater ? 'Exit Theater' : 'Theater'}</span>
-        </HouseButton>
-      )}
       {/* 1. Embed mode (fallback embed or user selected web embed) */}
       {((showEmbed || (!currentSrc && !fallbackUrl)) && embedUrl) ? (
         <div className="lib-player-embed-container">
@@ -283,7 +273,7 @@ export default function LibraryVideoPlayer({
             playsInline
             loop
             poster={poster}
-            className={`lib-player-video lib-player-video--${imageFitMode}`}
+            className="lib-player-video"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onPlay={() => {
@@ -308,7 +298,7 @@ export default function LibraryVideoPlayer({
                 <img
                   src={poster}
                   alt={title || 'Cover'}
-                  className={`lib-player-poster lib-player-poster--${imageFitMode}`}
+                  className="lib-player-poster"
                 />
               ) : (
                 <div className="lib-player-graphic-card">
@@ -424,38 +414,6 @@ export default function LibraryVideoPlayer({
                     aria-label="Toggle Subtitles"
                   >
                     <span className="lib-player-cc-badge">CC</span>
-                  </HouseButton>
-                )}
-
-                {/* Aspect Ratio Fit Toggle */}
-                {onToggleFit && (
-                  <HouseButton
-                    type="button"
-                    className="lib-player-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleFit()
-                    }}
-                    title={imageFitMode === 'contain' ? 'Fill frame' : 'Original fit'}
-                    aria-label="Toggle fit mode"
-                  >
-                    <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={13} />
-                  </HouseButton>
-                )}
-
-                {/* Theater Mode Toggle */}
-                {onToggleTheater && (
-                  <HouseButton
-                    type="button"
-                    className={`lib-player-btn ${isTheater ? 'lib-player-btn--active' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleTheater()
-                    }}
-                    title={isTheater ? 'Exit Theater Mode (T)' : 'Theater Mode (T)'}
-                    aria-label="Toggle Theater Mode"
-                  >
-                    <Icon name={isTheater ? 'collapse' : 'desktop'} size={14} />
                   </HouseButton>
                 )}
 
