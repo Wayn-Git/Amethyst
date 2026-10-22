@@ -109,17 +109,19 @@ function highlightLine(line: string, language: string): ReactNode[] {
     if (cursor < index) parts.push(line.slice(cursor, index));
 
     const kind = tokenKind(value, line, index, language);
-    let colorClass = "";
-    if (kind === "comment") colorClass = "text-[var(--text-faint)] italic";
-    else if (kind === "string") colorClass = "text-emerald-400 dark:text-emerald-400";
-    else if (kind === "keyword") colorClass = "text-purple-400 dark:text-purple-400 font-medium";
-    else if (kind === "type" || kind === "function") colorClass = "text-blue-400 dark:text-blue-400";
-    else if (kind === "number") colorClass = "text-amber-400 dark:text-amber-400";
-    else if (kind === "property") colorClass = "text-sky-300 dark:text-sky-300";
+    let tokenClass = "";
+    if (kind === "comment") tokenClass = "code-token-comment";
+    else if (kind === "string") tokenClass = "code-token-string";
+    else if (kind === "keyword") tokenClass = "code-token-keyword";
+    else if (kind === "type") tokenClass = "code-token-type";
+    else if (kind === "function") tokenClass = "code-token-function";
+    else if (kind === "number") tokenClass = "code-token-number";
+    else if (kind === "property") tokenClass = "code-token-property";
+    else if (kind === "punctuation") tokenClass = "code-token-punctuation";
 
     parts.push(
-      colorClass ? (
-        <span key={`${index}-${value}`} className={colorClass}>
+      tokenClass ? (
+        <span key={`${index}-${value}`} className={tokenClass}>
           {value}
         </span>
       ) : (
@@ -170,33 +172,30 @@ export function CodeBlock({
   return (
     <div
       className={cn(
-        "code-block-root relative my-3 flex flex-col rounded-[8px] border border-[var(--border)] overflow-hidden bg-[var(--canvas-deep,var(--canvas))]",
+        "agent-code-block-root",
         className
       )}
-      style={{
-        boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-      }}
     >
       {/* Header bar */}
-      <div className="code-block-header flex h-9 items-center justify-between border-b border-[var(--border)] bg-[var(--surface-2)] px-3 text-[12px]">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="agent-code-block-header">
+        <div className="agent-code-block-fileinfo">
           {filename ? (
-            <span className="font-mono text-[12px] font-medium text-[var(--text)] truncate">
+            <span className="agent-code-block-filename" title={String(filename)}>
               {filename}
             </span>
           ) : (
-            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--text-dim)]">
+            <span className="agent-code-block-lang">
               {language}
             </span>
           )}
 
           {isStreaming ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-[10.5px] text-[var(--accent)] font-medium">
-              <span className="size-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
+            <span className="agent-code-block-streaming-pill">
+              <span className="agent-code-block-pulse-dot" />
               <TextShimmer duration={1.6}>Writing…</TextShimmer>
             </span>
           ) : (
-            <span className="font-mono text-[10.5px] text-[var(--text-faint)]">
+            <span className="agent-code-block-line-count">
               {lines.length} lines
             </span>
           )}
@@ -206,15 +205,14 @@ export function CodeBlock({
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1 rounded-[5px] px-2 py-1 text-[11.5px] text-[var(--text-dim)]
-              hover:bg-[var(--surface-3)] hover:text-[var(--text)] transition-colors duration-120"
+            className={cn("agent-code-block-copy-btn", copied && "is-copied")}
             title="Copy code"
             aria-label="Copy code"
           >
             {copied ? (
               <>
                 <Check className="size-3.5 text-emerald-500" />
-                <span className="text-emerald-500 font-medium">Copied!</span>
+                <span>Copied!</span>
               </>
             ) : (
               <>
@@ -229,12 +227,11 @@ export function CodeBlock({
       {/* Code viewport with line numbers */}
       <div
         className={cn(
-          "code-block-viewport overflow-x-auto p-3 font-mono text-[13px] leading-[1.6]",
-          wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
+          "agent-code-block-content",
+          wrap && "is-wrapped"
         )}
         style={{
           maxHeight: maxHeight ? `${maxHeight}px` : undefined,
-          fontFamily: "var(--font-mono, monospace)",
         }}
       >
         <div className="flex flex-col min-w-full">
@@ -246,19 +243,19 @@ export function CodeBlock({
               <div
                 key={idx}
                 className={cn(
-                  "flex items-baseline min-h-[21px] px-1 rounded-[3px]",
-                  isHighlighted && "bg-[var(--accent-wash,rgba(113,50,245,0.08))]"
+                  "agent-code-block-line",
+                  isHighlighted && "is-highlighted"
                 )}
               >
                 {showLineNumbers && (
                   <span
                     aria-hidden="true"
-                    className="w-8 shrink-0 select-none pr-3 text-right text-[11px] text-[var(--text-faint)] tabular-nums opacity-60"
+                    className="agent-code-block-line-number"
                   >
                     {lineNum}
                   </span>
                 )}
-                <span className="flex-1 text-[var(--text)] select-text">
+                <span className="agent-code-block-line-text">
                   {highlightLine(line, language)}
                 </span>
               </div>

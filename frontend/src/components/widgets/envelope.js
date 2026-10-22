@@ -62,9 +62,11 @@ export function parseWidgetEnvelope(text) {
  */
 export function parseContentBlocks(text) {
   if (!text) return []
+  const clean = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '').replace(/<function=(?:ask_user|ask_question)[\s\S]*?<\/function>/gi, '').trim()
+  if (!clean) return []
   const openingFence = '```' + FENCE
-  if (!text.includes(openingFence)) {
-    return [{ type: 'text', content: text }]
+  if (!clean.includes(openingFence)) {
+    return [{ type: 'text', content: clean }]
   }
 
   const blocks = []
