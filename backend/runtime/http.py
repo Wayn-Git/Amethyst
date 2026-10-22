@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import random
+import time
 from collections.abc import AsyncIterator
 from datetime import UTC
 from typing import Any
@@ -23,6 +24,7 @@ from backend.runtime.failures import (
     FailureKind,
     classify_status,
     classify_stream_error,
+    looks_like_quota,
     should_retry,
 )
 
@@ -230,20 +232,98 @@ def _client(timeout: float) -> httpx.AsyncClient:
     if client is None or client.is_closed:
         client = httpx.AsyncClient(
             timeout=_as_timeout(timeout),
-            limits=httpx.Limits(max_keepalive_connections=16, keepalive_expiry=20.0),
+            limits=httpx.Limits(max_keepalive_connections=16, keepalive_expiry=10.0),
         )
         _CLIENTS[key] = client
     return client
 
 
+def is_sanitization_recoverable_4xx(status_code: int, body: str | None) -> bool:
+    """Whether a 4xx error looks like a request-shape issue that could succeed with minimal payload.
+
+    Excludes auth errors (401, 403), quota errors, and explicit context-length / token limits.
+    Requires positive indication of schema/parameter rejection (extra fields, disallowed keys, message format).
+    """
+    if status_code not in (400, 422):
+        return False
+    b = (body or "").lower()
+    if not b:
+        return False
+    # Never retry blindly on auth or quota or context length
+    if any(m in b for m in ("auth", "unauthorized", "api key", "forbidden", "access denied", "signature")):
+        return False
+    if "quota" in b or looks_like_quota(body):
+        return False
+    if any(m in b for m in ("context length", "too many tokens", "max_tokens", "token limit", "maximum context")):
+        return False
+
+    # Positive signals of request shape or parameter rejections that minimal payload fixes
+    recoverable_signals = (
+        "extra input",
+        "extra parameter",
+        "extra_forbidden",
+        "additional properties",
+        "additional_properties",
+        "unexpected parameter",
+        "unsupported parameter",
+        "unknown parameter",
+        "disallowed parameter",
+        "stream_options",
+        "tool_choice",
+        "parallel_tool_calls",
+        "reasoning_effort",
+        "content or tool_calls",
+        "assistant message must have",
+        "schema validation",
+        "invalid schema",
+    )
+    return any(sig in b for sig in recoverable_signals)
+
+
+
+def evict_client(timeout: float | None = None) -> None:
+    """Evict cached clients from the pool so new ones are constructed with fresh connections."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    if timeout is not None:
+        client = _CLIENTS.pop((loop, timeout), None)
+        if client is not None and not client.is_closed:
+            try:
+                asyncio.create_task(client.aclose())
+            except Exception:
+                pass
+    else:
+        keys = [k for k in _CLIENTS if k[0] is loop]
+        for k in keys:
+            client = _CLIENTS.pop(k, None)
+            if client is not None and not client.is_closed:
+                try:
+                    asyncio.create_task(client.aclose())
+                except Exception:
+                    pass
+
+
+async def reset_client_pool() -> None:
+    """Close and discard all pooled HTTP clients immediately."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    keys = [k for k in _CLIENTS if k[0] is loop]
+    for k in keys:
+        client = _CLIENTS.pop(k, None)
+        if client is not None and not client.is_closed:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+
+
 async def close_clients() -> None:
     """Close this loop's pooled clients. Called on shutdown; safe to skip."""
-    loop = asyncio.get_running_loop()
-    stale = [key for key in _CLIENTS if key[0] is loop]
-    for key in stale:
-        client = _CLIENTS.pop(key, None)
-        if client is not None and not client.is_closed:
-            await client.aclose()
+    await reset_client_pool()
 
 
 def is_retryable(status: int, body: str | None = None) -> bool:
@@ -274,35 +354,70 @@ async def post_json(
     timeout: float,
     params: dict[str, Any] | None = None,
     max_retries: int = MAX_RETRIES,
+    provider: str | None = None,
+    client_instance: Any = None,
 ) -> dict[str, Any]:
     """POST JSON, retrying transient failures, and surface the error body on give-up."""
+    from backend.runtime.capability_profiles import build_minimal_payload
+    from backend.runtime.diagnostics import record_call_outcome, record_call_start
+
+    diag = record_call_start(url, payload, client_instance=client_instance, provider=provider)
     last_error = "no response"
     last_status: int | None = None
     last_body: str | None = None
+    last_exc: BaseException | None = None
+    curr_payload = dict(payload)
+    minimal_retried = False
 
     for attempt in range(max_retries + 1):
         try:
             response = await _client(timeout).post(
-                url, headers=headers, json=payload, params=params, timeout=_as_timeout(timeout)
+                url, headers=headers, json=curr_payload, params=params, timeout=_as_timeout(timeout)
             )
         except TRANSIENT_EXCEPTIONS as exc:
+            evict_client(timeout)
+            last_exc = exc
             last_error = f"{type(exc).__name__}: {exc}"
             last_status, last_body = None, None
             if attempt == max_retries:
+                record_call_outcome(diag, status_code=None, exception=exc)
                 raise ProviderHTTPError(
                     f"{url} unreachable: {last_error}", kind=FailureKind.UNREACHABLE
                 ) from exc
-            await asyncio.sleep(backoff(attempt))
+            log.warning(
+                "%s connection failure (%s); retrying on fresh connection (attempt %d/%d)",
+                url,
+                type(exc).__name__,
+                attempt + 1,
+                max_retries,
+            )
+            await asyncio.sleep(0.1 if attempt == 0 else backoff(attempt))
             continue
 
         if response.status_code < 400:
+            record_call_outcome(diag, status_code=response.status_code)
             return response.json()
 
         # raise_for_status() throws the body away; the body is the diagnostic.
         body = response.text[:1000]
         last_error = f"{response.status_code}: {body}"
         last_status, last_body = response.status_code, body
+
+        # Check for request-level 400 recoverable with minimal payload
+        if is_sanitization_recoverable_4xx(response.status_code, body) and not minimal_retried:
+            minimal_retried = True
+            log.warning(
+                "[4xx_MINIMAL_RETRY] %s returned %d (%s); retrying once with sanitized minimal payload...",
+                url,
+                response.status_code,
+                body[:120],
+            )
+            curr_payload = build_minimal_payload(curr_payload, provider=provider)
+            await asyncio.sleep(0.1)
+            continue
+
         if not is_retryable(response.status_code, body) or attempt == max_retries:
+            record_call_outcome(diag, status_code=response.status_code, response_body=body)
             raise ProviderHTTPError(
                 f"{url} returned {last_error}",
                 kind=classify_status(response.status_code, body),
@@ -322,6 +437,7 @@ async def post_json(
         )
         await asyncio.sleep(delay)
 
+    record_call_outcome(diag, status_code=last_status, response_body=last_body, exception=last_exc)
     raise ProviderHTTPError(
         f"{url} returned {last_error}",
         kind=(
@@ -377,98 +493,141 @@ async def stream_sse(
     timeout: float,
     params: dict[str, Any] | None = None,
     max_retries: int = MAX_STREAM_RETRIES,
+    diagnostics: dict[str, Any] | None = None,
+    provider: str | None = None,
+    client_instance: Any = None,
 ) -> AsyncIterator[str]:
     """Yield raw `data:` payloads from a server-sent-event stream.
 
     Retries only apply before the first byte arrives. Once tokens are flowing a
     retry would replay a partial response, so a mid-stream failure is raised.
     """
-    for attempt in range(max_retries + 1):
-        started = False
-        # Set when the body itself reported a transient failure before any
-        # frame was handed on; the request is replayed after the wait.
-        replay: float | None = None
-        try:
-            async with _client(timeout).stream(
-                "POST",
-                url,
-                headers=headers,
-                json=payload,
-                params=params,
-                timeout=_as_timeout(timeout),
-            ) as response:
-                if response.status_code >= 400:
-                    body = (await response.aread()).decode(errors="replace")[:1000]
-                    error = f"{response.status_code}: {body}"
-                    if not is_retryable(response.status_code, body) or attempt == max_retries:
-                        raise ProviderHTTPError(
-                            f"{url} returned {error}",
-                            kind=classify_status(response.status_code, body),
-                            retry_after=reset_after(response.headers),
-                            status=response.status_code,
-                            body=body,
-                        )
-                    await asyncio.sleep(_delay_for(response, attempt))
-                    continue
+    from backend.runtime.capability_profiles import build_minimal_payload
+    from backend.runtime.diagnostics import record_call_outcome, record_call_start
 
-                async for line in response.aiter_lines():
-                    if not line.startswith("data:"):
-                        if line.strip().lower().startswith("error in input stream"):
-                            data = line.strip()
-                            if not started and attempt < max_retries:
-                                replay = stream_backoff(attempt)
+    diag = record_call_start(url, payload, client_instance=client_instance, provider=provider)
+    stream_succeeded = False
+    caught_exception: BaseException | None = None
+    curr_payload = dict(payload)
+    minimal_retried = False
+
+    try:
+        for attempt in range(max_retries + 1):
+            started = False
+            # Set when the body itself reported a transient failure before any
+            # frame was handed on; the request is replayed after the wait.
+            replay: float | None = None
+            t_req = time.perf_counter()
+            try:
+                async with _client(timeout).stream(
+                    "POST",
+                    url,
+                    headers=headers,
+                    json=curr_payload,
+                    params=params,
+                    timeout=_as_timeout(timeout),
+                ) as response:
+                    if diagnostics is not None:
+                        diagnostics["http_status"] = response.status_code
+                        diagnostics["ttfb_ms"] = (time.perf_counter() - t_req) * 1000.0
+                        diagnostics["last_chunk_t"] = time.perf_counter()
+
+                    if response.status_code >= 400:
+                        body = (await response.aread()).decode(errors="replace")[:1000]
+                        error = f"{response.status_code}: {body}"
+
+                        # Check for request-level 400 recoverable with minimal payload
+                        if (
+                            is_sanitization_recoverable_4xx(response.status_code, body)
+                            and not minimal_retried
+                            and not started
+                        ):
+                            minimal_retried = True
+                            log.warning(
+                                "[4xx_MINIMAL_RETRY] %s returned %d (%s); retrying stream once with sanitized minimal payload...",
+                                url,
+                                response.status_code,
+                                body[:120],
+                            )
+                            curr_payload = build_minimal_payload(curr_payload, provider=provider)
+                            await asyncio.sleep(0.1)
+                            continue
+
+                        if not is_retryable(response.status_code, body) or attempt == max_retries:
+                            record_call_outcome(diag, status_code=response.status_code, response_body=body)
+                            raise ProviderHTTPError(
+                                f"{url} returned {error}",
+                                kind=classify_status(response.status_code, body),
+                                retry_after=reset_after(response.headers),
+                                status=response.status_code,
+                                body=body,
+                            )
+                        await asyncio.sleep(_delay_for(response, attempt))
+                        continue
+
+                    async for line in response.aiter_lines():
+                        if diagnostics is not None:
+                            diagnostics["last_chunk_t"] = time.perf_counter()
+                        if not line.startswith("data:"):
+                            if line.strip().lower().startswith("error in input stream"):
+                                data = line.strip()
+                                if not started and attempt < max_retries:
+                                    replay = stream_backoff(attempt)
+                                    break
+                                raise ProviderStreamError(data, kind=FailureKind.UPSTREAM_UNHEALTHY)
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            stream_succeeded = True
+                            return
+                        if not data:
+                            continue
+                        if not started:
+                            replay = _replay_delay(data, attempt, max_retries)
+                            if replay is not None:
                                 break
-                            raise ProviderStreamError(data, kind=FailureKind.UPSTREAM_UNHEALTHY)
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        return
-                    if not data:
-                        continue
-                    if not started:
-                        replay = _replay_delay(data, attempt, max_retries)
-                        if replay is not None:
-                            break
-                    started = True
-                    yield data
-            if replay is not None:
+                        started = True
+                        yield data
+                if replay is not None:
+                    log.warning(
+                        "%s reported a transient failure inside a 200 response before any"
+                        " token; replaying in full (attempt %d/%d): %s",
+                        url,
+                        attempt + 1,
+                        max_retries,
+                        data[:200],
+                    )
+                    await asyncio.sleep(replay)
+                    continue
+                stream_succeeded = True
+                return
+            except TRANSIENT_EXCEPTIONS as exc:
+                evict_client(timeout)
+                if diagnostics is not None:
+                    diagnostics["exception"] = exc
+                if started or attempt == max_retries:
+                    raise ProviderHTTPError(
+                        f"{url} stream failed: {exc}",
+                        kind=(FailureKind.UPSTREAM_UNHEALTHY if started else FailureKind.UNREACHABLE),
+                        status=getattr(response, "status_code", None) if "response" in locals() else None,
+                    ) from exc
                 log.warning(
-                    "%s reported a transient failure inside a 200 response before any"
-                    " token; replaying in full (attempt %d/%d): %s",
+                    "%s dropped the stream before any data; retrying on fresh connection (attempt %d/%d): %s",
                     url,
                     attempt + 1,
                     max_retries,
-                    data[:200],
+                    exc,
                 )
-                await asyncio.sleep(replay)
-                continue
-            return
-        except TRANSIENT_EXCEPTIONS as exc:
-            if started or attempt == max_retries:
-                # Once bytes have moved this layer cannot replay the request --
-                # it would send the whole answer twice -- so it stops here and
-                # says what kind of failure it was.
-                #
-                # It used to call that `NON_RETRYABLE`, on the reasoning that a
-                # different provider could not take over cleanly with half an
-                # answer already on screen. True, and still true; but the
-                # director can now ask the *same* provider to continue the
-                # sentence it was writing, and it decides that from the kind.
-                # Calling a dropped socket unrecoverable took that decision
-                # away from the only layer holding the partial.
-                raise ProviderHTTPError(
-                    f"{url} stream failed: {exc}",
-                    kind=(FailureKind.UPSTREAM_UNHEALTHY if started else FailureKind.UNREACHABLE),
-                ) from exc
-            # Nothing had arrived yet, so replaying is safe -- but it is a whole
-            # request, and the provider may well have generated a response it
-            # then failed to deliver. Unlogged, a turn could silently cost four
-            # times the tokens and four times the wall clock with no trace.
-            log.warning(
-                "%s dropped the stream before any data; retrying in full (attempt %d/%d): %s",
-                url,
-                attempt + 1,
-                max_retries,
-                exc,
-            )
-            await asyncio.sleep(backoff(attempt))
+                await asyncio.sleep(0.1 if attempt == 0 else backoff(attempt))
+    except BaseException as exc:
+        caught_exception = exc
+        record_call_outcome(
+            diag,
+            status_code=getattr(exc, "status", None),
+            response_body=getattr(exc, "body", str(exc)),
+            exception=exc,
+        )
+        raise
+    finally:
+        if stream_succeeded and caught_exception is None:
+            record_call_outcome(diag, status_code=200)
