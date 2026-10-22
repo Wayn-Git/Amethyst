@@ -45,6 +45,7 @@ PHASES = (
     "acting",             # dispatching the tools the model asked for
     "awaiting_approval",  # suspended on the permission gate
     "awaiting_input",     # suspended on a clarifying question
+    "awaiting_connection",  # suspended on an app the call needs but is not connected
     "completed",          # the turn answered
     "stopped",            # a guard ended it: time, iterations, or tool calls
     "cancelled",          # the user pressed Stop
@@ -72,6 +73,7 @@ TRANSITIONS: dict[str, frozenset[str]] = {
             "reasoning",
             "awaiting_approval",
             "awaiting_input",
+            "awaiting_connection",
             "completed",
             "stopped",
             "cancelled",
@@ -81,6 +83,7 @@ TRANSITIONS: dict[str, frozenset[str]] = {
     ),
     "awaiting_approval": frozenset({"acting", "stopped", "cancelled", "failed", "interrupted"}),
     "awaiting_input": frozenset({"acting", "stopped", "cancelled", "failed", "interrupted"}),
+    "awaiting_connection": frozenset({"acting", "stopped", "cancelled", "failed", "interrupted"}),
     "completed": frozenset(),
     "stopped": frozenset(),
     "cancelled": frozenset(),
