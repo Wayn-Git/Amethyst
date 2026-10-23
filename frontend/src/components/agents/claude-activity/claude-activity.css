@@ -1,14 +1,10 @@
 /* Amethyst ClaudeActivity Stylesheet
-   Adheres to wayn-design-system and 30 Laws of UX:
-   - Fitts's Law: 42px touch/click target for effortless interaction
-   - Jakob's Law & Aesthetic-Usability Effect: Modern, elevated agent activity disclosure
-   - 12px squircle geometry (rounded-xl)
-   - Squircle indicators & badges (zero circular dots)
-   - Amethyst design tokens: --text, --surface-2, --surface-3, --hairline, --accent, --live */
+   Seamless text-integrated trigger, Amethyst brand animation,
+   formatted reasoning prose, and lightweight tool rows. */
 
 .claude-activity-root {
   width: 100%;
-  margin: 4px 0 10px 0;
+  margin: 4px 0 8px 0;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -16,81 +12,72 @@
 }
 
 /* ──────────────────────────────────────────────────────────
-   Comfortable 44px Trigger Bar (Fitts's Law 44px compliant)
+   Seamless Text-Integrated Trigger (Zero Boxy Card Borders)
+   Fitts's Law 44px hit-target via transparent padding
    ────────────────────────────────────────────────────────── */
 .claude-activity-trigger {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: fit-content;
   max-width: 100%;
   min-height: 44px;
-  padding: 8px 14px;
-  border-radius: 12px; /* rounded-xl squircle */
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
-  color: var(--text);
+  padding: 6px 2px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-dim);
   font-size: 13.5px;
   line-height: 1.45;
   cursor: pointer;
-  outline: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  transition: background var(--press, 120ms) var(--ease-out),
-              border-color var(--press, 120ms) var(--ease-out),
-              box-shadow var(--press, 120ms) var(--ease-out),
-              transform var(--press, 120ms) var(--ease-out);
+  box-shadow: none;
   user-select: none;
   box-sizing: border-box;
+  transition: color var(--press, 120ms) var(--ease-out),
+              opacity var(--press, 120ms) var(--ease-out);
 }
 
 .claude-activity-trigger:hover {
-  background: var(--surface-3);
-  border-color: var(--border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
-  transform: translateY(-1px);
+  color: var(--text);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transform: none;
 }
 
 .claude-activity-trigger:active {
-  transform: translateY(0);
+  opacity: 0.85;
 }
 
 .claude-activity-trigger:focus-visible {
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  border-radius: var(--radius-links, 4px);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .claude-activity-trigger.is-open {
-  background: var(--surface-3);
-  border-color: var(--border);
+  color: var(--text);
+  background: transparent;
+  border: none;
 }
 
 .claude-activity-trigger.is-running {
-  border-color: var(--accent-line);
-  box-shadow: 0 0 16px -2px var(--accent-soft);
+  border: none;
+  box-shadow: none;
 }
 
 /* Amber strictly reserved for waiting_approval */
 .claude-activity-trigger.is-approval {
-  border-color: var(--confirm-line);
-  box-shadow: 0 0 16px -2px var(--confirm-soft);
-}
-
-.claude-activity-trigger.is-approval .claude-dash {
-  background: var(--confirm);
-  box-shadow: 0 0 8px var(--confirm);
+  color: var(--confirm);
 }
 
 /* Red for error */
 .claude-activity-trigger.is-error {
-  border-color: var(--stop-line);
-}
-
-.claude-activity-trigger.is-error .claude-dash {
-  background: var(--stop);
-  box-shadow: 0 0 8px var(--stop);
+  color: var(--stop);
 }
 
 /* ──────────────────────────────────────────────────────────
-   Squircle Activity Indicators (Zero Circular Dots)
+   Amethyst Animated Mark & Settled Checkmark
    ────────────────────────────────────────────────────────── */
 .claude-indicator-wrap {
   display: flex;
@@ -99,36 +86,27 @@
   flex-shrink: 0;
 }
 
-.claude-dash-loader {
+.claude-brand-loader {
   display: flex;
   align-items: center;
-  gap: 3.5px;
+  justify-content: center;
 }
 
-.claude-dash {
-  width: 5px;
-  height: 11px;
-  border-radius: 2px; /* squircle dash */
-  background: var(--coral, var(--accent));
-  box-shadow: 0 0 8px var(--coral, var(--accent));
+.amethyst-pulse-mark {
+  animation: amethystLogoPulse 1.8s ease-in-out infinite;
+  transform-origin: center;
 }
 
-.claude-dash.is-pulse-1 {
-  animation: squircleDashPulse 1.2s ease-in-out infinite;
-}
-
-.claude-dash.is-pulse-2 {
-  animation: squircleDashPulse 1.2s ease-in-out infinite 0.25s;
-}
-
-@keyframes squircleDashPulse {
+@keyframes amethystLogoPulse {
   0%, 100% {
-    opacity: 0.35;
-    transform: scaleY(0.75);
+    transform: scale(0.92);
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 35%, transparent));
+    opacity: 0.85;
   }
   50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 80%, transparent));
     opacity: 1;
-    transform: scaleY(1.2);
   }
 }
 
@@ -136,9 +114,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px; /* squircle */
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
   background: var(--live-soft);
   color: var(--live);
 }
@@ -147,23 +125,19 @@
 .claude-activity-label {
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--text);
+  color: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: -0.01em;
 }
 
-/* Live duration counter */
+/* Live duration counter (10s+) */
 .claude-activity-duration {
   font-family: var(--font-mono, monospace);
   font-size: 11.5px;
   font-weight: 500;
-  color: var(--text-dim);
-  padding: 2px 7px;
-  border-radius: 6px; /* squircle */
-  background: var(--surface-3);
-  border: 1px solid var(--hairline);
+  color: var(--text-faint);
   letter-spacing: 0;
   margin-left: 2px;
 }
@@ -186,18 +160,18 @@
 }
 
 /* ──────────────────────────────────────────────────────────
-   Expanded Container: Clean Structured Timeline
+   Expanded Container Directly Under the Text Trigger
    ────────────────────────────────────────────────────────── */
 .claude-activity-panel {
-  margin-top: 8px;
-  padding: 14px 16px;
-  border-radius: 12px; /* rounded-xl squircle */
-  background: var(--surface-2, #18191f);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-cards, 8px);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  gap: 12px;
+  box-shadow: 0 4px 16px var(--shadow-subtle, rgba(0, 0, 0, 0.16));
   width: 100%;
   max-width: 48rem;
   box-sizing: border-box;
@@ -207,92 +181,97 @@
 .claude-section-head {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 11.5px;
+  gap: 6px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-faint, #64748b);
+  color: var(--text-faint);
   user-select: none;
 }
 
 .claude-section-head svg {
-  color: var(--text-dim, #94a3b8);
+  color: var(--text-dim);
 }
 
-/* Reasoning Section */
+/* Reasoning Section: Clean Paragraph Formatting (No Slop) */
 .claude-reasoning-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.claude-reasoning-prose {
-  font-size: 13.5px;
-  line-height: 1.65;
-  color: var(--text-dim, #94a3b8);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 10px 14px;
-  border-radius: 8px; /* squircle */
-  background: var(--canvas, rgba(0, 0, 0, 0.25));
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
-  font-family: var(--font-sans, inherit);
-}
-
-/* Tools Section */
-.claude-tools-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.claude-tools-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* Individual Tool Row */
+.claude-reasoning-prose {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-dim);
+  border-left: 2px solid var(--hairline);
+  padding-left: 12px;
+  margin-left: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: var(--font-sans, inherit);
+}
+
+.claude-reasoning-p {
+  margin: 0 0 8px 0;
+  line-height: 1.65;
+  word-break: break-word;
+}
+
+.claude-reasoning-p:last-child {
+  margin-bottom: 0;
+}
+
+/* Tools Section: Sleek Minimal Rows */
+.claude-tools-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.claude-tools-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Individual Sleek Tool Row */
 .claude-tool-item {
   display: flex;
   flex-direction: column;
-  border-radius: 8px; /* squircle */
-  background: var(--canvas, rgba(0, 0, 0, 0.18));
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
+  border-radius: var(--radius-cards, 6px);
+  background: transparent;
+  border: 1px solid transparent;
   overflow: hidden;
-  transition: border-color var(--press, 120ms);
+  transition: background var(--press, 120ms) var(--ease-out),
+              border-color var(--press, 120ms) var(--ease-out);
 }
 
 .claude-tool-item:hover {
-  border-color: var(--border, rgba(255, 255, 255, 0.14));
+  background: var(--surface-3);
+  border-color: var(--hairline);
 }
 
 .claude-tool-item.is-open {
-  border-color: var(--border, rgba(255, 255, 255, 0.18));
+  background: var(--surface-3);
+  border-color: var(--border);
 }
 
 .claude-tool-item-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 6px 8px;
   width: 100%;
   border: none;
   background: transparent;
-  color: var(--text, #f1f5f9);
-  font-size: 13px;
+  color: var(--text);
+  font-size: 12.5px;
   cursor: pointer;
   text-align: left;
   outline: none;
-  transition: background var(--press, 120ms);
-}
-
-.claude-tool-item-trigger:hover {
-  background: var(--surface-3, rgba(255, 255, 255, 0.04));
 }
 
 .claude-tool-item-left {
@@ -300,48 +279,41 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  flex: 1;
+  overflow: hidden;
 }
 
-/* 6px Squircle tool badge */
 .claude-tool-icon-pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px; /* squircle */
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
   flex-shrink: 0;
 }
 
-.claude-tool-badge-search {
-  background: rgba(56, 189, 248, 0.14);
-  color: #38bdf8;
+.claude-tool-badge-bash {
+  color: var(--accent);
 }
 
-.claude-tool-badge-read {
-  background: rgba(129, 140, 248, 0.14);
-  color: #818cf8;
+.claude-tool-badge-search {
+  color: var(--coral);
 }
 
 .claude-tool-badge-edit {
-  background: rgba(251, 146, 60, 0.14);
-  color: #fb923c;
+  color: var(--live);
 }
 
-.claude-tool-badge-bash {
-  background: var(--live-soft, rgba(16, 185, 129, 0.14));
-  color: var(--live, #10b981);
-}
-
-.claude-tool-badge-other {
-  background: var(--surface-3, rgba(255, 255, 255, 0.08));
-  color: var(--text-dim, #94a3b8);
+.claude-tool-badge-read {
+  color: var(--text-dim);
 }
 
 .claude-tool-name {
   font-weight: 500;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text);
   white-space: nowrap;
 }
@@ -349,27 +321,26 @@
 .claude-tool-target {
   font-family: var(--font-mono, monospace);
   font-size: 12px;
-  color: var(--text-dim, #94a3b8);
+  color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 320px;
 }
 
 .claude-tool-item-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .claude-tool-metric {
   font-family: var(--font-mono, monospace);
-  font-size: 11.5px;
-  color: var(--text-faint, #64748b);
-  padding: 1.5px 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: 1px 5px;
   border-radius: 4px;
-  background: var(--surface-3);
+  background: var(--surface-2);
 }
 
 .claude-tool-chevron {
@@ -383,27 +354,27 @@
 
 /* Tool Payload (Expanded Code/JSON) */
 .claude-tool-payload {
-  padding: 10px 14px;
-  border-top: 1px solid var(--hairline, rgba(255, 255, 255, 0.06));
-  background: rgba(0, 0, 0, 0.28);
+  padding: 8px 12px 10px 12px;
+  border-top: 1px solid var(--hairline);
+  background: var(--surface-3);
 }
 
 /* Artifacts card */
 .claude-artifacts-block {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .claude-artifact-pill {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: 8px; /* squircle */
+  padding: 6px 10px;
+  border-radius: var(--radius-cards, 6px);
   background: var(--canvas);
   border: 1px solid var(--hairline);
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text);
   cursor: pointer;
   transition: border-color var(--press, 120ms), background var(--press, 120ms);
@@ -415,10 +386,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .claude-dash.is-pulse-1,
-  .claude-dash.is-pulse-2 {
+  .amethyst-pulse-mark {
     animation: none;
-    opacity: 0.85;
     transform: none;
   }
   .claude-activity-trigger,
