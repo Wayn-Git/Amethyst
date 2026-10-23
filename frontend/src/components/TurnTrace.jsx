@@ -12,6 +12,7 @@ import ToolChipsTrace from './ToolChipsTrace.jsx'
 import ComposioConnectCard, { extractComposioAuth } from './ComposioConnectCard.jsx'
 import { AgentActivity } from './agents/agent-activity/index.tsx'
 import { mapEventsToActivityItems } from './agents/agent-activity/map-events.js'
+import ClaudeActivity from './agents/claude-activity/ClaudeActivity.jsx'
 import { useApp } from '../store.jsx'
 
 /* What the agent did, represented as the Worked pill and expandable tool execution tree.
@@ -474,7 +475,17 @@ function ArtifactCard({ call, onOpen }) {
   )
 }
 
-export default function TurnTrace({ events, live, reasoning, running, ms, onOpenArtifact }) {
+export default function TurnTrace({
+  events,
+  live,
+  liveBuffer,
+  reasoning,
+  running,
+  status,
+  lastEventAt,
+  ms,
+  onOpenArtifact,
+}) {
   const { thinkingStyle } = useApp()
   const cleanLive = (live?.name === 'ask_user' || live?.name === 'ask_question') ? null : live
   const cleanEvents = (events || []).filter((e) => {
@@ -487,7 +498,8 @@ export default function TurnTrace({ events, live, reasoning, running, ms, onOpen
     .map((e) => e.call || e)
 
   const hasTools = cleanEvents.some((e) => e.type === 'tool' || e.call)
-  if (!hasTools && !running && !cleanLive && documents.length === 0) {
+  const hasThoughts = cleanEvents.some((e) => e.type === 'thought') || Boolean(reasoning)
+  if (!hasTools && !hasThoughts && !running && !cleanLive && documents.length === 0) {
     return null
   }
 
@@ -511,12 +523,25 @@ export default function TurnTrace({ events, live, reasoning, running, ms, onOpen
           ms={ms}
           onOpenArtifact={onOpenArtifact}
         />
-      ) : (
+      ) : thinkingStyle === 'arc' ? (
         <AgentRun
           events={cleanEvents}
           live={cleanLive}
           reasoning={reasoning}
           running={running}
+          ms={ms}
+          onOpenArtifact={onOpenArtifact}
+        />
+      ) : (
+        <ClaudeActivity
+          events={cleanEvents}
+          live={cleanLive}
+          liveReasoning={running ? reasoning : ''}
+          liveBuffer={liveBuffer}
+          reasoning={reasoning}
+          running={running}
+          status={status}
+          lastEventAt={lastEventAt}
           ms={ms}
           onOpenArtifact={onOpenArtifact}
         />
