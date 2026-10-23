@@ -324,6 +324,8 @@ export const api = {
   // one-button version; both update the picker's badge from what came back.
   pingProvider: (name) => j(`/providers/${encodeURIComponent(name)}/ping`, json('POST')),
   pingAll: () => j('/providers/ping-all', json('POST')),
+  // Eager warm-up when a provider is selected so first message is instant
+  warmupProvider: (provider, model) => j('/providers/warmup', json('POST', { provider, model })),
   // The models this provider's own API lists right now, so the menu offers what
   // the endpoint serves instead of asking the user to retype an id from docs.
   providerModels: (name) => j(`/providers/${encodeURIComponent(name)}/models`),
@@ -644,8 +646,8 @@ export const api = {
   dismissQuestion: (id) => j(`/questions/${id}/reject`, json('POST', {})),
 
   confirmations: () => j('/confirmations'),
-  decideConfirmation: (id, { allow, remember }) =>
-    j(`/confirmations/${id}`, json('POST', { allow, remember })),
+  decideConfirmation: (id, { allow, remember, scope }) =>
+    j(`/confirmations/${id}`, json('POST', { allow, remember, scope })),
 
   standingApprovals: () => j('/confirmations/preferences'),
   revokeApproval: (operationKey) =>
