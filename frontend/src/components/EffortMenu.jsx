@@ -14,9 +14,9 @@ const ALL_LEVELS = {
 
 const DEFAULT_LEVELS = [ALL_LEVELS['none'], ALL_LEVELS['low'], ALL_LEVELS['medium'], ALL_LEVELS['high']]
 
-export default function EffortMenu({ effort, levels, onChange, onClose, placement = 'down' }) {
+export default function EffortMenu({ effort, levels, onChange, onClose, placement = 'down', ignore = '.composer-effort-pill, [data-effort-trigger]' }) {
   const ref = useRef(null)
-  useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
+  useDismiss(ref, true, { onAway: onClose, onEscape: onClose, ignore })
 
   const currentLevels = (levels && levels.length > 0)
     ? levels.map(level => {

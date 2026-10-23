@@ -28,6 +28,7 @@ import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import ComposioConnectCard, { extractComposioAuth } from '../components/ComposioConnectCard.jsx'
+import ConnectorWaitCard from '../components/ConnectorWaitCard.jsx'
 import { parseWidgetEnvelope, parseContentBlocks } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
@@ -526,6 +527,7 @@ const STATUS_LABELS = {
   // than letting play as "Thinking".
   awaiting_approval: 'Waiting for your approval',
   awaiting_input: 'Waiting for your answer',
+  awaiting_connection: 'Waiting on a connection',
 }
 
 function statusLabel(status) {
@@ -598,7 +600,7 @@ const OTHER = '\u0000other'
    everything it had already read still in context, which is why this is a card
    in the transcript and not a new message the user has to compose. */
 const Msg = memo(function Msg({
-  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, busy, onOpenArtifact,
+  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, onSettleConnection, busy, onOpenArtifact,
   onResume, setInput, textareaRef, minimalToolbar = false,
   conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
   onRefer, onAskQuote,
@@ -631,6 +633,22 @@ const Msg = memo(function Msg({
             await onAnswerQuestion(item.askId, answersList)
           }}
           onDismissQuestions={() => onDismissQuestion?.(item.askId)}
+        />
+      </div>
+    )
+  }
+  if (role === 'connection') {
+    return (
+      <div className="w-full my-2 flex justify-start">
+        <ConnectorWaitCard
+          waitId={item.waitId}
+          toolkit={item.toolkit}
+          service={item.service}
+          settled={item.settled}
+          /* The card owns the resolve POST; these callbacks are the transcript
+             learning the outcome, so the live card can become its settled row. */
+          onResolve={() => onSettleConnection?.(item.waitId, 'connected')}
+          onDismiss={() => onSettleConnection?.(item.waitId, 'skipped')}
         />
       </div>
     )
@@ -1521,14 +1539,17 @@ export default function Chat() {
             status: isError ? 'error' : 'done',
           })
 
-          setItems((prev) => [...prev, {
-            id: nextId(),
-            kind: 'tool',
-            name: toolName,
-            arguments: toolArgs,
-            content: toolContent,
-            isError,
-          }])
+          const auth = extractComposioAuth(toolContent, toolName)
+          if (auth) {
+            setItems((prev) => [...prev, {
+              id: nextId(),
+              kind: 'tool',
+              name: toolName,
+              arguments: toolArgs,
+              content: toolContent,
+              isError,
+            }])
+          }
         }
         setTool(null)
         break
@@ -1574,6 +1595,20 @@ export default function Chat() {
           risk: evt.risk,
           reason: evt.reason,
           arguments: evt.arguments ?? {},
+        }]))
+        break
+      case 'connection_required':
+        // A call failed for want of a connected app and the turn parked on it.
+        // The card is the resume; the status line says so from the first
+        // moment, for the same reason the question card does.
+        setStatus({ state: 'awaiting_connection' })
+        setItems((prev) => (prev.some((it) => it.waitId === evt.wait_id) ? prev : [...prev, {
+          id: nextId(),
+          kind: 'connection',
+          waitId: evt.wait_id,
+          toolkit: evt.toolkit,
+          service: evt.service,
+          settled: null,
         }]))
         break
       case 'memory': {
@@ -1686,11 +1721,16 @@ export default function Chat() {
       // again for something it already has.
       case 'ping': {
         const held = evt.waiting_on
-          ? { state: evt.waiting_on === 'approval' ? 'awaiting_approval' : 'awaiting_input' }
+          ? {
+              state:
+                evt.waiting_on === 'approval' ? 'awaiting_approval'
+                  : evt.waiting_on === 'connection' ? 'awaiting_connection'
+                    : 'awaiting_input',
+            }
           : null
         const now = liveRef.current.status
         if (held) setStatus(held)
-        else if (now && (now.state === 'awaiting_approval' || now.state === 'awaiting_input')) setStatus(null)
+        else if (now && (now.state === 'awaiting_approval' || now.state === 'awaiting_input' || now.state === 'awaiting_connection')) setStatus(null)
         break
       }
 
@@ -1798,7 +1838,7 @@ export default function Chat() {
     const beat = (evt) => {
       clearTimeout(watchdog)
       const now = liveRef.current.status
-      if (now?.state === 'awaiting_approval' || now?.state === 'awaiting_input' || evt?.waiting_on) {
+      if (now?.state === 'awaiting_approval' || now?.state === 'awaiting_input' || now?.state === 'awaiting_connection' || evt?.waiting_on) {
         return
       }
       watchdog = setTimeout(() => {
@@ -2078,6 +2118,18 @@ export default function Chat() {
       it.askId === askId ? { ...it, settled: [] } : it
     )))
   }, [toast])
+
+  /* What the connection card reports back. `settled` alone clears the status
+     line -- the turn resumes the moment the resolve lands, and its own next
+     status frame overwrites whatever the card's resolution left behind. The
+     card stays in the transcript as the record of what unblocked the answer;
+     a re-render turns the live card into its settled row. */
+  const settleConnection = useCallback((waitId, settled = 'connected') => {
+    setItems((prev) => prev.map((it) => (
+      it.waitId === waitId ? { ...it, settled } : it
+    )))
+    setStatus(null)
+  }, [])
 
   const discardPlan = useCallback((itemId) => {
     // Local only. Nothing ran, so there is nothing to undo on the server, and
@@ -2388,6 +2440,29 @@ export default function Chat() {
       setStatus({ state: 'awaiting_input' })
     } catch {
       /* as with the prompts: this is recovery, not the delivery path */
+    }
+    // The same recovery for connection cards. A reload during one leaves a turn
+    // parked on a card that existed only as an event frame, which the stream
+    // took with it -- exactly the hole the question recovery closed.
+    try {
+      const waits = (await api.connectorWaits()).filter((w) => !w.conversation_id || w.conversation_id === activeId)
+      if (!waits.length) return
+      setItems((prev) => {
+        const known = new Set(prev.map((it) => it.waitId).filter(Boolean))
+        const missing = waits.filter((w) => !known.has(w.id))
+        if (!missing.length) return prev
+        return [...prev, ...missing.map((w) => ({
+          id: nextId(),
+          kind: 'connection',
+          waitId: w.id,
+          toolkit: w.toolkit,
+          service: w.service,
+          settled: null,
+        }))]
+      })
+      setStatus({ state: 'awaiting_connection' })
+    } catch {
+      /* the card still arrives on the stream; this is only the recovery path */
     }
   }, [activeId, setStatus])
 
@@ -3038,6 +3113,7 @@ export default function Chat() {
               <div className="composer-model-pill-wrap">
                 <button
                   type="button"
+                  data-model-trigger="true"
                   className="composer-model-pill hero-composer-model-pill"
                   onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
                   title="Provider and model"
@@ -3232,6 +3308,7 @@ export default function Chat() {
                 <div className="composer-model-pill-wrap">
                   <button
                     type="button"
+                    data-model-trigger="true"
                     className="composer-model-pill"
                     onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
                     title="Provider and model"
@@ -3588,6 +3665,7 @@ export default function Chat() {
                         onApprovePlan={approvePlan}
                         onAnswerQuestion={answerQuestion}
                         onDismissQuestion={dismissQuestion}
+                        onSettleConnection={settleConnection}
                         onDiscardPlan={discardPlan}
                         onEditPlanStep={editPlanStep}
                         onResume={resumeAnswer}
