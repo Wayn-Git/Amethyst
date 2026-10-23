@@ -7234,6 +7234,8 @@ class Settings(BaseModel):
     #: Nested rather than six flat keys: these are read together, saved
     #: together, and shown as one block, so they are one setting.
     journal: JournalSchedulePatch | None = None
+    #: Global shortcut chord for the desktop command palette / launcher.
+    hotkey: str | None = None
 
 
 @app.get("/api/settings")
@@ -7243,6 +7245,7 @@ def get_settings() -> dict[str, Any]:
         DEFAULT_MAX_ITERATIONS,
         MAX_MAX_ITERATIONS,
         MIN_MAX_ITERATIONS,
+        load_hotkey,
         load_journal_schedule,
         load_max_iterations,
     )
@@ -7255,18 +7258,21 @@ def get_settings() -> dict[str, Any]:
         "max_iterations_min": MIN_MAX_ITERATIONS,
         "max_iterations_max": MAX_MAX_ITERATIONS,
         "journal": load_journal_schedule().as_dict(),
+        "hotkey": load_hotkey() or "<ctrl>+<alt>+<space>",
     }
 
 
 @app.patch("/api/settings")
 def update_settings(body: Settings) -> dict[str, Any]:
     """Change a knob. Only the fields present are touched; the value is clamped."""
-    from backend.config import save_journal_schedule, save_max_iterations
+    from backend.config import save_hotkey, save_journal_schedule, save_max_iterations
 
     if body.max_iterations is not None:
         save_max_iterations(body.max_iterations)
     if body.journal is not None:
         save_journal_schedule(body.journal.model_dump(exclude_none=True))
+    if body.hotkey is not None:
+        save_hotkey(body.hotkey)
     return get_settings()
 
 

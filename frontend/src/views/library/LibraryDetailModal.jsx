@@ -389,10 +389,14 @@ export default function LibraryDetailModal({
     }
 
     // Reset container scroll position
-    const mainEl = document.querySelector('.main.view-swap')
+    const mainEl = document.querySelector('main.view-swap, .main.view-swap')
     if (mainEl) mainEl.scrollTop = 0
     const viewEl = document.querySelector('.lib-view')
     if (viewEl) viewEl.scrollTop = 0
+    const bodyEl = document.querySelector('.lib-page-body')
+    if (bodyEl) bodyEl.scrollTop = 0
+    const centerEl = document.querySelector('.lib-page-center-col')
+    if (centerEl) centerEl.scrollTop = 0
     window.scrollTo(0, 0)
 
     if (initialItem?.id) {
@@ -935,7 +939,7 @@ export default function LibraryDetailModal({
               title="Keyboard shortcuts (?)"
               aria-label="Keyboard shortcuts"
             >
-              <Icon name="help-circle" size={14} />
+              <Icon name="keyboard" size={14} />
             </button>
 
             {/* The ONLY Theater Mode toggle in the entire view */}
@@ -1117,9 +1121,10 @@ export default function LibraryDetailModal({
             </div>
           )}
 
-          {/* ----------------- REGION 2: CENTER WORKBENCH ----------------- */}
+          {/* ----------------- REGION 2: CENTER WORKBENCH & REGION 3: RAIL ----------------- */}
           {!isTheater && (
-            <div className="lib-page-center-col">
+            <>
+              <div className="lib-page-center-col">
               <div className="lib-center-scroll-pane">
                 {/* 1. Title & Meta */}
                 <div className="lib-center-hero">
@@ -1220,7 +1225,7 @@ export default function LibraryDetailModal({
                       }}
                       title="Add item to a collection"
                     >
-                      <Icon name="folder-plus" size={13} />
+                      <Icon name="folder" size={13} />
                       <span>Add to collection</span>
                     </button>
 
@@ -1247,7 +1252,7 @@ export default function LibraryDetailModal({
                         aria-haspopup="true"
                         aria-expanded={showActionsMenu}
                       >
-                        <Icon name="more-horizontal" size={14} />
+                        <Icon name="dots" size={14} />
                       </button>
 
                       {showActionsMenu && (
@@ -1471,25 +1476,26 @@ export default function LibraryDetailModal({
                   )}
                 </div>
               </div>
-
-              {/* ----------------- REGION 3: RIGHT RAIL ----------------- */}
-              <LibraryRightRail
-                item={item}
-                tags={tags}
-                onAddTag={handleAddTag}
-                onRemoveTag={handleRemoveTag}
-                rating={rating}
-                onToggleFavorite={handleToggleFavorite}
-                notes={notes}
-                onOpenNotesTab={() => {
-                  setActiveTab('notes')
-                  setTimeout(() => notesTextareaRef.current?.focus(), 50)
-                }}
-                onNavigateItem={(target) => onNavigate?.(target)}
-              />
             </div>
-          )}
-        </div>
+
+            {/* ----------------- REGION 3: RIGHT RAIL (PEER COLUMN) ----------------- */}
+            <LibraryRightRail
+              item={item}
+              tags={tags}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
+              rating={rating}
+              onToggleFavorite={handleToggleFavorite}
+              notes={notes}
+              onOpenNotesTab={() => {
+                setActiveTab('notes')
+                setTimeout(() => notesTextareaRef.current?.focus(), 50)
+              }}
+              onNavigateItem={(target) => onNavigate?.(target)}
+            />
+          </>
+        )}
+      </div>
       </div>
 
       {/* Lightbox Modal */}

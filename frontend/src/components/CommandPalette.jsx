@@ -1129,6 +1129,17 @@ export default function CommandPalette({ bare = false }) {
       return
     }
 
+    // 2. Quick jump: Cmd+1..9 or Alt+1..9 directly activates the auto-assigned item
+    if ((e.metaKey || e.ctrlKey || e.altKey) && e.key >= '1' && e.key <= '9') {
+      const targetIdx = parseInt(e.key, 10) - 1
+      if (targetIdx < results.length) {
+        e.preventDefault()
+        e.stopPropagation()
+        runCommand(results[targetIdx])
+        return
+      }
+    }
+
     if (e.key === 'ArrowDown' || (e.key === 'n' && e.ctrlKey)) {
       e.preventDefault()
       setIndex((i) => (currentItemCount ? (i + 1) % currentItemCount : 0))
@@ -1448,13 +1459,17 @@ export default function CommandPalette({ bare = false }) {
                       {command.state === 'on' ? 'on' : command.state === 'bad' ? 'failed' : 'off'}
                     </span>
                   )}
-                  {command.binding && (
+                  {command.binding ? (
                     <span className="palette-keys">
                       {pretty(command.binding).map((k, n) => (
                         <kbd key={n} className="kbd">{k}</kbd>
                       ))}
                     </span>
-                  )}
+                  ) : i < 9 ? (
+                    <span className="palette-keys">
+                      <kbd className="kbd">⌘{i + 1}</kbd>
+                    </span>
+                  ) : null}
                   <ChevronRight className="size-4 opacity-0 group-hover/item:opacity-70 transition-opacity ml-auto text-faint flex-shrink-0" />
                 </Button>
               </div>

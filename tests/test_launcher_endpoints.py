@@ -69,3 +69,17 @@ def test_launcher_action_clipboard():
         assert res.status_code == 200
         assert res.json().get("copied") is True
 
+
+def test_settings_hotkey_endpoint():
+    client = TestClient(app)
+    # GET settings
+    res = client.get("/api/settings")
+    assert res.status_code == 200
+    assert "hotkey" in res.json()
+
+    # PATCH settings
+    patch_res = client.patch("/api/settings", json={"hotkey": "<super>+<space>"})
+    assert patch_res.status_code == 200
+    assert patch_res.json().get("hotkey") == "<super>+<space>"
+
+

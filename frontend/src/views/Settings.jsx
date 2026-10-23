@@ -206,6 +206,7 @@ function General() {
   const [briefingHour, setBriefingHour] = useState(8)
   const [briefingEnabled, setBriefingEnabled] = useState(true)
   const [wsDraft, setWsDraft] = useState(workspace || '')
+  const [hotkeyDraft, setHotkeyDraft] = useState('<ctrl>+<alt>+<space>')
 
   useEffect(() => {
     setWsDraft(workspace || '')
@@ -215,6 +216,7 @@ function General() {
     api.settings()
       .then((s) => {
         if (s.max_iterations) setMaxIterations(s.max_iterations)
+        if (s.hotkey) setHotkeyDraft(s.hotkey)
         if (s.journal) {
           if (s.journal.briefing_hour !== undefined) setBriefingHour(s.journal.briefing_hour)
           if (s.journal.briefing_enabled !== undefined) setBriefingEnabled(s.journal.briefing_enabled)
@@ -245,6 +247,21 @@ function General() {
       await api.updateSettings({ max_iterations: val })
     } catch (err) {
       toast(err.message, 'bad')
+    }
+  }
+
+  const handleSaveHotkeyExplicit = async (val) => {
+    try {
+      await api.updateSettings({ hotkey: val })
+      toast(`Launcher shortcut set to ${val}`, 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const handleSaveHotkey = () => {
+    if (hotkeyDraft.trim()) {
+      handleSaveHotkeyExplicit(hotkeyDraft.trim())
     }
   }
 
@@ -604,6 +621,95 @@ function General() {
             >
               With buttons
             </HouseButton>
+          </div>
+        </div>
+      </div>
+
+      {/* Category: Launcher & Shortcuts */}
+      <div className="set-section-label">Launcher & Keyboard Shortcuts</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Global summon shortcut</span>
+            <span className="set-row-desc">
+              Global system chord to summon or dismiss the Damon launcher from anywhere.
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HouseInput
+              type="text"
+              value={hotkeyDraft}
+              onChange={(e) => setHotkeyDraft(e.target.value)}
+              placeholder="<ctrl>+<alt>+<space>"
+              style={{ width: 180, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+            />
+            <HouseButton
+              type="button"
+              className="set-btn-sm"
+              onClick={handleSaveHotkey}
+            >
+              Save
+            </HouseButton>
+          </div>
+        </div>
+
+        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <div className="set-row-text">
+            <span className="set-row-title">Common shortcut presets</span>
+            <span className="set-row-desc">One-click standard chords for desktop launchers:</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Ctrl+Alt+Space', chord: '<ctrl>+<alt>+<space>' },
+              { label: 'Ctrl+Space', chord: '<ctrl>+<space>' },
+              { label: 'Super+Space', chord: '<super>+<space>' },
+              { label: 'Alt+Space', chord: '<alt>+<space>' },
+            ].map((p) => (
+              <HouseButton
+                key={p.chord}
+                type="button"
+                className={`set-btn-sm${hotkeyDraft === p.chord ? ' is-active' : ''}`}
+                onClick={() => {
+                  setHotkeyDraft(p.chord)
+                  handleSaveHotkeyExplicit(p.chord)
+                }}
+              >
+                {p.label}
+              </HouseButton>
+            ))}
+          </div>
+        </div>
+
+        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+          <div className="set-row-text">
+            <span className="set-row-title">Auto-Assigned Launcher Shortcuts</span>
+            <span className="set-row-desc">These shortcuts are dynamically mapped for fast keyboard navigation:</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>Primary Action (Open / Run)</span>
+              <kbd className="kbd">↵</kbd>
+            </div>
+            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>Action Panel</span>
+              <kbd className="kbd">⌘K / Ctrl+K</kbd>
+            </div>
+            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>Quick Items 1–9</span>
+              <kbd className="kbd">⌘1 – ⌘9</kbd>
+            </div>
+            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>Filter Mode Switch</span>
+              <kbd className="kbd">Tab</kbd>
+            </div>
+            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>Hierarchical Dismiss</span>
+              <kbd className="kbd">Esc</kbd>
+            </div>
+            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>Copy Text / Path</span>
+              <kbd className="kbd">⌘C</kbd>
+            </div>
           </div>
         </div>
       </div>
