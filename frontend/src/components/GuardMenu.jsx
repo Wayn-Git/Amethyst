@@ -9,9 +9,9 @@ const PRIMARY_MODES = [
   { id: 'full-access', icon: 'check-circle', label: 'Full access', desc: 'Runs commands and edits without asking.' },
 ]
 
-export default function GuardMenu({ guard, onChange, onClose, placement = 'down' }) {
+export default function GuardMenu({ guard, onChange, onClose, placement = 'down', ignore = '.composer-guard-pill, [data-guard-trigger]' }) {
   const ref = useRef(null)
-  useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
+  useDismiss(ref, true, { onAway: onClose, onEscape: onClose, ignore })
 
   const isAutoEdit = guard === 'guard-auto-edit'
   const currentBase = isAutoEdit ? 'guard' : guard
