@@ -42,7 +42,7 @@
 - Produces: `computeAgentStage(options)`, `StageEngine`, `WEB_TOOLS`, `PHRASE_POOLS`
 - Produces: `useAgentStage({ running, status, liveTool, liveReasoning, liveBuffer, lastEventAt, error, onRetry })`
 
-- [ ] **Step 1: Write unit tests in `frontend/tests/agent_stage.mjs`**
+- [x] **Step 1: Write unit tests in `frontend/tests/agent_stage.mjs`**
   Covering:
   - Initial 3s delay before rotation; 3.5s rotation intervals.
   - Shuffled pool exhaustion with no consecutive identical phrases.
@@ -51,21 +51,21 @@
   - Slow tool execution (displays `"Still running <name>"` when tool duration > 10s).
   - Stall suspension and timer freezing during `waiting_approval` and `reconnecting`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `node frontend/tests/agent_stage.mjs`
   Expected: FAIL with module not found.
 
-- [ ] **Step 3: Implement `agentStageCore.js`**
+- [x] **Step 3: Implement `agentStageCore.js`**
   Implement the deterministic state engine with stage detection, timer tracking, pause on approval, and shuffled synonym cycling.
 
-- [ ] **Step 4: Implement `useAgentStage.js`**
+- [x] **Step 4: Implement `useAgentStage.js`**
   Wire `agentStageCore` to React state, intervals, and `window.matchMedia('(prefers-reduced-motion: reduce)')`.
 
-- [ ] **Step 5: Run tests and verify they pass**
+- [x] **Step 5: Run tests and verify they pass**
   Run: `node frontend/tests/agent_stage.mjs`
   Expected: All tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   ```bash
   git add frontend/src/hooks/agentStageCore.js frontend/src/hooks/useAgentStage.js frontend/tests/agent_stage.mjs
   git commit -m "feat(agent): implement agent stage state machine and useAgentStage hook"
@@ -84,17 +84,17 @@
 - Produces: `ToolApprovalCard({ item, onDecide, disabled })`
 - Consumes: `CodeBlock` (`frontend/src/components/agents/code-block.tsx`), `api.decideConfirmation`
 
-- [ ] **Step 1: Write test in `frontend/tests/tool_approval.mjs`**
+- [x] **Step 1: Write test in `frontend/tests/tool_approval.mjs`**
   Verify scoped permissions generation:
   - `terminal.run` with `bun test tests/a11y.test.tsx` creates scope `{ tool: 'terminal.run', pattern: 'bun test*' }`.
   - `filesystem.write` creates directory scope `{ tool: 'filesystem.write', pathPrefix: '...' }`.
   - Calling decide with `remember=true` attaches scope and does not emit wildcard.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `node frontend/tests/tool_approval.mjs`
   Expected: FAIL.
 
-- [ ] **Step 3: Implement `ToolApprovalCard.jsx` and styling**
+- [x] **Step 3: Implement `ToolApprovalCard.jsx` and styling**
   - Follow `@UIInspirations/components/newlyadded/approval.md` layout:
     - Shield icon, "Allow this tool to run?", tool name subtitle (`terminal.run`).
     - Amber badge "Approval required" (`var(--confirm)`).
@@ -103,11 +103,11 @@
     - 44px min-height buttons: `Allow once` (primary), `Always allow` (secondary), `Deny` (ghost).
     - Scope calculation ensuring strict non-global security.
 
-- [ ] **Step 4: Run tests and verify they pass**
+- [x] **Step 4: Run tests and verify they pass**
   Run: `node frontend/tests/tool_approval.mjs`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add frontend/src/components/agents/ToolApprovalCard.jsx frontend/src/components/agents/tool-approval-card.css frontend/tests/tool_approval.mjs
   git commit -m "feat(ui): add Craftwork/beUI ToolApprovalCard with security-scoped permissions"
@@ -130,20 +130,20 @@
   - Timer displaying strictly at `10s+`
   - Expandable drawer containing `AgentActivity` trace, thoughts, tool rows, and artifacts
 
-- [ ] **Step 1: Update `ClaudeActivity.jsx` to integrate `useAgentStage`**
+- [x] **Step 1: Update `ClaudeActivity.jsx` to integrate `useAgentStage`**
   Connect `running`, `status`, `live`, `liveReasoning`, `liveBuffer`, `lastEventAt`, `error` to `useAgentStage`.
   Replace static text derivations with `displayLabel` and `showTimer ? elapsedFormatted : null`.
 
-- [ ] **Step 2: Update `claude-activity.css` to enforce 44px minimum touch targets and token colors**
+- [x] **Step 2: Update `claude-activity.css` to enforce 44px minimum touch targets and token colors**
   - Set `.claude-activity-trigger` `min-height: 44px`.
   - Use `var(--accent)` or `var(--coral)` for pulsing indicator, `var(--confirm)` for approval, `var(--live)` for settled checkmark.
   - Add `@media (prefers-reduced-motion: reduce)` rules for instant text swapping.
 
-- [ ] **Step 3: Verify linting on modified files**
+- [x] **Step 3: Verify linting on modified files**
   Run: `npm run lint`
   Expected: No lint errors in `ClaudeActivity.jsx` or related files.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add frontend/src/components/agents/claude-activity/ClaudeActivity.jsx frontend/src/components/agents/claude-activity/claude-activity.css
   git commit -m "refactor(ui): update ClaudeActivity with 44px touch targets and dynamic state stages"
@@ -161,19 +161,19 @@
 - Consumes: `ToolApprovalCard`
 - Consumes: `ClaudeActivity`
 
-- [ ] **Step 1: Wire pending confirmations inline in `Chat.jsx`**
+- [x] **Step 1: Wire pending confirmations inline in `Chat.jsx`**
   - When a tool requires approval (`pending.length > 0`), render `ToolApprovalCard` inline directly in the chat message timeline above the composer.
   - Wire actions to `decideConfirmation`.
   - Pause the turn timer while `pending.length > 0`.
 
-- [ ] **Step 2: Update `TurnTrace.jsx` to pass `status` and `lastEventAt` to `ClaudeActivity`**
+- [x] **Step 2: Update `TurnTrace.jsx` to pass `status` and `lastEventAt` to `ClaudeActivity`**
   Ensure live stream events correctly pass `liveBuffer`, `liveReasoning`, `status`, and `lastEventAt` so `useAgentStage` stays in sync.
 
-- [ ] **Step 3: Test syntax and build**
+- [x] **Step 3: Test syntax and build**
   Run: `npm run build`
   Expected: Vite build succeeds with 0 errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add frontend/src/components/TurnTrace.jsx frontend/src/views/Chat.jsx
   git commit -m "feat(chat): integrate inline ToolApprovalCard and live stage tracking"
@@ -189,16 +189,16 @@
 - Run: `npm run build`
 - Run: `npm run lint`
 
-- [ ] **Step 1: Execute all unit and component tests**
+- [x] **Step 1: Execute all unit and component tests**
   Verify that both test suites pass cleanly.
 
-- [ ] **Step 2: Execute build and lint checks**
+- [x] **Step 2: Execute build and lint checks**
   Ensure full production build passes with no broken imports or type mismatches.
 
-- [ ] **Step 3: Final check of 30 Laws of UX & 44px targets**
+- [x] **Step 3: Final check of 30 Laws of UX & 44px targets**
   Inspect CSS rules and DOM footprints to ensure no button has `< 44px` height.
 
-- [ ] **Step 4: Commit final verification markers**
+- [x] **Step 4: Commit final verification markers**
   ```bash
   git commit --allow-empty -m "chore(release): verify agent loading and tool approval UX implementation"
   ```
