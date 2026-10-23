@@ -416,7 +416,7 @@ export function AppProvider({ children }) {
 
   const [thinkingStyle, setThinkingStyleRaw] = useState(prefs.thinkingStyle || 'cards')
   const setThinkingStyle = useCallback((value) => {
-    const v = value === 'chips' ? 'chips' : 'cards'
+    const v = (value === 'chips' || value === 'activity') ? value : 'cards'
     setThinkingStyleRaw(v)
     savePrefs({ thinkingStyle: v })
   }, [])

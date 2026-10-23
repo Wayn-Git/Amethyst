@@ -73,6 +73,24 @@ class BlockingCallRecord:
 
 
 @dataclass
+class StreamDiagnosticRecord:
+    provider: str
+    model: str
+    request_start: str
+    ttfb_ms: float | None
+    ttft_ms: float | None
+    gap_since_last_chunk_ms: float | None
+    total_duration_ms: float
+    http_status: int | None = None
+    exception_class: str | None = None
+    exception_message: str | None = None
+    failure_type: str = "none"  # timeout | connection_reset | stream_error_in_200 | rate_limit_429 | server_error_5xx | client_disconnect | none | other
+    emitted_partial_output: bool = False
+    approval_pending: bool = False
+    approval_wait_duration_s: float = 0.0
+
+
+@dataclass
 class TurnTrace:
     conversation_id: str
     user_message: str
@@ -95,6 +113,9 @@ class TurnTrace:
     llm_calls: list[LLMCallRecord] = field(default_factory=list)
     tool_dispatches: list[ToolDispatchRecord] = field(default_factory=list)
     blocking_calls: list[BlockingCallRecord] = field(default_factory=list)
+    stream_diagnostics: list[StreamDiagnosticRecord] = field(default_factory=list)
+    approval_pending: bool = False
+    approval_wait_duration_s: float = 0.0
     end_time: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -275,6 +296,95 @@ def record_llm_call(
         input_tokens,
         output_tokens,
     )
+
+
+def classify_stream_failure(exc: BaseException | None, http_status: int | None = None) -> str:
+    """Classify the root cause category of a model stream interruption."""
+    if exc is None:
+        if http_status and http_status == 429:
+            return "rate_limit_429"
+        if http_status and http_status >= 500:
+            return "server_error_5xx"
+        return "none"
+
+    exc_name = type(exc).__name__.lower()
+    exc_msg = str(exc).lower()
+
+    if isinstance(exc, (asyncio.CancelledError,)) or "cancelled" in exc_name:
+        return "client_disconnect"
+    if (
+        "readtimeout" in exc_name
+        or "connecttimeout" in exc_name
+        or "writetimeout" in exc_name
+        or "pooltimeout" in exc_name
+        or "timeouterror" in exc_name
+        or "timeout" in exc_msg
+    ):
+        return "timeout"
+    if (
+        "remoteprotocolerror" in exc_name
+        or "connectionreset" in exc_name
+        or "connecterror" in exc_name
+        or "brokenpipe" in exc_name
+        or "readerror" in exc_name
+        or "writeerror" in exc_name
+        or "peer closed" in exc_msg
+        or "connection reset" in exc_msg
+    ):
+        return "connection_reset"
+    if "providerstreamerror" in exc_name or "input stream" in exc_msg or "error in input stream" in exc_msg:
+        return "stream_error_in_200"
+    if http_status == 429 or "429" in exc_msg or "rate limit" in exc_msg:
+        return "rate_limit_429"
+    if (http_status and http_status >= 500) or any(s in exc_msg for s in ("500", "502", "503", "504")):
+        return "server_error_5xx"
+    return "other"
+
+
+def record_stream_diagnostic(
+    *,
+    provider: str,
+    model: str,
+    request_start: str,
+    ttfb_ms: float | None,
+    ttft_ms: float | None,
+    gap_since_last_chunk_ms: float | None,
+    total_duration_ms: float,
+    http_status: int | None = None,
+    exception_class: str | None = None,
+    exception_message: str | None = None,
+    failure_type: str = "none",
+    emitted_partial_output: bool = False,
+    approval_pending: bool = False,
+    approval_wait_duration_s: float = 0.0,
+) -> StreamDiagnosticRecord:
+    """Record and log structured diagnostics for each model call and stream."""
+    import json
+    from dataclasses import asdict
+
+    record = StreamDiagnosticRecord(
+        provider=provider,
+        model=model,
+        request_start=request_start,
+        ttfb_ms=round(ttfb_ms, 2) if ttfb_ms is not None else None,
+        ttft_ms=round(ttft_ms, 2) if ttft_ms is not None else None,
+        gap_since_last_chunk_ms=round(gap_since_last_chunk_ms, 2) if gap_since_last_chunk_ms is not None else None,
+        total_duration_ms=round(total_duration_ms, 2),
+        http_status=http_status,
+        exception_class=exception_class,
+        exception_message=exception_message,
+        failure_type=failure_type,
+        emitted_partial_output=emitted_partial_output,
+        approval_pending=approval_pending,
+        approval_wait_duration_s=round(approval_wait_duration_s, 2),
+    )
+    logging.getLogger("amethyst.stream_diagnostic").info(
+        "[MODEL_STREAM_DIAGNOSTIC] %s", json.dumps(asdict(record))
+    )
+    trace = current_turn_trace.get()
+    if trace:
+        trace.stream_diagnostics.append(record)
+    return record
 
 
 def record_tool_dispatch(

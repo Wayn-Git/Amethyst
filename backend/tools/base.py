@@ -114,6 +114,42 @@ class ToolContext:
         )
 
 
+def mark_gate_suspension(
+    context: ToolContext | None, gate_id: str, kind: str
+) -> None:
+    """Record that this call is parked on a gate, so the tool timeout knows
+    which exponential shape to expect: a parked call is not a wedge.
+
+    Confirmations, questions, and connection cards all answer on human time --
+    the permission gate promises six hours, the connection gate ten minutes --
+    while `tool_timeout_seconds` is written for machine errors. Announcement
+    and wait below share the same `extra` dict, and the reader (`_execute`) is
+    the dispatcher that built it, so this is a pure runtime signal: nothing is
+    persisted, and a cancelled dispatch leaves one entry at most until its own
+    `finally` clears it.
+    """
+    if context is None or not isinstance(getattr(context, "extra", None), dict):
+        return
+    waiters = context.extra.setdefault("gate_suspensions", {})
+    if isinstance(waiters, dict):
+        waiters[gate_id] = kind
+
+
+def clear_gate_suspension(context: ToolContext | None, gate_id: str) -> None:
+    if context is None or not isinstance(getattr(context, "extra", None), dict):
+        return
+    waiters = context.extra.get("gate_suspensions")
+    if isinstance(waiters, dict):
+        waiters.pop(gate_id, None)
+
+
+def gate_suspensions_live(context: ToolContext | None) -> bool:
+    if context is None:
+        return False
+    extra = getattr(context, "extra", None)
+    return isinstance(extra, dict) and bool(extra.get("gate_suspensions"))
+
+
 ToolHandler = Callable[[dict[str, Any], ToolContext], Awaitable[ToolResult]]
 
 

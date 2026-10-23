@@ -32,6 +32,11 @@ class AgentConfig:
     # --- Timeouts (seconds) ---
     # Hard timeout per tool execution
     tool_timeout_seconds: float = 15.0
+    # Window re-armed while a dispatch is parked on a gate (an approval, a
+    # question, a connection card). Those answer on human time, so the tool
+    # timeout must not cut them off; each expiry re-arms for this long while
+    # a gate is still live on the call.
+    suspended_tool_window_seconds: float = 3600.0
     # Soft turn wall-clock cap (initiates wrap-up)
     wall_clock_cap: float = 45.0
     # Hard turn timeout (forces final answer)
@@ -108,6 +113,7 @@ class AgentConfig:
         return cls(
             default_step_budget=_get_int("AMETHYST_STEP_BUDGET", 12),
             tool_timeout_seconds=_get_float("AMETHYST_TOOL_TIMEOUT", 15.0),
+            suspended_tool_window_seconds=_get_float("AMETHYST_SUSPENDED_TOOL_WINDOW", 3600.0),
             wall_clock_cap=_get_float("AMETHYST_WALL_CLOCK_CAP", 45.0),
             hard_timeout=_get_float("AMETHYST_HARD_TIMEOUT", 60.0),
             sse_keepalive_interval_seconds=_get_float("AMETHYST_SSE_KEEPALIVE_INTERVAL", 15.0),

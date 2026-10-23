@@ -50300,6 +50300,43 @@ a.text-reveal-wrap {
   color: #34d399;
 }
 
+.splash-connecting-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--confirm, #e9b451);
+}
+
+.splash-later-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text, #f8fafc);
+  font: inherit;
+}
+
+.splash-later-title {
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.splash-later-note {
+  font-size: 12px;
+  color: var(--text-dim, #94a3b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .splash-input {
   width: 100%;
   padding: 9px 12px;
@@ -51949,3 +51986,41 @@ a.text-reveal-wrap {
   color: var(--stop, #ef4444);
   font-weight: 500;
 }
+
+/* ------------------------------------------------------- connection card */
+
+/* The ride-along to a suspended turn: the call failed because an app is not
+   connected, and this card is the turn held open on. Amber, because amber is
+   the state that waits on the user -- the same word `--confirm` stands for
+   everywhere else. Same rhythm and width as the approval card. */
+.connector-wait {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(560px, 100%);
+  padding: 12px 14px;
+  border: 1px solid var(--confirm-line);
+  background: var(--confirm-soft);
+  border-radius: var(--radius-cards, 6px);
+  color: var(--text);
+  font-size: var(--text-caption, 12.5px);
+  line-height: 1.55;
+}
+.connector-wait svg { flex: none; margin-top: 2px; color: var(--confirm); }
+.connector-wait__body { flex: 1; min-width: 0; }
+.connector-wait__title { font-weight: var(--font-weight-medium, 500); }
+.connector-wait__note { margin-top: 2px; color: var(--text-dim); }
+.connector-wait__actions { display: flex; flex-direction: column; gap: 7px; }
+.connector-wait--failed { border-color: var(--stop-line); background: var(--stop-soft); }
+.connector-wait--failed svg { color: var(--stop); }
+.connector-wait--settled {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-color: var(--hairline);
+  background: rgb(var(--tint) / 0.02);
+  color: var(--text-faint);
+  font-size: var(--text-caption, 12.5px);
+  padding: 8px 12px;
+}
+.connector-wait--settled svg { color: var(--live, #10b981); }

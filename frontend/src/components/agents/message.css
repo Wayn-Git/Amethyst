@@ -1,0 +1,228 @@
+/* Amethyst Agent Message & Bubble Stylesheet
+   Follows Design System tokens from index.css & AGENTS.md */
+
+.agent-msg-root,
+.message-root {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  margin: 0.5rem 0;
+  box-sizing: border-box;
+}
+
+.agent-msg-root.is-user,
+.message-root[data-from="user"] {
+  justify-content: flex-end;
+}
+
+.agent-msg-root.is-assistant,
+.message-root[data-from="assistant"] {
+  justify-content: flex-start;
+}
+
+/* Groups */
+.message-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 16px;
+}
+
+.message-group.is-compact {
+  gap: 8px;
+}
+
+/* Avatars */
+.message-avatar,
+.agent-msg-avatar {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  overflow: hidden;
+  user-select: none;
+  font-size: 12px;
+}
+
+.message-avatar.is-assistant {
+  background: var(--surface-3);
+  color: var(--accent);
+}
+
+.message-avatar.is-user {
+  order: 2;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Content wrapper */
+.message-content,
+.agent-msg-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: min(84%, 68ch);
+}
+
+.message-content[data-align="end"],
+.message-root[data-from="user"] .message-content {
+  align-items: flex-end;
+}
+
+.message-content[data-align="start"],
+.message-root[data-from="assistant"] .message-content {
+  align-items: flex-start;
+}
+
+/* Header & Footer */
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.message-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* Bubbles */
+.agent-msg-bubble,
+.message-bubble {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: var(--radius-lg, 12px);
+  color: var(--text);
+  word-break: break-word;
+  transition: background-color var(--press, 120ms) var(--ease-out),
+              border-color var(--press, 120ms) var(--ease-out),
+              box-shadow var(--press, 120ms) var(--ease-out);
+  box-sizing: border-box;
+}
+
+/* Prevent double-bubble when nested elements like .msg-body are inside MessageBubble */
+.message-bubble .msg-body {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  max-width: 100% !important;
+  width: auto !important;
+}
+
+/* Variants */
+.message-bubble[data-variant="solid"],
+.agent-msg-bubble.variant-solid {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong, var(--border));
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.message-bubble[data-variant="soft"],
+.agent-msg-bubble.variant-surface {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.message-bubble[data-variant="tint"] {
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-line, var(--hairline));
+  border-radius: 12px;
+}
+
+.message-bubble[data-variant="outline"] {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.message-bubble[data-variant="ghost"],
+.agent-msg-bubble.variant-ghost {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+  max-width: 100%;
+}
+
+.message-bubble[data-variant="danger"] {
+  background: var(--stop-soft);
+  border: 1px solid var(--stop-line, var(--hairline));
+  color: var(--stop);
+  border-radius: 12px;
+}
+
+/* Bubble Content */
+.message-bubble-content {
+  display: block;
+  padding: 8px 14px;
+  font-family: var(--font-body);
+  font-size: calc(14.5px * var(--text-scale, 1));
+  line-height: var(--text-body-lh, 1.55);
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* Bubble Group */
+.message-bubble-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Collapsible */
+.message-bubble-collapsible {
+  position: relative;
+}
+
+.message-bubble-collapsible-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+  transition: opacity var(--press, 120ms);
+}
+
+.message-bubble-collapsible-trigger:hover {
+  opacity: 0.8;
+}
+
+/* Streaming indicator */
+.agent-streaming-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 15px;
+  margin-left: 4px;
+  vertical-align: -2px;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: agent-cursor-blink 900ms infinite;
+}
+
+@keyframes agent-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

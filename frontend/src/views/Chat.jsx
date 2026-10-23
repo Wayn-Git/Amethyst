@@ -28,6 +28,7 @@ import { api, copyText } from '../api.js'
 import { useDismiss } from '../hooks/useDismiss.js'
 import WidgetRenderer from '../components/widgets/WidgetRenderer.jsx'
 import ComposioConnectCard, { extractComposioAuth } from '../components/ComposioConnectCard.jsx'
+import ConnectorWaitCard from '../components/ConnectorWaitCard.jsx'
 import { parseWidgetEnvelope, parseContentBlocks } from '../components/widgets/envelope.js'
 import DocumentCardsTray from '../components/DocumentCardsTray.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
@@ -37,26 +38,22 @@ import { MOD_LABEL } from '../keys.js'
 import { motion } from 'framer-motion'
 import { Blobatar } from "@blobatar/react"
 import "blobatar/motion.css"
+import ClaudeActivity from '../components/agents/claude-activity/ClaudeActivity.jsx'
+import ToolApprovalCard from '../components/agents/ToolApprovalCard.jsx'
+import { ApprovalCard } from '../components/agents/approval-card/index.tsx'
 import {
-  Questions,
-  QuestionsHeader,
-  QuestionsTitle,
-  QuestionsDismiss,
-  QuestionsCarousel,
-  QuestionsCarouselContent,
-  QuestionsCarouselItem,
-  QuestionsCarouselPagination,
-  QuestionsCarouselPrev,
-  QuestionsCarouselIndex,
-  QuestionsCarouselNext,
-  Question,
-  QuestionOptions,
-  QuestionOption,
-  QuestionOther,
-  QuestionsFooter,
-  QuestionsSkip,
-  QuestionsSubmit,
-} from '../components/nexus-ui/questions.tsx'
+  MessageGroup,
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageHeader,
+  MessageFooter,
+} from '../components/agents/message.tsx'
+import {
+  MessageBubble,
+  MessageBubbleContent,
+  MessageBubbleCollapsible,
+} from '../components/agents/message-bubble.tsx'
 
 /* The composer is the interface. Everything else — which skills are live, which
    connectors it may reach, what it remembers, where it may work — hangs off the
@@ -177,6 +174,31 @@ function buildRendered(items) {
    So a run of machinery folds into a single item: every tool call the turn made
    in order, and how long it spent thinking along the way. The answer follows
    it, once. */
+export function extractXmlQuestions(text) {
+  if (!text || typeof text !== 'string') return null
+  if (!text.includes('<tool_call') && !text.includes('<function=ask_user') && !text.includes('<function=ask_question')) {
+    return null
+  }
+  const match = text.match(/<tool_call>[\s\S]*?<function=(?:ask_user|ask_question)[\s\S]*?<parameter=questions>([\s\S]*?)<\/parameter>[\s\S]*?<\/function>[\s\S]*?<\/tool_call>/i)
+    || text.match(/<function=(?:ask_user|ask_question)[\s\S]*?<parameter=questions>([\s\S]*?)<\/parameter>/i)
+  if (!match) return null
+
+  try {
+    const questionsRaw = JSON.parse(match[1].trim())
+    if (Array.isArray(questionsRaw) && questionsRaw.length > 0) {
+      const cleanText = text
+        .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+        .replace(/<function=(?:ask_user|ask_question)[\s\S]*?<\/function>/gi, '')
+        .trim()
+      return {
+        questions: questionsRaw,
+        cleanText,
+      }
+    }
+  } catch {}
+  return null
+}
+
 function foldTraces(items) {
   /* `.trim()`, not just falsiness. A turn read back from the database has
      empty text on its tool-calling rows, but the same rows off the live stream
@@ -197,6 +219,7 @@ function foldTraces(items) {
     || it.kind === 'cost'
     || (it.kind === 'tool' && it.name !== 'ask_user' && it.name !== 'ask_question')
     || (it.kind === 'assistant' && ((it.toolCalls || []).filter((c) => c.name !== 'ask_user' && c.name !== 'ask_question').length > 0))
+    || (it.kind === 'assistant' && !it.text?.trim() && (!it.toolCalls || it.toolCalls.length === 0))
   )
   /* A note is not machinery, but it does not end a run of it either. The
      provider-fallback lines -- "groq failed, answering with nvidia instead" --
@@ -258,23 +281,52 @@ function foldTraces(items) {
        and the text that concludes the turn. Those calls belong to the trace;
        the text does not, so the row stays and only its calls are lifted. */
     const next = list[j]
-    if (next && next.kind === 'assistant' && next.text && next.toolCalls?.length) {
+    if (next && next.kind === 'assistant' && next.text) {
       list = list.slice()
-      list[j] = { ...next, toolCalls: [] }
+      const extraCalls = []
       for (const c of (next.toolCalls || [])) {
         if (c.name !== 'ask_user' && c.name !== 'ask_question') {
-          events.push({ type: 'tool', call: c })
+          extraCalls.push({ type: 'tool', call: c })
         }
       }
-    }
-
-    for (const aside of asides) out.push(aside)
-    if (events.length) {
+      const allEvents = [...events, ...(next.traceEvents || []), ...extraCalls]
+      const seen = new Set()
+      const combinedEvents = []
+      for (const ev of allEvents) {
+        const callObj = ev.call || ev
+        const key = ev.type === 'thought'
+          ? `thought:${ev.text}`
+          : `tool:${callObj.name}:${JSON.stringify(callObj.arguments || {})}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          combinedEvents.push(ev)
+        }
+      }
+      list[j] = {
+        ...next,
+        toolCalls: [],
+        traceEvents: combinedEvents.length ? combinedEvents : undefined,
+        traceMs: ms || next.traceMs || next.ms,
+      }
+    } else if (events.length) {
       const hasTools = events.some((e) => e.type === 'tool' || e.call)
       if (hasTools) {
         out.push({ kind: 'trace', id: `trace-${list[i].id}`, events, ms })
       } else {
-        const thoughtText = events.filter((e) => e.type === 'thought').map((e) => e.text).filter(Boolean).join('\n\n')
+        const thoughtTexts = events.filter((e) => e.type === 'thought').map((e) => e.text).filter(Boolean)
+        const uniqueThoughts = []
+        for (const t of thoughtTexts) {
+          const trimmed = t.trim()
+          if (!trimmed) continue
+          if (uniqueThoughts.some((u) => u === trimmed || u.includes(trimmed))) continue
+          const subIdx = uniqueThoughts.findIndex((u) => trimmed.includes(u))
+          if (subIdx !== -1) {
+            uniqueThoughts[subIdx] = trimmed
+          } else {
+            uniqueThoughts.push(trimmed)
+          }
+        }
+        const thoughtText = uniqueThoughts.join('\n\n')
         if (thoughtText) {
           out.push({ kind: 'reasoning', id: `reasoning-${list[i].id}`, text: thoughtText, ms })
         }
@@ -282,7 +334,28 @@ function foldTraces(items) {
     }
     i = j - 1
   }
-  return out
+
+  // Consolidate any adjacent reasoning blocks so no duplicate thinking appears
+  const consolidated = []
+  for (let k = 0; k < out.length; k++) {
+    const cur = out[k]
+    const prev = consolidated[consolidated.length - 1]
+    if (prev && prev.kind === 'reasoning' && cur.kind === 'reasoning') {
+      const mergedText = prev.text === cur.text || prev.text.includes(cur.text)
+        ? prev.text
+        : cur.text.includes(prev.text)
+          ? cur.text
+          : `${prev.text}\n\n${cur.text}`
+      consolidated[consolidated.length - 1] = {
+        ...prev,
+        text: mergedText,
+        ms: Math.max(prev.ms || 0, cur.ms || 0),
+      }
+    } else {
+      consolidated.push(cur)
+    }
+  }
+  return consolidated
 }
 
 function historyToItems(rows) {
@@ -294,6 +367,31 @@ function historyToItems(rows) {
       return [{ id: nextId(), rowId: m.id, kind: 'user', text: m.content, pinned: Boolean(m.pinned) }]
     }
     if (m.role === 'assistant') {
+      // Check if message content contains XML tool calls that leaked as text
+      const xmlAsk = extractXmlQuestions(m.content ?? '')
+      if (xmlAsk) {
+        const outItems = []
+        if (xmlAsk.cleanText) {
+          outItems.push({
+            id: nextId(),
+            rowId: m.id,
+            kind: 'assistant',
+            text: xmlAsk.cleanText,
+            pinned: Boolean(m.pinned),
+            callsRaw: [],
+          })
+        }
+        outItems.push({
+          id: nextId(),
+          rowId: m.id,
+          kind: 'question',
+          askId: `xml-${m.id}`,
+          questions: xmlAsk.questions,
+          settled: null,
+        })
+        return outItems
+      }
+
       // A widget was persisted as a fenced block in its own message, because
       // the message table has no column for one. This is what rebuilds it when
       // the conversation is reopened; `null` for every ordinary answer.
@@ -374,40 +472,13 @@ function CopyButton({ text, label = 'Copy' }) {
    click from being read again. Opening or closing it by hand wins from then on:
    someone reading the thinking does not want it shutting on them. */
 function Reasoning({ text, live, ms }) {
-  const [manual, setManual] = useState(null)
-  const bodyRef = useRef(null)
-  const open = manual === null ? Boolean(live) : manual
-
-  useEffect(() => {
-    const el = bodyRef.current
-    if (live && el) el.scrollTop = el.scrollHeight
-  }, [text, live, open])
-
   if (!text) return null
-
-  const label = live
-    ? 'Thinking'
-    : ms
-      ? `Thought for ${Math.max(1, Math.round(ms / 1000))}s`
-      : 'Thought for a moment'
-
   return (
-    <div className={`reasoning${open ? ' open' : ''}${live ? ' live' : ''}`}>
-      <button
-        type="button"
-        className="reasoning-head"
-        onClick={() => setManual(!open)}
-        aria-expanded={open}
-      >
-        <Icon name="chevron" size={11} className="reasoning-caret" />
-        <span>{label}</span>
-      </button>
-      {open && (
-        <div className={`reasoning-body${live ? ' is-live' : ''}`} ref={bodyRef}>
-          {live ? <BlurredText text={text} /> : text}
-        </div>
-      )}
-    </div>
+    <ClaudeActivity
+      events={[{ type: 'thought', text }]}
+      running={Boolean(live)}
+      ms={ms}
+    />
   )
 }
 
@@ -441,6 +512,7 @@ const STATUS_LABELS = {
   tool: 'Running',
   connector: 'Using',
   retrying: 'Continuing',
+  reconnecting: 'Reconnecting...',
   // The stream carrying an answer died and the same provider is being asked to
   // finish the sentence. Named for what the reader sees -- the answer they are
   // already reading, picking up again -- not for the failure behind it.
@@ -455,10 +527,19 @@ const STATUS_LABELS = {
   // than letting play as "Thinking".
   awaiting_approval: 'Waiting for your approval',
   awaiting_input: 'Waiting for your answer',
+  awaiting_connection: 'Waiting on a connection',
 }
 
 function statusLabel(status) {
   if (!status) return 'Thinking'
+  if (status.state === 'retrying') {
+    if (status.provider) return `Retrying ${status.provider}...`
+    if (status.message) return status.message
+    return 'Retrying...'
+  }
+  if (status.state === 'switching') {
+    return status.provider ? `Switching to ${status.provider}...` : 'Switching provider'
+  }
   const base = STATUS_LABELS[status.state] || status.state
   if (status.state === 'connector' && status.server) return `${base} ${status.server}`
   if (status.state === 'tool' && status.tool) return `${base} ${status.tool}`
@@ -518,12 +599,17 @@ const OTHER = '\u0000other'
    The turn is suspended while this is open. Answering resumes it with
    everything it had already read still in context, which is why this is a card
    in the transcript and not a new message the user has to compose. */
-function QuestionCard({ item, onAnswer, onDismiss, disabled }) {
-  const questions = item.questions ?? []
+const Msg = memo(function Msg({
+  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, onSettleConnection, busy, onOpenArtifact,
+  onResume, setInput, textareaRef, minimalToolbar = false,
+  conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
+  onRefer, onAskQuote,
+}) {
+  const msgRef = useRef(null)
+  const role = item.kind
 
-  const questionInputs = useMemo(() => {
-    const list = item.questions ?? []
-    return list.map((q, idx) => ({
+  if (role === 'question') {
+    const questionInputs = (item.questions ?? []).map((q, idx) => ({
       id: q.id || `q-${idx}`,
       type: q.multi_select ? 'multiple' : 'single',
       prompt: q.question,
@@ -535,182 +621,54 @@ function QuestionCard({ item, onAnswer, onDismiss, disabled }) {
         description: o.description,
       })),
     }))
-  }, [item.questions])
 
-  const handleSubmit = useCallback(async (submission) => {
-    const answersList = submission.map((entry) => {
-      if (entry.status === 'skipped') {
-        return '[No Preference]'
-      }
-      if (entry.type === 'single') {
-        return typeof entry.answer?.label === 'string'
-          ? entry.answer.label
-          : String(entry.answer?.value ?? '')
-      }
-      const list = entry.answer || []
-      return list
-        .map((a) => (typeof a.label === 'string' ? a.label : String(a.value ?? '')))
-        .filter(Boolean)
-        .join(', ')
-    })
-    await onAnswer(item.askId, answersList)
-  }, [onAnswer, item.askId])
-
-  if (item.settled) {
     return (
-      <div className="plan-card question-card is-settled">
-        <div className="plan-head">
-          <Icon name="check" size={13} />
-          <span>Answered</span>
-        </div>
-        {questions.map((q, i) => (
-          <p className="question-recap" key={i}>
-            <span className="question-recap-q">{q.header || q.question}</span>
-            <span className="question-recap-a">{item.settled[i] || '—'}</span>
-          </p>
-        ))}
+      <div className="w-full my-2 flex justify-start">
+        <ApprovalCard
+          mode="questions"
+          questions={questionInputs}
+          settledAnswers={item.settled}
+          disabled={busy && !item.askId}
+          onSubmitQuestions={async (answersList) => {
+            await onAnswerQuestion(item.askId, answersList)
+          }}
+          onDismissQuestions={() => onDismissQuestion?.(item.askId)}
+        />
       </div>
     )
   }
-
-  if (questionInputs.length === 0) return null
-
-  const isMulti = questionInputs.length > 1
-
-  return (
-    <div className="w-full my-4 flex justify-center">
-      <Questions
-        items={questionInputs}
-        onSubmit={handleSubmit}
-        onDismiss={() => onDismiss?.(item.askId)}
-        className="w-full max-w-xl"
-      >
-        <QuestionsHeader>
-          <QuestionsTitle />
-          <div className="flex items-center gap-1 shrink-0">
-            {isMulti && (
-              <QuestionsCarouselPagination>
-                <QuestionsCarouselPrev />
-                <QuestionsCarouselIndex format="of" />
-                <QuestionsCarouselNext />
-              </QuestionsCarouselPagination>
-            )}
-            <QuestionsDismiss />
-          </div>
-        </QuestionsHeader>
-
-        {isMulti ? (
-          <QuestionsCarousel>
-            <QuestionsCarouselContent>
-              {questionInputs.map((q) => (
-                <QuestionsCarouselItem key={q.id}>
-                  <Question id={q.id}>
-                    <QuestionOptions>
-                      {q.options.map((opt) => (
-                        <QuestionOption key={opt.value} value={opt.value} description={opt.description}>
-                          {opt.label}
-                        </QuestionOption>
-                      ))}
-                      <QuestionOther placeholder="Something else / In your own words..." />
-                    </QuestionOptions>
-                  </Question>
-                </QuestionsCarouselItem>
-              ))}
-            </QuestionsCarouselContent>
-          </QuestionsCarousel>
-        ) : (
-          <Question id={questionInputs[0].id}>
-            <QuestionOptions>
-              {questionInputs[0].options.map((opt) => (
-                <QuestionOption key={opt.value} value={opt.value} description={opt.description}>
-                  {opt.label}
-                </QuestionOption>
-              ))}
-              <QuestionOther placeholder="Something else / In your own words..." />
-            </QuestionOptions>
-          </Question>
-        )}
-
-        <QuestionsFooter>
-          {isMulti && <QuestionsSkip />}
-          <QuestionsSubmit disabled={disabled} disableUntilLastQuestion={isMulti} />
-        </QuestionsFooter>
-      </Questions>
-    </div>
-  )
-}
-
-function PlanCard({ item, onApprove, onDiscard, onEditStep, disabled }) {
-  return (
-    <div className="plan-card">
-      <div className="plan-head">
-        <Icon name="check" size={14} />
-        <span>Plan</span>
-        <span className="plan-count">{item.steps.length} steps</span>
+  if (role === 'connection') {
+    return (
+      <div className="w-full my-2 flex justify-start">
+        <ConnectorWaitCard
+          waitId={item.waitId}
+          toolkit={item.toolkit}
+          service={item.service}
+          settled={item.settled}
+          /* The card owns the resolve POST; these callbacks are the transcript
+             learning the outcome, so the live card can become its settled row. */
+          onResolve={() => onSettleConnection?.(item.waitId, 'connected')}
+          onDismiss={() => onSettleConnection?.(item.waitId, 'skipped')}
+        />
       </div>
-      {item.summary && <p className="plan-summary">{item.summary}</p>}
-      <ol className="plan-steps">
-        {item.steps.map((step, i) => (
-          <li key={`${item.id}-${i}`} className={stepClass(item, i)}>
-            {/* Editable in place. The spec asked for approve, edit or discard,
-                and an edited plan travels with the approval -- the model's
-                original is already in the transcript, so approving without
-                sending the edit would approve the wrong thing. */}
-            {item.settled ? (
-              <span className="plan-step-title">{step.title}</span>
-            ) : (
-              <input
-                className="plan-step-input"
-                value={step.title}
-                aria-label={`Step ${i + 1}`}
-                onChange={(e) => onEditStep?.(item.id, i, e.target.value)}
-              />
-            )}
-            {step.detail && <span className="plan-step-detail">{step.detail}</span>}
-            {step.tools?.length > 0 && (
-              <span className="plan-step-tools">{step.tools.join(' · ')}</span>
-            )}
-          </li>
-        ))}
-      </ol>
-      {item.settled ? (
-        <p className="plan-settled">{item.settled === 'approved' ? 'Approved.' : 'Discarded.'}</p>
-      ) : (
-        <div className="plan-actions">
-          <button type="button" className="btn btn--primary btn--small" disabled={disabled} onClick={onApprove}>
-            Approve and run
-          </button>
-          <button type="button" className="btn btn--ghost btn--small" disabled={disabled} onClick={onDiscard}>
-            Discard
-          </button>
-          <span className="plan-hint">Nothing has run yet. Edit the request and plan again to change it.</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-const Msg = memo(function Msg({
-  item, onPin, onApprovePlan, onDiscardPlan, onEditPlanStep, onAnswerQuestion, onDismissQuestion, busy, onOpenArtifact,
-  onResume, setInput, textareaRef, minimalToolbar = false,
-  conversationId, isEditing, onStartEdit, onCancelEdit, onSaveEdit, onOpenFullScreen, onRegenerate, onExportDocx, onBranchInNewChat, onViewSources,
-  onRefer, onAskQuote,
-}) {
-  const msgRef = useRef(null)
-  const role = item.kind
-
-  if (role === 'question') {
-    return <QuestionCard item={item} onAnswer={onAnswerQuestion} onDismiss={onDismissQuestion} disabled={busy && !item.askId} />
+    )
   }
   if (role === 'plan') {
     return (
-      <PlanCard
-        item={item}
-        disabled={busy}
-        onApprove={() => onApprovePlan?.(item.id)}
-        onDiscard={() => onDiscardPlan?.(item.id)}
-        onEditStep={onEditPlanStep}
-      />
+      <div className="w-full my-2 flex justify-start">
+        <ApprovalCard
+          mode="plan"
+          planId={item.id}
+          title="Plan"
+          summary={item.summary}
+          steps={item.steps}
+          settledStatus={item.settled}
+          disabled={busy}
+          onApprovePlan={() => onApprovePlan?.(item.id)}
+          onDiscardPlan={() => onDiscardPlan?.(item.id)}
+          onEditPlanStep={(stepIdx, val) => onEditPlanStep?.(item.id, stepIdx, val)}
+        />
+      </div>
     )
   }
   if (role === 'cost') {
@@ -728,7 +686,14 @@ const Msg = memo(function Msg({
     return (
       <div className={`msg-note ${cls}`}>
         <Icon name={item.tone === 'error' ? 'x' : 'info'} size={14} />
-        <span>{item.text}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 }}>
+          <span>{item.text}</span>
+          {item.providerMessage && item.providerMessage !== item.text && (
+            <span style={{ fontSize: 'var(--text-caption, 12.5px)', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>
+              {item.statusCode ? `[${item.statusCode}] ` : ''}{item.providerMessage}
+            </span>
+          )}
+        </div>
         {/* Half an answer is already above this card, and the model can finish
             it from the transcript -- which is exactly what typing "continue"
             did. One button, in the place the failure is being read. */}
@@ -739,7 +704,7 @@ const Msg = memo(function Msg({
             disabled={busy}
             onClick={() => onResume?.()}
           >
-            Continue the answer
+            {item.hasPartial ? 'Continue the answer' : 'Retry'}
           </button>
         )}
       </div>
@@ -780,10 +745,51 @@ const Msg = memo(function Msg({
 
     if (!item.text && item.toolCalls?.length) {
       return (
-        <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
-          {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
-          <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
-        </div>
+        <Message from="assistant" className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+          <MessageContent className="w-full max-w-full">
+            {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+            <TurnTrace events={item.toolCalls.map((call) => ({ type: 'tool', call }))} onOpenArtifact={onOpenArtifact} />
+          </MessageContent>
+        </Message>
+      )
+    }
+
+    const xmlAsk = extractXmlQuestions(item.text)
+    if (xmlAsk) {
+      const questionInputs = (xmlAsk.questions || []).map((q, idx) => ({
+        id: q.id || `q-${idx}`,
+        type: q.multi_select ? 'multiple' : 'single',
+        prompt: q.question,
+        header: q.header,
+        required: q.required ?? true,
+        options: (q.options || []).map((o, oIdx) => ({
+          value: o.value || o.label || `opt-${oIdx}`,
+          label: o.label,
+          description: o.description,
+        })),
+      }))
+
+      return (
+        <Message from="assistant" className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+          <MessageContent className="w-full max-w-full">
+            {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+            {xmlAsk.cleanText && (
+              <div className="msg-body mb-3">
+                <Markdown text={xmlAsk.cleanText} />
+              </div>
+            )}
+            <div className="w-full my-2 flex justify-start">
+              <ApprovalCard
+                mode="questions"
+                questions={questionInputs}
+                disabled={busy}
+                onSubmitQuestions={async (answersList) => {
+                  onAnswerQuestion?.(`xml-${item.id || item.rowId || 'direct'}`, answersList)
+                }}
+              />
+            </div>
+          </MessageContent>
+        </Message>
       )
     }
 
@@ -791,40 +797,49 @@ const Msg = memo(function Msg({
     const hasWidgetBlock = blocks.some((b) => b.type === 'widget')
 
     return (
-      <div className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
-        {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
-        {item.toolCalls?.length > 0 && (
-          <TurnTrace
-            events={item.toolCalls.map((call) => ({ type: 'tool', call }))}
-            ms={item.ms}
-            onOpenArtifact={onOpenArtifact}
-          />
-        )}
-        <ResponseArtifactBox
-          text={item.text}
-          widget={item.widget}
-          blocks={hasWidgetBlock ? blocks : null}
-          item={item}
-          minimalToolbar={minimalToolbar}
-          conversationId={conversationId}
-          isEditing={isEditing}
-          onStartEdit={onStartEdit}
-          onCancelEdit={onCancelEdit}
-          onSaveEdit={onSaveEdit}
-          onOpenFullScreen={onOpenFullScreen}
-          onRegenerate={onRegenerate}
-          onPin={onPin}
-          onExportDocx={onExportDocx}
-          onViewSources={() => onViewSources?.(item)}
-          onBranchInNewChat={onBranchInNewChat}
-          onFollowUp={(followUpText) => {
-            setInput(followUpText)
-            textareaRef.current?.focus()
-          }}
-          onRefer={onRefer}
-          onAskQuote={onAskQuote}
-        />
-      </div>
+      <Message from="assistant" className={`msg msg-assistant${item.pinned ? ' is-pinned' : ''}`}>
+        <MessageContent className="w-full max-w-full">
+          {auth && <ComposioConnectCard url={auth.url} app={auth.app} />}
+          {(() => {
+            const traceEvents = item.traceEvents || (item.toolCalls?.length ? item.toolCalls.map((call) => ({ type: 'tool', call })) : [])
+            const hasTrace = traceEvents.length > 0 || Boolean(item.reasoning) || Boolean(item.traceReasoning)
+            return hasTrace ? (
+              <TurnTrace
+                events={traceEvents}
+                reasoning={item.reasoning || item.traceReasoning}
+                ms={item.traceMs || item.ms}
+                onOpenArtifact={onOpenArtifact}
+              />
+            ) : null
+          })()}
+          <MessageBubble variant="ghost" className="w-full">
+            <ResponseArtifactBox
+              text={item.text}
+              widget={item.widget}
+              blocks={hasWidgetBlock ? blocks : null}
+              item={item}
+              minimalToolbar={minimalToolbar}
+              conversationId={conversationId}
+              isEditing={isEditing}
+              onStartEdit={onStartEdit}
+              onCancelEdit={onCancelEdit}
+              onSaveEdit={onSaveEdit}
+              onOpenFullScreen={onOpenFullScreen}
+              onRegenerate={onRegenerate}
+              onPin={onPin}
+              onExportDocx={onExportDocx}
+              onViewSources={() => onViewSources?.(item)}
+              onBranchInNewChat={onBranchInNewChat}
+              onFollowUp={(followUpText) => {
+                setInput(followUpText)
+                textareaRef.current?.focus()
+              }}
+              onRefer={onRefer}
+              onAskQuote={onAskQuote}
+            />
+          </MessageBubble>
+        </MessageContent>
+      </Message>
     )
 
   }
@@ -833,10 +848,14 @@ const Msg = memo(function Msg({
     : null
 
   return (
-    <div className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
+    <Message from="user" className={`msg msg-user${item.pinned ? ' is-pinned' : ''}`}>
       <div className="msg-user-row">
-        <div className="msg-user-content">
-          <div className="msg-body msg-body--plain">{item.text}</div>
+        <MessageContent className="msg-user-content">
+          <MessageBubble variant="solid" animateIn={true}>
+            <MessageBubbleContent className="msg-body--plain">
+              {item.text}
+            </MessageBubbleContent>
+          </MessageBubble>
           <div className="msg-user-meta">
             {timeStr && <span className="msg-time">{timeStr}</span>}
             <CopyButton text={item.text} label="Copy" />
@@ -851,12 +870,12 @@ const Msg = memo(function Msg({
             </button>
             <PinButton item={item} onPin={onPin} />
           </div>
-        </div>
-        <div className="msg-user-avatar" title="That's you!">
+        </MessageContent>
+        <MessageAvatar className="msg-user-avatar" title="That's you!">
           <Blobatar name="alain00" animate="hover" />
-        </div>
+        </MessageAvatar>
       </div>
-    </div>
+    </Message>
   )
 })
 
@@ -1151,7 +1170,7 @@ export default function Chat() {
   const textareaRef = useRef(null)
   const fileRef = useRef(null)
   const acTimerRef = useRef(null)
-  const liveRef = useRef({ buffer: '', reasoning: '', reasoningStart: 0, tool: null, status: null })
+  const liveRef = useRef({ buffer: '', reasoning: '', reasoningStart: 0, tool: null, status: null, turnEvents: [], completedReasoning: '', completedReasoningMs: 0 })
   // One counter per turn. The stream outlives the answer -- memory extraction
   // runs after `done` -- so a turn that has already been superseded must not be
   // allowed to reset the composer when its stream finally closes.
@@ -1351,17 +1370,42 @@ export default function Chat() {
   }, [variantInfo, effort, activeId, active?.model])
 
   const pushAssistant = useCallback(() => {
-    const { buffer, reasoning, reasoningStart } = liveRef.current
-    if (reasoning) {
-      const ms = reasoningStart ? Date.now() - reasoningStart : 0
-      setItems((prev) => [...prev, { id: nextId(), kind: 'reasoning', text: reasoning, ms }])
-      setReasoning('')
-      liveRef.current.reasoningStart = 0
+    const { buffer, reasoning, reasoningStart, turnEvents = [], completedReasoning, completedReasoningMs } = liveRef.current
+    const r = reasoning || completedReasoning || ''
+    const rMs = reasoningStart ? (Date.now() - reasoningStart) : (completedReasoningMs || 0)
+
+    const events = turnEvents && turnEvents.length ? [...turnEvents] : []
+    if (r && !events.some((e) => e.type === 'thought' && e.text === r)) {
+      events.unshift({ type: 'thought', text: r, ms: rMs })
     }
+
     if (buffer) {
-      setItems((prev) => [...prev, { id: nextId(), kind: 'assistant', text: buffer, callsRaw: [] }])
+      setItems((prev) => [...prev, {
+        id: nextId(),
+        kind: 'assistant',
+        text: buffer,
+        callsRaw: [],
+        traceEvents: events.length ? events : undefined,
+        traceReasoning: r || undefined,
+        traceMs: rMs || undefined,
+      }])
+      liveRef.current.buffer = ''
       setBuffer('')
+    } else if (events.length) {
+      const hasTools = events.some((e) => e.type === 'tool' || e.call)
+      if (hasTools) {
+        setItems((prev) => [...prev, { id: nextId(), kind: 'trace', events, ms: rMs }])
+      } else if (r) {
+        setItems((prev) => [...prev, { id: nextId(), kind: 'reasoning', text: r, ms: rMs }])
+      }
     }
+
+    liveRef.current.reasoning = ''
+    liveRef.current.reasoningStart = 0
+    liveRef.current.turnEvents = []
+    liveRef.current.completedReasoning = ''
+    liveRef.current.completedReasoningMs = 0
+    setReasoning('')
   }, [setBuffer, setReasoning])
 
   const pushNote = useCallback((tone, text, extras) => {
@@ -1423,15 +1467,21 @@ export default function Chat() {
   }, [notify, conversations, selectConversation])
 
   const onEvent = useCallback((evt) => {
+    liveRef.current.lastEventAt = Date.now()
     switch (evt.type) {
       case 'assistant_delta':
         if (liveRef.current.reasoning) {
           const r = liveRef.current.reasoning
           const rMs = liveRef.current.reasoningStart ? Date.now() - liveRef.current.reasoningStart : 0
+          liveRef.current.completedReasoning = r
+          liveRef.current.completedReasoningMs = rMs
+          if (!liveRef.current.turnEvents) liveRef.current.turnEvents = []
+          if (!liveRef.current.turnEvents.some((e) => e.type === 'thought' && e.text === r)) {
+            liveRef.current.turnEvents.unshift({ type: 'thought', text: r, ms: rMs })
+          }
           liveRef.current.reasoning = ''
           liveRef.current.reasoningStart = 0
           setReasoning('')
-          setItems((prev) => [...prev, { id: nextId(), kind: 'reasoning', text: r, ms: rMs }])
         }
         liveRef.current.buffer += evt.text ?? ''
         setBuffer(liveRef.current.buffer)
@@ -1462,7 +1512,9 @@ export default function Chat() {
         break
       }
       case 'tool_call':
-        pushAssistant()
+        if (liveRef.current.buffer) {
+          pushAssistant()
+        }
         if (evt.name !== 'ask_user' && evt.name !== 'ask_question') {
           setTool({ name: evt.name, arguments: evt.arguments ?? {}, status: 'running' })
         }
@@ -1470,14 +1522,34 @@ export default function Chat() {
       case 'tool_result': {
         const t = liveRef.current.tool
         if (evt.name !== 'ask_user' && evt.name !== 'ask_question' && t?.name !== 'ask_user' && t?.name !== 'ask_question') {
-          setItems((prev) => [...prev, {
-            id: nextId(),
-            kind: 'tool',
-            name: t?.name ?? evt.name,
-            arguments: t?.arguments ?? {},
-            content: evt.content ?? '',
-            isError: Boolean(evt.is_error),
-          }])
+          const toolName = t?.name ?? evt.name
+          const toolArgs = t?.arguments ?? {}
+          const isError = Boolean(evt.is_error)
+          const toolContent = evt.content ?? ''
+
+          if (!liveRef.current.turnEvents) liveRef.current.turnEvents = []
+          liveRef.current.turnEvents.push({
+            type: 'tool',
+            call: {
+              name: toolName,
+              arguments: toolArgs,
+              content: toolContent,
+              status: isError ? 'error' : 'done',
+            },
+            status: isError ? 'error' : 'done',
+          })
+
+          const auth = extractComposioAuth(toolContent, toolName)
+          if (auth) {
+            setItems((prev) => [...prev, {
+              id: nextId(),
+              kind: 'tool',
+              name: toolName,
+              arguments: toolArgs,
+              content: toolContent,
+              isError,
+            }])
+          }
         }
         setTool(null)
         break
@@ -1504,7 +1576,7 @@ export default function Chat() {
       // future nothing is holding.
       case 'question_settled':
         setItems((prev) => prev.map((it) => (
-          it.askId === evt.id && !it.settled ? { ...it, settled: it.answers ?? [] } : it
+          it.askId === evt.id && !it.settled ? { ...it, settled: (evt.answers && evt.answers.length > 0) ? evt.answers : (it.settled || []) } : it
         )))
         // Suspended no more. The loop's own `status` frame overwrites this as
         // soon as it has one; until then the line should not still be claiming
@@ -1523,6 +1595,20 @@ export default function Chat() {
           risk: evt.risk,
           reason: evt.reason,
           arguments: evt.arguments ?? {},
+        }]))
+        break
+      case 'connection_required':
+        // A call failed for want of a connected app and the turn parked on it.
+        // The card is the resume; the status line says so from the first
+        // moment, for the same reason the question card does.
+        setStatus({ state: 'awaiting_connection' })
+        setItems((prev) => (prev.some((it) => it.waitId === evt.wait_id) ? prev : [...prev, {
+          id: nextId(),
+          kind: 'connection',
+          waitId: evt.wait_id,
+          toolkit: evt.toolkit,
+          service: evt.service,
+          settled: null,
         }]))
         break
       case 'memory': {
@@ -1551,7 +1637,7 @@ export default function Chat() {
       // "Thinking" from the moment a turn opened until the first token, whether
       // the wait was retrieval, a cold connector or a provider retry.
       case 'status':
-        setStatus(evt.state ? { state: evt.state, tool: evt.tool, server: evt.server } : null)
+        setStatus(evt.state ? { state: evt.state, tool: evt.tool, server: evt.server, provider: evt.provider, message: evt.message } : null)
         break
       // Progress through an approved plan, as the model reported it. Applied to
       // the last plan card, which is the one that was approved.
@@ -1607,11 +1693,14 @@ export default function Chat() {
         break
       case 'guard': pushNote('guard', evt.reason); notifyDone('Turn stopped', evt.reason); settle(); break
       case 'error': {
-        let errMessage = evt.message || ''
-        if (typeof errMessage === 'string' && errMessage.toLowerCase().includes('input stream')) {
-          errMessage = 'The model stream was interrupted by the provider. Please try again.'
-        }
-        pushNote('error', errMessage, { resumable: Boolean(evt.resumable) })
+        const errMessage = evt.message || 'The model connection was interrupted. Please try again.'
+        pushNote('error', errMessage, {
+          resumable: Boolean(evt.resumable),
+          hasPartial: Boolean(evt.has_partial),
+          statusCode: evt.status_code,
+          provider: evt.provider,
+          providerMessage: evt.provider_message,
+        })
         notifyDone('Turn failed', errMessage)
         settle()
         break
@@ -1632,11 +1721,16 @@ export default function Chat() {
       // again for something it already has.
       case 'ping': {
         const held = evt.waiting_on
-          ? { state: evt.waiting_on === 'approval' ? 'awaiting_approval' : 'awaiting_input' }
+          ? {
+              state:
+                evt.waiting_on === 'approval' ? 'awaiting_approval'
+                  : evt.waiting_on === 'connection' ? 'awaiting_connection'
+                    : 'awaiting_input',
+            }
           : null
         const now = liveRef.current.status
         if (held) setStatus(held)
-        else if (now && (now.state === 'awaiting_approval' || now.state === 'awaiting_input')) setStatus(null)
+        else if (now && (now.state === 'awaiting_approval' || now.state === 'awaiting_input' || now.state === 'awaiting_connection')) setStatus(null)
         break
       }
 
@@ -1715,6 +1809,16 @@ export default function Chat() {
     const token = ++turnTokenRef.current
     runningRef.current = cid
     settledRef.current = false
+    liveRef.current.turnEvents = []
+    liveRef.current.completedReasoning = ''
+    liveRef.current.completedReasoningMs = 0
+    liveRef.current.reasoning = ''
+    liveRef.current.reasoningStart = 0
+    liveRef.current.buffer = ''
+    liveRef.current.tool = null
+    setBuffer('')
+    setReasoning('')
+    setTool(null)
     setItems((prev) => [...prev, { id: nextId(), kind: 'user', text: message }])
     setTurnState('running')
     setAtBottom(true)
@@ -1734,7 +1838,7 @@ export default function Chat() {
     const beat = (evt) => {
       clearTimeout(watchdog)
       const now = liveRef.current.status
-      if (now?.state === 'awaiting_approval' || now?.state === 'awaiting_input' || evt?.waiting_on) {
+      if (now?.state === 'awaiting_approval' || now?.state === 'awaiting_input' || now?.state === 'awaiting_connection' || evt?.waiting_on) {
         return
       }
       watchdog = setTimeout(() => {
@@ -1868,53 +1972,6 @@ export default function Chat() {
     )))
   }, [])
 
-  /* Resume a turn that is suspended on a question.
-
-     Nothing is re-sent: the turn is still open, holding a future, with
-     everything it had already read still in its context. That is the whole
-     reason this is a card rather than a new message -- answering in the
-     composer would end one turn and start another, and the model would have to
-     reconstruct what it already knew. */
-  const answerQuestion = useCallback(async (askId, answers) => {
-    try {
-      await api.answerQuestion(askId, answers)
-      setItems((prev) => prev.map((it) => (
-        it.askId === askId ? { ...it, settled: answers } : it
-      )))
-    } catch (err) {
-      // The commonest failure is a turn that stopped waiting -- it timed out
-      // and carried on, or the user pressed Stop. Say so and settle the card,
-      // rather than leaving a button that will never work.
-      toast(err.message, 'bad')
-      setItems((prev) => prev.map((it) => (
-        it.askId === askId ? { ...it, settled: answers } : it
-      )))
-    }
-  }, [toast])
-
-  /* Declining a question. The turn is still holding the future, so the card is
-     settled here exactly as an answer would be -- what differs is what the
-     model is told, which is that the question was dismissed and it should pick
-     an assumption and name it. The failure path settles for the same reason the
-     answer's does: a card whose turn has stopped waiting will never work, and
-     leaving it live is how a question gets "answered" into nothing. */
-  const dismissQuestion = useCallback(async (askId) => {
-    try {
-      await api.dismissQuestion(askId)
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-    setItems((prev) => prev.map((it) => (
-      it.askId === askId ? { ...it, settled: [] } : it
-    )))
-  }, [toast])
-
-  const discardPlan = useCallback((itemId) => {
-    // Local only. Nothing ran, so there is nothing to undo on the server, and
-    // the plan stays in the transcript because the model said it.
-    setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, settled: 'discarded' } : it)))
-  }, [])
-
   const send = useCallback(async (overrideText, overrideFiles) => {
     const raw = overrideText !== undefined ? overrideText : input
     let typed = (raw || '').trim()
@@ -2007,6 +2064,78 @@ export default function Chat() {
     input, attachments, mode, turnState, activeId, draftProvider, draftModel,
     guard, effort, refreshConvs, openTurn, toast, setActiveId, caps.connectors, setCapEnabled, activeTag, quotedReference,
   ])
+
+  /* Resume a turn that is suspended on a question.
+
+     Nothing is re-sent: the turn is still open, holding a future, with
+     everything it had already read still in its context. That is the whole
+     reason this is a card rather than a new message -- answering in the
+     composer would end one turn and start another, and the model would have to
+     reconstruct what it already knew. */
+  const answerQuestion = useCallback(async (askId, answers) => {
+    if (String(askId).startsWith('xml-')) {
+      const answersText = (answers || []).map((a, i) => {
+        const val = Array.isArray(a.selectedValues) ? a.selectedValues.join(', ') : a.selectedValue || a.customText || ''
+        return val ? `Question ${i + 1}: ${val}` : ''
+      }).filter(Boolean).join('\n')
+      setItems((prev) => prev.map((it) => (
+        it.askId === askId ? { ...it, settled: answers } : it
+      )))
+      if (answersText) {
+        setTimeout(() => send(answersText), 50)
+      }
+      return
+    }
+    try {
+      await api.answerQuestion(askId, answers)
+      setItems((prev) => prev.map((it) => (
+        it.askId === askId ? { ...it, settled: answers } : it
+      )))
+    } catch (err) {
+      // The commonest failure is a turn that stopped waiting -- it timed out
+      // and carried on, or the user pressed Stop. Say so and settle the card,
+      // rather than leaving a button that will never work.
+      toast(err.message, 'bad')
+      setItems((prev) => prev.map((it) => (
+        it.askId === askId ? { ...it, settled: answers } : it
+      )))
+    }
+  }, [toast, send])
+
+  /* Declining a question. The turn is still holding the future, so the card is
+     settled here exactly as an answer would be -- what differs is what the
+     model is told, which is that the question was dismissed and it should pick
+     an assumption and name it. The failure path settles for the same reason the
+     answer's does: a card whose turn has stopped waiting will never work, and
+     leaving it live is how a question gets "answered" into nothing. */
+  const dismissQuestion = useCallback(async (askId) => {
+    try {
+      await api.dismissQuestion(askId)
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+    setItems((prev) => prev.map((it) => (
+      it.askId === askId ? { ...it, settled: [] } : it
+    )))
+  }, [toast])
+
+  /* What the connection card reports back. `settled` alone clears the status
+     line -- the turn resumes the moment the resolve lands, and its own next
+     status frame overwrites whatever the card's resolution left behind. The
+     card stays in the transcript as the record of what unblocked the answer;
+     a re-render turns the live card into its settled row. */
+  const settleConnection = useCallback((waitId, settled = 'connected') => {
+    setItems((prev) => prev.map((it) => (
+      it.waitId === waitId ? { ...it, settled } : it
+    )))
+    setStatus(null)
+  }, [])
+
+  const discardPlan = useCallback((itemId) => {
+    // Local only. Nothing ran, so there is nothing to undo on the server, and
+    // the plan stays in the transcript because the model said it.
+    setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, settled: 'discarded' } : it)))
+  }, [])
 
   const handleSaveMessageEdit = useCallback(async (msgItem, newText) => {
     if (!activeId || !newText || newText === msgItem.text) {
@@ -2177,6 +2306,11 @@ export default function Chat() {
         setVariantInfo(null)
       })
     }
+
+    // Eagerly warm up the selected provider/model so the first user message is instant
+    if (patch.provider) {
+      api.warmupProvider(patch.provider, patch.model).catch(() => {})
+    }
   }, [activeId, toast, updateConversationOptimistic])
 
   /* Ask something without typing it here.
@@ -2307,6 +2441,29 @@ export default function Chat() {
     } catch {
       /* as with the prompts: this is recovery, not the delivery path */
     }
+    // The same recovery for connection cards. A reload during one leaves a turn
+    // parked on a card that existed only as an event frame, which the stream
+    // took with it -- exactly the hole the question recovery closed.
+    try {
+      const waits = (await api.connectorWaits()).filter((w) => !w.conversation_id || w.conversation_id === activeId)
+      if (!waits.length) return
+      setItems((prev) => {
+        const known = new Set(prev.map((it) => it.waitId).filter(Boolean))
+        const missing = waits.filter((w) => !known.has(w.id))
+        if (!missing.length) return prev
+        return [...prev, ...missing.map((w) => ({
+          id: nextId(),
+          kind: 'connection',
+          waitId: w.id,
+          toolkit: w.toolkit,
+          service: w.service,
+          settled: null,
+        }))]
+      })
+      setStatus({ state: 'awaiting_connection' })
+    } catch {
+      /* the card still arrives on the stream; this is only the recovery path */
+    }
   }, [activeId, setStatus])
 
   useEffect(() => {
@@ -2363,7 +2520,16 @@ export default function Chat() {
     textareaRef.current?.focus()
   }, [input])
 
-  const onDecide = useCallback((id) => setPending((p) => p.filter((x) => x.id !== id)), [])
+  const onDecide = useCallback(async (id, decision) => {
+    if (decision && typeof decision === 'object') {
+      try {
+        await api.decideConfirmation(id, decision)
+      } catch (err) {
+        console.error('Failed to decide confirmation:', err)
+      }
+    }
+    setPending((p) => p.filter((x) => x.id !== id))
+  }, [])
 
   /* Turns animate in as they arrive, but a conversation opened from the rail is
      forty of them arriving at once -- which is a page that shudders rather than
@@ -2780,7 +2946,7 @@ export default function Chat() {
                 ) : turnPhase === 'executing' ? (
                   liveTool?.name ? `Running ${liveTool.name}...` : 'Executing tool...'
                 ) : (
-                  <BlurredText text={liveThinkingSnippet} duration={0.15} />
+                  liveStatus ? statusLabel(liveStatus) : ''
                 )}
               </span>
             </div>
@@ -2947,6 +3113,7 @@ export default function Chat() {
               <div className="composer-model-pill-wrap">
                 <button
                   type="button"
+                  data-model-trigger="true"
                   className="composer-model-pill hero-composer-model-pill"
                   onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
                   title="Provider and model"
@@ -3141,6 +3308,7 @@ export default function Chat() {
                 <div className="composer-model-pill-wrap">
                   <button
                     type="button"
+                    data-model-trigger="true"
                     className="composer-model-pill"
                     onClick={() => { setModelOpen((o) => !o); setPlusOpen(false); setGuardOpen(false); setEffortOpen(false); setContextOpen(false) }}
                     title="Provider and model"
@@ -3485,51 +3653,53 @@ export default function Chat() {
                     </span>
                   </div>
                 )}
-                {transcript.map((item, idx) => (
-                  <div key={item.id} data-item={item.id} className="stream-item">
-                    <Msg
-                      item={item}
-                      minimalToolbar={item.kind === 'assistant' && !lastAssistantIndices.has(idx)}
-                      onOpenArtifact={openArtifacts}
-                      onPin={onPin}
-                      busy={turnState !== 'idle'}
-                      onApprovePlan={approvePlan}
-                      onAnswerQuestion={answerQuestion}
-                      onDismissQuestion={dismissQuestion}
-                      onDiscardPlan={discardPlan}
-                      onEditPlanStep={editPlanStep}
-                      onResume={resumeAnswer}
-                      setInput={setInput}
-                      textareaRef={textareaRef}
-                      conversationId={activeId}
-                      isEditing={editingMessageId === item.rowId || (item.id && editingMessageId === item.id)}
-                      onStartEdit={() => setEditingMessageId(item.rowId || item.id)}
-                      onCancelEdit={() => setEditingMessageId(null)}
-                      onSaveEdit={handleSaveMessageEdit}
-                      onOpenFullScreen={() => setFullScreenMessage(item)}
-                      onRegenerate={() => handleRegenerateAnswer(item)}
-                      onExportDocx={handleExportDocx}
-                      onBranchInNewChat={handleBranchInNewChat}
-                      onViewSources={handleViewSources}
-                      onRefer={handleQuoteRefer}
-                      onAskQuote={handleAskQuote}
-                    />
-                  </div>
-                ))}
-                {turnState === 'running' && (liveTool || liveBuffer || liveReasoning) && (
-                  <div className="msg msg-assistant is-live">
-                    {liveReasoning && !liveBuffer && (
-                      <Reasoning
-                        text={liveReasoning}
-                        live
-                        ms={liveRef.current.reasoningStart ? Date.now() - liveRef.current.reasoningStart : 0}
+                <MessageGroup spacing="default" className="chat-message-group">
+                  {transcript.map((item, idx) => (
+                    <div key={item.id} data-item={item.id} className="stream-item">
+                      <Msg
+                        item={item}
+                        minimalToolbar={item.kind === 'assistant' && !lastAssistantIndices.has(idx)}
+                        onOpenArtifact={openArtifacts}
+                        onPin={onPin}
+                        busy={turnState !== 'idle'}
+                        onApprovePlan={approvePlan}
+                        onAnswerQuestion={answerQuestion}
+                        onDismissQuestion={dismissQuestion}
+                        onSettleConnection={settleConnection}
+                        onDiscardPlan={discardPlan}
+                        onEditPlanStep={editPlanStep}
+                        onResume={resumeAnswer}
+                        setInput={setInput}
+                        textareaRef={textareaRef}
+                        conversationId={activeId}
+                        isEditing={editingMessageId === item.rowId || (item.id && editingMessageId === item.id)}
+                        onStartEdit={() => setEditingMessageId(item.rowId || item.id)}
+                        onCancelEdit={() => setEditingMessageId(null)}
+                        onSaveEdit={handleSaveMessageEdit}
+                        onOpenFullScreen={() => setFullScreenMessage(item)}
+                        onRegenerate={() => handleRegenerateAnswer(item)}
+                        onExportDocx={handleExportDocx}
+                        onBranchInNewChat={handleBranchInNewChat}
+                        onViewSources={handleViewSources}
+                        onRefer={handleQuoteRefer}
+                        onAskQuote={handleAskQuote}
                       />
-                    )}
-                    {liveTool && (
+                    </div>
+                  ))}
+                </MessageGroup>
+                {turnState === 'running' && (liveTool || liveBuffer || liveReasoning || (liveRef.current.turnEvents && liveRef.current.turnEvents.length > 0)) && (
+                  <div className="msg msg-assistant is-live">
+                    {(liveTool || liveReasoning || (liveRef.current.turnEvents && liveRef.current.turnEvents.length > 0) || liveRef.current.completedReasoning) && (
                       <TurnTrace
-                        events={[]}
+                        events={liveRef.current.turnEvents || []}
                         live={liveTool}
-                        running
+                        liveBuffer={liveBuffer}
+                        reasoning={liveReasoning || liveRef.current.completedReasoning}
+                        running={Boolean(liveTool || liveReasoning || !liveBuffer)}
+                        status={liveStatus}
+                        lastEventAt={liveRef.current.lastEventAt || Date.now()}
+                        ms={liveRef.current.reasoningStart ? Date.now() - liveRef.current.reasoningStart : (liveRef.current.completedReasoningMs || 0)}
+                        onOpenArtifact={openArtifacts}
                       />
                     )}
                     {liveBuffer && (
@@ -3538,6 +3708,17 @@ export default function Chat() {
                         <span className="tele-cursor" />
                       </div>
                     )}
+                  </div>
+                )}
+                {pending.length > 0 && (
+                  <div className="w-full my-3 flex flex-col gap-2 justify-start">
+                    {pending.map((p) => (
+                      <ToolApprovalCard
+                        key={p.id}
+                        item={p}
+                        onDecide={onDecide}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -3593,7 +3774,7 @@ export default function Chat() {
         )
       )}
 
-      <ConfirmModal pending={pending} onDecide={onDecide} />
+      {/* Inline ToolApprovalCard renders inside the stream per Craftwork / beUI spec */}
       {fullScreenMessage && (
         <div className="modal-overlay response-editor-modal-overlay" onClick={() => setFullScreenMessage(null)}>
           <div className="response-editor-modal-window" onClick={(e) => e.stopPropagation()}>

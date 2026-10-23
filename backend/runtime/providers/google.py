@@ -111,9 +111,12 @@ def sanitize_schema(schema: Any) -> Any:
 
 
 def _to_contents(messages: list[dict[str, Any]]) -> tuple[str | None, list[dict]]:
+    from backend.runtime.history_sanitizer import sanitize_conversation_history
+
+    sanitized = sanitize_conversation_history(messages, provider="google")
     system: str | None = None
     contents: list[dict] = []
-    for m in messages:
+    for m in sanitized:
         role = m.get("role")
         if role == "system":
             system = m.get("content") or system
@@ -139,8 +142,14 @@ def _to_contents(messages: list[dict[str, Any]]) -> tuple[str | None, list[dict]
                 parts.append({"text": m["content"]})
             for tc in m["tool_calls"]:
                 fn = tc.get("function", tc)
+                raw_args = fn.get("arguments") or {}
+                if isinstance(raw_args, str):
+                    try:
+                        raw_args = json.loads(raw_args)
+                    except Exception:
+                        raw_args = {"raw": raw_args}
                 parts.append(
-                    {"functionCall": {"name": fn.get("name"), "args": fn.get("arguments") or {}}}
+                    {"functionCall": {"name": fn.get("name"), "args": raw_args}}
                 )
             contents.append({"role": "model", "parts": parts})
             continue
@@ -179,7 +188,7 @@ class GeminiClient:
         api_key: str | None,
         model: str,
         base_url: str,
-        timeout: float = 120.0,
+        timeout: float = 300.0,
         max_retries: int = MAX_RETRIES,
     ):
         self.api_key = api_key
@@ -234,6 +243,8 @@ class GeminiClient:
             timeout=self.timeout,
             params={"key": self.api_key},
             max_retries=self.max_retries,
+            provider="google",
+            client_instance=self,
         )
         _total_ms = (time.perf_counter() - _t0) * 1000.0
 
@@ -286,6 +297,7 @@ def initialize(
         api_key=api_key,
         model=resolved_model,
         base_url=config.base_url or BASE,
+        timeout=config.timeout or 300.0,
         max_retries=max_retries,
     )
     return ResolvedModel(

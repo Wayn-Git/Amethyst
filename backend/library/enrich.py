@@ -328,15 +328,16 @@ Rules:
     - For book/reading: Author, Genre, Publisher, Pages/Length, Published.
     - For food/travel: Location, Cuisine/Category, Best For, Hours/Season.
     - For general/article: Author, Publication, Topic, Read Time.
-- summary: High-density, highly informative, structured synthesis.
-  Structure the summary with 2 to 4 crisp, high-signal bullet points using bold headers:
-  * **What it is:** The concrete subject, tool, film, paper, technique, or system being discussed.
-  * **Key Capability / Detail:** Specific mechanisms, syntax, workflows, plot mechanics, or distinctive elements.
-  * **Why it matters:** Concrete takeaway, practical value, or actionable insight.
-  CRITICAL CONSTRAINTS:
-  * ALWAYS use bold markdown headers (**Header:**) for each structured bullet point so it renders cleanly.
-  * NEVER use lazy meta-commentary: DO NOT say "This post describes...", "In this video...", "The author shares...", "The creator announces...", or "This clip features...".
-  * State factual, high-density, informative knowledge directly.
+- summary: Comprehensive, high-density, highly informative synthesis capturing EVERYTHING significant mentioned in the content.
+  * Natural structure:
+    - For listicles, guides, frameworks, or multi-point posts (e.g. "10 habits", "5 tools", "7 rules", "3 steps"): provide a brief 1-2 sentence core overview, followed by distinct, bulleted points covering ALL the habits, techniques, tools, or concepts mentioned with their concrete explanations, rather than collapsing them into one brief run-on sentence.
+    - For tools, software, or libraries: describe what it is, its core architecture/capabilities, and why/when to use it.
+    - For cinema, films, or creative media: describe the core subject, synopsis/plot mechanics, and distinctive artistry or takeaways.
+    - For articles, research papers, or talks: outline the central thesis, supporting methodologies/evidence, and critical implications.
+  * Formatting & Tone:
+    - Use clean markdown formatting (bold headers like **Header:**, clear bullet points, and paragraph separation).
+    - Be concrete and specific: preserve exact names, commands, technical terms, book/paper titles, and arguments mentioned.
+    - NEVER use meta-commentary: DO NOT say "This video describes...", "In this reel...", "The speaker shares...", "The author explains...", or "This post is about...". State the knowledge directly and authoritatively.
 - tags: two to three lowercase canonical topic words (e.g. ai, algorithms, programming, tools, design, cinema, streaming, data-science, reading). For movies/series/actors/films, always use "cinema" or "streaming" as primary tag.
 - resources: extract concrete named things the text names that the user could go and find, use, read, visit, or watch:
   - repo / codebase: open-source software, library, GitHub repository. Set type: "repo", name: "owner/repo" or project name, and url: "https://github.com/owner/repo" or the repo name. NEVER invent a synthetic ".com" domain for open-source repositories or code libraries.
@@ -661,21 +662,28 @@ def _clean_resource(entry: object, text_urls: list[str] | None = None) -> dict |
                 normalized = u
                 break
 
-    # If the model didn't provide a URL, auto-resolve only if known tool or genuine repo pattern.
-    # Drop generic search queries.
+    # If the model didn't provide a URL, auto-resolve to a curated platform search or known tool.
     if not normalized:
         name_clean = re.sub(r"[^a-z0-9]", "", name.lower())
         for tool_key, tool_url in KNOWN_TOOL_URLS.items():
             if name_clean == re.sub(r"[^a-z0-9]", "", tool_key):
                 normalized = tool_url
                 break
-        if not normalized and not raw_url and (kind in ("repo", "code") or re.match(repo_pattern, name.strip())):
-            resolved = resolve_entity_url(name, "code")
-            if resolved and "/search?" not in resolved:
-                normalized = resolved
+        if not normalized and not raw_url:
+            # For media/entity types, resolve to the authoritative curated search URL
+            if kind in ("movie", "show", "film", "series", "tv", "cinema",
+                        "book", "novel", "reading", "author",
+                        "music", "song", "artist", "album", "audio", "track", "podcast",
+                        "place", "restaurant", "cafe", "food", "travel", "destination", "hotel"):
+                normalized = resolve_entity_url(name, kind)
+            elif kind in ("repo", "code") or re.match(repo_pattern, name.strip()):
+                resolved = resolve_entity_url(name, "code")
+                if resolved and "/search?" not in resolved:
+                    normalized = resolved
 
-    # Drop search query URLs so resources don't navigate to misleading search pages
-    if normalized and ("/search?" in normalized or "google.com/search" in normalized or "search_query=" in normalized):
+    # Drop only generic Google search results (not curated platform searches like TMDB, Goodreads, Spotify)
+    GENERIC_SEARCH_PATTERNS = ("google.com/search", "search_query=")
+    if normalized and any(p in normalized for p in GENERIC_SEARCH_PATTERNS):
         normalized = None
 
     return {

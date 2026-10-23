@@ -16,7 +16,7 @@ import logging
 import os
 import re
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -70,6 +70,7 @@ from backend.agent.context_compressor import ContextCompressor
 from backend.agent.jev import classify_presentation
 from backend.agent.trace import (
     finish_turn_trace,
+    get_current_trace,
     is_trace_enabled,
     record_cache_hit,
     record_error,
@@ -403,12 +404,19 @@ async def _stream_until_cancelled(stream, cancel: asyncio.Event | None):
     check cannot see -- so every step is raced, not just the gaps between them.
     """
     iterator = stream.__aiter__()
-    while True:
-        try:
-            chunk = await _race_cancel(iterator.__anext__(), cancel)
-        except StopAsyncIteration:
-            return
-        yield chunk
+    try:
+        while True:
+            try:
+                chunk = await _race_cancel(iterator.__anext__(), cancel)
+            except StopAsyncIteration:
+                return
+            yield chunk
+    finally:
+        if hasattr(iterator, "aclose"):
+            try:
+                await iterator.aclose()
+            except Exception:
+                pass
 
 
 @dataclass
@@ -596,6 +604,34 @@ def _is_composio_call(call: ToolCall, registry: ToolRegistry) -> bool:
     if call.name in ALL_FAST_LANE_SLUGS or b in ALL_FAST_LANE_SLUGS:
         return True
     return False
+
+
+async def _bounded_batch_wait(
+    fut: asyncio.Future, context: ToolContext, tool_name: str
+) -> list[ToolResult]:
+    """Wait for the shared batch future the way `_bounded_dispatch` waits for a call.
+
+    A composio batch parked on a connection gate does not resolve under
+    `tool_timeout_seconds`, and the per-item wait used to cancel the *whole
+    batch's* future when its window closed -- so a card that took longer than
+    fifteen seconds stopped every call next to it. The window re-arms while a
+    gate is live on the batch context; with no gate the batch future is
+    cancelled exactly as before, and the item answers with its timeout error.
+    """
+    from backend.tools.base import gate_suspensions_live
+
+    window = agent_config.tool_timeout_seconds
+    while True:
+        try:
+            return await asyncio.wait_for(asyncio.shield(fut), timeout=window)
+        except (TimeoutError, asyncio.TimeoutError):
+            if fut.done():
+                return fut.result()
+            if gate_suspensions_live(context):
+                window = agent_config.suspended_tool_window_seconds
+                continue
+            fut.cancel()
+            raise
 
 # Filesystem tools that mutate state — path overlap forces sequential.
 _PATH_WRITERS = frozenset({"edit_file", "write_file", "create_file"})
@@ -1019,6 +1055,7 @@ class Director:
         mode: str = "chat",
         depth: str = "standard",
         guard: str = "guard",
+        interactive: bool = True,
     ):
         self.registry = registry
         self.workspace_root = workspace_root
@@ -1045,6 +1082,13 @@ class Director:
         # can only guess at why a call was refused -- and it guesses the
         # strictest mode it knows. Appended like `depth`, for the same reason.
         self.guard = guard
+        # Whether somebody is on the other end of this turn's suspensions. The
+        # connection gate asks a tool call that failed for a missing app to
+        # wait on the user wiring it up; an automation run has no user to ask,
+        # so it says so and the call fails the way it always did. Subagents
+        # inherit it: the turn driving them is interactive, but the subagent's
+        # own context is not the place a connector card belongs.
+        self.interactive = interactive
         self.conversations = ConversationRepository()
         self.messages = MessageRepository()
         # Where this turn's own state goes, so it outlives the process
@@ -1607,7 +1651,7 @@ class Director:
             # is what refuses a mutating tool named anyway.
             read_only=planning,
             turn_id=state.id,
-            extra={"state": state, "user_message": user_message},
+            extra={"state": state, "user_message": user_message, "interactive": self.interactive},
         )
         # The one piece of turn state deliberately left off `state`:
         # `time.monotonic()` counts from an arbitrary point in *this* process, so
@@ -2161,6 +2205,14 @@ class Director:
                     else:
                         effective_params = ModelParameters(tool_choice="none")
 
+                trace = get_current_trace()
+                if trace:
+                    trace.approval_pending = bool(state.pending)
+                    wait_s = getattr(state, "last_approval_wait_seconds", 0.0)
+                    if state.pending and getattr(state, "suspended_at", None):
+                        wait_s += (time.monotonic() - state.suspended_at)
+                    trace.approval_wait_duration_s = wait_s
+
                 try:
                     if (
                         self.stream
@@ -2296,11 +2348,14 @@ class Director:
                             or "connection" in str(raw_message).lower()
                             or "timeout" in str(raw_message).lower()
                             or "peer closed" in str(raw_message).lower()
+                            or "remote disconnected" in str(raw_message).lower()
                             or "stream" in type(exc).__name__.lower()
                             or isinstance(exc, ProviderStreamError)
+                            or kind == FailureKind.RATE_LIMITED
                             or bool(streamed_reasoning)
+                            or (iteration > 0 and state.tool_calls_made > 0)
                         )
-                        and (should_retry(kind) or kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE))
+                        and (should_retry(kind) or kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE, FailureKind.RATE_LIMITED))
                         and kind != FailureKind.NON_RETRYABLE_RATE_LIMIT
                         and not looks_like_quota(raw_message)
                         and state.resumes < effective_max_resumes
@@ -2326,12 +2381,14 @@ class Director:
                             effective_max_resumes,
                         )
                         self._checkpoint(state, budget=budget)
-                        yield Event("status", {"state": "resuming"})
+                        yield Event("status", {"state": "resuming", "provider": chain[state.active].provider})
                         await asyncio.sleep(min(0.5 * state.resumes, 2.0))
                         continue
                     elif is_stream_interruption:
                         state.resumes += 1
                         budget.spend(1)
+                        from backend.runtime.http import evict_client
+                        evict_client()
                         log.info(
                             "%s stream interrupted before answer text (%s); auto-recovering attempt (%d/%d)",
                             chain[state.active].provider,
@@ -2340,8 +2397,10 @@ class Director:
                             effective_max_resumes,
                         )
                         self._checkpoint(state, budget=budget)
-                        yield Event("status", {"state": "resuming"})
-                        await asyncio.sleep(min(0.5 * state.resumes, 2.0))
+                        yield Event("status", {"state": "reconnecting", "provider": chain[state.active].provider})
+                        retry_after = getattr(exc, "retry_after", None)
+                        wait_delay = min(max(retry_after or 0.0, 0.5 * state.resumes), 3.0)
+                        await asyncio.sleep(wait_delay)
                         continue
 
                     # A retryable failure exhausted its allowance before it
@@ -2382,7 +2441,7 @@ class Director:
                     # continuation and not a restart.
                     can_hand_over = (
                         links_after > 0
-                        and (should_fall_back(kind) or state.active > 0 or bool(streamed_text or state.carried))
+                        and (should_fall_back(kind) or state.active > 0 or bool(streamed_text or state.carried) or state.tool_calls_made > 0)
                     )
                     if can_hand_over:
                         resuming = bool(streamed_text or state.carried)
@@ -2474,18 +2533,36 @@ class Director:
 
 
                     # Nothing was produced, so this really is a failed turn.
-                    clean_msg = (
-                        "The model stream was interrupted by the provider. Please try again."
-                        if "input stream" in str(raw_message).lower()
-                        or "input stream" in str(message).lower()
-                        else message
-                    )
+                    provider_name = chain[state.active].provider
+                    status_code = getattr(exc, "status_code", getattr(exc, "code", None))
+                    provider_detail = str(raw_message or exc or "").strip()
+                    if kind == FailureKind.RATE_LIMITED:
+                        clean_msg = f"{provider_name} rate limit reached. Please try again."
+                    elif kind == FailureKind.NON_RETRYABLE_RATE_LIMIT:
+                        clean_msg = f"{provider_name} is out of quota. Please check your account."
+                    elif "timeout" in str(raw_message).lower() or isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+                        clean_msg = f"{provider_name} timed out. Please try again."
+                    elif "input stream" in str(raw_message).lower():
+                        clean_msg = f"{provider_name} connection was interrupted. Please try again."
+                    else:
+                        clean_msg = message
+
                     noted = f"[model error] {clean_msg}"
                     self._persist(conversation_id, "assistant", noted)
                     state.error = clean_msg
                     self._checkpoint(state, "failed", budget=budget)
                     yield Event("status", {"state": "failed"})
-                    yield Event("error", {"message": clean_msg, "resumable": True})
+                    yield Event(
+                        "error",
+                        {
+                            "message": clean_msg,
+                            "resumable": True,
+                            "has_partial": bool(partial),
+                            "provider": provider_name,
+                            "status_code": status_code,
+                            "provider_message": provider_detail,
+                        },
+                    )
                     return
 
                 availability.record_success(chain[state.active].provider)
@@ -2529,6 +2606,13 @@ class Director:
                 said.append(response.text)
                 yield Event("status", {"state": "generating"})
                 yield Event("assistant_text", {"text": response.text})
+
+            if not response.tool_calls and response.text and ("<tool_call" in response.text or "```tool_call" in response.text):
+                from backend.runtime.providers.openai_compat import extract_text_tool_calls
+                cleaned, extracted = extract_text_tool_calls(response.text)
+                if extracted:
+                    response.tool_calls = extracted
+                    response.text = cleaned or None
 
             if not response.tool_calls:
                 answer = response.text or ""
@@ -2755,9 +2839,9 @@ class Director:
                     if len(composio_calls) >= 2:
                         batch_future = asyncio.get_running_loop().create_future()
 
-                        async def _run_batch(calls=composio_calls, fut=batch_future):
+                        async def _run_batch(calls=composio_calls, fut=batch_future, context=context):
                             try:
-                                res = await mcp_mgr.execute_composio_batch(calls)
+                                res = await mcp_mgr.execute_composio_batch(calls, context)
                                 if not fut.done():
                                     fut.set_result(res)
                             except Exception as ex:
@@ -2895,9 +2979,11 @@ class Director:
                         elif batch_future is not None and call in composio_calls:
                             c_idx = composio_calls.index(call)
 
-                            async def _await_batch_item(idx=c_idx, fut=batch_future, tool_name=call.name):
+                            async def _await_batch_item(
+                                idx=c_idx, fut=batch_future, tool_name=call.name, ctx=context
+                            ):
                                 try:
-                                    res_list = await asyncio.wait_for(fut, timeout=agent_config.tool_timeout_seconds)
+                                    res_list = await _bounded_batch_wait(fut, ctx, tool_name)
                                     return res_list[idx]
                                 except (TimeoutError, asyncio.TimeoutError):
                                     return ToolResult.error(
@@ -3125,10 +3211,17 @@ class Director:
             for call, task in dispatch_tasks:
                 if state.pending:
                     if getattr(state, "suspended_at", None):
-                        started += (time.monotonic() - state.suspended_at)
+                        wait_s = time.monotonic() - state.suspended_at
+                        state.last_approval_wait_seconds = getattr(state, "last_approval_wait_seconds", 0.0) + wait_s
+                        started += wait_s
                         state.suspended_at = None
                     state.pending.clear()
                     self._checkpoint(state, "acting")
+                    try:
+                        from backend.runtime.http import evict_client
+                        evict_client()
+                    except Exception:
+                        pass
 
                 if task is None:
                     # Repeated call sentinel
@@ -3326,7 +3419,13 @@ class Director:
 
         for cand in candidates:
             try:
-                final_resp = await cand.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
+                try:
+                    final_resp = await cand.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
+                except TypeError as t_err:
+                    if "params" in str(t_err):
+                        final_resp = await cand.client.complete(wire, tools=None)
+                    else:
+                        raise
                 text = (final_resp.text or "").strip()
                 if text:
                     said.append(text)
@@ -3346,7 +3445,13 @@ class Director:
                     continue
                 try:
                     fb_model = await asyncio.to_thread(resolve, link.provider, link.model)
-                    final_resp = await fb_model.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
+                    try:
+                        final_resp = await fb_model.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
+                    except TypeError as t_err:
+                        if "params" in str(t_err):
+                            final_resp = await fb_model.client.complete(wire, tools=None)
+                        else:
+                            raise
                     text = (final_resp.text or "").strip()
                     if text:
                         said.append(text)
@@ -3947,7 +4052,7 @@ class Director:
         what the gate allows, what it escalates and what it asks about are
         exactly as they were.
         """
-        if event.type in ("confirmation_required", "question_required"):
+        if event.type in ("confirmation_required", "question_required", "connection_required"):
             if not getattr(state, "suspended_at", None):
                 state.suspended_at = time.monotonic()
         if event.type == "confirmation_required":
@@ -3962,6 +4067,15 @@ class Director:
         elif event.type == "question_required":
             state.pending.append({"kind": "question", "id": event.data.get("id")})
             self._checkpoint(state, "awaiting_input")
+        elif event.type == "connection_required":
+            state.pending.append(
+                {
+                    "kind": "connection",
+                    "id": event.data.get("wait_id"),
+                    "toolkit": event.data.get("toolkit"),
+                }
+            )
+            self._checkpoint(state, "awaiting_connection")
 
     def _persist(self, *args: Any, **kwargs: Any) -> int | None:
         """Write to the transcript, and never fail a turn over it.
@@ -4015,7 +4129,10 @@ class Director:
             call.arguments = apply_tool_defaults(call.name, call.arguments, user_prompt=user_msg)
         tool = self.registry.resolve_tool(call.name) if hasattr(self.registry, "resolve_tool") else self.registry.get(call.name)
         tool_timeout = getattr(tool, "timeout", None) if tool else None
-        timeout = tool_timeout if tool_timeout is not None and tool_timeout > 0 else agent_config.tool_timeout_seconds
+        if tool_timeout is not None:
+            timeout = tool_timeout
+        else:
+            timeout = agent_config.tool_timeout_seconds
 
         idem_key = getattr(context, "idempotency_key", None) or compute_idempotency_key(
             context.turn_id, call.name, call.arguments if isinstance(call.arguments, dict) else {}
@@ -4116,7 +4233,7 @@ class Director:
 
         try:
             if timeout and timeout > 0:
-                return await asyncio.wait_for(_run_dispatch(), timeout=timeout)
+                return await self._bounded_dispatch(_run_dispatch, call_context, timeout)
             return await _run_dispatch()
         except asyncio.CancelledError:
             raise
@@ -4134,6 +4251,52 @@ class Director:
                 arguments=call.arguments,
                 is_bridge=_is_bridge,
             )
+
+    @staticmethod
+    async def _bounded_dispatch(
+        run: Callable[[], Awaitable[ToolResult]],
+        context: ToolContext,
+        timeout: float,
+    ) -> ToolResult:
+        """Cap a dispatch at the tool timeout without cutting a gate short.
+
+        A call parked on a live gate -- a permission prompt, a question, a
+        Composio connection card -- is not a wedged tool: those answer on human
+        time, an hour is within an approval's documented budget, and cutting
+        the window at `tool_timeout_seconds` used to turn "the user took forty
+        seconds to click Approve" into "'tool' timed out and was stopped".
+
+        The wait is a series of windows around a `shield`ed dispatch instead of
+        one window over it. When a window expires and a gate is still live on
+        this call's context, the window re-arms and the dispatch task keeps
+        running untouched; a resumed gate lets the dispatch finish inside well
+        under a window more. Only a window expiring on a *call with no gate*
+        cancels the dispatch, which is the timeout contract as it shipped.
+        """
+        from backend.tools.base import gate_suspensions_live
+
+        task = asyncio.ensure_future(run())
+        window = timeout
+        try:
+            while True:
+                try:
+                    # A fresh `shield` per window: expiring a window must
+                    # cancel only the wrapper, never the dispatch.
+                    return await asyncio.wait_for(asyncio.shield(task), timeout=window)
+                except (TimeoutError, asyncio.TimeoutError):
+                    if task.done():
+                        return task.result()
+                    if gate_suspensions_live(context):
+                        window = agent_config.suspended_tool_window_seconds
+                        continue
+                    task.cancel()
+                    raise
+        except asyncio.CancelledError:
+            # Stop is real cancellation: bring the dispatch down with it, as
+            # the inner task's own CancelledError contract expects.
+            if not task.done():
+                task.cancel()
+            raise
 
     @staticmethod
     def _cancel_on_request(

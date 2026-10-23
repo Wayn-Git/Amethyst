@@ -12,12 +12,19 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable
+from datetime import datetime, timezone
 from typing import Any
 
-from backend.agent.trace import record_llm_call
+from backend.agent.trace import (
+    classify_stream_failure,
+    get_current_trace,
+    record_llm_call,
+    record_stream_diagnostic,
+)
 from backend.runtime.failures import (
     FailureKind,
     classify_stream_error,
@@ -380,11 +387,21 @@ class OpenAICompatClient:
         self,
         messages: list[dict[str, Any]],
         tools: list[ToolSchema] | None,
-        params: ModelParameters | None,
+        params: ModelParameters | dict[str, Any] | None,
         *,
         stream: bool = False,
     ) -> dict[str, Any]:
-        payload: dict[str, Any] = {"model": self.model, "messages": _to_openai_messages(messages)}
+        from backend.runtime.capability_profiles import apply_capability_profile, get_capability_profile
+        from backend.runtime.history_sanitizer import sanitize_conversation_history
+
+        profile = get_capability_profile(self.provider_name, self.model, base_url=self.base_url)
+        sanitized_messages = sanitize_conversation_history(
+            messages,
+            provider=self.provider_name,
+            model=self.model,
+            profile=profile,
+        )
+        payload: dict[str, Any] = {"model": self.model, "messages": _to_openai_messages(sanitized_messages)}
         if stream or self.is_opencode:
             payload["stream"] = True
 
@@ -428,29 +445,49 @@ class OpenAICompatClient:
                         {"type": "text", "text": sys_content, "cache_control": {"type": "ephemeral"}}
                     ]
 
-        p = params or ModelParameters()
-        if p.temperature is not None:
-            payload["temperature"] = p.temperature
-        # `max_tokens` here bounds the answer only -- these endpoints keep
-        # reasoning tokens on their own budget -- so the answer's share is the
-        # right value when no explicit ceiling was named.
-        if p.max_tokens is not None:
-            payload["max_tokens"] = p.max_tokens
-        elif p.answer_tokens is not None:
-            payload["max_tokens"] = p.answer_tokens
-        if p.stop:
-            payload["stop"] = p.stop
-        if getattr(p, "tool_choice", None) is not None:
-            payload["tool_choice"] = p.tool_choice
-        elif isinstance(params, dict) and "tool_choice" in params:
-            payload["tool_choice"] = params["tool_choice"]
+        # Extract parameters whether passed as ModelParameters dataclass or dict
+        temp = getattr(params, "temperature", None) if params is not None else None
+        if temp is None and isinstance(params, dict):
+            temp = params.get("temperature")
+        if temp is not None:
+            payload["temperature"] = temp
+
+        max_tok = getattr(params, "max_tokens", None) if params is not None else None
+        if max_tok is None and isinstance(params, dict):
+            max_tok = params.get("max_tokens")
+        ans_tok = getattr(params, "answer_tokens", None) if params is not None else None
+        if ans_tok is None and isinstance(params, dict):
+            ans_tok = params.get("answer_tokens")
+        if max_tok is not None:
+            payload["max_tokens"] = max_tok
+        elif ans_tok is not None:
+            payload["max_tokens"] = ans_tok
+
+        stop = getattr(params, "stop", None) if params is not None else None
+        if stop is None and isinstance(params, dict):
+            stop = params.get("stop")
+        if stop:
+            payload["stop"] = stop
+
+        tc = getattr(params, "tool_choice", None) if params is not None else None
+        if tc is None and isinstance(params, dict):
+            tc = params.get("tool_choice")
+        if tc is not None:
+            payload["tool_choice"] = tc
 
         # Gateways and non-reasoning models reject reasoning_effort
         is_gateway = any(gw in (self.base_url or "") for gw in ("kilo.ai", "opencode.ai", "openrouter.ai"))
-        if p.reasoning_effort and p.reasoning_effort != "none":
+        effort = getattr(params, "reasoning_effort", None) if params is not None else None
+        if effort is None and isinstance(params, dict):
+            effort = params.get("reasoning_effort")
+        if effort and effort != "none":
             if is_reasoning_model(self.model) and not tools and not is_gateway:
-                payload["reasoning_effort"] = p.reasoning_effort
+                payload["reasoning_effort"] = effort
+
+        # Enforce provider capability profile constraints (tool caps, max_tokens bounds, unsupported params)
+        payload = apply_capability_profile(payload, profile=profile, model=self.model)
         return payload
+
 
     async def complete(
         self,
@@ -469,25 +506,58 @@ class OpenAICompatClient:
                 return last_resp
             return ModelResponse(text=None)
 
+        _req_start_iso = datetime.now(timezone.utc).isoformat()
         _t0 = time.perf_counter()
-        data = await post_json(
-            self._url,
-            headers=self._headers(),
-            payload=self._build_payload(messages, tools, params),
-            timeout=self.timeout,
-            max_retries=self.max_retries,
-        )
-        resp = self._parse(data)
-        _total_ms = (time.perf_counter() - _t0) * 1000.0
-        record_llm_call(
-            provider=getattr(self, "provider_name", "openai-compatible"),
-            model=self.model,
-            ttft_ms=_total_ms,
-            total_ms=_total_ms,
-            input_tokens=resp.input_tokens,
-            output_tokens=resp.output_tokens,
-        )
-        return resp
+        _caught_exc: BaseException | None = None
+        try:
+            data = await post_json(
+                self._url,
+                headers=self._headers(),
+                payload=self._build_payload(messages, tools, params),
+                timeout=self.timeout,
+                max_retries=self.max_retries,
+                provider=getattr(self, "provider_name", "openai-compatible"),
+                client_instance=self,
+            )
+            resp = self._parse(data)
+            _total_ms = (time.perf_counter() - _t0) * 1000.0
+            record_llm_call(
+                provider=getattr(self, "provider_name", "openai-compatible"),
+                model=self.model,
+                ttft_ms=_total_ms,
+                total_ms=_total_ms,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+            )
+            return resp
+        except BaseException as exc:
+            _caught_exc = exc
+            raise
+        finally:
+            _total_ms = (time.perf_counter() - _t0) * 1000.0
+            _http_status = getattr(_caught_exc, "status", None)
+            _exc_class = type(_caught_exc).__name__ if _caught_exc else None
+            _exc_msg = str(_caught_exc) if _caught_exc else None
+            _failure_type = classify_stream_failure(_caught_exc, _http_status)
+            _trace = get_current_trace()
+            _approval_pending = getattr(_trace, "approval_pending", False) if _trace else False
+            _approval_wait_s = getattr(_trace, "approval_wait_duration_s", 0.0) if _trace else 0.0
+            record_stream_diagnostic(
+                provider=getattr(self, "provider_name", "openai-compatible"),
+                model=self.model,
+                request_start=_req_start_iso,
+                ttfb_ms=_total_ms,
+                ttft_ms=_total_ms,
+                gap_since_last_chunk_ms=0.0,
+                total_duration_ms=_total_ms,
+                http_status=_http_status,
+                exception_class=_exc_class,
+                exception_message=_exc_msg,
+                failure_type=_failure_type,
+                emitted_partial_output=False,
+                approval_pending=_approval_pending,
+                approval_wait_duration_s=_approval_wait_s,
+            )
 
     def _parse(self, data: dict[str, Any]) -> ModelResponse:
         choice = (data.get("choices") or [{}])[0]
@@ -508,8 +578,15 @@ class OpenAICompatClient:
         # Reasoning models (Nemotron, DeepSeek-R1 and friends) return chain-of-thought
         # in a sibling field. It is not the answer, so it must not become the answer.
         reasoning = _reasoning_of(message)
+        content_text = _as_text(message.get("content"))
+        if not calls and content_text:
+            cleaned_text, extracted = extract_text_tool_calls(content_text)
+            if extracted:
+                content_text = cleaned_text or None
+                calls = extracted
+
         return ModelResponse(
-            text=_as_text(message.get("content")),
+            text=content_text,
             reasoning=reasoning,
             tool_calls=calls,
             stop_reason=choice.get("finish_reason"),
@@ -531,8 +608,12 @@ class OpenAICompatClient:
         accumulated by index and only parsed once the stream ends.
         """
         payload = self._build_payload(messages, tools, params, stream=True)
+        _req_start_iso = datetime.now(timezone.utc).isoformat()
         _stream_start = time.perf_counter()
         _ttft_ms: float | None = None
+        _diag: dict[str, Any] = {}
+        _last_chunk_t = _stream_start
+        _caught_exc: BaseException | None = None
 
         text_parts: list[str] = []
         reasoning_parts: list[str] = []
@@ -540,164 +621,289 @@ class OpenAICompatClient:
         finish_reason: str | None = None
         usage: dict[str, Any] = {}
 
-        effective_stream_retries = min(self.max_retries, 2)
-        for stream_attempt in range(effective_stream_retries + 1):
-            text_parts.clear()
-            reasoning_parts.clear()
-            partial.clear()
-            finish_reason = None
-            usage = {}
-            yielded_content = False
+        try:
+            effective_stream_retries = min(self.max_retries, 2)
+            for stream_attempt in range(effective_stream_retries + 1):
+                text_parts.clear()
+                reasoning_parts.clear()
+                partial.clear()
+                finish_reason = None
+                usage = {}
+                yielded_content = False
 
-            try:
-                async for raw in stream_sse(
-                    self._url,
-                    headers=self._headers(),
-                    payload=payload,
-                    timeout=self.timeout,
-                    max_retries=min(self.max_retries, 2),
-                ):
-                    try:
-                        chunk = json.loads(raw)
-                    except json.JSONDecodeError as exc:
-                        desc = (
-                            "Error in input stream"
-                            if "error in input stream" in raw.lower()
-                            else "Provider sent malformed JSON in stream"
-                        )
-                        raise ProviderStreamError(
-                            desc, kind=FailureKind.UPSTREAM_UNHEALTHY
-                        ) from exc
+                try:
+                    async for raw in stream_sse(
+                        self._url,
+                        headers=self._headers(),
+                        payload=payload,
+                        timeout=self.timeout,
+                        max_retries=min(self.max_retries, 2),
+                        diagnostics=_diag,
+                        provider=getattr(self, "provider_name", "openai-compatible"),
+                        client_instance=self,
+                    ):
+                        _last_chunk_t = time.perf_counter()
+                        try:
+                            chunk = json.loads(raw)
+                        except json.JSONDecodeError as exc:
+                            desc = (
+                                "Error in input stream"
+                                if "error in input stream" in raw.lower()
+                                else "Provider sent malformed JSON in stream"
+                            )
+                            raise ProviderStreamError(
+                                desc, kind=FailureKind.UPSTREAM_UNHEALTHY
+                            ) from exc
 
-                    if not isinstance(chunk, dict):
-                        raise ProviderStreamError(
-                            "Provider sent a non-object stream chunk",
-                            kind=FailureKind.UPSTREAM_UNHEALTHY,
-                        )
+                        if not isinstance(chunk, dict):
+                            raise ProviderStreamError(
+                                "Provider sent a non-object stream chunk",
+                                kind=FailureKind.UPSTREAM_UNHEALTHY,
+                            )
 
-                    # An OpenAI-compatible provider can report a failure *inside* the
-                    # stream rather than as an HTTP status: the connection is already
-                    # open and 200, so the only sign is a frame carrying `error`.
-                    if error := chunk.get("error"):
-                        kind = classify_stream_error(error)
-                        desc = _describe_provider_error(error)
-                        raise ProviderStreamError(desc, kind=kind)
+                        # An OpenAI-compatible provider can report a failure *inside* the
+                        # stream rather than as an HTTP status: the connection is already
+                        # open and 200, so the only sign is a frame carrying `error`.
+                        if error := chunk.get("error"):
+                            kind = classify_stream_error(error)
+                            desc = _describe_provider_error(error)
+                            raise ProviderStreamError(desc, kind=kind)
 
-                    _validate_stream_chunk(chunk)
-                    if chunk.get("usage"):
-                        usage = chunk["usage"]
+                        _validate_stream_chunk(chunk)
+                        if chunk.get("usage"):
+                            usage = chunk["usage"]
 
-                    choice = (chunk.get("choices") or [{}])[0]
-                    finish_reason = choice.get("finish_reason") or finish_reason
-                    delta = choice.get("delta") or {}
+                        choice = (chunk.get("choices") or [{}])[0]
+                        finish_reason = choice.get("finish_reason") or finish_reason
+                        delta = choice.get("delta") or {}
 
-                    if (piece := _as_text(delta.get("content"))):
-                        if _ttft_ms is None:
-                            _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
-                        text_parts.append(piece)
-                        yielded_content = True
-                        yield StreamEvent(type="text", text=piece)
-
-                    if thought := _reasoning_of(delta):
-                        if _ttft_ms is None:
-                            _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
-                        reasoning_parts.append(thought)
-                        yield StreamEvent(type="reasoning", text=thought)
-
-                    for fragment in delta.get("tool_calls") or []:
-                        if _ttft_ms is None:
-                            _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
-                        index = fragment.get("index", 0)
-                        slot = partial.setdefault(index, {"id": None, "name": "", "arguments": ""})
-                        if fragment.get("id"):
-                            slot["id"] = fragment["id"]
-                        function = fragment.get("function") or {}
-                        if function.get("name"):
-                            slot["name"] = function["name"]
-                        if function.get("arguments"):
-                            slot["arguments"] += function["arguments"]
-                            if slot["name"]:
+                        if (piece := _as_text(delta.get("content"))):
+                            if _ttft_ms is None:
+                                _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
+                            text_parts.append(piece)
+                            accumulated = "".join(text_parts)
+                            if "<tool_call" in accumulated or "<function=" in accumulated or "```tool_call" in accumulated:
+                                pass
+                            else:
                                 yielded_content = True
-                                yield StreamEvent(
-                                    type="tool_arguments",
-                                    tool_name=slot["name"],
-                                    tool_index=index,
-                                    arguments_so_far=slot["arguments"],
-                                )
+                                yield StreamEvent(type="text", text=piece)
 
-                break
-            except ProviderError as exc:
-                if (
-                    not yielded_content
-                    and not reasoning_parts
-                    and (should_retry(exc.kind) or exc.kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE))
-                    and exc.kind != FailureKind.NON_RETRYABLE_RATE_LIMIT
-                    and not looks_like_quota(str(exc))
-                    and stream_attempt < effective_stream_retries
-                ):
-                    log.warning(
-                        "%s stream connection dropped before answer content (%s); retrying stream (%d/%d)",
-                        self.model,
-                        exc,
-                        stream_attempt + 1,
-                        effective_stream_retries,
-                    )
-                    if exc.retry_after and exc.retry_after > self.timeout:
-                        raise
-                    await asyncio.sleep(min(max(stream_backoff(stream_attempt), exc.retry_after or 0), 2.0))
+                        if thought := _reasoning_of(delta):
+                            if _ttft_ms is None:
+                                _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
+                            reasoning_parts.append(thought)
+                            yield StreamEvent(type="reasoning", text=thought)
+
+                        for fragment in delta.get("tool_calls") or []:
+                            if _ttft_ms is None:
+                                _ttft_ms = (time.perf_counter() - _stream_start) * 1000.0
+                            index = fragment.get("index", 0)
+                            slot = partial.setdefault(index, {"id": None, "name": "", "arguments": ""})
+                            if fragment.get("id"):
+                                slot["id"] = fragment["id"]
+                            function = fragment.get("function") or {}
+                            if function.get("name"):
+                                slot["name"] = function["name"]
+                            if function.get("arguments"):
+                                slot["arguments"] += function["arguments"]
+                                if slot["name"]:
+                                    yielded_content = True
+                                    yield StreamEvent(
+                                        type="tool_arguments",
+                                        tool_name=slot["name"],
+                                        tool_index=index,
+                                        arguments_so_far=slot["arguments"],
+                                    )
+
+                    break
+                except ProviderError as exc:
+                    if (
+                        not text_parts
+                        and (should_retry(exc.kind) or exc.kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE))
+                        and exc.kind != FailureKind.NON_RETRYABLE_RATE_LIMIT
+                        and not looks_like_quota(str(exc))
+                        and stream_attempt < effective_stream_retries
+                    ):
+                        log.warning(
+                            "%s stream connection dropped before answer text (%s); retrying stream (%d/%d)",
+                            self.model,
+                            exc,
+                            stream_attempt + 1,
+                            effective_stream_retries,
+                        )
+                        if exc.retry_after and exc.retry_after > self.timeout:
+                            raise
+                        await asyncio.sleep(min(max(stream_backoff(stream_attempt), exc.retry_after or 0), 2.0))
+                        continue
+                    raise
+
+            calls = []
+            for _, slot in sorted(partial.items()):
+                if not slot["name"]:
                     continue
-                raise
+                parsed_args = _parse_arguments(slot["arguments"])
+                if isinstance(parsed_args, dict) and "_raw" in parsed_args:
+                    log.warning("Tool call '%s' had truncated JSON arguments; discarding", slot["name"])
+                    continue
+                calls.append(
+                    ToolCall(
+                        id=slot["id"] or str(uuid.uuid4()),
+                        name=slot["name"],
+                        arguments=parsed_args if isinstance(parsed_args, dict) else {},
+                    )
+                )
 
-        calls = [
-            ToolCall(
-                id=slot["id"] or str(uuid.uuid4()),
-                name=slot["name"],
-                arguments=_parse_arguments(slot["arguments"]),
-            )
-            for _, slot in sorted(partial.items())
-            if slot["name"]
-        ]
+            if not calls and text_parts:
+                full_text = "".join(text_parts)
+                cleaned_text, extracted_calls = extract_text_tool_calls(full_text)
+                if extracted_calls:
+                    calls = extracted_calls
+                    text_parts = [cleaned_text] if cleaned_text else []
+                    for idx, c in enumerate(calls):
+                        yield StreamEvent(
+                            type="tool_arguments",
+                            tool_name=c.name,
+                            tool_index=idx,
+                            arguments_so_far=json.dumps(c.arguments),
+                        )
+                elif not yielded_content and full_text:
+                    yielded_content = True
+                    yield StreamEvent(type="text", text=full_text)
 
-        if not text_parts and not calls:
-            # Plenty of OpenAI-compatible servers ignore `stream: true` and
-            # answer with an ordinary JSON body, which produces no SSE frames at
-            # all. Yielding an empty response for that ended the turn with a
-            # blank answer and no error anywhere -- so ask again without
-            # streaming rather than reporting silence as an answer.
-            #
-            # Reasoning deliberately does not count as an answer here. A
-            # thinking model that spends its whole budget on reasoning
-            # and stops produced no text and no tool call, skipped this branch
-            # because `reasoning_parts` was non-empty, and the loop then burned
-            # both continuations before ending the turn on an empty bubble.
-            # Thinking is not a reply.
-            if not self.is_opencode:
-                yield StreamEvent(type="done", response=await self.complete(messages, tools, params))
-                return
+            if not text_parts and not calls:
+                # Plenty of OpenAI-compatible servers ignore `stream: true` and
+                # answer with an ordinary JSON body, which produces no SSE frames at
+                # all. Yielding an empty response for that ended the turn with a
+                # blank answer and no error anywhere -- so ask again without
+                # streaming rather than reporting silence as an answer.
+                #
+                # Reasoning deliberately does not count as an answer here. A
+                # thinking model that spends its whole budget on reasoning
+                # and stops produced no text and no tool call, skipped this branch
+                # because `reasoning_parts` was non-empty, and the loop then burned
+                # both continuations before ending the turn on an empty bubble.
+                # Thinking is not a reply.
+                if not self.is_opencode:
+                    yield StreamEvent(type="done", response=await self.complete(messages, tools, params))
+                    return
 
-        _total_ms = (time.perf_counter() - _stream_start) * 1000.0
-        if _ttft_ms is None:
-            _ttft_ms = _total_ms
-        record_llm_call(
-            provider=getattr(self, "provider_name", "openai-compatible"),
-            model=self.model,
-            ttft_ms=_ttft_ms,
-            total_ms=_total_ms,
-            input_tokens=usage.get("prompt_tokens"),
-            output_tokens=usage.get("completion_tokens"),
-        )
-
-        yield StreamEvent(
-            type="done",
-            response=ModelResponse(
-                text="".join(text_parts) or None,
-                reasoning="".join(reasoning_parts) or None,
-                tool_calls=calls,
-                stop_reason=finish_reason,
+            _total_ms = (time.perf_counter() - _stream_start) * 1000.0
+            if _ttft_ms is None:
+                _ttft_ms = _total_ms
+            record_llm_call(
+                provider=getattr(self, "provider_name", "openai-compatible"),
+                model=self.model,
+                ttft_ms=_ttft_ms,
+                total_ms=_total_ms,
                 input_tokens=usage.get("prompt_tokens"),
                 output_tokens=usage.get("completion_tokens"),
-            ),
-        )
+            )
+
+            yield StreamEvent(
+                type="done",
+                response=ModelResponse(
+                    text="".join(text_parts) or None,
+                    reasoning="".join(reasoning_parts) or None,
+                    tool_calls=calls,
+                    stop_reason=finish_reason,
+                    input_tokens=usage.get("prompt_tokens"),
+                    output_tokens=usage.get("completion_tokens"),
+                ),
+            )
+        except BaseException as exc:
+            _caught_exc = exc
+            raise
+        finally:
+            _last_chunk_seen = _diag.get("last_chunk_t") or _last_chunk_t
+            _gap_ms = (time.perf_counter() - _last_chunk_seen) * 1000.0
+            _total_ms = (time.perf_counter() - _stream_start) * 1000.0
+            _http_status = _diag.get("http_status") or getattr(_caught_exc, "status", None)
+            _exc_class = type(_caught_exc).__name__ if _caught_exc else None
+            _exc_msg = str(_caught_exc) if _caught_exc else None
+            _failure_type = classify_stream_failure(_caught_exc, _http_status)
+            _emitted_partial = bool(text_parts or reasoning_parts or partial)
+            _trace = get_current_trace()
+            _approval_pending = getattr(_trace, "approval_pending", False) if _trace else False
+            _approval_wait_s = getattr(_trace, "approval_wait_duration_s", 0.0) if _trace else 0.0
+            record_stream_diagnostic(
+                provider=getattr(self, "provider_name", "openai-compatible"),
+                model=self.model,
+                request_start=_req_start_iso,
+                ttfb_ms=_diag.get("ttfb_ms"),
+                ttft_ms=_ttft_ms,
+                gap_since_last_chunk_ms=_gap_ms,
+                total_duration_ms=_total_ms,
+                http_status=_http_status,
+                exception_class=_exc_class,
+                exception_message=_exc_msg,
+                failure_type=_failure_type,
+                emitted_partial_output=_emitted_partial,
+                approval_pending=_approval_pending,
+                approval_wait_duration_s=_approval_wait_s,
+            )
+
+
+def extract_text_tool_calls(text: str) -> tuple[str, list[ToolCall]]:
+    """Extract tool calls emitted as pseudo-XML or JSON by models that lack native function calling support."""
+    if not text or ("<tool_call" not in text and "<function=" not in text and "```tool_call" not in text):
+        return text, []
+
+    calls: list[ToolCall] = []
+    cleaned_text = text
+
+    # Pattern 1: <tool_call> ... </tool_call>
+    tool_call_blocks = list(re.finditer(r"<tool_call>(.*?)(?:</tool_call>|$)", text, re.DOTALL))
+    for block in tool_call_blocks:
+        block_content = block.group(1).strip()
+        cleaned_text = cleaned_text.replace(block.group(0), "").strip()
+
+        # Check for <function=NAME ...
+        fn_match = re.search(r"<function=([a-zA-Z0-9_\-]+)", block_content)
+        if fn_match:
+            fn_name = fn_match.group(1)
+            args: dict[str, Any] = {}
+            # Extract parameters: <parameter=PARAM_NAME>(.*?)</parameter>
+            param_matches = re.finditer(r"<parameter=([a-zA-Z0-9_\-]+)>(.*?)(?:</parameter>|$)", block_content, re.DOTALL)
+            for pm in param_matches:
+                p_name = pm.group(1)
+                p_val_str = pm.group(2).strip()
+                try:
+                    p_val = json.loads(p_val_str)
+                except Exception:
+                    p_val = _parse_arguments(p_val_str)
+                args[p_name] = p_val
+            calls.append(ToolCall(id=str(uuid.uuid4()), name=fn_name, arguments=args))
+            continue
+
+        # Check for JSON inside <tool_call>{"name": "...", "arguments": {...}}</tool_call>
+        try:
+            parsed = json.loads(block_content)
+            if isinstance(parsed, dict) and "name" in parsed:
+                calls.append(ToolCall(
+                    id=str(uuid.uuid4()),
+                    name=parsed["name"],
+                    arguments=parsed.get("arguments") or parsed.get("parameters") or {},
+                ))
+                continue
+        except Exception:
+            pass
+
+    # Pattern 2: ```tool_call ... ```
+    codeblock_matches = list(re.finditer(r"```(?:tool_call|json:tool_call)\s*(\{.*?\})\s*```", text, re.DOTALL))
+    for m in codeblock_matches:
+        try:
+            parsed = json.loads(m.group(1))
+            if isinstance(parsed, dict) and "name" in parsed:
+                cleaned_text = cleaned_text.replace(m.group(0), "").strip()
+                calls.append(ToolCall(
+                    id=str(uuid.uuid4()),
+                    name=parsed["name"],
+                    arguments=parsed.get("arguments") or parsed.get("parameters") or {},
+                ))
+        except Exception:
+            pass
+
+    return cleaned_text, calls
 
 
 def _parse_arguments(raw: Any) -> dict[str, Any]:
@@ -775,6 +981,7 @@ def initialize(
         max_retries=max_retries,
         provider_name=config.name,
         parallel_tool_calls=parallel_tool_calls,
+        timeout=config.timeout or 300.0,
     )
     return ResolvedModel(
         provider=config.name,

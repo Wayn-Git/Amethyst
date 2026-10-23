@@ -8,6 +8,7 @@ import { extractSourcesFromMessage } from './SourcesSidePanel.jsx'
 import { replaceSelectedInMarkdown } from './markdown/parse.js'
 import { api, copyText } from '../api.js'
 import WidgetRenderer from './widgets/WidgetRenderer.jsx'
+import StreamingResponse from './agents/streaming-response.tsx'
 
 function extractFollowUps(item, text) {
   if (Array.isArray(item?.followUps) && item.followUps.length > 0) return item.followUps
@@ -345,7 +346,15 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
         className={`chat-assistant-prose${justUpdated ? ' is-ai-updated' : ''}`}
         ref={docRef}
       >
-        {blocks && blocks.length > 0 ? (
+        {item?.live ? (
+          <StreamingResponse
+            text={text}
+            live={true}
+            sources={sources}
+            followUps={followUps}
+            onFollowUp={onFollowUp}
+          />
+        ) : blocks && blocks.length > 0 ? (
           blocks.map((block, idx) =>
             block.type === 'widget' ? (
               <div key={idx} className="chat-assistant-widget-wrap">
@@ -356,14 +365,20 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
             )
           )
         ) : (
-          <>
+          <StreamingResponse
+            text={text}
+            live={false}
+            sources={sources}
+            followUps={followUps}
+            onFollowUp={onFollowUp}
+          >
             {widget && (
               <div className="chat-assistant-widget-wrap">
                 <WidgetRenderer widget={widget} />
               </div>
             )}
             {text ? <Markdown text={text} /> : null}
-          </>
+          </StreamingResponse>
         )}
       </div>
 

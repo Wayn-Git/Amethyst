@@ -1497,7 +1497,192 @@ class MCPManager:
 
         return handler
 
-    async def execute_composio_batch(self, calls: list[Any]) -> list[ToolResult]:
+    async def execute_composio_batch(self, calls: list[Any], ctx: ToolContext | None = None) -> list[ToolResult]:
+        """Execute a batch of Composio tool calls in a single COMPOSIO_MULTI_EXECUTE_TOOL request.
+
+        With a context, a call that failed for want of a connected app offers
+        the turn a way through instead of an error: publish the wait, park on
+        it, and run the failed subset again if the app gets connected. Without
+        one -- an unattended run, a subagent -- the batch is exactly what it
+        always was.
+        """
+        results = await self._execute_composio_batch_request(calls)
+        suspended = await self._suspend_batch_on_connections(calls, results, ctx)
+        return suspended if suspended is not None else results
+
+    async def _suspend_batch_on_connections(
+        self, calls: list[Any], results: list[ToolResult], ctx: ToolContext | None
+    ) -> list[ToolResult] | None:
+        """Wait, once per missing toolkit, for the apps a batch failed on.
+
+        Returns the batch as corrected, or None when nothing was worth waiting
+        for -- no context, a non-interactive turn, and not one auth-flavored
+        error in the results all take the same road.
+        """
+        from backend.mcp.connection_gate import is_connection_required_text, wait_for_connection
+
+        if ctx is None or not results:
+            return None
+        if (ctx.extra or {}).get("interactive") is not True or not ctx.conversation_id or ctx.events is None:
+            return None
+
+        server_name = "composio"
+        failed: dict[str, tuple[str, list[int]]] = {}
+        for idx, result in enumerate(results):
+            if not result.is_error or not is_connection_required_text(result.content):
+                continue
+            call = calls[idx] if idx < len(calls) else None
+            slug = getattr(call, "name", "").split("__mcp__")[0]
+            service = guidance.extract_service_name(slug, server_name=server_name)
+            tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+            entry = failed.get(tk)
+            if entry is None:
+                failed[tk] = (service, [idx])
+            else:
+                entry[1].append(idx)
+        if not failed:
+            return None
+
+        from backend.tools.base import clear_gate_suspension, mark_gate_suspension
+
+        # One marker per toolkit, live before any workaround reference could
+        # read it and removed only when that toolkit's wait has resolved. The
+        # batch item wait in `director._await_batch_item` re-arms off these
+        # markers instead of cutting the batch at the tool timeout.
+        suspension_ids = {tk: f"connection:{tk}" for tk in failed}
+        for tk, sid in suspension_ids.items():
+            mark_gate_suspension(ctx, sid, "connection")
+        try:
+            outcomes = await asyncio.gather(
+                *(
+                    wait_for_connection(
+                        toolkit=tk,
+                        service=svc,
+                        detail="",
+                        conversation_id=ctx.conversation_id,
+                        events=ctx.events,
+                    )
+                    for tk, (svc, _) in failed.items()
+                )
+            )
+        finally:
+            for sid in suspension_ids.values():
+                clear_gate_suspension(ctx, sid)
+        resumed: list[int] = []
+        for (tk, (svc, idxs)), outcome in zip(failed.items(), outcomes, strict=True):
+            if outcome == "resume":
+                resumed.extend(idxs)
+                # A dismiss or a timeout answers with the original error, which
+                # the model has a script for. The cleared marker belongs to the
+                # resumed toolkit only.
+                try:
+                    from backend.mcp.composio_service import composio_service
+
+                    composio_service.clear_reauth_required(tk)
+                except Exception as exc:
+                    log.debug("could not clear re-auth flag for %s: %s", tk, exc)
+        if not resumed:
+            return None
+        return await self._reexecute_composio_subset(calls, results, sorted(resumed), server_name)
+
+    async def _reexecute_composio_subset(
+        self,
+        calls: list[Any],
+        base_results: list[ToolResult],
+        indices: list[int],
+        server_name: str,
+    ) -> list[ToolResult]:
+        """Run just the resumed items again, in one fresh multi-execute call.
+
+        The original batch was one HTTP round trip whose other items may have
+        succeeded; re-running it whole would double those. The subset keeps its
+        results merged at their original positions, so the caller sees one
+        result per call, in order, whatever happened above.
+        """
+        connection = self.connections.get(server_name)
+        if connection is None or not connection.connected:
+            return base_results
+
+        subset = [calls[i] for i in indices if i < len(calls)]
+        payload = []
+        for c in subset:
+            args = getattr(c, "arguments", {})
+            if not isinstance(args, dict):
+                args = {}
+            payload.append({
+                "tool_slug": getattr(c, "name", "").split("__mcp__")[0],
+                "arguments": args,
+            })
+        try:
+            raw = await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", {"tools": payload})
+        except Exception:
+            # The retry died like the original: the errors the caller already
+            # has are the honest answer.
+            return base_results
+
+        norm = normalize_result(raw)
+        if norm.is_error and not is_auth_failure_text(norm.content):
+            # A different, plain failure. Report nothing stale: the batch is
+            # replaced wholesale by the new error, positionally.
+            return [norm for _ in calls]
+        if norm.is_error:
+            return base_results
+
+        retry_results: list[ToolResult] = []
+        data = None
+        try:
+            data = json.loads(norm.content) if isinstance(norm.content, str) else norm.content
+        except (TypeError, ValueError) as exc:
+            log.debug("Composio subset result unpacking failed: %s", exc)
+        items = _multi_results(data)
+        if items is not None:
+            for pos in range(min(len(subset), len(items))):
+                result = self._multi_item_result(items[pos], payload[pos]["tool_slug"], server_name)
+                retry_results.append(result if result is not None else ToolResult.ok(str(items[pos])))
+
+        merged = list(base_results)
+        for pos, idx in enumerate(indices):
+            if pos < len(retry_results):
+                merged[idx] = retry_results[pos]
+        return merged
+
+    @staticmethod
+    def _multi_item_result(
+        res_item: Any, slug: str, server_name: str
+    ) -> ToolResult | None:
+        """One entry of a COMPOSIO_MULTI_EXECUTE_TOOL result, or None to fall back.
+
+        Shared by the first unpack and the subset retry, so a resumed item is
+        graded by exactly the rules a fresh call is graded by.
+        """
+        if not isinstance(res_item, dict):
+            return None
+        resp_obj = res_item.get("response", {})
+        if not isinstance(resp_obj, dict):
+            return None
+        if not resp_obj.get("successful", True):
+            err_msg = (
+                resp_obj.get("error")
+                or resp_obj.get("data", {}).get("message")
+                or f"{slug} failed"
+            )
+            if is_auth_failure_text(str(err_msg)):
+                service = guidance.extract_service_name(slug, server_name=server_name)
+                tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
+                log.warning("Composio %s (%s) returned auth error: %s", tk, slug, err_msg)
+                from backend.mcp.composio_service import composio_service
+
+                composio_service.mark_reauth_required(tk, reason=str(err_msg))
+                return ToolResult.error(guidance.auth_failure_instruction(service))
+            return ToolResult.error(str(err_msg))
+        inner_data = resp_obj.get("data")
+        return ToolResult.ok(
+            json.dumps(inner_data, indent=2)
+            if isinstance(inner_data, (dict, list))
+            else str(inner_data)
+        )
+
+    async def _execute_composio_batch_request(self, calls: list[Any]) -> list[ToolResult]:
         """Execute a batch of Composio tool calls in a single COMPOSIO_MULTI_EXECUTE_TOOL request."""
         server_name = "composio"
         connection = self.connections.get(server_name)
@@ -1566,41 +1751,18 @@ class MCPManager:
         results_list: list[ToolResult] = []
         try:
             data = json.loads(norm.content) if isinstance(norm.content, str) else norm.content
-            if isinstance(data, dict):
-                results = data.get("data", {}).get("results") or data.get("results")
-                if isinstance(results, list):
-                    for idx, c in enumerate(calls):
-                        c_name = getattr(c, "name", "")
-                        slug = c_name.split("__mcp__")[0]
-                        if idx < len(results):
-                            res_item = results[idx]
-                            resp_obj = res_item.get("response", {}) if isinstance(res_item, dict) else {}
-                            if isinstance(resp_obj, dict):
-                                if not resp_obj.get("successful", True):
-                                    err_msg = (
-                                        resp_obj.get("error")
-                                        or resp_obj.get("data", {}).get("message")
-                                        or f"{slug} failed"
-                                    )
-                                    if is_auth_failure_text(str(err_msg)):
-                                        service = guidance.extract_service_name(slug, server_name=server_name)
-                                        tk = extract_composio_toolkit(slug) or service.lower().replace(" ", "")
-                                        from backend.mcp.composio_service import composio_service
-                                        composio_service.mark_reauth_required(tk, reason=str(err_msg))
-                                        results_list.append(ToolResult.error(guidance.auth_failure_instruction(service)))
-                                    else:
-                                        results_list.append(ToolResult.error(str(err_msg)))
-                                else:
-                                    inner_data = resp_obj.get("data")
-                                    results_list.append(
-                                        ToolResult.ok(
-                                            json.dumps(inner_data, indent=2)
-                                            if isinstance(inner_data, (dict, list))
-                                            else str(inner_data)
-                                        )
-                                    )
-                            else:
-                                results_list.append(ToolResult.ok(str(res_item)))
+            results = _multi_results(data)
+            if results is not None:
+                for idx, c in enumerate(calls):
+                    if idx >= len(results):
+                        break
+                    c_name = getattr(c, "name", "")
+                    slug = c_name.split("__mcp__")[0]
+                    item = self._multi_item_result(results[idx], slug, server_name)
+                    if item is None:
+                        results_list.append(ToolResult.ok(str(results[idx])))
+                    else:
+                        results_list.append(item)
         except Exception as exc:
             log.debug("Composio batch result unpacking failed: %s", exc)
 
@@ -1923,3 +2085,19 @@ class MCPManager:
                 }
             )
         return out
+
+
+def _multi_results(data: Any) -> list[Any] | None:
+    """The per-tool results inside a COMPOSIO_MULTI_EXECUTE_TOOL payload, or None.
+
+    The tools endpoint does not document a canonical shape for this: both
+    `{"data": {"results": [...]}}` and a bare `{"results": [...]}` have been
+    seen, so both are read, and anything else is a shape this code does not
+    trust with positional mapping.
+    """
+    if not isinstance(data, dict):
+        return None
+    inner = data.get("data")
+    results = inner.get("results") if isinstance(inner, dict) else None
+    results = results or data.get("results")
+    return results if isinstance(results, list) else None

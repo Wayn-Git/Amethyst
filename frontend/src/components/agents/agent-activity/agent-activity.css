@@ -1,0 +1,262 @@
+/* Amethyst Agent Activity Stream Stylesheet
+   Follows Design System tokens from index.css & AGENTS.md */
+
+.agent-activity-root {
+  width: 100%;
+  max-width: 42rem;
+  margin: 0.5rem 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 0 0 1px var(--hairline);
+  transition: border-color var(--press, 120ms) var(--ease-out), box-shadow var(--press, 120ms) var(--ease-out);
+}
+
+.agent-activity-root:hover {
+  border-color: var(--hairline-strong, var(--border));
+}
+
+.agent-activity-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  user-select: none;
+  font-size: var(--text-caption, 12.5px);
+  cursor: pointer;
+  transition: background-color var(--press, 120ms) var(--ease-out);
+}
+
+.agent-activity-header:disabled {
+  cursor: default;
+}
+
+.agent-activity-header:not(:disabled):hover {
+  background: var(--surface-3);
+}
+
+.agent-activity-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-activity-sparkle {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--accent);
+  filter: drop-shadow(0 0 4px var(--accent-wash));
+}
+
+.agent-activity-sparkle.is-working {
+  animation: activity-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes activity-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.1); filter: drop-shadow(0 0 8px var(--accent-wash)); }
+}
+
+.agent-activity-title {
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: -0.01em;
+  transition: color var(--press, 120ms);
+}
+
+.agent-activity-header:hover .agent-activity-title {
+  color: var(--text);
+}
+
+.agent-activity-time-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: var(--surface-3);
+  color: var(--text-faint);
+  border: 1px solid var(--hairline);
+  letter-spacing: 0.02em;
+}
+
+.agent-activity-chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--text-faint);
+  transition: transform var(--menu, 180ms) var(--ease-out);
+}
+
+.agent-activity-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.agent-activity-viewport {
+  overflow-y: auto;
+  max-height: 220px;
+  padding: 6px 12px 10px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.agent-activity-viewport::-webkit-scrollbar {
+  width: 5px;
+}
+
+.agent-activity-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-activity-viewport::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
+}
+
+/* Row types */
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text);
+  transition: background-color var(--press, 120ms);
+}
+
+.activity-row:hover {
+  background: var(--surface-2);
+}
+
+.activity-row-icon-wrap {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.activity-row-action-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+  border: 1px solid var(--hairline);
+}
+
+.activity-row-target {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text);
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-row-diff {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.activity-diff-add {
+  color: var(--live);
+  font-weight: 500;
+}
+
+.activity-diff-del {
+  color: var(--stop);
+  font-weight: 500;
+}
+
+/* Thought row */
+.activity-row-thought {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(var(--tint, 255 255 255) / 0.02);
+  border-left: 2px solid var(--accent-soft);
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.activity-row-thought-label {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.activity-row-thought-body {
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 480px;
+}
+
+/* Search results */
+.activity-search-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 26px;
+}
+
+.activity-domain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color var(--press, 120ms), border-color var(--press, 120ms);
+}
+
+.activity-domain-chip:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Active spinner */
+.activity-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--accent);
+  animation: activity-spin 700ms linear infinite;
+}
+
+@keyframes activity-spin {
+  to { transform: rotate(360deg); }
+}

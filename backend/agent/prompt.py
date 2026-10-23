@@ -178,6 +178,8 @@ def _prompt_hash(
     retrieved_context: str | None,
     memories: tuple[str, ...] | None,
     recent_conversations: str | None = None,
+    override: str | None = None,
+    client_context: dict | None = None,
 ) -> str:
     """Stable hash of the inputs that determine a system prompt."""
     h = hashlib.sha256()
@@ -187,6 +189,12 @@ def _prompt_hash(
     h.update((retrieved_context or "").encode())
     h.update(str(memories or ()).encode())
     h.update((recent_conversations or "").encode())
+    h.update((override or "").encode())
+    try:
+        clean = sanitize_client_context(client_context)
+        h.update(str(sorted(clean.items())).encode())
+    except Exception:
+        h.update(b"no-client")
 
     # Which connectors are live is an input to this prompt -- it is the
     # <connectors> block -- and leaving it out of the key meant a cached prompt
@@ -442,6 +450,8 @@ def build_system_prompt(
         retrieved_context,
         tuple(sorted(memories or ())),
         recent_conversations,
+        override,
+        client_context,
     )
     cached = _PROMPT_CACHE.get(cache_key)
     if cached is not None:
@@ -983,6 +993,28 @@ def cap_tools(
     return kept, dropped
 
 
+def _trim_parameters(params: Any) -> Any:
+    """Trim verbose parameter documentation, examples, and redundant fields to save tokens."""
+    if not isinstance(params, dict):
+        return params
+    cleaned: dict[str, Any] = {}
+    for k, v in params.items():
+        if k in ("example", "examples", "title", "$schema", "markdownDescription"):
+            continue
+        if k == "description" and isinstance(v, str) and len(v) > 160:
+            first_period = v.find(". ")
+            if 0 < first_period <= 160:
+                v = v[:first_period + 1]
+            else:
+                v = v[:157] + "..."
+        elif isinstance(v, dict):
+            v = _trim_parameters(v)
+        elif isinstance(v, list):
+            v = [_trim_parameters(item) if isinstance(item, dict) else item for item in v]
+        cleaned[k] = v
+    return cleaned
+
+
 def compress_tool_schemas(tools: list[Any]) -> list[Any]:
     """Shorten tool descriptions while preserving decision-critical information.
 
@@ -999,6 +1031,9 @@ def compress_tool_schemas(tools: list[Any]) -> list[Any]:
     out = []
     for tool in tools:
         description = getattr(tool, "description", "") or ""
+        parameters = getattr(tool, "parameters", None)
+        trimmed_params = _trim_parameters(parameters) if parameters else parameters
+
         raw_lines = [l.strip() for l in description.split("\n")]
         while raw_lines and not raw_lines[0]:
             raw_lines.pop(0)
@@ -1006,7 +1041,11 @@ def compress_tool_schemas(tools: list[Any]) -> list[Any]:
             raw_lines.pop()
 
         if len(raw_lines) <= 1:
-            out.append(tool)
+            out.append(
+                ToolSchema(name=tool.name, description=description, parameters=trimmed_params)
+                if trimmed_params != parameters
+                else tool
+            )
             continue
 
         headline = raw_lines[0]
@@ -1026,12 +1065,9 @@ def compress_tool_schemas(tools: list[Any]) -> list[Any]:
         else:
             compressed = headline
 
-        if compressed and compressed != description:
-            out.append(
-                ToolSchema(name=tool.name, description=compressed, parameters=tool.parameters)
-            )
-        else:
-            out.append(tool)
+        out.append(
+            ToolSchema(name=tool.name, description=compressed or description, parameters=trimmed_params)
+        )
     return out
 
 

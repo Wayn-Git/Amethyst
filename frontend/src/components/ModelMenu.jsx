@@ -28,6 +28,14 @@ function rememberModel(selection) {
 
 /* Fallback model definitions for providers that don't serve a live GET /models endpoint */
 const FALLBACK_MODELS = {
+  'opencode-zen': [
+    { id: 'mimo-v2.6-flash-free', context_length: 131072 },
+    { id: 'big-pickle', context_length: 131072 },
+  ],
+  nvidia: [
+    { id: 'deepseek-ai/deepseek-v4.1-flash', context_length: 131072 },
+    { id: 'meta/llama-3.3-70b-instruct', context_length: 131072 },
+  ],
   cloudflare: [
     { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', context_length: 131072 },
     { id: '@cf/meta/llama-3.1-8b-instruct-fast', context_length: 131072 },
@@ -35,8 +43,8 @@ const FALLBACK_MODELS = {
     { id: '@cf/qwen/qwen2.5-coder-32b-instruct', context_length: 32768 },
   ],
   groq: [
-    { id: 'llama-3.3-70b-versatile', context_length: 131072 },
     { id: 'llama-3.1-8b-instant', context_length: 131072 },
+    { id: 'llama-3.3-70b-versatile', context_length: 131072 },
     { id: 'mixtral-8x7b-32768', context_length: 32768 },
   ],
   deepseek: [
@@ -93,6 +101,7 @@ export default function ModelMenu({
   onChange,
   onClose,
   placement = 'down',
+  ignore = '.composer-model-pill, .hero-composer-model-pill, .ldm-model-pill, .lib-model-select-btn, [data-model-trigger]',
 }) {
   const { health } = useApp()
   const ref = useRef(null)
@@ -107,7 +116,7 @@ export default function ModelMenu({
   const defaults = health?.provider_defaults ?? {}
   const canRoute = health?.routing ?? false
 
-  useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
+  useDismiss(ref, true, { onAway: onClose, onEscape: onClose, ignore })
   useMenuFit(ref, [providers.length, selectedProvider, query, loading])
 
   // Concurrently fetch models for all configured providers

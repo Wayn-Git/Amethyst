@@ -148,6 +148,10 @@ async def _unattended_director(callback):
         # most of the work. The interactive default stays where it is; unattended
         # work is exactly where nobody is there to say "carry on".
         guards=Guards(max_iterations=AUTOMATION_MAX_ITERATIONS),
+        # Nobody is there to wire up an app on demand, so the connection gate's
+        # offer of "connect it and I will retry" must be refused from here: the
+        # call fails with its guidance, like every other unattended gap.
+        interactive=False,
     )
 
 
@@ -432,7 +436,7 @@ SUSPENSION_GRACE_SECONDS = 120.0
 #: `acting` and the rest are deliberately not here: a background run working
 #: with no one watching has no prompt in flight and no streaming turn, and
 #: sweeping on that would end every automation the moment it started.
-SUSPENDED_PHASES = frozenset({"awaiting_approval", "awaiting_input"})
+SUSPENDED_PHASES = frozenset({"awaiting_approval", "awaiting_input", "awaiting_connection"})
 
 
 def _sweep_abandoned_suspensions() -> None:
@@ -452,6 +456,8 @@ def _sweep_abandoned_suspensions() -> None:
     from datetime import datetime, timedelta
 
     from backend.agent import questions
+
+    from backend.mcp.connection_gate import gate as _connection_gate
 
     # Local naive, in the same format `repositories._now` writes: every
     # timestamp in this schema is local naive and compared as a string, and a
@@ -474,6 +480,11 @@ def _sweep_abandoned_suspensions() -> None:
         ):
             continue
         if questions.outstanding(conversation_id):
+            continue
+        if any(
+            wait["conversation_id"] == conversation_id
+            for wait in _connection_gate.snapshot()
+        ):
             continue
         if state.updated_at >= cutoff:
             continue
@@ -2148,6 +2159,56 @@ async def ping_provider(name: str) -> dict[str, Any]:
     }
 
 
+class WarmupRequest(BaseModel):
+    provider: str
+    model: str | None = None
+
+
+@app.post("/api/providers/warmup")
+async def warmup_provider(body: WarmupRequest) -> dict[str, Any]:
+    """Eagerly warm up a selected provider and model, and ensure connector registry is warm.
+
+    Called when the user selects a provider/model in the UI so that by the time
+    the user types their first prompt, the model client is instantiated, any obsolete
+    model identifier has been remapped to a valid default, and background connector
+    registries are warm, eliminating turn-1 latency and first-call race conditions.
+    """
+    global _connectors_warm
+    if not is_known_provider(body.provider):
+        return {"warmed": False, "reason": f"unknown provider '{body.provider}'"}
+
+    target_model = None
+    try:
+        from backend.runtime.registry import resolve
+        from backend.runtime.router import AUTO
+
+        target_model = _validate_model(body.provider, body.model or "")
+        if body.provider != AUTO:
+            await asyncio.to_thread(resolve, body.provider, target_model)
+    except Exception as exc:
+        log.warning("Warmup for %s (%s) failed: %s", body.provider, body.model, exc)
+        return {"warmed": False, "provider": body.provider, "model": body.model, "reason": str(exc)}
+
+    # Ensure background connector registry initialization is running or completed
+    if not _connectors_warm:
+        async def _warm_connectors_bg():
+            global _connectors_warm
+            try:
+                await _registry_for(None, reconcile_deadline=5.0)
+                _connectors_warm = True
+            except Exception as e:
+                log.debug("Warmup background connector registry failed: %s", e)
+
+        asyncio.create_task(_warm_connectors_bg())
+
+    return {
+        "warmed": True,
+        "provider": body.provider,
+        "model": target_model,
+        "connectors_warm": _connectors_warm,
+    }
+
+
 _PROVIDER_MODELS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PROVIDER_MODELS_CACHE_TTL = 300.0  # 5 minutes
 
@@ -2718,6 +2779,15 @@ def list_conversations(include_automations: bool = False, archived: bool = False
 # every turn in that conversation fails forever with no way to correct it.
 PLACEHOLDER_MODELS = frozenset({"default", "", "null", "undefined", "none"})
 
+KNOWN_MODEL_REMAPS: dict[str, dict[str, str]] = {
+    "opencode-zen": {
+        "space-bunny-free": "mimo-v2.6-flash-free",
+    },
+    "nvidia": {
+        "nvidia/nemotron-3-super-120b-a12b": "deepseek-ai/deepseek-v4.1-flash",
+    },
+}
+
 
 def _validate_model(provider: str, model: str) -> str:
     """The model to store, or a 400 saying why not.
@@ -2730,6 +2800,11 @@ def _validate_model(provider: str, model: str) -> str:
         raise HTTPException(400, f"provider '{provider}' is not configured")
 
     name = (model or "").strip()
+    if provider in KNOWN_MODEL_REMAPS and name in KNOWN_MODEL_REMAPS[provider]:
+        remapped = KNOWN_MODEL_REMAPS[provider][name]
+        log.info("Remapped obsolete model %s/%s -> %s", provider, name, remapped)
+        name = remapped
+
     if provider == AUTO:
         # "auto" declares no model, because choosing one is the whole point of
         # it. A name sent alongside is kept rather than rejected -- it is what
@@ -3497,13 +3572,17 @@ def _waiting_on(conversation_id: str) -> str | None:
     that is alive and producing nothing. The distinction is the reason a
     heartbeat is a frame rather than just bytes on the wire -- one reads as
     "still working" and the other as "waiting on you", and ten seconds of
-    silence produces both. Silence cannot say which, so the two things that
-    can hold a turn open -- the permission gate and a clarifying question --
-    are read off the places that already record them.
+    silence produces both. Silence cannot say which, so the things that can
+    hold a turn open -- the permission gate, a clarifying question, and an app
+    card -- are read off the places that already record them.
     """
     for entry in list(_pending.values()):
         if entry["payload"].conversation_id == conversation_id:
             return "approval"
+    from backend.mcp.connection_gate import gate
+
+    if any(wait["conversation_id"] == conversation_id for wait in gate.snapshot()):
+        return "connection"
     from backend.agent import questions
 
     return "answer" if questions.outstanding(conversation_id) else None
@@ -3662,6 +3741,7 @@ async def run_turn(
                     # the user's to unblock. Tagged so an interface can say so
                     # instead of spinning.
                     waiting = _waiting_on(conversation_id)
+                    yield ": keepalive\n\n"
                     yield _frame("ping", **({"waiting_on": waiting} if waiting else {}))
                     continue
                 # default=str so one unexpected value in a tool argument degrades
@@ -3779,6 +3859,7 @@ async def list_confirmations() -> list[PendingConfirmation]:
 class ConfirmationDecision(BaseModel):
     allow: bool
     remember: bool = False
+    scope: dict[str, Any] | None = None
 
 
 @app.get("/api/confirmations/preferences")
@@ -3873,6 +3954,67 @@ def _resolve_once(future: asyncio.Future, value: Any) -> None:
     """Resolve a confirmation future unless something already did."""
     if not future.done():
         future.set_result(value)
+
+
+# ---------------------------------------------------------- connector waits
+#
+# The connection gate's interface. A tool call that failed for want of a
+# connected app parks the turn on one of these; the card the interface renders
+# from the `connection_required` event answers here.
+
+
+def _connector_wait_is_zombie(wait: dict[str, Any]) -> bool:
+    """True when the turn behind a pending connection wait has already ended.
+
+    Same question `_confirmation_is_zombie` asks of a prompt, one indirection
+    over: the gate's snapshot is already payload-shaped, so the run row is the
+    authority here too. Read-only, for the same reason -- a wait the endpoint
+    cannot classify stays visible until its own timeout retires it.
+    """
+    conversation_id = wait.get("conversation_id")
+    if not conversation_id:
+        return False
+    try:
+        state = AgentRunRepository().latest(conversation_id)
+    except Exception:
+        return False
+    return state is not None and state.terminal
+
+
+@app.get("/api/connector-waits")
+async def list_connector_waits() -> list[dict[str, Any]]:
+    from backend.mcp.connection_gate import gate
+
+    # Async rather than a threadpool worker, so the snapshot cannot race a
+    # turn minting a wait mid-iteration.
+    return [wait for wait in gate.snapshot() if not _connector_wait_is_zombie(wait)]
+
+
+class ConnectorWaitDecision(BaseModel):
+    action: str  # "resume" | "dismiss"
+
+
+@app.post("/api/connector-waits/{wait_id}")
+async def decide_connector_wait(wait_id: str, body: ConnectorWaitDecision) -> dict[str, str]:
+    from backend.mcp.connection_gate import gate
+
+    action = body.action.strip().lower()
+    if action not in ("resume", "dismiss"):
+        raise HTTPException(422, "action must be 'resume' or 'dismiss'")
+    wait = next((w for w in gate.snapshot() if w.get("id") == wait_id), None)
+    if wait is None:
+        # An unknown wait is usually one that just resolved itself -- the user
+        # connected the app from the connectors screen a beat before pressing
+        # the card's button. Gone is a settled answer, not an error to retry.
+        raise HTTPException(404, "no such pending connection wait")
+    if _connector_wait_is_zombie(wait):
+        raise HTTPException(410, "the turn that asked for this has ended")
+    # The snapshot showed the wait, so it is open: resolving in place is safe
+    # because this endpoint is async -- it runs on the same loop the future was
+    # created on, with no thread boundary in between.
+    if not gate.resolve(wait_id, action):
+        raise HTTPException(409, "the connection wait was already settled")
+    return {"status": "recorded", "action": action}
 
 
 # ------------------------------------------------------------- automations
