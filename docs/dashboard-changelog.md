@@ -1,5 +1,6 @@
 # Dashboard changelog
 
+- 2026-10-29 · `dash.palette`: Raycast & Wox v2 redesign with docked action footer, search header, Ask AI pill, kind badges, and full-width layout; spotlight, splitpane, actionpanel, and dashboard-palette tests pass.
 - 2026-10-28 · `glance.clock`: rounded square reference dial, independent live clock, world times/dates on Today, immediate saved settings propagation, safe timezone validation and save retries; 19 backend tests, clock/Glance browser checks (nine themes, three sizes/widths), focused lint and build pass. No screenshots; exact visual fidelity and other widgets remain unreviewed this session.
 
 ## 2026-10-25 — Today Bento Dashboard Redesign & Crash Fixes
@@ -493,3 +494,4 @@ Shared card/detail composition keeps editors mounted across resizing, preserves 
 - 2026-10-29 — Astra mobile research: added `docs/plans/astra-mobile-research.md` with repository evidence, framework/reuse comparison, remote-control security gaps and phased acceptance gates; documentation only, no widget changes.
 - 2026-10-29 — Damon launcher redesign (Milestone 1): single-instance socket lock, async streaming LauncherEngine (apps, library, commands), split-pane preview layout, and Cmd+K action panel with Esc hierarchy; 45 pytest tests and 3 frontend node tests pass.
 - 2026-10-29 — Damon launcher native utilities (Milestone 2): system power/volume commands (`loginctl`, `systemctl`, `pactl`, `gio`), open window switcher via `wmctrl`, clipboard history SQLite store and copy actions, and fast local file search with preview reader; 55 pytest tests and 3 frontend node tests pass.
+- 2026-10-29 — Astra companion foundation: separate mobile Home layout and device-scoped caches; native shell, encrypted capture queue and explicit remote permission gates. 155 targeted backend tests, 35 sync tests and 5 mobile tests pass; native device validation and broader mobile features remain open (docs/plans/astra-mobile-implementation.md).

@@ -1,0 +1,20 @@
+.companion { min-height: 100dvh; background: var(--bg); color: var(--text); padding-top: env(safe-area-inset-top); }
+.companion-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--hairline-strong); }
+.companion-header h1 { margin: 0; font-size: 22px; }
+.companion button { color: var(--text); background: var(--bg-inset); border: 1px solid var(--hairline-strong); border-radius: 10px; min-height: 44px; padding: 8px 12px; cursor: pointer; }
+.companion button:disabled { opacity: .5; cursor: not-allowed; }
+.companion button:focus-visible, .companion input:focus-visible, .companion textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.companion-status { padding: 12px 16px; font-size: 13px; color: var(--text-sub); overflow-wrap: anywhere; }
+.companion-status small { display: block; margin-top: 4px; }
+.companion-content { padding: 0 12px calc(90px + env(safe-area-inset-bottom)); }
+.companion-card { margin: 12px 0; padding: 16px; border: 1px solid var(--hairline-strong); border-radius: 14px; background: var(--bg-inset); overflow-wrap: anywhere; }
+.companion-card h2, .companion-card h3 { margin: 0 0 8px; font-size: 17px; }
+.companion-card p { white-space: pre-wrap; line-height: 1.5; color: var(--text-sub); }
+.companion a { color: var(--accent); }
+.companion label { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.companion input, .companion textarea { background: var(--bg); color: var(--text); border: 1px solid var(--hairline-strong); border-radius: 8px; padding: 10px; min-height: 44px; font: inherit; width: 100%; box-sizing: border-box; }
+.companion textarea { min-height: 100px; resize: vertical; }
+.companion-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.companion-nav { position: fixed; bottom: 0; inset-inline: 0; z-index: 60; display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 4px calc(8px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--hairline-strong); }
+.companion-nav button { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: transparent; font-size: 11px; }
+.companion-nav button[aria-current="page"] { color: var(--accent); background: var(--bg-inset); }

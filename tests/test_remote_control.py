@@ -45,7 +45,7 @@ def paired_phone(bound_wide):
         conn,
         name="Test iPhone",
         role="control",
-        permissions=dict(DEFAULT_PERMISSIONS),
+        permissions={key: True for key in DEFAULT_PERMISSIONS if key != "root"},
     )
     return device, token
 
@@ -230,7 +230,7 @@ def test_two_phase_pairing_approval_and_permissions(remote_client):
     assert unsealed["token"]
     assert unsealed["permissions"]["root"] is False
     assert unsealed["permissions"]["power"] is False
-    assert unsealed["permissions"]["screen"] is True
+    assert unsealed["permissions"]["screen"] is False
 
     # Step 6: Phone uses token to authenticate against remote endpoints
     phone_token = unsealed["token"]

@@ -10,8 +10,9 @@ from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
+from backend.remote import actions
 from backend.remote.audio import SpeakerPlayer, get_audio_state, set_mic_active
 from backend.remote.camera import (
     capture_camera_frame,
@@ -50,6 +51,7 @@ from backend.remote.power import (
     suspend_pc,
 )
 from backend.remote.screen import capture_screenshot, screen_stream_generator
+from backend.security.remote_access import frame_capability, socket_allowed
 from backend.remote.system import (
     get_system_status,
     kill_process,
@@ -62,6 +64,25 @@ from backend.remote.system import (
 log = logging.getLogger("amethyst.remote")
 
 router = APIRouter(prefix="/api/remote", tags=["remote"])
+
+
+@router.get("/capabilities")
+def remote_capabilities(request: Request) -> dict[str, Any]:
+    import os
+    import shutil
+    from backend.sync.devices import DEFAULT_PERMISSIONS
+
+    device = request.scope.get("device")
+    permissions = device.permissions if device else {key: True for key in DEFAULT_PERMISSIONS}
+    return {
+        "protocol_version": 1,
+        "device_id": device.id if device else None,
+        "permissions": permissions,
+        "screen_available": os.environ.get("XDG_SESSION_TYPE") != "wayland"
+        and bool(os.environ.get("DISPLAY")) and bool(shutil.which("ffmpeg")),
+        "terminal_persistence": "backend-process",
+        "wake_available": False,
+    }
 
 
 # -- System telemetry & Processes --
@@ -82,11 +103,10 @@ class KillProcessRequest(BaseModel):
 
 
 @router.post("/processes/kill")
-def remote_kill_process(req: KillProcessRequest) -> dict[str, Any]:
-    res = kill_process(req.pid, signal_type=req.signal)
-    if not res.get("ok"):
-        raise HTTPException(400, res.get("error", "Failed to kill process"))
-    return res
+def remote_kill_process(req: KillProcessRequest, request: Request) -> dict[str, Any]:
+    if req.pid <= 1 or req.signal not in {"SIGTERM", "SIGKILL", "SIGINT"}:
+        raise HTTPException(422, "Choose a process and a supported signal")
+    return actions.prepare(request, "kill", {"pid": req.pid, "signal_type": req.signal}, "terminal")
 
 
 @router.get("/applications")
@@ -99,22 +119,23 @@ class LaunchAppRequest(BaseModel):
 
 
 @router.post("/applications/launch")
-def remote_launch_application(req: LaunchAppRequest) -> dict[str, Any]:
-    res = launch_application(req.target)
-    if not res.get("ok"):
-        raise HTTPException(400, res.get("error", "Failed to launch application"))
-    return res
+def remote_launch_application(req: LaunchAppRequest, request: Request) -> dict[str, Any]:
+    return actions.prepare(request, "launch", {"target": req.target}, "terminal")
 
 
 class RunCommandRequest(BaseModel):
-    command: str
+    model_config = ConfigDict(extra="forbid")
+    command: str = Field(min_length=1, max_length=10000)
     elevated: bool = False
-    timeout: float = 30.0
+    timeout: float = Field(default=30.0, ge=1, le=120)
 
 
 @router.post("/command")
-def remote_command(req: RunCommandRequest) -> dict[str, Any]:
-    return run_terminal_command(req.command, elevated=req.elevated, timeout=req.timeout)
+def remote_command(req: RunCommandRequest, request: Request) -> dict[str, Any]:
+    device = request.scope.get("device")
+    if req.elevated and device and device.permissions.get("root") is not True:
+        raise HTTPException(403, "Device lacks root permission")
+    return actions.prepare(request, "command", req.model_dump(), "root" if req.elevated else "terminal")
 
 
 # -- Media controls --
@@ -163,17 +184,21 @@ def remote_sink(req: SetSinkRequest) -> dict[str, Any]:
 # -- Power & Wake --
 
 @router.post("/power/{action}")
-def remote_power(action: str) -> dict[str, Any]:
-    action_lower = action.lower()
-    if action_lower == "lock":
-        return lock_screen()
-    elif action_lower in ("sleep", "suspend"):
-        return suspend_pc()
-    elif action_lower == "reboot":
-        return reboot_pc()
-    elif action_lower in ("shutdown", "poweroff"):
-        return poweroff_pc()
-    raise HTTPException(400, f"Unknown power action: {action}")
+def remote_power(action: str, request: Request) -> dict[str, Any]:
+    normalized = {"suspend": "sleep", "poweroff": "shutdown"}.get(action.lower(), action.lower())
+    if normalized not in {"lock", "sleep", "reboot", "shutdown"}:
+        raise HTTPException(400, "Unknown power action")
+    return actions.prepare(request, normalized, {}, "power")
+
+
+class ActionDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    approved: bool
+
+
+@router.post("/actions/{draft_id}/decision")
+async def remote_action_decision(draft_id: str, body: ActionDecision, request: Request):
+    return await actions.decide(request, draft_id, body.approved)
 
 
 @router.get("/power/wake")
@@ -364,6 +389,9 @@ async def remote_websocket(websocket: WebSocket, token: str | None = None):
 
             # Handle binary audio from phone mic to PC speaker
             if "bytes" in msg and msg["bytes"]:
+                if not socket_allowed(websocket.scope, "mic"):
+                    await websocket.close(code=1008)
+                    break
                 if not speaker_started:
                     await speaker.start()
                     speaker_started = True
@@ -374,6 +402,10 @@ async def remote_websocket(websocket: WebSocket, token: str | None = None):
             if "text" in msg and msg["text"]:
                 try:
                     payload = json.loads(msg["text"])
+                    permission = frame_capability(payload)
+                    if permission is None or not socket_allowed(websocket.scope, permission):
+                        await websocket.close(code=1008)
+                        break
                     cmd_type = payload.get("type")
 
                     if cmd_type == "ping":

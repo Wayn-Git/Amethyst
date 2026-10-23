@@ -74,12 +74,10 @@ def _is_live(conn, device_id: str | None) -> bool:
     the relay only learns about the revocation on the next config mirror. The
     machine is the authority, so the machine checks.
     """
-    if not device_id:
-        return True   # predates device stamping; the registry decides nothing here
-    row = conn.execute(
-        "SELECT revoked_at FROM devices WHERE id = ?", (device_id,)
-    ).fetchone()
-    return row is None or row[0] is None
+    from backend.security.remote_access import allowed
+    from backend.sync.devices import get_device
+
+    return bool(device_id and allowed(get_device(conn, device_id), "agent"))
 
 
 def dispatch(conn, clock) -> int:
@@ -93,7 +91,7 @@ def dispatch(conn, clock) -> int:
     for intent in pending(conn):
         try:
             if not _is_live(conn, intent["device_id"]):
-                _refuse(conn, clock, intent["id"], "that device was revoked")
+                _refuse(conn, clock, intent["id"], "that device was revoked or no longer has agent access")
                 continue
             handler = HANDLERS.get(intent["kind"])
             if handler is None:

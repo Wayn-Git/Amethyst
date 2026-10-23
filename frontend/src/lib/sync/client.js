@@ -17,6 +17,7 @@
  */
 
 import { safeStorage } from '../storage.js'
+import { storedIdentity, saveIdentity, removeIdentity, isNativeMobile } from '../credentials.js'
 import { pairKey, seal, unseal, unb64 } from './crypto.js'
 import { forgetGroupKey, groupKey, storeGroupKey } from './keystore.js'
 import { Clock } from './hlc.js'
@@ -42,7 +43,7 @@ const PAIR_TIMEOUT_MS = 120_000
 const PAIR_INTERVAL_MS = 3_000
 
 export function checkDirectHandoff() {
-  if (typeof window === 'undefined' || !window.location) return false
+  if (isNativeMobile() || typeof window === 'undefined' || !window.location) return false
   const hash = window.location.hash || ''
   if (!hash.includes('token=') && !hash.includes('deviceId=')) return false
   try {
@@ -83,12 +84,7 @@ export function checkDirectHandoff() {
 
 export function identity() {
   checkDirectHandoff()
-  try {
-    const raw = safeStorage.getItem(IDENTITY_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  return storedIdentity()
 }
 
 export function paired() {
@@ -100,7 +96,7 @@ export function paired() {
 }
 
 export async function forget() {
-  safeStorage.removeItem(IDENTITY_KEY)
+  await removeIdentity()
   safeStorage.removeItem(OUTBOX_KEY)
   // The merged transcript goes too. It is the unpaired machine's, and a device
   // that pairs with a different one next would otherwise open on somebody
@@ -120,11 +116,8 @@ function outbox() {
 }
 
 function setOutbox(ops) {
-  if (ops.length > OUTBOX_LIMIT) {
-    console.warn(`Sync outbox exceeded limit of ${OUTBOX_LIMIT}. Oldest operations were dropped.`)
-  }
-  const kept = ops.length > OUTBOX_LIMIT ? ops.slice(-OUTBOX_LIMIT) : ops
-  safeStorage.setItem(OUTBOX_KEY, JSON.stringify(kept))
+  if (ops.length > OUTBOX_LIMIT) throw new Error('Outbox is full. Synchronize before adding more requests.')
+  if (!safeStorage.setItem(OUTBOX_KEY, JSON.stringify(ops))) throw new Error('Could not save the request on this device.')
 }
 
 /** How many requests are waiting to go out. Shown, so a phone with no signal
@@ -389,7 +382,7 @@ export async function pair(relayOrOptions, pairSecret, name, { hostUrl: directHo
     permissions: opened.permissions || {},
     name: devName,
   }
-  safeStorage.setItem(IDENTITY_KEY, JSON.stringify(held))
+  await saveIdentity(held)
   return held
 }
 
@@ -517,8 +510,8 @@ export function change(entity, key, fields) {
   if (!held?.deviceId) return null
   const state = replica.load()
   const op = replica.emit(state, new Clock(held.deviceId), entity, key, fields)
-  replica.save(state)
   setOutbox([...outbox(), op])
+  replica.save(state)
   return op
 }
 

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Icon from '../../components/Icon.jsx'
+import AppButton from '../../components/ui/AppButton.jsx'
+import LibraryDetailRow from './LibraryDetailRow.jsx'
 import { api } from '../../api.js'
 
 export default function LibraryRightRail({
@@ -14,6 +16,7 @@ export default function LibraryRightRail({
   onNavigateItem,
 }) {
   const [tagInput, setTagInput] = useState('')
+  const [isAddingTag, setIsAddingTag] = useState(false)
   const [isAddingCollection, setIsAddingCollection] = useState(false)
   const [collectionInput, setCollectionInput] = useState('')
   const [collections, setCollections] = useState(() => {
@@ -39,19 +42,32 @@ export default function LibraryRightRail({
 
   // Fetch 3-5 related saves via semantic / text search query
   useEffect(() => {
-    if (!item?.title && !item?.id) return
+    if (!item?.id) return
     let active = true
     setLoadingRelated(true)
 
-    const query = (item.title || '').replace(/[^\w\s]/gi, ' ').trim().slice(0, 80)
-    if (!query) {
-      setRelatedItems([])
-      setLoadingRelated(false)
-      return
-    }
+    // Filter out common noise words to find meaningful topic keywords
+    const STOPWORDS = new Set([
+      'the', 'a', 'an', 'and', 'or', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'is', 'it', 'by', 'as', 'this',
+      'that', 'from', 'wake', 'up', 'just', 'new', 'brand', 'dropped', 'banger', 'post', 'item', 'save', 'video',
+      'reel', 'tiktok', 'instagram', 'youtube', 'clip', 'shorts', 'watch', 'now', 'today'
+    ])
+
+    const titleWords = (item.title || '')
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !STOPWORDS.has(w))
+
+    const firstTag = tags.length > 0 ? tags[0].replace(/^#/, '') : ''
+    const searchQuery = firstTag || titleWords.slice(0, 3).join(' ') || item.author || ''
 
     const fetchRelated = api.library
-      ? api.library({ q: query, limit: 6 })
+      ? api.library({
+          q: searchQuery,
+          kind: item.kind === 'video' ? 'video' : undefined,
+          limit: 12,
+        })
       : null
 
     if (fetchRelated && typeof fetchRelated.then === 'function') {
@@ -59,9 +75,17 @@ export default function LibraryRightRail({
         .then((res) => {
           if (!active) return
           const raw = res?.items || (Array.isArray(res) ? res : [])
-          // Filter out the active item itself
-          const filtered = raw.filter((it) => it && it.id !== item.id).slice(0, 4)
-          setRelatedItems(filtered)
+          // Filter out the active item itself and rank matches
+          const candidates = raw.filter((it) => it && it.id !== item.id)
+          // Sort by relevance: matching kind (+4), matching author (+2)
+          candidates.sort((a, b) => {
+            const aSameKind = a.kind === item.kind ? 4 : 0
+            const bSameKind = b.kind === item.kind ? 4 : 0
+            const aSameAuthor = a.author && a.author === item.author ? 2 : 0
+            const bSameAuthor = b.author && b.author === item.author ? 2 : 0
+            return (bSameKind + bSameAuthor) - (aSameKind + aSameAuthor)
+          })
+          setRelatedItems(candidates.slice(0, 4))
         })
         .catch(() => {
           if (active) setRelatedItems([])
@@ -76,7 +100,7 @@ export default function LibraryRightRail({
     return () => {
       active = false
     }
-  }, [item?.id, item?.title])
+  }, [item?.id, item?.title, item?.kind, item?.author, tags])
 
   const isFavorite = Boolean(rating && rating >= 4) || Boolean(item?.is_favorite)
 
@@ -87,7 +111,11 @@ export default function LibraryRightRail({
       if (clean) {
         onAddTag?.(clean)
         setTagInput('')
+        setIsAddingTag(false)
       }
+    } else if (e.key === 'Escape') {
+      setIsAddingTag(false)
+      setTagInput('')
     } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
       e.preventDefault()
       const lastTag = tags[tags.length - 1]
@@ -103,7 +131,6 @@ export default function LibraryRightRail({
       setCollections(next)
       setCollectionInput('')
       setIsAddingCollection(false)
-      // Persist to item via onAddTag or custom update
       onAddTag?.(`collection:${clean}`)
     }
   }
@@ -113,21 +140,24 @@ export default function LibraryRightRail({
       {/* 1. Favorite / Pin Toggle + Prior Rating */}
       <div className="lib-rail-section">
         <div className="lib-rail-favorite-row">
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="medium"
             className={`lib-rail-fav-btn ${isFavorite ? 'lib-rail-fav-btn--active' : ''}`}
             onClick={onToggleFavorite}
             title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             aria-pressed={isFavorite}
+            icon={
+              <Icon
+                name="star"
+                size={14}
+                filled={isFavorite}
+                className={isFavorite ? 'lib-star--active' : ''}
+              />
+            }
           >
-            <Icon
-              name="star"
-              size={14}
-              filled={isFavorite}
-              className={isFavorite ? 'lib-star--active' : ''}
-            />
-            <span>{isFavorite ? 'Favorited' : 'Favorite'}</span>
-          </button>
+            {isFavorite ? 'Favorited' : 'Favorite'}
+          </AppButton>
 
           {/* Show stars only if prior rating data already exists */}
           {rating && rating > 0 && (
@@ -136,7 +166,7 @@ export default function LibraryRightRail({
                 <Icon
                   key={i}
                   name="star"
-                  size={11}
+                  size={12}
                   filled={i < rating}
                   className={i < rating ? 'lib-star-gold' : 'lib-star-dim'}
                 />
@@ -148,7 +178,7 @@ export default function LibraryRightRail({
 
       <div className="lib-rail-divider" />
 
-      {/* 2. Tags Section */}
+      {/* 2. Tags Section (UI font, not mono) */}
       <div className="lib-rail-section">
         <div className="lib-rail-section-header">
           <span className="lib-rail-label">Tags</span>
@@ -165,21 +195,39 @@ export default function LibraryRightRail({
                 title={`Remove tag #${t}`}
                 aria-label={`Remove tag #${t}`}
               >
-                <Icon name="x" size={9} />
+                <Icon name="x" size={12} />
               </button>
             </span>
           ))}
 
-          <input
-            ref={tagInputRef}
-            type="text"
-            className="lib-rail-tag-input"
-            placeholder={tags.length === 0 ? 'Add tag (press Enter)...' : '+ tag...'}
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagKeyDown}
-            aria-label="Add new tag"
-          />
+          {isAddingTag ? (
+            <input
+              ref={tagInputRef}
+              type="text"
+              autoFocus
+              className="lib-rail-tag-input"
+              placeholder="Tag name..."
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              onBlur={() => {
+                if (!tagInput.trim()) setIsAddingTag(false)
+              }}
+              aria-label="Add new tag"
+            />
+          ) : (
+            <button
+              type="button"
+              className="lib-rail-text-btn"
+              onClick={() => {
+                setIsAddingTag(true)
+                setTimeout(() => tagInputRef.current?.focus(), 50)
+              }}
+              aria-label="Add tag"
+            >
+              + Add tag
+            </button>
+          )}
         </div>
       </div>
 
@@ -194,7 +242,7 @@ export default function LibraryRightRail({
         <div className="lib-rail-collections-wrap">
           {collections.map((col) => (
             <span key={col} className="lib-rail-collection-chip">
-              <Icon name="folder" size={11} className="lib-rail-col-icon" />
+              <Icon name="folder" size={12} className="lib-rail-col-icon" />
               <span>{col}</span>
             </span>
           ))}
@@ -216,13 +264,11 @@ export default function LibraryRightRail({
           ) : (
             <button
               type="button"
-              className="lib-rail-add-btn"
+              className="lib-rail-text-btn"
               onClick={() => setIsAddingCollection(true)}
-              title="Add to collection"
-              aria-label="Add to collection"
+              aria-label="Add collection"
             >
-              <Icon name="plus" size={11} />
-              <span>Collection</span>
+              + Collection
             </button>
           )}
         </div>
@@ -259,16 +305,15 @@ export default function LibraryRightRail({
         ) : (
           <button
             type="button"
-            className="lib-rail-empty-notes"
+            className="lib-rail-text-btn"
             onClick={onOpenNotesTab}
           >
-            <Icon name="edit" size={12} />
-            <span>Add personal notes (N)</span>
+            + Add notes
           </button>
         )}
       </div>
 
-      {/* 5. Related Saves */}
+      {/* 5. Related Saves: Plain section with dividers, using shared LibraryDetailRow */}
       {relatedItems.length > 0 && (
         <>
           <div className="lib-rail-divider" />
@@ -279,40 +324,33 @@ export default function LibraryRightRail({
             </div>
 
             <div className="lib-rail-related-list">
-              {relatedItems.map((rel) => {
+              {relatedItems.map((rel, i) => {
                 const thumbUrl = api.thumbnailUrl ? api.thumbnailUrl(rel.id) : null
-                return (
-                  <div
-                    key={rel.id}
-                    className="lib-rail-related-card"
-                    onClick={() => onNavigateItem?.(rel)}
-                    role="button"
-                    tabIndex={0}
-                    title={rel.title}
-                  >
-                    <div className="lib-rail-related-thumb">
-                      {thumbUrl ? (
-                        <img
-                          src={thumbUrl}
-                          alt=""
-                          className="lib-rail-related-img"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
-                          }}
-                        />
-                      ) : null}
-                      <div className="lib-rail-related-thumb-placeholder">
-                        <Icon name={rel.kind === 'video' ? 'play' : 'link'} size={12} />
-                      </div>
-                    </div>
+                const source = rel.author || rel.site || rel.app || 'Saved item'
+                const isVid = rel.kind === 'video'
 
-                    <div className="lib-rail-related-info">
-                      <span className="lib-rail-related-title">{rel.title}</span>
-                      <span className="lib-rail-related-source">
-                        {rel.author || rel.site || rel.app || 'Saved item'}
-                      </span>
-                    </div>
-                  </div>
+                return (
+                  <React.Fragment key={rel.id}>
+                    {i > 0 && <div className="lib-detail-divider" />}
+                    <LibraryDetailRow
+                      thumbnail={thumbUrl}
+                      icon={<Icon name={isVid ? 'play' : 'link'} size={14} />}
+                      title={rel.title}
+                      titleFallback={source}
+                      subtitle={source}
+                      isVideo={isVid}
+                      onClick={() => onNavigateItem?.(rel)}
+                      actions={
+                        <AppButton
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onNavigateItem?.(rel)}
+                          title="Open item"
+                          icon={<Icon name="arrow-up-right" size={14} />}
+                        />
+                      }
+                    />
+                  </React.Fragment>
                 )
               })}
             </div>

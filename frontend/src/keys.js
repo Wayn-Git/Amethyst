@@ -42,7 +42,8 @@ export function chord(e) {
   if (e.altKey) parts.push('alt')
   if (e.shiftKey) parts.push('shift')
 
-  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase()
+  let key = e.key.toLowerCase()
+  if (key === ' ' || e.code === 'Space') key = 'space'
   parts.push(key)
   const combo = parts.join('+')
   

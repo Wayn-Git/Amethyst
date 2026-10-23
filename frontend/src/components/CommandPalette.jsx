@@ -110,6 +110,35 @@ function parseQueryIntent(raw) {
   return { service: null, subject: text }
 }
 
+function resolveAppIcon(cmd) {
+  if (cmd.icon && cmd.icon !== 'app' && cmd.icon !== 'search') return cmd.icon
+  const l = (cmd.label || cmd.title || '').toLowerCase()
+  if (l.includes('chrome') || l.includes('firefox') || l.includes('edge') || l.includes('browser')) return 'chrome'
+  if (l.includes('terminal') || l.includes('console') || l.includes('bash') || l.includes('zsh') || l.includes('shell')) return 'terminal'
+  if (l.includes('code') || l.includes('studio') || l.includes('sublime') || l.includes('editor')) return 'code'
+  if (l.includes('file') || l.includes('nautilus') || l.includes('folder') || l.includes('thunar')) return 'folder'
+  if (l.includes('calc')) return 'target'
+  if (l.includes('music') || l.includes('spotify') || l.includes('audio') || l.includes('player')) return 'music'
+  if (l.includes('setting') || l.includes('config') || l.includes('preference')) return 'system'
+  if (l.includes('mail') || l.includes('email') || l.includes('thunderbird')) return 'envelope'
+  if (l.includes('note') || l.includes('text') || l.includes('document')) return 'document'
+  if (l.includes('image') || l.includes('photo') || l.includes('gimp') || l.includes('draw')) return 'camera'
+  if (l.includes('video') || l.includes('vlc') || l.includes('mpv')) return 'video'
+  if (l.includes('chat') || l.includes('discord') || l.includes('slack') || l.includes('telegram')) return 'user'
+  return 'app'
+}
+
+function getItemTone(cmd) {
+  const g = (cmd.group || '').toLowerCase()
+  if (g.includes('app')) return 'app'
+  if (g.includes('file')) return 'file'
+  if (g.includes('window')) return 'window'
+  if (g.includes('clip')) return 'clip'
+  if (g.includes('system')) return 'sys'
+  if (g.includes('command') || cmd.icon === 'zap') return 'cmd'
+  return 'default'
+}
+
 /** Question words and shapes that mean "answer this", not "list articles".
  *
  *  Deliberately cheap: no model call to classify, no regex zoo. The words
@@ -1207,16 +1236,24 @@ export default function CommandPalette({ bare = false }) {
         onChange={setRawQuery}
         onKeyDown={onKeyDown}
         onClearMode={handleClearMode}
+        onToggleCapture={() => setCapturing((value) => !value)}
+        capturing={capturing}
       />
 
-      {/* Mode Filter Pills */}
-      <DamonModes
-        activeMode={activeMode}
-        onSelectMode={handleSelectMode}
-      />
+      {/* Mode Filter Pills only when explicit non-default mode active */}
+      {activeMode !== 'all' && (
+        <DamonModes
+          activeMode={activeMode}
+          onSelectMode={handleSelectMode}
+        />
+      )}
 
-      <div className="widget-buttons"><Button onClick={() => setCapturing(value => !value)}>{capturing ? 'Close quick capture' : 'Quick capture'}</Button></div>
-      {capturing && <section aria-label="Quick capture"><Capture refresh={() => {}} /></section>}
+      {/* Quick capture drawer */}
+      {capturing && (
+        <section aria-label="Quick capture" className="damon-quick-capture-panel">
+          <Capture refresh={() => {}} />
+        </section>
+      )}
       {activeMode === 'all' && localStatus && <p role="status">{localStatus}</p>}
       {/* Results Container */}
       {/* Keyed by mode, so switching modes is a fade into the new list
@@ -1448,29 +1485,58 @@ export default function CommandPalette({ bare = false }) {
                   data-active={i === index}
                   onClick={() => runCommand(command)}
                 >
-                  <Icon name={command.icon} size={15} />
-                  <span className="palette-label">
-                    {command.label}
+                  <div className={`damon-item-icon-box damon-item-icon-box--${getItemTone(command)}`}>
+                    {command.icon && (command.icon.startsWith('/') || command.icon.startsWith('http') || command.icon.startsWith('data:')) ? (
+                      <img
+                        src={command.icon}
+                        alt=""
+                        className="damon-item-icon-img"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'inline-block' }}
+                      />
+                    ) : null}
+                    <Icon
+                      name={resolveAppIcon(command)}
+                      size={14}
+                      style={command.icon && (command.icon.startsWith('/') || command.icon.startsWith('http') || command.icon.startsWith('data:')) ? { display: 'none' } : undefined}
+                    />
+                  </div>
+                  <div className="damon-item-main">
+                    <span className="damon-item-title">{command.label}</span>
                     {command.beta && <span className="beta">beta</span>}
-                    {command.hint && <span className="palette-hint">{command.hint}</span>}
-                  </span>
+                    {command.hint && <span className="damon-item-subtitle">{command.hint}</span>}
+                  </div>
                   {command.state && (
                     <span className={`state state--${command.state}`}>
                       {command.state === 'on' ? 'on' : command.state === 'bad' ? 'failed' : 'off'}
                     </span>
                   )}
-                  {command.binding ? (
-                    <span className="palette-keys">
-                      {pretty(command.binding).map((k, n) => (
-                        <kbd key={n} className="kbd">{k}</kbd>
-                      ))}
-                    </span>
-                  ) : i < 9 ? (
-                    <span className="palette-keys">
-                      <kbd className="kbd">⌘{i + 1}</kbd>
-                    </span>
-                  ) : null}
-                  <ChevronRight className="size-4 opacity-0 group-hover/item:opacity-70 transition-opacity ml-auto text-faint flex-shrink-0" />
+                  <div className="damon-item-trailing">
+                    {command.group && (
+                      <span className="damon-item-kind">
+                        {command.group === 'Applications' ? 'Application'
+                          : command.group === 'Commands' ? 'Command'
+                          : command.group === 'Files' ? 'File'
+                          : command.group === 'Windows' ? 'Window'
+                          : command.group === 'Clipboard' ? 'Clipboard'
+                          : command.group === 'System' ? 'System'
+                          : command.group === 'Memory Facts' ? 'Memory'
+                          : command.group}
+                      </span>
+                    )}
+                    {command.binding ? (
+                      <span className="palette-keys">
+                        <kbd className="damon-item-kbd">
+                          {pretty(command.binding).join(typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? '' : '+')}
+                        </kbd>
+                      </span>
+                    ) : i < 9 ? (
+                      <span className="palette-keys">
+                        <kbd className="damon-item-kbd">
+                          {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? `⌘${i + 1}` : `Ctrl+${i + 1}`}
+                        </kbd>
+                      </span>
+                    ) : null}
+                  </div>
                 </Button>
               </div>
             ))}
@@ -1479,27 +1545,37 @@ export default function CommandPalette({ bare = false }) {
         </div>
       </div>
 
-      {/* Floating Spotlight Footer */}
+      {/* Docked Footer (Raycast & Wox v2 style) */}
       <footer className="damon-footer">
-        <div className="damon-footer-hints">
-          <span className="damon-hint-item">
-            <kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> Navigate
-          </span>
-          <span className="damon-hint-item">
-            <kbd className="kbd">↵</kbd> Open
-          </span>
-          <span className="damon-hint-item">
-            <kbd className="kbd">⌘K</kbd> Actions
-          </span>
-          <span className="damon-hint-item">
-            <kbd className="kbd">Tab</kbd> Filter Mode
-          </span>
-          <span className="damon-hint-item">
-            <kbd className="kbd">Esc</kbd> Close
-          </span>
+        <div className="damon-footer-left">
+          <Icon name="spark" size={13} className="damon-footer-brand-icon" />
+          <span className="damon-footer-brand-text">Amethyst</span>
         </div>
-        <div className="damon-footer-brand">
-          <span>AMETHYST SPOTLIGHT</span>
+        <div className="damon-footer-actions">
+          <div className="damon-footer-action-item">
+            <span className="damon-footer-action-label">
+              {results[index]?.actions?.find(a => a.is_primary)?.title ||
+               (results[index]?.group === 'Applications' ? 'Launch Application'
+                : results[index]?.group === 'Files' ? 'Open File'
+                : results[index]?.group === 'Clipboard' ? 'Copy to Clipboard'
+                : results[index]?.group === 'Windows' ? 'Switch to Window'
+                : results[index]?.group === 'System' ? 'Execute'
+                : 'Open')}
+            </span>
+            <kbd className="damon-footer-key">↵</kbd>
+          </div>
+          <span className="damon-footer-divider" aria-hidden="true" />
+          <Button
+            type="button"
+            className="damon-footer-action-item damon-footer-action-btn"
+            onClick={() => setActionPanelOpen(prev => !prev)}
+            title="Toggle actions panel (⌘K / Ctrl+K)"
+          >
+            <span className="damon-footer-action-label">Actions</span>
+            <kbd className="damon-footer-key">
+              {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? '⌘K' : 'Ctrl+K'}
+            </kbd>
+          </Button>
         </div>
       </footer>
 

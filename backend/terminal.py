@@ -23,6 +23,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+from backend.security.remote_access import socket_allowed
 
 log = logging.getLogger("amethyst.terminal")
 
@@ -488,6 +489,9 @@ async def terminal_websocket(websocket: WebSocket, session_id: str | None = None
         try:
             while True:
                 item = await queue.get()
+                if not socket_allowed(websocket.scope, "terminal"):
+                    await websocket.close(code=1008)
+                    return
                 if isinstance(item, bytes):
                     await websocket.send_bytes(item)
                 elif isinstance(item, str):
@@ -518,6 +522,9 @@ async def terminal_websocket(websocket: WebSocket, session_id: str | None = None
             # Handle text or bytes
             msg = await websocket.receive()
             if msg.get("type") == "websocket.disconnect":
+                break
+            if not socket_allowed(websocket.scope, "terminal"):
+                await websocket.close(code=1008)
                 break
             if "bytes" in msg and msg["bytes"]:
                 session.write(msg["bytes"])

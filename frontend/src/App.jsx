@@ -26,6 +26,7 @@ import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 import MobileNav from './components/MobileNav.jsx'
+import { isNativeMobile } from './lib/credentials.js'
 import { Toaster, Notification, NotificationViewport } from './components/application/notifications'
 import { useBoardUINotifications } from './lib/boardui-notifications.js'
 
@@ -155,16 +156,24 @@ function useGlobalKeys() {
       // is open does it reach the running turn. The drawer sits between them --
       // it covers the page on a phone, so it is "what is open" there too.
       if (combo === 'escape') {
-        if (overlay) { e.preventDefault(); setOverlay(null); return }
+        if (overlay && overlay !== 'palette') { e.preventDefault(); setOverlay(null); return }
         if (compact && railOpen) { e.preventDefault(); closeRail(); return }
         if (chat.turnRunning) { e.preventDefault(); chat.stop?.(); return }
         return
       }
 
-      if (combo === 'mod+k') {
-        e.preventDefault()
-        setOverlay((curr) => (curr === 'palette' ? null : 'palette'))
-        return
+      if (combo === 'mod+k' || combo === 'mod+space' || combo === 'alt+space') {
+        if (overlay !== 'palette') {
+          e.preventDefault()
+          e.stopPropagation()
+          setOverlay('palette')
+          return
+        } else if (combo === 'mod+space' || combo === 'alt+space') {
+          e.preventDefault()
+          e.stopPropagation()
+          setOverlay(null)
+          return
+        }
       }
       if (combo === 'mod+shift+o') { e.preventDefault(); setView('chat'); chat.startFresh?.(); return }
       if (combo === 'mod+l') { e.preventDefault(); setView('chat'); chat.focusComposer?.(); return }
@@ -200,8 +209,8 @@ function useGlobalKeys() {
       }
     }
 
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [
     view, setView, overlay, setOverlay, chat, cycleConversation, activeId,
     toggleRail, closeRail, compact, railOpen, betaPages, toggleTerminal,
@@ -409,7 +418,8 @@ export default function App() {
   // Whether this is a handheld, and whether somebody on one has asked for the
   // workbench anyway. See `usePhone` for why this is a media query rather than
   // a user-agent test, and `DESKTOP_KEY` for why the override is sticky.
-  const phone = usePhone()
+  const phoneViewport = usePhone()
+  const phone = isNativeMobile() || phoneViewport
   const [forceDesktop, setForceDesktop] = useState(wantsDesktop)
 
   useEffect(() => {
@@ -602,7 +612,7 @@ export default function App() {
   // Form factor is the honest question, because it is the one whose answer
   // decides which interface is wanted. Reachability decides something else --
   // whether the pairing screen can offer a shortcut -- and is still read below.
-  if (phone && !forceDesktop) {
+  if (isNativeMobile() || (phone && !forceDesktop)) {
     return (
       <>
         <PhoneApp
