@@ -23,9 +23,10 @@ export default function ContextPopover({
   onClose,
   onCompact,
   placement = 'up',
+  ignore = '.composer-context-pill, [data-context-trigger]',
 }) {
   const ref = useRef(null)
-  useDismiss(ref, true, { onAway: onClose, onEscape: onClose })
+  useDismiss(ref, true, { onAway: onClose, onEscape: onClose, ignore })
 
   const [compacting, setCompacting] = useState(false)
   const [compactDone, setCompactDone] = useState(false)

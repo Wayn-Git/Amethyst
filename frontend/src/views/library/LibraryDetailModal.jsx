@@ -162,8 +162,66 @@ export function getCleanDomain(url) {
   }
 }
 
-export function getResourceIcon(type, url) {
+export function cleanTitleText(rawTitle) {
+  if (!rawTitle) return 'Untitled Resource'
+  let t = String(rawTitle).trim()
+  // 1. Remove markdown link syntax: [Title text](url) -> Title text
+  t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  // 2. Remove markdown image syntax: ![alt](url) -> ''
+  t = t.replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+  // 3. Strip trailing or starting bare URLs
+  t = t.replace(/^https?:\/\/\S+/i, '').replace(/https?:\/\/\S+$/i, '')
+  // 4. Strip stray markdown brackets
+  t = t.replace(/[\[\]]/g, '')
+  // 5. Normalize whitespace
+  t = t.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim()
+  return t || 'Untitled Resource'
+}
+
+export function cleanCaptionText(rawText) {
+  if (!rawText) return ''
+  let text = String(rawText)
+  // Strip nested markdown images: [![alt](url)](url)
+  text = text.replace(/!?\[!?\[[^\]]*\]\([^)]+\)\]\([^)]+\)/g, '')
+  // Strip markdown images: ![alt](url)
+  text = text.replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+  // Strip markdown links wrapping raw CDN images: [alt](https://...cdn...)
+  text = text.replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+(?:cdn|fbcdn|instagram|scontent)[^\s)]*\)/gi, '')
+  // Convert standard markdown links [text](url) -> text
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  // Strip stray unparsed image brackets: ![Image 15: ...] or [Image 15: ...]
+  text = text.replace(/!?\[(?:Image|Photo|Video)\s*\d*:[^\]]*\]/gi, '')
+  // Strip raw CDN URLs
+  text = text.replace(/https?:\/\/[^\s)]+(?:cdn|scontent|fbcdn)[^\s)]*/gi, '')
+  // Normalize whitespace
+  return text.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+export function cleanDocumentText(rawText) {
+  if (!rawText) return ''
+  let text = String(rawText)
+  // Normalize double-bracket image syntax: ![[Image ...](url) -> ![Image ...](url)
+  text = text.replace(/!\[\[([^\]]+)\]\(([^)]+)\)\s*\)/g, '![$1]($2)')
+  // Strip ugly CDN query parameters if present in image links to keep them clean
+  text = text.replace(/(!\[[^\]]*\]\(https?:\/\/[^?)\s]+)\?[^)\s]+/g, '$1')
+  return text.trim()
+}
+
+export function getResourceIcon(type, url, name = '') {
   const t = (type || '').toLowerCase()
+  const n = (name || '').toLowerCase()
+  const u = (url || '').toLowerCase()
+
+  if (n.includes('notion') || u.includes('notion.so')) return 'book'
+  if (n.includes('github') || u.includes('github.com')) return 'github'
+  if (n.includes('google docs') || u.includes('docs.google.com')) return 'file'
+  if (n.includes('chatgpt') || n.includes('openai') || u.includes('openai.com') || u.includes('chatgpt.com')) return 'spark'
+  if (n.includes('threads') || u.includes('threads.net')) return 'threads'
+  if (n.includes('instagram') || u.includes('instagram.com')) return 'instagram'
+  if (n === 'x' || n.includes('twitter') || u.includes('x.com') || u.includes('twitter.com')) return 'x'
+  if (n.includes('youtube') || u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube'
+  if (n.includes('spotify') || u.includes('spotify.com')) return 'music'
+
   if (t === 'movie' || t === 'film' || t === 'show' || t === 'video') return 'video'
   if (t === 'code' || t === 'repo' || t === 'tool' || t === 'software' || t === 'library') return 'code'
   if (t === 'person' || t === 'creator' || t === 'author') return 'user'
@@ -188,6 +246,37 @@ export function formatFriendlyEnrichmentNote(note) {
     return 'Content was too brief for automatic synthesis'
   }
   return s.length > 90 ? `${s.slice(0, 87)}...` : s
+}
+
+export function formatTranscriptToParagraphs(rawText) {
+  if (!rawText) return []
+  const clean = String(rawText).trim()
+  if (!clean) return []
+  const rawParagraphs = clean.split(/\n\s*\n/)
+  if (rawParagraphs.length > 1) {
+    return rawParagraphs.map((p) => p.trim()).filter(Boolean)
+  }
+  const sentences = clean.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [clean]
+  const paragraphs = []
+  let current = []
+  let wordCount = 0
+
+  for (const s of sentences) {
+    const trimmed = s.trim()
+    if (!trimmed) continue
+    current.push(trimmed)
+    const words = trimmed.split(/\s+/).length
+    wordCount += words
+    if (wordCount >= 35 || current.length >= 3) {
+      paragraphs.push(current.join(' '))
+      current = []
+      wordCount = 0
+    }
+  }
+  if (current.length > 0) {
+    paragraphs.push(current.join(' '))
+  }
+  return paragraphs.length > 0 ? paragraphs : [clean]
 }
 
 export default function LibraryDetailModal({
@@ -236,6 +325,23 @@ export default function LibraryDetailModal({
   const [copiedTranscript, setCopiedTranscript] = useState(false)
   const [copiedVisuals, setCopiedVisuals] = useState(false)
   const [isCaptionExpanded, setIsCaptionExpanded] = useState(false)
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [mediaWidthPercent, setMediaWidthPercent] = useState(() => {
+    try {
+      const saved = localStorage.getItem('amethyst_lib_media_width')
+      if (saved) {
+        const parsed = Number(saved)
+        if (parsed >= 28 && parsed <= 72) return parsed
+      }
+    } catch {}
+    return 44
+  })
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false)
+  const [canExpandSummary, setCanExpandSummary] = useState(false)
+  const [transcriptFilterQuery, setTranscriptFilterQuery] = useState('')
+  const bodyRef = useRef(null)
+  const summaryProseRef = useRef(null)
   const carouselTrackRef = useRef(null)
 
   // Automatically select video or slides based on item capabilities
@@ -418,6 +524,16 @@ export default function LibraryDetailModal({
       if (cleanUrl) {
         const uLower = cleanUrl.toLowerCase()
         if (
+          uLower.includes('cdninstagram.com') ||
+          uLower.includes('fbcdn.net') ||
+          uLower.includes('scontent') ||
+          uLower.includes('twimg.com') ||
+          uLower.includes('googlevideo.com') ||
+          /\.(?:jpe?g|png|webp|gif|mp4|mov)$/i.test(cleanUrl)
+        ) {
+          continue
+        }
+        if (
           uLower.includes('/search?') ||
           uLower.includes('search_query=') ||
           uLower.includes('google.com/search') ||
@@ -427,6 +543,16 @@ export default function LibraryDetailModal({
         ) {
           cleanUrl = null
         }
+      }
+
+      const nameLower = name.toLowerCase()
+      if (
+        nameLower.includes('cdninstagram') ||
+        nameLower.includes('scontent-') ||
+        nameLower.includes('fbcdn') ||
+        nameLower.includes('profile picture')
+      ) {
+        continue
       }
 
       valid.push({
@@ -745,9 +871,66 @@ export default function LibraryDetailModal({
   }, [item?.entity])
 
   const cleanAuthor = useMemo(() => (item?.author || '').replace(/^@/, '').trim(), [item?.author])
-  const displayTitle = entity?.title || item?.title || 'Untitled Resource'
-  const displaySubtitle = entity?.subtitle || (cleanAuthor ? `By ${cleanAuthor}` : (domain || sourceInfo.platformName))
+  const displayTitle = useMemo(() => cleanTitleText(entity?.title || item?.title), [entity?.title, item?.title])
+  const displaySubtitle = useMemo(() => {
+    let sub = entity?.subtitle || (cleanAuthor ? `By ${cleanAuthor}` : (domain || sourceInfo.platformName))
+    if (!sub) return ''
+    return cleanTitleText(sub)
+  }, [entity?.subtitle, cleanAuthor, domain, sourceInfo.platformName])
   const displayRating = entity?.rating || null
+  const cleanCaption = useMemo(() => cleanCaptionText(caption || item?.excerpt || ''), [caption, item?.excerpt])
+  const cleanTextBody = useMemo(() => cleanDocumentText(textBody || ''), [textBody])
+  const isLongSummary = useMemo(() => {
+    if (!summaryText) return false
+    return summaryText.length > 800 || summaryText.split('\n').filter(Boolean).length > 9
+  }, [summaryText])
+
+  const shouldClampSummary = !isSummaryExpanded && (canExpandSummary || isLongSummary)
+
+  // Splitter drag to resize media and content columns
+  const handleSplitterMouseDown = useCallback((e) => {
+    e.preventDefault()
+    setIsDraggingSplitter(true)
+
+    const handleMouseMove = (moveEvent) => {
+      if (!bodyRef.current) return
+      const rect = bodyRef.current.getBoundingClientRect()
+      const newPercent = ((moveEvent.clientX - rect.left) / rect.width) * 100
+      const clamped = Math.min(Math.max(newPercent, 28), 72)
+      setMediaWidthPercent(clamped)
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingSplitter(false)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      try {
+        localStorage.setItem('amethyst_lib_media_width', String(mediaWidthPercent))
+      } catch {}
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }, [mediaWidthPercent])
+
+  // Real DOM measurement to ensure "Show full summary" is never shown for short summaries
+  useEffect(() => {
+    const checkOverflow = () => {
+      const el = summaryProseRef.current
+      if (!el) {
+        setCanExpandSummary(false)
+        return
+      }
+      setCanExpandSummary(el.scrollHeight > el.clientHeight + 28)
+    }
+    checkOverflow()
+    const timer = setTimeout(checkOverflow, 120)
+    window.addEventListener('resize', checkOverflow)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('resize', checkOverflow)
+    }
+  }, [summaryText, activeTab, isSidebarCollapsed, mediaWidthPercent])
 
   // Author avatar if available from resources
   const authorAvatarUrl = useMemo(() => {
@@ -1165,7 +1348,7 @@ export default function LibraryDetailModal({
                   title="Previous item (←)"
                   aria-label="Previous item"
                 >
-                  <Icon name="chevron-left" size={14} />
+                  <Icon name="chevron-left" size={15} />
                 </motion.button>
                 <span className="lib-page-pager-text">
                   {currentIndex + 1} of {items.length}
@@ -1179,7 +1362,7 @@ export default function LibraryDetailModal({
                   title="Next item (→)"
                   aria-label="Next item"
                 >
-                  <Icon name="chevron-right" size={14} />
+                  <Icon name="chevron-right" size={15} />
                 </motion.button>
               </div>
             )}
@@ -1192,7 +1375,7 @@ export default function LibraryDetailModal({
                 className="lib-page-icon-btn"
                 title="Open original website"
               >
-                <Icon name="link" size={13} />
+                <Icon name="link" size={15} />
               </a>
             )}
 
@@ -1202,7 +1385,18 @@ export default function LibraryDetailModal({
               onClick={handleCopyLink}
               title="Copy URL"
             >
-              <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
+              <Icon name={copiedLink ? 'check' : 'copy'} size={15} />
+            </button>
+
+            <button
+              type="button"
+              className={`lib-header-theater-btn ${isSidebarCollapsed ? 'lib-header-theater-btn--active' : ''}`}
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              title={isSidebarCollapsed ? 'Exit theater mode (show details) [T]' : 'Theater mode (focus video) [T]'}
+              aria-label={isSidebarCollapsed ? 'Exit theater mode' : 'Enter theater mode'}
+            >
+              <Icon name={isSidebarCollapsed ? 'collapse' : 'theater'} size={14} />
+              <span>{isSidebarCollapsed ? 'Exit Theater' : 'Theater Mode'}</span>
             </button>
 
             <CloseButton
@@ -1216,11 +1410,19 @@ export default function LibraryDetailModal({
         {/* ========================================================
             TWO-COLUMN MAIN BODY (Animated on item change)
             ======================================================== */}
-        <div className="lib-page-body">
+        <div
+          ref={bodyRef}
+          className={`lib-page-body ${isSidebarCollapsed ? 'lib-page-body--theater' : ''} ${isDraggingSplitter ? 'lib-page-body--resizing' : ''}`}
+        >
           {/* ----------------- LEFT COLUMN: MEDIA CENTER ----------------- */}
           <motion.div
             key={`media-${item.id}`}
             className="lib-page-media-col"
+            style={
+              isSidebarCollapsed
+                ? { flex: '1 1 100%', width: '100%', maxWidth: '100%', borderRight: 'none' }
+                : { flex: `0 0 ${mediaWidthPercent}%`, width: `${mediaWidthPercent}%`, maxWidth: `${mediaWidthPercent}%` }
+            }
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.18 }}
@@ -1265,6 +1467,9 @@ export default function LibraryDetailModal({
                 imageFitMode={imageFitMode}
                 onToggleFit={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
                 cleanCoverSlug={cleanCoverSlug}
+                isTheater={isSidebarCollapsed}
+                onToggleTheater={() => setIsSidebarCollapsed((prev) => !prev)}
+                subtitles={transcript || cleanCaption}
               />
             ) : (
               <div className={`lib-page-media-viewport ${isVertical ? 'lib-page-media-viewport--portrait' : ''}`}>
@@ -1350,51 +1555,60 @@ export default function LibraryDetailModal({
               </div>
             )}
 
-            {/* Controls Below Media Frame: Only displayed for non-video mode (e.g. diagrams/slides) */}
-            {!isVideoMode && (
-              <div className="lib-page-media-actions">
+            {/* Controls Below Media Frame: Displayed for both video and slide modes */}
+            <div className="lib-page-media-actions">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                type="button"
+                className={`lib-page-pill-btn ${isSidebarCollapsed ? 'lib-page-pill-btn--active' : ''}`}
+                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                title={isSidebarCollapsed ? 'Exit theater mode (show details) [T]' : 'Theater mode (focus video) [T]'}
+              >
+                <Icon name={isSidebarCollapsed ? 'collapse' : 'theater'} size={14} />
+                <span>{isSidebarCollapsed ? 'Exit Theater' : 'Theater Mode'}</span>
+              </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                type="button"
+                className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
+                onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                title={imageFitMode === 'contain' ? 'Fill frame' : 'Original uncropped fit'}
+              >
+                <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={14} />
+                <span>{imageFitMode === 'contain' ? 'Original Fit' : 'Fill'}</span>
+              </motion.button>
+
+              {hasThumbnail && !isVideoMode && (
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   type="button"
-                  className={`lib-page-pill-btn ${imageFitMode === 'contain' ? 'lib-page-pill-btn--active' : ''}`}
-                  onClick={() => setImageFitMode((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
-                  title={imageFitMode === 'contain' ? 'Fill frame' : 'Original uncropped fit'}
+                  className="lib-page-pill-btn"
+                  onClick={() => setShowLightbox(true)}
+                  title="Open full resolution lightbox"
                 >
-                  <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={12} />
-                  <span>{imageFitMode === 'contain' ? 'Original Fit' : 'Fill'}</span>
+                  <Icon name="maximize" size={14} />
+                  <span>Lightbox</span>
                 </motion.button>
+              )}
 
-                {hasThumbnail && (
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    type="button"
-                    className="lib-page-pill-btn"
-                    onClick={() => setShowLightbox(true)}
-                    title="Open full resolution lightbox"
-                  >
-                    <Icon name="maximize" size={12} />
-                    <span>Lightbox</span>
-                  </motion.button>
-                )}
-
-                {item.url && (
-                  <motion.a
-                    whileTap={{ scale: 0.97 }}
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="lib-page-pill-btn"
-                    title="Open original website"
-                  >
-                    <Icon name="external-link" size={12} />
-                    <span>{sourceInfo.platformName || 'Source'}</span>
-                  </motion.a>
-                )}
-              </div>
-            )}
+              {item.url && (
+                <motion.a
+                  whileTap={{ scale: 0.97 }}
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="lib-page-pill-btn"
+                  title="Open original website"
+                >
+                  <Icon name="external-link" size={14} />
+                  <span>{sourceInfo.platformName || 'Source'}</span>
+                </motion.a>
+              )}
+            </div>
 
             {/* Unified Creator & Caption Context Card */}
-            {(item.url || item.author || sourceInfo.author || authorAvatarUrl || caption || item.excerpt) && item.kind !== 'note' && (
+            {(item.url || item.author || sourceInfo.author || authorAvatarUrl || cleanCaption || item.excerpt) && item.kind !== 'note' && (
               <div className="lib-creator-card">
                 <div className="lib-creator-card-header">
                   <div className="lib-creator-card-left">
@@ -1426,19 +1640,19 @@ export default function LibraryDetailModal({
                       title={`Open on ${sourceInfo.platformName}`}
                     >
                       <span>Open</span>
-                      <Icon name="arrow-up-right" size={12} />
+                      <Icon name="arrow-up-right" size={13} />
                     </a>
                   )}
                 </div>
 
-                {(caption || item.excerpt) && (
+                {(cleanCaption || item.excerpt) && (
                   <>
                     <div className="lib-creator-divider" />
                     <div className="lib-creator-caption-box">
                       <p className={`lib-creator-caption-text ${!isCaptionExpanded ? 'lib-creator-caption-text--clamped' : ''}`}>
-                        {caption || item.excerpt}
+                        {cleanCaption || item.excerpt}
                       </p>
-                      {(caption || item.excerpt).length > 90 && (
+                      {(cleanCaption || item.excerpt).length > 90 && (
                         <button
                           type="button"
                           className="lib-creator-caption-toggle"
@@ -1452,16 +1666,94 @@ export default function LibraryDetailModal({
                 )}
               </div>
             )}
+
+            {/* THEATER MODE HERO STRIP: Rendered when sidebar is collapsed */}
+            {isSidebarCollapsed && (
+              <div className="lib-theater-hero">
+                <div className="lib-theater-header">
+                  <div className="lib-theater-titles">
+                    <h1 className="lib-page-heading lib-page-heading--theater">{displayTitle}</h1>
+                    {displaySubtitle && (
+                      <div className="lib-detail-subtitle lib-detail-subtitle--theater">
+                        <span>{displaySubtitle}</span>
+                        {item?.category && item.category !== 'general' && (
+                          <span className="lib-detail-category-badge">{item.category}</span>
+                        )}
+                      </div>
+                    )}
+                    {(cleanCaption || item.excerpt) && (
+                      <p className="lib-theater-caption-snippet">
+                        {cleanCaption || item.excerpt}
+                      </p>
+                    )}
+                  </div>
+                  <div className="lib-theater-actions">
+                    {adaptiveActions.map((act, i) => (
+                      <a
+                        key={i}
+                        href={act.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`lib-page-cta-pill ${act.primary || i === 0 ? 'lib-page-cta-pill--primary' : 'lib-page-cta-pill--secondary'}`}
+                      >
+                        <Icon name={act.icon || 'external-link'} size={15} />
+                        <span>{act.label}</span>
+                        <Icon name="arrow-up-right" size={12} className="lib-page-cta-arrow" />
+                      </a>
+                    ))}
+                    {item.url && (
+                      <button
+                        type="button"
+                        className="lib-page-cta-pill lib-page-cta-pill--secondary"
+                        onClick={handleCopyLink}
+                      >
+                        <Icon name={copiedLink ? 'check' : 'copy'} size={15} />
+                        <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="lib-page-cta-pill lib-page-cta-pill--secondary"
+                      onClick={() => setIsSidebarCollapsed(false)}
+                      title="Exit theater mode to view notes & AI summary"
+                    >
+                      <Icon name="collapse" size={14} />
+                      <span>Exit Theater</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </motion.div>
 
+          {/* DRAGGABLE SPLITTER HANDLE */}
+          {!isSidebarCollapsed && (
+            <div
+              className={`lib-page-splitter ${isDraggingSplitter ? 'lib-page-splitter--dragging' : ''}`}
+              onMouseDown={handleSplitterMouseDown}
+              onDoubleClick={() => setMediaWidthPercent(44)}
+              title="Drag to resize columns (Double-click to reset)"
+              role="separator"
+              aria-orientation="vertical"
+            >
+              <div className="lib-page-splitter-handle" />
+            </div>
+          )}
+
           {/* ----------------- RIGHT COLUMN: INTELLIGENCE & CURATION ----------------- */}
-          <motion.div
-            key={`content-${item.id}`}
-            className="lib-page-content-col"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-          >
+          {!isSidebarCollapsed && (
+            <motion.div
+              key={`content-${item.id}`}
+              className="lib-page-content-col"
+              style={{
+                flex: `0 0 ${100 - mediaWidthPercent}%`,
+                width: `${100 - mediaWidthPercent}%`,
+                maxWidth: `${100 - mediaWidthPercent}%`,
+              }}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            >
             <div className="lib-page-content-scroll">
               {/* 1. Main Title & Type-Adaptive Subtitle */}
               <div className="lib-detail-hero">
@@ -1478,7 +1770,7 @@ export default function LibraryDetailModal({
                 {displaySubtitle && (
                   <div className="lib-detail-subtitle">
                     <span>{displaySubtitle}</span>
-                    {item?.category && item.category !== 'general' && (
+                    {item?.category && item.category !== 'general' && !displaySubtitle.toLowerCase().endsWith(item.category.toLowerCase()) && !displaySubtitle.toLowerCase().includes(`· ${item.category.toLowerCase()}`) && !displaySubtitle.toLowerCase().includes(` ${item.category.toLowerCase()}`) && (
                       <span className="lib-detail-category-badge">
                         {item.category === 'movie' && (item?.is_reel || (sourceInfo.platformName || '').toLowerCase().includes('instagram') || (sourceInfo.platformName || '').toLowerCase().includes('tiktok'))
                           ? 'Film Clip'
@@ -1492,23 +1784,23 @@ export default function LibraryDetailModal({
               {/* 2. Metadata Strip */}
               <div className="lib-page-meta-strip">
                 <div className="lib-page-meta-item">
-                  <Icon name="calendar" size={12} />
+                  <Icon name="calendar" size={13.5} />
                   <span>Captured {dateFull || 'Undated'}</span>
                 </div>
                 {cleanAuthor && !displaySubtitle?.includes(cleanAuthor) && (
                   <div className="lib-page-meta-item">
-                    <Icon name="user" size={12} />
+                    <Icon name="user" size={13.5} />
                     <span>By {cleanAuthor}</span>
                   </div>
                 )}
                 {duration && (
                   <div className="lib-page-meta-item">
-                    <Icon name="clock" size={12} />
+                    <Icon name="clock" size={13.5} />
                     <span>{duration}</span>
                   </div>
                 )}
-                <div className="lib-page-meta-item lib-page-meta-item--vector">
-                  <span className="lib-page-vector-dot" />
+                <div className={`lib-page-vector-badge ${item.indexed ? 'lib-page-vector-badge--indexed' : 'lib-page-vector-badge--archive'}`}>
+                  <span className={`lib-page-vector-dash ${item.indexed ? 'lib-page-vector-dash--indexed' : 'lib-page-vector-dash--archive'}`} />
                   <span>{item.indexed ? 'Vector indexed' : 'Archive'}</span>
                 </div>
               </div>
@@ -1523,9 +1815,9 @@ export default function LibraryDetailModal({
                     rel="noreferrer"
                     className={`lib-page-cta-pill ${act.primary || i === 0 ? 'lib-page-cta-pill--primary' : 'lib-page-cta-pill--secondary'}`}
                   >
-                    <Icon name={act.icon || 'external-link'} size={13} />
+                    <Icon name={act.icon || 'external-link'} size={15} />
                     <span>{act.label}</span>
-                    <Icon name="arrow-up-right" size={11} className="lib-page-cta-arrow" />
+                    <Icon name="arrow-up-right" size={12} className="lib-page-cta-arrow" />
                   </a>
                 ))}
 
@@ -1535,7 +1827,7 @@ export default function LibraryDetailModal({
                     className="lib-page-cta-pill lib-page-cta-pill--secondary"
                     onClick={handleCopyLink}
                   >
-                    <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
+                    <Icon name={copiedLink ? 'check' : 'copy'} size={15} />
                     <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
                   </button>
                 )}
@@ -1548,7 +1840,7 @@ export default function LibraryDetailModal({
                 >
                   <Icon
                     name={isEnriching ? 'loader' : 'spark'}
-                    size={13}
+                    size={15}
                     className={isEnriching ? 'animate-spin' : ''}
                   />
                   <span>{isEnriching ? 'Synthesizing...' : (summaryText ? 'Re-analyze' : 'Synthesize')}</span>
@@ -1564,7 +1856,7 @@ export default function LibraryDetailModal({
                   className={`lib-studio-tab-btn ${activeTab === 'overview' ? 'lib-studio-tab-btn--active' : ''}`}
                   onClick={() => setActiveTab('overview')}
                 >
-                  <Icon name="spark" size={13} />
+                  <Icon name="spark" size={14} />
                   <span>Overview & AI</span>
                 </button>
                 <button
@@ -1574,7 +1866,7 @@ export default function LibraryDetailModal({
                   className={`lib-studio-tab-btn ${activeTab === 'content' ? 'lib-studio-tab-btn--active' : ''}`}
                   onClick={() => setActiveTab('content')}
                 >
-                  <Icon name="file" size={13} />
+                  <Icon name="file" size={14} />
                   <span>Content & Transcripts</span>
                   {contentCount > 0 && (
                     <span className="lib-studio-tab-badge">{contentCount}</span>
@@ -1587,7 +1879,7 @@ export default function LibraryDetailModal({
                   className={`lib-studio-tab-btn ${activeTab === 'notes' ? 'lib-studio-tab-btn--active' : ''}`}
                   onClick={() => setActiveTab('notes')}
                 >
-                  <Icon name="edit" size={13} />
+                  <Icon name="edit" size={14} />
                   <span>Notes & Curation</span>
                   {notesCount > 0 && (
                     <span className="lib-studio-tab-badge">{notesCount}</span>
@@ -1595,9 +1887,17 @@ export default function LibraryDetailModal({
                 </button>
               </div>
 
-              {/* TAB 1: OVERVIEW & AI SYNTHESIS */}
-              {activeTab === 'overview' && (
-                <div className="lib-tab-pane" data-enter>
+              {/* TAB CONTENT PANES WITH FLUID MOTION TRANSITION */}
+              <AnimatePresence mode="wait" initial={false}>
+                {activeTab === 'overview' && (
+                  <motion.div
+                    key="overview"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    className="lib-tab-pane"
+                  >
                   {/* Significance Star Rating */}
                   <div className="lib-page-significance-bar">
                     <span className="lib-page-significance-title">Significance</span>
@@ -1687,9 +1987,9 @@ export default function LibraryDetailModal({
                       <div className="lib-synthesis-header">
                         <div className="lib-synthesis-title-wrap">
                           <div className="lib-synthesis-icon-badge">
-                            <Icon name="spark" size={13} />
+                            <Icon name="spark" size={15} />
                           </div>
-                          <span className="lib-synthesis-heading">Key insights and synthesis</span>
+                          <span className="lib-synthesis-heading">Summary</span>
                         </div>
 
                         <div className="lib-synthesis-actions">
@@ -1703,12 +2003,12 @@ export default function LibraryDetailModal({
                               <AiProviderIcon
                                 provider={selectedEnrichProvider || 'groq'}
                                 model={selectedEnrichModel || 'llama-3.3-70b-versatile'}
-                                size={12}
+                                size={13}
                               />
                               <span>
                                 {formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}
                               </span>
-                              <Icon name="chevron-down" size={10} />
+                              <Icon name="chevron-down" size={11} />
                             </button>
 
                             {showModelMenu && (
@@ -1729,9 +2029,9 @@ export default function LibraryDetailModal({
                             type="button"
                             className="lib-synthesis-action-btn"
                             onClick={handleCopySummary}
-                            title="Copy synthesis to clipboard"
+                            title="Copy summary to clipboard"
                           >
-                            <Icon name={copiedSummary ? 'check' : 'copy'} size={12} />
+                            <Icon name={copiedSummary ? 'check' : 'copy'} size={14} />
                             <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
                           </motion.button>
                           <motion.button
@@ -1742,15 +2042,31 @@ export default function LibraryDetailModal({
                             disabled={Boolean(busyAction)}
                             title="Regenerate summary and extract resources with AI"
                           >
-                            <Icon name="refresh" size={12} />
+                            <Icon name="refresh" size={14} />
                             <span>Regenerate</span>
                           </motion.button>
                         </div>
                       </div>
 
-                      <div className="lib-synthesis-prose">
+                      <div
+                        ref={summaryProseRef}
+                        className={`lib-synthesis-prose ${shouldClampSummary ? 'lib-synthesis-prose--clamped' : ''}`}
+                      >
                         <Markdown text={summaryText} />
                       </div>
+
+                      {(canExpandSummary || isLongSummary) && (
+                        <div className="lib-synthesis-expand-wrap">
+                          <button
+                            type="button"
+                            className="lib-synthesis-expand-btn"
+                            onClick={() => setIsSummaryExpanded((v) => !v)}
+                          >
+                            <span>{isSummaryExpanded ? 'Show less' : 'Show full summary'}</span>
+                            <Icon name={isSummaryExpanded ? 'caret-up' : 'caret-down'} size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="lib-synthesis-card lib-synthesis-card--pending">
@@ -1839,50 +2155,8 @@ export default function LibraryDetailModal({
                     </div>
                   )}
 
-                  {/* Visual Content & Slide Analysis Breakdown (Crucial intelligence from vision OCR) */}
-                  {visualContent && (
-                    <div className="lib-page-section lib-visual-breakdown-section">
-                      <div className="lib-page-section-header">
-                        <span className="lib-page-section-title-wrap">
-                          <Icon name="brain" size={13} />
-                          <span>Slide & Visual Breakdown</span>
-                          {visualWordCount > 0 && (
-                            <span className="lib-transcript-count-pill">{visualWordCount} words</span>
-                          )}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <motion.button
-                            whileTap={{ scale: 0.97 }}
-                            type="button"
-                            className="lib-synthesis-action-btn"
-                            onClick={handleCopyVisuals}
-                            title="Copy visual breakdown text"
-                          >
-                            <Icon name={copiedVisuals ? 'check' : 'copy'} size={12} />
-                            <span>{copiedVisuals ? 'Copied' : 'Copy'}</span>
-                          </motion.button>
-                        </div>
-                      </div>
 
-                      <div className="lib-visual-breakdown-body">
-                        <Markdown text={visualContent} />
-                      </div>
-                    </div>
-                  )}
 
-                  {!visualContent && textBody && (
-                    <div className="lib-page-section lib-visual-breakdown-section">
-                      <div className="lib-page-section-header">
-                        <span className="lib-page-section-title-wrap">
-                          <Icon name="file-text" size={13} />
-                          <span>Document Content</span>
-                        </span>
-                      </div>
-                      <div className="lib-visual-breakdown-body">
-                        <Markdown text={textBody} />
-                      </div>
-                    </div>
-                  )}
 
                   {/* Detected Audio & Songs Section */}
                   {musicResources.length > 0 && (
@@ -1982,7 +2256,7 @@ export default function LibraryDetailModal({
                     <div className="lib-page-section">
                       <div className="lib-page-section-header">
                         <span className="lib-page-section-title-wrap">
-                          <Icon name="globe" size={13} />
+                          <Icon name="globe" size={15} />
                           <span>Mentioned resources and websites</span>
                         </span>
                         <span className="lib-page-section-count">
@@ -1993,18 +2267,44 @@ export default function LibraryDetailModal({
                       <div className="lib-resource-chips-wrap">
                         {mentionedResources.map((res, i) => {
                           const domain = getCleanDomain(res.url)
-                          const iconName = getResourceIcon(res.type, res.url)
+                          const iconName = getResourceIcon(res.type, res.url, res.name)
                           const isClickable = Boolean(res.url)
+                          const faviconUrl = res.url ? getFaviconUrl(res.url) : null
 
                           const content = (
                             <>
-                              <span className="lib-resource-chip-icon">
-                                <Icon name={iconName} size={12} />
-                              </span>
-                              <span className="lib-resource-chip-name">{res.name}</span>
-                              {domain && <span className="lib-resource-chip-domain">{domain}</span>}
+                              <div className="lib-resource-chip-icon">
+                                {faviconUrl ? (
+                                  <img
+                                    src={faviconUrl}
+                                    alt=""
+                                    className="lib-resource-chip-favicon"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none'
+                                      if (e.currentTarget.nextElementSibling) {
+                                        e.currentTarget.nextElementSibling.style.display = 'inline-flex'
+                                      }
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className="lib-resource-chip-fallback-icon"
+                                  style={{ display: faviconUrl ? 'none' : 'inline-flex' }}
+                                >
+                                  <Icon name={iconName} size={14} />
+                                </span>
+                              </div>
+                              <div className="lib-resource-chip-content">
+                                <div className="lib-resource-chip-title-row">
+                                  <span className="lib-resource-chip-name">{res.name}</span>
+                                  {domain && <span className="lib-resource-chip-domain">{domain}</span>}
+                                </div>
+                                {res.detail && (
+                                  <span className="lib-resource-chip-detail">{res.detail}</span>
+                                )}
+                              </div>
                               {isClickable && (
-                                <Icon name="arrow-up-right" size={10} className="lib-resource-chip-arrow" />
+                                <Icon name="arrow-up-right" size={13} className="lib-resource-chip-arrow" />
                               )}
                             </>
                           )
@@ -2034,12 +2334,19 @@ export default function LibraryDetailModal({
                       </div>
                     </div>
                   )}
-                </div>
-              )}
+                  </motion.div>
+                )}
 
-              {/* TAB 2: CONTENT & TRANSCRIPTS */}
-              {activeTab === 'content' && (
-                <div className="lib-tab-pane" data-enter>
+                {/* TAB 2: CONTENT & TRANSCRIPTS */}
+                {activeTab === 'content' && (
+                  <motion.div
+                    key="content"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    className="lib-tab-pane"
+                  >
                   {contentCount === 0 ? (
                     <div className="lib-content-empty-card">
                       <div className="lib-content-empty-icon">
@@ -2063,16 +2370,36 @@ export default function LibraryDetailModal({
                     <>
                       {/* Speech Transcript */}
                       {transcript && (
-                        <div className="lib-page-section lib-transcript-panel">
+                        <div className="lib-page-section lib-transcript-panel lib-transcript-panel--full">
                           <div className="lib-page-section-header">
                             <span className="lib-page-section-title-wrap">
-                              <Icon name="quotes" size={13} />
+                              <Icon name="quotes" size={15} />
                               <span>Source Speech Transcript</span>
                               {transcriptWordCount > 0 && (
                                 <span className="lib-transcript-count-pill">{transcriptWordCount} words</span>
                               )}
                             </span>
                             <div className="flex items-center gap-2">
+                              <div className="lib-transcript-search-wrap">
+                                <Icon name="magnifying-glass" size={12} className="lib-transcript-search-icon" />
+                                <input
+                                  type="text"
+                                  placeholder="Filter text..."
+                                  className="lib-transcript-search-input"
+                                  value={transcriptFilterQuery}
+                                  onChange={(e) => setTranscriptFilterQuery(e.target.value)}
+                                />
+                                {transcriptFilterQuery && (
+                                  <button
+                                    type="button"
+                                    className="lib-transcript-search-clear"
+                                    onClick={() => setTranscriptFilterQuery('')}
+                                    title="Clear search"
+                                  >
+                                    <Icon name="x" size={10} />
+                                  </button>
+                                )}
+                              </div>
                               <motion.button
                                 whileTap={{ scale: 0.97 }}
                                 type="button"
@@ -2080,16 +2407,24 @@ export default function LibraryDetailModal({
                                 onClick={handleCopyTranscript}
                                 title="Copy full transcript"
                               >
-                                <Icon name={copiedTranscript ? 'check' : 'copy'} size={12} />
+                                <Icon name={copiedTranscript ? 'check' : 'copy'} size={14} />
                                 <span>{copiedTranscript ? 'Copied' : 'Copy'}</span>
                               </motion.button>
                             </div>
                           </div>
 
-                          <div className="lib-transcript-box lib-transcript-box--open">
-                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{transcript}</p>
+                          <div className="lib-transcript-box lib-transcript-box--open lib-transcript-box--expanded">
+                            <div className="lib-transcript-paragraphs-flow">
+                              {formatTranscriptToParagraphs(transcript)
+                                .filter((para) => !transcriptFilterQuery || para.toLowerCase().includes(transcriptFilterQuery.toLowerCase()))
+                                .map((para, pIdx) => (
+                                  <p key={pIdx} className="lib-transcript-paragraph">
+                                    {para}
+                                  </p>
+                                ))}
+                            </div>
                             <div className="lib-transcript-badge">
-                              <Icon name="spark" size={10} />
+                              <Icon name="spark" size={12} />
                               <span>Transcribed verbatim from reel audio via Whisper</span>
                             </div>
                           </div>
@@ -2098,16 +2433,38 @@ export default function LibraryDetailModal({
 
                       {/* Visual Content & OCR Frames */}
                       {visualContent && (
-                        <div className="lib-page-section lib-transcript-panel">
+                        <div className="lib-page-section lib-transcript-panel lib-transcript-panel--full">
                           <div className="lib-page-section-header">
                             <span className="lib-page-section-title-wrap">
-                              <Icon name="brain" size={13} />
+                              <Icon name="brain" size={15} />
                               <span>Slide & Visual On-Screen Content</span>
                               {visualWordCount > 0 && (
                                 <span className="lib-transcript-count-pill">{visualWordCount} words</span>
                               )}
                             </span>
                             <div className="flex items-center gap-2">
+                              {!transcript && (
+                                <div className="lib-transcript-search-wrap">
+                                  <Icon name="magnifying-glass" size={12} className="lib-transcript-search-icon" />
+                                  <input
+                                    type="text"
+                                    placeholder="Filter text..."
+                                    className="lib-transcript-search-input"
+                                    value={transcriptFilterQuery}
+                                    onChange={(e) => setTranscriptFilterQuery(e.target.value)}
+                                  />
+                                  {transcriptFilterQuery && (
+                                    <button
+                                      type="button"
+                                      className="lib-transcript-search-clear"
+                                      onClick={() => setTranscriptFilterQuery('')}
+                                      title="Clear search"
+                                    >
+                                      <Icon name="x" size={10} />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                               <motion.button
                                 whileTap={{ scale: 0.97 }}
                                 type="button"
@@ -2115,16 +2472,24 @@ export default function LibraryDetailModal({
                                 onClick={handleCopyVisuals}
                                 title="Copy visual text content"
                               >
-                                <Icon name={copiedVisuals ? 'check' : 'copy'} size={12} />
+                                <Icon name={copiedVisuals ? 'check' : 'copy'} size={14} />
                                 <span>{copiedVisuals ? 'Copied' : 'Copy'}</span>
                               </motion.button>
                             </div>
                           </div>
 
-                          <div className="lib-transcript-box lib-transcript-box--open">
-                            <p className="lib-transcript-text" style={{ whiteSpace: 'pre-wrap' }}>{visualContent}</p>
+                          <div className="lib-transcript-box lib-transcript-box--open lib-transcript-box--expanded">
+                            <div className="lib-transcript-paragraphs-flow">
+                              {formatTranscriptToParagraphs(visualContent)
+                                .filter((para) => !transcriptFilterQuery || para.toLowerCase().includes(transcriptFilterQuery.toLowerCase()))
+                                .map((para, pIdx) => (
+                                  <p key={pIdx} className="lib-transcript-paragraph">
+                                    {para}
+                                  </p>
+                                ))}
+                            </div>
                             <div className="lib-transcript-badge">
-                              <Icon name="image" size={10} />
+                              <Icon name="image" size={12} />
                               <span>Extracted from video frames & slides via Vision AI OCR</span>
                             </div>
                           </div>
@@ -2159,7 +2524,7 @@ export default function LibraryDetailModal({
                         <div className="lib-page-section lib-transcript-panel">
                           <div className="lib-page-section-header">
                             <span className="lib-page-section-title-wrap">
-                              <Icon name="file-text" size={13} />
+                              <Icon name="file-text" size={15} />
                               <span>Captured Full Document Text</span>
                               {textBodyWordCount > 0 && (
                                 <span className="lib-transcript-count-pill">{textBodyWordCount} words</span>
@@ -2169,10 +2534,10 @@ export default function LibraryDetailModal({
 
                           <div className="lib-transcript-box lib-transcript-box--open">
                             <div className="lib-transcript-markdown-body" style={{ padding: '4px 0' }}>
-                              <Markdown text={textBody} />
+                              <Markdown text={cleanTextBody} />
                             </div>
                             <div className="lib-transcript-badge">
-                              <Icon name="file" size={10} />
+                              <Icon name="file" size={12} />
                               <span>Full document markdown / text body</span>
                             </div>
                           </div>
@@ -2180,12 +2545,19 @@ export default function LibraryDetailModal({
                       )}
                     </>
                   )}
-                </div>
-              )}
+                  </motion.div>
+                )}
 
-              {/* TAB 3: NOTES & METADATA */}
-              {activeTab === 'notes' && (
-                <div className="lib-tab-pane" data-enter>
+                {/* TAB 3: NOTES & METADATA */}
+                {activeTab === 'notes' && (
+                  <motion.div
+                    key="notes"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    className="lib-tab-pane"
+                  >
                   {/* Personal Notes & Synthesis */}
                   <div className="lib-page-section">
                     <div className="lib-page-notes-header">
@@ -2308,11 +2680,13 @@ export default function LibraryDetailModal({
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
-            </div>
-          </motion.div>
-        </div>
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      )}
+      </div>
 
         {/* ========================================================
             BOTTOM DOCKED ACTIONS BAR
@@ -2327,7 +2701,7 @@ export default function LibraryDetailModal({
               onClick={handleReindex}
               title="Re-run semantic search embeddings indexer"
             >
-              <Icon name="refresh" size={13} />
+              <Icon name="refresh" size={15} />
               <span>Re-index</span>
             </motion.button>
             <motion.button
@@ -2338,7 +2712,7 @@ export default function LibraryDetailModal({
               onClick={handleEnrich}
               title="Re-analyze and regenerate insights with AI"
             >
-              <Icon name="spark" size={13} />
+              <Icon name="spark" size={15} />
               <span>Re-analyze</span>
             </motion.button>
           </div>
@@ -2356,7 +2730,7 @@ export default function LibraryDetailModal({
               }}
               title="Delete resource from library"
             >
-              <Icon name="trash" size={13} />
+              <Icon name="trash" size={15} />
               <span>Delete</span>
             </motion.button>
           </div>
