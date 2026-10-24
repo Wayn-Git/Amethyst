@@ -43,6 +43,17 @@ async def provide(widget_id):
     if not location:
         return {"set_location": True}
     params = {**LocationSettings.model_validate(location).model_dump(), "timezone": "auto"}
+    if widget_id == "glance.sun":
+        raw = await fetch(
+            "https://api.open-meteo.com/v1/forecast",
+            {**params, "daily": "sunrise,sunset", "forecast_days": 1},
+            widget_id,
+        )
+        return {
+            "sunrise": raw["daily"]["sunrise"][0],
+            "sunset": raw["daily"]["sunset"][0],
+            "timezone": raw["timezone"],
+        }
     params.update(
         current="temperature_2m",
         hourly="temperature_2m,precipitation_probability",

@@ -177,6 +177,12 @@ def mail_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     {
+        **manifest("glance.sun", "Sunrise and sunset", ["s", "m", "l"]),
+        "source": {"type": "api"},
+        "refresh": {"mode": "poll", "interval_s": 3600},
+        "empty": "Set location.",
+    },
+    {
         **manifest("glance.weather", "Weather", ["m", "l"]),
         "source": {"type": "api"},
         "refresh": {"mode": "poll", "interval_s": 1800},

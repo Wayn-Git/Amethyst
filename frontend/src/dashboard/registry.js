@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'glance.sun': lazy(() => import('./widgets/Weather.jsx')),
   'glance.weather': lazy(() => import('./widgets/Weather.jsx')),
   'comm.templates': lazy(() => import('./widgets/Templates.jsx')),
   'comm.tone': lazy(() => import('./widgets/Tone.jsx')),

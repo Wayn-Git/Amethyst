@@ -127,6 +127,9 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
     if widget_id == "task.agenda" and not value["enabled"]:
         cache_write(widget_id, None, "not-connected")
         cache_write("glance.next-event", None, "not-connected")
+    if widget_id == "glance.weather":
+        cache_write("glance.weather", None, "loading")
+        cache_write("glance.sun", None, "loading")
     schedule(widget_id, background_tasks, force=True)
     return value
 

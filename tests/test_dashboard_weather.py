@@ -68,3 +68,21 @@ async def test_outbound_calls_are_audited(db, monkeypatch, fails):
         await weather.fetch("https://api.open-meteo.com/v1/forecast", {}, "glance.weather")
     assert len(records) == 1
     assert bool(records[0]["error"]) == fails
+
+
+@pytest.mark.asyncio
+async def test_sun_uses_explicit_location_and_projects_daily(db, monkeypatch):
+    assert await weather.provide("glance.sun") == {"set_location": True}
+    settings_write("glance.weather", {"latitude": 12, "longitude": 77})
+
+    async def fake(url, params, widget_id):
+        assert params["daily"] == "sunrise,sunset"
+        assert params["latitude"] == 12
+        return {"daily": {"sunrise": [None], "sunset": [None]}, "timezone": "UTC"}
+
+    monkeypatch.setattr(weather, "fetch", fake)
+    assert await weather.provide("glance.sun") == {
+        "sunrise": None,
+        "sunset": None,
+        "timezone": "UTC",
+    }

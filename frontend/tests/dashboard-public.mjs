@@ -15,7 +15,9 @@ try {
     const { default: Weather } = await import('/src/dashboard/widgets/Weather.jsx')
     window.fetch = async () => new Response('{}', { headers: { 'content-type': 'application/json' } })
     document.body.innerHTML = '<div id="proof"></div>'
-    createRoot(document.getElementById('proof')).render(React.createElement(Weather, { data: { set_location: true }, refresh: () => {} }))
+    const root = createRoot(document.getElementById('proof'))
+    window.renderWeather = props => root.render(React.createElement(Weather, { refresh: () => {}, ...props }))
+    window.renderWeather({ data: { set_location: true } })
     return true
   })
   assert.equal(result, true)
@@ -24,5 +26,7 @@ try {
   await page.getByLabel('Longitude', { exact: true }).fill('0')
   await page.getByRole('button', { name: 'Save location' }).click()
   assert.equal(await page.getByRole('link', { name: 'Weather data by Open-Meteo' }).count(), 1)
-  console.log('glance.weather UI passed')
+  await page.evaluate(() => window.renderWeather({ widgetId: 'glance.sun', data: { sunrise: null, sunset: null, timezone: 'UTC' } }))
+  await page.getByText('Sunrise: Unavailable · Sunset: Unavailable · UTC', { exact: true }).waitFor()
+  console.log('glance.weather, glance.sun UI passed')
 } finally { await browser.close() }
