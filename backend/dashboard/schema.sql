@@ -41,3 +41,12 @@ CREATE TABLE IF NOT EXISTS support_cases (
     follow_up TEXT,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS recovery_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    due_at TEXT,
+    status TEXT NOT NULL DEFAULT 'todo' CHECK(status IN ('todo','done')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+);

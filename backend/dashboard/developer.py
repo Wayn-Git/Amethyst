@@ -45,6 +45,12 @@ def case_row(item_id):
 
 
 def draft(widget_id, action, body):
+    if widget_id == "dev.recovery":
+        from backend.dashboard.items import draft as item_draft
+
+        if body.submitted_on or body.sender_domain or body.due_at:
+            raise HTTPException(422, "Recovery items use a title only")
+        return item_draft(widget_id, action, body)
     if widget_id != "dev.appeal" or action not in ("add", "reply", "follow-up", "unwatch"):
         raise HTTPException(404, "Unknown developer action")
     if body.due_at is not None:
@@ -100,6 +106,15 @@ def apply(conn, widget_id, action, body):
 
 
 async def provide(widget_id):
+    if widget_id == "dev.recovery":
+        return {
+            "items": [
+                {**dict(row), "editable": True}
+                for row in get_connection().execute(
+                    "SELECT * FROM recovery_items WHERE status='todo' ORDER BY id"
+                )
+            ]
+        }
     rows = [
         dict(row)
         for row in get_connection().execute(

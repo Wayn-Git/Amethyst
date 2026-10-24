@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'dev.recovery': lazy(() => import('./widgets/Items.jsx')),
   'dev.appeal': lazy(() => import('./widgets/SupportCases.jsx')),
   'task.agenda': lazy(() => import('./widgets/Agenda.jsx')),
   'lib.resurface': lazy(() => import('./widgets/Library.jsx')),
