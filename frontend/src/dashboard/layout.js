@@ -22,3 +22,39 @@ export function quietNow(settings = {}, now = new Date()) {
     return start < end ? current >= start && current < end : current >= start || current < end
   } catch { return false }
 }
+
+export function freshness(value, now = new Date()) {
+  if (!value) return '—'
+  const minutes = Math.max(0, Math.floor((now - new Date(value)) / 60000))
+  return minutes < 1 ? 'now' : minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`
+}
+
+export function previewRows(payload) {
+  let count = 0, remaining = 5
+  function visit(value) {
+    if (!value || typeof value !== 'object') return value
+    if (Array.isArray(value)) return value.map(visit)
+    return Object.fromEntries(Object.entries(value).map(([key, list]) => {
+      if (!['items', 'history', 'shortcuts'].includes(key) || !Array.isArray(list)) return [key, visit(list)]
+      if (key === 'items' && list.some(item => Array.isArray(item.items))) return [key, list.map(visit).filter(item => item.items.length)]
+      count += list.length
+      const selected = list.slice(0, remaining)
+      remaining = Math.max(0, remaining - selected.length)
+      return [key, selected]
+    }))
+  }
+  return { payload: visit(payload), get count() { return count } }
+}
+
+export const SYSTEM_WIDGETS = ['dash.sync', 'dash.quiet', 'dash.shortcuts', 'dash.gallery']
+export const NEED_WIDGETS = ['need.inbox', 'need.drafts', 'need.waiting', 'need.mentions', 'need.overdue']
+export const GLANCE_WIDGETS = ['glance.clock', 'glance.weather', 'glance.next-event', 'glance.music']
+export function rankNeeds(manifests, records) {
+  const kind = { 'need.inbox': 'MAIL', 'need.drafts': 'DRAFT', 'need.waiting': 'WAITING', 'need.mentions': 'MENTION', 'need.overdue': 'OVERDUE' }
+  const action = { 'need.inbox': 'Read', 'need.drafts': 'Review', 'need.waiting': 'Follow up', 'need.mentions': 'Open', 'need.overdue': 'Review' }
+  return manifests.flatMap(m => (records[m.id]?.payload?.items || []).map(item => ({
+    ...item, widgetId: m.id, kind: kind[m.id], action: action[m.id], title: item.title || item.subject,
+    why: item.reason || item.snippet || item.detail || (m.id === 'need.overdue' ? `Overdue · ${item.due_at || ''}` : item.recipient || item.from || item.status || m.title),
+    at: item.due_at || item.date || item.at || '',
+  }))).sort((a, b) => (a.kind === 'OVERDUE' ? 0 : 1) - (b.kind === 'OVERDUE' ? 0 : 1) || (Date.parse(a.at) || Infinity) - (Date.parse(b.at) || Infinity) || `${a.widgetId}:${a.id}`.localeCompare(`${b.widgetId}:${b.id}`))
+}
