@@ -52,6 +52,7 @@ def task_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     need_manifest("need.overdue", "Overdue items"),
+    need_manifest("need.snoozed", "Snoozed items returning today"),
     task_manifest("task.today", "Today list"),
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),

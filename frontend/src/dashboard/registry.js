@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'need.snoozed': lazy(() => import('./widgets/NeedsItems.jsx')),
   'need.overdue': lazy(() => import('./widgets/NeedsItems.jsx')),
   'task.backlog': lazy(() => import('./widgets/Items.jsx')),
   'task.deadlines': lazy(() => import('./widgets/Items.jsx')),

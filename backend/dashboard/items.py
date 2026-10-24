@@ -49,11 +49,13 @@ def local_now():
     return datetime.now(ZoneInfo(zone)) if zone else datetime.now().astimezone()
 
 
-def parsed(value):
+def parsed(value, naive_zone=None):
     if not value:
         return None
     date = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return date if date.tzinfo else date.replace(tzinfo=local_now().tzinfo)
+    if date.tzinfo:
+        return date
+    return date.replace(tzinfo=naive_zone) if naive_zone else date.astimezone()
 
 
 def task_rows():
@@ -85,7 +87,7 @@ def display(row, now, source):
         "due_state": "overdue" if due and due < now else "upcoming" if due else "unscheduled",
         "seconds_until_due": int((due - now).total_seconds()) if due else None,
         "updated_at": row.get("updated_at"),
-        "idle_days": max(0, (now - parsed(row["updated_at"])).days),
+        "idle_days": max(0, (now - parsed(row["updated_at"], UTC)).days),
         "editable": not row.get("external_source"),
     }
 
@@ -98,6 +100,34 @@ def dated_rows(table):
 
 def provide(widget_id):
     now = local_now()
+    if widget_id == "need.snoozed":
+        items = []
+        for row in get_connection().execute("SELECT item_id,widget_id,until FROM snoozes"):
+            until = parsed(row["until"])
+            if until.astimezone(now.tzinfo).date() != now.date():
+                continue
+            title = f"Item {row['item_id']}"
+            table = TABLES.get(row["widget_id"])
+            if table:
+                item = (
+                    get_connection()
+                    .execute(f"SELECT title,status FROM {table} WHERE id=?", (row["item_id"],))
+                    .fetchone()
+                )
+                if item is None or item["status"] in ("done", "cancelled"):
+                    continue
+                title = item["title"]
+            items.append(
+                {
+                    "id": row["item_id"],
+                    "source": row["widget_id"],
+                    "title": title,
+                    "until": until.isoformat(),
+                    "return_state": "ready" if until <= now else "scheduled",
+                }
+            )
+        items.sort(key=lambda item: (parsed(item["until"]), item["source"], item["id"]))
+        return {"items": items}
     if widget_id == "need.overdue":
         items = [
             display(row, now, source)
@@ -118,7 +148,7 @@ def provide(widget_id):
         return {"items": [display(row, now, table) for row in rows]}
     rows = [r for r in task_rows() if today_item(r, now) == (widget_id == "task.today")]
     if widget_id == "task.backlog":
-        rows.sort(key=lambda r: (parsed(r["updated_at"]), r["id"]))
+        rows.sort(key=lambda r: (parsed(r["updated_at"], UTC), r["id"]))
     return {"items": [display(r, now, "tasks") for r in rows]}
 
 
@@ -232,9 +262,7 @@ def apply(conn, widget_id, action, body):
             raise HTTPException(409, "Item changed. Review a new draft.")
     due = parsed(body["due_at"])
     # Existing tasks use local naive timestamps; other widget tables use offsets.
-    due_text = (
-        due.astimezone(local_now().tzinfo).replace(tzinfo=None).isoformat(sep=" ") if due else None
-    )
+    due_text = due.astimezone().replace(tzinfo=None).isoformat(sep=" ") if due else None
     if table != "tasks":
         due_text = due.astimezone(UTC).isoformat() if due else None
     if action == "add" and table != "tasks":

@@ -25,6 +25,10 @@ page.setDefaultTimeout(15000)
 await page.addInitScript(() => { localStorage.setItem('amethyst.ui.v1', JSON.stringify({ onboardingDone: true })); localStorage.setItem('amethyst.ui.forceDesktop', '1') })
 await page.route('**/api/**', async route => {
   const url = new URL(route.request().url())
+  if (widgets.includes('need.snoozed') && url.pathname === '/api/widgets/need.snoozed/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { items: [
+    { id: '1', title: 'Snooze fixture ready', source: 'task.today', until: '2026-10-24T01:00:00Z', return_state: 'ready' },
+    { id: '2', title: 'Snooze fixture later', source: 'task.deadlines', until: '2026-10-24T18:00:00Z', return_state: 'scheduled' },
+  ] } } })
   if (url.pathname.startsWith('/api/widgets') || url.pathname === '/api/layout') return route.fulfill({ response: await route.fetch({ url: backend + url.pathname + url.search }) })
   let json = {}
   if (url.pathname.endsWith('/health')) json = { status: 'ok', providers: [], capabilities: [], mcp_servers: [], tools: 0, skills: 0 }
@@ -33,6 +37,14 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('need.snoozed')) {
+    const card = page.locator('[data-widget="need.snoozed"]')
+    await card.getByText('Snooze fixture ready', { exact: true }).waitFor()
+    await card.getByText(/Ready now/).waitFor()
+    await card.getByText(/Returns today/).waitFor()
+    assert.equal(await card.getByRole('button', { name: 'Add item', exact: true }).count(), 0)
+    console.log('need.snoozed: ready and scheduled states rendered')
+  }
   if (widgets.includes('need.overdue')) {
     const card = page.locator('[data-widget="need.overdue"]')
     for (const widget of ['task.today', 'task.deadlines', 'task.reminders']) await card.getByText(`Overdue fixture ${widget}`, { exact: true }).first().waitFor()
