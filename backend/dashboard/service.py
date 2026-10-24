@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "agent.brief":
+        from backend.dashboard.insights import provide
+
+        return await provide(widget_id)
     if widget_id == "feed.news":
         from backend.dashboard.news import provide
 
@@ -160,7 +164,9 @@ async def refresh(widget_id):
                 for requirement in REGISTRY[widget_id]["manifest"].get("requires", [])
             ):
                 raise SourceUnavailable
-            payload = await asyncio.wait_for(PROVIDERS[widget_id](widget_id), timeout=10)
+            payload = await asyncio.wait_for(
+                PROVIDERS[widget_id](widget_id), timeout=60 if widget_id == "agent.brief" else 10
+            )
             cache_write(
                 widget_id,
                 payload,
@@ -216,6 +222,12 @@ async def refresh(widget_id):
 def schedule(widget_id, background_tasks, force=False):
     key = (str(paths().db), widget_id)
     data = read_data(widget_id)
+    if widget_id == "agent.brief" and not force:
+        from backend.dashboard.insights import due
+
+        if not due(widget_id, data["synced_at"]):
+            return
+        force = True
     if key in IN_FLIGHT:
         return
     if not force and time.monotonic() < RETRY_AFTER.get(key, 0):

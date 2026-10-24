@@ -1,5 +1,7 @@
 """Day 1 dashboard endpoints. No connector execution or widget actions are exposed."""
 
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -21,7 +23,27 @@ from backend.dashboard.store import (
     settings_write,
 )
 
-router = APIRouter(prefix="/api", tags=["dashboard"])
+
+@asynccontextmanager
+async def lifespan(app):
+    async def scheduled_brief():
+        while True:
+            if settings_read("agent.brief").get("model_enabled"):
+                tasks = BackgroundTasks()
+                schedule("agent.brief", tasks)
+                await tasks()
+            await asyncio.sleep(60)
+
+    task = asyncio.create_task(scheduled_brief())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+router = APIRouter(prefix="/api", tags=["dashboard"], lifespan=lifespan)
 
 
 def enabled(widget_id):
@@ -107,7 +129,7 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
         elif widget_id == "need.waiting":
             value = WaitingSettings.model_validate(body).model_dump()
-        elif widget_id == "need.inbox":
+        elif widget_id in ("need.inbox", "agent.brief"):
             value = MailSettings.model_validate(body).model_dump()
         elif widget_id == "task.agenda":
             value = AgendaSettings.model_validate(body).model_dump()
@@ -217,3 +239,14 @@ def review_template(item_id: int):
     from backend.dashboard.mail import template_row
 
     return template_row(item_id)
+
+
+@router.get("/widgets/{widget_id}/items/{item_id}")
+def source_item(widget_id: str, item_id: str):
+    enabled(widget_id)
+    from backend.dashboard.insights import source_items
+
+    for item in source_items():
+        if item["widget_id"] == widget_id and item["item_id"] == item_id:
+            return item
+    raise HTTPException(404, "Source item is no longer in the widget cache")

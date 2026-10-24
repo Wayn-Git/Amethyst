@@ -51,6 +51,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "need.mentions",
         "need.drafts",
         "need.waiting",
+        "agent.brief",
         "agent.feed",
         "need.decisions",
         "need.approvals",

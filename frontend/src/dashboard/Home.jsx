@@ -3,6 +3,7 @@ import WidgetFrame, { WidgetBoundary } from './WidgetFrame.jsx'
 import { DashboardContext } from './context.js'
 import { cached, remember, request } from './api.js'
 import { moveWidget, quietNow, resizeWidget } from './layout.js'
+import SourceItem from './SourceItem.jsx'
 import './home.css'
 
 export default function Home() {
@@ -77,6 +78,7 @@ export default function Home() {
   }
   function toggleWidget(id) { const widgets = layoutRef.current.widgets; persist({ widgets: widgets.some(w => w.id === id) ? widgets.filter(w => w.id !== id) : [...widgets, { id, size: manifests.find(m => m.id === id).sizes.includes('m') ? 'm' : 's', height: 3 }] }) }
   return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget }}><div className="view widget-home"><header className="home-heading"><div><h1>Home</h1><p>Local widgets · {quiet ? 'Quiet hours' : 'Automatic refresh on'}</p></div><div className="widget-buttons"><button onClick={refreshAll}>Refresh all</button><button onClick={() => setEditing(!editing)}>{editing ? 'Finish editing' : 'Edit layout'}</button></div></header>
+    <SourceItem />
     {error && <p role="alert">{error} {entries.length ? 'Using saved shell data where available.' : ''}<button onClick={() => window.location.reload()}>Retry Home</button></p>}
     <p role="status" className="home-save-status">{dragging ? 'Release to place. Escape cancels.' : saveState}</p>
     {entries.filter(e => !e.enabled).map(e => <p key={e.manifest.id} role="alert">{e.manifest.title}: {e.error}</p>)}

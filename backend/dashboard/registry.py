@@ -232,6 +232,12 @@ MANIFESTS = [
     system_manifest("sys.model", "Active model", "director"),
     system_manifest("sys.notify", "Notification center"),
     system_manifest("sys.vault", "Vault size and storage", "library"),
+    {
+        **director_manifest("agent.brief", "Daily brief and evening wrap-up"),
+        "source": {"type": "llm"},
+        "refresh": {"mode": "poll", "interval_s": 60},
+        "empty": "Nothing to report from cached widgets.",
+    },
     director_manifest("agent.running", "Running tasks", ("stop",)),
     director_manifest("agent.feed", "Activity feed"),
     director_manifest("need.decisions", "Decisions waiting", ("answer", "dismiss")),

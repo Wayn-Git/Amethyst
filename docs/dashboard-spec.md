@@ -225,7 +225,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | agent.running | Running tasks with progress and a stop button | dir | MVP | [x] |
 | agent.audit | Tool-call audit log | dir | MVP | [x] |
 | agent.errors | Errors and retries | dir | MVP | [x] |
-| agent.brief | Daily brief and evening wrap-up | llm, all widget data | MVP | [ ] |
+| agent.brief | Daily brief and evening wrap-up | llm, all widget data | MVP | [x] |
 | agent.next | One suggested next action | llm | MVP | [ ] |
 | agent.jobs | Scheduled and recurring agent jobs | dir | v2 | [ ] |
 | agent.delegated | Delegated tasks board | dir | v2 | [ ] |
