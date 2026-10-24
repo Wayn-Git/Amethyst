@@ -6,7 +6,7 @@ import Button from '../ui/AppButton.jsx'
 import Field from '../ui/Field.jsx'
 import { modalOverlayVariants, modalContentVariants } from '../../motion.js'
 import { api } from '../../api.js'
-import { INTERVAL_PRESETS, WEEKDAYS, NOTIFICATION_OPTIONS, ActionsEditor } from './NewAutomationModal.jsx'
+import { INTERVAL_PRESETS, WEEKDAYS, NOTIFICATION_OPTIONS, ActionsEditor, ResultsEditor } from './NewAutomationModal.jsx'
 
 const SCHEDULE_OPTIONS = [
   { value: 'interval', label: 'Interval' },
@@ -38,6 +38,11 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
   const [grantable, setGrantable] = useState(null)
   const [busy, setBusy] = useState('')
   const [runs, setRuns] = useState(null)
+  const [rememberBefore, setRememberBefore] = useState(Boolean(automation.remember_before))
+  const [resultsTo, setResultsTo] = useState(automation.results_to || 'new')
+  // A 'thread:<id>' destination came from chat; the page shows where reports
+  // go but does not take the destination over.
+  const pinnedToThread = /^thread:.+/.test(automation.results_to || '')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [recipientEmail, setRecipientEmail] = useState('')
   const [emailConfigured, setEmailConfigured] = useState(false)
@@ -76,6 +81,8 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
         enabled,
         description: description.trim() || null,
         actions: actions.length > 0 ? actions : [],
+        remember_before: rememberBefore,
+        results_to: resultsTo,
       }
       if (scheduleType === 'interval') {
         body.every_minutes = intervalMinutes
@@ -97,7 +104,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
     } finally {
       setBusy('')
     }
-  }, [automation.id, name, description, prompt, scheduleType, dailyTime, weeklyDay, intervalMinutes, notification, recipientEmail, enabled, actions, onSaved])
+  }, [automation.id, name, description, prompt, scheduleType, dailyTime, weeklyDay, intervalMinutes, notification, rememberBefore, resultsTo, recipientEmail, enabled, actions, onSaved])
 
   const toggle = useCallback(async () => {
     setBusy('toggle')
@@ -294,6 +301,14 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
               actions={actions}
               grantable={grantable}
               onChange={setActions}
+            />
+
+            <ResultsEditor
+              rememberBefore={rememberBefore}
+              onRememberChange={setRememberBefore}
+              resultsTo={resultsTo}
+              onResultsToChange={setResultsTo}
+              pinned={pinnedToThread}
             />
 
             <div className="auto-modal-section">

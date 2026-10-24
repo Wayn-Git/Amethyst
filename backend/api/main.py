@@ -945,6 +945,9 @@ app.include_router(converter_router)
 from backend.dashboard.router import router as widget_router
 app.include_router(widget_router)
 
+from backend.api.today import router as today_router
+app.include_router(today_router)
+
 
 @app.post("/api/pair/claim")
 def claim_pairing(body: dict[str, Any], request: Request) -> dict[str, Any]:
@@ -4044,6 +4047,8 @@ class CreateAutomation(BaseModel):
     notification: str = "app"
     template_id: str | None = None
     actions: list[str] | None = None
+    remember_before: bool = False
+    results_to: str = "new"
 
 
 class UpdateAutomation(BaseModel):
@@ -4061,6 +4066,8 @@ class UpdateAutomation(BaseModel):
     timezone: str | None = None
     notification: str | None = None
     actions: list[str] | None = None
+    remember_before: bool | None = None
+    results_to: str | None = None
 
 
 def _check_capability_profile(name: str | None) -> None:
@@ -4117,6 +4124,8 @@ def create_automation(body: CreateAutomation) -> dict[str, Any]:
             notification=body.notification,
             template_id=body.template_id,
             actions=body.actions,
+            remember_before=body.remember_before,
+            results_to=body.results_to,
         )
     except AutomationError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -4149,6 +4158,8 @@ def update_automation(automation_id: int, body: UpdateAutomation) -> dict[str, A
             timezone=body.timezone,
             notification=body.notification,
             actions=body.actions,
+            remember_before=body.remember_before,
+            results_to=body.results_to,
         )
     except AutomationError as exc:
         raise HTTPException(400, str(exc)) from exc

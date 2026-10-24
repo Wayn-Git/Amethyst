@@ -2911,8 +2911,11 @@ class Director:
                         if not val_err and is_write and idem_key in state.idempotency_cache:
                             record_cache_hit()
                             cached_data = state.idempotency_cache[idem_key]
+                            cached_content = cached_data.get("content", "")
+                            note = "[already fetched this turn: using cached result]\n"
+                            content = note + cached_content if not cached_content.startswith(note) else cached_content
                             cached_res = ToolResult(
-                                content=cached_data.get("content", ""),
+                                content=content,
                                 artifacts=cached_data.get("artifacts", []),
                                 is_error=cached_data.get("is_error", False),
                                 recoverable=cached_data.get("recoverable", True),
@@ -2930,7 +2933,7 @@ class Director:
                                 return await t
 
                             task = self._spawn(_await_shared_write())
-                        elif not val_err and not is_write and cache_key in state.execution_cache:
+                        elif not val_err and cache_key in state.execution_cache:
                             record_cache_hit()
                             cached_data = state.execution_cache[cache_key]
                             cached_content = cached_data.get("content", "")

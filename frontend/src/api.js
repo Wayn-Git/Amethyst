@@ -868,6 +868,13 @@ export const api = {
   // section that could not be read, so the page says so instead of showing a
   // zero nobody measured.
   today: () => j('/today'),
+  todayItems: () => j('/today/items'),
+  importTodayConversation: (body) => j('/today/messages/import', json('POST', body)),
+  trackTodayItem: (body) => j('/today/items', json('POST', body)),
+  updateTodayItem: (id, body) => j(`/today/items/${encodeURIComponent(id)}`, json('PATCH', body)),
+  todayMail: (refresh = false) => j(`/today/mail?refresh=${refresh}`),
+  todayLocations: (q) => j(`/today/locations?q=${encodeURIComponent(q)}`),
+  todayWeather: ({ latitude, longitude }) => j(`/today/weather?latitude=${latitude}&longitude=${longitude}`),
 
   journal: (kind) => j(`/journal${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`),
   journalEntry: (id) => j(`/journal/${id}`),
