@@ -942,6 +942,9 @@ app.include_router(remote_router)
 from backend.converter import router as converter_router
 app.include_router(converter_router)
 
+from backend.dashboard.router import router as widget_router
+app.include_router(widget_router)
+
 
 @app.post("/api/pair/claim")
 def claim_pairing(body: dict[str, Any], request: Request) -> dict[str, Any]:
