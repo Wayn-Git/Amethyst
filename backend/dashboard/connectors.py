@@ -23,6 +23,7 @@ from backend.tools.base import RiskLevel, ToolContext, ToolSource
 
 # Explicit machine-reader capabilities exclude router/proxy tools and nested writes.
 READ_TOOLS = {
+    "spotify": {"SPOTIFY_GET_CURRENTLY_PLAYING_TRACK", "SPOTIFY_GET_RECENTLY_PLAYED_TRACKS"},
     "googlecalendar": {"GOOGLECALENDAR_FIND_EVENT"},
     "gmail": {"GMAIL_FETCH_EMAILS"},
     "github": {
@@ -41,6 +42,7 @@ READ_TOOLS = {
     },
 }
 READ_SCOPES = {
+    "spotify": "user-read-currently-playing,user-read-recently-played",
     "gmail": "https://www.googleapis.com/auth/gmail.readonly",
     "googlecalendar": "https://www.googleapis.com/auth/calendar.readonly",
     "github": "read:user,read:org",

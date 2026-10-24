@@ -177,6 +177,13 @@ def mail_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     {
+        **manifest("glance.music", "Now playing and last played", ["m", "l"]),
+        "source": {"type": "composio", "toolkit": "spotify"},
+        "requires": ["connector:spotify"],
+        "refresh": {"mode": "poll", "interval_s": 60},
+        "empty": "Nothing playing or recently played.",
+    },
+    {
         **manifest("glance.air", "Air quality", ["s", "m", "l"]),
         "source": {"type": "api"},
         "refresh": {"mode": "poll", "interval_s": 3600},

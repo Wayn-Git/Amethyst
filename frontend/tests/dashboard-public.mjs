@@ -30,5 +30,14 @@ try {
   await page.getByText('Sunrise: Unavailable · Sunset: Unavailable · UTC', { exact: true }).waitFor()
   await page.evaluate(() => window.renderWeather({ widgetId: 'glance.air', data: { european_aqi: 0, pm2_5: 0, pm10: 2, time: '2026-10-25T12:00' } }))
   await page.getByText('European AQI: 0', { exact: false }).waitFor()
-  console.log('Weather widgets UI passed')
+  await page.evaluate(async () => {
+    const { default: React } = await import('/node_modules/.vite/deps/react.js')
+    const { default: { createRoot } } = await import('/node_modules/.vite/deps/react-dom_client.js')
+    const { default: Music } = await import('/src/dashboard/widgets/Music.jsx')
+    const node = document.createElement('div'); document.body.append(node)
+    createRoot(node).render(React.createElement(Music, { data: { items: [], history: [{ title: 'Fixture track', artists: ['Fixture artist'], url: null }] } }))
+  })
+  await page.getByText('Nothing playing.', { exact: true }).waitFor()
+  await page.getByText('Fixture track', { exact: true }).waitFor()
+  console.log('Weather and music UI passed')
 } finally { await browser.close() }
