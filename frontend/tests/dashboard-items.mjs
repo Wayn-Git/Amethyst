@@ -58,6 +58,13 @@ try {
     assert.equal(await card.getByRole('button', { name: 'Add item', exact: true }).count(), 0)
     console.log('need.overdue: three source lists rendered')
   }
+  if (widgets.includes('lib.search')) {
+    const card = page.locator('[data-widget="lib.search"]')
+    await card.getByLabel('Search Library', { exact: true }).fill('')
+    await card.getByRole('button', { name: 'Search', exact: true }).click()
+    await card.getByRole('button', { name: 'Search', exact: true }).waitFor({ state: 'visible' })
+    assert.equal(await card.getByRole('alert').count(), 0)
+  }
   if (widgets.includes('lib.capture')) {
     const card = page.locator('[data-widget="lib.capture"]')
     await card.getByLabel('Note title', { exact: true }).fill('Browser note fixture')

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from pydantic import Field
 
 from backend.dashboard.items import ItemInput, decide, draft
 from backend.dashboard.models import ClockSettings, Layout, QuietSettings, StrictModel
@@ -63,6 +64,10 @@ def get_settings(widget_id: str):
     return settings_read(widget_id)
 
 
+class SearchSettings(StrictModel):
+    query: str = Field(default="", max_length=500)
+
+
 @router.put("/widgets/{widget_id}/settings")
 def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
     enabled(widget_id)
@@ -75,6 +80,8 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 if date.tzinfo is None:
                     raise ValueError("Snooze requires a timezone")
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
+        elif widget_id == "lib.search":
+            value = SearchSettings.model_validate(body).model_dump()
         elif widget_id == "glance.clock":
             value = ClockSettings.model_validate(body).model_dump()
             for zone in value["zones"]:
