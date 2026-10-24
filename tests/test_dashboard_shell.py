@@ -151,6 +151,27 @@ async def test_empty_not_connected_and_error_states(db, monkeypatch):
     assert service.read_data("glance.clock")["state"] == "error"
 
 
+def test_morning_default_is_valid_persisted_and_preserves_saved_layouts(client):
+    from backend.dashboard.models import Layout
+    from backend.db.connection import get_connection
+
+    layout = client.get("/api/layout").json()
+    Layout.model_validate(layout)
+    assert [widget["id"] for widget in layout["widgets"]] == [
+        "glance.clock", "glance.weather", "glance.next-event", "glance.music",
+        "need.inbox", "need.drafts", "need.waiting", "need.mentions", "need.overdue",
+        "agent.brief", "agent.feed", "task.today", "dev.prs", "lib.resurface", "feed.news",
+    ]
+    assert get_connection().execute("SELECT 1 FROM layouts WHERE mode='default'").fetchone()
+    for widget in layout["widgets"]:
+        assert widget["size"] in REGISTRY[widget["id"]]["manifest"]["sizes"]
+    reset_connection()
+    assert client.get("/api/layout").json() == layout
+    saved = {"widgets": []}
+    assert client.put("/api/layout", json=saved).status_code == 200
+    assert client.get("/api/layout").json() == saved
+
+
 def test_layout_validation_and_restart_persistence(client):
     layout = {"widgets": [{"id": "glance.clock", "size": "l", "height": 5}]}
     assert client.put("/api/layout?mode=default", json=layout).status_code == 200

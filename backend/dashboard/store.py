@@ -60,18 +60,37 @@ def layout_read(mode):
     )
     if row:
         return json.loads(row[0])
-    return {
+    value = {
         "widgets": [
-            {"id": name, "size": "m", "height": 4 if name == "dash.quiet" else 3}
-            for name in (
-                "glance.clock",
-                "dash.sync",
-                "dash.quiet",
-                "dash.shortcuts",
-                "dash.gallery",
+            {"id": name, "size": size, "height": 3}
+            for name, size in (
+                ("glance.clock", "s"),
+                ("glance.weather", "m"),
+                ("glance.next-event", "s"),
+                ("glance.music", "m"),
+                ("need.inbox", "m"),
+                ("need.drafts", "m"),
+                ("need.waiting", "m"),
+                ("need.mentions", "m"),
+                ("need.overdue", "m"),
+                ("agent.brief", "m"),
+                ("agent.feed", "m"),
+                ("task.today", "m"),
+                ("dev.prs", "m"),
+                ("lib.resurface", "m"),
+                ("feed.news", "m"),
             )
         ]
     }
+    with transaction() as conn:
+        conn.execute(
+            "INSERT INTO layouts VALUES(?,?,?) ON CONFLICT(mode) DO NOTHING",
+            (mode, json.dumps(value), stamp()),
+        )
+        return json.loads(
+            conn.execute("SELECT layout_json FROM layouts WHERE mode=?", (mode,)).fetchone()[0]
+        )
+
 
 
 def layout_write(mode, value):
