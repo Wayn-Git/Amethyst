@@ -43,6 +43,7 @@ try {
     await card.getByText('Old seeds fixture', { exact: true }).waitFor()
     await card.getByText('Recent capture: Gardening', { exact: true }).waitFor()
   }
+  if (widgets.includes('lib.recent')) await page.locator('[data-widget="lib.recent"]').getByText('No saved items.', { exact: true }).waitFor()
   if (widgets.includes('lib.inbox')) await page.locator('[data-widget="lib.inbox"]').getByText('No saved items.', { exact: true }).waitFor()
   if (widgets.includes('need.snoozed')) {
     const card = page.locator('[data-widget="need.snoozed"]')

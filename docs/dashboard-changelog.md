@@ -28,3 +28,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - lib.resurface: reuse hybrid Library search for today tasks/recent captures, show context reason; old means at least seven days. Calendar context unavailable locally.
 - lib.capture: reviewed single-use note drafts through ConfirmationService, markdown vault via LibraryService.log_manual; rejection, persistence, gate refusal and keyboard checks.
 - lib.search: bounded query settings, existing Library hybrid search, matching excerpts and honest keyword fallback; provider, settings and browser checks pass.
+- lib.recent: Library notes ordered by persisted edit time, capture invalidates Library widgets; selection and empty browser checks pass.

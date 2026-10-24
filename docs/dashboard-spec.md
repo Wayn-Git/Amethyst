@@ -247,7 +247,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | lib.resurface | Resurfaced old notes | lib (semantic search) | MVP | [x] |
 | lib.capture | ⌘K quick capture | lib | MVP | [x] |
 | lib.search | Semantic and keyword search | lib | MVP | [x] |
-| lib.recent | Recently edited notes | lib | MVP | [ ] |
+| lib.recent | Recently edited notes | lib | MVP | [x] |
 | lib.dupes | Duplicates found | lib (dedup) | MVP | [ ] |
 | lib.ask | Ask-your-library Q&A | lib, llm | v2 | [ ] |
 | lib.readlater | Read-later queue with summaries | lib, llm | v2 | [ ] |
