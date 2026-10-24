@@ -44,6 +44,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "lib.search",
         "lib.capture",
         "lib.resurface",
+        "dev.backup",
         "dev.appeal",
         "dev.recovery",
         "dash.gallery",
@@ -61,7 +62,7 @@ def test_registry_contains_shipped_local_widgets(client):
     }
     assert all(
         all(
-            source["type"] in ("local", "library", "composio", "llm")
+            source["type"] in ("local", "library", "composio", "llm", "git")
             for source in (
                 entry["manifest"]["source"]
                 if isinstance(entry["manifest"]["source"], list)

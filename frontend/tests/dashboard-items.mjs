@@ -22,6 +22,7 @@ const executablePath = process.env.CHROMIUM_PATH || readdirSync(root).filter(n =
 const browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] })
 const page = await browser.newPage()
 page.setDefaultTimeout(15000)
+page.on('pageerror', error => console.error(error.message))
 await page.addInitScript(() => { localStorage.setItem('amethyst.ui.v1', JSON.stringify({ onboardingDone: true })); localStorage.setItem('amethyst.ui.forceDesktop', '1') })
 await page.route('**/api/**', async route => {
   const url = new URL(route.request().url())
@@ -46,6 +47,15 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('dev.backup')) {
+    const card = page.locator('[data-widget="dev.backup"]')
+    await card.getByLabel('Local repository paths (one per line)', { exact: true }).fill('/tmp/amethyst-missing-widget-fixture')
+    await card.getByRole('button', { name: 'Save repositories', exact: true }).click()
+    await card.getByText('No readable local clone', { exact: true }).waitFor()
+    await card.getByLabel('Local repository paths (one per line)', { exact: true }).fill('relative-path')
+    await card.getByRole('button', { name: 'Save repositories', exact: true }).click()
+    await card.getByRole('alert').waitFor()
+  }
   if (widgets.includes('dev.appeal')) {
     const card = page.locator('[data-widget="dev.appeal"]')
     await card.getByLabel('Case title', { exact: true }).fill('Support fixture')

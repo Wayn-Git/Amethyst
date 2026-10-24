@@ -281,7 +281,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 |---|---|---|---|---|
 | dev.appeal | Support case tracker (for example an account appeal): timeline of Sent, Waiting (day N), Reply; watches the linked inbox for replies; manual "mark reply received"; "draft follow-up" | local, cmp:gmail, llm | MVP | [x] |
 | dev.recovery | Recovery checklist (mirror, local clone, exports) | local | MVP | [x] |
-| dev.backup | Backup status across hosts and local clones (remotes, last push, reachable or not) | git | MVP | [ ] |
+| dev.backup | Backup status across hosts and local clones (remotes, last push, reachable or not) | git | MVP | [x] |
 | dev.unpushed | Unpushed commits and dirty branches | git | MVP | [ ] |
 | dev.prs | PRs awaiting review and my open PRs | cmp:github | MVP | [ ] |
 | dev.issues | Assigned issues | cmp:github | MVP | [ ] |
@@ -446,6 +446,9 @@ Personal data in this group is stored locally only and is off until the user tur
 ---
 
 ## 13. Open questions (fill in as they are answered)
+
+- dev.backup: Git has no authoritative cross-host push timestamp. Show only local “update by push” reflog evidence (latest 200 reflog entries), otherwise unknown; never substitute commit time. Repositories are explicitly configured local paths and remotes are probed without prompting.
+
 
 - task.agenda: is the primary calendar/current Monday–Sunday week sufficient? MVP uses that reversible scope, at most 100 events with a visible limit notice. Uses the Home quiet-hours timezone (UTC when unset); no calendar writes. Stopping widget access deletes its cache without revoking the shared Composio account.
 

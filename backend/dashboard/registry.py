@@ -94,6 +94,7 @@ MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     developer_manifest("dev.appeal", "Support cases"),
     developer_manifest("dev.recovery", "Recovery checklist"),
+    developer_manifest("dev.backup", "Backup status", "git"),
     library_manifest("lib.inbox", "Saved items inbox"),
     library_manifest("lib.resurface", "Resurfaced old notes"),
     library_manifest("lib.capture", "Quick capture"),
