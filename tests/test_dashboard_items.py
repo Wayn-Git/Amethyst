@@ -107,3 +107,35 @@ def test_backlog_idle_sort_and_today_exclusion(client):
     items = provide("task.backlog")["items"]
     assert [item["id"] for item in items] == [older, newer]
     assert items[0]["idle_days"] == 5
+
+
+def test_deadline_crud_and_countdown_order(client):
+    widget = "task.deadlines"
+    assert (
+        client.post(f"/api/widgets/{widget}/actions/add", json={"title": "No date"}).status_code
+        == 422
+    )
+    now = local_now()
+    for title, due in [("Later", now + timedelta(days=2)), ("Overdue", now - timedelta(hours=1))]:
+        draft = propose(client, "add", {"title": title, "due_at": due.isoformat()}, widget)
+        assert provide(widget)["items"] == [] if title == "Later" else True
+        assert decide(client, draft, widget=widget).json()["state"] == "applied"
+    reset_connection()
+    items = provide(widget)["items"]
+    assert [item["title"] for item in items] == ["Overdue", "Later"]
+    assert items[0]["seconds_until_due"] < 0 < items[1]["seconds_until_due"]
+    item_id = items[0]["id"]
+    draft = propose(
+        client,
+        "edit",
+        {"id": item_id, "title": "Edited", "due_at": (now + timedelta(days=3)).isoformat()},
+        widget,
+    )
+    assert decide(client, draft, widget=widget).status_code == 200
+    assert provide(widget)["items"][-1]["title"] == "Edited"
+    draft = propose(client, "complete", {"id": item_id}, widget)
+    assert decide(client, draft, widget=widget).status_code == 200
+    assert len(provide(widget)["items"]) == 1
+    draft = propose(client, "delete", {"id": items[1]["id"]}, widget)
+    assert decide(client, draft, widget=widget).status_code == 200
+    assert provide(widget)["items"] == []

@@ -16,7 +16,7 @@ from backend.db.connection import get_connection, transaction
 from backend.security.confirmation import ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext
 
-TABLES = {"task.today": "tasks", "task.backlog": "tasks"}
+TABLES = {"task.today": "tasks", "task.backlog": "tasks", "task.deadlines": "deadlines"}
 
 
 class ItemInput(StrictModel):
@@ -87,6 +87,13 @@ def display(row, now, source):
 
 def provide(widget_id):
     now = local_now()
+    if widget_id == "task.deadlines":
+        rows = [
+            dict(row)
+            for row in get_connection().execute("SELECT * FROM deadlines WHERE status='todo'")
+        ]
+        rows.sort(key=lambda row: (parsed(row["due_at"]), row["id"]))
+        return {"items": [display(row, now, "deadlines") for row in rows]}
     rows = [r for r in task_rows() if today_item(r, now) == (widget_id == "task.today")]
     if widget_id == "task.backlog":
         rows.sort(key=lambda r: (parsed(r["updated_at"]), r["id"]))
@@ -98,6 +105,8 @@ def draft(widget_id, action, body):
         raise HTTPException(404, "Unknown item action")
     if action in ("add", "edit") and not body.title:
         raise HTTPException(422, "Title is required")
+    if widget_id == "task.deadlines" and action in ("add", "edit") and body.due_at is None:
+        raise HTTPException(422, "Due date is required")
     if action != "add" and body.id is None:
         raise HTTPException(422, "Item id is required")
     if action == "add" and body.id is not None:
@@ -204,7 +213,11 @@ def apply(conn, widget_id, action, body):
     due_text = (
         due.astimezone(local_now().tzinfo).replace(tzinfo=None).isoformat(sep=" ") if due else None
     )
-    if action == "add":
+    if table != "tasks":
+        due_text = due.astimezone(UTC).isoformat() if due else None
+    if action == "add" and table != "tasks":
+        conn.execute(f"INSERT INTO {table}(title,due_at) VALUES(?,?)", (body["title"], due_text))
+    elif action == "add":
         conn.execute(
             "INSERT INTO tasks(title,due_at,my_day_date) VALUES(?,?,?)",
             (
