@@ -58,6 +58,18 @@ def library_manifest(widget_id, title):
     return value
 
 
+def agenda_manifest():
+    value = manifest("task.agenda", "Agenda and week view", ["m", "l"])
+    value.update(
+        group="tasks",
+        source={"type": "composio", "toolkit": "googlecalendar"},
+        refresh={"mode": "poll", "interval_s": 900},
+        requires=["connector:googlecalendar"],
+        empty="No events this week.",
+    )
+    return value
+
+
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     library_manifest("lib.inbox", "Saved items inbox"),
@@ -68,6 +80,7 @@ MANIFESTS = [
     library_manifest("lib.dupes", "Duplicates found"),
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
+    agenda_manifest(),
     task_manifest("task.today", "Today list"),
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),
