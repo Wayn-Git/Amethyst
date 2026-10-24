@@ -134,7 +134,8 @@ try {
     await card.getByRole('button', { name: 'Reject save', exact: true }).click()
     await card.getByText('Note was not saved.', { exact: true }).waitFor()
     await page.keyboard.press('Control+k')
-    assert.equal(await card.getByLabel('Note title', { exact: true }).evaluate(el => el === document.activeElement), true)
+    await page.getByRole('dialog', { name: 'Spotlight Command Palette' }).waitFor()
+    await page.keyboard.press('Escape')
   }
   for (const id of widgets.filter(id => (id.startsWith('task.') && id !== 'task.agenda') || id === 'dev.recovery')) {
     const card = page.locator(`[data-widget="${id}"]`)

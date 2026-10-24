@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'dash.palette': lazy(() => import('./widgets/Palette.jsx')),
   'agent.next': lazy(() => import('./widgets/Insights.jsx')),
   'agent.brief': lazy(() => import('./widgets/Insights.jsx')),
   'feed.news': lazy(() => import('./widgets/News.jsx')),

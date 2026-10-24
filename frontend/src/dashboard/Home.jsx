@@ -25,6 +25,9 @@ export default function Home() {
   const grid = useRef(null)
   const mounted = useRef(false)
   const manifests = entries.filter(e => e.enabled).map(e => e.manifest)
+  const requested = new URLSearchParams(window.location.search).get('widget')
+  const positions = requested && manifests.some(m => m.id === requested)
+    ? [layout.widgets.find(w => w.id === requested) || { id: requested, size: 'm', height: 4 }, ...layout.widgets.filter(w => w.id !== requested)] : layout.widgets
   const quiet = quietNow(quietSettings, now)
   const refreshAll = useCallback(() => setRefreshVersion(n => n + 1), [])
   const onData = useCallback((id, data) => setRecords(old => JSON.stringify(old[id]) === JSON.stringify(data) ? old : { ...old, [id]: data }), [])
@@ -83,7 +86,7 @@ export default function Home() {
     <p role="status" className="home-save-status">{dragging ? 'Release to place. Escape cancels.' : saveState}</p>
     {entries.filter(e => !e.enabled).map(e => <p key={e.manifest.id} role="alert">{e.manifest.title}: {e.error}</p>)}
     {!loaded && !layout.widgets.length && <p role="status">Loading layout…</p>}
-    <div className="home-grid" ref={grid}>{layout.widgets.map(position => { const manifest = manifests.find(m => m.id === position.id); if (!manifest) return null; return <WidgetBoundary key={manifest.id} id={manifest.id} onRetry={refreshAll}><WidgetFrame manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={editing} move={move} resize={resize} grip={grip} /></WidgetBoundary> })}</div>
+    <div className="home-grid" ref={grid}>{positions.map(position => { const manifest = manifests.find(m => m.id === position.id); if (!manifest) return null; return <WidgetBoundary key={manifest.id} id={manifest.id} onRetry={refreshAll}><WidgetFrame manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={editing && layout.widgets.some(w => w.id === manifest.id)} move={move} resize={resize} grip={grip} /></WidgetBoundary> })}</div>
     {loaded && !layout.widgets.length && <p>No widgets selected. Add one below.</p>}
     <details className="home-add"><summary>Add widgets</summary><div className="widget-buttons">{manifests.filter(m => !layout.widgets.some(w => w.id === m.id)).map(m => <button key={m.id} onClick={() => toggleWidget(m.id)}>Add {m.title}</button>)}</div></details>
   </div></DashboardContext.Provider>

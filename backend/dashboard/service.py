@@ -118,6 +118,8 @@ async def local_provider(widget_id):
                 if entry["enabled"]
             ]
         }
+    if widget_id == "dash.palette":
+        return {"ready": True}
     if widget_id == "dash.shortcuts":
         return {
             "shortcuts": [

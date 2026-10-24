@@ -19,6 +19,8 @@ import TasksView from './damon/views/TasksView.jsx'
 import LibraryView from './damon/views/LibraryView.jsx'
 import { evaluateMath } from './damon/calculator.js'
 import { peek, put } from './damon/searchCache.js'
+import { request as dashboardRequest } from '../dashboard/api.js'
+import Capture from '../dashboard/widgets/Capture.jsx'
 import { ChevronRight } from 'lucide-react'
 
 const THEMES = [
@@ -213,6 +215,9 @@ export default function CommandPalette({ bare = false }) {
   const [automations, setAutomations] = useState([])
   const [libraryItems, setLibraryItems] = useState([])
   const [tasksList, setTasksList] = useState([])
+  const [localResults, setLocalResults] = useState({ query: '', items: [] })
+  const [localStatus, setLocalStatus] = useState('')
+  const [capturing, setCapturing] = useState(false)
 
   // Search results state
   const [webResults, setWebResults] = useState([])
@@ -261,6 +266,21 @@ export default function CommandPalette({ bare = false }) {
     if (detectedService) return querySubject
     return rawQuery.trim()
   }, [detectedService, querySubject, rawQuery])
+
+  useEffect(() => {
+    if (!open || activeMode !== 'all') return
+    let active = true
+    const timer = setTimeout(async () => {
+      setLocalResults({ query: effectiveQuery, items: [] })
+      if (!effectiveQuery) { setLocalStatus(''); return }
+      setLocalStatus('Searching local sources…')
+      try {
+        const result = await dashboardRequest(`/dashboard/search?q=${encodeURIComponent(effectiveQuery.slice(0, 500))}`)
+        if (active) { setLocalResults({ query: effectiveQuery, items: result.items || [] }); setLocalStatus(result.degraded ? 'Library search is limited; other local results are available.' : '') }
+      } catch (error) { if (active) setLocalStatus(`Local search unavailable: ${error.message}`) }
+    }, 180)
+    return () => { active = false; clearTimeout(timer) }
+  }, [open, activeMode, effectiveQuery])
 
   // Seamless mode switcher that cleans up the query string
   const handleSelectMode = useCallback((newMode) => {
@@ -925,19 +945,6 @@ export default function CommandPalette({ bare = false }) {
       .sort((a, b) => b.s - a.s)
       .map((r) => r.c)
 
-    // Matching library items
-    const matchedLib = libraryItems.slice(0, 3).map((item) => ({
-      id: `lib:${item.id}`,
-      group: 'Library Items',
-      icon: item.kind === 'video' ? 'play' : 'bookmark',
-      label: item.title || 'Untitled item',
-      hint: item.url || item.kind,
-      run: () => {
-        if (item.url) window.open(item.url, '_blank')
-        else handleNavigate('library')
-      },
-    }))
-
     // Matching memory facts
     const matchedMemory = (memory?.facts || [])
       .filter((f) => f.fact.toLowerCase().includes(q.toLowerCase()))
@@ -951,9 +958,14 @@ export default function CommandPalette({ bare = false }) {
         run: () => handleNavigate('memory'),
       }))
 
-    return [...dynamicItems, ...matchedCommands, ...matchedLib, ...matchedMemory]
+    const local = (localResults.query === effectiveQuery ? localResults.items : []).map(item => ({
+      id: `local:${item.group}:${item.id}`, group: item.group, icon: 'search',
+      label: item.title, hint: item.detail,
+      run: () => { window.location.assign(item.href) },
+    }))
+    return [...local, ...dynamicItems, ...matchedCommands, ...matchedMemory]
   }, [
-    activeMode, effectiveQuery, commands, dynamicItems, libraryItems, memory,
+    activeMode, effectiveQuery, commands, dynamicItems, memory, localResults,
     conversations, handleNavigate, chat,
   ])
 
@@ -1081,6 +1093,9 @@ export default function CommandPalette({ bare = false }) {
         onSelectMode={handleSelectMode}
       />
 
+      <div className="widget-buttons"><button onClick={() => setCapturing(value => !value)}>{capturing ? 'Close quick capture' : 'Quick capture'}</button></div>
+      {capturing && <section aria-label="Quick capture"><Capture refresh={() => {}} /></section>}
+      {activeMode === 'all' && localStatus && <p role="status">{localStatus}</p>}
       {/* Results Container */}
       {/* Keyed by mode, so switching modes is a fade into the new list
           rather than an in-place reshuffle of everything at once. */}

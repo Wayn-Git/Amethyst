@@ -82,3 +82,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 
 - 2026-10-25 agent.brief: optional async model selection from cached widget items, source links, persisted cache; scheduled at 08:00/18:00 local time while running (next startup catches up), manual refresh supported; model output selects source indices only.
 - 2026-10-25 agent.next: optional async selection of exactly one existing approval, decision, overdue item, draft or Today task; source-derived reason and item link; no generated tasks.
+- 2026-10-25 dash.palette: existing global ⌘K/Ctrl+K palette searches Library, cached widget items, widget manifests/actions and persisted tasks; quick capture reuses lib.capture review/permission gate; action results open their widget, and ⌘K now opens the palette even inside capture.

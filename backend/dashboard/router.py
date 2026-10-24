@@ -250,3 +250,17 @@ def source_item(widget_id: str, item_id: str):
         if item["widget_id"] == widget_id and item["item_id"] == item_id:
             return item
     raise HTTPException(404, "Source item is no longer in the widget cache")
+
+
+@router.get("/dashboard/search")
+async def global_search(q: str = Query(default="", max_length=500)):
+    from backend.dashboard.search import search
+
+    return await search(q)
+
+
+@router.get("/dashboard/search/{source}/{item_id}")
+def search_item(source: str, item_id: int):
+    from backend.dashboard.search import item
+
+    return item(source, item_id)

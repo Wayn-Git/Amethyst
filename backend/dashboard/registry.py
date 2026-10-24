@@ -278,6 +278,11 @@ MANIFESTS = [
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),
     task_manifest("task.reminders", "Reminders"),
+    {
+        **manifest("dash.palette", "Command palette and global search", ["m", "l"]),
+        "source": [{"type": "local"}, {"type": "library"}],
+        "refresh": {"mode": "manual"},
+    },
     manifest("dash.gallery", "Widget gallery", ["m", "l"]),
     manifest("dash.sync", "Refresh status", ["s", "m", "l"]),
     manifest("dash.quiet", "Quiet hours", ["m", "l"]),

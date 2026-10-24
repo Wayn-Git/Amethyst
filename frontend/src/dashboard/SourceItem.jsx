@@ -9,7 +9,7 @@ export default function SourceItem() {
   useEffect(() => {
     if (!source || !id) return
     let active = true
-    request(`/widgets/${encodeURIComponent(source)}/items/${encodeURIComponent(id)}`).then(value => { if (active) setItem(value) }).catch(err => { if (active) setError(err.message) })
+    request(['tasks', 'library'].includes(source) ? `/dashboard/search/${source}/${encodeURIComponent(id)}` : `/widgets/${encodeURIComponent(source)}/items/${encodeURIComponent(id)}`).then(value => { if (active) setItem(value) }).catch(err => { if (active) setError(err.message) })
     return () => { active = false }
   }, [source, id])
   if (!source || !id) return null
