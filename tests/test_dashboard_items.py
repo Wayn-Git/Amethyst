@@ -109,8 +109,8 @@ def test_backlog_idle_sort_and_today_exclusion(client):
     assert items[0]["idle_days"] == 5
 
 
-def test_deadline_crud_and_countdown_order(client):
-    widget = "task.deadlines"
+@pytest.mark.parametrize("widget", ["task.deadlines", "task.reminders"])
+def test_dated_item_crud_and_countdown_order(client, widget):
     assert (
         client.post(f"/api/widgets/{widget}/actions/add", json={"title": "No date"}).status_code
         == 422
@@ -139,3 +139,17 @@ def test_deadline_crud_and_countdown_order(client):
     draft = propose(client, "delete", {"id": items[1]["id"]}, widget)
     assert decide(client, draft, widget=widget).status_code == 200
     assert provide(widget)["items"] == []
+
+
+def test_reminders_do_not_schedule_notifications(client):
+    repo = TaskRepository()
+    before = repo.due_reminders(local_now().isoformat())
+    draft = propose(
+        client,
+        "add",
+        {"title": "Due reminder", "due_at": (local_now() - timedelta(hours=1)).isoformat()},
+        "task.reminders",
+    )
+    assert decide(client, draft, widget="task.reminders").json()["state"] == "applied"
+    assert repo.due_reminders(local_now().isoformat()) == before
+    assert provide("task.reminders")["items"][0]["due_state"] == "overdue"

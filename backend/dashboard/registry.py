@@ -47,6 +47,7 @@ MANIFESTS = [
     task_manifest("task.today", "Today list"),
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),
+    task_manifest("task.reminders", "Reminders"),
     manifest("dash.gallery", "Widget gallery", ["m", "l"]),
     manifest("dash.sync", "Refresh status", ["s", "m", "l"]),
     manifest("dash.quiet", "Quiet hours", ["m", "l"]),

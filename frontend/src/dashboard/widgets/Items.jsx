@@ -37,6 +37,7 @@ export default function Items({ data, widgetId }) {
     } catch (e) { setError(e.message); setDraft(null) } finally { setBusy(false) }
   }
   return <div>
+    {widgetId === 'task.reminders' && <p>Due state only. Notifications are not enabled.</p>}
     {error && <p role="alert">{error}</p>}
     {draft ? <section aria-label="Review item change">
       <p>{draft.action}: {draft.item.title || data?.items?.find(item => item.id === draft.item.id)?.title}</p>
@@ -45,7 +46,7 @@ export default function Items({ data, widgetId }) {
     </section> : <>
       {editing ? <form onSubmit={event => { event.preventDefault(); propose(editing.id ? 'edit' : 'add', { id: editing.id || null, title: editing.title, due_at: editing.due ? new Date(editing.due).toISOString() : null }) }}>
         <label>Title<input required maxLength={500} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
-        <label>Due<input type="datetime-local" required={widgetId === 'task.deadlines'} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>
+        <label>Due<input type="datetime-local" required={['task.deadlines', 'task.reminders'].includes(widgetId)} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>
         <div className="widget-buttons"><button disabled={busy} type="submit">Review change</button><button disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</button></div>
       </form> : <button disabled={busy} onClick={() => setEditing({ title: '', due: '' })}>Add item</button>}
       <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}>
