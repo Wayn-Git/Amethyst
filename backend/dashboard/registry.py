@@ -32,8 +32,19 @@ def manifest(widget_id, title, sizes):
     )
 
 
+def task_manifest(widget_id, title):
+    value = manifest(widget_id, title, ["m", "l"])
+    value["group"] = "tasks"
+    value["actions"] = [
+        dict(id=a, label=a.title(), gate=True) for a in ("add", "edit", "complete", "delete")
+    ]
+    value["empty"] = "No items."
+    return value
+
+
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    task_manifest("task.today", "Today list"),
     manifest("dash.gallery", "Widget gallery", ["m", "l"]),
     manifest("dash.sync", "Refresh status", ["s", "m", "l"]),
     manifest("dash.quiet", "Quiet hours", ["m", "l"]),

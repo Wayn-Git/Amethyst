@@ -49,6 +49,7 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
 def migrate(conn: sqlite3.Connection) -> None:
     _add_missing_columns(conn)
     conn.executescript(SCHEMA_PATH.read_text())
+    conn.executescript((SCHEMA_PATH.parent.parent / "dashboard" / "schema.sql").read_text())
     conn.commit()
     _adopt_existing_automation_runs(conn)
     _drop_empty_legacy_tables(conn)
