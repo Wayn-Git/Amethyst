@@ -243,7 +243,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
-| lib.inbox | Saved items inbox | lib | MVP | [ ] |
+| lib.inbox | Saved items inbox | lib | MVP | [x] |
 | lib.resurface | Resurfaced old notes | lib (semantic search) | MVP | [ ] |
 | lib.capture | ⌘K quick capture | lib | MVP | [ ] |
 | lib.search | Semantic and keyword search | lib | MVP | [ ] |

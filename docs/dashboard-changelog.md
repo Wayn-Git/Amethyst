@@ -23,3 +23,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `task.reminders`: separate reminders table and inline gated CRUD; stores and displays due state without entering the existing task notification scan. Notifications remain deferred to `sys.notify`. Nine item tests, browser CRUD and targeted lint pass.
 - `need.overdue`: reads open tasks, deadlines and reminders, compares absolute due times and orders oldest first; task changes invalidate its cache. Ten item tests, browser source rendering and targeted lint pass.
 - `need.snoozed`: durable snoozes table, returns-today reader with ready/scheduled states and local-day boundaries; resolves task/deadline/reminder titles and excludes completed or deleted items. Global quiet-hours snooze stays separate. Verified existing naive task dates use host time, SQLite update dates use UTC. Final proof: 22 backend tests, all six browser widget checks and targeted Ruff/Oxlint pass; no screenshots or unrelated suite.
+
+- lib.inbox: Library recent captures, minimal read-only payload and Home list; provider and shell tests pass.
