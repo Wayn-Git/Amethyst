@@ -9,7 +9,8 @@ import { useSync } from './lib/sync/useSync.js'
 import { notify as toastNotify } from './components/application/notifications'
 
 function pathToId(pathname) {
-  if (pathname === '/' || pathname === '/chat') return 'chat'
+  if (pathname === '/') return 'today'
+  if (pathname === '/chat') return 'chat'
   const hit = pathname.split('/').filter(Boolean)[0]
   return byId(hit) ? hit : 'chat'
 }
@@ -479,15 +480,10 @@ export function AppProvider({ children }) {
     savePrefs({ view: 'chat' })
   }, [navigate])
 
-  // Reopen where you left off, but only from the bare root: a direct visit or
-  // bookmark to e.g. /mail is a real URL and must never be overridden by
-  // whatever the last session happened to have open.
+  // Today is the default home. Explicit deep links still open their destination.
   useEffect(() => {
-    if (location.pathname === '/' && prefs.view && prefs.view !== 'chat') {
-      navigate(pathFor(prefs.view), { replace: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (location.pathname === '/') navigate('/today', { replace: true })
+  }, [location.pathname, navigate])
 
   const setActiveId = useCallback((next) => {
     setActiveIdRaw(next)
