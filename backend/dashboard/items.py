@@ -299,6 +299,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "dash.pin":
+        from backend.dashboard.pins import apply as apply_pin
+
+        return apply_pin(conn, action, body)
     if widget_id == "feed.rss":
         from backend.dashboard.feeds import apply as apply_feed
 

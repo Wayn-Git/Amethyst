@@ -165,6 +165,11 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "dash.pin":
+            from backend.dashboard.pins import PinInput
+            from backend.dashboard.pins import draft as pin_draft
+
+            return pin_draft(action, PinInput.model_validate(body))
         if widget_id == "feed.rss":
             from backend.dashboard.feeds import FeedInput
             from backend.dashboard.feeds import draft as feed_draft

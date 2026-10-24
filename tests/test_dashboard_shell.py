@@ -76,6 +76,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "sys.model",
         "dev.appeal",
         "dev.recovery",
+        "dash.pin",
         "dash.palette",
         "dash.gallery",
         "dash.sync",

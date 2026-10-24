@@ -104,3 +104,10 @@ CREATE TABLE IF NOT EXISTS dashboard_feeds (
     tags_json TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL
 );
+
+-- Renderer declarations only; no connector credentials or conversation tool history.
+CREATE TABLE IF NOT EXISTS dashboard_pins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_calls_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useId } from 'react'
 import Icon from '../Icon.jsx'
+import { PIN_CSP, pinnedHtml } from './pinnedSandbox.js'
 
-export default function SandboxedUi({ data }) {
+export default function SandboxedUi({ data, pinned = false }) {
   const instanceId = useId()
   const iframeRef = useRef(null)
   const initialHeight = Math.min(Math.max(Number(data?.initial_height) || 400, 240), 850)
@@ -13,7 +14,7 @@ export default function SandboxedUi({ data }) {
   // Listen for resize and selection postMessages from inside the iframe
   useEffect(() => {
     function handleMessage(e) {
-      if (e.data?.id !== instanceId) return
+      if (pinned || e.source !== iframeRef.current?.contentWindow || e.data?.id !== instanceId) return
       if (e.data?.type === 'amethyst:sandboxed-ui:resize') {
         const measured = Math.round(Number(e.data.height))
         if (measured > 140 && measured < 1500) {
@@ -68,14 +69,14 @@ export default function SandboxedUi({ data }) {
         })
       )
     }
-  }, [instanceId])
+  }, [instanceId, pinned])
 
   // Build the complete srcdoc HTML with dynamic theme variables
   const srcDoc = useMemo(() => {
-    const rawHtml = data?.html || ''
-    const rawCss = data?.css || ''
-    const rawJs = data?.js || ''
-    const scripts = Array.isArray(data?.scripts) ? data.scripts : []
+    const rawHtml = pinned ? pinnedHtml(data?.html || '') : data?.html || ''
+    const rawCss = pinned ? (data?.css || '').replaceAll('<', '\\3c ') : data?.css || ''
+    const rawJs = pinned ? '' : data?.js || ''
+    const scripts = !pinned && Array.isArray(data?.scripts) ? data.scripts : []
 
     const root = typeof document !== 'undefined' ? document.documentElement : null
     const style = typeof window !== 'undefined' && root ? window.getComputedStyle(root) : null
@@ -106,6 +107,7 @@ export default function SandboxedUi({ data }) {
     return `<!DOCTYPE html>
 <html lang="en" class="${themeMode === 'dark' ? 'dark dark-mode' : 'light'}" data-theme="${theme}" data-theme-mode="${themeMode}" style="color-scheme: ${themeMode};">
 <head>
+  ${pinned ? `<meta http-equiv="Content-Security-Policy" content="${PIN_CSP}">` : ''}
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
@@ -273,7 +275,7 @@ export default function SandboxedUi({ data }) {
   </script>
 </body>
 </html>`
-  }, [data, instanceId, reloadKey])
+  }, [data, instanceId, pinned])
 
   const copyCode = () => {
     const combined = `<!-- HTML -->\n${data?.html || ''}\n\n/* CSS */\n${data?.css || ''}\n\n// JavaScript\n${data?.js || ''}`
@@ -327,7 +329,8 @@ export default function SandboxedUi({ data }) {
           key={reloadKey}
           ref={iframeRef}
           title={title}
-          sandbox="allow-scripts allow-forms"
+          sandbox={pinned ? '' : 'allow-scripts allow-forms'}
+          referrerPolicy="no-referrer"
           srcDoc={srcDoc}
           className="sandboxed-ui-iframe"
           style={{

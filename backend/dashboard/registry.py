@@ -283,6 +283,12 @@ MANIFESTS = [
         "source": [{"type": "local"}, {"type": "library"}],
         "refresh": {"mode": "manual"},
     },
+    {
+        **manifest("dash.pin", "Pinned answers", ["m", "l"]),
+        "source": {"type": "director"},
+        "actions": [dict(id=a, label=a.title(), gate=True) for a in ("add", "delete")],
+        "empty": "Pin a chat answer to Home.",
+    },
     manifest("dash.gallery", "Widget gallery", ["m", "l"]),
     manifest("dash.sync", "Refresh status", ["s", "m", "l"]),
     manifest("dash.quiet", "Quiet hours", ["m", "l"]),

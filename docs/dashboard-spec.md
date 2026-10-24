@@ -166,7 +166,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 |---|---|---|---|---|
 | dash.gallery | Widget gallery with drag and resize | local | MVP | [x] |
 | dash.palette | ⌘K palette and global search | local, lib | MVP | [x] |
-| dash.pin | Pin a chat answer as a widget | dir, llm | MVP | [ ] |
+| dash.pin | Pin a chat answer as a widget | dir, llm | MVP | [x] |
 | dash.sync | Per-widget refresh and "last synced" | local | MVP | [x] |
 | dash.quiet | Quiet hours and snooze | local | MVP | [x] |
 | dash.shortcuts | Keyboard shortcuts | local | MVP | [x] |

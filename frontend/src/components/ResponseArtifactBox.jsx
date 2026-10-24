@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { ThumbsUp, ThumbsDown } from 'lucide-react'
 import Icon from './Icon.jsx'
+import PinToHome from '../dashboard/PinToHome.jsx'
 import Markdown from './markdown/Markdown.jsx'
 import ResponseEditor from './ResponseEditor.jsx'
 import SelectionActionMenu, { cleanAiTransformOutput } from './SelectionActionMenu.jsx'
@@ -661,6 +662,8 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
         </div>
       )
     )}
+
+      {!hideToolbar && !minimalToolbar && !item.live && <PinToHome conversationId={conversationId} messageId={item.rowId} />}
 
       {/* Collapsible Sources Accordion */}
       {hasSources && (

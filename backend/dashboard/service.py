@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "dash.pin":
+        from backend.dashboard.pins import provide
+
+        return await provide()
     if widget_id in ("agent.brief", "agent.next"):
         from backend.dashboard.insights import provide
 
