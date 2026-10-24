@@ -16,7 +16,12 @@ from backend.db.connection import get_connection, transaction
 from backend.security.confirmation import ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext
 
-TABLES = {"task.today": "tasks", "task.backlog": "tasks", "task.deadlines": "deadlines"}
+TABLES = {
+    "task.today": "tasks",
+    "task.backlog": "tasks",
+    "task.deadlines": "deadlines",
+    "task.reminders": "reminders",
+}
 
 
 class ItemInput(StrictModel):
@@ -87,13 +92,14 @@ def display(row, now, source):
 
 def provide(widget_id):
     now = local_now()
-    if widget_id == "task.deadlines":
+    if widget_id in ("task.deadlines", "task.reminders"):
+        table = TABLES[widget_id]
         rows = [
             dict(row)
-            for row in get_connection().execute("SELECT * FROM deadlines WHERE status='todo'")
+            for row in get_connection().execute(f"SELECT * FROM {table} WHERE status='todo'")
         ]
         rows.sort(key=lambda row: (parsed(row["due_at"]), row["id"]))
-        return {"items": [display(row, now, "deadlines") for row in rows]}
+        return {"items": [display(row, now, table) for row in rows]}
     rows = [r for r in task_rows() if today_item(r, now) == (widget_id == "task.today")]
     if widget_id == "task.backlog":
         rows.sort(key=lambda r: (parsed(r["updated_at"]), r["id"]))
@@ -105,7 +111,7 @@ def draft(widget_id, action, body):
         raise HTTPException(404, "Unknown item action")
     if action in ("add", "edit") and not body.title:
         raise HTTPException(422, "Title is required")
-    if widget_id == "task.deadlines" and action in ("add", "edit") and body.due_at is None:
+    if TABLES[widget_id] != "tasks" and action in ("add", "edit") and body.due_at is None:
         raise HTTPException(422, "Due date is required")
     if action != "add" and body.id is None:
         raise HTTPException(422, "Item id is required")

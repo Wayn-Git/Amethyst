@@ -265,7 +265,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | task.backlog | Backlog sorted by idle time | local | MVP | [x] |
 | task.deadlines | Deadline countdowns | local | MVP | [x] |
 | task.agenda | Agenda and week view | cmp:googlecalendar | MVP | [ ] |
-| task.reminders | Reminders and alarms | local | MVP | [ ] |
+| task.reminders | Reminders and alarms | local | MVP | [x] |
 | task.plan | Auto-planned day with time blocks | llm, cmp:googlecalendar | v2 | [ ] |
 | task.focus | Focus timer | local | v2 | [ ] |
 | task.habits | Habit streaks | local | v2 | [ ] |
