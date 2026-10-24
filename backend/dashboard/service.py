@@ -1,0 +1,126 @@
+"""Cache-first, per-widget refresh with bounded concurrency and quiet-hour suppression."""
+
+import asyncio
+import logging
+import time
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
+
+from backend.config import paths
+from backend.dashboard.registry import REGISTRY
+from backend.dashboard.store import cache_read, cache_write, settings_read, stamp
+
+log = logging.getLogger(__name__)
+IN_FLIGHT = set()
+_GATE = asyncio.Semaphore(4)
+
+
+def quiet_active(settings=None, now=None):
+    settings = settings if settings is not None else settings_read("dash.quiet")
+    now = now or datetime.now(UTC)
+    until = settings.get("snoozed_until")
+    if until and datetime.fromisoformat(until.replace("Z", "+00:00")) > now:
+        return True
+    if not settings.get("enabled"):
+        return False
+    local = now.astimezone(ZoneInfo(settings.get("timezone", "UTC"))).strftime("%H:%M")
+    start, end = settings.get("start", "22:00"), settings.get("end", "07:00")
+    return start <= local < end if start < end else local >= start or local < end
+
+
+async def local_provider(widget_id):
+    if widget_id == "glance.clock":
+        return {"now": stamp(), "zones": settings_read(widget_id).get("zones", [])}
+    if widget_id == "dash.quiet":
+        return {**settings_read(widget_id), "active": quiet_active()}
+    if widget_id == "dash.sync":
+        return {
+            "widgets": [
+                {
+                    "id": key,
+                    "synced_at": cache_read(key)["synced_at"],
+                    "state": cache_read(key)["state"],
+                }
+                for key, entry in REGISTRY.items()
+                if entry["enabled"]
+            ]
+        }
+    if widget_id == "dash.shortcuts":
+        return {
+            "shortcuts": [
+                ["Alt+R", "Refresh Home"],
+                ["Alt+Q", "Snooze refresh for one hour"],
+                ["Alt+E", "Edit layout"],
+                ["Arrow keys on move handle", "Move widget"],
+                ["Escape", "Cancel drag or resize"],
+            ]
+        }
+    return {"widgets": [entry["manifest"]["id"] for entry in REGISTRY.values() if entry["enabled"]]}
+
+
+PROVIDERS = {key: local_provider for key in REGISTRY}
+
+
+def read_data(widget_id):
+    value = cache_read(widget_id)
+    manifest = REGISTRY[widget_id]["manifest"]
+    interval = manifest.get("refresh", {}).get("interval_s") or 3600
+    expired = bool(
+        value["synced_at"]
+        and (datetime.now(UTC) - datetime.fromisoformat(value["synced_at"])).total_seconds()
+        >= interval
+    )
+    stale = value["payload"] is not None and (expired or value["state"] in ("error", "stale"))
+    return {
+        **value,
+        "state": "stale" if stale else value["state"],
+        "stale": stale,
+        "refreshing": (str(paths().db), widget_id) in IN_FLIGHT,
+    }
+
+
+async def refresh(widget_id):
+    started = time.monotonic()
+    previous = cache_read(widget_id)
+    try:
+        async with _GATE:
+            if REGISTRY[widget_id]["manifest"].get("requires"):
+                cache_write(widget_id, None, "not-connected")
+                return
+            payload = await asyncio.wait_for(PROVIDERS[widget_id](widget_id), timeout=10)
+            cache_write(
+                widget_id,
+                payload,
+                "empty" if payload is None or payload == [] or payload == {} else "ok",
+                synced_at=stamp(),
+            )
+    except Exception:
+        cache_write(
+            widget_id,
+            previous["payload"],
+            "error",
+            "Refresh failed. Try again.",
+            previous["synced_at"],
+        )
+        log.exception("widget refresh failed: %s", widget_id)
+    finally:
+        IN_FLIGHT.discard((str(paths().db), widget_id))
+        log.info(
+            "widget refresh id=%s duration_ms=%d state=%s",
+            widget_id,
+            (time.monotonic() - started) * 1000,
+            cache_read(widget_id)["state"],
+        )
+
+
+def schedule(widget_id, background_tasks, force=False):
+    key = (str(paths().db), widget_id)
+    data = read_data(widget_id)
+    if key in IN_FLIGHT:
+        return
+    # Initial local data may populate during quiet hours; scheduled refreshes pause.
+    if not force and data["synced_at"] and quiet_active():
+        return
+    if force or data["state"] == "loading" or data["stale"]:
+        IN_FLIGHT.add(key)
+        background_tasks.add_task(refresh, widget_id)

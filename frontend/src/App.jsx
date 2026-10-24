@@ -656,7 +656,7 @@ export default function App() {
                     const Comp = COMPONENTS[v.id]
                     return <Route key={v.id} path={v.path} element={<Comp />} />
                   })}
-                  <Route path="*" element={<Navigate to="/chat" replace />} />
+                  <Route path="*" element={<Navigate to="/today" replace />} />
                 </Routes>
               </Suspense>
             </ErrorBoundary>

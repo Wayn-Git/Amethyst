@@ -1003,3 +1003,21 @@ CREATE TABLE IF NOT EXISTS provider_fallbacks (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+
+-- Day 1 dashboard: cache-first widgets and per-mode user layout.
+CREATE TABLE IF NOT EXISTS widget_cache (
+    widget_id TEXT PRIMARY KEY,
+    payload_json TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('loading','ok','empty','not-connected','error','stale')),
+    error TEXT,
+    synced_at TEXT
+);
+CREATE TABLE IF NOT EXISTS layouts (
+    mode TEXT PRIMARY KEY,
+    layout_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS widget_settings (
+    widget_id TEXT PRIMARY KEY,
+    settings_json TEXT NOT NULL
+);

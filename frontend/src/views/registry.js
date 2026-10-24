@@ -14,7 +14,7 @@ import Chat from './Chat.jsx'
  * is what keeps fast refresh working on it. */
 
 const LOADERS = {
-  today: () => import('./Today.jsx'),
+  today: () => import('../dashboard/Home.jsx'),
   tasks: () => import('./Tasks.jsx'),
   mail: () => import('./Mail.jsx'),
   converter: () => import('./Converter.jsx'),
