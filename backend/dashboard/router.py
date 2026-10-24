@@ -134,7 +134,7 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
-        if widget_id in ("need.drafts", "need.waiting", "comm.tone"):
+        if widget_id in ("need.drafts", "need.waiting", "comm.tone", "comm.templates"):
             from backend.dashboard.mail import MailInput
             from backend.dashboard.mail import draft as mail_draft
 
@@ -196,3 +196,10 @@ async def rewrite_mail(body: dict):
         return await rewrite(ToneInput.model_validate(body))
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/widgets/comm.templates/templates/{item_id}")
+def review_template(item_id: int):
+    from backend.dashboard.mail import template_row
+
+    return template_row(item_id)

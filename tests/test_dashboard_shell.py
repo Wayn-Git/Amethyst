@@ -38,6 +38,7 @@ def test_manifest_schema_disables_invalid_entries_without_crashing():
 def test_registry_contains_shipped_local_widgets(client):
     response = client.get("/api/widgets").json()
     assert {entry["manifest"]["id"] for entry in response["widgets"]} == {
+        "comm.templates",
         "comm.tone",
         "comm.unread",
         "need.inbox",

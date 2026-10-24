@@ -89,3 +89,11 @@ CREATE TABLE IF NOT EXISTS dashboard_mail_waiting (
     completed INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_mail_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);

@@ -26,7 +26,7 @@ async def test_inbox_fallback_and_ranking(db, monkeypatch):
     assert [row["id"] for row in result["items"]] == ["b", "a"]
     assert not result["ranked"] and all("reason" not in row for row in result["items"])
 
-    async def generate(prompt):
+    async def generate(prompt, **kwargs):
         return '[{"id":"a","reason":"Direct question"},{"id":"fake","reason":"Ignore"}]'
 
     monkeypatch.setattr(mail, "generate", generate)
@@ -258,7 +258,7 @@ async def test_tone_rewrite_requires_review_and_preserves_original(db, monkeypat
     )
     db.commit()
 
-    async def generate(prompt):
+    async def generate(prompt, **kwargs):
         assert tone in prompt and "Original" in prompt
         return "Rewritten fixture"
 
@@ -288,10 +288,85 @@ async def test_tone_model_off_keeps_draft(db, monkeypatch):
     )
     db.commit()
 
-    async def generate(prompt):
+    async def generate(prompt, **kwargs):
         return ""
 
     monkeypatch.setattr(mail, "generate", generate)
     with pytest.raises(HTTPException, match="503"):
         await rewrite(ToneInput(id=1, tone="short"))
     assert db.execute("SELECT text FROM dashboard_mail_drafts").fetchone()[0] == "Original"
+
+
+async def test_templates_persist_edit_use_and_delete_through_gate(db):
+    from fastapi import HTTPException
+
+    from backend.dashboard.items import decide
+    from backend.dashboard.mail import MailInput, draft, template_row
+
+    body = MailInput(title="Fixture template", subject="Subject", text="Template text")
+    rejected = draft("comm.templates", "add", body)
+    await decide("comm.templates", rejected["draft_id"], False)
+    assert (await mail.provide("comm.templates"))["items"] == []
+    pending = draft("comm.templates", "add", body)
+    await decide("comm.templates", pending["draft_id"], True)
+    assert (await mail.provide("comm.templates"))["items"][0]["title"] == body.title
+    edit = draft("comm.templates", "edit", body.model_copy(update={"id": 1, "text": "Edited"}))
+    await decide("comm.templates", edit["draft_id"], True)
+    assert template_row(1)["text"] == "Edited"
+    use = draft("comm.templates", "use", MailInput(id=1, recipient="a@example.com"))
+    assert db.execute("SELECT COUNT(*) FROM dashboard_mail_drafts").fetchone()[0] == 0
+    await decide("comm.templates", use["draft_id"], True)
+    row = db.execute("SELECT * FROM dashboard_mail_drafts").fetchone()
+    assert row["text"] == "Edited" and row["status"] == "draft"
+    stale = draft("comm.templates", "use", MailInput(id=1, recipient="a@example.com"))
+    db.execute("UPDATE dashboard_mail_templates SET text='Changed'")
+    db.commit()
+    with pytest.raises(HTTPException, match="409"):
+        await decide("comm.templates", stale["draft_id"], True)
+    delete = draft("comm.templates", "delete", MailInput(id=1))
+    await decide("comm.templates", delete["draft_id"], True)
+    assert (await mail.provide("comm.templates"))["items"] == []
+
+
+async def test_mail_provider_dispatch_and_local_api_validation(db, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from backend.dashboard.router import router
+    from backend.dashboard.service import local_provider
+
+    async def empty(*args):
+        return {"messages": []}
+
+    monkeypatch.setattr(connectors, "read", empty)
+    for widget_id in (
+        "need.inbox",
+        "need.drafts",
+        "need.waiting",
+        "comm.unread",
+        "comm.tone",
+        "comm.templates",
+    ):
+        assert (await local_provider(widget_id))["items"] == []
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        assert client.put("/api/widgets/need.waiting/settings", json={"days": 0}).status_code == 422
+        assert (
+            client.post(
+                "/api/widgets/comm.tone/rewrite", json={"id": 1, "tone": "invented"}
+            ).status_code
+            == 422
+        )
+        assert client.post("/api/widgets/need.drafts/actions/send", json={}).status_code == 404
+        assert (
+            client.post(
+                "/api/widgets/need.drafts/actions/add",
+                json={
+                    "recipient": "a@example.com\nBcc: x@example.com",
+                    "subject": "x",
+                    "text": "x",
+                },
+            ).status_code
+            == 422
+        )

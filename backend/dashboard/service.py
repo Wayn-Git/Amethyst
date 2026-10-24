@@ -31,7 +31,14 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
-    if widget_id in ("need.inbox", "need.drafts", "need.waiting", "comm.unread", "comm.tone"):
+    if widget_id in (
+        "need.inbox",
+        "need.drafts",
+        "need.waiting",
+        "comm.unread",
+        "comm.tone",
+        "comm.templates",
+    ):
         from backend.dashboard.mail import provide
 
         return await provide(widget_id)

@@ -64,3 +64,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 2026-10-24 — comm.unread: unread Gmail grouped by normalized sender, recent snippets and explicit 100-message limit; shared read-only cache, mocked backend and browser checks pass.
 
 2026-10-24 — comm.tone: asynchronous short/formal/friendly rewrites via optional free models (including Ollama), reviewed local saves with revision checks; model failure preserves original. Backend and browser checks pass.
+
+2026-10-25 — comm.templates: local template CRUD and reviewed creation of unsent local drafts; revision checks protect edits/deletes. Final proof: 80 targeted backend tests, all six mocked browser flows and targeted lint pass; live accounts/models not exercised.
