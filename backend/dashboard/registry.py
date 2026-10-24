@@ -52,6 +52,9 @@ def task_manifest(widget_id, title):
 def library_manifest(widget_id, title):
     value = manifest(widget_id, title, ["m", "l"])
     value.update(group="library", source={"type": "library"}, empty="No saved items.")
+    if widget_id == "lib.capture":
+        value["actions"] = [dict(id="add", label="Save note", gate=True)]
+        value["empty"] = "Capture a note to the vault."
     return value
 
 
@@ -59,6 +62,7 @@ MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     library_manifest("lib.inbox", "Saved items inbox"),
     library_manifest("lib.resurface", "Resurfaced old notes"),
+    library_manifest("lib.capture", "Quick capture"),
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     task_manifest("task.today", "Today list"),
