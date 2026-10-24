@@ -35,14 +35,20 @@ def test_manifest_schema_disables_invalid_entries_without_crashing():
     assert not validate_registry([MANIFESTS[0], MANIFESTS[0]])["glance.clock"]["enabled"]
 
 
-def test_registry_contains_only_day_one_local_widgets(client):
+def test_registry_contains_shipped_local_widgets(client):
     response = client.get("/api/widgets").json()
-    assert {entry["manifest"]["id"] for entry in response["widgets"]} >= {
+    assert {entry["manifest"]["id"] for entry in response["widgets"]} == {
         "dash.gallery",
         "dash.sync",
         "dash.quiet",
         "dash.shortcuts",
         "glance.clock",
+        "task.today",
+        "task.backlog",
+        "task.deadlines",
+        "task.reminders",
+        "need.overdue",
+        "need.snoozed",
     }
     assert all(entry["manifest"]["source"]["type"] == "local" for entry in response["widgets"])
     assert client.get("/api/widgets/missing/data").status_code == 404

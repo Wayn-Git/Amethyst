@@ -24,3 +24,10 @@ CREATE TABLE IF NOT EXISTS reminders (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS snoozes (
+    item_id TEXT NOT NULL,
+    widget_id TEXT NOT NULL,
+    until TEXT NOT NULL,
+    PRIMARY KEY (item_id, widget_id)
+);

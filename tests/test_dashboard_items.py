@@ -183,3 +183,74 @@ def test_overdue_aggregates_three_sources_and_excludes_closed(client):
     assert (
         client.post("/api/widgets/need.overdue/actions/delete", json={"id": 1}).status_code == 404
     )
+
+
+def test_snoozed_local_day_boundaries_and_persistence(client, monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from backend.dashboard import items
+    from backend.dashboard.store import settings_write
+    from backend.db.connection import transaction
+
+    now = datetime(2026, 10, 24, 12, tzinfo=ZoneInfo("Asia/Kolkata"))
+    monkeypatch.setattr(items, "local_now", lambda: now)
+    settings_write("dash.quiet", {"snoozed_until": "2026-10-24T18:00:00+05:30"})
+    assert provide("need.snoozed")["items"] == []
+    with transaction() as conn:
+        for title, until, status in [
+            ("Midnight", "2026-10-23T18:30:00Z", "todo"),
+            ("Later today", "2026-10-24T18:29:59Z", "todo"),
+            ("Tomorrow", "2026-10-24T18:30:00Z", "todo"),
+            ("Yesterday", "2026-10-23T18:29:59Z", "todo"),
+            ("Done", "2026-10-24T05:00:00Z", "done"),
+        ]:
+            item_id = conn.execute(
+                "INSERT INTO tasks(title,status) VALUES(?,?)", (title, status)
+            ).lastrowid
+            conn.execute("INSERT INTO snoozes VALUES(?,?,?)", (str(item_id), "task.today", until))
+        conn.execute("INSERT INTO snoozes VALUES('missing','task.today','2026-10-24T05:00:00Z')")
+    reset_connection()
+    rows = provide("need.snoozed")["items"]
+    assert [row["title"] for row in rows] == ["Midnight", "Later today"]
+    assert [row["return_state"] for row in rows] == ["ready", "scheduled"]
+    assert (
+        client.post("/api/widgets/need.snoozed/actions/delete", json={"id": 1}).status_code == 404
+    )
+
+
+def test_task_naive_dates_keep_host_timezone_and_idle_uses_utc(client, monkeypatch):
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    from backend.dashboard import items
+    from backend.db.connection import transaction
+
+    now = datetime(2026, 10, 24, 12, tzinfo=UTC)
+    monkeypatch.setattr(items, "local_now", lambda: now.astimezone(ZoneInfo("Pacific/Auckland")))
+    due = now - timedelta(hours=1)
+    task_id = TaskRepository().create(
+        "Existing local task", due_at=due.astimezone().replace(tzinfo=None).isoformat()
+    )
+    with transaction() as conn:
+        conn.execute(
+            "UPDATE tasks SET updated_at=? WHERE id=?",
+            ((now - timedelta(days=2)).replace(tzinfo=None).isoformat(), task_id),
+        )
+    row = provide("need.overdue")["items"][0]
+    assert items.parsed(row["due_at"]) == due
+    assert row["idle_days"] == 2
+
+
+def test_expired_and_wrong_widget_drafts_cannot_write(client):
+    from backend.db.connection import transaction
+
+    draft = propose(client, "add", {"title": "Expired"})
+    assert decide(client, draft, widget="task.backlog").status_code == 404
+    with transaction() as conn:
+        conn.execute(
+            "UPDATE widget_action_drafts SET created_at=? WHERE id=?",
+            ((local_now() - timedelta(hours=2)).isoformat(), draft),
+        )
+    assert decide(client, draft).status_code == 409
+    assert provide("task.today")["items"] == []
