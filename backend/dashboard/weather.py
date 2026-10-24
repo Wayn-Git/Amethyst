@@ -43,6 +43,13 @@ async def provide(widget_id):
     if not location:
         return {"set_location": True}
     params = {**LocationSettings.model_validate(location).model_dump(), "timezone": "auto"}
+    if widget_id == "glance.air":
+        raw = await fetch(
+            "https://air-quality-api.open-meteo.com/v1/air-quality",
+            {**params, "current": "european_aqi,pm2_5,pm10"},
+            widget_id,
+        )
+        return {key: raw["current"].get(key) for key in ("european_aqi", "pm2_5", "pm10", "time")}
     if widget_id == "glance.sun":
         raw = await fetch(
             "https://api.open-meteo.com/v1/forecast",

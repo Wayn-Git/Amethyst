@@ -86,3 +86,23 @@ async def test_sun_uses_explicit_location_and_projects_daily(db, monkeypatch):
         "sunset": None,
         "timezone": "UTC",
     }
+
+
+@pytest.mark.asyncio
+async def test_air_minimal_fields_and_zero_values(db, monkeypatch):
+    assert await weather.provide("glance.air") == {"set_location": True}
+    settings_write("glance.weather", {"latitude": 0, "longitude": 0})
+
+    async def fake(url, params, widget_id):
+        assert url.startswith("https://air-quality-api.open-meteo.com/")
+        return {
+            "current": {"european_aqi": 0, "pm2_5": None, "pm10": 2, "time": "now", "unused": 3}
+        }
+
+    monkeypatch.setattr(weather, "fetch", fake)
+    assert await weather.provide("glance.air") == {
+        "european_aqi": 0,
+        "pm2_5": None,
+        "pm10": 2,
+        "time": "now",
+    }

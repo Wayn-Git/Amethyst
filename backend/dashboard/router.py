@@ -130,6 +130,7 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
     if widget_id == "glance.weather":
         cache_write("glance.weather", None, "loading")
         cache_write("glance.sun", None, "loading")
+        cache_write("glance.air", None, "loading")
     schedule(widget_id, background_tasks, force=True)
     return value
 

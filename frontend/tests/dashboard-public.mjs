@@ -28,5 +28,7 @@ try {
   assert.equal(await page.getByRole('link', { name: 'Weather data by Open-Meteo' }).count(), 1)
   await page.evaluate(() => window.renderWeather({ widgetId: 'glance.sun', data: { sunrise: null, sunset: null, timezone: 'UTC' } }))
   await page.getByText('Sunrise: Unavailable · Sunset: Unavailable · UTC', { exact: true }).waitFor()
-  console.log('glance.weather, glance.sun UI passed')
+  await page.evaluate(() => window.renderWeather({ widgetId: 'glance.air', data: { european_aqi: 0, pm2_5: 0, pm10: 2, time: '2026-10-25T12:00' } }))
+  await page.getByText('European AQI: 0', { exact: false }).waitFor()
+  console.log('Weather widgets UI passed')
 } finally { await browser.close() }
