@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'task.agenda': lazy(() => import('./widgets/Agenda.jsx')),
   'lib.resurface': lazy(() => import('./widgets/Library.jsx')),
   'lib.capture': lazy(() => import('./widgets/Capture.jsx')),
   'lib.search': lazy(() => import('./widgets/LibrarySearch.jsx')),

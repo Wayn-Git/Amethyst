@@ -264,7 +264,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | task.today | Today list | local | MVP | [x] |
 | task.backlog | Backlog sorted by idle time | local | MVP | [x] |
 | task.deadlines | Deadline countdowns | local | MVP | [x] |
-| task.agenda | Agenda and week view | cmp:googlecalendar | MVP | [ ] |
+| task.agenda | Agenda and week view | cmp:googlecalendar | MVP | [x] |
 | task.reminders | Reminders and alarms | local | MVP | [x] |
 | task.plan | Auto-planned day with time blocks | llm, cmp:googlecalendar | v2 | [ ] |
 | task.focus | Focus timer | local | v2 | [ ] |
@@ -446,6 +446,9 @@ Personal data in this group is stored locally only and is off until the user tur
 ---
 
 ## 13. Open questions (fill in as they are answered)
+
+- task.agenda: is the primary calendar/current Monday–Sunday week sufficient? MVP uses that reversible scope, at most 100 events with a visible limit notice. Uses the Home quiet-hours timezone (UTC when unset); no calendar writes. Stopping widget access deletes its cache without revoking the shared Composio account.
+
 
 - Library widgets: should “old” use a different cutoff? Current reversible default: seven days; resurface uses today's tasks and recent captures because no local event provider exists.
 - Library duplicates: current backend dedup recognizes URL/source identity only. Should content-similarity detection be added to Library later? Home reuses existing identity lookups and offers no destructive action.

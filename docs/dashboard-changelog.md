@@ -30,3 +30,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - lib.search: bounded query settings, existing Library hybrid search, matching excerpts and honest keyword fallback; provider, settings and browser checks pass.
 - lib.recent: Library notes ordered by persisted edit time, capture invalidates Library widgets; selection and empty browser checks pass.
 - lib.dupes: reuse LibraryStore.by_url/by_source_ref to show existing duplicate identities without writes; selection tests and browser checks pass. Library dedup supports identities, not fuzzy content.
+- task.agenda: read-only primary-calendar agenda/week via the existing Composio handler and ConfirmationService; minimal cache, audited reads, offline stale data, retry backoff and stop/delete control. Machine reads bypass LLM projection/truncation while retaining the gate. Targeted backend/browser/lint checks pass; live accounts untested.

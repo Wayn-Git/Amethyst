@@ -32,6 +32,11 @@ await page.route('**/api/**', async route => {
   if (widgets.includes('lib.resurface') && url.pathname === '/api/widgets/lib.resurface/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { items: [{ id: 1, title: 'Old seeds fixture', kind: 'note', reason: 'Recent capture: Gardening', excerpt: 'Plant seeds' }] } } })
   if (widgets.includes('lib.dupes') && url.pathname === '/api/widgets/lib.dupes/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { items: [{ id: 2, title: 'Duplicate fixture', kind: 'article', reason: 'Same url: Original fixture', duplicate_of: 1 }] } } })
   if (widgets.includes('lib.search') && url.pathname === '/api/widgets/lib.search/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { query: 'Fixture query', degraded: 'offline', items: [{ id: 3, title: 'Search result fixture', kind: 'note', excerpt: 'Matched passage fixture' }] } } })
+  if (widgets.includes('task.agenda') && url.pathname === '/api/widgets/task.agenda/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { timezone: 'UTC', today: '2026-10-24', week_start: '2026-10-19', items: [
+    { id: 'past', title: 'Earlier fixture', start: '2026-10-19T10:00:00Z', end: '2026-10-19T11:00:00Z', all_day: false },
+    { id: 'today', title: 'Agenda fixture', start: '2026-10-24T10:00:00Z', end: '2026-10-24T11:00:00Z', all_day: false },
+    { id: 'day', title: 'All day fixture', start: '2026-10-25T00:00:00Z', end: '2026-10-26T00:00:00Z', all_day: true },
+  ] } } })
   if (url.pathname.startsWith('/api/widgets') || url.pathname === '/api/layout') return route.fulfill({ response: await route.fetch({ url: backend + url.pathname + url.search }) })
   let json = {}
   if (url.pathname.endsWith('/health')) json = { status: 'ok', providers: [], capabilities: [], mcp_servers: [], tools: 0, skills: 0 }
@@ -40,6 +45,20 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('task.agenda')) {
+    const card = page.locator('[data-widget="task.agenda"]')
+    await card.getByText('Agenda fixture', { exact: true }).waitFor()
+    assert.equal(await card.getByText('Earlier fixture', { exact: true }).count(), 0)
+    await card.getByText(/All day ·/).waitFor()
+    await card.getByRole('button', { name: 'Week', exact: true }).click()
+    await card.getByText('Earlier fixture', { exact: true }).waitFor()
+    await card.getByRole('button', { name: 'Agenda', exact: true }).click()
+    assert.equal(await card.getByText('Earlier fixture', { exact: true }).count(), 0)
+    await card.getByRole('button', { name: 'Stop calendar access and delete cached data', exact: true }).click()
+    await card.getByRole('button', { name: 'Enable calendar access', exact: true }).waitFor()
+    assert.equal(await card.getByText('Agenda fixture', { exact: true }).count(), 0)
+    assert.equal(await card.getByRole('button', { name: 'Add item', exact: true }).count(), 0)
+  }
   if (widgets.includes('lib.resurface')) {
     const card = page.locator('[data-widget="lib.resurface"]')
     await card.getByText('Old seeds fixture', { exact: true }).waitFor()
@@ -88,7 +107,7 @@ try {
     await page.keyboard.press('Control+k')
     assert.equal(await card.getByLabel('Note title', { exact: true }).evaluate(el => el === document.activeElement), true)
   }
-  for (const id of widgets.filter(id => id.startsWith('task.'))) {
+  for (const id of widgets.filter(id => id.startsWith('task.') && id !== 'task.agenda')) {
     const card = page.locator(`[data-widget="${id}"]`)
     const title = `Fixture ${id} ${Date.now()}`
     await card.getByRole('button', { name: 'Add item', exact: true }).click()

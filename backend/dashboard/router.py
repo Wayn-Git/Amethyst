@@ -10,7 +10,13 @@ from backend.dashboard.items import ItemInput, decide, draft
 from backend.dashboard.models import ClockSettings, Layout, QuietSettings, StrictModel
 from backend.dashboard.registry import MANIFEST_SCHEMA, REGISTRY
 from backend.dashboard.service import read_data, schedule
-from backend.dashboard.store import layout_read, layout_write, settings_read, settings_write
+from backend.dashboard.store import (
+    cache_write,
+    layout_read,
+    layout_write,
+    settings_read,
+    settings_write,
+)
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -64,6 +70,10 @@ def get_settings(widget_id: str):
     return settings_read(widget_id)
 
 
+class AgendaSettings(StrictModel):
+    enabled: bool
+
+
 class SearchSettings(StrictModel):
     query: str = Field(default="", max_length=500)
 
@@ -80,6 +90,8 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 if date.tzinfo is None:
                     raise ValueError("Snooze requires a timezone")
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
+        elif widget_id == "task.agenda":
+            value = AgendaSettings.model_validate(body).model_dump()
         elif widget_id == "lib.search":
             value = SearchSettings.model_validate(body).model_dump()
         elif widget_id == "glance.clock":
@@ -91,6 +103,8 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
     except (ValueError, ZoneInfoNotFoundError) as exc:
         raise HTTPException(422, str(exc)) from exc
     settings_write(widget_id, value)
+    if widget_id == "task.agenda" and not value["enabled"]:
+        cache_write(widget_id, None, "not-connected")
     schedule(widget_id, background_tasks, force=True)
     return value
 

@@ -7,11 +7,13 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from backend.config import paths
+from backend.dashboard.agenda import CalendarUnavailable, access_enabled
 from backend.dashboard.registry import REGISTRY
 from backend.dashboard.store import cache_read, cache_write, settings_read, stamp
 
 log = logging.getLogger(__name__)
 IN_FLIGHT = set()
+RETRY_AFTER = {}
 _GATE = asyncio.Semaphore(4)
 
 
@@ -29,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "task.agenda":
+        from backend.dashboard.agenda import provide
+
+        return await provide(widget_id)
     if widget_id.startswith("lib."):
         from backend.dashboard.library import provide
 
@@ -92,7 +98,7 @@ async def refresh(widget_id):
     previous = cache_read(widget_id)
     try:
         async with _GATE:
-            if REGISTRY[widget_id]["manifest"].get("requires"):
+            if REGISTRY[widget_id]["manifest"].get("requires") and widget_id != "task.agenda":
                 cache_write(widget_id, None, "not-connected")
                 return
             payload = await asyncio.wait_for(PROVIDERS[widget_id](widget_id), timeout=10)
@@ -107,7 +113,14 @@ async def refresh(widget_id):
                 else "ok",
                 synced_at=stamp(),
             )
+    except CalendarUnavailable:
+        interval = REGISTRY[widget_id]["manifest"]["refresh"].get("interval_s") or 900
+        RETRY_AFTER[(str(paths().db), widget_id)] = time.monotonic() + interval
+        cache_write(widget_id, None, "not-connected")
     except Exception:
+        if widget_id == "task.agenda" and not access_enabled():
+            cache_write(widget_id, None, "not-connected")
+            return
         cache_write(
             widget_id,
             previous["payload"],
@@ -134,6 +147,7 @@ def schedule(widget_id, background_tasks, force=False):
     # Initial local data may populate during quiet hours; scheduled refreshes pause.
     if not force and data["synced_at"] and quiet_active():
         return
-    if force or data["state"] == "loading" or data["stale"]:
+    retry_source = data["state"] == "not-connected" and time.monotonic() >= RETRY_AFTER.get(key, 0)
+    if force or data["state"] == "loading" or data["stale"] or retry_source:
         IN_FLIGHT.add(key)
         background_tasks.add_task(refresh, widget_id)

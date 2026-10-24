@@ -49,6 +49,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "dash.quiet",
         "dash.shortcuts",
         "glance.clock",
+        "task.agenda",
         "task.today",
         "task.backlog",
         "task.deadlines",
@@ -57,7 +58,8 @@ def test_registry_contains_shipped_local_widgets(client):
         "need.snoozed",
     }
     assert all(
-        entry["manifest"]["source"]["type"] in ("local", "library") for entry in response["widgets"]
+        entry["manifest"]["source"]["type"] in ("local", "library", "composio")
+        for entry in response["widgets"]
     )
     assert client.get("/api/widgets/missing/data").status_code == 404
     assert client.post("/api/widgets/glance.clock/actions/send", json={}).status_code == 404
