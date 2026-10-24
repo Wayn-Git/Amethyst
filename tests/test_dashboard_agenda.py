@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.dashboard import agenda, service
+from backend.dashboard import agenda, connectors, service
 from backend.dashboard.router import router
 from backend.dashboard.store import cache_read, cache_write, settings_write
 from backend.mcp.composio_service import composio_service
@@ -34,7 +34,7 @@ def calendar(db, monkeypatch):
     monkeypatch.setattr(composio_service, "get_connections_async", accounts)
     monkeypatch.setattr(tools, "_connector_enabled", lambda *args: True)
     monkeypatch.setattr(tools, "_unsigned_connectors", lambda: set())
-    monkeypatch.setattr(agenda, "is_provider_overridden_by_local", lambda *args: False)
+    monkeypatch.setattr(connectors, "is_provider_overridden_by_local", lambda *args: False)
     calls = []
     payload = {"items": []}
 
@@ -134,7 +134,7 @@ async def test_malformed_response_retains_stale_cache(db, calendar):
 
 async def test_no_connection_never_reads(db, calendar, monkeypatch):
     _, calls, _ = calendar
-    monkeypatch.setattr(agenda, "connection", lambda name: None)
+    monkeypatch.setattr(connectors, "connection", lambda name: None)
     await service.refresh("task.agenda")
     assert cache_read("task.agenda")["state"] == "error"
     assert not calls

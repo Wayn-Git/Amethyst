@@ -36,7 +36,7 @@ export function useWidget(manifest, quiet, refreshVersion, onData) {
     load(true)
   }, [refreshVersion, load])
   useEffect(() => {
-    const changed = () => { if (manifest.id.startsWith('task.') || manifest.id.startsWith('need.') || manifest.id.startsWith('lib.')) load(true) }
+    const changed = () => { if (manifest.id.startsWith('task.') || manifest.id.startsWith('need.') || manifest.id.startsWith('lib.') || manifest.id.startsWith('dev.')) load(true) }
     window.addEventListener('dashboard-items-changed', changed)
     return () => window.removeEventListener('dashboard-items-changed', changed)
   }, [load, manifest.id])

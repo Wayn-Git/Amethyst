@@ -44,6 +44,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "lib.search",
         "lib.capture",
         "lib.resurface",
+        "dev.appeal",
         "dash.gallery",
         "dash.sync",
         "dash.quiet",
@@ -58,7 +59,14 @@ def test_registry_contains_shipped_local_widgets(client):
         "need.snoozed",
     }
     assert all(
-        entry["manifest"]["source"]["type"] in ("local", "library", "composio")
+        all(
+            source["type"] in ("local", "library", "composio", "llm")
+            for source in (
+                entry["manifest"]["source"]
+                if isinstance(entry["manifest"]["source"], list)
+                else [entry["manifest"]["source"]]
+            )
+        )
         for entry in response["widgets"]
     )
     assert client.get("/api/widgets/missing/data").status_code == 404

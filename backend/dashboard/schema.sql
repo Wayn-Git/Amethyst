@@ -31,3 +31,13 @@ CREATE TABLE IF NOT EXISTS snoozes (
     until TEXT NOT NULL,
     PRIMARY KEY (item_id, widget_id)
 );
+
+CREATE TABLE IF NOT EXISTS support_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    submitted_on TEXT NOT NULL,
+    sender_domain TEXT,
+    reply_at TEXT,
+    follow_up TEXT,
+    updated_at TEXT NOT NULL
+);

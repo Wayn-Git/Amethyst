@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from backend.config import paths
-from backend.dashboard.agenda import CalendarUnavailable, access_enabled
+from backend.dashboard.connectors import SourceUnavailable, access_enabled
 from backend.dashboard.registry import REGISTRY
 from backend.dashboard.store import cache_read, cache_write, settings_read, stamp
 
@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id.startswith("dev."):
+        from backend.dashboard.developer import provide
+
+        return await provide(widget_id)
     if widget_id == "task.agenda":
         from backend.dashboard.agenda import provide
 
@@ -113,7 +117,7 @@ async def refresh(widget_id):
                 else "ok",
                 synced_at=stamp(),
             )
-    except CalendarUnavailable:
+    except SourceUnavailable:
         interval = REGISTRY[widget_id]["manifest"]["refresh"].get("interval_s") or 900
         RETRY_AFTER[(str(paths().db), widget_id)] = time.monotonic() + interval
         cache_write(widget_id, None, "not-connected")
