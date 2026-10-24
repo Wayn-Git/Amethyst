@@ -17,6 +17,7 @@ import {
 } from '../components/ui/dropdown-menu.tsx'
 import RunHistoryChart from '../components/automations/RunHistoryChart.jsx'
 import TemplateGrid from '../components/automations/TemplateGrid.jsx'
+import CalendarView from '../components/automations/CalendarView.jsx'
 import NewAutomationModal from '../components/automations/NewAutomationModal.jsx'
 import EditAutomationModal from '../components/automations/EditAutomationModal.jsx'
 import RunDetailModal from '../components/automations/RunDetailModal.jsx'
@@ -400,6 +401,13 @@ export default function Automations() {
             </button>
             <button
               type="button"
+              className={`auto-header-tab${tab === 'calendar' ? ' is-active' : ''}`}
+              onClick={() => setTab('calendar')}
+            >
+              Calendar
+            </button>
+            <button
+              type="button"
               className={`auto-header-tab${tab === 'templates' ? ' is-active' : ''}`}
               onClick={() => setTab('templates')}
             >
@@ -506,6 +514,18 @@ export default function Automations() {
               transition={{ duration: 0.18 }}
             >
               <RunsTab onSelectRun={setSelectedRunId} />
+            </motion.div>
+          )}
+
+          {tab === 'calendar' && (
+            <motion.div
+              key="tab-calendar"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+            >
+              <CalendarView rows={rows} onSelectRun={setSelectedRunId} />
             </motion.div>
           )}
 

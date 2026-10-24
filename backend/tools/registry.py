@@ -144,6 +144,7 @@ RESULT_CACHE_MAX = 128
 NEVER_CACHE = frozenset({
     "ask_user",
     "collect_jobs",
+    "list_today_items",
     "dispatch_parallel_jobs",
     "index_status",
     "task",
@@ -1069,6 +1070,7 @@ def build_default_registry(
 ) -> ToolRegistry:
     from backend.tools.builtin import (
         ask,
+        automations,
         authoring,
         browser,
         conversations,
@@ -1086,6 +1088,7 @@ def build_default_registry(
         social,
         task,
         tasks,
+        today,
         web,
         workers,
     )
@@ -1095,9 +1098,11 @@ def build_default_registry(
     registry.register_all(shell.tools())
     registry.register_all(desktop.tools())
     registry.register_all(tasks.tools())
+    registry.register_all(today.tools())
     registry.register_all(mail.tools())
     registry.register_all(memory.tools())
     registry.register_all(conversations.tools())
+    registry.register_all(automations.tools())
     registry.register_all(documents.tools())
     registry.register_all(library.tools())
     registry.register_all(web.tools())

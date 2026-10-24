@@ -371,7 +371,24 @@ CREATE TABLE IF NOT EXISTS automations (
     -- send_email is a grant to every conversation on the machine; a morning
     -- briefing needs the grant for *itself*, made deliberately in the dialog
     -- that created it, and a second automation does not inherit it.
-    actions       TEXT
+    actions       TEXT,
+    -- Carry the previous completed run's answer into the next one (bounded),
+    -- so building work can pick up where it left off instead of restarting
+    -- from zero every interval. 0: each run starts cold, what every automation
+    -- did before this column. The carry is read-only context governed by a
+    -- fixed caveat in the executed prompt -- it must never turn last run's
+    -- output into this run's instructions.
+    remember_before INTEGER NOT NULL DEFAULT 0,
+    -- Where a run's report lands. 'new' (what everything did before this
+    -- column): a fresh conversation per run, title "{name} · automation".
+    -- 'dedicated': one conversation per automation, "{name} · results", runs
+    -- appending so dated reports collect in one thread. 'thread:<id>': an
+    -- existing conversation chosen when the automation was created from chat,
+    -- so its reports keep arriving in the conversation it was born in.
+    results_to    TEXT NOT NULL DEFAULT 'new',
+    -- The dedicated thread, once one exists. Set by the first run that needed
+    -- it; cleared when the destination goes back to 'new'. NULL otherwise.
+    results_thread_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_automations_due ON automations(enabled, next_run_at);
 
@@ -1003,6 +1020,15 @@ CREATE TABLE IF NOT EXISTS provider_fallbacks (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+
+-- Today keeps user triage and cached provider reads on this machine.
+CREATE TABLE IF NOT EXISTS today_items (
+    id TEXT PRIMARY KEY, payload TEXT NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS today_snapshots (
+    key TEXT PRIMARY KEY, payload TEXT NOT NULL
+);
 
 -- Day 1 dashboard: cache-first widgets and per-mode user layout.
 CREATE TABLE IF NOT EXISTS widget_cache (
