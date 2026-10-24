@@ -232,3 +232,30 @@ async def test_events_wrapper_pagination_and_auth_loss(db, calendar):
     await service.refresh("task.agenda")
     assert cache_read("task.agenda")["state"] == "not-connected"
     assert cache_read("task.agenda")["payload"] is None
+
+
+async def test_next_event_reuses_agenda_and_stops_access(db, calendar):
+    from backend.dashboard.agenda import next_event
+    from backend.dashboard.connectors import SourceUnavailable
+
+    _, calls, _ = calendar
+    now = datetime.now(ZoneInfo("UTC"))
+    cache_write("task.agenda", {"items": [
+        {"id": "past", "start": (now - timedelta(hours=1)).isoformat()},
+        {"id": "next", "start": (now + timedelta(minutes=30)).isoformat()},
+        {"id": "later", "start": (now + timedelta(hours=1)).isoformat()},
+    ], "timezone": "UTC"}, "ok", synced_at=now.isoformat())
+    assert [item["id"] for item in (await next_event())["items"]] == ["next"]
+    assert calls == []
+    settings_write("task.agenda", {"enabled": False})
+    with pytest.raises(SourceUnavailable):
+        await next_event()
+
+
+async def test_next_event_fetches_empty_agenda_once(db, calendar):
+    from backend.dashboard.agenda import next_event
+
+    _, calls, _ = calendar
+    assert (await next_event())["items"] == []
+    assert (await next_event())["items"] == []
+    assert len(calls) == 1

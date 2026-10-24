@@ -58,6 +58,10 @@ async def local_provider(widget_id):
         from backend.dashboard.developer import provide
 
         return await provide(widget_id)
+    if widget_id == "glance.next-event":
+        from backend.dashboard.agenda import next_event
+
+        return await next_event()
     if widget_id == "task.agenda":
         from backend.dashboard.agenda import provide
 
@@ -200,6 +204,9 @@ def schedule(widget_id, background_tasks, force=False):
         from backend.agent.read_cache import read_cache
 
         read_cache.invalidate_domain("email")
+        if widget_id == "glance.next-event":
+            cached = cache_read("task.agenda")
+            cache_write("task.agenda", cached["payload"], "stale", synced_at=cached["synced_at"])
     if force or data["state"] == "loading" or data["stale"] or retry_source:
         IN_FLIGHT.add(key)
         background_tasks.add_task(refresh, widget_id)

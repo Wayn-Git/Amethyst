@@ -70,6 +70,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "dash.shortcuts",
         "glance.clock",
         "task.agenda",
+        "glance.next-event",
         "task.today",
         "task.backlog",
         "task.deadlines",

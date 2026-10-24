@@ -20,6 +20,7 @@ export const WIDGETS = {
   'dev.backup': lazy(() => import('./widgets/GitRepos.jsx')),
   'dev.recovery': lazy(() => import('./widgets/Items.jsx')),
   'dev.appeal': lazy(() => import('./widgets/SupportCases.jsx')),
+  'glance.next-event': lazy(() => import('./widgets/NextEvent.jsx')),
   'task.agenda': lazy(() => import('./widgets/Agenda.jsx')),
   'lib.resurface': lazy(() => import('./widgets/Library.jsx')),
   'lib.capture': lazy(() => import('./widgets/Capture.jsx')),

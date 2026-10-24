@@ -183,7 +183,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | glance.weather | Weather with hourly forecast and rain alerts | api | MVP | [ ] |
 | glance.sun | Sunrise and sunset | api | MVP | [ ] |
 | glance.air | Air quality | api | MVP | [ ] |
-| glance.next-event | Next event with countdown | cmp:googlecalendar | MVP | [ ] |
+| glance.next-event | Next event with countdown | cmp:googlecalendar | MVP | [x] |
 | glance.music | Now playing and last played | cmp:spotify | MVP | [ ] |
 | glance.travel | Travel time to next event | cmp:googlemaps | v2 | [ ] |
 | glance.listen-stats | Listening stats | cmp:spotify | v2 | [ ] |

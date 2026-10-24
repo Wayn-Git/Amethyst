@@ -72,3 +72,23 @@ async def provide(widget_id):
         "today": now.date().isoformat(),
         "limited": limited or len(rows) >= 100,
     }
+
+
+async def next_event():
+    from backend.dashboard.connectors import SourceUnavailable, access_enabled
+    from backend.dashboard.service import read_data
+    from backend.dashboard.store import cache_write, stamp
+
+    if not access_enabled("task.agenda"):
+        raise SourceUnavailable
+    cached = read_data("task.agenda")
+    if cached["payload"] is None or cached["stale"]:
+        payload = await provide("task.agenda")
+        cache_write(
+            "task.agenda", payload, "ok" if payload["items"] else "empty", synced_at=stamp()
+        )
+    else:
+        payload = cached["payload"]
+    now = datetime.now(ZoneInfo(payload["timezone"]))
+    upcoming = [item for item in payload["items"] if datetime.fromisoformat(item["start"]) >= now]
+    return {**payload, "items": upcoming[:1]}
