@@ -49,8 +49,15 @@ def task_manifest(widget_id, title):
     return value
 
 
+def library_manifest(widget_id, title):
+    value = manifest(widget_id, title, ["m", "l"])
+    value.update(group="library", source={"type": "library"}, empty="No saved items.")
+    return value
+
+
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    library_manifest("lib.inbox", "Saved items inbox"),
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     task_manifest("task.today", "Today list"),
