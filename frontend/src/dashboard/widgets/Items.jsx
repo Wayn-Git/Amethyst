@@ -40,7 +40,7 @@ export default function Items({ data, widgetId }) {
         <div className="widget-buttons"><button disabled={busy} type="submit">Review change</button><button disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</button></div>
       </form> : <button disabled={busy} onClick={() => setEditing({ title: '', due: '' })}>Add item</button>}
       <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}>
-        <div><strong>{item.title}</strong>{item.due_at && <p>{item.due_state === 'overdue' ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleString()}</p>}</div>
+        <div><strong>{item.title}</strong>{widgetId === 'task.backlog' && <p>Idle {item.idle_days} {item.idle_days === 1 ? 'day' : 'days'}</p>}{item.due_at && <p>{item.due_state === 'overdue' ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleString()}</p>}</div>
         {item.editable ? <div className="widget-buttons">
           <button disabled={busy} aria-label={`Edit ${item.title}`} onClick={() => setEditing({ id: item.id, title: item.title, due: localInput(item.due_at) })}>Edit</button>
           <button disabled={busy} aria-label={`Complete ${item.title}`} onClick={() => propose('complete', { id: item.id })}>Complete</button>
