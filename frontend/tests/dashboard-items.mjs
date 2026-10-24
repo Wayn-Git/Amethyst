@@ -37,6 +37,7 @@ await page.route('**/api/**', async route => {
     { id: 'today', title: 'Agenda fixture', start: '2026-10-24T10:00:00Z', end: '2026-10-24T11:00:00Z', all_day: false },
     { id: 'day', title: 'All day fixture', start: '2026-10-25T00:00:00Z', end: '2026-10-26T00:00:00Z', all_day: true },
   ] } } })
+  if (widgets.includes('dev.appeal') && /\/api\/widgets\/dev.appeal\/cases\/\d+\/follow-up$/.test(url.pathname)) return route.fulfill({ json: { text: 'Unsent follow-up fixture' } })
   if (url.pathname.startsWith('/api/widgets') || url.pathname === '/api/layout') return route.fulfill({ response: await route.fetch({ url: backend + url.pathname + url.search }) })
   let json = {}
   if (url.pathname.endsWith('/health')) json = { status: 'ok', providers: [], capabilities: [], mcp_servers: [], tools: 0, skills: 0 }
@@ -45,6 +46,24 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('dev.appeal')) {
+    const card = page.locator('[data-widget="dev.appeal"]')
+    await card.getByLabel('Case title', { exact: true }).fill('Support fixture')
+    await card.getByLabel('Submitted date', { exact: true }).fill('2020-01-01')
+    await card.getByRole('button', { name: 'Review case', exact: true }).click()
+    await card.getByRole('button', { name: 'Reject change', exact: true }).click()
+    assert.equal(await card.locator('strong').filter({ hasText: 'Support fixture' }).count(), 0)
+    await card.getByRole('button', { name: 'Review case', exact: true }).click()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await card.locator('strong').filter({ hasText: 'Support fixture' }).waitFor()
+    await card.getByRole('button', { name: 'Mark reply received', exact: true }).click()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await card.getByText(/Status: Reply/).waitFor()
+    await card.getByRole('button', { name: 'Draft follow-up', exact: true }).click()
+    await card.getByText('Unsent follow-up fixture', { exact: true }).waitFor()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await card.getByText('Unsent follow-up: Unsent follow-up fixture', { exact: true }).waitFor()
+  }
   if (widgets.includes('task.agenda')) {
     const card = page.locator('[data-widget="task.agenda"]')
     await card.getByText('Agenda fixture', { exact: true }).waitFor()

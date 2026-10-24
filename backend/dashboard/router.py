@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import Field
 
+from backend.dashboard.developer import DeveloperInput, follow_up
+from backend.dashboard.developer import draft as developer_draft
 from backend.dashboard.items import ItemInput, decide, draft
 from backend.dashboard.models import ClockSettings, Layout, QuietSettings, StrictModel
 from backend.dashboard.registry import MANIFEST_SCHEMA, REGISTRY
@@ -114,9 +116,20 @@ class DraftDecision(StrictModel):
 
 
 @router.post("/widgets/{widget_id}/actions/{action}")
-def item_action(widget_id: str, action: str, body: ItemInput):
+def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
-    return draft(widget_id, action, body)
+    try:
+        if widget_id.startswith("dev."):
+            return developer_draft(widget_id, action, DeveloperInput.model_validate(body))
+        return draft(widget_id, action, ItemInput.model_validate(body))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.post("/widgets/dev.appeal/cases/{item_id}/follow-up")
+async def generate_follow_up(item_id: int):
+    enabled("dev.appeal")
+    return await follow_up(item_id)
 
 
 @router.post("/widgets/{widget_id}/drafts/{draft_id}")

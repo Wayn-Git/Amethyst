@@ -189,6 +189,10 @@ def draft(widget_id, action, body):
     payload = body.model_dump(mode="json")
     if body.id is not None:
         payload["expected"] = dict(row)
+    return save_draft(widget_id, action, body, payload)
+
+
+def save_draft(widget_id, action, body, payload):
     draft_id = str(uuid.uuid4())
     with transaction() as conn:
         conn.execute(
@@ -255,7 +259,7 @@ async def decide(widget_id, draft_id, approved):
                 apply(conn, widget_id, action, body)
                 conn.execute(
                     "UPDATE widget_cache SET state='stale' WHERE widget_id LIKE 'task.%' "
-                    "OR widget_id LIKE 'need.%'"
+                    "OR widget_id LIKE 'need.%' OR widget_id LIKE 'dev.%'"
                 )
         if allowed and widget_id == "lib.capture":
             from backend.library.service import LibraryService
@@ -276,6 +280,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id.startswith("dev."):
+        from backend.dashboard.developer import apply as apply_developer
+
+        return apply_developer(conn, widget_id, action, body)
     table = TABLES[widget_id]
     if body["id"] is not None:
         current = conn.execute(f"SELECT * FROM {table} WHERE id=?", (body["id"],)).fetchone()
