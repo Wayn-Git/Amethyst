@@ -13,6 +13,14 @@ async def search(widget_id, query):
 
 
 async def provide(widget_id):
+    if widget_id == "dev.issues":
+        result = await search(widget_id, "is:issue is:open assignee:@me")
+        return {
+            **result,
+            "items": [
+                {**row, "source": "GitHub", "status": "Assigned to you"} for row in result["items"]
+            ],
+        }
     reviews = await search(widget_id, "is:pr is:open review-requested:@me")
     authored = await search(widget_id, "is:pr is:open author:@me")
     items = {}

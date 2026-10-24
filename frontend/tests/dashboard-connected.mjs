@@ -22,5 +22,6 @@ try {
   assert.doesNotMatch(mentions, /href=/)
   assert.match(connected({ items: [{ id: '1', title: 'Thread fixture', source: 'Slack', url: 'https://example.com/thread' }] }), /rel="noreferrer"/)
   assert.match(connected({ items: [{ id: 'pr', title: 'PR fixture', source: 'GitHub', status: 'Awaiting your review · Your open PR' }] }), /Awaiting your review · Your open PR/)
+  assert.match(connected({ items: [{ id: 'issue', title: 'Issue fixture', source: 'GitHub', status: 'Assigned to you' }] }), /Assigned to you/)
   console.log('PASS connected widgets: next-event, mentions, PR labels, partial sources, limits, safe links')
 } finally { await server.close() }

@@ -198,6 +198,7 @@ MANIFESTS = [
     director_manifest("need.approvals", "Permission approvals", ("approve", "deny")),
     director_manifest("agent.errors", "Errors and retries"),
     director_manifest("agent.audit", "Tool-call audit log"),
+    github_manifest("dev.issues", "Assigned issues", "No assigned open issues."),
     github_manifest("dev.prs", "Pull requests", "No PRs awaiting review or open PRs."),
     developer_manifest("dev.appeal", "Support cases"),
     developer_manifest("dev.recovery", "Recovery checklist"),

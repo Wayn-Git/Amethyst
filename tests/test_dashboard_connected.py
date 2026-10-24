@@ -221,23 +221,40 @@ async def test_prs_review_and_authored_queries_dedup_projection_and_cache(db, re
     assert len(calls) == 2
 
 
-async def test_prs_empty_disconnected_stale_and_rejected_writes(db, remote):
+@pytest.mark.parametrize("widget_id", ["dev.prs", "dev.issues"])
+async def test_developer_empty_disconnected_stale_and_rejected_writes(db, remote, widget_id):
     from backend.dashboard.store import cache_write
 
     payloads, _, enabled, _ = remote
-    await service.refresh("dev.prs")
-    assert cache_read("dev.prs")["state"] == "empty"
+    await service.refresh(widget_id)
+    assert cache_read(widget_id)["state"] == "empty"
     enabled.remove("github")
-    await service.refresh("dev.prs")
-    assert cache_read("dev.prs")["state"] == "not-connected"
+    await service.refresh(widget_id)
+    assert cache_read(widget_id)["state"] == "not-connected"
     enabled.add("github")
-    cache_write("dev.prs", {"items": [{"id": "saved"}]}, "ok", synced_at="2020-01-01T00:00:00Z")
+    cache_write(widget_id, {"items": [{"id": "saved"}]}, "ok", synced_at="2020-01-01T00:00:00Z")
     read_cache.invalidate_domain("github")
     payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"] = RuntimeError("offline fixture")
-    await service.refresh("dev.prs")
-    assert service.read_data("dev.prs")["state"] == "stale"
-    assert cache_read("dev.prs")["payload"]["items"][0]["id"] == "saved"
+    await service.refresh(widget_id)
+    assert service.read_data(widget_id)["state"] == "stale"
+    assert cache_read(widget_id)["payload"]["items"][0]["id"] == "saved"
     app = FastAPI()
     app.include_router(router)
     with TestClient(app) as client:
-        assert client.post("/api/widgets/dev.prs/actions/merge", json={}).status_code == 404
+        assert client.post(f"/api/widgets/{widget_id}/actions/merge", json={}).status_code == 404
+
+
+async def test_assigned_issues_query_projection_persistence(db, remote):
+    payloads, calls, _, _ = remote
+    payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"] = {"items": [issue(2)], "total_count": 1}
+    await service.refresh("dev.issues")
+    value = cache_read("dev.issues")
+    assert value["state"] == "ok"
+    assert value["payload"]["items"][0]["status"] == "Assigned to you"
+    assert value["payload"]["items"][0]["title"] == "Issue fixture 2"
+    assert calls[0][1]["q"] == "is:issue is:open assignee:@me"
+    persisted = db.execute(
+        "SELECT payload_json FROM widget_cache WHERE widget_id='dev.issues'"
+    ).fetchone()
+    assert json.loads(persisted[0]) == value["payload"]
+    assert "body" not in persisted[0] and "mentions" not in persisted[0]
