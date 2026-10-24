@@ -30,6 +30,8 @@ await page.route('**/api/**', async route => {
     { id: '2', title: 'Snooze fixture later', source: 'task.deadlines', until: '2026-10-24T18:00:00Z', return_state: 'scheduled' },
   ] } } })
   if (widgets.includes('lib.resurface') && url.pathname === '/api/widgets/lib.resurface/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { items: [{ id: 1, title: 'Old seeds fixture', kind: 'note', reason: 'Recent capture: Gardening', excerpt: 'Plant seeds' }] } } })
+  if (widgets.includes('lib.dupes') && url.pathname === '/api/widgets/lib.dupes/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { items: [{ id: 2, title: 'Duplicate fixture', kind: 'article', reason: 'Same url: Original fixture', duplicate_of: 1 }] } } })
+  if (widgets.includes('lib.search') && url.pathname === '/api/widgets/lib.search/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { query: 'Fixture query', degraded: 'offline', items: [{ id: 3, title: 'Search result fixture', kind: 'note', excerpt: 'Matched passage fixture' }] } } })
   if (url.pathname.startsWith('/api/widgets') || url.pathname === '/api/layout') return route.fulfill({ response: await route.fetch({ url: backend + url.pathname + url.search }) })
   let json = {}
   if (url.pathname.endsWith('/health')) json = { status: 'ok', providers: [], capabilities: [], mcp_servers: [], tools: 0, skills: 0 }
@@ -59,8 +61,17 @@ try {
     assert.equal(await card.getByRole('button', { name: 'Add item', exact: true }).count(), 0)
     console.log('need.overdue: three source lists rendered')
   }
+  if (widgets.includes('lib.dupes')) {
+    const card = page.locator('[data-widget="lib.dupes"]')
+    await card.getByText('Duplicate fixture', { exact: true }).waitFor()
+    await card.getByText('Same url: Original fixture', { exact: true }).waitFor()
+    assert.equal(await card.getByRole('button', { name: /delete|merge/i }).count(), 0)
+  }
   if (widgets.includes('lib.search')) {
     const card = page.locator('[data-widget="lib.search"]')
+    await card.getByText('Search result fixture', { exact: true }).waitFor()
+    await card.getByText('Matched passage fixture', { exact: true }).waitFor()
+    await card.getByText('Keyword results only; semantic search unavailable.', { exact: true }).waitFor()
     await card.getByLabel('Search Library', { exact: true }).fill('')
     await card.getByRole('button', { name: 'Search', exact: true }).click()
     await card.getByRole('button', { name: 'Search', exact: true }).waitFor({ state: 'visible' })
