@@ -244,7 +244,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
 | lib.inbox | Saved items inbox | lib | MVP | [x] |
-| lib.resurface | Resurfaced old notes | lib (semantic search) | MVP | [ ] |
+| lib.resurface | Resurfaced old notes | lib (semantic search) | MVP | [x] |
 | lib.capture | ⌘K quick capture | lib | MVP | [ ] |
 | lib.search | Semantic and keyword search | lib | MVP | [ ] |
 | lib.recent | Recently edited notes | lib | MVP | [ ] |

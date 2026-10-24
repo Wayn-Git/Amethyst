@@ -25,3 +25,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `need.snoozed`: durable snoozes table, returns-today reader with ready/scheduled states and local-day boundaries; resolves task/deadline/reminder titles and excludes completed or deleted items. Global quiet-hours snooze stays separate. Verified existing naive task dates use host time, SQLite update dates use UTC. Final proof: 22 backend tests, all six browser widget checks and targeted Ruff/Oxlint pass; no screenshots or unrelated suite.
 
 - lib.inbox: Library recent captures, minimal read-only payload and Home list; provider and shell tests pass.
+- lib.resurface: reuse hybrid Library search for today tasks/recent captures, show context reason; old means at least seven days. Calendar context unavailable locally.

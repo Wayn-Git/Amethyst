@@ -58,6 +58,7 @@ def library_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     library_manifest("lib.inbox", "Saved items inbox"),
+    library_manifest("lib.resurface", "Resurfaced old notes"),
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     task_manifest("task.today", "Today list"),

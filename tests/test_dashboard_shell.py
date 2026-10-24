@@ -39,6 +39,7 @@ def test_registry_contains_shipped_local_widgets(client):
     response = client.get("/api/widgets").json()
     assert {entry["manifest"]["id"] for entry in response["widgets"]} == {
         "lib.inbox",
+        "lib.resurface",
         "dash.gallery",
         "dash.sync",
         "dash.quiet",
@@ -51,7 +52,9 @@ def test_registry_contains_shipped_local_widgets(client):
         "need.overdue",
         "need.snoozed",
     }
-    assert all(entry["manifest"]["source"]["type"] in ("local", "library") for entry in response["widgets"])
+    assert all(
+        entry["manifest"]["source"]["type"] in ("local", "library") for entry in response["widgets"]
+    )
     assert client.get("/api/widgets/missing/data").status_code == 404
     assert client.post("/api/widgets/glance.clock/actions/send", json={}).status_code == 404
 

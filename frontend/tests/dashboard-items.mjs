@@ -29,6 +29,7 @@ await page.route('**/api/**', async route => {
     { id: '1', title: 'Snooze fixture ready', source: 'task.today', until: '2026-10-24T01:00:00Z', return_state: 'ready' },
     { id: '2', title: 'Snooze fixture later', source: 'task.deadlines', until: '2026-10-24T18:00:00Z', return_state: 'scheduled' },
   ] } } })
+  if (widgets.includes('lib.resurface') && url.pathname === '/api/widgets/lib.resurface/data') return route.fulfill({ json: { state: 'ok', synced_at: new Date().toISOString(), payload: { items: [{ id: 1, title: 'Old seeds fixture', kind: 'note', reason: 'Recent capture: Gardening', excerpt: 'Plant seeds' }] } } })
   if (url.pathname.startsWith('/api/widgets') || url.pathname === '/api/layout') return route.fulfill({ response: await route.fetch({ url: backend + url.pathname + url.search }) })
   let json = {}
   if (url.pathname.endsWith('/health')) json = { status: 'ok', providers: [], capabilities: [], mcp_servers: [], tools: 0, skills: 0 }
@@ -37,6 +38,12 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('lib.resurface')) {
+    const card = page.locator('[data-widget="lib.resurface"]')
+    await card.getByText('Old seeds fixture', { exact: true }).waitFor()
+    await card.getByText('Recent capture: Gardening', { exact: true }).waitFor()
+  }
+  if (widgets.includes('lib.inbox')) await page.locator('[data-widget="lib.inbox"]').getByText('No saved items.', { exact: true }).waitFor()
   if (widgets.includes('need.snoozed')) {
     const card = page.locator('[data-widget="need.snoozed"]')
     await card.getByText('Snooze fixture ready', { exact: true }).waitFor()
