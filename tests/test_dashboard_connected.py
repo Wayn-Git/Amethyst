@@ -196,3 +196,48 @@ def test_real_fast_lane_readers_keep_low_risk(db, remote, monkeypatch):
         for slug in connectors.READ_TOOLS[tk]:
             assert manager.registry.resolve_tool(slug).risk == RiskLevel.LOW, slug
     assert manager.registry.resolve_tool("GITHUB_CREATE_AN_ISSUE").risk != RiskLevel.LOW
+
+
+async def test_prs_review_and_authored_queries_dedup_projection_and_cache(db, remote):
+    payloads, calls, _, _ = remote
+    payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"] = lambda args: {
+        "items": [issue(1)] if "review-requested:" in args["q"] else [issue(1), issue(2)],
+        "total_count": 100,
+    }
+    await service.refresh("dev.prs")
+    value = cache_read("dev.prs")
+    assert value["state"] == "ok" and value["payload"]["limited"]
+    items = value["payload"]["items"]
+    assert [r["id"] for r in items] == ["1", "2"]
+    assert items[0]["status"] == "Awaiting your review · Your open PR"
+    assert items[1]["status"] == "Your open PR"
+    assert all(set(r) == {"id", "title", "url", "at", "source", "status"} for r in items)
+    assert {args["q"] for _, args in calls} == {
+        "is:pr is:open review-requested:@me",
+        "is:pr is:open author:@me",
+    }
+    assert "@me please check" not in json.dumps([r.content for r in read_cache._cache.values()])
+    await service.refresh("dev.prs")
+    assert len(calls) == 2
+
+
+async def test_prs_empty_disconnected_stale_and_rejected_writes(db, remote):
+    from backend.dashboard.store import cache_write
+
+    payloads, _, enabled, _ = remote
+    await service.refresh("dev.prs")
+    assert cache_read("dev.prs")["state"] == "empty"
+    enabled.remove("github")
+    await service.refresh("dev.prs")
+    assert cache_read("dev.prs")["state"] == "not-connected"
+    enabled.add("github")
+    cache_write("dev.prs", {"items": [{"id": "saved"}]}, "ok", synced_at="2020-01-01T00:00:00Z")
+    read_cache.invalidate_domain("github")
+    payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"] = RuntimeError("offline fixture")
+    await service.refresh("dev.prs")
+    assert service.read_data("dev.prs")["state"] == "stale"
+    assert cache_read("dev.prs")["payload"]["items"][0]["id"] == "saved"
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        assert client.post("/api/widgets/dev.prs/actions/merge", json={}).status_code == 404

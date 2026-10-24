@@ -58,6 +58,10 @@ async def local_provider(widget_id):
         from backend.dashboard.git import provide
 
         return await provide(widget_id)
+    if widget_id == "dev.prs":
+        from backend.dashboard.github import provide
+
+        return await provide(widget_id)
     if widget_id.startswith("dev."):
         from backend.dashboard.developer import provide
 

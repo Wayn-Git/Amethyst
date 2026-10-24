@@ -7,7 +7,7 @@ def mentions(body):
     return re.findall(r"(?<![\w@])@([\w-]+)", body or "")
 
 
-def project(slug, value):
+def project(slug, value, arguments=None):
     if isinstance(value, dict):
         value = value.get("data", value)
     if slug == "GITHUB_GET_THE_AUTHENTICATED_USER":
@@ -32,6 +32,21 @@ def project(slug, value):
     rows = value["items"] if search else value
     if not isinstance(rows, list):
         raise ValueError("Invalid GitHub response")
+    if search and "mentions:" not in (arguments or {}).get("q", ""):
+        return {
+            "items": [
+                {
+                    "id": str(row["id"]),
+                    "title": row["title"],
+                    "url": row.get("html_url", ""),
+                    "at": row.get("updated_at"),
+                }
+                for row in rows
+            ],
+            "limited": bool(
+                value.get("incomplete_results") or value.get("total_count", len(rows)) > len(rows)
+            ),
+        }
     return {
         "items": [
             github_row(row)

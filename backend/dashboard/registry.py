@@ -90,6 +90,17 @@ def developer_manifest(widget_id, title, source="local"):
     return value
 
 
+def github_manifest(widget_id, title, empty):
+    value = developer_manifest(widget_id, title)
+    value.update(
+        source={"type": "composio", "toolkit": "github"},
+        refresh={"mode": "poll", "interval_s": 900},
+        requires=["connector:github"],
+        empty=empty,
+    )
+    return value
+
+
 def director_manifest(widget_id, title, actions=()):
     value = manifest(widget_id, title, ["m", "l"])
     value.update(
@@ -187,6 +198,7 @@ MANIFESTS = [
     director_manifest("need.approvals", "Permission approvals", ("approve", "deny")),
     director_manifest("agent.errors", "Errors and retries"),
     director_manifest("agent.audit", "Tool-call audit log"),
+    github_manifest("dev.prs", "Pull requests", "No PRs awaiting review or open PRs."),
     developer_manifest("dev.appeal", "Support cases"),
     developer_manifest("dev.recovery", "Recovery checklist"),
     developer_manifest("dev.unpushed", "Unpushed commits and dirty branches", "git"),

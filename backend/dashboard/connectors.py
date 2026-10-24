@@ -242,7 +242,7 @@ async def _read(widget_id, toolkit, slug, arguments):
             if toolkit in ("github", "slack") and not cached:
                 from backend.dashboard.remote import project
 
-                value = project(slug, value)
+                value = project(slug, value, arguments)
                 read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
         except Exception as exc:
             raise failed(toolkit, exc) from None

@@ -283,7 +283,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | dev.recovery | Recovery checklist (mirror, local clone, exports) | local | MVP | [x] |
 | dev.backup | Backup status across hosts and local clones (remotes, last push, reachable or not) | git | MVP | [x] |
 | dev.unpushed | Unpushed commits and dirty branches | git | MVP | [x] |
-| dev.prs | PRs awaiting review and my open PRs | cmp:github | MVP | [ ] |
+| dev.prs | PRs awaiting review and my open PRs | cmp:github | MVP | [x] |
 | dev.issues | Assigned issues | cmp:github | MVP | [ ] |
 | dev.ci | CI status | cmp:github | MVP | [ ] |
 | dev.security | Security and dependency alerts | cmp:github | v2 | [ ] |
