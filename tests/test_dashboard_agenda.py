@@ -227,6 +227,9 @@ async def test_events_wrapper_pagination_and_auth_loss(db, calendar):
     async def auth_error(arguments, context):
         return ToolResult.error("401 Unauthorized")
 
+    from backend.agent.read_cache import read_cache
+
+    read_cache.invalidate_domain("calendar")
     registry.resolve_tool("GOOGLECALENDAR_FIND_EVENT").handler = auth_error
     cache_write("task.agenda", {"items": [{"title": "private"}]}, "ok")
     await service.refresh("task.agenda")
@@ -259,3 +262,16 @@ async def test_next_event_fetches_empty_agenda_once(db, calendar):
     assert (await next_event())["items"] == []
     assert (await next_event())["items"] == []
     assert len(calls) == 1
+
+
+async def test_concurrent_calendar_widgets_share_minimal_composio_cache(db, calendar):
+    import asyncio
+
+    from backend.agent.read_cache import read_cache
+
+    payload, calls, _ = calendar
+    payload.update(description="private-fixture", attendees=["private-fixture"])
+    await asyncio.gather(service.refresh("task.agenda"), service.refresh("glance.next-event"))
+    assert len(calls) == 1
+    assert "private-fixture" not in json.dumps([e.content for e in read_cache._cache.values()])
+    assert cache_read("glance.next-event")["state"] == "empty"

@@ -58,7 +58,7 @@ async def local_provider(widget_id):
         from backend.dashboard.git import provide
 
         return await provide(widget_id)
-    if widget_id in ("dev.prs", "dev.issues"):
+    if widget_id in ("dev.prs", "dev.issues", "dev.ci"):
         from backend.dashboard.github import provide
 
         return await provide(widget_id)
@@ -214,8 +214,9 @@ def schedule(widget_id, background_tasks, force=False):
         read_cache.invalidate_domain("email")
         sources = REGISTRY[widget_id]["manifest"]["source"]
         for source in sources if isinstance(sources, list) else [sources]:
-            if source.get("toolkit") in ("github", "slack"):
-                read_cache.invalidate_domain(source["toolkit"])
+            toolkit = source.get("toolkit")
+            if toolkit in ("github", "slack", "googlecalendar"):
+                read_cache.invalidate_domain("calendar" if toolkit == "googlecalendar" else toolkit)
         if widget_id == "glance.next-event":
             cached = cache_read("task.agenda")
             cache_write("task.agenda", cached["payload"], "stale", synced_at=cached["synced_at"])

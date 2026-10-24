@@ -17,6 +17,7 @@ export const WIDGETS = {
   'agent.audit': lazy(() => import('./widgets/Director.jsx')),
   'agent.running': lazy(() => import('./widgets/Director.jsx')),
   'agent.feed': lazy(() => import('./widgets/Director.jsx')),
+  'dev.ci': lazy(() => import('./widgets/ConnectedItems.jsx')),
   'dev.issues': lazy(() => import('./widgets/ConnectedItems.jsx')),
   'dev.prs': lazy(() => import('./widgets/ConnectedItems.jsx')),
   'dev.unpushed': lazy(() => import('./widgets/GitRepos.jsx')),

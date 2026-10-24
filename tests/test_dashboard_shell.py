@@ -59,6 +59,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "lib.resurface",
         "dev.prs",
         "dev.issues",
+        "dev.ci",
         "dev.backup",
         "dev.unpushed",
         "sys.vault",

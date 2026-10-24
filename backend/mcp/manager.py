@@ -1365,7 +1365,9 @@ class MCPManager:
         registered = 0
         try:
             from backend.mcp.composio_service import (
-                composio_service, FAST_LANE_CONFIG, get_cached_pinned_schema,
+                FAST_LANE_CONFIG,
+                PINNED_READ_ONLY_SLUGS,
+                composio_service,
             )
 
             if not composio_service.is_configured():
@@ -1387,7 +1389,10 @@ class MCPManager:
                     key = mcp_tool_key(slug, config.name)
                     handler = self._make_composio_fast_lane_handler(config.name, slug)
                     cached = cached_by_name.get(key)
-                    annotations = (get_cached_pinned_schema(slug) or {}).get("annotations")
+                    annotations = {
+                        "readOnlyHint": slug in PINNED_READ_ONLY_SLUGS,
+                        **tool_def.get("annotations", {}),
+                    }
                     if not self.registry.get(key):
                         if cached is not None:
                             self.registry.register(cached)

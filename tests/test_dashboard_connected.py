@@ -29,6 +29,8 @@ def remote(calendar, monkeypatch):
 
     monkeypatch.setattr(composio_service, "get_connections_async", accounts)
     payloads = {
+        "GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER": [],
+        "GITHUB_LIST_WORKFLOW_RUNS_FOR_A_REPOSITORY": {"workflow_runs": []},
         "GITHUB_GET_THE_AUTHENTICATED_USER": {"login": "me", "email": "secret-fixture"},
         "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS": {"items": [], "total_count": 0},
         "GITHUB_LIST_ISSUE_COMMENTS": [],
@@ -95,11 +97,10 @@ async def test_mentions_replied_since_and_minimal_shared_cache(db, remote):
     payloads["SLACK_SEARCH_MESSAGES"]["messages"]["matches"] = [
         {
             "ts": "100.001",
-            "thread_ts": "99.0",
             "user": "U_OTHER",
             "text": "<@U_ME> fixture",
             "channel": {"id": "C1"},
-            "permalink": "https://example.com/message",
+            "permalink": "https://example.com/message?thread_ts=99.0",
         },
     ]
     payloads["SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION"]["messages"] = [
@@ -109,6 +110,8 @@ async def test_mentions_replied_since_and_minimal_shared_cache(db, remote):
     value = cache_read("need.mentions")
     assert value["state"] == "ok"
     assert [r["source"] for r in value["payload"]["items"]] == ["GitHub"]
+    assert any(args.get("ts") == "99.0" for slug, args in calls if "THREAD" in slug)
+    assert any(args.get("q") == "mentions:@me" for _, args in calls)
     first_calls = len(calls)
     await service.refresh("need.mentions")
     assert len(calls) == first_calls
@@ -221,7 +224,7 @@ async def test_prs_review_and_authored_queries_dedup_projection_and_cache(db, re
     assert len(calls) == 2
 
 
-@pytest.mark.parametrize("widget_id", ["dev.prs", "dev.issues"])
+@pytest.mark.parametrize("widget_id", ["dev.prs", "dev.issues", "dev.ci"])
 async def test_developer_empty_disconnected_stale_and_rejected_writes(db, remote, widget_id):
     from backend.dashboard.store import cache_write
 
@@ -234,7 +237,10 @@ async def test_developer_empty_disconnected_stale_and_rejected_writes(db, remote
     enabled.add("github")
     cache_write(widget_id, {"items": [{"id": "saved"}]}, "ok", synced_at="2020-01-01T00:00:00Z")
     read_cache.invalidate_domain("github")
-    payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"] = RuntimeError("offline fixture")
+    if widget_id == "dev.ci":
+        payloads["GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER"] = RuntimeError("offline")
+    else:
+        payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"] = RuntimeError("offline fixture")
     await service.refresh(widget_id)
     assert service.read_data(widget_id)["state"] == "stale"
     assert cache_read(widget_id)["payload"]["items"][0]["id"] == "saved"
@@ -258,3 +264,64 @@ async def test_assigned_issues_query_projection_persistence(db, remote):
     ).fetchone()
     assert json.loads(persisted[0]) == value["payload"]
     assert "body" not in persisted[0] and "mentions" not in persisted[0]
+
+
+async def test_ci_latest_status_per_repo_minimal_fields_and_shared_reads(db, remote):
+    payloads, calls, _, _ = remote
+    payloads["GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER"] = [
+        {"full_name": "owner/first", "description": "private-fixture"},
+        {"full_name": "owner/empty"},
+        {"full_name": "owner/running"},
+    ]
+
+    def runs(args):
+        if args["repo"] == "empty":
+            return {"workflow_runs": []}
+        return {
+            "workflow_runs": [
+                {
+                    "id": 1,
+                    "name": "Old fixture",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "created_at": "2026-10-20T10:00:00Z",
+                },
+                {
+                    "id": 2,
+                    "name": "Latest fixture",
+                    "status": "in_progress" if args["repo"] == "running" else "completed",
+                    "conclusion": "success",
+                    "created_at": "2026-10-21T10:00:00Z",
+                    "html_url": "https://github.com/owner/first/actions/runs/2",
+                    "logs": "private-fixture",
+                },
+            ]
+        }
+
+    payloads["GITHUB_LIST_WORKFLOW_RUNS_FOR_A_REPOSITORY"] = runs
+    await service.refresh("dev.ci")
+    value = cache_read("dev.ci")
+    assert value["state"] == "ok"
+    items = value["payload"]["items"]
+    assert [r["status"] for r in items] == ["success", "No workflow runs", "in_progress"]
+    assert len({r["id"] for r in items}) == 3
+    assert all(args["per_page"] == 1 for slug, args in calls if "WORKFLOW" in slug)
+    assert "private-fixture" not in json.dumps([r.content for r in read_cache._cache.values()])
+    await service.refresh("dev.ci")
+    assert len(calls) == 4
+
+
+async def test_ci_limited_repositories_and_manual_refresh(db, remote):
+    from fastapi import BackgroundTasks
+
+    payloads, calls, _, _ = remote
+    payloads["GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER"] = [
+        {"full_name": f"owner/repo{i}"} for i in range(50)
+    ]
+    await service.refresh("dev.ci")
+    assert cache_read("dev.ci")["payload"]["limited"]
+    assert len(cache_read("dev.ci")["payload"]["items"]) == 50
+    tasks = BackgroundTasks()
+    service.schedule("dev.ci", tasks, force=True)
+    await tasks()
+    assert len(calls) == 102

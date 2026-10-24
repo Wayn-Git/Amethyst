@@ -1,4 +1,4 @@
-"""Short-lived in-memory read cache for external tools (Calendar, Email).
+"""Short-lived in-memory read cache for external tools and projected dashboard connector reads.
 
 Provides TTL-based caching for read queries:
 - Calendar queries: 60s TTL
@@ -50,7 +50,7 @@ WRITE_KEYWORDS = frozenset({
 
 
 def detect_tool_domain(tool_name: str) -> str | None:
-    """Detect if a tool belongs to a cached domain ("calendar" or "email")."""
+    """Detect the source domain used for cache invalidation."""
     lower = tool_name.lower()
     if lower.startswith(("github_", "dashboard_github_")):
         return "github"
@@ -99,7 +99,7 @@ class ReadCache:
             return None
         domain = detect_tool_domain(tool_name)
         if domain in ("github", "slack"):
-            return 60
+            return 60 if tool_name.lower().startswith("dashboard_") else None
         if domain == "calendar":
             return agent_config.calendar_cache_ttl
         if domain == "email":

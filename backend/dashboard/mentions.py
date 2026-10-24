@@ -13,7 +13,7 @@ async def github(widget_id):
         widget_id,
         "github",
         "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS",
-        {"q": "is:open mentions:@me", "sort": "updated", "order": "desc", "per_page": 20},
+        {"q": "mentions:@me", "sort": "updated", "order": "desc", "per_page": 20},
     )
     items = []
     limited = result["limited"]

@@ -8,8 +8,8 @@ import pytest
 
 from backend.mcp.composio_service import (
     ALL_FAST_LANE_SLUGS,
-    FAST_LANE_CONFIG,
     DASHBOARD_READ_SCHEMAS,
+    FAST_LANE_CONFIG,
     FAST_LANE_TTL,
     composio_service,
     trim_composio_tool_schema,

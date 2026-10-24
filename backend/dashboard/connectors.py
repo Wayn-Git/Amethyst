@@ -26,6 +26,8 @@ READ_TOOLS = {
     "googlecalendar": {"GOOGLECALENDAR_FIND_EVENT"},
     "gmail": {"GMAIL_FETCH_EMAILS"},
     "github": {
+        "GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER",
+        "GITHUB_LIST_WORKFLOW_RUNS_FOR_A_REPOSITORY",
         "GITHUB_GET_THE_AUTHENTICATED_USER",
         "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS",
         "GITHUB_LIST_ISSUE_COMMENTS",
@@ -194,7 +196,7 @@ async def _read(widget_id, toolkit, slug, arguments):
             cache_args = {**arguments, "dashboard_home": str(paths().db)}
             cached = (
                 read_cache.get("dashboard_" + slug, cache_args)
-                if toolkit in ("gmail", "github", "slack")
+                if toolkit in ("gmail", "github", "slack", "googlecalendar")
                 else None
             )
             result = None if cached else await tool.handler(arguments, context)
@@ -239,7 +241,7 @@ async def _read(widget_id, toolkit, slug, arguments):
                     ]
                 }
                 read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
-            if toolkit in ("github", "slack") and not cached:
+            if toolkit in ("github", "slack", "googlecalendar") and not cached:
                 from backend.dashboard.remote import project
 
                 value = project(slug, value, arguments)

@@ -177,3 +177,12 @@ async def test_director_uses_read_cache_across_turns(monkeypatch):
         pass
     # Cache was invalidated by Turn 3 mutation, so handler executed!
     assert call_counts["calendar_find"] == 2
+
+
+def test_dashboard_cache_does_not_enable_raw_github_or_slack_caching():
+    cache = ReadCache()
+    for slug in ("GITHUB_GET_THE_AUTHENTICATED_USER", "SLACK_SEARCH_MESSAGES"):
+        cache.set(slug, {}, '{"private": "raw fixture"}')
+        assert cache.get(slug, {}) is None
+        cache.set("dashboard_" + slug, {}, '{"items": []}')
+        assert cache.get("dashboard_" + slug, {}).content == '{"items": []}'

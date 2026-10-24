@@ -1,6 +1,7 @@
 """Minimal projections for the shared Composio read cache."""
 
 import re
+from urllib.parse import parse_qs, urlsplit
 
 
 def mentions(body):
@@ -10,6 +11,30 @@ def mentions(body):
 def project(slug, value, arguments=None):
     if isinstance(value, dict):
         value = value.get("data", value)
+    if slug == "GOOGLECALENDAR_FIND_EVENT":
+        rows = value if isinstance(value, list) else value.get("items", value.get("events"))
+        if not isinstance(rows, list):
+            raise ValueError("Invalid calendar response")
+        items = []
+        for row in rows:
+            item = {key: row[key] for key in ("id", "summary", "status") if key in row}
+            for key in ("start", "end"):
+                if key in row:
+                    when = row[key]
+                    item[key] = (
+                        when
+                        if isinstance(when, str)
+                        else {
+                            field: when[field]
+                            for field in ("date", "dateTime", "timeZone")
+                            if field in when
+                        }
+                    )
+            items.append(item)
+        return {
+            "items": items,
+            "nextPageToken": bool(isinstance(value, dict) and value.get("nextPageToken")),
+        }
     if slug == "GITHUB_GET_THE_AUTHENTICATED_USER":
         return {"login": value["login"]}
     if slug == "SLACK_TEST_AUTH":
@@ -27,6 +52,25 @@ def project(slug, value, arguments=None):
             "items": [{"id": row["ts"], "user": row.get("user", "")} for row in value["messages"]],
             "cursor": value.get("response_metadata", {}).get("next_cursor", ""),
             "limited": bool(value.get("has_more")),
+        }
+    if slug == "GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER":
+        rows = value if isinstance(value, list) else value["repositories"]
+        return {
+            "items": [{"name": row["full_name"]} for row in rows],
+            "limited": len(rows) >= (arguments or {}).get("per_page", 50),
+        }
+    if slug == "GITHUB_LIST_WORKFLOW_RUNS_FOR_A_REPOSITORY":
+        rows = value["workflow_runs"]
+        return {
+            "items": [
+                {
+                    "status": row["status"],
+                    "conclusion": row.get("conclusion"),
+                    "at": row["created_at"],
+                    "url": row.get("html_url", ""),
+                }
+                for row in rows
+            ]
         }
     search = slug == "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"
     rows = value["items"] if search else value
@@ -87,7 +131,8 @@ def github_row(row):
 def slack_row(row):
     return {
         "id": row["ts"],
-        "thread": row.get("thread_ts", row["ts"]),
+        "thread": row.get("thread_ts")
+        or parse_qs(urlsplit(row.get("permalink", "")).query).get("thread_ts", [row["ts"]])[0],
         "user": row.get("user", ""),
         "title": row.get("text", "")[:200],
         "channel": row.get("channel", {}).get("id", ""),

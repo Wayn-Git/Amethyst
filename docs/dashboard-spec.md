@@ -285,7 +285,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | dev.unpushed | Unpushed commits and dirty branches | git | MVP | [x] |
 | dev.prs | PRs awaiting review and my open PRs | cmp:github | MVP | [x] |
 | dev.issues | Assigned issues | cmp:github | MVP | [x] |
-| dev.ci | CI status | cmp:github | MVP | [ ] |
+| dev.ci | CI status | cmp:github | MVP | [x] |
 | dev.security | Security and dependency alerts | cmp:github | v2 | [ ] |
 | dev.streak | Contribution streak | cmp:github | v2 | [ ] |
 | dev.release | Release checklist | local | v2 | [ ] |

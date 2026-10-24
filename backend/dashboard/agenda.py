@@ -91,4 +91,8 @@ async def next_event():
         payload = cached["payload"]
     now = datetime.now(ZoneInfo(payload["timezone"]))
     upcoming = [item for item in payload["items"] if datetime.fromisoformat(item["start"]) >= now]
-    return {**payload, "items": upcoming[:1]}
+    return {
+        "items": upcoming[:1],
+        "timezone": payload["timezone"],
+        "limited": payload.get("limited", False),
+    }

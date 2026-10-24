@@ -1,5 +1,7 @@
 """Read-only GitHub developer cards through the shared connector reader."""
 
+import re
+
 from backend.dashboard.connectors import read
 
 
@@ -12,7 +14,46 @@ async def search(widget_id, query):
     )
 
 
+async def ci(widget_id):
+    repositories = await read(
+        widget_id,
+        "github",
+        "GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER",
+        {"per_page": 50, "sort": "pushed", "direction": "desc"},
+    )
+    items = []
+    for repository in repositories["items"]:
+        name = repository["name"]
+        if not re.fullmatch(r"[\w.-]+/[\w.-]+", name):
+            raise ValueError("Invalid GitHub repository")
+        owner, repo = name.split("/")
+        result = await read(
+            widget_id,
+            "github",
+            "GITHUB_LIST_WORKFLOW_RUNS_FOR_A_REPOSITORY",
+            {"owner": owner, "repo": repo, "per_page": 1},
+        )
+        latest = max(result["items"], key=lambda row: row["at"], default=None)
+        status = "No workflow runs"
+        if latest:
+            status = latest["conclusion"] if latest["status"] == "completed" else latest["status"]
+            status = status or latest["status"]
+        items.append(
+            {
+                "id": name,
+                "title": name,
+                "source": "GitHub Actions",
+                "status": status,
+                "url": latest["url"] if latest else "",
+                "at": latest["at"] if latest else None,
+            }
+        )
+    return {"items": items, "limited": repositories["limited"]}
+
+
 async def provide(widget_id):
+    if widget_id == "dev.ci":
+        return await ci(widget_id)
     if widget_id == "dev.issues":
         result = await search(widget_id, "is:issue is:open assignee:@me")
         return {

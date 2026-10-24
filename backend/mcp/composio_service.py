@@ -908,6 +908,17 @@ DASHBOARD_READ_SCHEMAS = {
             "per_page": "integer",
             "page": "integer",
         },
+        "GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER": {
+            "per_page": "integer",
+            "sort": "string",
+            "direction": "string",
+            "page": "integer",
+        },
+        "GITHUB_LIST_WORKFLOW_RUNS_FOR_A_REPOSITORY": {
+            "owner": "string",
+            "repo": "string",
+            "per_page": "integer",
+        },
     },
     "slack": {
         "SLACK_TEST_AUTH": {},
@@ -919,6 +930,8 @@ DASHBOARD_READ_SCHEMAS = {
         },
     },
 }
+
+
 
 for _toolkit, _readers in DASHBOARD_READ_SCHEMAS.items():
     for _slug, _fields in _readers.items():
@@ -1404,14 +1417,17 @@ for _toolkit, _readers in DASHBOARD_READ_SCHEMAS.items():
 
 
 # Reviewed read capabilities; toolkit-prefixed names have no generic risk prefix.
+PINNED_READ_ONLY_SLUGS = frozenset(
+    {
+        "GOOGLECALENDAR_FIND_EVENT",
+        "GMAIL_FETCH_EMAILS",
+        "SLACK_SEARCH_MESSAGES",
+        *(slug for readers in DASHBOARD_READ_SCHEMAS.values() for slug in readers),
+    }
+)
 for _tools in STATIC_PINNED_SCHEMAS.values():
     for _tool in _tools:
-        if _tool["slug"] in {
-            "GOOGLECALENDAR_FIND_EVENT",
-            "GMAIL_FETCH_EMAILS",
-            "SLACK_SEARCH_MESSAGES",
-            *(slug for readers in DASHBOARD_READ_SCHEMAS.values() for slug in readers),
-        }:
+        if _tool["slug"] in PINNED_READ_ONLY_SLUGS:
             _tool["annotations"] = {"readOnlyHint": True}
 
 # Process-lifetime in-memory cache of slug -> schema
