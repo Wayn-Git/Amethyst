@@ -16,7 +16,7 @@ from backend.db.connection import get_connection, transaction
 from backend.security.confirmation import ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext
 
-TABLES = {"task.today": "tasks"}
+TABLES = {"task.today": "tasks", "task.backlog": "tasks"}
 
 
 class ItemInput(StrictModel):
@@ -80,13 +80,16 @@ def display(row, now, source):
         "due_state": "overdue" if due and due < now else "upcoming" if due else "unscheduled",
         "seconds_until_due": int((due - now).total_seconds()) if due else None,
         "updated_at": row.get("updated_at"),
+        "idle_days": max(0, (now - parsed(row["updated_at"])).days),
         "editable": not row.get("external_source"),
     }
 
 
 def provide(widget_id):
     now = local_now()
-    rows = [r for r in task_rows() if today_item(r, now)]
+    rows = [r for r in task_rows() if today_item(r, now) == (widget_id == "task.today")]
+    if widget_id == "task.backlog":
+        rows.sort(key=lambda r: (parsed(r["updated_at"]), r["id"]))
     return {"items": [display(r, now, "tasks") for r in rows]}
 
 
@@ -204,7 +207,11 @@ def apply(conn, widget_id, action, body):
     if action == "add":
         conn.execute(
             "INSERT INTO tasks(title,due_at,my_day_date) VALUES(?,?,?)",
-            (body["title"], due_text, local_now().date().isoformat()),
+            (
+                body["title"],
+                due_text,
+                local_now().date().isoformat() if widget_id == "task.today" else None,
+            ),
         )
     elif action == "edit":
         conn.execute(

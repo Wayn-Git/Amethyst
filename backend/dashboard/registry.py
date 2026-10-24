@@ -45,6 +45,7 @@ def task_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     task_manifest("task.today", "Today list"),
+    task_manifest("task.backlog", "Backlog"),
     manifest("dash.gallery", "Widget gallery", ["m", "l"]),
     manifest("dash.sync", "Refresh status", ["s", "m", "l"]),
     manifest("dash.quiet", "Quiet hours", ["m", "l"]),
