@@ -8,6 +8,7 @@ from pydantic import Field
 
 from backend.dashboard.developer import DeveloperInput, follow_up
 from backend.dashboard.developer import draft as developer_draft
+from backend.dashboard.git import RepoSettings
 from backend.dashboard.items import ItemInput, decide, draft
 from backend.dashboard.models import ClockSettings, Layout, QuietSettings, StrictModel
 from backend.dashboard.registry import MANIFEST_SCHEMA, REGISTRY
@@ -94,6 +95,8 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
         elif widget_id == "task.agenda":
             value = AgendaSettings.model_validate(body).model_dump()
+        elif widget_id == "dev.backup":
+            value = RepoSettings.model_validate(body).model_dump()
         elif widget_id == "lib.search":
             value = SearchSettings.model_validate(body).model_dump()
         elif widget_id == "glance.clock":
