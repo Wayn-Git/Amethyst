@@ -8,6 +8,7 @@ const executablePath = process.env.CHROMIUM_PATH || readdirSync(root).filter(n =
 const browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] })
 const page = await browser.newPage()
 try {
+  await page.route('**/api/**', route => route.fulfill({ json: {} }))
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177')
   const result = await page.evaluate(async () => {
     const { default: React } = await import('/node_modules/.vite/deps/react.js')
@@ -62,5 +63,15 @@ try {
   await page.getByRole('button', { name: 'Reject change', exact: true }).click()
   await page.getByRole('button', { name: 'Add feed', exact: true }).waitFor()
   assert.deepEqual(await page.evaluate(() => JSON.parse(window.feedCalls[1].body)), { approved: false })
-  console.log('Weather, music and RSS UI passed')
+  await page.evaluate(async () => {
+    const { default: React } = await import('/node_modules/.vite/deps/react.js')
+    const { default: { createRoot } } = await import('/node_modules/.vite/deps/react-dom_client.js')
+    const { default: News } = await import('/src/dashboard/widgets/News.jsx')
+    const node = document.createElement('div'); document.body.append(node)
+    createRoot(node).render(React.createElement(News, { data: { items: [{ tag: 'Code', items: [{ feed_id: 1, title: 'Fixture news', url: 'https://example.com/news', published_at: '' }] }], errors: [{ feed_id: 2 }] } }))
+  })
+  await page.getByRole('region', { name: 'Code', exact: true }).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'Fixture news' }).getAttribute('href'), 'https://example.com/news')
+  await page.getByText('Some feeds are unavailable;', { exact: false }).waitFor()
+  console.log('All six public widget UI checks passed')
 } finally { await browser.close() }

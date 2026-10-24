@@ -177,6 +177,13 @@ def mail_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     {
+        **manifest("feed.news", "News by topic", ["m", "l"]),
+        "group": "feed",
+        "source": {"type": "rss"},
+        "refresh": {"mode": "poll", "interval_s": 1800},
+        "empty": "No feed items. Add and tag feeds in the RSS reader.",
+    },
+    {
         **manifest("feed.rss", "RSS reader", ["m", "l"]),
         "group": "feed",
         "source": {"type": "rss"},

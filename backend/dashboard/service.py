@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "feed.news":
+        from backend.dashboard.news import provide
+
+        return await provide(widget_id)
     if widget_id == "feed.rss":
         from backend.dashboard.feeds import provide
 
@@ -221,6 +225,9 @@ def schedule(widget_id, background_tasks, force=False):
         return
     retry_source = data["state"] == "not-connected" and time.monotonic() >= RETRY_AFTER.get(key, 0)
     if force:
+        if widget_id == "feed.news":
+            cached = cache_read("feed.rss")
+            cache_write("feed.rss", cached["payload"], "stale", synced_at=cached["synced_at"])
         from backend.agent.read_cache import read_cache
 
         read_cache.invalidate_domain("email")

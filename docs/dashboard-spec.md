@@ -307,7 +307,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
-| feed.news | News by topic | api, rss | MVP | [ ] |
+| feed.news | News by topic | api, rss | MVP | [x] |
 | feed.rss | RSS reader | rss | MVP | [x] |
 | feed.social | Hacker News and Reddit trending | api | v2 | [ ] |
 | feed.arxiv | arXiv paper alerts | api | v2 | [ ] |
