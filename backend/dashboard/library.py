@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from backend.dashboard.items import local_now, parsed, task_rows, today_item
+from backend.dashboard.store import settings_read
 from backend.library.service import LibraryService
 
 
@@ -14,6 +15,14 @@ async def provide(widget_id):
     if widget_id == "lib.capture":
         return {"items": []}
     library = LibraryService()
+    if widget_id == "lib.search":
+        query = settings_read(widget_id).get("query", "")
+        items = await library.search(query, limit=20) if query else []
+        return {
+            "items": [display(item) for item in items],
+            "query": query,
+            "degraded": library.last_search_degraded,
+        }
     if widget_id == "lib.inbox":
         return {"items": [display(item) for item in library.recent(limit=20)]}
     if widget_id == "lib.resurface":

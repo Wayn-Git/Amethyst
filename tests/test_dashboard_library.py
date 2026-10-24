@@ -75,3 +75,37 @@ async def test_capture_gate_can_refuse_approval(db, monkeypatch):
     pending = draft("lib.capture", "add", ItemInput(title="Denied", text="Never saved"))
     assert await decide("lib.capture", pending["draft_id"], True) == {"state": "denied"}
     assert db.execute("SELECT count(*) FROM library_items").fetchone()[0] == 0
+
+
+async def test_search_uses_existing_hybrid_search(db, monkeypatch):
+    from backend.dashboard.store import settings_write
+
+    assert (await provide("lib.search"))["items"] == []
+    settings_write("lib.search", {"query": "Seeds"})
+
+    async def search(self, query, **kwargs):
+        assert query == "Seeds"
+        self.last_search_degraded = "offline"
+        return [{"id": 1, "title": "Garden", "excerpt": "Seeds passage"}]
+
+    monkeypatch.setattr(LibraryService, "search", search)
+    result = await provide("lib.search")
+    assert result["items"][0]["excerpt"] == "Seeds passage"
+    assert result["degraded"] == "offline"
+
+
+def test_search_settings_validation(db):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from backend.dashboard.router import router
+
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        assert client.put("/api/widgets/lib.search/settings", json={"query": ""}).status_code == 200
+        assert (
+            client.put("/api/widgets/lib.search/settings", json={"query": "a" * 501}).status_code
+            == 422
+        )
+        assert client.put("/api/widgets/lib.search/settings", json={"extra": 1}).status_code == 422
