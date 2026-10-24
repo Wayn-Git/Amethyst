@@ -280,7 +280,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
 | dev.appeal | Support case tracker (for example an account appeal): timeline of Sent, Waiting (day N), Reply; watches the linked inbox for replies; manual "mark reply received"; "draft follow-up" | local, cmp:gmail, llm | MVP | [x] |
-| dev.recovery | Recovery checklist (mirror, local clone, exports) | local | MVP | [ ] |
+| dev.recovery | Recovery checklist (mirror, local clone, exports) | local | MVP | [x] |
 | dev.backup | Backup status across hosts and local clones (remotes, last push, reachable or not) | git | MVP | [ ] |
 | dev.unpushed | Unpushed commits and dirty branches | git | MVP | [ ] |
 | dev.prs | PRs awaiting review and my open PRs | cmp:github | MVP | [ ] |

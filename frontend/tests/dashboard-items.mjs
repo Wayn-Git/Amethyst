@@ -126,7 +126,7 @@ try {
     await page.keyboard.press('Control+k')
     assert.equal(await card.getByLabel('Note title', { exact: true }).evaluate(el => el === document.activeElement), true)
   }
-  for (const id of widgets.filter(id => id.startsWith('task.') && id !== 'task.agenda')) {
+  for (const id of widgets.filter(id => (id.startsWith('task.') && id !== 'task.agenda') || id === 'dev.recovery')) {
     const card = page.locator(`[data-widget="${id}"]`)
     const title = `Fixture ${id} ${Date.now()}`
     await card.getByRole('button', { name: 'Add item', exact: true }).click()

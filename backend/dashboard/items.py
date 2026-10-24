@@ -17,6 +17,7 @@ from backend.security.confirmation import ConfirmationService
 from backend.tools.base import RiskLevel, Tool, ToolContext
 
 TABLES = {
+    "dev.recovery": "recovery_items",
     "task.today": "tasks",
     "task.backlog": "tasks",
     "task.deadlines": "deadlines",
@@ -168,6 +169,7 @@ def draft(widget_id, action, body):
     if (
         not capture
         and TABLES[widget_id] != "tasks"
+        and widget_id != "dev.recovery"
         and action in ("add", "edit")
         and body.due_at is None
     ):
@@ -280,7 +282,7 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
-    if widget_id.startswith("dev."):
+    if widget_id == "dev.appeal":
         from backend.dashboard.developer import apply as apply_developer
 
         return apply_developer(conn, widget_id, action, body)

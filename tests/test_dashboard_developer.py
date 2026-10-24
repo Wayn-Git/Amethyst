@@ -107,3 +107,19 @@ async def test_stop_watch_clears_source_cache_and_expiry(db):
 def test_invalid_watch_domain(domain):
     with pytest.raises(ValueError):
         DeveloperInput(sender_domain=domain)
+
+
+async def test_recovery_crud_reuses_gate_and_persists(db):
+    pending = draft("dev.recovery", "add", DeveloperInput(title="Verify mirror fixture"))
+    assert (await developer.provide("dev.recovery"))["items"] == []
+    await decide("dev.recovery", pending["draft_id"], False)
+    assert (await developer.provide("dev.recovery"))["items"] == []
+    pending = draft("dev.recovery", "add", DeveloperInput(title="Verify mirror fixture"))
+    await decide("dev.recovery", pending["draft_id"], True)
+    pending = draft("dev.recovery", "edit", DeveloperInput(id=1, title="Verify export fixture"))
+    await decide("dev.recovery", pending["draft_id"], True)
+    assert (await developer.provide("dev.recovery"))["items"][0]["title"] == "Verify export fixture"
+    pending = draft("dev.recovery", "complete", DeveloperInput(id=1))
+    await decide("dev.recovery", pending["draft_id"], True)
+    assert (await developer.provide("dev.recovery"))["items"] == []
+    assert db.execute("SELECT status FROM recovery_items").fetchone()[0] == "done"

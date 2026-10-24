@@ -73,6 +73,10 @@ def agenda_manifest():
 def developer_manifest(widget_id, title, source="local"):
     value = manifest(widget_id, title, ["m", "l"])
     value.update(group="developer", source={"type": source}, empty="No items.")
+    if widget_id == "dev.recovery":
+        value["actions"] = [
+            dict(id=a, label=a.title(), gate=True) for a in ("add", "edit", "complete", "delete")
+        ]
     if widget_id == "dev.appeal":
         value["source"] = [
             {"type": "local"},
@@ -89,6 +93,7 @@ def developer_manifest(widget_id, title, source="local"):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     developer_manifest("dev.appeal", "Support cases"),
+    developer_manifest("dev.recovery", "Recovery checklist"),
     library_manifest("lib.inbox", "Saved items inbox"),
     library_manifest("lib.resurface", "Resurfaced old notes"),
     library_manifest("lib.capture", "Quick capture"),
