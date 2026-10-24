@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { request } from '../api.js'
 
 function localInput(value) {
@@ -7,7 +7,16 @@ function localInput(value) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
+function countdown(due, now) {
+  const seconds = (new Date(due).getTime() - now) / 1000
+  const minutes = Math.max(1, Math.ceil(Math.abs(seconds) / 60))
+  const duration = minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${Math.floor(minutes / 1440)}d ${Math.floor(minutes % 1440 / 60)}h`
+  return seconds <= 0 ? `${duration} overdue` : `${duration} remaining`
+}
+
 export default function Items({ data, widgetId }) {
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer) }, [])
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -36,11 +45,11 @@ export default function Items({ data, widgetId }) {
     </section> : <>
       {editing ? <form onSubmit={event => { event.preventDefault(); propose(editing.id ? 'edit' : 'add', { id: editing.id || null, title: editing.title, due_at: editing.due ? new Date(editing.due).toISOString() : null }) }}>
         <label>Title<input required maxLength={500} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
-        <label>Due<input type="datetime-local" value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>
+        <label>Due<input type="datetime-local" required={widgetId === 'task.deadlines'} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>
         <div className="widget-buttons"><button disabled={busy} type="submit">Review change</button><button disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</button></div>
       </form> : <button disabled={busy} onClick={() => setEditing({ title: '', due: '' })}>Add item</button>}
       <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}>
-        <div><strong>{item.title}</strong>{widgetId === 'task.backlog' && <p>Idle {item.idle_days} {item.idle_days === 1 ? 'day' : 'days'}</p>}{item.due_at && <p>{item.due_state === 'overdue' ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleString()}</p>}</div>
+        <div><strong>{item.title}</strong>{widgetId === 'task.backlog' && <p>Idle {item.idle_days} {item.idle_days === 1 ? 'day' : 'days'}</p>}{item.due_at && <p>{new Date(item.due_at).getTime() <= now ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleString()}</p>}{widgetId === 'task.deadlines' && <p>{countdown(item.due_at, now)}</p>}</div>
         {item.editable ? <div className="widget-buttons">
           <button disabled={busy} aria-label={`Edit ${item.title}`} onClick={() => setEditing({ id: item.id, title: item.title, due: localInput(item.due_at) })}>Edit</button>
           <button disabled={busy} aria-label={`Complete ${item.title}`} onClick={() => propose('complete', { id: item.id })}>Complete</button>

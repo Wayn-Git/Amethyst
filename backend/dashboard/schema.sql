@@ -4,3 +4,13 @@ CREATE TABLE IF NOT EXISTS widget_action_drafts (
     body_json TEXT NOT NULL, created_at TEXT NOT NULL,
     decision TEXT, decided_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS deadlines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    due_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','done')),
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

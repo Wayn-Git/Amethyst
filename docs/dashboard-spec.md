@@ -263,7 +263,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 |---|---|---|---|---|
 | task.today | Today list | local | MVP | [x] |
 | task.backlog | Backlog sorted by idle time | local | MVP | [x] |
-| task.deadlines | Deadline countdowns | local | MVP | [ ] |
+| task.deadlines | Deadline countdowns | local | MVP | [x] |
 | task.agenda | Agenda and week view | cmp:googlecalendar | MVP | [ ] |
 | task.reminders | Reminders and alarms | local | MVP | [ ] |
 | task.plan | Auto-planned day with time blocks | llm, cmp:googlecalendar | v2 | [ ] |

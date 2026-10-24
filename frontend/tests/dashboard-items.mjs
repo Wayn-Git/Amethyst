@@ -34,6 +34,7 @@ try {
     await card.getByRole('button', { name: 'Review change', exact: true }).click()
     await card.getByRole('button', { name: 'Approve change', exact: true }).click()
     await card.getByRole('region', { name: 'Review item change' }).waitFor({ state: 'hidden' })
+    if (id === 'task.deadlines') await card.getByText(/overdue$/).first().waitFor()
     await card.getByRole('button', { name: `Edit ${title}`, exact: true }).click()
     await card.getByLabel('Title', { exact: true }).fill(`${title} edited`)
     await card.getByRole('button', { name: 'Review change', exact: true }).click()
