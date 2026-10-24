@@ -153,3 +153,33 @@ def test_reminders_do_not_schedule_notifications(client):
     assert decide(client, draft, widget="task.reminders").json()["state"] == "applied"
     assert repo.due_reminders(local_now().isoformat()) == before
     assert provide("task.reminders")["items"][0]["due_state"] == "overdue"
+
+
+def test_overdue_aggregates_three_sources_and_excludes_closed(client):
+    now = local_now()
+    repo = TaskRepository()
+    repo.create("Overdue task", due_at=(now - timedelta(hours=3)).isoformat())
+    repo.create("Future task", due_at=(now + timedelta(hours=3)).isoformat())
+    repo.create("Done task", due_at=(now - timedelta(hours=3)).isoformat(), status="done")
+    repo.create("Cancelled task", due_at=(now - timedelta(hours=3)).isoformat(), status="cancelled")
+    for widget in ("task.deadlines", "task.reminders"):
+        draft = propose(
+            client,
+            "add",
+            {"title": widget, "due_at": (now - timedelta(hours=1)).isoformat()},
+            widget,
+        )
+        decide(client, draft, widget=widget)
+    items = provide("need.overdue")["items"]
+    assert [item["source"] for item in items] == ["tasks", "deadlines", "reminders"]
+    assert all(item["due_state"] == "overdue" for item in items)
+    client.get("/api/widgets/need.overdue/data")
+    assert client.get("/api/widgets/need.overdue/data").json()["state"] == "ok"
+    item = items[-1]
+    draft = propose(client, "complete", {"id": item["id"]}, "task.reminders")
+    decide(client, draft, widget="task.reminders")
+    assert client.get("/api/widgets/need.overdue/data").json()["stale"]
+    assert len(provide("need.overdue")["items"]) == 2
+    assert (
+        client.post("/api/widgets/need.overdue/actions/delete", json={"id": 1}).status_code == 404
+    )
