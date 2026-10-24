@@ -5,7 +5,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from backend.dashboard.models import ClockSettings, Layout, QuietSettings
+from backend.dashboard.items import ItemInput, decide, draft
+from backend.dashboard.models import ClockSettings, Layout, QuietSettings, StrictModel
 from backend.dashboard.registry import MANIFEST_SCHEMA, REGISTRY
 from backend.dashboard.service import read_data, schedule
 from backend.dashboard.store import layout_read, layout_write, settings_read, settings_write
@@ -85,3 +86,19 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
     settings_write(widget_id, value)
     schedule(widget_id, background_tasks, force=True)
     return value
+
+
+class DraftDecision(StrictModel):
+    approved: bool
+
+
+@router.post("/widgets/{widget_id}/actions/{action}")
+def item_action(widget_id: str, action: str, body: ItemInput):
+    enabled(widget_id)
+    return draft(widget_id, action, body)
+
+
+@router.post("/widgets/{widget_id}/drafts/{draft_id}")
+async def item_decision(widget_id: str, draft_id: str, body: DraftDecision):
+    enabled(widget_id)
+    return await decide(widget_id, draft_id, body.approved)

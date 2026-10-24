@@ -29,6 +29,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id.startswith(("task.", "need.")):
+        from backend.dashboard.items import provide
+
+        return provide(widget_id)
     if widget_id == "glance.clock":
         return {"now": stamp(), "zones": settings_read(widget_id).get("zones", [])}
     if widget_id == "dash.quiet":
@@ -91,7 +95,12 @@ async def refresh(widget_id):
             cache_write(
                 widget_id,
                 payload,
-                "empty" if payload is None or payload == [] or payload == {} else "ok",
+                "empty"
+                if payload is None
+                or payload == []
+                or payload == {}
+                or (isinstance(payload, dict) and payload.get("items") == [])
+                else "ok",
                 synced_at=stamp(),
             )
     except Exception:

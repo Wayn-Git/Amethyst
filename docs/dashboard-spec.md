@@ -261,7 +261,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
-| task.today | Today list | local | MVP | [ ] |
+| task.today | Today list | local | MVP | [x] |
 | task.backlog | Backlog sorted by idle time | local | MVP | [ ] |
 | task.deadlines | Deadline countdowns | local | MVP | [ ] |
 | task.agenda | Agenda and week view | cmp:googlecalendar | MVP | [ ] |

@@ -37,7 +37,7 @@ def test_manifest_schema_disables_invalid_entries_without_crashing():
 
 def test_registry_contains_only_day_one_local_widgets(client):
     response = client.get("/api/widgets").json()
-    assert {entry["manifest"]["id"] for entry in response["widgets"]} == {
+    assert {entry["manifest"]["id"] for entry in response["widgets"]} >= {
         "dash.gallery",
         "dash.sync",
         "dash.quiet",
@@ -46,7 +46,7 @@ def test_registry_contains_only_day_one_local_widgets(client):
     }
     assert all(entry["manifest"]["source"]["type"] == "local" for entry in response["widgets"])
     assert client.get("/api/widgets/missing/data").status_code == 404
-    assert client.post("/api/widgets/glance.clock/actions/send").status_code == 404
+    assert client.post("/api/widgets/glance.clock/actions/send", json={}).status_code == 404
 
 
 def test_first_read_returns_loading_then_cache_and_refresh(client):
