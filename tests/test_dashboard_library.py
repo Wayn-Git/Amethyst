@@ -109,3 +109,17 @@ def test_search_settings_validation(db):
             == 422
         )
         assert client.put("/api/widgets/lib.search/settings", json={"extra": 1}).status_code == 422
+
+
+async def test_recent_orders_notes_by_edit_not_capture_date(db):
+    from backend.library.store import LibraryStore
+
+    assert await provide("lib.recent") == {"items": []}
+    store = LibraryStore(db)
+    first = store.create(kind="note", title="Edited earlier")
+    second = store.create(kind="note", title="Edited later")
+    store.create(kind="article", title="Not a note")
+    db.execute("UPDATE library_items SET updated_at='2020-01-01' WHERE id=?", (first,))
+    db.execute("UPDATE library_items SET updated_at='2021-01-01' WHERE id=?", (second,))
+    db.commit()
+    assert [r["id"] for r in (await provide("lib.recent"))["items"]] == [second, first]

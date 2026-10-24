@@ -64,6 +64,7 @@ MANIFESTS = [
     library_manifest("lib.resurface", "Resurfaced old notes"),
     library_manifest("lib.capture", "Quick capture"),
     library_manifest("lib.search", "Library search"),
+    library_manifest("lib.recent", "Recently edited notes"),
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     task_manifest("task.today", "Today list"),

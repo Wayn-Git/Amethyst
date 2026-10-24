@@ -3,6 +3,7 @@ export const WIDGETS = {
   'lib.resurface': lazy(() => import('./widgets/Library.jsx')),
   'lib.capture': lazy(() => import('./widgets/Capture.jsx')),
   'lib.search': lazy(() => import('./widgets/LibrarySearch.jsx')),
+  'lib.recent': lazy(() => import('./widgets/Library.jsx')),
   'lib.inbox': lazy(() => import('./widgets/Library.jsx')),
   'need.snoozed': lazy(() => import('./widgets/NeedsItems.jsx')),
   'need.overdue': lazy(() => import('./widgets/NeedsItems.jsx')),
