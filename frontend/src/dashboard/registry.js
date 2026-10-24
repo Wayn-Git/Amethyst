@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 export const WIDGETS = {
+  'feed.rss': lazy(() => import('./widgets/Feeds.jsx')),
   'glance.music': lazy(() => import('./widgets/Music.jsx')),
   'glance.air': lazy(() => import('./widgets/Weather.jsx')),
   'glance.sun': lazy(() => import('./widgets/Weather.jsx')),

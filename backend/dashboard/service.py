@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "feed.rss":
+        from backend.dashboard.feeds import provide
+
+        return await provide(widget_id)
     if widget_id == "glance.music":
         from backend.dashboard.music import provide
 

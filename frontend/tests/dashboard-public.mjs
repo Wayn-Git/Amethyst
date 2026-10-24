@@ -39,5 +39,28 @@ try {
   })
   await page.getByText('Nothing playing.', { exact: true }).waitFor()
   await page.getByText('Fixture track', { exact: true }).waitFor()
-  console.log('Weather and music UI passed')
+  await page.evaluate(async () => {
+    const { default: React } = await import('/node_modules/.vite/deps/react.js')
+    const { default: { createRoot } } = await import('/node_modules/.vite/deps/react-dom_client.js')
+    const { default: Feeds } = await import('/src/dashboard/widgets/Feeds.jsx')
+    window.feedCalls = []
+    window.fetch = async (url, options) => {
+      window.feedCalls.push({ url, body: options?.body })
+      const body = JSON.parse(options.body)
+      const value = url.includes('/actions/') ? { draft_id: 'fixture', action: 'add', item: body } : { state: 'applied' }
+      return new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } })
+    }
+    const node = document.createElement('div'); document.body.append(node)
+    createRoot(node).render(React.createElement(Feeds, { data: { feeds: [], items: [] }, refresh: () => {} }))
+  })
+  await page.getByRole('button', { name: 'Add feed', exact: true }).click()
+  await page.getByLabel('Feed URL', { exact: true }).fill('https://example.com/rss')
+  await page.getByLabel('Tags (comma separated)', { exact: true }).fill('Code')
+  await page.getByRole('button', { name: 'Review change', exact: true }).click()
+  await page.getByRole('button', { name: 'Approve change', exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => window.feedCalls.length), 1)
+  await page.getByRole('button', { name: 'Reject change', exact: true }).click()
+  await page.getByRole('button', { name: 'Add feed', exact: true }).waitFor()
+  assert.deepEqual(await page.evaluate(() => JSON.parse(window.feedCalls[1].body)), { approved: false })
+  console.log('Weather, music and RSS UI passed')
 } finally { await browser.close() }

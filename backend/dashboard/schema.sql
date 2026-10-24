@@ -97,3 +97,10 @@ CREATE TABLE IF NOT EXISTS dashboard_mail_templates (
     text TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_feeds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT NOT NULL UNIQUE,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL
+);

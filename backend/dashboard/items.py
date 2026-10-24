@@ -299,6 +299,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "feed.rss":
+        from backend.dashboard.feeds import apply as apply_feed
+
+        return apply_feed(conn, action, body)
     if widget_id in ("need.drafts", "need.waiting", "comm.tone", "comm.templates"):
         from backend.dashboard.mail import apply as apply_mail
 

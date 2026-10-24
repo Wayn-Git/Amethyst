@@ -143,6 +143,11 @@ class DraftDecision(StrictModel):
 def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "feed.rss":
+            from backend.dashboard.feeds import FeedInput
+            from backend.dashboard.feeds import draft as feed_draft
+
+            return feed_draft(action, FeedInput.model_validate(body))
         if widget_id in ("need.drafts", "need.waiting", "comm.tone", "comm.templates"):
             from backend.dashboard.mail import MailInput
             from backend.dashboard.mail import draft as mail_draft

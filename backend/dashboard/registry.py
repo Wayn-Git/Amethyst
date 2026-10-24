@@ -177,6 +177,14 @@ def mail_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     {
+        **manifest("feed.rss", "RSS reader", ["m", "l"]),
+        "group": "feed",
+        "source": {"type": "rss"},
+        "refresh": {"mode": "poll", "interval_s": 1800},
+        "actions": [dict(id=a, label=a.title(), gate=True) for a in ("add", "edit", "delete")],
+        "empty": "Add a feed. No default feeds are installed.",
+    },
+    {
         **manifest("glance.music", "Now playing and last played", ["m", "l"]),
         "source": {"type": "composio", "toolkit": "spotify"},
         "requires": ["connector:spotify"],
