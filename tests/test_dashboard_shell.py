@@ -42,6 +42,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "comm.tone",
         "comm.unread",
         "need.inbox",
+        "need.mentions",
         "need.drafts",
         "need.waiting",
         "agent.feed",

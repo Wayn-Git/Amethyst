@@ -52,6 +52,10 @@ WRITE_KEYWORDS = frozenset({
 def detect_tool_domain(tool_name: str) -> str | None:
     """Detect if a tool belongs to a cached domain ("calendar" or "email")."""
     lower = tool_name.lower()
+    if lower.startswith(("github_", "dashboard_github_")):
+        return "github"
+    if lower.startswith(("slack_", "dashboard_slack_")):
+        return "slack"
     if "calendar" in lower:
         return "calendar"
     if "gmail" in lower or "email" in lower or "mail" in lower:
@@ -94,6 +98,8 @@ class ReadCache:
         if is_mutation_tool(tool_name):
             return None
         domain = detect_tool_domain(tool_name)
+        if domain in ("github", "slack"):
+            return 60
         if domain == "calendar":
             return agent_config.calendar_cache_ttl
         if domain == "email":

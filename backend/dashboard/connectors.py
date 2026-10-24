@@ -25,6 +25,18 @@ from backend.tools.base import RiskLevel, ToolContext, ToolSource
 READ_TOOLS = {
     "googlecalendar": {"GOOGLECALENDAR_FIND_EVENT"},
     "gmail": {"GMAIL_FETCH_EMAILS"},
+    "github": {
+        "GITHUB_GET_THE_AUTHENTICATED_USER",
+        "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS",
+        "GITHUB_LIST_ISSUE_COMMENTS",
+        "GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST",
+        "GITHUB_LIST_REVIEWS_FOR_A_PULL_REQUEST",
+    },
+    "slack": {
+        "SLACK_TEST_AUTH",
+        "SLACK_SEARCH_MESSAGES",
+        "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION",
+    },
 }
 READ_SCOPES = {
     "gmail": "https://www.googleapis.com/auth/gmail.readonly",
@@ -34,7 +46,7 @@ READ_SCOPES = {
     "linear": "read",
     "slack": (
         "channels:read,channels:history,groups:read,groups:history,"
-        "im:read,im:history,mpim:read,mpim:history,users:read"
+        "im:read,im:history,mpim:read,mpim:history,users:read,search:read"
     ),
 }
 _LOCKS = defaultdict(asyncio.Lock)
@@ -180,7 +192,11 @@ async def _read(widget_id, toolkit, slug, arguments):
         try:
             # Retain structured fields for projection; never cache this raw response.
             cache_args = {**arguments, "dashboard_home": str(paths().db)}
-            cached = read_cache.get("dashboard_" + slug, cache_args) if toolkit == "gmail" else None
+            cached = (
+                read_cache.get("dashboard_" + slug, cache_args)
+                if toolkit in ("gmail", "github", "slack")
+                else None
+            )
             result = None if cached else await tool.handler(arguments, context)
             if result and result.is_error:
                 raise RuntimeError(result.content)
@@ -222,6 +238,11 @@ async def _read(widget_id, toolkit, slug, arguments):
                         for row in rows
                     ]
                 }
+                read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
+            if toolkit in ("github", "slack") and not cached:
+                from backend.dashboard.remote import project
+
+                value = project(slug, value)
                 read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
         except Exception as exc:
             raise failed(toolkit, exc) from None

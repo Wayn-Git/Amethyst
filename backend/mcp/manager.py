@@ -1364,7 +1364,9 @@ class MCPManager:
     ) -> int:
         registered = 0
         try:
-            from backend.mcp.composio_service import composio_service, FAST_LANE_CONFIG
+            from backend.mcp.composio_service import (
+                composio_service, FAST_LANE_CONFIG, get_cached_pinned_schema,
+            )
 
             if not composio_service.is_configured():
                 return 0
@@ -1385,6 +1387,7 @@ class MCPManager:
                     key = mcp_tool_key(slug, config.name)
                     handler = self._make_composio_fast_lane_handler(config.name, slug)
                     cached = cached_by_name.get(key)
+                    annotations = (get_cached_pinned_schema(slug) or {}).get("annotations")
                     if not self.registry.get(key):
                         if cached is not None:
                             self.registry.register(cached)
@@ -1395,7 +1398,7 @@ class MCPManager:
                                 description=f"[{config.name}:{tk}] {tool_def['description']}",
                                 parameters=tool_def["parameters"],
                                 handler=handler,
-                                risk=classify(slug, {}),
+                                risk=classify(slug, annotations),
                                 source=ToolSource.MCP,
                                 server_name=config.name,
                             )
@@ -1408,7 +1411,7 @@ class MCPManager:
                             description=f"[{config.name}:{tk}] {tool_def['description']}",
                             parameters=tool_def["parameters"],
                             handler=handler,
-                            risk=classify(slug, {}),
+                            risk=classify(slug, annotations),
                             source=ToolSource.MCP,
                             server_name=config.name,
                         )

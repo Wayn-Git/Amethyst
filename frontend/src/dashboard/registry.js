@@ -5,6 +5,7 @@ export const WIDGETS = {
   'comm.unread': lazy(() => import('./widgets/Mail.jsx')),
   'need.waiting': lazy(() => import('./widgets/Waiting.jsx')),
   'need.drafts': lazy(() => import('./widgets/MailDrafts.jsx')),
+  'need.mentions': lazy(() => import('./widgets/ConnectedItems.jsx')),
   'need.inbox': lazy(() => import('./widgets/Mail.jsx')),
   'sys.connectors': lazy(() => import('./widgets/Connectors.jsx')),
   'sys.model': lazy(() => import('./widgets/Model.jsx')),

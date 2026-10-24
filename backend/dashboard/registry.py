@@ -165,6 +165,12 @@ def mail_manifest(widget_id, title):
 
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    {
+        **need_manifest("need.mentions", "Unanswered mentions"),
+        "source": [{"type": "composio", "toolkit": tk} for tk in ("slack", "github")],
+        "refresh": {"mode": "poll", "interval_s": 900},
+        "empty": "No unanswered mentions.",
+    },
     mail_manifest("need.inbox", "Priority inbox"),
     mail_manifest("need.drafts", "Mail drafts to approve"),
     mail_manifest("need.waiting", "Waiting on replies"),
@@ -194,8 +200,14 @@ MANIFESTS = [
     need_manifest("need.overdue", "Overdue items"),
     need_manifest("need.snoozed", "Snoozed items returning today"),
     agenda_manifest(),
-    {**agenda_manifest(), "id": "glance.next-event", "title": "Next event",
-     "group": "glance", "sizes": ["s", "m", "l"], "empty": "No upcoming events this week."},
+    {
+        **agenda_manifest(),
+        "id": "glance.next-event",
+        "title": "Next event",
+        "group": "glance",
+        "sizes": ["s", "m", "l"],
+        "empty": "No upcoming events this week.",
+    },
     task_manifest("task.today", "Today list"),
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),

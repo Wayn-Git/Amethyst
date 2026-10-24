@@ -877,6 +877,53 @@ FAST_LANE_CONFIG: dict[str, dict[str, list[str]]] = {
     },
 }
 
+DASHBOARD_READ_SCHEMAS = {
+    "github": {
+        "GITHUB_GET_THE_AUTHENTICATED_USER": {},
+        "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS": {
+            "q": "string",
+            "sort": "string",
+            "order": "string",
+            "per_page": "integer",
+            "page": "integer",
+        },
+        "GITHUB_LIST_ISSUE_COMMENTS": {
+            "owner": "string",
+            "repo": "string",
+            "issue_number": "integer",
+            "per_page": "integer",
+            "page": "integer",
+        },
+        "GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST": {
+            "owner": "string",
+            "repo": "string",
+            "pull_number": "integer",
+            "per_page": "integer",
+            "page": "integer",
+        },
+        "GITHUB_LIST_REVIEWS_FOR_A_PULL_REQUEST": {
+            "owner": "string",
+            "repo": "string",
+            "pull_number": "integer",
+            "per_page": "integer",
+            "page": "integer",
+        },
+    },
+    "slack": {
+        "SLACK_TEST_AUTH": {},
+        "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION": {
+            "channel": "string",
+            "ts": "string",
+            "cursor": "string",
+            "limit": "integer",
+        },
+    },
+}
+
+for _toolkit, _readers in DASHBOARD_READ_SCHEMAS.items():
+    for _slug, _fields in _readers.items():
+        FAST_LANE_CONFIG[_toolkit][_slug] = list(_fields)
+
 ALL_FAST_LANE_SLUGS: frozenset[str] = frozenset(
     slug for toolkit_slugs in FAST_LANE_CONFIG.values() for slug in toolkit_slugs
 )
@@ -1334,6 +1381,38 @@ STATIC_PINNED_SCHEMAS: dict[str, list[dict[str, Any]]] = {
         },
     ],
 }
+
+for _toolkit, _readers in DASHBOARD_READ_SCHEMAS.items():
+    for _slug, _fields in _readers.items():
+        for _existing in STATIC_PINNED_SCHEMAS[_toolkit]:
+            if _existing["slug"] == _slug:
+                _existing["parameters"]["properties"].update(
+                    {key: {"type": kind} for key, kind in _fields.items()}
+                )
+        if not any(item["slug"] == _slug for item in STATIC_PINNED_SCHEMAS[_toolkit]):
+            STATIC_PINNED_SCHEMAS[_toolkit].append(
+                {
+                    "slug": _slug,
+                    "name": _slug.replace("_", " ").title(),
+                    "description": "Read-only dashboard source: " + _slug,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {key: {"type": kind} for key, kind in _fields.items()},
+                    },
+                }
+            )
+
+
+# Reviewed read capabilities; toolkit-prefixed names have no generic risk prefix.
+for _tools in STATIC_PINNED_SCHEMAS.values():
+    for _tool in _tools:
+        if _tool["slug"] in {
+            "GOOGLECALENDAR_FIND_EVENT",
+            "GMAIL_FETCH_EMAILS",
+            "SLACK_SEARCH_MESSAGES",
+            *(slug for readers in DASHBOARD_READ_SCHEMAS.values() for slug in readers),
+        }:
+            _tool["annotations"] = {"readOnlyHint": True}
 
 # Process-lifetime in-memory cache of slug -> schema
 _PINNED_SCHEMAS_CACHE: dict[str, dict[str, Any]] = {

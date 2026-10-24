@@ -1,0 +1,198 @@
+"""Mocked Composio fixtures, projected shared cache, no external accounts."""
+
+import json
+
+import pytest
+import test_dashboard_agenda as agenda_tests
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from backend.agent.read_cache import read_cache
+from backend.dashboard import connectors, service
+from backend.dashboard.router import router
+from backend.dashboard.store import cache_read
+from backend.mcp.composio_service import composio_service, get_cached_pinned_schema
+from backend.mcp.risk import classify
+from backend.tools.base import RiskLevel, Tool, ToolResult, ToolSource
+
+calendar = agenda_tests.calendar
+
+
+@pytest.fixture
+def remote(calendar, monkeypatch):
+    registry = calendar[2]
+    enabled = {"github", "slack"}
+    monkeypatch.setattr(composio_service, "get_enabled_toolkits", lambda: sorted(enabled))
+
+    async def accounts(**kwargs):
+        return {tk: {} for tk in enabled}
+
+    monkeypatch.setattr(composio_service, "get_connections_async", accounts)
+    payloads = {
+        "GITHUB_GET_THE_AUTHENTICATED_USER": {"login": "me", "email": "secret-fixture"},
+        "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS": {"items": [], "total_count": 0},
+        "GITHUB_LIST_ISSUE_COMMENTS": [],
+        "GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST": [],
+        "GITHUB_LIST_REVIEWS_FOR_A_PULL_REQUEST": [],
+        "SLACK_TEST_AUTH": {"ok": True, "user_id": "U_ME", "token": "secret-fixture"},
+        "SLACK_SEARCH_MESSAGES": {"messages": {"matches": []}},
+        "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION": {"messages": []},
+    }
+    calls = []
+    for toolkit in ("github", "slack"):
+        for slug in connectors.READ_TOOLS[toolkit]:
+
+            async def handler(arguments, context, slug=slug):
+                assert context.read_only
+                calls.append((slug, arguments))
+                value = payloads[slug]
+                if callable(value):
+                    value = value(arguments)
+                if isinstance(value, Exception):
+                    raise value
+                return ToolResult.ok(json.dumps(value))
+
+            registry.register(
+                Tool(
+                    name=slug,
+                    description="Read fixture",
+                    parameters={},
+                    handler=handler,
+                    risk=classify(slug, get_cached_pinned_schema(slug).get("annotations")),
+                    source=ToolSource.MCP,
+                    server_name="composio",
+                )
+            )
+    return payloads, calls, enabled, registry
+
+
+def issue(number=1, **kwargs):
+    return {
+        "id": number,
+        "number": number,
+        "title": f"Issue fixture {number}",
+        "repository_url": "https://api.github.com/repos/owner/repo",
+        "html_url": f"https://github.com/owner/repo/issues/{number}",
+        "created_at": "2026-10-20T09:00:00Z",
+        "updated_at": "2026-10-25T09:00:00Z",
+        "body": "@me please check",
+        "user": {"login": "other"},
+        **kwargs,
+    }
+
+
+def comment(body, user, at):
+    return {"id": at, "body": body, "user": {"login": user}, "created_at": at, "updated_at": at}
+
+
+async def test_mentions_replied_since_and_minimal_shared_cache(db, remote):
+    payloads, calls, _, _ = remote
+    payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"]["items"] = [issue()]
+    payloads["GITHUB_LIST_ISSUE_COMMENTS"] = [
+        comment("Reply fixture", "me", "2026-10-21T09:00:00Z"),
+        comment("@ME again", "other", "2026-10-22T09:00:00Z"),
+    ]
+    payloads["SLACK_SEARCH_MESSAGES"]["messages"]["matches"] = [
+        {
+            "ts": "100.001",
+            "thread_ts": "99.0",
+            "user": "U_OTHER",
+            "text": "<@U_ME> fixture",
+            "channel": {"id": "C1"},
+            "permalink": "https://example.com/message",
+        },
+    ]
+    payloads["SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION"]["messages"] = [
+        {"ts": "101.001", "user": "U_ME", "text": "Reply fixture"}
+    ]
+    await service.refresh("need.mentions")
+    value = cache_read("need.mentions")
+    assert value["state"] == "ok"
+    assert [r["source"] for r in value["payload"]["items"]] == ["GitHub"]
+    first_calls = len(calls)
+    await service.refresh("need.mentions")
+    assert len(calls) == first_calls
+    cached = json.dumps([entry.content for entry in read_cache._cache.values()])
+    assert "secret-fixture" not in cached and "@ME again" not in cached
+    payloads["GITHUB_LIST_ISSUE_COMMENTS"].append(
+        comment("Reply fixture", "me", "2026-10-23T09:00:00Z")
+    )
+    read_cache.invalidate_domain("github")
+    await service.refresh("need.mentions")
+    assert cache_read("need.mentions")["state"] == "empty"
+
+
+@pytest.mark.parametrize("missing", ["github", "slack"])
+async def test_mentions_independent_connection_and_both_disconnected(db, remote, missing):
+    _, _, enabled, _ = remote
+    enabled.remove(missing)
+    await service.refresh("need.mentions")
+    value = cache_read("need.mentions")
+    assert value["state"] == "empty"
+    assert value["payload"]["unavailable"] == [missing.title() if missing == "slack" else "GitHub"]
+    enabled.clear()
+    await service.refresh("need.mentions")
+    assert cache_read("need.mentions")["state"] == "not-connected"
+
+
+async def test_mentions_slack_pagination_and_review_mentions(db, remote):
+    payloads, calls, _, _ = remote
+    payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"]["items"] = [issue(body="", pull_request={})]
+    payloads["GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST"] = [
+        comment("@me review this", "other", "2026-10-22T09:00:00Z")
+    ]
+    payloads["SLACK_SEARCH_MESSAGES"]["messages"]["matches"] = [
+        {"ts": "100.001", "user": "U_OTHER", "text": "<@U_ME> fixture", "channel": {"id": "C1"}}
+    ]
+    payloads["SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION"] = lambda args: (
+        {"messages": [], "has_more": True, "response_metadata": {"next_cursor": "next"}}
+        if not args.get("cursor")
+        else {"messages": [{"ts": "101", "user": "U_ME"}]}
+    )
+    await service.refresh("need.mentions")
+    assert [r["source"] for r in cache_read("need.mentions")["payload"]["items"]] == ["GitHub"]
+    assert any(args.get("cursor") == "next" for _, args in calls)
+
+
+async def test_mentions_errors_and_writes_rejected(db, remote):
+    payloads, calls, enabled, registry = remote
+    enabled.remove("slack")
+    payloads["GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS"] = RuntimeError("private-fixture")
+    await service.refresh("need.mentions")
+    assert cache_read("need.mentions")["state"] == "error"
+    assert "private-fixture" not in json.dumps(cache_read("need.mentions"))
+    calls.clear()
+    registry.resolve_tool("GITHUB_GET_THE_AUTHENTICATED_USER").risk = RiskLevel.HIGH
+    await service.refresh("need.mentions")
+    assert calls == []
+    with pytest.raises(RuntimeError, match="read-only"):
+        await connectors.read("need.mentions", "github", "GITHUB_CREATE_AN_ISSUE", {})
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        assert client.post("/api/widgets/need.mentions/actions/reply", json={}).status_code == 404
+
+
+def test_dashboard_reader_schemas_registered(remote):
+    for toolkit in ("github", "slack"):
+        for slug in connectors.READ_TOOLS[toolkit]:
+            assert get_cached_pinned_schema(slug), slug
+
+
+def test_real_fast_lane_readers_keep_low_risk(db, remote, monkeypatch):
+    from types import SimpleNamespace
+
+    from backend.mcp.composio_service import STATIC_PINNED_SCHEMAS
+    from backend.mcp.manager import MCPManager
+    from backend.tools.registry import ToolRegistry
+
+    monkeypatch.setattr(composio_service, "get_connections", lambda: {"github": {}, "slack": {}})
+    monkeypatch.setattr(
+        composio_service, "get_fast_lane_tools", lambda tk: STATIC_PINNED_SCHEMAS[tk]
+    )
+    manager = MCPManager(registry=ToolRegistry())
+    manager._register_composio_fast_lane_tools(SimpleNamespace(name="composio"), [])
+    for tk in ("github", "slack"):
+        for slug in connectors.READ_TOOLS[tk]:
+            assert manager.registry.resolve_tool(slug).risk == RiskLevel.LOW, slug
+    assert manager.registry.resolve_tool("GITHUB_CREATE_AN_ISSUE").risk != RiskLevel.LOW

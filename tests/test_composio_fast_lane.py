@@ -9,6 +9,7 @@ import pytest
 from backend.mcp.composio_service import (
     ALL_FAST_LANE_SLUGS,
     FAST_LANE_CONFIG,
+    DASHBOARD_READ_SCHEMAS,
     FAST_LANE_TTL,
     composio_service,
     trim_composio_tool_schema,
@@ -24,8 +25,12 @@ def test_fast_lane_config_structure():
     expected_toolkits = {"googlecalendar", "gmail", "github", "slack", "notion"}
     assert set(FAST_LANE_CONFIG.keys()) == expected_toolkits
     for tk, slugs in FAST_LANE_CONFIG.items():
-        assert len(slugs) == 5, f"{tk} should have exactly 5 fast-lane slugs, got {len(slugs)}"
-    assert len(ALL_FAST_LANE_SLUGS) == 25
+        assert len(slugs) == 5 + len(
+            set(DASHBOARD_READ_SCHEMAS.get(tk, {})) - {
+                "SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION"
+            }
+        )
+    assert len(ALL_FAST_LANE_SLUGS) == sum(map(len, FAST_LANE_CONFIG.values()))
 
 
 def test_trim_composio_tool_schema():

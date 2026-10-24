@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "need.mentions":
+        from backend.dashboard.mentions import provide
+
+        return await provide(widget_id)
     if widget_id in (
         "need.inbox",
         "need.drafts",
@@ -204,6 +208,10 @@ def schedule(widget_id, background_tasks, force=False):
         from backend.agent.read_cache import read_cache
 
         read_cache.invalidate_domain("email")
+        sources = REGISTRY[widget_id]["manifest"]["source"]
+        for source in sources if isinstance(sources, list) else [sources]:
+            if source.get("toolkit") in ("github", "slack"):
+                read_cache.invalidate_domain(source["toolkit"])
         if widget_id == "glance.next-event":
             cached = cache_read("task.agenda")
             cache_write("task.agenda", cached["payload"], "stale", synced_at=cached["synced_at"])
