@@ -21,3 +21,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `task.backlog`: open tasks outside Today, oldest update first with idle days; shared inline gated CRUD. Six item tests, browser CRUD and targeted lint pass.
 - `task.deadlines`: durable deadlines table, required offset-aware due dates, nearest-due sorting, live countdowns and inline gated CRUD; seven item tests, browser CRUD and targeted lint pass.
 - `task.reminders`: separate reminders table and inline gated CRUD; stores and displays due state without entering the existing task notification scan. Notifications remain deferred to `sys.notify`. Nine item tests, browser CRUD and targeted lint pass.
+- `need.overdue`: reads open tasks, deadlines and reminders, compares absolute due times and orders oldest first; task changes invalidate its cache. Ten item tests, browser source rendering and targeted lint pass.

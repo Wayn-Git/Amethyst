@@ -32,6 +32,13 @@ def manifest(widget_id, title, sizes):
     )
 
 
+def need_manifest(widget_id, title):
+    value = manifest(widget_id, title, ["m", "l"])
+    value["group"] = "needs-you"
+    value["empty"] = "No items."
+    return value
+
+
 def task_manifest(widget_id, title):
     value = manifest(widget_id, title, ["m", "l"])
     value["group"] = "tasks"
@@ -44,6 +51,7 @@ def task_manifest(widget_id, title):
 
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
+    need_manifest("need.overdue", "Overdue items"),
     task_manifest("task.today", "Today list"),
     task_manifest("task.backlog", "Backlog"),
     task_manifest("task.deadlines", "Deadline countdowns"),

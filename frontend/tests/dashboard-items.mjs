@@ -5,6 +5,17 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 const backend = process.env.WIDGET_BACKEND || 'http://127.0.0.1:8017'
 const widgets = (process.env.TEST_WIDGETS || 'task.today').split(',')
+async function api(path, body) {
+  const response = await fetch(`${backend}/api${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  assert.equal(response.status, 200)
+  return response.json()
+}
+if (widgets.includes('need.overdue')) {
+  for (const widget of ['task.today', 'task.deadlines', 'task.reminders']) {
+    const draft = await api(`/widgets/${widget}/actions/add`, { title: `Overdue fixture ${widget}`, due_at: '2020-01-01T00:00:00Z' })
+    await api(`/widgets/${widget}/drafts/${draft.draft_id}`, { approved: true })
+  }
+}
 await fetch(`${backend}/api/layout`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ widgets: widgets.map(id => ({ id, size: 'm', height: 5 })) }) })
 const root = join(process.env.HOME, '.cache/ms-playwright')
 const executablePath = process.env.CHROMIUM_PATH || readdirSync(root).filter(n => n.startsWith('chromium-')).sort().reverse().map(n => join(root, n, 'chrome-linux64/chrome')).find(existsSync)
@@ -22,6 +33,12 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('need.overdue')) {
+    const card = page.locator('[data-widget="need.overdue"]')
+    for (const widget of ['task.today', 'task.deadlines', 'task.reminders']) await card.getByText(`Overdue fixture ${widget}`, { exact: true }).first().waitFor()
+    assert.equal(await card.getByRole('button', { name: 'Add item', exact: true }).count(), 0)
+    console.log('need.overdue: three source lists rendered')
+  }
   for (const id of widgets.filter(id => id.startsWith('task.'))) {
     const card = page.locator(`[data-widget="${id}"]`)
     const title = `Fixture ${id} ${Date.now()}`

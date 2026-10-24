@@ -195,7 +195,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | need.inbox | Priority inbox (mails that need a reply) | cmp:gmail, llm | MVP | [ ] |
 | need.drafts | Mail drafts to approve | cmp:gmail, llm, gate | MVP | [ ] |
 | need.waiting | Waiting on (sent, no answer) with nudge drafts | cmp:gmail, local, llm | MVP | [ ] |
-| need.overdue | Overdue items | local | MVP | [ ] |
+| need.overdue | Overdue items | local | MVP | [x] |
 | need.mentions | Unanswered mentions | cmp:slack, cmp:github | MVP | [ ] |
 | need.decisions | Decisions the agent is waiting on | dir | MVP | [ ] |
 | need.snoozed | Snoozed items returning today | local | MVP | [ ] |

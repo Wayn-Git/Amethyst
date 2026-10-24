@@ -90,14 +90,30 @@ def display(row, now, source):
     }
 
 
+def dated_rows(table):
+    return [
+        dict(row) for row in get_connection().execute(f"SELECT * FROM {table} WHERE status='todo'")
+    ]
+
+
 def provide(widget_id):
     now = local_now()
+    if widget_id == "need.overdue":
+        items = [
+            display(row, now, source)
+            for source, rows in (
+                ("tasks", task_rows()),
+                ("deadlines", dated_rows("deadlines")),
+                ("reminders", dated_rows("reminders")),
+            )
+            for row in rows
+            if row.get("due_at") and parsed(row["due_at"]) < now
+        ]
+        items.sort(key=lambda item: (parsed(item["due_at"]), item["source"], item["id"]))
+        return {"items": items}
     if widget_id in ("task.deadlines", "task.reminders"):
         table = TABLES[widget_id]
-        rows = [
-            dict(row)
-            for row in get_connection().execute(f"SELECT * FROM {table} WHERE status='todo'")
-        ]
+        rows = dated_rows(table)
         rows.sort(key=lambda row: (parsed(row["due_at"]), row["id"]))
         return {"items": [display(row, now, table) for row in rows]}
     rows = [r for r in task_rows() if today_item(r, now) == (widget_id == "task.today")]
