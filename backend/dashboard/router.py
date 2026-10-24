@@ -129,7 +129,7 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
                 value["snoozed_until"] = date.astimezone(UTC).isoformat()
         elif widget_id == "need.waiting":
             value = WaitingSettings.model_validate(body).model_dump()
-        elif widget_id in ("need.inbox", "agent.brief"):
+        elif widget_id in ("need.inbox", "agent.brief", "agent.next"):
             value = MailSettings.model_validate(body).model_dump()
         elif widget_id == "task.agenda":
             value = AgendaSettings.model_validate(body).model_dump()

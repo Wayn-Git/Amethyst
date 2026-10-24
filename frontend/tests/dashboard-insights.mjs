@@ -36,5 +36,12 @@ try {
     await widget.getByText('Nothing to report from cached widgets.').first().waitFor()
     await widget.getByRole('button', { name: 'Disable model selection' }).waitFor()
   }
+  if (ids.includes('agent.next')) {
+    state = 'ok'; await page.goto(base + '/today')
+    const next = page.locator('[data-widget="agent.next"]')
+    await next.getByRole('link', { name: 'Fixture task' }).waitFor()
+    assert.equal(await next.getByRole('link').count(), 1)
+    await next.getByText('In Today list', { exact: true }).waitFor()
+  }
   console.log('PASS grounded insights UI: linked source item, honest empty state, optional model')
 } finally { await browser.close() }

@@ -81,3 +81,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 feed.news: groups only user feeds by assigned tags (untagged items labelled), reuses projected RSS cache and manual source refresh; source manifest is RSS because no separate news API is used. All six rows: 69 targeted backend tests, mocked widget UI, Ruff/Oxlint pass; existing shell UI passed on retry after one reload timeout. No live account/API tests.
 
 - 2026-10-25 agent.brief: optional async model selection from cached widget items, source links, persisted cache; scheduled at 08:00/18:00 local time while running (next startup catches up), manual refresh supported; model output selects source indices only.
+- 2026-10-25 agent.next: optional async selection of exactly one existing approval, decision, overdue item, draft or Today task; source-derived reason and item link; no generated tasks.

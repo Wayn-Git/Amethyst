@@ -81,3 +81,40 @@ async def test_refresh_failure_preserves_brief_and_other_widgets(db, monkeypatch
     assert service.read_data("agent.brief")["payload"]["items"][0]["title"] == "Saved"
     await service.refresh("glance.clock")
     assert cache_read("glance.clock")["state"] == "ok"
+
+
+async def test_next_exactly_one_action_with_grounded_reason(db, monkeypatch):
+    from backend.workers import llm
+
+    async def ask(*args, **kwargs):
+        return {"text": "[0]"}
+
+    monkeypatch.setattr(llm, "ask", ask)
+    settings_write("agent.next", {"model_enabled": True})
+    cache_write("lib.recent", {"items": [{"id": 1, "title": "Not a task"}]}, "ok")
+    assert (await insights.provide("agent.next"))["items"] == []
+    cache_write(
+        "task.today",
+        {"items": [{"id": 7, "title": "Existing task"}, {"id": 8, "title": "Other task"}]},
+        "ok",
+    )
+    value = await insights.provide("agent.next")
+    assert len(value["items"]) == 1
+    assert value["items"][0]["title"] == "Existing task"
+    assert value["items"][0]["reason"] == "This task is in your Today list."
+    assert value["items"][0]["href"].endswith("item=7")
+
+
+async def test_next_rejects_multiple_or_empty_selection(db, monkeypatch):
+    from backend.workers import llm
+
+    settings_write("agent.next", {"model_enabled": True})
+    cache_write("task.today", {"items": [{"id": 7, "title": "Existing task"}]}, "ok")
+    for text in ("[0,0]", "[]"):
+
+        async def ask(*args, selected=text, **kwargs):
+            return {"text": selected}
+
+        monkeypatch.setattr(llm, "ask", ask)
+        with pytest.raises(ValueError):
+            await insights.provide("agent.next")

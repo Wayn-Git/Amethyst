@@ -82,7 +82,26 @@ async def provide(widget_id):
     items = source_items()[:100]
     if not items:
         return {"items": [], "slot": slot().isoformat()}
-    selected = await select(items, 5)
+    if widget_id == "agent.next":
+        reasons = {
+            "need.approvals": "This source item is waiting for your permission.",
+            "need.decisions": "This source item is waiting for your decision.",
+            "need.overdue": "This source item is overdue.",
+            "need.drafts": "This saved draft is waiting for review.",
+            "task.today": "This task is in your Today list.",
+        }
+        items = [
+            {**item, "reason": reasons[item["widget_id"]]}
+            for item in items
+            if item["widget_id"] in reasons
+        ]
+        if not items:
+            return {"items": []}
+        selected = await select(items, 1)
+        if not selected:
+            raise ValueError("Expected exactly one existing action")
+    else:
+        selected = await select(items, 5)
     return {"items": selected, "slot": slot().isoformat()}
 
 

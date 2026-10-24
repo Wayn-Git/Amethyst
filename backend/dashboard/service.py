@@ -31,7 +31,7 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
-    if widget_id == "agent.brief":
+    if widget_id in ("agent.brief", "agent.next"):
         from backend.dashboard.insights import provide
 
         return await provide(widget_id)
@@ -165,7 +165,8 @@ async def refresh(widget_id):
             ):
                 raise SourceUnavailable
             payload = await asyncio.wait_for(
-                PROVIDERS[widget_id](widget_id), timeout=60 if widget_id == "agent.brief" else 10
+                PROVIDERS[widget_id](widget_id),
+                timeout=60 if widget_id in ("agent.brief", "agent.next") else 10,
             )
             cache_write(
                 widget_id,

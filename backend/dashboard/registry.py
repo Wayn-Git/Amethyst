@@ -238,6 +238,12 @@ MANIFESTS = [
         "refresh": {"mode": "poll", "interval_s": 60},
         "empty": "Nothing to report from cached widgets.",
     },
+    {
+        **director_manifest("agent.next", "One suggested next action"),
+        "source": {"type": "llm"},
+        "refresh": {"mode": "poll", "interval_s": 900},
+        "empty": "No existing action to suggest.",
+    },
     director_manifest("agent.running", "Running tasks", ("stop",)),
     director_manifest("agent.feed", "Activity feed"),
     director_manifest("need.decisions", "Decisions waiting", ("answer", "dismiss")),
