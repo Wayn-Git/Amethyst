@@ -11,6 +11,8 @@ def display(item):
 
 
 async def provide(widget_id):
+    if widget_id == "lib.capture":
+        return {"items": []}
     library = LibraryService()
     if widget_id == "lib.inbox":
         return {"items": [display(item) for item in library.recent(limit=20)]}

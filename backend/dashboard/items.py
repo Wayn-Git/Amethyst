@@ -28,6 +28,7 @@ class ItemInput(StrictModel):
     id: int | None = Field(default=None, gt=0)
     title: str | None = Field(default=None, min_length=1, max_length=500)
     due_at: datetime | None = None
+    text: str | None = Field(default=None, min_length=1, max_length=20000)
 
     @field_validator("title")
     @classmethod
@@ -153,11 +154,23 @@ def provide(widget_id):
 
 
 def draft(widget_id, action, body):
-    if widget_id not in TABLES or action not in ("add", "edit", "complete", "delete"):
+    capture = widget_id == "lib.capture" and action == "add"
+    if not capture and (
+        widget_id not in TABLES or action not in ("add", "edit", "complete", "delete")
+    ):
         raise HTTPException(404, "Unknown item action")
     if action in ("add", "edit") and not body.title:
         raise HTTPException(422, "Title is required")
-    if TABLES[widget_id] != "tasks" and action in ("add", "edit") and body.due_at is None:
+    if capture and (not body.text or not body.text.strip() or body.due_at):
+        raise HTTPException(422, "Note text is required; due date is not supported")
+    if not capture and body.text is not None:
+        raise HTTPException(422, "Text is only supported for note capture")
+    if (
+        not capture
+        and TABLES[widget_id] != "tasks"
+        and action in ("add", "edit")
+        and body.due_at is None
+    ):
         raise HTTPException(422, "Due date is required")
     if action != "add" and body.id is None:
         raise HTTPException(422, "Item id is required")
@@ -238,12 +251,20 @@ async def decide(widget_id, draft_id, approved):
             )
             if not claimed.rowcount:
                 raise HTTPException(409, "Draft already decided")
-            if allowed:
+            if allowed and widget_id != "lib.capture":
                 apply(conn, widget_id, action, body)
                 conn.execute(
                     "UPDATE widget_cache SET state='stale' WHERE widget_id LIKE 'task.%' "
                     "OR widget_id LIKE 'need.%'"
                 )
+        if allowed and widget_id == "lib.capture":
+            from backend.library.service import LibraryService
+
+            captured = await LibraryService().log_manual(title=body["title"], text=body["text"])
+            if not captured.item.get("text_path"):
+                raise HTTPException(500, "Note could not be saved to the vault")
+            with transaction() as conn:
+                conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id LIKE 'lib.%'")
         return {"state": "applied" if allowed else "denied"}
     finally:
         record_tool_dispatch(

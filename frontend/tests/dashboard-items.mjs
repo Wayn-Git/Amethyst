@@ -58,6 +58,17 @@ try {
     assert.equal(await card.getByRole('button', { name: 'Add item', exact: true }).count(), 0)
     console.log('need.overdue: three source lists rendered')
   }
+  if (widgets.includes('lib.capture')) {
+    const card = page.locator('[data-widget="lib.capture"]')
+    await card.getByLabel('Note title', { exact: true }).fill('Browser note fixture')
+    await card.getByLabel('Note text', { exact: true }).fill('Browser body fixture')
+    await card.getByRole('button', { name: 'Review note', exact: true }).click()
+    await card.getByText('Browser body fixture', { exact: true }).waitFor()
+    await card.getByRole('button', { name: 'Reject save', exact: true }).click()
+    await card.getByText('Note was not saved.', { exact: true }).waitFor()
+    await page.keyboard.press('Control+k')
+    assert.equal(await card.getByLabel('Note title', { exact: true }).evaluate(el => el === document.activeElement), true)
+  }
   for (const id of widgets.filter(id => id.startsWith('task.'))) {
     const card = page.locator(`[data-widget="${id}"]`)
     const title = `Fixture ${id} ${Date.now()}`
