@@ -177,6 +177,12 @@ def mail_manifest(widget_id, title):
 MANIFESTS = [
     manifest("glance.clock", "Clock", ["s", "m", "l"]),
     {
+        **manifest("glance.weather", "Weather", ["m", "l"]),
+        "source": {"type": "api"},
+        "refresh": {"mode": "poll", "interval_s": 1800},
+        "empty": "Set location.",
+    },
+    {
         **need_manifest("need.mentions", "Unanswered mentions"),
         "source": [{"type": "composio", "toolkit": tk} for tk in ("slack", "github")],
         "refresh": {"mode": "poll", "interval_s": 900},

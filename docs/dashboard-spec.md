@@ -180,7 +180,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | ID | Widget | Source | Tier | Done |
 |---|---|---|---|---|
 | glance.clock | Clock and world clocks | local | MVP | [x] |
-| glance.weather | Weather with hourly forecast and rain alerts | api | MVP | [ ] |
+| glance.weather | Weather with hourly forecast and rain alerts | api | MVP | [x] |
 | glance.sun | Sunrise and sunset | api | MVP | [ ] |
 | glance.air | Air quality | api | MVP | [ ] |
 | glance.next-event | Next event with countdown | cmp:googlecalendar | MVP | [x] |

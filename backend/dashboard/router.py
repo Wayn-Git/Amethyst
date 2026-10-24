@@ -93,7 +93,11 @@ class SearchSettings(StrictModel):
 def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
     enabled(widget_id)
     try:
-        if widget_id == "dash.quiet":
+        if widget_id == "glance.weather":
+            from backend.dashboard.weather import LocationSettings
+
+            value = LocationSettings.model_validate(body).model_dump()
+        elif widget_id == "dash.quiet":
             value = QuietSettings.model_validate(body).model_dump()
             ZoneInfo(value["timezone"])
             if value["snoozed_until"]:

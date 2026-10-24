@@ -31,6 +31,10 @@ def quiet_active(settings=None, now=None):
 
 
 async def local_provider(widget_id):
+    if widget_id == "glance.weather":
+        from backend.dashboard.weather import provide
+
+        return await provide(widget_id)
     if widget_id == "need.mentions":
         from backend.dashboard.mentions import provide
 
