@@ -24,6 +24,29 @@ async def provide(widget_id):
             "query": query,
             "degraded": library.last_search_degraded,
         }
+    if widget_id == "lib.dupes":
+        items = []
+        rows = get_connection().execute(
+            "SELECT id,title,kind,updated_at,url,source_ref FROM library_items ORDER BY id DESC"
+        )
+        for row in rows:
+            for field, lookup in (
+                ("source_ref", library.store.by_source_ref),
+                ("url", library.store.by_url),
+            ):
+                match = lookup(row[field]) if row[field] else None
+                if match is not None and match["id"] != row["id"]:
+                    items.append(
+                        {
+                            **display(dict(row)),
+                            "duplicate_of": match["id"],
+                            "reason": f"Same {field}: {match['title']}",
+                        }
+                    )
+                    break
+            if len(items) == 20:
+                break
+        return {"items": items}
     if widget_id == "lib.recent":
         rows = get_connection().execute(
             "SELECT id,title,kind,updated_at FROM library_items WHERE kind='note' "

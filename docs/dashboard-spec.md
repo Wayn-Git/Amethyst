@@ -248,7 +248,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | lib.capture | ⌘K quick capture | lib | MVP | [x] |
 | lib.search | Semantic and keyword search | lib | MVP | [x] |
 | lib.recent | Recently edited notes | lib | MVP | [x] |
-| lib.dupes | Duplicates found | lib (dedup) | MVP | [ ] |
+| lib.dupes | Duplicates found | lib (dedup) | MVP | [x] |
 | lib.ask | Ask-your-library Q&A | lib, llm | v2 | [ ] |
 | lib.readlater | Read-later queue with summaries | lib, llm | v2 | [ ] |
 | lib.highlights | Highlights from articles | lib | v2 | [ ] |
@@ -446,6 +446,10 @@ Personal data in this group is stored locally only and is off until the user tur
 ---
 
 ## 13. Open questions (fill in as they are answered)
+
+- Library widgets: should “old” use a different cutoff? Current reversible default: seven days; resurface uses today's tasks and recent captures because no local event provider exists.
+- Library duplicates: current backend dedup recognizes URL/source identity only. Should content-similarity detection be added to Library later? Home reuses existing identity lookups and offers no destructive action.
+
 
 - Do Composio SDK subscriptions work for a local-only app, or do we poll everything?
 - Is there a Composio toolkit for GitLab? If not, does `dev.backup` cover GitLab through local git only?

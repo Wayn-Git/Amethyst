@@ -123,3 +123,21 @@ async def test_recent_orders_notes_by_edit_not_capture_date(db):
     db.execute("UPDATE library_items SET updated_at='2021-01-01' WHERE id=?", (second,))
     db.commit()
     assert [r["id"] for r in (await provide("lib.recent"))["items"]] == [second, first]
+
+
+async def test_duplicates_reuse_library_identity_lookups(db):
+    from backend.library.store import LibraryStore
+
+    store = LibraryStore(db)
+    assert await provide("lib.dupes") == {"items": []}
+    old = store.create(kind="article", title="Old", url="https://example.com/item")
+    latest = store.create(kind="article", title="Latest", url="https://example.com/item")
+    ref_old = store.create(kind="note", title="Old ref", source_ref="capture:1")
+    ref_latest = store.create(kind="note", title="Latest ref", source_ref="capture:1")
+    store.create(kind="note", title="Old")
+    items = (await provide("lib.dupes"))["items"]
+    assert {item["id"]: item["duplicate_of"] for item in items} == {
+        old: latest,
+        ref_old: ref_latest,
+    }
+    assert db.execute("SELECT count(*) FROM library_items").fetchone()[0] == 5
