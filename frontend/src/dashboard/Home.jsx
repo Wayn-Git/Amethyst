@@ -6,10 +6,7 @@ import { cached, remember, request } from './api.js'
 import { GLANCE_WIDGETS, NEED_WIDGETS, SYSTEM_WIDGETS, moveWidget, quietNow, resizeWidget } from './layout.js'
 import { useApp } from '../store.jsx'
 import Drawer from './Drawer.jsx'
-import Gallery from './widgets/Gallery.jsx'
-import Quiet from './widgets/Quiet.jsx'
-import Sync from './widgets/Sync.jsx'
-import Shortcuts from './widgets/Shortcuts.jsx'
+import HomeSettings from './HomeSettings.jsx'
 import NeedsYou from './NeedsYou.jsx'
 import SourceItem from './SourceItem.jsx'
 import Button from '../components/ui/AppButton.jsx'
@@ -135,8 +132,23 @@ export default function Home() {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
     const view = <WidgetView context={frameContext} manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} tile={tile} full={full} />
-    return full ? view : <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{view}</WidgetSlot>
+    return full ? view : <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} sizes={manifest.sizes} lane={['task.', 'dev.', 'lib.', 'feed.'].some(prefix => manifest.id.startsWith(prefix)) ? 'side' : 'main'} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{view}</WidgetSlot>
   }
+  useLayoutEffect(() => {
+    const container = grid.current?.querySelector('.today-content-grid')
+    if (!container) return
+    const styles = getComputedStyle(container)
+    const gap = parseFloat(styles.rowGap), row = parseFloat(styles.gridAutoRows)
+    const pack = nodes => {
+      const spans = nodes.map(node => [node, Math.max(1, Math.ceil((node.getBoundingClientRect().height + gap) / (row + gap)))])
+      for (const [node, span] of spans) node.style.gridRowEnd = `span ${span}`
+    }
+    const observer = new ResizeObserver(entries => pack(entries.map(entry => entry.target)))
+    const nodes = [...container.children]
+    pack(nodes)
+    for (const node of nodes) observer.observe(node)
+    return () => observer.disconnect()
+  }, [membership, editing, entries])
   const previousRects = useRef(new Map())
   useLayoutEffect(() => {
     const nodes = grid.current?.querySelectorAll('[data-slot-id]') || []
@@ -172,25 +184,46 @@ export default function Home() {
       setDrawer({ type: 'closed' })
     }
   }
-  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget }}><div className="view widget-home home-shell"><header className="home-heading"><div className="home-greeting"><div className="home-meta-bar"><span className="home-eyebrow">TODAY</span><span className="home-meta-sep">·</span><time className="home-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</time></div><h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1></div><div className="home-header-actions"><Button className="home-capture" onClick={() => setOverlay('palette')} title="Capture a thought or find anything"><Icon name="search" size={13} /><span>Capture a thought or find anything</span><Kbd>⌘K / Ctrl+K</Kbd></Button><div className="home-toolbar"><Button className={editing ? 'is-editing-active' : ''} onClick={() => setEditing(!editing)}><Icon name={editing ? 'check-simple' : 'grid'} size={14} />{editing ? 'Finish editing' : 'Edit layout'}</Button><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={14} />Add widget</Button><Button onClick={() => setDrawer({ type: 'settings' })}><Icon name="settings" size={14} />Home settings</Button></div></div></header>
-    <SourceItem />
-    {error && <p role="alert">{error} {entries.length ? 'Using saved shell data where available.' : ''}<Button onClick={() => window.location.reload()}>Retry Home</Button></p>}
-    <span className="home-announcement" role="status" aria-live="polite">{announcement}</span>
-    <p role="status" className="home-save-status">{dragging ? 'Release to place. Escape cancels.' : saveState}</p>
-    {entries.filter(e => !e.enabled).map(e => <p key={e.manifest.id} role="alert">{e.manifest.title}: {e.error}</p>)}
-    {!loaded && !layout.widgets.length && <p role="status">Loading layout…</p>}
-    <div ref={grid} className="home-bento-canvas">
-      <div className="home-glance" aria-label="At a glance">{glance.map(p => renderWidget(p, false, true))}</div>
-      <div className={`home-grid home-layout-grid${editing ? ' is-editing' : ''}`} data-dragging={dragging || undefined}>
-        {editing ? homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p)) : <>
-          {needs.length > 0 && <section className="home-needs-slot" aria-label="Needs you"><NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} /></section>}
-          {content.map(p => renderWidget(p))}
-        </>}
+  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget }}>
+    <div className="view today-dashboard home-shell">
+      <div className="today-page">
+        <header className="today-heading">
+          <div className="today-greeting">
+            <time className="today-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</time>
+            <h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1>
+          </div>
+          <div className="today-actions">
+            <Button variant={editing ? 'secondary' : 'ghost'} onClick={() => setEditing(!editing)} aria-pressed={editing} aria-label={editing ? 'Finish editing' : 'Edit layout'}><Icon name={editing ? 'check-simple' : 'sliders'} size={16} />{editing ? 'Done' : 'Edit layout'}</Button>
+            <Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add widget</Button>
+            <Button variant="ghost" size="icon" onClick={() => setDrawer({ type: 'settings' })} aria-label="Home settings" title="Home settings"><Icon name="settings" size={18} /></Button>
+          </div>
+        </header>
+        <div className="today-command-row">
+          <Button variant="ghost" className="today-capture" onClick={() => setOverlay('palette')}><Icon name="search" size={16} /><span>Search or capture a thought…</span><Kbd>⌘K / Ctrl+K</Kbd></Button>
+          <span className="today-layout-label">{homePositions.length} widgets{quiet ? ' · Refresh paused' : ''}</span>
+        </div>
+        {editing && <div className="today-edit-bar"><span className="today-edit-icon"><Icon name="grid" size={18} /></span><div><strong>Arrange your workspace</strong><p>Drag to reorder. Choose a size to resize. Changes save automatically.</p></div><Button size="small" variant="ghost" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={14} />Add widget</Button></div>}
+        <SourceItem />
+        {error && <div className="today-message" role="alert"><Icon name="warning" size={16} /><p>{error} {entries.length ? 'Using saved shell data where available.' : ''}</p><Button size="small" onClick={() => window.location.reload()}>Retry Home</Button></div>}
+        <span className="home-announcement" role="status" aria-live="polite">{announcement}</span>
+        <span role="status" className="home-save-status home-announcement">{dragging ? 'Release to place. Escape cancels.' : saveState}</span>
+        {saveState.startsWith('Layout not saved') && <p className="today-message" role="alert">{saveState}</p>}
+        {entries.filter(e => !e.enabled).map(e => <p key={e.manifest.id} role="alert">{e.manifest.title}: {e.error}</p>)}
+        {!loaded && !layout.widgets.length && <div className="today-layout-loading" role="status" aria-label="Loading layout"><span /><span /><span /><span /></div>}
+        <div ref={grid} className="widget-home today-widgets">
+          {glance.length > 0 && <div className="today-glance" aria-label="At a glance">{glance.map(p => renderWidget(p, false, true))}</div>}
+          <div className={`today-content-grid home-layout-grid${editing ? ' is-editing' : ''}`} data-dragging={dragging || undefined}>
+            {editing ? homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p)) : <>
+              {needs.length > 0 && <section className="today-needs-slot" aria-label="Needs you"><NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} /></section>}
+              {content.map(p => renderWidget(p))}
+            </>}
+          </div>
+        </div>
+        {loaded && !homePositions.length && <section className="today-empty-layout"><span><Icon name="grid" size={28} /></span><h2>Make room for your day</h2><p>Add the widgets you want to see here.</p><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add widget</Button></section>}
       </div>
     </div>
-    {loaded && !homePositions.length && <p>No widgets selected. Use Add widget to choose one.</p>}
-    {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" onClose={closeDrawer}><div className="home-settings"><section id="home-dash.sync" tabIndex={-1}><h3>Refresh status</h3><Sync /></section><section id="home-dash.quiet" tabIndex={-1}><h3>Quiet hours</h3><Quiet /></section><section id="home-dash.shortcuts" tabIndex={-1}><h3>Keyboard shortcuts</h3><Shortcuts data={{ shortcuts: [['⌘K / Ctrl+K', 'Search and capture'], ['Alt+R', 'Refresh Home'], ['Alt+E', 'Edit layout'], ['Alt+Q', 'Snooze refresh for one hour'], ['Arrow keys on move handle', 'Move widget'], ['Escape', 'Close drawer or cancel drag']] }} /></section><section id="home-dash.gallery" tabIndex={-1}><h3>Widget gallery</h3><Gallery compact={true} /></section></div></Drawer>}
-    {drawer?.type === 'add' && <Drawer title="Add widget" onClose={closeDrawer} className="add-widget-sheet"><AddWidget /></Drawer>}
-    {selected && <Drawer title={selected.title} onClose={closeDrawer}>{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</Drawer>}
-  </div></DashboardContext.Provider>
+    {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key={settingsId || 'settings'} settingsId={settingsId} /></Drawer>}
+    {drawer?.type === 'add' && <Drawer title="Add widget" description="Choose what belongs in your day." onClose={closeDrawer} className="today-catalog-drawer"><AddWidget /></Drawer>}
+    {selected && <Drawer title={selected.title} onClose={closeDrawer}><div className="widget-home today-widgets">{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</div></Drawer>}
+  </DashboardContext.Provider>
 }
