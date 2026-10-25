@@ -109,6 +109,7 @@ try {
     const card = page.locator('[data-widget="need.overdue"]')
     for (const widget of ['task.today', 'task.deadlines', 'task.reminders']) await card.getByText(`Overdue fixture ${widget}`, { exact: true }).first().waitFor()
     assert.equal(await card.getByRole('button', { name: 'Add item', exact: true }).count(), 0)
+    await page.keyboard.press('Escape')
     console.log('need.overdue: three source lists rendered')
   }
   if (widgets.includes('lib.dupes')) {

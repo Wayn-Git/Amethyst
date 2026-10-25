@@ -9,6 +9,7 @@ assert.deepEqual(moveWidget([{ id: 'a' }, { id: 'b' }], 'a', 'b'), [{ id: 'b' },
 assert.deepEqual(resizeWidget({ id: 'a', size: 'm', height: 3 }, ['s', 'm', 'l'], 600, 100, 1200), { id: 'a', size: 'l', height: 4 })
 assert.equal(resizeWidget({ id: 'a', size: 'm', height: 3 }, ['m'], 0, 100, 390, NaN).height, 4)
 assert.equal(quietNow({ enabled: true, start: '22:00', end: '07:00', timezone: 'UTC' }, new Date('2026-10-24T23:00:00Z')), true)
+assert.equal(freshness('not-a-date'), '—')
 assert.equal(freshness('2026-10-25T10:00:00Z', new Date('2026-10-25T10:02:00Z')), '2m')
 const fixtureItems = Array.from({ length: 8 }, (_, id) => ({ id, title: `Task fixture ${id}`, editable: false }))
 const payload = { items: fixtureItems }
@@ -32,7 +33,7 @@ const browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] }
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
 page.setDefaultTimeout(15000)
 await page.addInitScript(() => { localStorage.setItem('amethyst.ui.v1', JSON.stringify({ onboardingDone: true, theme: 'paper' })); localStorage.setItem('amethyst.ui.forceDesktop', '1') })
-let offline = false, clockState = null, brokenClock = false
+let offline = false, clockState = null, brokenClock = false, tasksState = 'ok'
 const calls = []
 await page.route('**/api/**', async route => {
   const url = new URL(route.request().url()); calls.push(url.pathname)
@@ -42,11 +43,12 @@ await page.route('**/api/**', async route => {
   }
   if (url.pathname.startsWith('/api/widgets') || url.pathname === '/api/layout' || url.pathname === '/api/search') {
     if (offline) return route.abort('internetdisconnected')
-    const id = url.pathname.match(/^\/api\/widgets\/([^/]+)\/data$/)?.[1]
+    const id = url.pathname.match(/^\/api\/widgets\/([^/]+)\/(?:data|refresh)$/)?.[1]
     if (id === 'glance.clock' && (clockState || brokenClock)) return route.fulfill({ json: { state: clockState || 'ok', payload: brokenClock ? { zones: ['Invalid/Zone'] } : null, synced_at: new Date().toISOString(), error: clockState === 'error' ? 'Fixture failure' : null } })
     if (id === 'glance.weather') return route.fulfill({ json: { state: 'ok', payload: { set_location: true }, synced_at: new Date().toISOString() } })
     if (['glance.music', 'glance.next-event', 'need.inbox', 'dev.prs'].includes(id)) return route.fulfill({ json: { state: 'not-connected', payload: null } })
-    if (id === 'task.today') return route.fulfill({ json: { state: 'ok', payload, synced_at: new Date().toISOString() } })
+    if (id === 'task.today') return route.fulfill({ json: { state: tasksState, payload: tasksState === 'empty' ? { items: [] } : payload, synced_at: new Date().toISOString() } })
+    if (['lib.resurface', 'agent.brief', 'agent.feed', 'need.drafts', 'need.waiting', 'feed.news'].includes(id)) return route.fulfill({ json: { state: 'empty', payload: { items: [], disabled: true, connected: false }, synced_at: new Date().toISOString() } })
     if (id === 'need.overdue') return route.fulfill({ json: { state: 'ok', payload: { items: [{ id: 1, title: 'Overdue fixture', due_at: '2020-01-01', source: 'task.today' }] }, synced_at: new Date().toISOString() } })
     if (id === 'need.mentions') return route.fulfill({ json: { state: 'ok', payload: { items: [{ id: 2, title: 'Mention fixture', source: 'github', at: '2026-10-25' }] }, synced_at: new Date().toISOString() } })
     return route.fulfill({ response: await route.fetch({ url: backend + url.pathname + url.search }) })
@@ -75,6 +77,17 @@ try {
   assert.equal(await all.locator('li').count(), 8)
   await page.keyboard.press('Escape')
   assert.equal(await tasks.getByRole('button', { name: 'Show all (8)' }).evaluate(el => el === document.activeElement), true)
+  await tasks.getByRole('button', { name: 'Add item', exact: true }).click()
+  await tasks.getByLabel('Title', { exact: true }).fill('Keep form fixture')
+  tasksState = 'empty'
+  await tasks.getByRole('button', { name: 'Refresh Today list', exact: true }).click()
+  await tasks.getByText('No items.', { exact: true }).waitFor()
+  assert.equal(await tasks.getByLabel('Title', { exact: true }).inputValue(), 'Keep form fixture')
+  tasksState = 'ok'
+  await tasks.getByRole('button', { name: 'Refresh Today list', exact: true }).click()
+  await tasks.getByText('Task fixture 4', { exact: true }).waitFor()
+  assert.equal(await tasks.getByLabel('Title', { exact: true }).inputValue(), 'Keep form fixture')
+  await tasks.getByRole('button', { name: 'Cancel', exact: true }).click()
   await page.getByRole('button', { name: 'Home settings', exact: true }).click()
   const settings = page.getByRole('dialog', { name: 'Home settings', exact: true })
   for (const title of ['Refresh status', 'Quiet hours', 'Keyboard shortcuts', 'Widget gallery']) await settings.getByRole('heading', { name: title, exact: true }).waitFor()
@@ -143,6 +156,11 @@ try {
     await page.keyboard.press('Escape')
     await settings.waitFor({ state: 'hidden' })
   }
+  await page.goto(base + '/today?widget=need.drafts', { waitUntil: 'domcontentloaded' })
+  const draftSettings = page.getByRole('dialog', { name: 'Mail drafts to approve', exact: true })
+  await draftSettings.waitFor()
+  await page.keyboard.press('Escape')
+  await draftSettings.waitFor({ state: 'hidden' })
   offline = true; await page.reload({ waitUntil: 'domcontentloaded' }); await clock.getByText('Stale data.', { exact: true }).waitFor()
   for (const theme of ['graphite', 'ink', 'nocturne', 'nvidia', 'paper', 'sand', 'claude', 'cursor', 'system']) {
     await page.evaluate(theme => document.documentElement.setAttribute('data-theme', theme), theme)

@@ -14,7 +14,7 @@ try {
   assert.match(html, /In 30 minutes/)
   assert.match(html, /current week/)
   const { default: ConnectedItems } = await server.ssrLoadModule('/src/dashboard/widgets/ConnectedItems.jsx')
-  const connected = data => renderToStaticMarkup(React.createElement(ConnectedItems, { data }))
+  const connected = (data, widgetId) => renderToStaticMarkup(React.createElement(ConnectedItems, { data, widgetId }))
   assert.match(connected({ items: [], unavailable: ['Slack'] }), /Unavailable: Slack/)
   const mentions = connected({ limited: true, items: [{ id: '1', source: 'GitHub', title: 'Mention fixture', url: 'javascript:alert(1)' }] })
   assert.match(mentions, /Mention fixture/)
@@ -26,5 +26,6 @@ try {
   for (const status of ['success', 'failure', 'in_progress', 'queued', 'No workflow runs']) {
     assert.match(connected({ items: [{ id: status, title: 'owner/repo fixture', source: 'GitHub Actions', status }] }), new RegExp(status))
   }
+  assert.match(connected({ items: [{ id: 'pr', title: 'PR fixture', url: 'https://github.com/owner/repo/pull/42', status: 'Awaiting your review' }] }, 'dev.prs'), /widget-repo.*owner\/repo/ )
   console.log('PASS connected widgets: next-event, mentions, PR labels, partial sources, limits, safe links')
 } finally { await server.close() }

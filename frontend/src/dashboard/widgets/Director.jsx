@@ -10,7 +10,7 @@ export default function Director({ data, widgetId, refresh }) {
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
-  return <>{error && <p role="alert">{error}</p>}<ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}>
+  return <>{error && <p role="alert">{error}</p>}<ul className={`widget-list${widgetId === 'agent.feed' ? ' widget-timeline' : ''}`}>{(data?.items || []).map(item => <li key={item.id}>
     <div><strong>{item.title}</strong><p>{item.detail}</p>
       {widgetId === 'need.decisions' && <form onSubmit={event => {
         event.preventDefault()

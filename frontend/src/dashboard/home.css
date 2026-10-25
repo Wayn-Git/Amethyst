@@ -52,8 +52,6 @@
 .widget-edit button, .widget-actions button[aria-label^="Move"] { touch-action: none; }
 .home-clock, .glance-value { display: block; font: 600 26px/1.25 var(--home-heading-font); font-variant-numeric: tabular-nums; }
 .home-tile { padding: 12px; }
-.home-tile .widget-source { display: none; }
-.home-tile .widget-freshness { display: none; }
 .home-tile .widget-actions { gap: 8px; }
 .home-tile .widget-header { gap: 0; }
 .home-tile .widget-title { flex-basis: 100%; }
@@ -107,3 +105,14 @@ li:hover .widget-row-menu summary, li:focus-within .widget-row-menu summary { op
 
 .widget-home .widget-inline-add { display: flex; gap: 8px; }
 .widget-inline-add input { flex: 1; }
+.widget-list a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; }
+.widget-source { border: 1px solid var(--hairline); border-radius: 4px; padding: 2px 5px; }
+
+.widget-repo { display: block; color: var(--text-dim); font: 400 11px var(--home-mono-font); }
+.widget-repo:empty { display: none; }
+
+.widget-timeline li { border-left: 1px solid var(--hairline-strong); padding-left: 16px; }
+
+.home-glance > .home-widget { align-self: stretch; }
+
+.home-tile .widget-connection { font-size: 12px; }

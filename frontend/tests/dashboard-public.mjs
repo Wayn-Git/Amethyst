@@ -71,6 +71,7 @@ try {
     createRoot(node).render(React.createElement(News, { data: { items: [{ tag: 'Code', items: [{ feed_id: 1, title: 'Fixture news', url: 'https://example.com/news', published_at: '' }] }], errors: [{ feed_id: 2 }] } }))
   })
   await page.getByRole('region', { name: 'Code', exact: true }).waitFor()
+  await page.getByText('example.com', { exact: true }).waitFor()
   assert.equal(await page.getByRole('link', { name: 'Fixture news' }).getAttribute('href'), 'https://example.com/news')
   await page.getByText('Some feeds are unavailable;', { exact: false }).waitFor()
   console.log('All six public widget UI checks passed')

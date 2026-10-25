@@ -25,7 +25,9 @@ export function quietNow(settings = {}, now = new Date()) {
 
 export function freshness(value, now = new Date()) {
   if (!value) return '—'
-  const minutes = Math.max(0, Math.floor((now - new Date(value)) / 60000))
+  const timestamp = new Date(value).getTime()
+  if (!Number.isFinite(timestamp)) return '—'
+  const minutes = Math.max(0, Math.floor((now - timestamp) / 60000))
   return minutes < 1 ? 'now' : minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`
 }
 

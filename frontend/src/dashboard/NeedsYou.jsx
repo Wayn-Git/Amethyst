@@ -10,7 +10,7 @@ function Observe({ manifest, quiet, refreshVersion, onData }) {
   return null
 }
 export default function NeedsYou({ manifests, quiet, refreshVersion, onData }) {
-  const { records, openWidget, toggleWidget, now } = useDashboard()
+  const { records, openWidget, removeWidget, now } = useDashboard()
   const [refresh, setRefresh] = useState(0)
   const [expanded, setExpanded] = useState(false)
   const rows = rankNeeds(manifests, records)
@@ -22,8 +22,9 @@ export default function NeedsYou({ manifests, quiet, refreshVersion, onData }) {
     {waiting && <Skeleton />}{list(false)}{!waiting && !rows.length && <p>Nothing needs you right now.</p>}
     {manifests.map(m => {
       const record = records[m.id]
-      if (record?.state === 'not-connected' || record?.payload?.connected === false) return <ConnectionRow key={m.id} manifest={m} remove={() => toggleWidget(m.id)} />
-      if (['error', 'stale'].includes(record?.state)) return <p key={m.id} role="status"><span className={`widget-chip state-${record.state}`}>{record.state}</span> {m.title}: {record.error || 'Showing saved items.'}<button onClick={() => openWidget(m.id)}>Review</button></p>
+      if (record?.state === 'not-connected' || record?.payload?.connected === false) return <ConnectionRow key={m.id} label={m.title} manifest={m} remove={() => removeWidget(m.id)} />
+      if (['error', 'stale'].includes(record?.state)) return <p key={m.id} role={record.state === 'error' ? 'alert' : 'status'}><span className={`widget-chip state-${record.state}`}>{record.state}</span> {m.title}: {record.error || 'Showing saved items.'}<button onClick={() => setRefresh(n => n + 1)}>Retry</button></p>
+      if (record?.payload?.unavailable?.length || record?.payload?.limited) return <p key={m.id} role="status">{m.title}: {record.payload.unavailable?.length ? `Unavailable: ${record.payload.unavailable.join(', ')}. ` : ''}{record.payload.limited ? 'Results limited.' : ''}</p>
       return null
     })}
     {rows.length > 5 && <button onClick={() => setExpanded(true)}>Show all ({rows.length})</button>}{expanded && <Drawer title="Needs you" onClose={() => setExpanded(false)}>{list(true)}</Drawer>}

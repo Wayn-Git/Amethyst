@@ -35,7 +35,7 @@ export default function Home() {
   const mounted = useRef(false)
   const manifests = entries.filter(e => e.enabled).map(e => e.manifest)
   const requested = new URLSearchParams(window.location.search).get('widget')
-  const positions = requested && !SYSTEM_WIDGETS.includes(requested) && manifests.some(m => m.id === requested)
+  const positions = requested && !SYSTEM_WIDGETS.includes(requested) && !NEED_WIDGETS.includes(requested) && manifests.some(m => m.id === requested)
     ? [layout.widgets.find(w => w.id === requested) || { id: requested, size: 'm', height: 4 }, ...layout.widgets.filter(w => w.id !== requested)] : layout.widgets
   const quiet = quietNow(quietSettings, now)
   const refreshAll = useCallback(() => setRefreshVersion(n => n + 1), [])
@@ -89,8 +89,9 @@ export default function Home() {
     }
   }
   function toggleWidget(id) { const widgets = layoutRef.current.widgets; persist({ widgets: widgets.some(w => w.id === id) ? widgets.filter(w => w.id !== id) : [...widgets, { id, size: manifests.find(m => m.id === id).sizes.includes('m') ? 'm' : 's', height: 3 }] }) }
-  const openWidget = id => setDrawer(SYSTEM_WIDGETS.includes(id) ? { type: 'settings' } : { id })
-  const selected = drawer?.id && manifests.find(m => m.id === drawer.id)
+  const openWidget = id => setDrawer(SYSTEM_WIDGETS.includes(id) ? { type: 'settings', settingsId: id } : { id })
+  const selectedId = drawer?.id || (drawer === null && NEED_WIDGETS.includes(requested) ? requested : null)
+  const selected = selectedId && manifests.find(m => m.id === selectedId)
   const renderWidget = (position, full = false, tile = false) => {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
@@ -104,11 +105,24 @@ export default function Home() {
   const side = content.filter(w => !main.includes(w))
   const requestedSystem = SYSTEM_WIDGETS.includes(requested) && manifests.find(m => m.id === requested)
   const settingsId = drawer?.settingsId || (drawer === null && requestedSystem ? requested : null)
+  useEffect(() => {
+    const section = settingsId && document.getElementById(`home-${settingsId}`)
+    if (section) { section.scrollIntoView({ block: 'start' }); section.focus({ preventScroll: true }) }
+  }, [settingsId, drawer])
   const closeDrawer = () => {
     setDrawer({ type: 'closed' })
-    if (requestedSystem) { const url = new URL(window.location.href); url.searchParams.delete('widget'); window.history.replaceState({}, '', url) }
+    if (requestedSystem || NEED_WIDGETS.includes(requested)) { const url = new URL(window.location.href); url.searchParams.delete('widget'); window.history.replaceState({}, '', url) }
   }
-  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, now, openWidget }}><div className="view widget-home"><header className="home-heading"><div><time className="home-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</time><h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1></div><button className="home-capture" onClick={() => setOverlay('palette')}>Capture or search… <kbd>⌘K / Ctrl+K</kbd></button><div className="widget-buttons"><button onClick={() => setEditing(!editing)}>{editing ? 'Finish editing' : 'Edit layout'}</button><button className="home-primary" onClick={() => setDrawer({ type: 'add' })}>Add widget</button><button onClick={() => setDrawer({ type: 'settings' })}>Home settings</button></div></header>
+  function removeWidget(id) {
+    if (layoutRef.current.widgets.some(w => w.id === id)) toggleWidget(id)
+    if (selectedId === id || requested === id) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('widget')
+      window.history.replaceState({}, '', url)
+      setDrawer({ type: 'closed' })
+    }
+  }
+  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, removeWidget, now, openWidget }}><div className="view widget-home"><header className="home-heading"><div><time className="home-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</time><h1>{now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening'}</h1></div><button className="home-capture" onClick={() => setOverlay('palette')}>Capture or search… <kbd>⌘K / Ctrl+K</kbd></button><div className="widget-buttons"><button onClick={() => setEditing(!editing)}>{editing ? 'Finish editing' : 'Edit layout'}</button><button className="home-primary" onClick={() => setDrawer({ type: 'add' })}>Add widget</button><button onClick={() => setDrawer({ type: 'settings' })}>Home settings</button></div></header>
     <SourceItem />
     {error && <p role="alert">{error} {entries.length ? 'Using saved shell data where available.' : ''}<button onClick={() => window.location.reload()}>Retry Home</button></p>}
     <p role="status" className="home-save-status">{dragging ? 'Release to place. Escape cancels.' : saveState}</p>
@@ -119,7 +133,7 @@ export default function Home() {
       {editing ? <div className="home-grid">{homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p))}</div> : <div className="home-columns"><div className="home-column">{needs.length > 0 && <NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} />}{main.map(p => renderWidget(p))}</div><div className="home-column">{side.map(p => <section key={p.id} aria-label={{ 'task.today': 'Today', 'dev.prs': 'Dev', 'lib.resurface': 'Library', 'feed.news': 'Feed' }[p.id]}>{renderWidget(p)}</section>)}</div></div>}
     </div>
     {loaded && !homePositions.length && <p>No widgets selected. Use Add widget to choose one.</p>}
-    {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" onClose={closeDrawer}><div className="home-settings"><section><h3>Refresh status</h3><Sync /></section><section><h3>Quiet hours</h3><Quiet /></section><section><h3>Keyboard shortcuts</h3><Shortcuts data={{ shortcuts: [['⌘K / Ctrl+K', 'Search and capture'], ['Alt+R', 'Refresh Home'], ['Alt+E', 'Edit layout'], ['Alt+Q', 'Snooze refresh for one hour'], ['Escape', 'Close drawer or cancel drag']] }} /></section><section><h3>Widget gallery</h3><Gallery /></section></div></Drawer>}
+    {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" onClose={closeDrawer}><div className="home-settings"><section id="home-dash.sync" tabIndex={-1}><h3>Refresh status</h3><Sync /></section><section id="home-dash.quiet" tabIndex={-1}><h3>Quiet hours</h3><Quiet /></section><section id="home-dash.shortcuts" tabIndex={-1}><h3>Keyboard shortcuts</h3><Shortcuts data={{ shortcuts: [['⌘K / Ctrl+K', 'Search and capture'], ['Alt+R', 'Refresh Home'], ['Alt+E', 'Edit layout'], ['Alt+Q', 'Snooze refresh for one hour'], ['Arrow keys on move handle', 'Move widget'], ['Escape', 'Close drawer or cancel drag']] }} /></section><section id="home-dash.gallery" tabIndex={-1}><h3>Widget gallery</h3><Gallery /></section></div></Drawer>}
     {drawer?.type === 'add' && <Drawer title="Add widget" onClose={closeDrawer}><Gallery /></Drawer>}
     {selected && <Drawer title={selected.title} onClose={closeDrawer}>{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</Drawer>}
   </div></DashboardContext.Provider>
