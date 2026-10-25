@@ -323,6 +323,11 @@ MANIFESTS = [
         "tier": "v2",
         "source": {"type": "library"},
     },
+    {
+        **director_manifest("agent.skills", "Skills", ("toggle",)),
+        "tier": "v2",
+        "source": {"type": "local"},
+    },
     {**director_manifest("agent.rules", "Permission rules manager", ("set",)), "tier": "v2"},
     {
         **director_manifest("agent.watchers", "Page and mailbox watchers", ("add", "delete")),

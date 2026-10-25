@@ -352,6 +352,10 @@ def apply(conn, widget_id, action, body):
         from backend.dashboard.focus import apply as apply_focus
 
         return apply_focus(conn, action, body)
+    if widget_id == "agent.skills":
+        from backend.dashboard.skills import apply as apply_skill
+
+        return apply_skill(conn, action, body)
     if widget_id == "agent.knows":
         from backend.dashboard.knows import apply as apply_memory
 

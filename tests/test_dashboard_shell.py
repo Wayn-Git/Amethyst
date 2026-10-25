@@ -69,6 +69,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "agent.watchers",
         "agent.rules",
         "agent.knows",
+        "agent.skills",
         "agent.usage",
         "agent.running",
         "lib.readlater",

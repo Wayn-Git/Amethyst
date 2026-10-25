@@ -47,6 +47,19 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(process.env.BASE || 'http://127.0.0.1:5177', { waitUntil: 'domcontentloaded' })
+  if (widgets.includes('agent.skills')) {
+    const card = page.locator('[data-widget="agent.skills"]')
+    const toggle = card.getByLabel('Enable fixture-skill', { exact: true })
+    const original = await toggle.isChecked()
+    await toggle.click()
+    await card.getByRole('button', { name: 'Reject change', exact: true }).click()
+    assert.equal(await toggle.isChecked(), original)
+    await toggle.click()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await page.waitForFunction(expected => document.querySelector('[data-widget="agent.skills"] input[type="checkbox"]')?.checked === expected, !original)
+    await card.getByText('Available tools', { exact: true }).first().click()
+    await card.getByText('fixture_read', { exact: true }).first().waitFor()
+  }
   if (widgets.includes('agent.knows')) {
     const card = page.locator('[data-widget="agent.knows"]')
     const fact = card.getByRole('textbox').first()
