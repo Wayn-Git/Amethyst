@@ -97,11 +97,56 @@ export function PluginCategoryBridgeSkeleton({ index = 0 }) {
 }
 
 /**
+ * Featured top carousel skeleton synced with `PluginFeaturedCarousel.jsx`.
+ * Matches exact height (200px), 22px radius, squircle icon (52px), title,
+ * 2-line blurb, pill button, and bottom indicator dots.
+ */
+export function PluginCarouselSkeleton() {
+  return (
+    <div className="plugin-carousel-wrap is-skeleton" aria-hidden="true">
+      <div className="plugin-carousel-card plugin-carousel-card--skeleton">
+        <div className="plugin-carousel-body">
+          <div className="plugin-carousel-inner">
+            <div className="plugin-carousel-info" style={{ pointerEvents: 'none' }}>
+              <Skeleton w={52} h={52} r={14} className="shrink-0" />
+              <div className="plugin-carousel-text" style={{ width: '100%', minWidth: 260 }}>
+                <Skeleton w={140} h={22} r={5} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                  <Skeleton w="82%" h={13} r={3} />
+                  <Skeleton w="52%" h={13} r={3} />
+                </div>
+              </div>
+            </div>
+
+            <div className="plugin-carousel-actions">
+              <Skeleton w={92} h={36} r={99} className="shrink-0" />
+            </div>
+          </div>
+
+          <div className="plugin-carousel-dots" style={{ pointerEvents: 'none' }}>
+            <Skeleton w={20} h={6} r={99} />
+            <Skeleton w={6} h={6} r={99} />
+            <Skeleton w={6} h={6} r={99} />
+            <Skeleton w={6} h={6} r={99} />
+            <Skeleton w={6} h={6} r={99} />
+            <Skeleton w={6} h={6} r={99} />
+            <Skeleton w={6} h={6} r={99} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Complete directory skeleton screen synced with `PluginsDirectory.jsx`.
  */
-export function PluginsDirectorySkeleton() {
+export function PluginsDirectorySkeleton({ showCarousel = true }) {
   return (
     <div className="plugin-directory-skeleton-body" aria-hidden="true">
+      {/* Featured top carousel skeleton */}
+      {showCarousel && <PluginCarouselSkeleton />}
+
       {/* Installed horizontal strip */}
       <PluginInstalledStripSkeleton />
 

@@ -79,9 +79,10 @@ export const SYSTEM_TOOLS = [
 
 export function SystemToolCard({ tool, onLaunchChat, onOpenNewMcp }) {
   const IconComponent = tool.icon
+  const isActive = tool.status === 'Active'
 
   return (
-    <div key={tool.slug} className="system-tool-card">
+    <div key={tool.slug} className={`system-tool-card ${isActive ? 'is-active' : 'is-inactive'}`}>
       <div className="system-card-head">
         <div className="system-card-icon">
           <IconComponent size={22} />
@@ -89,9 +90,8 @@ export function SystemToolCard({ tool, onLaunchChat, onOpenNewMcp }) {
         <div className="system-card-meta">
           <div className="system-card-title-row">
             <span className="system-card-title">{tool.name}</span>
-            <span className="connector-status-tag is-active">
-              <span className="connector-status-dot is-live" />
-              <span>{tool.status}</span>
+            <span className={`system-status-tag ${isActive ? 'is-active' : 'is-muted'}`}>
+              {tool.status}
             </span>
           </div>
           <span className="system-card-category">{tool.category}</span>

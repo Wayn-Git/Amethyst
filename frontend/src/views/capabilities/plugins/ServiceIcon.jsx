@@ -9,7 +9,7 @@ import {
   FolderTree,
   Server,
   Layers,
-  Sparkles,
+  BookOpen,
 } from 'lucide-react'
 
 const THESVG_CDN_BASE =
@@ -19,9 +19,16 @@ const THESVG_MAPPINGS = {
   gmail: 'gmail',
   googledrive: 'google-drive',
   google_drive: 'google-drive',
+  'google-drive': 'google-drive',
   googlecalendar: 'google-calendar',
+  google_calendar: 'google-calendar',
+  'google-calendar': 'google-calendar',
   googlesheets: 'google-sheets',
+  google_sheets: 'google-sheets',
+  'google-sheets': 'google-sheets',
   googledocs: 'google-docs',
+  google_docs: 'google-docs',
+  'google-docs': 'google-docs',
   github: 'github',
   slack: 'slack',
   notion: 'notion',
@@ -33,6 +40,7 @@ const THESVG_MAPPINGS = {
   posthog: 'posthog',
   discord: 'discord',
   twitter: 'twitter',
+  x: 'twitter',
   reddit: 'reddit',
   zapier: 'zapier',
   hubspot: 'hubspot',
@@ -51,15 +59,26 @@ const THESVG_MAPPINGS = {
   telegram: 'telegram',
   whatsapp: 'whatsapp',
   zoom: 'zoom',
+  clickup: 'clickup',
+  todoist: 'todoist',
+  zendesk: 'zendesk',
+  intercom: 'intercom',
 }
 
 const DOMAIN_MAPPINGS = {
   gmail: 'mail.google.com',
   googledrive: 'drive.google.com',
   google_drive: 'drive.google.com',
+  'google-drive': 'drive.google.com',
   googlecalendar: 'calendar.google.com',
+  google_calendar: 'calendar.google.com',
+  'google-calendar': 'calendar.google.com',
   googlesheets: 'sheets.google.com',
+  google_sheets: 'sheets.google.com',
+  'google-sheets': 'sheets.google.com',
   googledocs: 'docs.google.com',
+  google_docs: 'docs.google.com',
+  'google-docs': 'docs.google.com',
   github: 'github.com',
   slack: 'slack.com',
   notion: 'notion.so',
@@ -109,29 +128,34 @@ const TOOL_ICONS = {
   calculator: Calculator,
   sql: Database,
   web_scraper: Globe,
+  webscraper: Globe,
   weather: CloudSun,
   health: Heart,
   terminal: Terminal,
   filesystem: FolderTree,
   files: FolderTree,
   mcp: Server,
+  duckduckgo: Globe,
+  wikipedia: BookOpen,
+  arxiv: Layers,
+  hackernews: Terminal,
 }
 
 export default function ServiceIcon({ card, size = 'default' }) {
   // stage:
-  // 0 = primary (card.logo or Composio API)
-  // 1 = secondary (thesvg CDN)
-  // 2 = tertiary (Google high-res faviconV2)
-  // 3 = quaternary (Google S2 favicon)
-  // 4 = vector icon or monogram
+  // 0 = primary (thesvg CDN or explicit custom non-Composio logo)
+  // 1 = Google high-res faviconV2 (128px)
+  // 2 = Google S2 favicon
+  // 3 = Composio API logo
+  // 4 = monogram
   const [stage, setStage] = useState(0)
 
-  // Reset stage whenever card changes
   useEffect(() => {
     setStage(0)
   }, [card?.slug, card?.logo, card?.domain])
 
   const slug = (card?.slug || card?.name || '').toLowerCase().trim()
+  const cleanSlug = slug.replace(/[-_]/g, '')
   const sizeClass =
     size === 'hero' || size === 'large'
       ? 'is-large'
@@ -141,16 +165,28 @@ export default function ServiceIcon({ card, size = 'default' }) {
           ? 'is-small'
           : ''
   const vectorIconSize =
-    size === 'hero' || size === 'large' ? 40 : size === 'tiny' ? 14 : size === 'small' ? 16 : 28
+    size === 'hero' || size === 'large' ? 36 : size === 'tiny' ? 14 : size === 'small' ? 16 : 26
 
-  // Resolve URLs
-  const composioLogo =
-    card?.logo || (slug ? `https://logos.composio.dev/api/${slug}` : null)
-  const thesvgSlug = THESVG_MAPPINGS[slug]
+  // Built-in tool vectors (e.g. calculator, sql, web_scraper) render directly without network fallback grid
+  const ToolIcon = TOOL_ICONS[slug] || TOOL_ICONS[cleanSlug]
+  if (ToolIcon) {
+    return (
+      <div className={`plugin-squircle-icon-box ${sizeClass}`}>
+        <ToolIcon size={vectorIconSize} className="text-dim" />
+      </div>
+    )
+  }
+
+  const isComposioCdn =
+    typeof card?.logo === 'string' && card.logo.includes('logos.composio.dev')
+  const customLogo = card?.logo && !isComposioCdn ? card.logo : null
+
+  const thesvgSlug = THESVG_MAPPINGS[slug] || THESVG_MAPPINGS[cleanSlug]
   const thesvgUrl = thesvgSlug
     ? `${THESVG_CDN_BASE}/${thesvgSlug}/default.svg`
     : null
-  const domain = card?.domain || DOMAIN_MAPPINGS[slug]
+
+  const domain = card?.domain || DOMAIN_MAPPINGS[slug] || DOMAIN_MAPPINGS[cleanSlug]
   const gstaticUrl = domain
     ? `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${domain}&size=128`
     : null
@@ -158,38 +194,33 @@ export default function ServiceIcon({ card, size = 'default' }) {
     ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
     : null
 
-  // 0: Composio / explicit card.logo
-  if (stage === 0 && composioLogo) {
+  const composioLogo = card?.logo || (slug ? `https://logos.composio.dev/api/${cleanSlug || slug}` : null)
+
+  // Primary source: custom non-composio logo, or official thesvg vector, or Google 128px favicon
+  const primaryUrl = customLogo || thesvgUrl || gstaticUrl || composioLogo
+
+  // 0: Primary (thesvg vector or custom non-Composio logo)
+  if (stage === 0 && primaryUrl) {
     return (
       <div className={`plugin-squircle-icon-box ${sizeClass}`}>
         <img
-          src={composioLogo}
+          src={primaryUrl}
           alt=""
           loading="lazy"
           className="plugin-squircle-icon-img"
-          onError={() => setStage(thesvgUrl ? 1 : gstaticUrl ? 2 : 4)}
+          onError={() => {
+            if (gstaticUrl && primaryUrl !== gstaticUrl) setStage(1)
+            else if (googleS2Url) setStage(2)
+            else if (composioLogo && primaryUrl !== composioLogo) setStage(3)
+            else setStage(4)
+          }}
         />
       </div>
     )
   }
 
-  // 1: TheSVG CDN
-  if (stage <= 1 && thesvgUrl) {
-    return (
-      <div className={`plugin-squircle-icon-box ${sizeClass}`}>
-        <img
-          src={thesvgUrl}
-          alt=""
-          loading="lazy"
-          className="plugin-squircle-icon-img"
-          onError={() => setStage(gstaticUrl ? 2 : 4)}
-        />
-      </div>
-    )
-  }
-
-  // 2: Google gstatic faviconV2 (high-res 128px)
-  if (stage <= 2 && gstaticUrl) {
+  // 1: Google gstatic faviconV2 (high-res 128px)
+  if (stage <= 1 && gstaticUrl) {
     return (
       <div className={`plugin-squircle-icon-box ${sizeClass}`}>
         <img
@@ -197,18 +228,33 @@ export default function ServiceIcon({ card, size = 'default' }) {
           alt=""
           loading="lazy"
           className="plugin-squircle-icon-img"
-          onError={() => setStage(googleS2Url ? 3 : 4)}
+          onError={() => setStage(googleS2Url ? 2 : composioLogo ? 3 : 4)}
         />
       </div>
     )
   }
 
-  // 3: Google S2 favicon
-  if (stage <= 3 && googleS2Url) {
+  // 2: Google S2 favicon
+  if (stage <= 2 && googleS2Url) {
     return (
       <div className={`plugin-squircle-icon-box ${sizeClass}`}>
         <img
           src={googleS2Url}
+          alt=""
+          loading="lazy"
+          className="plugin-squircle-icon-img"
+          onError={() => setStage(composioLogo ? 3 : 4)}
+        />
+      </div>
+    )
+  }
+
+  // 3: Composio API logo
+  if (stage <= 3 && composioLogo) {
+    return (
+      <div className={`plugin-squircle-icon-box ${sizeClass}`}>
+        <img
+          src={composioLogo}
           alt=""
           loading="lazy"
           className="plugin-squircle-icon-img"
@@ -218,28 +264,29 @@ export default function ServiceIcon({ card, size = 'default' }) {
     )
   }
 
-  // 4: Lucide Vector Icon if known
-  const LucideIcon = TOOL_ICONS[slug]
-  if (LucideIcon) {
-    return (
-      <div className={`plugin-squircle-icon-box ${sizeClass}`}>
-        <LucideIcon
-          size={vectorIconSize}
-          className="text-accent shrink-0"
-          strokeWidth={1.8}
-        />
-      </div>
-    )
+  // Monogram fallback
+  const label = card?.label || card?.name || slug
+  const letter = (label[0] || '?').toUpperCase()
+  const hues = [210, 260, 290, 330, 25, 140, 175]
+  let hash = 0
+  for (let i = 0; i < slug.length; i++) {
+    hash = (hash << 5) - hash + slug.charCodeAt(i)
+    hash |= 0
   }
-
-  // Fallback: Crisp Monogram
-  const letter = (card?.label || card?.name || card?.slug || '?')
-    .slice(0, 1)
-    .toUpperCase()
+  const hue = hues[Math.abs(hash) % hues.length]
 
   return (
     <div className={`plugin-squircle-icon-box ${sizeClass}`}>
-      <span className="plugin-squircle-icon-monogram">{letter}</span>
+      <div
+        className="plugin-squircle-icon-monogram"
+        style={{
+          background: `hsl(${hue}, 45%, 18%)`,
+          color: `hsl(${hue}, 85%, 72%)`,
+          border: `1px solid hsl(${hue}, 40%, 28%)`,
+        }}
+      >
+        {letter}
+      </div>
     </div>
   )
 }

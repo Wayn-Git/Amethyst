@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import PluginCard from './PluginCard.jsx'
 import ServiceIcon from './ServiceIcon.jsx'
+import PluginFeaturedCarousel from './PluginFeaturedCarousel.jsx'
 import { SYSTEM_TOOLS, SystemToolCard } from '../SystemConnectorsPanel.jsx'
 import {
   PluginGridSkeleton,
@@ -173,7 +174,7 @@ export default function PluginsDirectory({
           )}
         </section>
       ) : loading ? (
-        <PluginsDirectorySkeleton />
+        <PluginsDirectorySkeleton showCarousel={tabFilter === 'all'} />
       ) : tabFilter === 'installed' ? (
         installedCards.length === 0 ? (
           <div className="plugin-empty-installed-state">
@@ -213,6 +214,17 @@ export default function PluginsDirectory({
         />
       ) : (
         <>
+          {/* ── Featured Top Carousel (Whirl Style) ── */}
+          {tabFilter === 'all' && (
+            <PluginFeaturedCarousel
+              cards={cards}
+              statusMap={statusMap}
+              onOpenDetail={onOpenDetail}
+              onConnect={onConnect}
+              busySlug={busySlug}
+            />
+          )}
+
           {/* ── Connected Apps Strip (if any) ── */}
           {installedCards.length > 0 && tabFilter === 'all' && (
             <section className="plugin-installed-strip-section">
@@ -356,6 +368,18 @@ export default function PluginsDirectory({
               </div>
             </section>
           )}
+
+          {/* ── Whirl-Style Bottom Footnote ── */}
+          <div className="connectors-bottom-footnote">
+            <span>Built something cool? Add your custom integration via </span>
+            <button
+              type="button"
+              className="connectors-bottom-footnote-link"
+              onClick={() => setNewOpen?.(true)}
+            >
+              Custom MCP Server ↗
+            </button>
+          </div>
         </>
       )}
     </div>

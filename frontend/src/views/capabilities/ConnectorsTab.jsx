@@ -515,6 +515,40 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
 
   return (
     <div className="connectors-tab-orchestrator">
+      {/* ── Integrations Page Header (Whirl Aesthetic) ── */}
+      {viewMode === 'directory' && (
+        <div className="connectors-header-block">
+          <div className="connectors-header-text">
+            <h1 className="connectors-title">Integrations</h1>
+            <p className="connectors-subtitle">
+              Extend Amethyst — plug in the tools, repositories, and services you already use.
+            </p>
+          </div>
+          <div className="connectors-header-search">
+            <div className="connectors-search-box">
+              <Search size={14} className="text-dim shrink-0" />
+              <input
+                type="text"
+                placeholder="Search integrations…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="connectors-search-input"
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="connectors-search-clear"
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Unified Modern Connectors Toolbar ── */}
       {viewMode === 'directory' && (
         <div className="connectors-unified-toolbar">
@@ -524,7 +558,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               className={`connectors-tab-btn ${tabFilter === 'all' ? 'is-active' : ''}`}
               onClick={() => setTabFilter('all')}
             >
-              <span>All</span>
+              <span>Browse</span>
               <span className="connectors-tab-badge">530+</span>
             </button>
             <button
@@ -559,27 +593,6 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
           </div>
 
           <div className="connectors-toolbar-right">
-            <div className="connectors-search-box">
-              <Search size={14} className="text-dim shrink-0" />
-              <input
-                type="text"
-                placeholder="Search tools…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="connectors-search-input"
-              />
-              {query && (
-                <button
-                  type="button"
-                  className="connectors-search-clear"
-                  onClick={() => setQuery('')}
-                  aria-label="Clear search"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-
             {/* Gateway Health (Borderless, Understated) */}
             {gatewayHealth.status === 'ok' ? (
               <div className="connectors-gateway-chip is-live" title="Composio Gateway connected in real time">

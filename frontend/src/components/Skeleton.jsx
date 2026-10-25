@@ -376,6 +376,7 @@ export {
   PluginGridSkeleton,
   PluginInstalledStripSkeleton,
   PluginCategoryBridgeSkeleton,
+  PluginCarouselSkeleton,
   PluginsDirectorySkeleton,
   PluginDetailSkeleton,
 } from '../views/capabilities/plugins/PluginSkeletons.jsx'
