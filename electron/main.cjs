@@ -7,6 +7,18 @@ const { autoUpdater } = require('electron-updater');
 let activePort = parseInt(process.env.AMETHYST_PORT || '8000', 10);
 const IS_DEV = process.env.ELECTRON_DEV === '1' || !app.isPackaged;
 
+// Hardware acceleration & GPU stability
+app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
+app.commandLine.appendSwitch('enable-accelerated-video-decode');
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
+}
+
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
@@ -296,13 +308,14 @@ function createSplashWindow() {
   });
 }
 
-function createMainWindow() {
+async function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 960,
     minHeight: 640,
     show: false,
+    frame: false,
     backgroundColor: '#101114',
     title: 'Amethyst',
     icon: getAppIconPath(),
@@ -310,10 +323,36 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
+      spellcheck: false,
     },
   });
 
-  const targetUrl = IS_DEV ? 'http://127.0.0.1:5173' : `http://127.0.0.1:${activePort}`;
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('desktop:maximized-change', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('desktop:maximized-change', false);
+  });
+
+  let targetUrl = `http://127.0.0.1:${activePort}`;
+  if (IS_DEV) {
+    const isViteUp = await isPortInUse(5173);
+    if (isViteUp) {
+      targetUrl = 'http://127.0.0.1:5173';
+    } else {
+      console.log(`[Amethyst Supervisor] Dev server not on 5173; using backend bundle on ${activePort}`);
+    }
+  }
+
+  mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
+    console.warn(`[Amethyst Supervisor] Failed to load ${validatedURL} (${errorCode}: ${errorDescription})`);
+    if (validatedURL.includes('5173')) {
+      console.log(`[Amethyst Supervisor] Falling back to backend server at http://127.0.0.1:${activePort}`);
+      mainWindow?.loadURL(`http://127.0.0.1:${activePort}`);
+    }
+  });
+
   console.log('[Amethyst Supervisor] Loading Main Window:', targetUrl);
   mainWindow.loadURL(targetUrl);
 
@@ -499,6 +538,27 @@ ipcMain.handle('desktop:set-tray-enabled', (_e, enabled) => {
 });
 ipcMain.handle('desktop:open-logs', () => {
   return shell.openPath(getLogsDir());
+});
+ipcMain.handle('desktop:window-minimize', () => {
+  mainWindow?.minimize();
+});
+ipcMain.handle('desktop:window-maximize', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+});
+ipcMain.handle('desktop:window-is-maximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false;
+});
+ipcMain.handle('desktop:window-close', () => {
+  if (trayEnabled && !isQuitting) {
+    mainWindow?.hide();
+  } else {
+    mainWindow?.close();
+  }
 });
 
 app.whenReady().then(() => {

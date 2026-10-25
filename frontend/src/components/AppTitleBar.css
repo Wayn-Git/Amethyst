@@ -1,0 +1,329 @@
+/* ==========================================================================
+   AMETHYST APP TITLEBAR — Desktop Title Bar & Window Controls
+   ========================================================================== */
+
+.app-window-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--sb-bg, #171717);
+  border-radius: 0;
+}
+
+.app-window-root > .wb {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+}
+
+.app-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  min-height: 34px;
+  background: var(--sb-bg, #171717);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 1000;
+  padding: 0 0 0 8px;
+  box-sizing: border-box;
+  font-family: var(--font-body, 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+.app-tb-hover-trigger {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  z-index: 10001;
+}
+
+.app-titlebar--autohide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-tb-hover-trigger:hover + .app-titlebar--autohide,
+.app-titlebar--autohide:hover {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+[data-theme="paper"] .app-titlebar,
+[data-theme="light"] .app-titlebar,
+[data-theme="apple"] .app-titlebar {
+  background: #f3f3f6;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Left Section: Back, Forward, Menus */
+.app-tb-left {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  -webkit-app-region: no-drag;
+}
+
+.app-tb-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+}
+
+.app-tb-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+[data-theme="paper"] .app-tb-nav-btn,
+[data-theme="light"] .app-tb-nav-btn,
+[data-theme="apple"] .app-tb-nav-btn {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.app-tb-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+[data-theme="paper"] .app-tb-nav-btn:hover,
+[data-theme="light"] .app-tb-nav-btn:hover,
+[data-theme="apple"] .app-tb-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #000000;
+}
+
+.app-tb-nav-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Menus */
+.app-tb-menus {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.app-tb-menu-anchor {
+  position: relative;
+}
+
+.app-tb-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+[data-theme="paper"] .app-tb-menu-btn,
+[data-theme="light"] .app-tb-menu-btn,
+[data-theme="apple"] .app-tb-menu-btn {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.app-tb-menu-btn:hover,
+.app-tb-menu-btn.is-active {
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+}
+
+[data-theme="paper"] .app-tb-menu-btn:hover,
+[data-theme="paper"] .app-tb-menu-btn.is-active,
+[data-theme="light"] .app-tb-menu-btn:hover,
+[data-theme="light"] .app-tb-menu-btn.is-active,
+[data-theme="apple"] .app-tb-menu-btn:hover,
+[data-theme="apple"] .app-tb-menu-btn.is-active {
+  background: rgba(0, 0, 0, 0.07);
+  color: #000000;
+}
+
+/* Dropdown Menu */
+.app-tb-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background: #17181c;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 10000;
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  animation: appTbFadeIn 0.1s ease-out;
+}
+
+[data-theme="paper"] .app-tb-dropdown,
+[data-theme="light"] .app-tb-dropdown,
+[data-theme="apple"] .app-tb-dropdown {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes appTbFadeIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.app-tb-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12.5px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background 0.08s ease, color 0.08s ease;
+}
+
+[data-theme="paper"] .app-tb-dropdown-item,
+[data-theme="light"] .app-tb-dropdown-item,
+[data-theme="apple"] .app-tb-dropdown-item {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.app-tb-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+[data-theme="paper"] .app-tb-dropdown-item:hover,
+[data-theme="light"] .app-tb-dropdown-item:hover,
+[data-theme="apple"] .app-tb-dropdown-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #000000;
+}
+
+.app-tb-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-tb-item-shortcut {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: inherit;
+  margin-left: 16px;
+}
+
+[data-theme="paper"] .app-tb-item-shortcut,
+[data-theme="light"] .app-tb-item-shortcut,
+[data-theme="apple"] .app-tb-item-shortcut {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.app-tb-dropdown-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="paper"] .app-tb-dropdown-sep,
+[data-theme="light"] .app-tb-dropdown-sep,
+[data-theme="apple"] .app-tb-dropdown-sep {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Center Draggable Spacer */
+.app-tb-center {
+  flex: 1 1 auto;
+  height: 100%;
+  cursor: default;
+}
+
+/* Right Section: Window Controls */
+.app-tb-right {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.app-tb-win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+[data-theme="paper"] .app-tb-win-btn,
+[data-theme="light"] .app-tb-win-btn,
+[data-theme="apple"] .app-tb-win-btn {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.app-tb-win-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+[data-theme="paper"] .app-tb-win-btn:hover,
+[data-theme="light"] .app-tb-win-btn:hover,
+[data-theme="apple"] .app-tb-win-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #000000;
+}
+
+.app-tb-win-btn.app-tb-close:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
+}
+
+.app-tb-win-btn.app-tb-close:active {
+  background: #bf0f1d !important;
+  color: #ffffff !important;
+}
+

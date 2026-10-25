@@ -790,7 +790,16 @@
 
 * { margin: 0; padding: 0; }
 
-html, body, #root { height: 100%; }
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--sb-bg, #171717);
+}
+#root {
+  height: 100%;
+  background: var(--sb-bg, #171717);
+}
 
 /* Every pressable answers the press. 97% is felt rather than seen, which is
    the point: the interface confirms it heard you before anything else does. */
@@ -5164,7 +5173,11 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   animation-delay: min(calc(var(--i, 0) * 40ms), 240ms);
 }
 
-.view-swap { animation: swap 220ms var(--ease-out); }
+.view-swap {
+  animation: swap 220ms var(--ease-out);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
 
 /* Defined once, next to the only selector that plays it. A second
    `@keyframes swap` used to sit at the end of the file and silently win on
@@ -13598,9 +13611,10 @@ a.text-reveal-wrap {
   flex-direction: row;
   height: 100%;
   min-height: 0;
-  background: var(--canvas-deep);
+  background: var(--sb-bg, var(--canvas-deep));
   overflow: hidden;
   position: relative;
+  border-radius: 0;
 }
 
 .wb-sidebar {
@@ -14866,6 +14880,18 @@ a.text-reveal-wrap {
   background: var(--canvas-deep);
   position: relative;
   overflow: hidden;
+  margin: 6px 6px 6px 0;
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+  border: none;
+  transition: border-radius 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wb.wb--compact .wb-main {
+  border-radius: 0;
+  border: none;
 }
 
 .wb-main > .main {
@@ -14876,6 +14902,7 @@ a.text-reveal-wrap {
   display: flex;
   flex-direction: column;
   position: relative;
+  border-radius: inherit;
 }
 
 .wb-bar-hover-trigger {
@@ -20643,16 +20670,15 @@ a.text-reveal-wrap {
   font-family: var(--font-display);
 }
 
-/* Universal UI & Component Scaling (Scales entire app, not just settings) */
+/* Universal UI & Component Scaling */
 :root {
   --ui-scale: 1;
 }
 
-#root,
-.app-shell,
-.settings-view {
-  zoom: var(--ui-scale, 1);
-  transform-origin: top left;
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 .settings-view .set-shell {
@@ -27701,7 +27727,11 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
   animation-delay: min(calc(var(--i, 0) * 40ms), 240ms);
 }
 
-.view-swap { animation: swap 220ms var(--ease-out); }
+.view-swap {
+  animation: swap 220ms var(--ease-out);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
 
 /* Defined once, next to the only selector that plays it. A second
    `@keyframes swap` used to sit at the end of the file and silently win on
@@ -36997,9 +37027,10 @@ a.text-reveal-wrap {
   flex-direction: row;
   height: 100%;
   min-height: 0;
-  background: var(--canvas-deep);
+  background: var(--sb-bg, var(--canvas-deep));
   overflow: hidden;
   position: relative;
+  border-radius: 0;
 }
 
 .wb-sidebar {
@@ -38265,6 +38296,12 @@ a.text-reveal-wrap {
   background: var(--canvas-deep);
   position: relative;
   overflow: hidden;
+  margin: 6px 6px 6px 0;
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+  border: none;
 }
 
 .wb-main > .main {
@@ -43438,17 +43475,7 @@ a.text-reveal-wrap {
   font-family: var(--font-display);
 }
 
-/* Universal UI & Component Scaling (Scales entire app, not just settings) */
-:root {
-  --ui-scale: 1;
-}
 
-#root,
-.app-shell,
-.settings-view {
-  zoom: var(--ui-scale, 1);
-  transform-origin: top left;
-}
 
 .settings-view .set-shell {
   background: transparent !important;

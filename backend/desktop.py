@@ -955,6 +955,27 @@ class _SpotlightBridge:
 
         webbrowser.open(url)
 
+    def minimize(self) -> None:
+        """Minimize the main window."""
+        if self._main is not None:
+            with contextlib.suppress(Exception):
+                self._main.minimize()
+
+    def maximize(self) -> None:
+        """Toggle maximize or fullscreen for the main window."""
+        if self._main is not None:
+            with contextlib.suppress(Exception):
+                if hasattr(self._main, "maximize"):
+                    self._main.maximize()
+                elif hasattr(self._main, "toggle_fullscreen"):
+                    self._main.toggle_fullscreen()
+
+    def close(self) -> None:
+        """Close (hide) the main window."""
+        if self._main is not None:
+            with contextlib.suppress(Exception):
+                self._main.hide()
+
 
 
 def _hide_rather_than_close(window) -> None:

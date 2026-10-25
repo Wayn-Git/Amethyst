@@ -7,6 +7,7 @@ import CommandPalette from './components/CommandPalette.jsx'
 import Shortcuts from './components/Shortcuts.jsx'
 import SplashScreenWizard from './components/SplashScreenWizard.jsx'
 import Sidebar from './components/Sidebar.jsx'
+import AppTitleBar from './components/AppTitleBar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
 import UserMenu from './components/UserMenu.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
@@ -374,8 +375,28 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
 export default function App() {
   const {
     view, setView, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
-    betaPages, openChatWithPrompt,
+    betaPages, openChatWithPrompt, sidebar, setSidebar,
   } = useApp()
+
+  const prevViewRef = useRef(view)
+  const prevSidebarExpandedRef = useRef(null)
+
+  useEffect(() => {
+    if (view === 'settings') {
+      if (prevViewRef.current !== 'settings') {
+        prevSidebarExpandedRef.current = sidebar
+        if (sidebar) {
+          setSidebar(false)
+        }
+      }
+    } else if (prevViewRef.current === 'settings') {
+      if (prevSidebarExpandedRef.current) {
+        setSidebar(true)
+      }
+      prevSidebarExpandedRef.current = null
+    }
+    prevViewRef.current = view
+  }, [view, sidebar, setSidebar])
 
   // Whether this browser belongs to a machine, and whether somebody has said
   // they want to set that up. Held here rather than read on every render
@@ -620,84 +641,87 @@ export default function App() {
   const drawerOpen = compact && railOpen
 
   return (
-    <div
-      className={
-        `wb app${compact ? ' app--compact wb--compact' : ''}`
-        + `${drawerOpen ? ' app--drawer wb--drawer' : ''}`
-        + `${railOpen ? '' : ' wb--rail-hidden'}`
-        + `${panel ? '' : ' wb--panel-hidden'}`
-        + `${panel && panelExpanded ? ' wb--panel-full' : ''}`
-      }
-    >
-      <Sidebar />
-      {drawerOpen && <RailScrim onClose={closeRail} />}
-      {/* `inert` is what keeps a screen reader and the Tab key out of the page
-          the drawer is covering. Without it the drawer looks modal and behaves
-          like a decoration. */}
-      {/* A real boolean: React 19 reflects `inert` from one, and an empty
-          string is treated as false, which quietly left the page behind the
-          drawer fully tabbable. */}
-      <div className="wb-main stage" ref={stageRef} inert={drawerOpen}>
-        {view !== 'settings' && <WorkbenchBar />}
-        {/* Chat stays mounted, outside <Routes>: unmounting it mid-turn
-            would drop the stream. */}
-        <main className={`main${isChat ? '' : ' main--hidden'}`}>
-          <ErrorBoundary><Chat /></ErrorBoundary>
-        </main>
-        {!isChat && (
-          <main className="main view-swap" key={view}>
-            <ErrorBoundary>
-              {/* The skeleton stands in for the chunk arriving, which on a
-                  local server is one frame and on a slow connection is the
-                  difference between a blank stage and a page loading. */}
-              <Suspense fallback={<SkeletonView rows={5} aside={view === 'tasks' || view === 'mail'} />}>
-                <Routes>
-                  {routed.map((v) => {
-                    const Comp = COMPONENTS[v.id]
-                    return <Route key={v.id} path={v.path} element={<Comp />} />
-                  })}
-                  <Route path="*" element={<Navigate to="/today" replace />} />
-                </Routes>
-              </Suspense>
-            </ErrorBoundary>
-          </main>
-        )}
-        <MobileNav />
-      </div>
-      {/* The panel is a slot rather than a component: whichever view is open
-          fills it through a portal, and it collapses on its own when nothing
-          has anything to put there. */}
-      {view !== 'settings' && (
-      <aside
-        className={`wb-panel${compact && panel ? ' wb-panel--mobile-sheet' : ''}`}
-        id="wb-panel"
-        aria-label="Run detail"
-        inert={drawerOpen}
-        style={{ '--panel-w': compact ? '100%' : `${panelWidth}px` }}
+    <div className="app-window-root">
+      <AppTitleBar />
+      <div
+        className={
+          `wb app${compact ? ' app--compact wb--compact' : ''}`
+          + `${drawerOpen ? ' app--drawer wb--drawer' : ''}`
+          + `${railOpen ? '' : ' wb--rail-hidden'}`
+          + `${panel ? '' : ' wb--panel-hidden'}`
+          + `${panel && panelExpanded ? ' wb--panel-full' : ''}`
+        }
       >
-        {compact && panel && (
-          <div className="wb-panel-mobile-header">
-            <span className="wb-panel-mobile-title">Details & Context</span>
-            <button
-              type="button"
-              className="wb-panel-mobile-close"
-              onClick={togglePanel}
-              aria-label="Close details panel"
-            >
-              <Icon name="x" size={16} />
-            </button>
-          </div>
+        <Sidebar />
+        {drawerOpen && <RailScrim onClose={closeRail} />}
+        {/* `inert` is what keeps a screen reader and the Tab key out of the page
+            the drawer is covering. Without it the drawer looks modal and behaves
+            like a decoration. */}
+        {/* A real boolean: React 19 reflects `inert` from one, and an empty
+            string is treated as false, which quietly left the page behind the
+            drawer fully tabbable. */}
+        <div className="wb-main stage" ref={stageRef} inert={drawerOpen}>
+          {view !== 'settings' && <WorkbenchBar />}
+          {/* Chat stays mounted, outside <Routes>: unmounting it mid-turn
+              would drop the stream. */}
+          <main className={`main${isChat ? '' : ' main--hidden'}`}>
+            <ErrorBoundary><Chat /></ErrorBoundary>
+          </main>
+          {!isChat && (
+            <main className="main view-swap" key={view}>
+              <ErrorBoundary>
+                {/* The skeleton stands in for the chunk arriving, which on a
+                    local server is one frame and on a slow connection is the
+                    difference between a blank stage and a page loading. */}
+                <Suspense fallback={<SkeletonView rows={5} aside={view === 'tasks' || view === 'mail'} />}>
+                  <Routes>
+                    {routed.map((v) => {
+                      const Comp = COMPONENTS[v.id]
+                      return <Route key={v.id} path={v.path} element={<Comp />} />
+                    })}
+                    <Route path="*" element={<Navigate to="/today" replace />} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
+            </main>
+          )}
+          <MobileNav />
+        </div>
+        {/* The panel is a slot rather than a component: whichever view is open
+            fills it through a portal, and it collapses on its own when nothing
+            has anything to put there. */}
+        {view !== 'settings' && (
+        <aside
+          className={`wb-panel${compact && panel ? ' wb-panel--mobile-sheet' : ''}`}
+          id="wb-panel"
+          aria-label="Run detail"
+          inert={drawerOpen}
+          style={{ '--panel-w': compact ? '100%' : `${panelWidth}px` }}
+        >
+          {compact && panel && (
+            <div className="wb-panel-mobile-header">
+              <span className="wb-panel-mobile-title">Details & Context</span>
+              <button
+                type="button"
+                className="wb-panel-mobile-close"
+                onClick={togglePanel}
+                aria-label="Close details panel"
+              >
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+          )}
+          <PanelResizer />
+        </aside>
         )}
-        <PanelResizer />
-      </aside>
-      )}
-      <CommandPalette />
-      <Shortcuts />
-      
-      <SplashScreenWizard />
-      <ConfirmDialogHost />
-      {approvalModal}
-      <Toasts />
+        <CommandPalette />
+        <Shortcuts />
+        
+        <SplashScreenWizard />
+        <ConfirmDialogHost />
+        {approvalModal}
+        <Toasts />
+      </div>
     </div>
   )
 }

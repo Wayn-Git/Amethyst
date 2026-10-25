@@ -393,7 +393,7 @@ def test_the_js_bridge_exposes_only_its_own_methods():
     public = {n for n in dir(bridge) if not n.startswith("_")}
     methods = {n for n in public if inspect.ismethod(getattr(bridge, n))}
 
-    assert methods == {"hide", "open_main", "open_external", "ready"}
+    assert methods == {"hide", "open_main", "open_external", "ready", "minimize", "maximize", "close"}
     # Anything public that is NOT a method is recursed into by pywebview.
     assert public - methods == set(), (
         f"these would be exposed to the page wholesale: {public - methods}"
