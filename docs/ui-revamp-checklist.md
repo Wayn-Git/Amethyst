@@ -6,12 +6,12 @@
 - [x] Theme aliases for all nine modes (system plus eight palettes).
 - [x] Header: date, greeting, capture, Edit layout, Add widget, Home settings.
 - [x] Glance strip container; existing Morning layout reused.
-- [x] Dense twelve-column grid, shared gutter, responsive spans, centered maximum width.
+- [x] Dense twelve-column grid, seven-column main/five-column side hierarchy, shared gutter, responsive spans, centered 1480 px maximum width.
 - [x] Outer edit controls: drag/live reflow, keyboard movement and resize, mobile up/down.
 - [x] Serialized instant layout persistence and undo toast; save-status live region.
 - [x] Outer collapse/expand preserving mounted content.
-- [x] Home settings drawer: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
-- [x] Add widget drawer: search, category groups, descriptions, Added state.
+- [x] Home settings drawer: four keyboard-accessible tabs for Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
+- [x] Add widget drawer: category sidebar, mobile category select, search, descriptions/source/sizes, Add/Added/Open actions, live Home count.
 - [x] Widget detail/Show all drawer retains existing content and focus management.
 - [x] Command palette surface and shared button adoption; existing search retained.
 - [x] Existing confirmation dialogs, menus, tooltips, toasts receive shared panel tokens.

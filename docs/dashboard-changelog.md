@@ -147,3 +147,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 — `glance.clock`, `need.inbox`, `task.today`, `agent.feed`: revise pilot hierarchy after visual feedback; contrasting theme-based clock, smaller metadata, denser borderless lists, reduced preview bounds; full Home and narrow-slot fixture checks pass.
 
 - 2026-10-26 — `glance.music`: replace Spotify connector reads with shared local Linux MPRIS status and player-targeted previous/play/pause/next drafts through the permission gate; reuse one component in tile/drawer, honor capabilities and reject changed sessions; focused backend/browser checks pass.
+
+- 2026-10-26 — Today reference revamp: isolated compact frame, 7/5 main/side packing, integrated edit controls, category catalog and tabbed Home settings; focused browser checks cover addition, settings navigation, mobile controls, themes and reduced motion.

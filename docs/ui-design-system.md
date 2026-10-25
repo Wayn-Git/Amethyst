@@ -4,30 +4,30 @@ Scope: UI shell and controls on `ui-redesign`. Existing navigation remains the o
 
 ## Structure
 
-Centered canvas, maximum 1600 px including padding. Header has date above greeting, capture trigger, Edit layout, Add widget, Home settings. Glance is four equal compact slots; two per row below 1024 px. Below it is a dense twelve-column grid. Needs you is one combined ranked region; the remaining registered Morning widgets retain their saved order. No extra timer, gauge, calendar placeholder, or navigation is introduced.
+Centered canvas, maximum 1480 px including padding. Today has its own frame, separate from the legacy widget scope. Header has date above greeting, capture trigger, Edit layout, Add widget, Home settings. Glance is four equal compact slots; two per row below 1024 px. Below it is a dense twelve-column grid. Needs you and agent widgets use the seven-column main lane; Today, Dev, Library and Feed use the five-column side lane. Large widgets span all twelve columns. Needs you is one combined ranked region; widget order remains saved by the existing layout API. No extra timer, gauge, calendar placeholder, or navigation is introduced.
 
 The server already supplies Morning: glance.clock, glance.weather, glance.next-event, glance.music, need.inbox, need.drafts, need.waiting, need.mentions, need.overdue, agent.brief, agent.feed, task.today, dev.prs, lib.resurface, feed.news. Preserve explicit saved layouts, including empty ones. System widgets stay in Home settings.
 
 ## Exact tokens
 
-Fonts are bundled: Space Grotesk headings, Inter controls/body, JetBrains Mono dates/shortcuts. Type: greeting 28/36 weight 600, section 14/20 weight 600, body/control 13/20 weight 500, description 12/18 weight 400, metadata/keyboard 11/16 weight 400. Greeting tracking -0.03em; other tracking normal.
+Fonts are bundled: Space Grotesk headings, Inter controls/body, JetBrains Mono dates/shortcuts. Type: greeting 26/32 weight 600 (24/30 below 768 px), section 14/20 weight 600, body/control 13/20 weight 500, description 12/18 weight 400, metadata/keyboard 11/16 weight 400. Greeting tracking -0.035em; other tracking normal.
 
 Spacing: 4, 8, 12, 16, 24, 32 px. Grid gutter 16 px everywhere. Canvas padding 32 px at 1024+, 24 px at 768–1023, 16 px below 768. Control radius 8 px, panel 12 px, checkbox/keyboard 4 px. Borders 1 px; focus outline 2 px with 2 px offset. Icons use the existing Icon adapter, 14–18 px in controls; no emoji icons. No decorative shadows, gradients, glow or blur in the shell.
 
 | Viewport | S span | M span | L span | Glance columns |
 |---|---:|---:|---:|---:|
-| 1440+ | 3 | 6 | 12 | 4 |
-| 1024–1439 | 4 | 6 | 12 | 4 |
+| 1440+ | 3 | main 7 / side 5; edit 6 | 12 | 4 |
+| 1024–1439 | 4 | main 7 / side 5; edit 6 | 12 | 4 |
 | 768–1023 | 6 | 12 | 12 | 2 |
 | 360–767 | 12 | 12 | 12 | 2 |
 
-The grid also observes its own available width: S uses 4 columns below 1120 px of canvas, 6 below 900 px; M uses 12 below 900 px; all sizes use 12 below 600 px. This preserves widths beside the existing navigation.
+The grid also observes its own available width: S uses 4 columns below 1120 px of canvas, 6 below 900 px; both main and side lanes use 12 below 900 px; all sizes use 12 below 600 px. This preserves widths beside the existing navigation.
 
 Slots establish `container: widget / inline-size`. Card content must implement its own width adaptation in the widgets session: secondary tile text hidden below 240 px, second row line shown above 360 px, trailing actions moved into the menu below 320 px. These content rules are a handoff, not implemented by shell selectors. Cards must use their five-row preview and Show all drawer, not nested scrolling. Loading/data-refresh height guarantees likewise require widget-owned content bounds.
 
 ## Themes
 
-Nine selectable modes: system plus eight palettes. System resolves to graphite in dark OS mode and paper in light OS mode. The table below records the existing exact palette values. Shell tokens `--ui-bg`, `--ui-panel`, `--ui-raised`, `--ui-text`, `--ui-muted`, `--ui-border`, `--ui-accent`, `--ui-on-accent` alias canvas-deep, canvas, surface, text, text-dim, hairline, accent, on-accent at the root. Home must not force light or dark colors independently of this mapping.
+Nine selectable modes: system plus eight palettes. System resolves to graphite in dark OS mode and paper in light OS mode. The table below records the existing exact palette values. Shell tokens `--ui-bg`, `--ui-panel`, `--ui-raised`, `--ui-text`, `--ui-muted`, `--ui-border`, `--ui-accent`, `--ui-on-accent` alias canvas-deep, canvas, surface, text, text-dim, hairline, accent, on-accent at the root in light mode. Dark mode uses surface for ui-panel and surface-2 for ui-raised, keeping a visible step above the page canvas. Home must not force light or dark colors independently of this mapping.
 
 ### graphite
 
@@ -224,7 +224,7 @@ Use AppButton for Home controls; preserve the existing Base UI components for In
 | Checkbox / Switch | Accent fill for checked/on; visible label or aria-label required; Space toggles; disabled .45 opacity. |
 | Tabs | Surface-2 track, surface-3 selected tab; Base UI roving focus and arrow keys; disabled tabs skipped. |
 | Menu | Bordered opaque panel; highlighted item surface-3; Base UI keyboard navigation, Escape and focus restoration. |
-| Drawer | Right edge, width min(520 px, viewport), full dynamic viewport height, 24 px padding; native modal dialog traps focus, Escape closes, restores opener; only drawer itself scrolls. |
+| Drawer | Right edge with 12 px outside margin and 12 px radius; width min(520 px, viewport minus 24 px), height viewport minus 24 px; catalog width up to 760 px. At mobile widths, full viewport with no outer margin or radius. Header/body padding 24 px, 16 px on mobile; native modal dialog traps focus, Escape closes, restores opener; only drawer itself scrolls. |
 | Dialog | Existing Base UI/modal implementation; opaque themed panel, 12 px radius, border; retain focus trap, Esc, labels and destructive confirmation behavior. |
 | Tooltip | Opaque bordered panel; existing hover/focus and Escape semantics; never the only accessible label. |
 | Toast | Existing Sonner region, themed border/panel; layout change uses a single replaceable toast with Undo. Save errors remain in the Home live region. |
@@ -241,3 +241,15 @@ Palette: existing command/search behavior and navigation preserved, opaque theme
 ## Enforcement
 
 `frontend/lint/ui-controls.js` defines warning `amethyst-ui/no-raw-controls` for JSX button/input/select/textarea outside the shared UI/base/modal/notification primitive directories and dashboard primitives. This is advisory; it does not change runtime behavior. Never change widget data contracts to satisfy UI rules.
+
+## Today reference revamp — 2026-10-26
+
+The compact date/greeting header keeps Edit layout, Add widget and an icon-only Home settings action on the right. A bordered capture trigger sits below with the keyboard shortcut. The frame has no extra navigation, duplicate section labels or permanent control rows above widgets. Collapse appears on hover/focus. In edit mode a single instruction bar and card-level movement/size controls become visible; non-editing card content stays under its widget owner's stylesheet.
+
+Add widget uses a bordered, opaque side sheet with a fixed heading and search field. A 164 px category column sits beside the scrollable results. Rows have a source-category icon, title, one-line description, source/sizes and an Add/Added/Open action. Mobile replaces the category column with a labelled Select. The footer reports the actual Home widget count. Home system tools open their settings panel instead of being added as content.
+
+Home settings has four keyboard-accessible tabs: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery. Each panel uses existing widget behavior; hidden panels remain outside the tab order. The gallery reuses the same catalog surface. Search-field Escape closes the sheet immediately, including when the browser would otherwise consume Escape to clear native search input.
+
+The root Today frame and drawers no longer use the legacy `widget-home` class. That class is confined to existing widget bodies, where theme aliases resolve at the root. This keeps old widget styling from changing the header, action buttons, catalog or drawer dimensions.
+
+Grid packing uses 4 px auto rows and the shared 16 px gutter. A ResizeObserver measures natural outer slot heights and assigns row spans using ceil((height + gutter) / (row + gutter)); it reads the batch before writing spans. This avoids stretching a short card to match a tall neighbor and keeps placement in the existing twelve-column grid. Widget content bounds remain widget-owned.
