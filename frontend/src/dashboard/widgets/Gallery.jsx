@@ -1,18 +1,18 @@
+import { useMemo, useState } from 'react'
 import { WidgetChip, StateView } from '../primitives.jsx'
-import { useState, useMemo } from 'react'
 import { useDashboard } from '../context.js'
 import { SYSTEM_WIDGETS } from '../layout.js'
 import Icon from '../../components/Icon.jsx'
 import WidgetFrame from '../WidgetFrame.jsx'
 
 const CATEGORIES = [
-  ['all', 'All Widgets', 'grid'],
+  ['all', 'All widgets', 'grid'],
   ['glance', 'Glance', 'clock'],
   ['tasks', 'Tasks', 'tasks'],
-  ['needs-you', 'Needs Attention', 'mail'],
-  ['agent', 'Intelligence', 'sparkle'],
+  ['needs-you', 'Needs', 'mail'],
+  ['agent', 'Agent', 'sparkle'],
   ['developer', 'Developer', 'github'],
-  ['communication', 'Communication', 'chat'],
+  ['communication', 'Messages', 'chat'],
   ['library', 'Library', 'bookmark'],
   ['feed', 'Feeds', 'globe'],
   ['system', 'System', 'settings'],
@@ -33,16 +33,53 @@ const ICONS = {
   comm: 'mail',
 }
 
-const CATEGORY_COLORS = {
-  glance: 'var(--accent, #6366f1)',
-  tasks: '#059669',
-  'needs-you': '#ea580c',
-  agent: '#7c3aed',
-  developer: '#0284c7',
-  communication: '#e11d48',
-  library: '#0d9488',
-  feed: '#2563eb',
-  system: '#64748b',
+const SYSTEM_GROUPS = ['dashboard', 'system', 'student', 'life', 'proactive']
+
+function groupOf(manifest) {
+  return SYSTEM_GROUPS.includes(manifest.group) ? 'system' : manifest.group
+}
+
+function sourceOf(manifest) {
+  return (Array.isArray(manifest.source) ? manifest.source : [manifest.source])
+    .map(source => source?.toolkit || source?.type || 'local')
+    .join(', ')
+}
+
+function cadenceOf(manifest) {
+  if (manifest.refresh?.mode !== 'poll') return manifest.refresh?.mode || 'manual'
+  const seconds = manifest.refresh.interval_s
+  return seconds < 60 ? `${seconds}s` : `${Math.round(seconds / 60)}m`
+}
+
+function defaultSize(manifest) {
+  return manifest.sizes.includes('m') ? 'm' : manifest.sizes[0] || 's'
+}
+
+function iconOf(manifest) {
+  return ICONS[manifest.id] || ICONS[manifest.id.split('.')[0]] || 'grid'
+}
+
+function SearchField({ value, onChange }) {
+  return (
+    <label className="studio-search" htmlFor="gallery-search-input">
+      <Icon name="search" size={14} className="studio-search-icon" />
+      <input
+        id="gallery-search-input"
+        type="search"
+        aria-label="Search widgets"
+        className="studio-search-input"
+        placeholder="Search widgets"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        autoComplete="off"
+      />
+      {value && (
+        <button type="button" className="studio-search-clear" onClick={() => onChange('')} aria-label="Clear search">
+          <Icon name="x" size={12} />
+        </button>
+      )}
+    </label>
+  )
 }
 
 export default function Gallery({ compact = false }) {
@@ -50,199 +87,179 @@ export default function Gallery({ compact = false }) {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [widgetSizes, setWidgetSizes] = useState({})
-  const [previewId, setPreviewId] = useState(null)
+  const [selectedId, setSelectedId] = useState(null)
 
   const query = search.trim().toLowerCase()
+  const added = id => (layout?.widgets || []).some(widget => widget.id === id)
 
-  const matches = useMemo(() => {
-    return manifests.filter(m => {
-      const text = `${m.title} ${m.id} ${m.group} ${Array.isArray(m.source) ? m.source.map(s => s.toolkit || s.type).join(' ') : m.source?.toolkit || m.source?.type || ''}`.toLowerCase()
-      const matchesSearch = !query || text.includes(query)
-      const mappedGroup = ['dashboard', 'system', 'student', 'life', 'proactive'].includes(m.group) ? 'system' : m.group
-      const matchesCat = selectedCategory === 'all' || mappedGroup === selectedCategory
-      return matchesSearch && matchesCat
-    })
-  }, [manifests, query, selectedCategory])
+  const matches = useMemo(() => manifests.filter(manifest => {
+    const text = `${manifest.title} ${manifest.id} ${manifest.group} ${sourceOf(manifest)}`.toLowerCase()
+    return (!query || text.includes(query)) && (selectedCategory === 'all' || groupOf(manifest) === selectedCategory)
+  }), [manifests, query, selectedCategory])
 
-  const handleAddWidget = (id, size) => {
-    if (addWidget) {
-      addWidget(id, size)
-    } else {
-      toggleWidget(id)
-    }
+  const counts = useMemo(() => Object.fromEntries(CATEGORIES.map(([id]) => [
+    id,
+    id === 'all' ? manifests.length : manifests.filter(manifest => groupOf(manifest) === id).length,
+  ])), [manifests])
+
+  const active = matches.find(manifest => manifest.id === selectedId) || matches[0] || null
+  const activeSize = active ? widgetSizes[active.id] || defaultSize(active) : 'm'
+  const activeAdded = active ? added(active.id) : false
+  const activeSystem = active ? SYSTEM_WIDGETS.includes(active.id) : false
+
+  function handleAdd(manifest, size) {
+    if (addWidget) addWidget(manifest.id, size)
+    else toggleWidget(manifest.id)
+  }
+
+  if (compact) {
+    return (
+      <div className="gallery-compact">
+        <SearchField value={search} onChange={setSearch} />
+        <div className="gallery-compact-list">
+          {!matches.length && <StateView role="status" className="gallery-empty">No matching widgets found.</StateView>}
+          {matches.map(manifest => {
+            const isAdded = added(manifest.id)
+            const system = SYSTEM_WIDGETS.includes(manifest.id)
+            return (
+              <div className="gallery-compact-row" key={manifest.id}>
+                <span className="gallery-compact-icon"><Icon name={iconOf(manifest)} size={14} /></span>
+                <span className="gallery-compact-copy">
+                  <strong>{manifest.title}</strong>
+                  <small>{sourceOf(manifest)} · {cadenceOf(manifest)}</small>
+                </span>
+                <button
+                  type="button"
+                  disabled={!system && isAdded}
+                  onClick={() => system ? openWidget(manifest.id) : isAdded ? toggleWidget(manifest.id) : handleAdd(manifest, defaultSize(manifest))}
+                >
+                  {system ? 'Open' : isAdded ? 'Added' : 'Add'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className={`gallery-container${compact ? ' is-compact' : ''}`}>
-      {/* Search Header */}
-      <div className="gallery-header-row">
-        <label className="gallery-search" htmlFor="gallery-search-input">
-          <span className="gallery-search-title">Search widgets</span>
-          <div className="gallery-search-field">
-            <Icon name="search" size={17} className="gallery-search-icon" />
-            <input
-              id="gallery-search-input"
-              type="search"
-              aria-label="Search widgets"
-              className="gallery-search-input"
-              placeholder="Search widgets by name, group, or source…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              autoComplete="off"
-            />
-            {search && (
-              <button
-                type="button"
-                className="gallery-search-clear-btn"
-                onClick={() => setSearch('')}
-                aria-label="Clear search"
-              >
-                <Icon name="x" size={14} />
-              </button>
-            )}
-          </div>
-        </label>
-      </div>
-
-      {!compact && (
-        <nav className="gallery-category-bar" aria-label="Widget Categories">
-          {CATEGORIES.map(([catId, catLabel, catIcon]) => {
-            const count = catId === 'all'
-              ? manifests.length
-              : manifests.filter(m => (['dashboard', 'system', 'student', 'life', 'proactive'].includes(m.group) ? 'system' : m.group) === catId).length
-            return (
-              <button
-                key={catId}
-                type="button"
-                className={`gallery-cat-pill${selectedCategory === catId ? ' is-active' : ''}`}
-                onClick={() => setSelectedCategory(catId)}
-                aria-pressed={selectedCategory === catId}
-              >
-                <Icon name={catIcon} size={15} />
-                <span className="gallery-cat-text">{catLabel}</span>
-                <span className="gallery-cat-count">{count}</span>
-              </button>
-            )
-          })}
+    <div className="gallery-studio">
+      <aside className="studio-rail" aria-label="Widget categories">
+        <SearchField value={search} onChange={setSearch} />
+        <nav className="studio-categories">
+          {CATEGORIES.map(([id, label, icon]) => (
+            <button
+              key={id}
+              type="button"
+              className={`studio-category${selectedCategory === id ? ' is-active' : ''}`}
+              onClick={() => setSelectedCategory(id)}
+              aria-pressed={selectedCategory === id}
+            >
+              <Icon name={icon} size={14} />
+              <span>{label}</span>
+              <span className="studio-category-count">{counts[id]}</span>
+            </button>
+          ))}
         </nav>
-      )}
+        <p className="studio-rail-count">{matches.length} of {manifests.length} widgets</p>
+      </aside>
 
-      {/* Catalog Grid / Categorized List */}
-      <div className="gallery-catalog-section">
-        {!matches.length && <StateView role="status" className="gallery-empty">No matching widgets found.</StateView>}
-
-        {CATEGORIES.filter(([cat]) => selectedCategory === 'all' || selectedCategory === cat).map(([category, catTitle]) => {
-          if (category === 'all') return null
-          const rows = matches.filter(m => (['dashboard', 'system', 'student', 'life', 'proactive'].includes(m.group) ? 'system' : m.group) === category)
-          if (!rows.length) return null
-
-          return (
-            <section key={category} className="gallery-category-group" aria-label={catTitle}>
-              <h3 className="home-section-label">{catTitle}</h3>
-              <div className="gallery-items-grid">
-                {rows.map(m => {
-                  const system = SYSTEM_WIDGETS.includes(m.id)
-                  const isAdded = (layout?.widgets || []).some(w => w.id === m.id)
-                  const source = (Array.isArray(m.source) ? m.source : [m.source]).map(s => s.toolkit || s.type).join(', ')
-                  const effectiveSize = widgetSizes[m.id] || (m.sizes.includes('m') ? 'm' : m.sizes[0] || 's')
-                  const isPreviewOpen = previewId === m.id
-                  const catColor = CATEGORY_COLORS[category] || 'var(--accent)'
-
+      <section className="studio-browser" aria-label="Widgets">
+        <header className="studio-browser-head">
+          <strong>{CATEGORIES.find(([id]) => id === selectedCategory)?.[1]}</strong>
+          <span>{matches.length}</span>
+        </header>
+        <div className="studio-browser-list">
+          {!matches.length && <StateView role="status" className="gallery-empty">No matching widgets found.</StateView>}
+          {CATEGORIES.filter(([id]) => id !== 'all' && (selectedCategory === 'all' || selectedCategory === id)).map(([category, title]) => {
+            const rows = matches.filter(manifest => groupOf(manifest) === category)
+            if (!rows.length) return null
+            return (
+              <section className="studio-group" key={category} aria-label={title}>
+                <h3 className="studio-group-title">{title}</h3>
+                {rows.map(manifest => {
+                  const isAdded = added(manifest.id)
                   return (
-                    <article
-                      key={m.id}
-                      className={`gallery-item-card${isAdded ? ' is-added-card' : ''}`}
-                      data-widget={m.id}
+                    <button
+                      key={manifest.id}
+                      type="button"
+                      className={`studio-item${active?.id === manifest.id ? ' is-active' : ''}`}
+                      onClick={() => setSelectedId(manifest.id)}
+                      aria-pressed={active?.id === manifest.id}
                     >
-                      <div className="gallery-card-main-row">
-                        <div className="gallery-card-identity">
-                          <span className="gallery-card-icon" style={{ '--icon-cat-color': catColor }}>
-                            <Icon name={ICONS[m.id] || ICONS[m.id.split('.')[0]] || 'grid'} size={18} />
-                          </span>
-                          <div className="gallery-card-heading">
-                            <div className="gallery-title-row">
-                              <strong className="gallery-card-title">{m.title}</strong>
-                              <WidgetChip className="bento-badge">{m.group}</WidgetChip>
-                            </div>
-                            <span className="gallery-card-sub">
-                              {source || 'local'} · {m.refresh?.mode === 'poll' ? `${m.refresh?.interval_s < 60 ? `${m.refresh.interval_s}s` : `${Math.round(m.refresh.interval_s / 60)}m`}` : `${m.refresh?.mode || 'manual'}`}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="gallery-card-controls">
-                          <div className="gallery-card-sizes" role="group" aria-label={`Size choices for ${m.title}`}>
-                            <span className="gallery-size-label">Size:</span>
-                            <div className="gallery-size-pills">
-                              {['s', 'm', 'l'].map(sizeKey => {
-                                const isSupported = m.sizes.includes(sizeKey)
-                                if (!isSupported) return null
-                                return (
-                                  <button
-                                    key={sizeKey}
-                                    type="button"
-                                    className={`gallery-size-pill${effectiveSize === sizeKey ? ' is-active' : ''}`}
-                                    onClick={() => setWidgetSizes(prev => ({ ...prev, [m.id]: sizeKey }))}
-                                    aria-label={`Size ${sizeKey.toUpperCase()} for ${m.title}`}
-                                  >
-                                    {sizeKey.toUpperCase()}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                            {!compact && (
-                              <button
-                                type="button"
-                                className="gallery-preview-toggle-btn"
-                                onClick={() => setPreviewId(isPreviewOpen ? null : m.id)}
-                                aria-label={`${isPreviewOpen ? 'Hide' : 'Preview'} ${m.title}`}
-                              >
-                                <Icon name={isPreviewOpen ? 'x' : 'sparkle'} size={13} />
-                                <span>{isPreviewOpen ? 'Close' : 'Preview'}</span>
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="gallery-card-action">
-                            <button
-                              type="button"
-                              disabled={!system && isAdded}
-                              className={`gallery-primary-add-btn${isAdded && !system ? ' is-added' : ' home-primary'}`}
-                              aria-label={`${system ? 'Open' : isAdded ? 'Added' : 'Add'} ${m.title}`}
-                              onClick={() => {
-                                if (system) {
-                                  openWidget(m.id)
-                                } else {
-                                  handleAddWidget(m.id, effectiveSize)
-                                }
-                              }}
-                            >
-                              <Icon name={isAdded && !system ? 'check-simple' : 'plus'} size={15} />
-                              <span>{system ? `Open ${m.title}` : isAdded ? `Added ${m.title}` : `Add ${m.title}`}</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {isPreviewOpen && (
-                        <div className="gallery-card-inline-preview" data-size={effectiveSize}>
-                          <WidgetFrame
-                            manifest={m}
-                            position={{ id: m.id, size: effectiveSize, height: effectiveSize === 's' ? 3 : effectiveSize === 'l' ? 4 : 3 }}
-                            tile={m.group === 'glance'}
-                            preview={true}
-                            onData={() => {}}
-                          />
-                        </div>
-                      )}
-                    </article>
+                      <span className="studio-item-icon"><Icon name={iconOf(manifest)} size={14} /></span>
+                      <span className="studio-item-copy">
+                        <strong>{manifest.title}</strong>
+                        <small>{sourceOf(manifest)} · {cadenceOf(manifest)}</small>
+                      </span>
+                      {isAdded && <span className="studio-item-added" title="On Home"><Icon name="check-simple" size={12} /></span>}
+                    </button>
                   )
                 })}
+              </section>
+            )
+          })}
+        </div>
+      </section>
+
+      <aside className="studio-preview" aria-label="Widget preview">
+        {active ? (
+          <>
+            <header className="studio-preview-head">
+              <div>
+                <span className="studio-kicker">{CATEGORIES.find(([id]) => id === groupOf(active))?.[1] || 'Widget'}</span>
+                <h3>{active.title}</h3>
+                <p>{sourceOf(active)} · {cadenceOf(active)}</p>
               </div>
-            </section>
-          )
-        })}
-      </div>
+              <WidgetChip className={`studio-state${activeAdded ? ' is-added' : ''}`}>{activeAdded ? 'On Home' : 'Available'}</WidgetChip>
+            </header>
+            <div className="studio-stage" data-size={activeSize}>
+              <WidgetFrame
+                manifest={active}
+                position={{ id: active.id, size: activeSize, height: activeSize === 's' ? 3 : activeSize === 'l' ? 4 : 3 }}
+                preview={true}
+                onData={() => {}}
+              />
+            </div>
+            <div className="studio-sizes" role="group" aria-label={`Size choices for ${active.title}`}>
+              <span>Size</span>
+              <div className="studio-size-pills">
+                {['s', 'm', 'l'].map(sizeKey => (
+                  <button
+                    key={sizeKey}
+                    type="button"
+                    className={`studio-size-pill${activeSize === sizeKey ? ' is-active' : ''}`}
+                    onClick={() => setWidgetSizes(previous => ({ ...previous, [active.id]: sizeKey }))}
+                    disabled={!active.sizes.includes(sizeKey)}
+                    aria-label={`Size ${sizeKey.toUpperCase()} for ${active.title}`}
+                  >
+                    {sizeKey.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <footer className="studio-preview-foot">
+              <span>{active.sizes.map(size => size.toUpperCase()).join(' · ')}</span>
+              <button
+                type="button"
+                className="studio-add"
+                disabled={!activeSystem && activeAdded}
+                aria-label={activeSystem ? `Open ${active.title}` : activeAdded ? `Added ${active.title}` : `Add ${active.title}`}
+                onClick={() => activeSystem ? openWidget(active.id) : handleAdd(active, activeSize)}
+              >
+                <Icon name={activeAdded && !activeSystem ? 'check-simple' : 'plus'} size={13} />
+                <span>{activeSystem ? 'Open settings' : activeAdded ? 'Added' : 'Add to Home'}</span>
+              </button>
+            </footer>
+          </>
+        ) : (
+          <div className="studio-preview-empty">
+            <Icon name="grid" size={24} />
+            <p>Select a widget to preview it.</p>
+          </div>
+        )}
+      </aside>
     </div>
   )
 }
