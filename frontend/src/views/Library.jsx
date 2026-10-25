@@ -68,9 +68,18 @@ export default function Library() {
   // Polling tracking refs
   const loadToken = useRef(0)
   const activeProcessingIds = useRef(new Set())
+  const loadAbortRef = useRef(null)
   const [processingTrigger, setProcessingTrigger] = useState(0)
 
   useViewEntrance(rootRef, [])
+
+  useEffect(() => {
+    return () => {
+      if (loadAbortRef.current) {
+        loadAbortRef.current.abort()
+      }
+    }
+  }, [])
 
   const handleLayoutChange = (nextLayout) => {
     setLayout(nextLayout)
@@ -88,6 +97,12 @@ export default function Library() {
   // Load items from backend
   const load = useCallback(async () => {
     const token = ++loadToken.current
+    if (loadAbortRef.current) {
+      loadAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    loadAbortRef.current = controller
+
     try {
       const data = await api.library({
         q: debouncedQuery,
@@ -95,15 +110,21 @@ export default function Library() {
         category: selectedCategories.join(','),
         tag: selectedTags.join(','),
         order,
+        signal: controller.signal,
       })
       if (loadToken.current !== token) return
 
       setItems((currentItems) => {
-        const optimistic = currentItems.filter((it) => it.isOptimistic)
+        const currentById = new Map(currentItems.map((it) => [it.id, it]))
         const incomingIds = new Set(data.items.map((it) => it.id))
-        const remainingOptimistic = optimistic.filter((it) => !incomingIds.has(it.id))
+        const remainingOptimistic = currentItems.filter((it) => it.isOptimistic && !incomingIds.has(it.id))
 
         let hasNewProcessing = false
+        let hasChanges = remainingOptimistic.length !== currentItems.filter((it) => it.isOptimistic).length
+        if (!hasChanges && currentItems.length !== (remainingOptimistic.length + data.items.length)) {
+          hasChanges = true
+        }
+
         const merged = data.items.map((it) => {
           const isProcessing =
             it.status === 'received' ||
@@ -117,11 +138,40 @@ export default function Library() {
           } else {
             activeProcessingIds.current.delete(it.id)
           }
+
+          const prev = currentById.get(it.id)
+          if (
+            prev &&
+            !prev.isOptimistic &&
+            Boolean(prev.isProcessing) === isProcessing &&
+            prev.status === it.status &&
+            prev.title === it.title &&
+            prev.summary === it.summary &&
+            prev.rating === it.rating &&
+            prev.thumbnail_path === it.thumbnail_path &&
+            prev.notes === it.notes &&
+            prev.url === it.url
+          ) {
+            return prev
+          }
+
+          hasChanges = true
           return isProcessing ? { ...it, isProcessing: true } : { ...it, isProcessing: false }
         })
 
         if (hasNewProcessing) {
           setProcessingTrigger((t) => t + 1)
+        }
+
+        if (!hasChanges && merged.length === currentItems.length) {
+          let allSame = true
+          for (let i = 0; i < merged.length; i++) {
+            if (merged[i] !== currentItems[i]) {
+              allSame = false
+              break
+            }
+          }
+          if (allSame) return currentItems
         }
 
         return [...remainingOptimistic, ...merged]
@@ -133,6 +183,7 @@ export default function Library() {
       setError(null)
       setLoaded(true)
     } catch (err) {
+      if (err.name === 'AbortError') return
       if (loadToken.current !== token) return
       setError(err.message)
       setLoaded(true)

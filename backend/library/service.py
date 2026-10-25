@@ -1952,7 +1952,7 @@ class LibraryService:
             if item is None or item["id"] in seen:
                 continue
             seen.add(item["id"])
-            out.append({**as_dict(item), "excerpt": _excerpt(hit.content), "score": hit.score})
+            out.append({**as_dict(item, include_content=False), "excerpt": _excerpt(hit.content), "score": hit.score})
             if len(out) >= limit:
                 break
         return out

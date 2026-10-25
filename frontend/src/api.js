@@ -221,6 +221,7 @@ async function j(url, opts) {
       ...opts,
     })
   } catch (err) {
+    if (err.name === 'AbortError') throw err
     // Only wake the backend if ping explicitly confirms it did not answer.
     verifyOrWake()
     const where = getApiOrigin() || API_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : '')
@@ -889,13 +890,13 @@ export const api = {
 
   // With `q`, a hybrid search over captured text; without it, the most recent
   // items. Both come back as items rather than passages.
-  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 300, offset = 0 } = {}) =>
+  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 300, offset = 0, signal } = {}) =>
     j(`/library?limit=${limit}&offset=${offset}`
       + (q ? `&q=${encodeURIComponent(q)}` : '')
       + (kind ? `&kind=${encodeURIComponent(kind)}` : '')
       + (category ? `&category=${encodeURIComponent(category)}` : '')
       + (tag ? `&tag=${encodeURIComponent(tag)}` : '')
-      + (order ? `&order=${encodeURIComponent(order)}` : '')),
+      + (order ? `&order=${encodeURIComponent(order)}` : ''), signal ? { signal } : undefined),
   libraryItem: (id) => j(`/library/${id}`),
   addLibraryItem: (body) => j('/library', json('POST', body)),
   updateLibraryItem: (id, patch) => j(`/library/${id}`, json('PATCH', patch)),

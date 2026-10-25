@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { memo, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import LibraryCard from './LibraryCard.jsx'
 import { groupItemsByDate } from './dateUtils.js'
@@ -70,7 +70,7 @@ export function getBentoItemConfig(item, index, totalInGroup) {
   }
 }
 
-export default function LibraryGrid({
+function LibraryGridComponent({
   items = [],
   busyId,
   onSelect,
@@ -140,3 +140,6 @@ export default function LibraryGrid({
     </div>
   )
 }
+
+export const LibraryGrid = memo(LibraryGridComponent)
+export default LibraryGrid

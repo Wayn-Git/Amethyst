@@ -616,6 +616,8 @@ function LibraryCardComponent({
                 className="lib-card-author-avatar"
                 src={authorAvatar}
                 alt=""
+                loading="lazy"
+                decoding="async"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none'
                 }}
@@ -625,6 +627,8 @@ function LibraryCardComponent({
                 className="lib-card-favicon"
                 src={favicon}
                 alt=""
+                loading="lazy"
+                decoding="async"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none'
                 }}
@@ -807,6 +811,8 @@ function LibraryCardComponent({
                         src={fav}
                         alt=""
                         className="lib-card-resource-fav"
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => { e.currentTarget.style.display = 'none' }}
                       />
                     ) : (

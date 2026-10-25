@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import gsap from 'gsap'
 import LibraryRow from './LibraryRow.jsx'
 import { groupItemsByDate } from './dateUtils.js'
 
-export default function LibraryListView({
+function LibraryListViewComponent({
   items,
   busyId,
   onSelect,
@@ -27,18 +27,22 @@ export default function LibraryListView({
     })
     if (!newRows.length) return
 
-    gsap.fromTo(
-      newRows,
-      { autoAlpha: 0, y: 10 },
-      {
-        autoAlpha: 1,
-        y: 0,
-        duration: 0.3,
-        stagger: { each: 0.02, from: 'start', max: 0.12 },
-        ease: 'power2.out',
-        clearProps: 'transform,visibility,opacity',
-      }
-    )
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        newRows,
+        { autoAlpha: 0, y: 10 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.3,
+          stagger: { each: 0.02, from: 'start', max: 0.12 },
+          ease: 'power2.out',
+          clearProps: 'transform,visibility,opacity',
+        }
+      )
+    }, containerRef)
+
+    return () => ctx.revert()
   }, [items])
 
   return (
@@ -71,3 +75,6 @@ export default function LibraryListView({
     </div>
   )
 }
+
+export const LibraryListView = memo(LibraryListViewComponent)
+export default LibraryListView
